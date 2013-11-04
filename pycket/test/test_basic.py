@@ -1,10 +1,15 @@
 from pycket.expand import expand
 from pycket.interpreter import *
+from pycket.values import *
 
 def run_fix(p,v):
     val = interpret(to_ast(expand(p)))
     assert isinstance(val, W_Fixnum)
     assert val.value == v
+
+def run(p,v):
+    val = interpret(to_ast(expand(p)))
+    assert val == v
 
 
 def test_constant():
@@ -62,6 +67,27 @@ def test_fac_letrec():
 def test_fib_letrec():
     run_fix("(letrec ([fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))]) (fib 2))", 2)
     run_fix("(letrec ([fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))]) (fib 3))", 3)
+
+def test_void():
+    run ("(void)", w_void)
+    run ("(void 1)", w_void)
+    run ("(void 2 3 #true)", w_void)
+
+def test_cons():
+    run_fix ("(car (cons 1 2))", 1)
+    run_fix ("(cdr (cons 1 2))", 2)
+
+def test_set_car():
+    run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
+    run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
+
+def test_bools():
+    run ("#t", w_true)
+    run ("#true", w_true)
+    run ("#T", w_true)
+    run ("#f", w_false)
+    run ("#false", w_false)
+    run ("#F", w_false)
 
 # def test_fib():
 #     Y = """

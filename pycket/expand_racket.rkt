@@ -1,7 +1,10 @@
 #lang racket
 
 (require json)
-(current-namespace (make-base-namespace))
+(define-namespace-anchor ns)
+(define set-car! #f)
+(define set-cdr! #f)
+(current-namespace (namespace-anchor->namespace ns))
 (define form (read-syntax))
 
 (define (to-json v)

@@ -88,6 +88,15 @@ def make_begin(exprs, env, prev):
     else:
         return exprs[0], env, Begin(exprs[1:], env, prev)
 
+class SetBangCont(Cont):
+    def __init__(self, var, env, prev):
+        self.var = var
+        self.env = env
+        self.prev = prev
+    def plug(self, w_val):
+        self.env.set(self.var, w_val)
+        return Value(w_void), self.env, prev
+
 class Begin(Cont):
     def __init__(self, rest, env, prev):
         assert rest
@@ -139,6 +148,15 @@ class Var (AST):
     def __repr__(self):
         return "%s"%self.sym.value
 
+class SetBang (AST):
+    def __init__(self, var, rhs):
+        self.var = var
+        self.rhs = rhs
+    def interpret (self, env, frame):
+        return self.rhs, env, SetBangCont(self.var, env, frame)
+    def __repr__(self):
+        return "(set! %r %r)"%(self.var, self.rhs)
+
 class Lambda (AST):
     def __init__ (self, formals, body):
         self.formals = formals
@@ -159,8 +177,6 @@ class Letrec(AST):
         return self.rhss[0], env_new, LetrecCont(self.vars, [], self.rhss[1:], self.body, env_new, frame)
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
-        
-
 
 
 class If (AST):
@@ -196,11 +212,9 @@ def to_ast(json):
         if json[0] == {"symbol": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
             return Letrec(vars, rhss, [to_ast(x) for x in json[2:]])
+        if json[0] == {"symbol": "set!"}:
+            return SetBang(W_Symbol.make(json[1]["symbol"]), to_ast(json[2]))
         assert 0
-    if json is False:
-        return w_false
-    if json is True:
-        return w_true
     if isinstance(json, dict):
         if "symbol" in json:
             return Var(W_Symbol.make(json["symbol"]))
@@ -208,6 +222,10 @@ def to_ast(json):
     assert 0
 
 def to_value(json):
+    if json is False:
+        return w_false
+    if json is True:
+        return w_true
     if isinstance (json, dict):
         if "integer" in json:
             return W_Fixnum(int(json["integer"]))

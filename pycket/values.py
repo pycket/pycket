@@ -11,6 +11,11 @@ class W_Fixnum(W_Object):
     def __init__(self, val):
         self.value = val
 
+class W_Void (W_Object):
+    def __init__(self): pass
+
+w_void = W_Void()
+
 class W_Bool(W_Object):
     @staticmethod
     def make(b):
