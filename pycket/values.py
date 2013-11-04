@@ -11,6 +11,17 @@ class W_Fixnum(W_Object):
     def __init__(self, val):
         self.value = val
 
+class W_Bool(W_Object):
+    @staticmethod
+    def make(b):
+        if b: return w_true
+        else: return w_false
+    def __init__(self, val):
+        self.value = val
+
+w_false = W_Bool(False)
+w_true = W_Bool(True)
+
 class W_String(W_Object):
     def __init__(self, val):
         self.value = val

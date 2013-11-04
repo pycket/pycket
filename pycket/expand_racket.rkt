@@ -12,6 +12,7 @@
     [(? vector? v) (hash 'vector (map to-json (vector->list v)))]
     [(? exact-integer? v) (hash 'integer (~a v))]
     [`(#%top . ,x) (hash 'var (symbol->string x))]
+    [(? boolean?) v]
     [(? real? v) (hash 'real v)]))
 
 (write-json (to-json (syntax->datum (expand form))))

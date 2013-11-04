@@ -1,4 +1,4 @@
-from pycket.values import W_Fixnum, W_Closure, W_Symbol
+from pycket.values import W_Fixnum, W_Closure, W_Symbol, w_true, w_false
 from pycket.prims  import prim_env
 
 class Env:
@@ -27,6 +27,18 @@ class ConsEnv(Env):
 
 class Cont:
     pass
+
+class IfCont(Cont):
+    def __init__(self, thn, els, env, prev):
+        self.thn = thn
+        self.els = els
+        self.env = env
+        self.prev = prev
+    def plug(self, w_val):
+        if w_val is w_false:
+            return self.els, env, prev
+        else:
+            return self.thn, env, prev
 
 class Call(Cont):
     # prev is the parent continuation
@@ -105,6 +117,8 @@ class If (AST):
         self.tst = tst
         self.thn = thn
         self.els = els
+    def interpret(self, env, frame):
+        return self.tst, env, IfCont(self.thn, self.els, env, frame)
 
 def to_formals (json):
     return [W_Symbol.make(x["symbol"]) for x in json]
@@ -120,6 +134,10 @@ def to_ast(json):
         if json[0] == {"symbol": "lambda"}:
             return Lambda(to_formals(json[1]), [to_ast(x) for x in json[2:]])
         assert 0
+    if json is False:
+        return w_false
+    if json is True:
+        return w_true
     if isinstance(json, dict):
         if "symbol" in json:
             return Var(W_Symbol.make(json["symbol"]))
