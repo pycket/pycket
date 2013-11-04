@@ -43,9 +43,9 @@ class IfCont(Cont):
         self.prev = prev
     def plug(self, w_val):
         if w_val is w_false:
-            return self.els, env, prev
+            return self.els, self.env, self.prev
         else:
-            return self.thn, env, prev
+            return self.thn, self.env, self.prev
 
 class LetrecCont(Cont):
     def __init__(self, vars, vals_w, rest, body, env, prev):
