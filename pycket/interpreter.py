@@ -1,4 +1,4 @@
-from pycket.values import W_Fixnum, W_Closure
+from pycket.values import W_Fixnum, W_Closure, W_Symbol
 from pycket.prims  import prim_env
 
 class Env:
@@ -22,7 +22,7 @@ class ConsEnv(Env):
         for i, s in enumerate(self.syms):
             if s is sym:
                 return self.vals[i]
-        return prev.lookup(sym)
+        return self.prev.lookup(sym)
     
 
 class Cont:
@@ -98,7 +98,6 @@ class Lambda (AST):
         self.formals = formals
         self.body = body
     def interpret (self, env, frame):
-        assert not self.formals
         return Value(W_Closure (self, env)), env, frame
 
 class If (AST):
@@ -108,7 +107,7 @@ class If (AST):
         self.els = els
 
 def to_formals (json):
-    return [x["symbol"] for x in json]
+    return [W_Symbol.make(x["symbol"]) for x in json]
 
 def to_ast(json):
     if isinstance(json, list):
@@ -123,7 +122,7 @@ def to_ast(json):
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
-            return Var(json["symbol"])
+            return Var(W_Symbol.make(json["symbol"]))
         assert 0
     assert 0
 

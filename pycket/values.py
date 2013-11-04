@@ -16,6 +16,15 @@ class W_String(W_Object):
         self.value = val
 
 class W_Symbol(W_Object):
+    all_symbols = {}
+    @staticmethod
+    def make(string):
+        if string in W_Symbol.all_symbols:
+            return W_Symbol.all_symbols[string]
+        else:
+            W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
+            return w_result
+
     def __init__(self, val):
         self.value = val
 
@@ -33,8 +42,7 @@ class W_Closure (W_Object):
         self.lam = lam
         self.env = env
     def call(self, args, env, frame):
-        from pycket.interpreter import make_begin
-        assert not args
-        return make_begin(self.lam.body, self.env, frame)
+        from pycket.interpreter import make_begin, ConsEnv        
+        return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
 
         

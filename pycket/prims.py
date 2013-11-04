@@ -8,4 +8,4 @@ def do_plus(args):
 
 prim_env = {}
 
-prim_env["+"] = values.W_Prim ("+", do_plus)
+prim_env[values.W_Symbol.make("+")] = values.W_Prim ("+", do_plus)

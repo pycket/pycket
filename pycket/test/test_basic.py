@@ -25,3 +25,10 @@ def test_thunk2():
     val = interpret(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 2
+
+
+def test_call():
+    prog = "((lambda (x) (+ x 1)) 2)"
+    val = interpret(to_ast(expand(prog)))
+    assert isinstance(val, W_Fixnum)
+    assert val.value == 3
