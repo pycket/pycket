@@ -28,3 +28,13 @@ class W_Prim (W_Object):
     def call(self, args, frame):
         from pycket.interpreter import Value
         return Value(self.code(args)), frame
+
+class W_Closure (W_Object):
+    def __init__ (self, lam, env):
+        self.lam = lam
+        self.env = env
+    def call(self, args, frame):
+        from pycket.interpreter import make_begin
+        assert not args
+        return make_begin(self.lam.body, frame)
+        

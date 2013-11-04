@@ -13,3 +13,15 @@ def test_plus():
     val = interpret(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 5
+
+def test_thunk():
+    prog = "((lambda () 1))"
+    val = interpret(to_ast(expand(prog)))
+    assert isinstance(val, W_Fixnum)
+    assert val.value == 1
+
+def test_thunk2():
+    prog = "((lambda () 1 2))"
+    val = interpret(to_ast(expand(prog)))
+    assert isinstance(val, W_Fixnum)
+    assert val.value == 2

@@ -1,4 +1,4 @@
-from pycket.values import W_Fixnum
+from pycket.values import W_Fixnum, W_Closure
 from pycket.prims  import prim_env
 
 class Cont:
@@ -16,6 +16,21 @@ class Call(Cont):
             return vals_w[0].call(vals_w[1:], self.prev)
         else:
             return self.rest[0], Call(self.vals_w + [w_val], self.rest[1:], self.prev)
+
+def make_begin(exprs, prev):
+    assert exprs
+    if len(exprs) == 1:
+        return exprs[0], prev
+    else:
+        return exprs[0], Begin(exprs[1:], prev)
+
+class Begin(Cont):
+    def __init__(self, rest, prev):
+        assert rest
+        self.rest = rest
+        self.prev = prev
+    def plug(self, w_val):
+        return make_begin(self.rest, self.prev)
         
 class Done(Exception):
     def __init__(self, w_val):
@@ -54,11 +69,22 @@ class Var (AST):
         else:
             raise Exception ("unbound variable")
 
+class Lambda (AST):
+    def __init__ (self, formals, body):
+        self.formals = formals
+        self.body = body
+    def interpret (self, frame):
+        assert not self.formals
+        return Value(W_Closure (self, None)), frame
+
 class If (AST):
     def __init__ (self, tst, thn, els):
         self.tst = tst
         self.thn = thn
         self.els = els
+
+def to_formals (json):
+    return [x["symbol"] for x in json]
 
 def to_ast(json):
     if isinstance(json, list):
@@ -68,6 +94,8 @@ def to_ast(json):
             return If(to_ast(json[1]), to_ast(json[2]),  to_ast(json[3]))
         if json[0] == {"symbol": "quote"}:
             return Quote(to_value(json[1]))
+        if json[0] == {"symbol": "lambda"}:
+            return Lambda(to_formals(json[1]), [to_ast(x) for x in json[2:]])
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
