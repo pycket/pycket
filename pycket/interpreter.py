@@ -1,36 +1,63 @@
 from pycket.values import W_Fixnum, W_Closure
 from pycket.prims  import prim_env
 
+class Env:
+    pass
+
+class EmptyEnv(Env):
+    def __init__ (self):
+        pass
+    def lookup(self, sym):
+        if sym in prim_env:
+            return prim_env[sym]
+        else:
+            raise Exception ("unbound variable")
+        
+class ConsEnv(Env):
+    def __init__ (self, syms, vals, prev):
+        self.syms = syms
+        self.vals = vals
+        self.prev = prev
+    def lookup(self, sym):
+        for i, s in enumerate(self.syms):
+            if s is sym:
+                return self.vals[i]
+        return prev.lookup(sym)
+    
+
 class Cont:
     pass
 
 class Call(Cont):
     # prev is the parent continuation
-    def __init__ (self, vals_w, rest, prev):
+    def __init__ (self, vals_w, rest, env, prev):
         self.vals_w = vals_w
         self.rest = rest
+        self.env = env
         self.prev = prev
     def plug(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
-            return vals_w[0].call(vals_w[1:], self.prev)
+            return vals_w[0].call(vals_w[1:], self.env, self.prev)
         else:
-            return self.rest[0], Call(self.vals_w + [w_val], self.rest[1:], self.prev)
+            return self.rest[0], self.env, Call(self.vals_w + [w_val], self.rest[1:], 
+                                                self.env, self.prev)
 
-def make_begin(exprs, prev):
+def make_begin(exprs, env, prev):
     assert exprs
     if len(exprs) == 1:
-        return exprs[0], prev
+        return exprs[0], env, prev
     else:
-        return exprs[0], Begin(exprs[1:], prev)
+        return exprs[0], env, Begin(exprs[1:], env, prev)
 
 class Begin(Cont):
-    def __init__(self, rest, prev):
+    def __init__(self, rest, env, prev):
         assert rest
         self.rest = rest
+        self.env = env
         self.prev = prev
     def plug(self, w_val):
-        return make_begin(self.rest, self.prev)
+        return make_begin(self.rest, self.env, self.prev)
         
 class Done(Exception):
     def __init__(self, w_val):
@@ -42,7 +69,7 @@ class AST:
 class Value (AST):
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret (self, frame):
+    def interpret (self, env, frame):
         if frame is None: raise Done(self.w_val)
         return frame.plug(self.w_val)
 
@@ -50,32 +77,29 @@ class Value (AST):
 class Quote (AST):
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret (self, frame):
-        return Value(self.w_val), frame
+    def interpret (self, env, frame):
+        return Value(self.w_val), env, frame
 
 class App (AST):
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
-    def interpret (self, frame):
-        return self.rator, Call([], self.rands, frame)
+    def interpret (self, env, frame):
+        return self.rator, env, Call([], self.rands, env, frame)
 
 class Var (AST):
-    def __init__ (self, name):
-        self.name = name
-    def interpret(self, frame):
-        if self.name in prim_env:
-            return Value(prim_env[self.name]), frame
-        else:
-            raise Exception ("unbound variable")
+    def __init__ (self, sym):
+        self.sym = sym
+    def interpret(self, env, frame):
+        return Value(env.lookup(self.sym)), env, frame
 
 class Lambda (AST):
     def __init__ (self, formals, body):
         self.formals = formals
         self.body = body
-    def interpret (self, frame):
+    def interpret (self, env, frame):
         assert not self.formals
-        return Value(W_Closure (self, None)), frame
+        return Value(W_Closure (self, env)), env, frame
 
 class If (AST):
     def __init__ (self, tst, thn, els):
@@ -111,9 +135,10 @@ def to_value(json):
 
 def interpret(ast):
     frame = None
+    env = EmptyEnv()
     #import pdb; pdb.set_trace()
     try:
         while True:
-            ast, frame = ast.interpret(frame)
+            ast, env, frame = ast.interpret(env, frame)
     except Done, e:
         return e.w_val
