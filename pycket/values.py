@@ -35,7 +35,8 @@ class W_Symbol(W_Object):
         else:
             W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
             return w_result
-
+    def __repr__(self):
+        return self.value
     def __init__(self, val):
         self.value = val
 
@@ -54,6 +55,8 @@ class W_Closure (W_Object):
         self.env = env
     def call(self, args, env, frame):
         from pycket.interpreter import make_begin, ConsEnv        
+        if len (self.lam.formals) != len(args):
+            raise Exception("wrong number of arguments, expected %s but got %s"%(len (self.lam.formals), len(args)))
         return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
 
         

@@ -22,6 +22,8 @@ for args in [
         ("-", operator.sub, values.W_Fixnum),
         ("*", operator.mul, values.W_Fixnum),
         ("=", operator.eq,  values.W_Bool.make),
+        ("<", operator.lt,  values.W_Bool.make),
+        (">", operator.gt,  values.W_Bool.make),
         ]:
     make_arith(*args)
 
