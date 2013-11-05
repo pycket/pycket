@@ -2,7 +2,8 @@ from pycket        import values
 from pycket.prims  import prim_env
 from rpython.rlib  import jit
 
-class Env:
+class Env(object):
+    _immutable_env_ = ["toplevel_env"]
     pass
 
 class ToplevelEnv(object):
@@ -17,14 +18,14 @@ class ToplevelEnv(object):
             self.bindings[sym] = values.W_Cell(w_val)
 
 class EmptyEnv(Env):
-    _immutable_fields_ = ["toplevel_env"]
     def __init__ (self, toplevel):
         self.toplevel_env = toplevel
     def lookup(self, sym):
         raise Exception ("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["syms[*]", "vals[*]", "prev", "toplevel_env"]
+    _immutable_fields_ = ["syms[*]", "vals[*]", "prev"]
+    @jit.unroll_safe
     def __init__ (self, syms, vals, prev, toplevel):
         self.toplevel_env = toplevel
         for i in syms:
@@ -259,6 +260,10 @@ class LexicalVar(Var):
 
 class ModuleVar(Var):
     def _lookup(self, env):
+        return self._prim_lookup()
+
+    @jit.elidable
+    def _prim_lookup(self):
         return prim_env[self.sym]
     def assign_convert(self, vars):
         return self

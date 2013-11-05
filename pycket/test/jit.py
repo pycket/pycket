@@ -13,7 +13,7 @@ conftest.option = o
 from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
-from pycket.expand import expand
+from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 
