@@ -1,3 +1,4 @@
+import pytest
 from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
@@ -89,28 +90,28 @@ def test_bools():
     run ("#false", w_false)
     run ("#F", w_false)
 
-# def test_fib():
-#     Y = """
-#   (lambda (f)
-#     ((lambda (x) (x x))
-#      (lambda (g)
-#        (f (lambda (z) ((g g) z)))))))
-# """
-#     fac = """
-#     (lambda (f)
-#       (lambda (x)
-#         (if (< x 2)
-#             1
-#             (* x (f (- x 1))))))
-#  """
+def test_fib():
+    Y = """
+  (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (g)
+       (f (lambda (z) ((g g) z))))))
+"""
+    fac = """
+    (lambda (f)
+      (lambda (x)
+        (if (< x 2)
+            1
+            (* x (f (- x 1))))))
+ """
 
-#     fib = """
-#     (lambda (f)
-#       (lambda (x)
-#         (if (< x 2)
-#             x
-#             (+ (f (- x 1)) (f (- x 2))))))
-# """
-#     run_fix("((%s %s) 2)"%(Y,fib), 1)
-#     run_fix("((%s %s) 2)"%(Y,fac), 2)
+    fib = """
+    (lambda (f)
+      (lambda (x)
+        (if (< x 2)
+            x
+            (+ (f (- x 1)) (f (- x 2))))))
+"""
+    run_fix("((%s %s) 2)"%(Y,fib), 1)
+    run_fix("((%s %s) 2)"%(Y,fac), 2)
 
