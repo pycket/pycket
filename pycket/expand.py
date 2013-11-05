@@ -9,5 +9,7 @@ def expand(s):
         "racket %s" % (fn, ),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     (data, err) = process.communicate(s)
+    if err:
+        raise Exception("Racket produced an error")
     return json.loads(data)
     

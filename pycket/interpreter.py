@@ -31,8 +31,6 @@ class ConsEnv(Env):
                 self.vals[i] = val
                 return
         return self.prev.set(sym, val)
-        
-    
 
 class Cont:
     pass
@@ -50,22 +48,19 @@ class IfCont(Cont):
             return self.thn, self.env, self.prev
 
 class LetrecCont(Cont):
-    def __init__(self, vars, vals_w, rest, body, env, prev):
+    def __init__(self, vars, rest, body, env, prev):
         self.vars  = vars
-        self.vals_w  = vals_w
         self.rest = rest
         self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
+        self.env.set(self.vars[- (len (self.rest) + 1)], w_val)
         if not self.rest:
-            vals_w = self.vals_w + [w_val]
-            for i, w_val in enumerate(vals_w):
-                self.env.set(self.vars[i], w_val)
             return make_begin(self.body, self.env, self.prev)
         else:
             return (self.rest[0], self.env, 
-                    LetrecCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
+                    LetrecCont(self.vars, self.rest[1:], 
                                self.body, self.env, self.prev))
 
 class LetCont(Cont):
@@ -83,8 +78,8 @@ class LetCont(Cont):
             return make_begin(self.body, env, self.prev)
         else:
             return (self.rest[0], self.env, 
-                    LetrecCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
-                               self.body, self.env, self.prev))
+                    LetCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
+                            self.body, self.env, self.prev))
 
 class Call(Cont):
     # prev is the parent continuation
@@ -207,7 +202,7 @@ class Letrec(AST):
         self.body = body
     def interpret (self, env, frame):
         env_new = ConsEnv(self.vars, [None]*len(self.vars), env)
-        return self.rhss[0], env_new, LetrecCont(self.vars, [], self.rhss[1:], self.body, env_new, frame)
+        return self.rhss[0], env_new, LetrecCont(self.vars, self.rhss[1:], self.body, env_new, frame)
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
 

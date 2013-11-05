@@ -21,6 +21,14 @@ def test_constant():
     assert val.value == 1
 
 
+def test_read_err ():
+    with pytest.raises(Exception):
+        expand ("(")
+    with pytest.raises(Exception):
+        expand ("1 2")
+    with pytest.raises(Exception):
+        expand ("(1 2) 3")
+
 def test_plus():
     prog = "(+ 2 3)"
     val = interpret(to_ast(expand(prog)))
@@ -62,6 +70,13 @@ def test_letrec():
     run_fix("(letrec ([x 1]) x)", 1)
     run_fix("(letrec ([x 1] [y 2]) y)", 2)
     run_fix("(letrec ([x 1] [y 2]) (+ x y))", 3)
+    run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
+
+def test_let():
+    run_fix("(let ([x 1]) x)", 1)
+    run_fix("(let ([x 1] [y 2]) y)", 2)
+    run_fix("(let ([x 1] [y 2]) (+ x y))", 3)
+    run_fix("(let ([x 0]) (let ([x 1] [y x]) (+ x y)))", 1)
 
 def test_fac_letrec():
     run_fix("(letrec ([fac (lambda (n) (if (= n 0) 1 (* n (fac (- n 1)))))]) (fac 5))", 120)

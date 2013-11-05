@@ -7,6 +7,11 @@
 (current-namespace (namespace-anchor->namespace ns))
 (define form (read-syntax))
 
+(define r (read))
+
+(unless (eof-object? r)
+  (error 'expand_racket "too many things on the input"))
+
 (define (to-json v)
   (define (proper l)
     (match l
