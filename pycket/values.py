@@ -1,5 +1,5 @@
 class W_Object:
-    def call(self, args):
+    def call(self, args, env, frame):
         raise Exception ("not callable")
 
 class W_Cons(W_Object):
