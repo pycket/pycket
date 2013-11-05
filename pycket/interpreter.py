@@ -139,6 +139,13 @@ class App (AST):
     def __repr__(self):
         return "(%r %r)"%(self.rator, self.rands)
 
+class Begin(AST):
+    def __init__(self, exprs):
+        self.exprs = exprs
+    def interpret(self, env, frame):
+        return make_begin(self.exprs, env, frame)
+    def __repr__(self):
+        return "(begin %r")%self.exprs
 
 class Var (AST):
     def __init__ (self, sym):
@@ -201,6 +208,8 @@ def to_bindings(json):
 
 def to_ast(json):
     if isinstance(json, list):
+        if json[0] == {"symbol": "begin"}:
+            return Begin([to_ast(x) for x in json])
         if json[0] == {"symbol": "#%app"}:
             return App(to_ast(json[1]), [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "if"}:
