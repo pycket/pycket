@@ -27,7 +27,9 @@ class ConsEnv(Env):
     def lookup(self, sym):
         for i, s in enumerate(self.syms):
             if s is sym:
-                return self.vals[i]
+                v = self.vals[i]
+                assert v is not None
+                return v
         return self.prev.lookup(sym)
     def set(self, sym, val):
         for i, s in enumerate(self.syms):
@@ -85,6 +87,13 @@ class LetCont(Cont):
                     LetCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
                             self.body, self.env, self.prev))
 
+class CellCont(Cont):
+    def __init__(self, env, prev):
+        self.env = env
+        self.prev = prev
+    def plug_reduce(self, w_val):
+        return values.W_Cell(w_val), self.env, self.prev
+
 class Call(Cont):
     # prev is the parent continuation
     def __init__ (self, vals_w, rest, env, prev):
@@ -113,7 +122,8 @@ class SetBangCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        self.env.set(self.var, w_val)
+        cell = self.env.lookup(self.var)
+        cell.value = w_val
         return Value(values.w_void), self.env, self.prev
 
 class BeginCont(Cont):
@@ -132,14 +142,31 @@ class Done(Exception):
 class AST(object):
     pass
 
+
 class Value (AST):
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret (self, env, frame):
         if frame is None: raise Done(self.w_val)
         return frame.plug_reduce(self.w_val)
+    def assign_convert(self, vars):
+        return self
+    def mutated_vars(self):
+        return {}
     def __repr__(self):
         return "V(%r)"%self.w_val
+
+class Cell(AST):
+    def __init__(self, expr):
+        self.expr = expr
+    def interpret(self, env, frame):
+        return self.expr, env, CellCont(frame)
+    def assign_convert(self, vars):
+        return Cell(self.expr.assign_convert(vars))
+    def mutated_vars(self):
+        return self.expr.mutated_vars()
+    def __repr__(self):
+        return "Cell(%r)"%self.expr
 
 class Quote (AST):
     _immutable_fields_ = ["w_val"]
@@ -147,6 +174,10 @@ class Quote (AST):
         self.w_val = w_val
     def interpret (self, env, frame):
         return Value(self.w_val), env, frame
+    def assign_convert(self, vars):
+        return self
+    def mutated_vars(self):
+        return {}
     def __repr__(self):
         return "Quote(%r)"%self.w_val
 
@@ -155,6 +186,14 @@ class App (AST):
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
+    def assign_convert(self, vars):
+        return App(self.rator.assign_convert(vars),
+                   [e.assign_convert(vars) for e in self.rands])
+    def mutated_vars(self):
+        x = self.rator.mutated_vars()
+        for r in self.rands:
+            x.update(r.mutated_vars())
+        return x
     def interpret (self, env, frame):
         return self.rator, env, Call([], self.rands, env, frame)
     def __repr__(self):
@@ -164,10 +203,30 @@ class Begin(AST):
     _immutable_fields_ = ["exprs[*]"]
     def __init__(self, exprs):
         self.exprs = exprs
+    def assign_convert(self, vars):
+        return Begin(map(lambda e: e.assign_convert(vars), self.exprs))
+    def mutated_vars(self):
+        x = {}
+        for r in self.exprs:
+            x.update(r.mutated_vars())
+        return x
     def interpret(self, env, frame):
         return make_begin(self.exprs, env, frame)
     def __repr__(self):
         return "(begin %r)" % self.exprs
+
+class CellRef (AST):
+    _immutable_fields_ = ["sym"]
+    def __init__ (self, sym):
+        self.sym = sym
+    def interpret(self, env, frame):
+        return Value(env.lookup(self.sym).value), env, frame
+    def assign_convert(self, vars):
+        return self
+    def mutated_vars(self):
+        return {}
+    def __repr__(self):
+        return "%s"%self.sym.value
 
 class Var (AST):
     _immutable_fields_ = ["sym"]
@@ -175,6 +234,13 @@ class Var (AST):
         self.sym = sym
     def interpret(self, env, frame):
         return Value(env.lookup(self.sym)), env, frame
+    def assign_convert(self, vars):
+        if self.sym in vars:
+            return CellRef(self.sym)
+        else:
+            return self
+    def mutated_vars(self):
+        return {}
     def __repr__(self):
         return "%s"%self.sym.value
 
@@ -185,8 +251,35 @@ class SetBang (AST):
         self.rhs = rhs
     def interpret (self, env, frame):
         return self.rhs, env, SetBangCont(self.var, env, frame)
+    def assign_convert(self, vars):
+        return SetBang(self.var, self.rhs.assign_convert(vars))
+    def mutated_vars(self):
+        x = self.rhs.mutated_vars()
+        x[self.var] = None
+        return x
     def __repr__(self):
         return "(set! %r %r)"%(self.var, self.rhs)
+
+class If (AST):
+    _immutable_fields_ = ["tst", "thn", "els"]
+    def __init__ (self, tst, thn, els):
+        self.tst = tst
+        self.thn = thn
+        self.els = els
+    def interpret(self, env, frame):
+        return self.tst, env, IfCont(self.thn, self.els, env, frame)
+    def assign_convert(self, vars):
+        return If(self.tst.assign_convert(vars),
+                  self.thn.assign_convert(vars),
+                  self.els.assign_convert(vars))
+    def mutated_vars(self):
+        x = {}
+        for b in [self.tst, self.els, self.thn]:
+            x.update(b.mutated_vars())
+        return x
+    def __repr__(self):
+        return "(if %r %r %r)"%(self.tst, self.thn, self.els)
+
 
 class Lambda (AST):
     _immutable_fields_ = ["formals[*]", "rest", "body[*]"]
@@ -196,6 +289,35 @@ class Lambda (AST):
         self.body = body
     def interpret (self, env, frame):
         return Value(values.W_Closure (self, env)), env, frame
+    def assign_convert(self, vars):
+        local_muts = {}
+        for b in self.body:
+            local_muts.update(b.mutated_vars())
+        new_lets = []
+        new_vars = vars.copy()
+        for i in self.formals:
+            if i in vars:
+                del vars[i]
+            if i in local_muts:
+                new_lets.append(i)
+        if self.rest and self.rest in vars:
+            del vars[self.rest]
+        if self.rest and self.rest in local_muts:
+            new_lets.append(self.rest)
+        cells = [Cell(Var(v)) for v in new_lets]
+        new_vars.update(local_muts)
+        new_body = Let(new_lets, cells, body.assign_convert(new_vars))
+        return Lambda(self.formals, self.rest, new_body)
+    def mutated_vars(self):
+        x = {}
+        for b in self.body:
+            x.update(b.mutated_vars())
+        for v in self.formals:
+            if v in x:
+                del x[v]
+        if self.rest and self.rest in x:
+            del x[self.rest]
+        return x
     def __repr__(self):
         if self.rest and (not self.formals):
             return "(lambda %r %r)"%(self.rest, self.body)
@@ -214,6 +336,26 @@ class Letrec(AST):
     def interpret (self, env, frame):
         env_new = ConsEnv(self.vars, [None]*len(self.vars), env)
         return self.rhss[0], env_new, LetrecCont(self.vars, self.rhss[1:], self.body, env_new, frame)
+    def mutated_vars(self):
+        x = {}
+        for b in self.body + self.rhss:
+            x.update(b.mutated_vars())
+        for v in self.vars:
+            if v in x:
+                del x[v]
+        return x
+    def assign_convert(self, vars):
+        local_muts = {}
+        for b in self.body + self.rhss:
+            local_muts.update(b.mutated_vars())
+        new_vars = vars.copy()
+        new_vars.update(local_muts)
+        new_rhss = [Cell(rhs.assign_convert(new_vars)) 
+                    if vars[i] in local_muts
+                    else rhs.assign_convert(new_vars)
+                    for i, rhs in enumerate(self.rhss)]
+        new_body = [b.assign_convert(new_vars) for b in body]
+        return Letrec(self.vars, new_rhss, new_body)
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
 
@@ -225,20 +367,32 @@ class Let(AST):
         self.body = body
     def interpret (self, env, frame):
         return self.rhss[0], env, LetCont(self.vars, [], self.rhss[1:], self.body, env, frame)
+    def mutated_vars(self):
+        x = {}
+        for b in self.body:
+            x.update(b.mutated_vars())
+        for v in self.vars:
+            if v in x:
+                del x[v]
+        for b in self.rhss:
+            x.update(b.mutated_vars())
+        return x
+    def assign_convert(self, vars):
+        local_muts = {}
+        for b in self.body:
+            local_muts.update(b.mutated_vars())
+        new_rhss = [Cell(rhs.assign_convert(vars)) 
+                    if vars[i] in local_muts
+                    else rhs.assign_convert(vars)
+                    for i, rhs in enumerate(self.rhss)]
+        new_vars = vars.copy()
+        new_vars.update(local_muts)
+        new_body = [b.assign_convert(new_vars) for b in body]
+        return Let(self.vars, new_rhss, new_body)
     def __repr__(self):
         return "(let (%r) %r)"%(zip(self.vars, self.rhss), self.body)
 
 
-class If (AST):
-    _immutable_fields_ = ["tst", "thn", "els"]
-    def __init__ (self, tst, thn, els):
-        self.tst = tst
-        self.thn = thn
-        self.els = els
-    def interpret(self, env, frame):
-        return self.tst, env, IfCont(self.thn, self.els, env, frame)
-    def __repr__(self):
-        return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
 class Define(AST):
     def __init__(self, name, rhs):
@@ -263,38 +417,40 @@ def to_bindings(json):
         fmls, rest = to_formals(j[0])
         assert not rest
         assert len (fmls) == 1
-        return (fmls[0], to_ast(j[1])) # this is bad for multiple values
+        return (fmls[0], _to_ast(j[1])) # this is bad for multiple values
     l  = [to_binding(x) for x in json]
     return zip(*l)
 
-def to_ast(json):
+def _to_ast(json):
     if isinstance(json, list):
         if json[0] == {"symbol": "begin"}:
-            return Begin([to_ast(x) for x in json[1:]])
+            return Begin([_to_ast(x) for x in json[1:]])
+        if json[0] == {"symbol": "#%expression"}:
+            return _to_ast(json[1])
         if json[0] == {"symbol": "#%app"}:
-            return App(to_ast(json[1]), [to_ast(x) for x in json[2:]])
+            return App(_to_ast(json[1]), [_to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "if"}:
-            return If(to_ast(json[1]), to_ast(json[2]),  to_ast(json[3]))
+            return If(_to_ast(json[1]), _to_ast(json[2]),  _to_ast(json[3]))
         if json[0] == {"symbol": "quote"}:
             return Quote(to_value(json[1]))
         if json[0] == {"symbol": "lambda"}:
             fmls, rest = to_formals(json[1])
-            return Lambda(fmls, rest, [to_ast(x) for x in json[2:]])
+            return Lambda(fmls, rest, [_to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
-            return Letrec(list(vars), list(rhss), [to_ast(x) for x in json[2:]])
+            return Letrec(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "let-values"}:
             vars, rhss = to_bindings(json[1])
-            return Let(vars, rhss, [to_ast(x) for x in json[2:]])
+            return Let(vars, rhss, [_to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
-            return SetBang(values.W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
+            return SetBang(values.W_Symbol.make(str(json[1]["symbol"])), _to_ast(json[2]))
         if json[0] == {"symbol": "#%top"}:
-            return Var(values.W_Symbol.make(str(json[1]["symbol"])))
+            return CellRef(values.W_Symbol.make(str(json[1]["symbol"])))
         if json[0] == {"symbol": "define-values"}:
             fmls, rest = to_formals(json[1])
             assert not rest
             assert len(fmls) == 1
-            return Define(fmls[0],to_ast(json[2]))
+            return Define(fmls[0],_to_ast(json[2]))
         if json[0] == {"symbol": "quote-syntax"}:
             raise Exception ("quote-syntax is unsupported")
         if json[0] == {"symbol": "begin0"}:
@@ -311,6 +467,10 @@ def to_ast(json):
             return Var(values.W_Symbol.make(str(json["symbol"])))
         assert 0
     assert 0
+
+def to_ast(json):
+    ast = _to_ast(json)
+    return ast.assign_convert({})
 
 def to_value(json):
     if json is False:

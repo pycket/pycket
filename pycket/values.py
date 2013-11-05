@@ -1,9 +1,13 @@
 from rpython.tool.pairtype import extendabletype
 
-class W_Object:
+class W_Object(object):
     __metaclass__ = extendabletype
     def call(self, args, env, frame):
         raise Exception ("not callable")
+
+class W_Cell (W_Object): # not the same as Racket's box
+    def __init__(self, v):
+        self.value = v
 
 class W_Cons(W_Object):
     def __init__(self, a, d):
