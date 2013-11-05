@@ -1,9 +1,13 @@
 import json
 import subprocess
+import os
+
+fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
 def expand(s):
-    process = subprocess.Popen(["/home/samth/bin/racket", "../expand_racket.rkt"], 
-                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    process = subprocess.Popen(
+        "racket %s" % (fn, ),
+        shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     (data, err) = process.communicate(s)
     return json.loads(data)
     
