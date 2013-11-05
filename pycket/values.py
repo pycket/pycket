@@ -10,6 +10,17 @@ class W_Cons(W_Object):
         self.car = a
         self.cdr = d
 
+class W_Vector(W_Object):
+    def __init__(self, elems):
+        self.elems = elems
+    def ref(self, i):
+        assert 0 <= i < len(self.elems)
+        return self.elems[i]
+    def set(self, i, v): 
+        assert 0 <= i < len(self.elems)
+        self.elems[i] = v
+        return w_void
+
 class W_Number(W_Object):
     pass
 
@@ -65,7 +76,10 @@ class W_Symbol(W_Object):
     def __init__(self, val):
         self.value = val
 
-class W_SimplePrim (W_Object):
+class W_Procedure(W_Object):
+    pass
+
+class W_SimplePrim (W_Procedure):
     def __init__ (self, name, code):
         self.name = name
         self.code = code
@@ -74,7 +88,7 @@ class W_SimplePrim (W_Object):
         from pycket.interpreter import Value
         return Value(self.code(args)), env, frame
 
-class W_Prim (W_Object):
+class W_Prim (W_Procedure):
     def __init__ (self, name, code):
         self.name = name
         self.code = code
@@ -88,7 +102,7 @@ def to_list(l):
     else:
         return W_Cons(l[0], to_list(l[1:]))
 
-class W_Continuation (W_Object):
+class W_Continuation (W_Procedure):
     def __init__ (self, frame):
         self.frame = frame
     def call(self, args, env, frame):
@@ -96,7 +110,7 @@ class W_Continuation (W_Object):
         a, = args # FIXME: multiple values
         return Value(a), env, self.frame
 
-class W_Closure (W_Object):
+class W_Closure (W_Procedure):
     def __init__ (self, lam, env):
         self.lam = lam
         self.env = env

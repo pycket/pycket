@@ -33,6 +33,38 @@ for args in [
         ]:
     make_cmp(*args)
 
+
+def make_pred(name, cls):
+    @expose(name, simple=True)
+    def do(args):
+        a, = args
+        return values.W_Bool.make(isinstance(a, cls))
+
+def make_pred_eq(name, val):
+    @expose(name, simple=True)
+    def do(args):
+        a, = args
+        return values.W_Bool.make(a is val)
+
+
+for args in [
+        ("pair?", values.W_Cons),
+        ("number?", values.W_Number),
+        ("vector?", values.W_Vector),
+        ("string?", values.W_String),
+        ("symbol?", values.W_Symbol),
+        ("boolean?", values.W_Bool),
+        ("procedure?", values.W_Procedure),
+        ]:
+    make_pred(*args)
+
+for args in [
+        ("void?", values.w_void),
+        ("false?", values.w_false),
+        ("null?", values.w_null),
+        ]:
+    make_pred_eq(*args)
+
 def make_arith(name, methname):
     @expose(name, simple=True)
     def do(args):
@@ -51,17 +83,25 @@ val ("true", values.w_true)
 val ("false", values.w_false)
 
 def equal_loop (a,b):
-    if a is b: 
-        return values.w_true
+    if a is b:
+        return True
     if isinstance (a, values.W_Fixnum) and isinstance (b, values.W_Fixnum):
-        values.W_Bool.make(a.value == b.value)
+        return a.value == b.value
     if a is values.w_void:
-        return values.w_false
+        return False
     if a is values.w_null:
-        return values.w_false
+        return False
+    if isinstance(a, values.W_Symbol): 
+        return False
     if isinstance(a, values.W_Cons) and isinstance (b, values.W_Cons):
-        return values.W_Bool.make(equal_loop(a.car, b.car) and
-                                  equal_loop(a.cdr, b.cdr))
+        return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
+    if isinstance(a, values.W_Vector) and isinstance (b, values.W_Vector):
+        if len(a.elems) != len(b.elems): return False
+        for v, i in enumerate(a.elems):
+            if not equal_loop(v, b.elems[i]):
+                return False
+        return True
+    return False
 
 @expose("call/cc", simple=False)
 def callcc(args, env, frame):
@@ -72,7 +112,7 @@ def callcc(args, env, frame):
 def equalp(args):
     # this doesn't work for cycles
     a,b = args
-    equal_loop (a,b)
+    return values.W_Bool.make(equal_loop (a,b))
     
 
 
@@ -113,3 +153,48 @@ def do_cdr(args):
 
 @expose("void")
 def do_void(args): return values.w_void
+
+@expose("vector-ref")
+def vector_ref(args):
+    v, i = args
+    assert isinstance(i, values.W_Fixnum)
+    return v.ref(i.value)
+
+@expose("vector-set!")
+def vector_set(args):
+    v, i, new = args
+    assert isinstance(i, values.W_Fixnum)
+    return v.set(i.value, new)
+
+@expose("vector")
+def vector(args):
+    return values.W_Vector(args)
+
+@expose("make-vector")
+def make_vector(args):
+    n, val = args
+    assert isinstance(n, values.W_Fixnum)
+    assert n.value >= 0
+    return values.W_Vector([val] * n.value)
+
+@expose("vector-length")
+def vector_length(args):
+    v, = args
+    assert isinstance(v, values.W_Vector)
+    return values.W_Fixnum(len(v.elems))
+
+# my kingdom for a tail call
+def listp_loop(v):
+    while True:
+        if v is w_null: return True
+        if isinstance(v, W_Cons):
+            v = v.cdr
+            continue
+        return False
+
+@expose("list?")
+def consp(args):
+    v, = args
+    return W_Bool.make(listp_loop(v))
+
+

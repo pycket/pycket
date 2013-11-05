@@ -290,10 +290,13 @@ def to_value(json):
     if json is True:
         return values.w_true
     if isinstance (json, dict):
+        if "vector" in json:
+            return values.W_Vector(json["vector"])
         if "integer" in json:
             return values.W_Fixnum(int(json["integer"]))
         if "real" in json:
             return values.W_Flonum(float(json["real"]))
+        else: assert 0
         
 
 def interpret(ast):
