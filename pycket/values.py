@@ -137,13 +137,11 @@ class W_Closure (W_Procedure):
         if fmls_len > args_len:
             raise Exception("wrong number of arguments, expected at least %s but got %s"%(fmls_len,args_len))
         if self.lam.rest:
-            return make_begin(self.lam.body, ConsEnv ([self.lam.rest] + self.lam.formals,
-                                                      [to_list(args[fmls_len:])] + args[0:fmls_len],
-                                                      self.env, self.env.toplevel_env),
-                              frame)
+            actuals = [to_list(args[fmls_len:])] + args[0:fmls_len]
         else:
-            return make_begin(self.lam.body,
-                              ConsEnv(self.lam.formals, args, self.env, self.env.toplevel_env),
-                              frame)
+            actuals = args
+        return make_begin(self.lam.body,
+                          ConsEnv(self.lam.args, actuals, self.env, self.env.toplevel_env),
+                          frame)
 
 

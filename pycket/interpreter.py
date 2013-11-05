@@ -24,25 +24,27 @@ class EmptyEnv(Env):
         raise Exception ("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["syms[*]", "vals[*]", "prev"]
+    _immutable_fields_ = ["args", "vals[*]", "prev"]
     @jit.unroll_safe
-    def __init__ (self, syms, vals, prev, toplevel):
+    def __init__ (self, args, vals, prev, toplevel):
         self.toplevel_env = toplevel
-        for i in syms:
+        for i in args.elems:
             assert isinstance (i, values.W_Symbol)
-        self.syms = syms
+        self.args = args
         self.vals = vals
         self.prev = prev
     @jit.unroll_safe
     def lookup(self, sym):
-        for i, s in enumerate(self.syms):
+        jit.promote(self.args)
+        for i, s in enumerate(self.args.elems):
             if s is sym:
                 v = self.vals[i]
                 assert v is not None
                 return v
         return self.prev.lookup(sym)
     def set(self, sym, val):
-        for i, s in enumerate(self.syms):
+        jit.promote(self.args)
+        for i, s in enumerate(self.args.elems):
             if s is sym:
                 self.vals[i] = val
                 return
@@ -64,24 +66,24 @@ class IfCont(Cont):
             return self.thn, self.env, self.prev
 
 class LetrecCont(Cont):
-    def __init__(self, vars, rest, body, env, prev):
-        self.vars  = vars
+    def __init__(self, args, rest, body, env, prev):
+        self.args  = args
         self.rest = rest
         self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        self.env.set(self.vars[- (len (self.rest) + 1)], w_val)
+        self.env.set(self.args.elems[- (len (self.rest) + 1)], w_val)
         if not self.rest:
             return make_begin(self.body, self.env, self.prev)
         else:
             return (self.rest[0], self.env, 
-                    LetrecCont(self.vars, self.rest[1:], 
+                    LetrecCont(self.args, self.rest[1:], 
                                self.body, self.env, self.prev))
 
 class LetCont(Cont):
-    def __init__(self, vars, vals_w, rest, body, env, prev):
-        self.vars  = vars
+    def __init__(self, args, vals_w, rest, body, env, prev):
+        self.args = args
         self.vals_w  = vals_w
         self.rest = rest
         self.body = body
@@ -90,11 +92,11 @@ class LetCont(Cont):
     def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
-            env = ConsEnv(self.vars, vals_w, self.env, self.env.toplevel_env)
+            env = ConsEnv(self.args, vals_w, self.env, self.env.toplevel_env)
             return make_begin(self.body, env, self.prev)
         else:
             return (self.rest[0], self.env, 
-                    LetCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
+                    LetCont(self.args, self.vals_w + [w_val], self.rest[1:], 
                             self.body, self.env, self.prev))
 
 class CellCont(Cont):
@@ -277,6 +279,11 @@ class ToplevelVar(Var):
     def _set(self, w_val, env): 
         env.toplevel_env.set(self.sym, w_val)
 
+class SymList(object):
+    _immutable_fields_ = ["elems[*]"]
+    def __init__(self, elems):
+        self.elems = elems
+
 class SetBang (AST):
     _immutable_fields_ = ["sym", "rhs"]
     def __init__(self, var, rhs):
@@ -320,6 +327,7 @@ class Lambda (AST):
         self.formals = formals
         self.rest = rest
         self.body = body
+        self.args = SymList(formals + ([rest] if rest else []))
     def interpret (self, env, frame):
         return Value(values.W_Closure (self, env)), env, frame
     def assign_convert(self, vars):
@@ -366,9 +374,10 @@ class Letrec(AST):
         self.vars = vars
         self.rhss = rhss
         self.body = body
+        self.args = SymList(vars)
     def interpret (self, env, frame):
-        env_new = ConsEnv(self.vars, [None]*len(self.vars), env, env.toplevel_env)
-        return self.rhss[0], env_new, LetrecCont(self.vars, self.rhss[1:], self.body, env_new, frame)
+        env_new = ConsEnv(self.args, [None]*len(self.vars), env, env.toplevel_env)
+        return self.rhss[0], env_new, LetrecCont(self.args, self.rhss[1:], self.body, env_new, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body + self.rhss:
@@ -398,10 +407,11 @@ class Let(AST):
         self.vars = vars
         self.rhss = rhss
         self.body = body
+        self.args = SymList(vars)
     def interpret (self, env, frame):
         if not self.vars:
             return make_begin(self.body, env, frame)
-        return self.rhss[0], env, LetCont(self.vars, [], self.rhss[1:], self.body, env, frame)
+        return self.rhss[0], env, LetCont(self.args, [], self.rhss[1:], self.body, env, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body:
