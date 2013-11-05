@@ -97,7 +97,7 @@ def equal_loop (a,b):
         return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
     if isinstance(a, values.W_Vector) and isinstance (b, values.W_Vector):
         if len(a.elems) != len(b.elems): return False
-        for v, i in enumerate(a.elems):
+        for i, v in enumerate(a.elems):
             if not equal_loop(v, b.elems[i]):
                 return False
         return True
@@ -186,8 +186,8 @@ def vector_length(args):
 # my kingdom for a tail call
 def listp_loop(v):
     while True:
-        if v is w_null: return True
-        if isinstance(v, W_Cons):
+        if v is values.w_null: return True
+        if isinstance(v, values.W_Cons):
             v = v.cdr
             continue
         return False
@@ -195,6 +195,6 @@ def listp_loop(v):
 @expose("list?")
 def consp(args):
     v, = args
-    return W_Bool.make(listp_loop(v))
+    return values.W_Bool.make(listp_loop(v))
 
 

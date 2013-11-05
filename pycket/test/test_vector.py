@@ -12,3 +12,8 @@ def test_vec():
     run("(let ([v (vector 1 2 3)]) (vector-set! v 0 0))", w_void)
     run_fix("(let ([v (vector 1 2 3)]) (vector-set! v 0 0) (vector-length v))", 3)
     run_fix("(let ([v (vector 1 2 3)]) (vector-set! v 0 0) (vector-ref v 0))", 0)
+
+def test_vec_equal():
+    run("(equal? (vector 1 2 3) (vector 1 2 3))", w_true)
+    run("(equal? (vector 1 2 3) (vector 1 2))", w_false)
+    run("(equal? (vector 1 2 3) (vector 1 2 5))", w_false)
