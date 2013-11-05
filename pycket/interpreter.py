@@ -11,8 +11,8 @@ class EmptyEnv(Env):
         if sym in prim_env:
             return prim_env[sym]
         else:
-            raise Exception ("variable %s is unbound"%sym.name)
-        
+            raise Exception ("variable %s is unbound"%sym.value)
+
 class ConsEnv(Env):
     def __init__ (self, syms, vals, prev):
         self.syms = syms
@@ -197,7 +197,7 @@ class If (AST):
         return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
 def to_formals (json):
-    return [W_Symbol.make(x["symbol"]) for x in json]
+    return [W_Symbol.make(str(x["symbol"])) for x in json]
 
 def to_bindings(json):
     def to_binding(j):
@@ -220,13 +220,13 @@ def to_ast(json):
             return Lambda(to_formals(json[1]), [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
-            return Letrec(vars, rhss, [to_ast(x) for x in json[2:]])
+            return Letrec(list(vars), list(rhss), [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
-            return SetBang(W_Symbol.make(json[1]["symbol"]), to_ast(json[2]))
+            return SetBang(W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
-            return Var(W_Symbol.make(json["symbol"]))
+            return Var(W_Symbol.make(str(json["symbol"])))
         assert 0
     assert 0
 
