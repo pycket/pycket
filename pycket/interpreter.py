@@ -12,7 +12,7 @@ class EmptyEnv(Env):
             return prim_env[sym]
         else:
             raise Exception ("variable %s is unbound"%sym.value)
-        
+
 class ConsEnv(Env):
     def __init__ (self, syms, vals, prev):
         for i in syms:
@@ -165,7 +165,7 @@ class Begin(AST):
     def interpret(self, env, frame):
         return make_begin(self.exprs, env, frame)
     def __repr__(self):
-        return "(begin %r)"%self.exprs
+        return "(begin %r)" % self.exprs
 
 class Var (AST):
     def __init__ (self, sym):
@@ -235,11 +235,11 @@ class If (AST):
 def to_formals (json):
     if "improper" in json:
         regular, last = json["improper"]
-        return [W_Symbol.make(x["symbol"]) for x in regular], W_Symbol.make(last["symbol"])
+        return [W_Symbol.make(str(x["symbol"])) for x in regular], W_Symbol.make(str(last["symbol"]))
     elif isinstance (json, list):
-        return [W_Symbol.make(x["symbol"]) for x in json], None
+        return [W_Symbol.make(str(x["symbol"])) for x in json], None
     elif "symbol" in json:
-        return [], W_Symbol.make(json["symbol"])
+        return [], W_Symbol.make(str(json["symbol"]))
     assert 0
 
 def to_bindings(json):
@@ -266,12 +266,12 @@ def to_ast(json):
             return Lambda(fmls, rest, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
-            return Letrec(vars, rhss, [to_ast(x) for x in json[2:]])
+            return Letrec(list(vars), list(rhss), [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "let-values"}:
             vars, rhss = to_bindings(json[1])
             return Let(vars, rhss, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
-            return SetBang(W_Symbol.make(json[1]["symbol"]), to_ast(json[2]))
+            return SetBang(W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
         if json[0] == {"symbol": "quote-syntax"}:
             raise Exception ("quote-syntax is unsupported")
         if json[0] == {"symbol": "begin0"}:
@@ -285,7 +285,7 @@ def to_ast(json):
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
-            return Var(W_Symbol.make(json["symbol"]))
+            return Var(W_Symbol.make(str(json["symbol"])))
         assert 0
     assert 0
 

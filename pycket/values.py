@@ -1,5 +1,5 @@
 class W_Object:
-    def call(self, args):
+    def call(self, args, env, frame):
         raise Exception ("not callable")
 
 class W_Cons(W_Object):
@@ -43,6 +43,7 @@ class W_Symbol(W_Object):
     all_symbols = {}
     @staticmethod
     def make(string):
+        assert isinstance(string, str)
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string]
         else:
@@ -57,7 +58,7 @@ class W_Prim (W_Object):
     def __init__ (self, name, code):
         self.name = name
         self.code = code
-    
+
     def call(self, args, env, frame):
         from pycket.interpreter import Value
         return Value(self.code(args)), env, frame
@@ -87,4 +88,4 @@ class W_Closure (W_Object):
         else:
             return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
 
-        
+
