@@ -81,6 +81,10 @@ def test_set_car():
     run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
     run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
 
+def test_set_bang():
+    run("((lambda (x) (set! x #t) x) 1)", w_true)
+    run("(letrec([x 0]) ((lambda (x) (set! x #t) x) 1))", w_true)
+
 def test_bools():
     run ("#t", w_true)
     run ("#true", w_true)
