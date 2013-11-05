@@ -1,4 +1,4 @@
-from pycket.values import W_Fixnum, W_Closure, W_Symbol, w_true, w_false, w_void
+from pycket.values import W_Fixnum, W_Closure, W_Symbol, w_true, w_false, w_void, W_Flonum
 from pycket.prims  import prim_env
 
 class Env:

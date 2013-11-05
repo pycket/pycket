@@ -77,9 +77,11 @@ class __extend__(values.W_Fixnum):
         return values.W_Fixnum(res)
 
     def arith_mul_bigint(self, other_value):
+        if not self.value: return self
         return make_int(values.W_Bignum(other_value.mul(rbigint.fromint(self.value))))
 
     def arith_mul_float(self, other_float):
+        if not self.value: return self
         return values.W_Flonum(other_float * float(self.value))
 
     # ------------------ division ------------------ 
@@ -270,67 +272,67 @@ class __extend__(values.W_Fixnum):
 class __extend__(values.W_Flonum):    
     # ------------------ addition ------------------ 
     def arith_add(self, other):
-        return other.arith_add_float(self.floatval)
+        return other.arith_add_float(self.value)
 
     def arith_add_number(self, other_num):
-        return values.W_Flonum(float(other_num) + self.floatval)
+        return values.W_Flonum(float(other_num) + self.value)
 
     def arith_add_bigint(self, other_value):
-        return values.W_Flonum(other_value.tofloat() + self.floatval)
+        return values.W_Flonum(other_value.tofloat() + self.value)
 
     def arith_add_float(self, other_float):
-        return values.W_Flonum(other_float + self.floatval)
+        return values.W_Flonum(other_float + self.value)
 
     def arith_unaryadd(self):
         return self
 
     # ------------------ subtraction ------------------ 
     def arith_sub(self, other):
-        return other.arith_sub_float(self.floatval)
+        return other.arith_sub_float(self.value)
 
     def arith_sub_number(self, other_num):
-        return values.W_Flonum(float(other_num) - self.floatval)
+        return values.W_Flonum(float(other_num) - self.value)
 
     def arith_sub_bigint(self, other_value):
-        return values.W_Flonum(other_value.tofloat() - self.floatval)
+        return values.W_Flonum(other_value.tofloat() - self.value)
 
     def arith_sub_float(self, other_float):
-        return values.W_Flonum(other_float - self.floatval)
+        return values.W_Flonum(other_float - self.value)
 
     def arith_unarysub(self):
-        return values.W_Flonum(-self.floatval)
+        return values.W_Flonum(-self.value)
 
     # ------------------ multiplication ------------------ 
     def arith_mul(self, other):
-        return other.arith_mul_float(self.floatval)
+        return other.arith_mul_float(self.value)
 
     def arith_mul_number(self, other_num):
-        return values.W_Flonum(float(other_num) * self.floatval)
+        return values.W_Flonum(float(other_num) * self.value)
 
     def arith_mul_bigint(self, other_value):
-        return values.W_Flonum(other_value.tofloat() * self.floatval)
+        return values.W_Flonum(other_value.tofloat() * self.value)
 
     def arith_mul_float(self, other_float):
-        return values.W_Flonum(other_float * self.floatval)
+        return values.W_Flonum(other_float * self.value)
 
     # ------------------ division ------------------ 
     def arith_div(self, other):
-        return other.arith_div_float(self.floatval)
+        return other.arith_div_float(self.value)
 
     def arith_div_number(self, other_num):
-        if self.floatval == 0.0:
+        if self.value == 0.0:
             error.throw_evaluation_error("zero_divisor")
-        return values.W_Flonum(float(other_num) / self.floatval)
+        return values.W_Flonum(float(other_num) / self.value)
 
     def arith_div_bigint(self, other_value):
-        if self.floatval == 0.0:
+        if self.value == 0.0:
             error.throw_evaluation_error("zero_divisor")
-        return values.W_Flonum(other_value.tofloat() / self.floatval)
+        return values.W_Flonum(other_value.tofloat() / self.value)
 
     def arith_div_float(self, other_float):
-        if self.floatval == 0.0:
+        if self.value == 0.0:
             error.throw_evaluation_error("zero_divisor")
-        return values.W_Flonum(other_float / self.floatval)
+        return values.W_Flonum(other_float / self.value)
 
     def arith_floordiv(self, other_float):
         error.throw_type_error("integer", self)
@@ -343,50 +345,50 @@ class __extend__(values.W_Flonum):
 
     # ------------------ power ------------------ 
     def arith_pow(self, other):
-        return other.arith_pow_float(self.floatval)
+        return other.arith_pow_float(self.value)
 
     def arith_pow_number(self, other_num):
-        return values.W_Flonum(math.pow(float(other_num), self.floatval))
+        return values.W_Flonum(math.pow(float(other_num), self.value))
 
     def arith_pow_bigint(self, other_value):
-        return values.W_Flonum(math.pow(other_value.tofloat(), self.floatval))
+        return values.W_Flonum(math.pow(other_value.tofloat(), self.value))
 
     def arith_pow_float(self, other_float):
-        return values.W_Flonum(math.pow(other_float, self.floatval))
+        return values.W_Flonum(math.pow(other_float, self.value))
 
     # ------------------ abs ------------------ 
     def arith_abs(self):
-        return values.W_Flonum(abs(self.floatval))
+        return values.W_Flonum(abs(self.value))
 
     # ------------------ max ------------------ 
     def arith_max(self, other):
-        return other.arith_max_float(self.floatval)
+        return other.arith_max_float(self.value)
 
     def arith_max_number(self, other_num):
-        return values.W_Flonum(max(float(other_num), self.floatval))
+        return values.W_Flonum(max(float(other_num), self.value))
 
     def arith_max_bigint(self, other_value):
-        return values.W_Flonum(max(other_value.tofloat(), self.floatval))
+        return values.W_Flonum(max(other_value.tofloat(), self.value))
 
     def arith_max_float(self, other_float):
-        return values.W_Flonum(max(other_float, self.floatval))
+        return values.W_Flonum(max(other_float, self.value))
     
     # ------------------ min ------------------ 
     def arith_min(self, other):
-        return other.arith_min_float(self.floatval)
+        return other.arith_min_float(self.value)
 
     def arith_min_number(self, other_num):
-        return values.W_Flonum(min(float(other_num), self.floatval))
+        return values.W_Flonum(min(float(other_num), self.value))
 
     def arith_min_bigint(self, other_value):
-        return values.W_Flonum(min(other_value.tofloat(), self.floatval))
+        return values.W_Flonum(min(other_value.tofloat(), self.value))
 
     def arith_min_float(self, other_float):
-        return values.W_Flonum(min(other_float, self.floatval))
+        return values.W_Flonum(min(other_float, self.value))
 
     # ------------------ miscellanous ------------------
     def arith_round(self):
-        fval = self.floatval
+        fval = self.value
         if fval >= 0:
             factor = 1
         else:
@@ -396,35 +398,35 @@ class __extend__(values.W_Flonum):
         try:
             val = ovfcheck_float_to_int(math.floor(fval + 0.5) * factor)
         except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(math.floor(self.floatval + 0.5) * factor))
+            return values.W_Bignum(rbigint.fromfloat(math.floor(self.value + 0.5) * factor))
         return values.W_Fixnum(val)
 
     def arith_floor(self):
         try:
-            val = ovfcheck_float_to_int(math.floor(self.floatval))
+            val = ovfcheck_float_to_int(math.floor(self.value))
         except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(math.floor(self.floatval)))
+            return values.W_Bignum(rbigint.fromfloat(math.floor(self.value)))
         return values.W_Fixnum(val)
 
     def arith_ceiling(self):
         try:
-            val = ovfcheck_float_to_int(math.ceil(self.floatval))
+            val = ovfcheck_float_to_int(math.ceil(self.value))
         except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(math.ceil(self.floatval)))
+            return values.W_Bignum(rbigint.fromfloat(math.ceil(self.value)))
         return values.W_Fixnum(val)
 
     def arith_float_fractional_part(self):
         try:
-            val = ovfcheck_float_to_int(self.floatval)
+            val = ovfcheck_float_to_int(self.value)
         except OverflowError:
-            val = rbigint.fromfloat(self.floatval).tofloat()
-        return values.W_Flonum(float(self.floatval - val))
+            val = rbigint.fromfloat(self.value).tofloat()
+        return values.W_Flonum(float(self.value - val))
 
     def arith_float_integer_part(self):
         try:
-            val = ovfcheck_float_to_int(self.floatval)
+            val = ovfcheck_float_to_int(self.value)
         except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(self.floatval))
+            return values.W_Bignum(rbigint.fromfloat(self.value))
         return values.W_Fixnum(val)
 
 
