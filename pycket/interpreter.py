@@ -20,6 +20,9 @@ class ConsEnv(Env):
         self.syms = syms
         self.vals = vals
         self.prev = prev
+    def add(self, sym, val):
+        self.syms = [sym] + self.syms
+        self.vals = [val] + self.vals
     def lookup(self, sym):
         for i, s in enumerate(self.syms):
             if s is sym:
@@ -227,6 +230,13 @@ class If (AST):
     def __repr__(self):
         return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
+class Define(AST):
+    def __init__(self, name, rhs):
+        self.name = name
+        self.rhs = rhs
+    def __repr__(self):
+        return "(define %r %r)"%(self.name, self.rhs)
+
 def to_formals (json):
     if "improper" in json:
         regular, last = json["improper"]
@@ -236,6 +246,7 @@ def to_formals (json):
     elif "symbol" in json:
         return [], values.W_Symbol.make(str(json["symbol"]))
     assert 0
+
 
 def to_bindings(json):
     def to_binding(j):
@@ -249,7 +260,7 @@ def to_bindings(json):
 def to_ast(json):
     if isinstance(json, list):
         if json[0] == {"symbol": "begin"}:
-            return Begin([to_ast(x) for x in json])
+            return Begin([to_ast(x) for x in json[1:]])
         if json[0] == {"symbol": "#%app"}:
             return App(to_ast(json[1]), [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "if"}:
@@ -267,6 +278,13 @@ def to_ast(json):
             return Let(vars, rhss, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
             return SetBang(values.W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
+        if json[0] == {"symbol": "#%top"}:
+            return Var(values.W_Symbol.make(str(json[1]["symbol"])))
+        if json[0] == {"symbol": "define-values"}:
+            fmls, rest = to_formals(json[1])
+            assert not rest
+            assert len(fmls) == 1
+            return Define(fmls[0],to_ast(json[2]))
         if json[0] == {"symbol": "quote-syntax"}:
             raise Exception ("quote-syntax is unsupported")
         if json[0] == {"symbol": "begin0"}:
@@ -299,12 +317,34 @@ def to_value(json):
         else: assert 0
         
 
-def interpret(ast):
+def interpret_one(ast, env=EmptyEnv()):
     frame = None
-    env = EmptyEnv()
     #import pdb; pdb.set_trace()
     try:
         while True:
             ast, env, frame = ast.interpret(env, frame)
     except Done, e:
         return e.w_val
+
+def interpret_toplevel(a, env):
+    if isinstance(a, Begin):
+        x = None
+        for a2 in a.exprs:
+            x = interpret_toplevel(a2, env)
+        return x
+    elif isinstance(a, Define):
+        env.add(a.name, None)
+        env.set(a.name, interpret_one(a.rhs, env))
+        return values.w_void
+    else:
+        return interpret_one(a, env)
+    
+
+def interpret(asts):
+    env = ConsEnv([], [], EmptyEnv())
+    x = None
+    for a in asts:
+        x = interpret_toplevel(a, env)
+    return x
+            
+    

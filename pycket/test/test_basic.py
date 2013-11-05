@@ -5,18 +5,23 @@ from pycket.values import *
 from pycket.prims import *
 
 def run_fix(p,v):
-    val = interpret(to_ast(expand(p)))
+    val = interpret_one(to_ast(expand(p)))
     assert isinstance(val, W_Fixnum)
     assert val.value == v
 
 def run(p,v):
-    val = interpret(to_ast(expand(p)))
+    val = interpret_one(to_ast(expand(p)))
+    assert equal_loop(val,v)
+
+def run_top(p,v):
+    ast = to_ast(expand("(begin %s)"%p))
+    val = interpret([ast])
     assert equal_loop(val,v)
 
 
 def test_constant():
     prog = "1"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 1
 
@@ -31,32 +36,32 @@ def test_read_err ():
 
 def test_plus():
     prog = "(+ 2 3)"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 5
 
 def test_thunk():
     prog = "((lambda () 1))"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 1
 
 def test_thunk2():
     prog = "((lambda () 1 2))"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 2
 
 
 def test_call():
     prog = "((lambda (x) (+ x 1)) 2)"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 3
 
 def test_curry():
     prog = "(((lambda (y) (lambda (x) (+ x y))) 2) 3)"
-    val = interpret(to_ast(expand(prog)))
+    val = interpret_one(to_ast(expand(prog)))
     assert isinstance(val, W_Fixnum)
     assert val.value == 5
 
@@ -152,3 +157,7 @@ def test_callcc():
     run_fix ("(+ 1 (call/cc (lambda (k) 1)))", 2)
     run_fix ("(+ 1 (call/cc (lambda (k) (k 1))))", 2)
     run_fix ("(+ 1 (call/cc (lambda (k) (+ 5 (k 1)))))", 2)
+
+
+def test_define():
+    run_top("(define x 1) x", W_Fixnum(1))
