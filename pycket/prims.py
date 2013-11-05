@@ -3,9 +3,13 @@ from pycket import values
 
 prim_env = {}
 
-def expose(name):
+def expose(name, simple=True):
     def wrapper(func):
-        prim_env[values.W_Symbol.make(name)] = values.W_Prim(name, func)
+        if simple:
+            cls = values.W_SimplePrim
+        else:
+            cls = values.W_Prim
+        prim_env[values.W_Symbol.make(name)] = cls(name, func)
         return func
     return wrapper
 
@@ -13,7 +17,7 @@ def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
 
 def make_arith(name, func, con):
-    @expose(name)
+    @expose(name, simple=True)
     def do(args):
         a,b = args
         assert isinstance (a, values.W_Fixnum)
@@ -47,6 +51,11 @@ def equal_loop (a,b):
     if isinstance(a, values.W_Cons) and isinstance (b, values.W_Cons):
         return values.W_Bool.make(equal_loop(a.car, b.car) and
                                   equal_loop(a.cdr, b.cdr))
+
+@expose("call/cc", simple=False)
+def callcc(args, env, frame):
+    a, = args
+    return a.call([values.W_Continuation(frame)], env, frame)
 
 @expose("equal?")
 def equalp(args):

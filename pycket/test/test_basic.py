@@ -142,3 +142,13 @@ def test_fib():
     run_fix("((%s %s) 2)"%(Y,fib), 1)
     run_fix("((%s %s) 2)"%(Y,fac), 2)
 
+def test_vararg():
+    run_fix ("((lambda x (car x)) 1)", 1)
+    run_fix ("((lambda (a . x) a) 1)", 1)
+    run ("((lambda (a . x) x) 1)", w_null)
+
+def test_callcc():
+    run_fix ("(call/cc (lambda (k) 1))", 1)
+    run_fix ("(+ 1 (call/cc (lambda (k) 1)))", 2)
+    run_fix ("(+ 1 (call/cc (lambda (k) (k 1))))", 2)
+    run_fix ("(+ 1 (call/cc (lambda (k) (+ 5 (k 1)))))", 2)

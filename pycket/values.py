@@ -54,7 +54,7 @@ class W_Symbol(W_Object):
     def __init__(self, val):
         self.value = val
 
-class W_Prim (W_Object):
+class W_SimplePrim (W_Object):
     def __init__ (self, name, code):
         self.name = name
         self.code = code
@@ -63,11 +63,27 @@ class W_Prim (W_Object):
         from pycket.interpreter import Value
         return Value(self.code(args)), env, frame
 
+class W_Prim (W_Object):
+    def __init__ (self, name, code):
+        self.name = name
+        self.code = code
+
+    def call(self, args, env, frame):
+        return self.code(args, env, frame)
+
 def to_list(l):
     if not l:
         return w_null
     else:
         return W_Cons(l[0], to_list(l[1:]))
+
+class W_Continuation (W_Object):
+    def __init__ (self, frame):
+        self.frame = frame
+    def call(self, args, env, frame):
+        from pycket.interpreter import Value
+        a, = args # FIXME: multiple values
+        return Value(a), env, self.frame
 
 class W_Closure (W_Object):
     def __init__ (self, lam, env):
@@ -82,9 +98,10 @@ class W_Closure (W_Object):
         if fmls_len > args_len:
             raise Exception("wrong number of arguments, expected at least %s but got %s"%fmls_len,args_len)
         if self.lam.rest:
-            assert 0
-            return make_begin(self.lam.body, ConsEnv ([self.lam.rest] + self.lam.formals
-                                                      [to_list(args[fmls_len:])] + args[0:fmls_len]))
+            return make_begin(self.lam.body, ConsEnv ([self.lam.rest] + self.lam.formals,
+                                                      [to_list(args[fmls_len:])] + args[0:fmls_len],
+                                                      self.env),
+                              frame)
         else:
             return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
 
