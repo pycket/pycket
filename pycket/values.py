@@ -139,9 +139,11 @@ class W_Closure (W_Procedure):
         if self.lam.rest:
             return make_begin(self.lam.body, ConsEnv ([self.lam.rest] + self.lam.formals,
                                                       [to_list(args[fmls_len:])] + args[0:fmls_len],
-                                                      self.env),
+                                                      self.env, self.env.toplevel_env),
                               frame)
         else:
-            return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
+            return make_begin(self.lam.body,
+                              ConsEnv(self.lam.formals, args, self.env, self.env.toplevel_env),
+                              frame)
 
 

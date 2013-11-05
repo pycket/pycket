@@ -5,23 +5,33 @@ from rpython.rlib  import jit
 class Env:
     pass
 
+class ToplevelEnv(object):
+    def __init__(self):
+        self.bindings = {}
+    def lookup(self, sym):
+        return self.bindings[sym]
+    def set(self, sym, w_val):
+        if sym in self.bindings:
+            self.bindings[sym].value = w_val
+        else:
+            self.bindings[sym] = values.W_Cell(w_val)
+
 class EmptyEnv(Env):
-    def __init__ (self):
-        pass
+    _immutable_fields_ = ["toplevel_env"]
+    def __init__ (self, toplevel):
+        self.toplevel_env = toplevel
     def lookup(self, sym):
         raise Exception ("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["syms[*]", "vals[*]", "prev"]
-    def __init__ (self, syms, vals, prev):
+    _immutable_fields_ = ["syms[*]", "vals[*]", "prev", "toplevel_env"]
+    def __init__ (self, syms, vals, prev, toplevel):
+        self.toplevel_env = toplevel
         for i in syms:
             assert isinstance (i, values.W_Symbol)
         self.syms = syms
         self.vals = vals
         self.prev = prev
-    def add(self, sym, val):
-        self.syms = [sym] + self.syms
-        self.vals = [val] + self.vals
     @jit.unroll_safe
     def lookup(self, sym):
         for i, s in enumerate(self.syms):
@@ -79,7 +89,7 @@ class LetCont(Cont):
     def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
-            env = ConsEnv(self.vars, vals_w, self.env)
+            env = ConsEnv(self.vars, vals_w, self.env, self.env.toplevel_env)
             return make_begin(self.body, env, self.prev)
         else:
             return (self.rest[0], self.env, 
@@ -121,8 +131,7 @@ class SetBangCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        cell = self.env.lookup(self.var)
-        cell.value = w_val
+        self.var._set(w_val, self.env)
         return Value(values.w_void), self.env, self.prev
 
 class BeginCont(Cont):
@@ -214,37 +223,57 @@ class Begin(AST):
     def __repr__(self):
         return "(begin %r)" % self.exprs
 
-class CellRef (AST):
+class Var(AST):
     _immutable_fields_ = ["sym"]
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, frame):
-        return Value(env.lookup(self.sym).value), env, frame
-    def assign_convert(self, vars):
-        return self
+        return Value(self._lookup(env)), env, frame
     def mutated_vars(self):
         return {}
     def __repr__(self):
         return "%s"%self.sym.value
 
-class Var (AST):
-    _immutable_fields_ = ["sym"]
-    def __init__ (self, sym):
-        self.sym = sym
-    def interpret(self, env, frame):
-        return Value(env.lookup(self.sym)), env, frame
+class CellRef (Var):
+    def assign_convert(self, vars):
+        return self
+    def _set(self, w_val, env): 
+        v = env.lookup(self.sym)
+        assert isinstance(v, values.W_Cell)
+        v.value = w_val
+    def _lookup(self, env):
+        v = env.lookup(self.sym)
+        assert isinstance(v, values.W_Cell)
+        return v.value
+
+class LexicalVar(Var):
+    def _lookup(self, env):
+        return env.lookup(self.sym)
+    def _set(self, w_val, env): 
+        assert 0
     def assign_convert(self, vars):
         if self.sym in vars:
             return CellRef(self.sym)
         else:
             return self
-    def mutated_vars(self):
-        return {}
-    def __repr__(self):
-        return "%s"%self.sym.value
+
+class ModuleVar(Var):
+    def _lookup(self, env):
+        return prim_env[self.sym]
+    def assign_convert(self, vars):
+        return self
+    def _set(self, w_val, env): assert 0
+
+class ToplevelVar(Var):
+    def _lookup(self, env):
+        return env.toplevel_env.lookup(self.sym).value
+    def assign_convert(self, vars):
+        return self
+    def _set(self, w_val, env): 
+        env.toplevel_env.set(self.sym, w_val)
 
 class SetBang (AST):
-    _immutable_fields_ = ["var", "rhs"]
+    _immutable_fields_ = ["sym", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
@@ -254,10 +283,10 @@ class SetBang (AST):
         return SetBang(self.var, self.rhs.assign_convert(vars))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
-        x[self.var] = None
+        x[self.var.sym] = None
         return x
     def __repr__(self):
-        return "(set! %r %r)"%(self.var, self.rhs)
+        return "(set! %r %r)"%(self.var.sym.value, self.rhs)
 
 class If (AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -303,7 +332,7 @@ class Lambda (AST):
             del vars[self.rest]
         if self.rest and self.rest in local_muts:
             new_lets.append(self.rest)
-        cells = [Cell(Var(v)) for v in new_lets]
+        cells = [Cell(LexicalVar(v)) for v in new_lets]
         new_vars.update(local_muts)
         new_body = [Let(new_lets, cells, [b.assign_convert(new_vars) for b in self.body])]
         return Lambda(self.formals, self.rest, new_body)
@@ -333,7 +362,7 @@ class Letrec(AST):
         self.rhss = rhss
         self.body = body
     def interpret (self, env, frame):
-        env_new = ConsEnv(self.vars, [None]*len(self.vars), env)
+        env_new = ConsEnv(self.vars, [None]*len(self.vars), env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.vars, self.rhss[1:], self.body, env_new, frame)
     def mutated_vars(self):
         x = {}
@@ -407,8 +436,10 @@ class Define(AST):
 
 driver = jit.JitDriver(reds=["ast", "env", "frame"], greens=["green_ast"])
 
-def interpret_one(ast, env=EmptyEnv()):
+def interpret_one(ast, env=None):
     frame = None
+    if not env:
+        env = EmptyEnv(ToplevelEnv())
     #import pdb; pdb.set_trace()
     green_ast = None
     try:
@@ -430,15 +461,14 @@ def interpret_toplevel(a, env):
             x = interpret_toplevel(a2, env)
         return x
     elif isinstance(a, Define):
-        env.add(a.name, None)
-        env.set(a.name, interpret_one(a.rhs, env))
+        env.toplevel_env.set(a.name, interpret_one(a.rhs, env))
         return values.w_void
     else:
         return interpret_one(a, env)
     
 
 def interpret(asts):
-    env = ConsEnv([], [], EmptyEnv())
+    env = EmptyEnv(ToplevelEnv())
     x = None
     for a in asts:
         x = interpret_toplevel(a, env)

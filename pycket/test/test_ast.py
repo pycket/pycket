@@ -1,7 +1,7 @@
 import pytest
 from pycket.expand import expand
 from pycket.values import W_Symbol
-from pycket.interpreter import _to_ast
+from pycket.expand import _to_ast
 
 def make_symbols(d):
     return {W_Symbol.make(i): j for i, j in d.iteritems()}

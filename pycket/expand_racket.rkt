@@ -1,6 +1,6 @@
 #lang racket
 
-(require json)
+(require json syntax/parse)
 (define-namespace-anchor ns)
 (define set-car! #f)
 (define set-cdr! #f)
@@ -17,17 +17,26 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (match v
-    [(? string? v) (hash 'string v)]
-    [(? list? v) (map to-json v)]
-    [(? cons?) (hash 'improper (list (map to-json (proper v))
-                                     (to-json (cdr (last-pair v)))))]
-    [(? symbol? v) (hash 'symbol (symbol->string v))]
-    [(? vector? v) (hash 'vector (map to-json (vector->list v)))]
-    [(? exact-integer? v) (hash 'integer (~a v))]
-    [`(#%top . ,x) (hash 'var (symbol->string x))]
-    [(? boolean?) v]
-    [(? real? v) (hash 'real v)]))
+  (syntax-parse v
+    [v:str (hash 'string (syntax-e #'v))]
+    [(_ ...) (map to-json (syntax->list v))]
+    [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
+                                   (to-json (cdr (last-pair (syntax-e v))))))]
+    [i:identifier
+     #:when (eq? 'lexical (identifier-binding #'i))
+     (hash 'lexical (symbol->string (syntax-e v)))]
+    [i:identifier
+     #:when (eq? #f (identifier-binding #'i))
+     (hash 'toplevel (symbol->string (syntax-e v)))]
+    [i:identifier
+     (hash 'module (symbol->string (syntax-e v)))]
+    [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
+    [_
+     #:when (exact-integer? (syntax-e v))
+     (hash 'integer (~a (syntax-e v)))]
+    [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
+    [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
+    [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]))
 
-(write-json (to-json (syntax->datum (expand form))))
+(write-json (to-json (expand form)))
 (newline)

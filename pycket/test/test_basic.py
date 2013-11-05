@@ -1,5 +1,5 @@
 import pytest
-from pycket.expand import expand
+from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
