@@ -1,4 +1,7 @@
+from rpython.tool.pairtype import extendabletype
+
 class W_Object:
+    __metaclass__ = extendabletype
     def call(self, args, env, frame):
         raise Exception ("not callable")
 
@@ -7,11 +10,19 @@ class W_Cons(W_Object):
         self.car = a
         self.cdr = d
 
-class W_Fixnum(W_Object):
+class W_Number(W_Object):
+    pass
+
+
+class W_Fixnum(W_Number):
     def __init__(self, val):
         self.value = val
 
-class W_Flonum(W_Object):
+class W_Flonum(W_Number):
+    def __init__(self, val):
+        self.value = val
+
+class W_Bignum(W_Number):
     def __init__(self, val):
         self.value = val
 

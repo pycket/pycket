@@ -1,5 +1,6 @@
 import operator
 from pycket import values
+from pycket import arithmetic # imported for side effect
 
 prim_env = {}
 
@@ -16,7 +17,7 @@ def expose(name, simple=True):
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
 
-def make_arith(name, func, con):
+def make_cmp(name, func, con):
     @expose(name, simple=True)
     def do(args):
         a,b = args
@@ -26,15 +27,25 @@ def make_arith(name, func, con):
 
 
 for args in [
-        ("+", operator.add, values.W_Fixnum),
-        ("-", operator.sub, values.W_Fixnum),
-        ("*", operator.mul, values.W_Fixnum),
         ("=", operator.eq,  values.W_Bool.make),
         ("<", operator.lt,  values.W_Bool.make),
         (">", operator.gt,  values.W_Bool.make),
         ]:
-    make_arith(*args)
+    make_cmp(*args)
 
+def make_arith(name, methname):
+    @expose(name, simple=True)
+    def do(args):
+        a, b = args
+        return getattr(a, methname)(b)
+
+for args in [
+        ("+", "arith_add"),
+        ("-", "arith_sub"),
+        ("*", "arith_mul"),
+        ]:
+    make_arith(*args)
+    
 val ("null", values.w_null)
 val ("true", values.w_true)
 val ("false", values.w_false)
