@@ -1,4 +1,4 @@
-from pycket.values import W_Fixnum, W_Closure, W_Symbol, w_true, w_false, w_void, W_Flonum
+from pycket import values
 from pycket.prims  import prim_env
 
 class Env:
@@ -16,7 +16,7 @@ class EmptyEnv(Env):
 class ConsEnv(Env):
     def __init__ (self, syms, vals, prev):
         for i in syms:
-            assert isinstance (i, W_Symbol)
+            assert isinstance (i, values.W_Symbol)
         self.syms = syms
         self.vals = vals
         self.prev = prev
@@ -42,7 +42,7 @@ class IfCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if w_val is w_false:
+        if w_val is values.w_false:
             return self.els, self.env, self.prev
         else:
             return self.thn, self.env, self.prev
@@ -110,7 +110,7 @@ class SetBangCont(Cont):
         self.prev = prev
     def plug_reduce(self, w_val):
         self.env.set(self.var, w_val)
-        return Value(w_void), self.env, self.prev
+        return Value(values.w_void), self.env, self.prev
 
 class BeginCont(Cont):
     def __init__(self, rest, env, prev):
@@ -185,7 +185,7 @@ class Lambda (AST):
         self.rest = rest
         self.body = body
     def interpret (self, env, frame):
-        return Value(W_Closure (self, env)), env, frame
+        return Value(values.W_Closure (self, env)), env, frame
     def __repr__(self):
         if self.rest and (not self.formals):
             return "(lambda %r %r)"%(self.rest, self.body)
@@ -230,11 +230,11 @@ class If (AST):
 def to_formals (json):
     if "improper" in json:
         regular, last = json["improper"]
-        return [W_Symbol.make(str(x["symbol"])) for x in regular], W_Symbol.make(str(last["symbol"]))
+        return [values.W_Symbol.make(str(x["symbol"])) for x in regular], values.W_Symbol.make(str(last["symbol"]))
     elif isinstance (json, list):
-        return [W_Symbol.make(str(x["symbol"])) for x in json], None
+        return [values.W_Symbol.make(str(x["symbol"])) for x in json], None
     elif "symbol" in json:
-        return [], W_Symbol.make(str(json["symbol"]))
+        return [], values.W_Symbol.make(str(json["symbol"]))
     assert 0
 
 def to_bindings(json):
@@ -266,7 +266,7 @@ def to_ast(json):
             vars, rhss = to_bindings(json[1])
             return Let(vars, rhss, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
-            return SetBang(W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
+            return SetBang(values.W_Symbol.make(str(json[1]["symbol"])), to_ast(json[2]))
         if json[0] == {"symbol": "quote-syntax"}:
             raise Exception ("quote-syntax is unsupported")
         if json[0] == {"symbol": "begin0"}:
@@ -280,20 +280,20 @@ def to_ast(json):
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
-            return Var(W_Symbol.make(str(json["symbol"])))
+            return Var(values.W_Symbol.make(str(json["symbol"])))
         assert 0
     assert 0
 
 def to_value(json):
     if json is False:
-        return w_false
+        return values.w_false
     if json is True:
-        return w_true
+        return values.w_true
     if isinstance (json, dict):
         if "integer" in json:
-            return W_Fixnum(int(json["integer"]))
+            return values.W_Fixnum(int(json["integer"]))
         if "real" in json:
-            return W_Flonum(float(json["real"]))
+            return values.W_Flonum(float(json["real"]))
         
 
 def interpret(ast):
