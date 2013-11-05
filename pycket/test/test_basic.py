@@ -1,6 +1,7 @@
 from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
+from pycket.prims import *
 
 def run_fix(p,v):
     val = interpret(to_ast(expand(p)))
@@ -9,7 +10,7 @@ def run_fix(p,v):
 
 def run(p,v):
     val = interpret(to_ast(expand(p)))
-    assert val == v
+    assert equal_loop(val,v)
 
 
 def test_constant():
@@ -92,6 +93,13 @@ def test_bools():
     run ("#f", w_false)
     run ("#false", w_false)
     run ("#F", w_false)
+    run ("true", w_true)
+    run ("false", w_false)
+
+def test_lists():
+    run ("null", w_null)
+    run ("(list)", w_null)
+    run ("(list #t)", to_list ([w_true]))
 
 # def test_fib():
 #     Y = """

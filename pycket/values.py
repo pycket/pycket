@@ -11,10 +11,18 @@ class W_Fixnum(W_Object):
     def __init__(self, val):
         self.value = val
 
+class W_Flonum(W_Object):
+    def __init__(self, val):
+        self.value = val
+
 class W_Void (W_Object):
     def __init__(self): pass
 
+class W_Null (W_Object):
+    def __init__(self): pass
+
 w_void = W_Void()
+w_null = W_Null()
 
 class W_Bool(W_Object):
     @staticmethod
@@ -54,14 +62,29 @@ class W_Prim (W_Object):
         from pycket.interpreter import Value
         return Value(self.code(args)), env, frame
 
+def to_list(l):
+    if not l:
+        return w_null
+    else:
+        return W_Cons(l[0], to_list(l[1:]))
+
 class W_Closure (W_Object):
     def __init__ (self, lam, env):
         self.lam = lam
         self.env = env
     def call(self, args, env, frame):
-        from pycket.interpreter import make_begin, ConsEnv        
-        if len (self.lam.formals) != len(args):
-            raise Exception("wrong number of arguments, expected %s but got %s"%(len (self.lam.formals), len(args)))
-        return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
+        from pycket.interpreter import make_begin, ConsEnv
+        fmls_len = len(self.lam.formals)
+        args_len = len(args)
+        if fmls_len != args_len and not self.lam.rest:
+            raise Exception("wrong number of arguments, expected %s but got %s"%fmls_len,args_len)
+        if fmls_len > args_len:
+            raise Exception("wrong number of arguments, expected at least %s but got %s"%fmls_len,args_len)
+        if self.lam.rest:
+            assert 0
+            return make_begin(self.lam.body, ConsEnv ([self.lam.rest] + self.lam.formals
+                                                      [to_list(args[fmls_len:])] + args[0:fmls_len]))
+        else:
+            return make_begin(self.lam.body, ConsEnv(self.lam.formals, args, self.env), frame)
 
         

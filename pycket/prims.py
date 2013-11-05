@@ -9,13 +9,16 @@ def expose(name):
         return func
     return wrapper
 
+def val(name, v):
+    prim_env[values.W_Symbol.make(name)] = v
+
 def make_arith(name, func, con):
     @expose(name)
     def do(args):
         a,b = args
         assert isinstance (a, values.W_Fixnum)
         assert isinstance (b, values.W_Fixnum)
-        return con (func(a.value, b.value))
+        return con(func(a.value, b.value))
 
 
 for args in [
@@ -28,8 +31,34 @@ for args in [
         ]:
     make_arith(*args)
 
+val ("null", values.w_null)
+val ("true", values.w_true)
+val ("false", values.w_false)
+
+def equal_loop (a,b):
+    if a is b: 
+        return values.w_true
+    if isinstance (a, values.W_Fixnum) and isinstance (b, values.W_Fixnum):
+        values.W_Bool.make(a.value == b.value)
+    if a is values.w_void:
+        return values.w_false
+    if a is values.w_null:
+        return values.w_false
+    if isinstance(a, values.W_Cons) and isinstance (b, values.W_Cons):
+        return values.W_Bool.make(equal_loop(a.car, b.car) and
+                                  equal_loop(a.cdr, b.cdr))
+
+@expose("equal?")
+def equalp(args):
+    # this doesn't work for cycles
+    a,b = args
+    equal_loop (a,b)
+    
 
 
+@expose("list")
+def do_list(args):
+    return values.to_list(args)
 
 @expose("cons")
 def do_cons(args):

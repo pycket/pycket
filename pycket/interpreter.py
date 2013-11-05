@@ -11,10 +11,12 @@ class EmptyEnv(Env):
         if sym in prim_env:
             return prim_env[sym]
         else:
-            raise Exception ("variable %s is unbound"%sym.name)
+            raise Exception ("variable %s is unbound"%sym.value)
         
 class ConsEnv(Env):
     def __init__ (self, syms, vals, prev):
+        for i in syms:
+            assert isinstance (i, W_Symbol)
         self.syms = syms
         self.vals = vals
         self.prev = prev
@@ -61,6 +63,24 @@ class LetrecCont(Cont):
             for i, w_val in enumerate(vals_w):
                 self.env.set(self.vars[i], w_val)
             return make_begin(self.body, self.env, self.prev)
+        else:
+            return (self.rest[0], self.env, 
+                    LetrecCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
+                               self.body, self.env, self.prev))
+
+class LetCont(Cont):
+    def __init__(self, vars, vals_w, rest, body, env, prev):
+        self.vars  = vars
+        self.vals_w  = vals_w
+        self.rest = rest
+        self.body = body
+        self.env  = env
+        self.prev = prev
+    def plug(self, w_val):
+        if not self.rest:
+            vals_w = self.vals_w + [w_val]
+            env = ConsEnv(self.vars, vals_w, self.env)
+            return make_begin(self.body, env, self.prev)
         else:
             return (self.rest[0], self.env, 
                     LetrecCont(self.vars, self.vals_w + [w_val], self.rest[1:], 
@@ -165,13 +185,19 @@ class SetBang (AST):
         return "(set! %r %r)"%(self.var, self.rhs)
 
 class Lambda (AST):
-    def __init__ (self, formals, body):
+    def __init__ (self, formals, rest, body):
         self.formals = formals
+        self.rest = rest
         self.body = body
     def interpret (self, env, frame):
         return Value(W_Closure (self, env)), env, frame
     def __repr__(self):
-        return "(lambda (%r) %r)"%(self.formals, self.body)
+        if self.rest and (not self.formals):
+            return "(lambda %r %r)"%(self.rest, self.body)
+        if self.rest:
+            return "(lambda (%r . %r) %r)"%(self.formals, self.rest, self.body)
+        else:
+            return "(lambda (%r) %r)"%(self.formals, self.body)
 
 
 class Letrec(AST):
@@ -185,6 +211,16 @@ class Letrec(AST):
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
 
+class Let(AST):
+    def __init__(self, vars, rhss, body):
+        self.vars = vars
+        self.rhss = rhss
+        self.body = body
+    def interpret (self, env, frame):
+        return self.rhss[0], env, LetCont(self.vars, [], self.rhss[1:], self.body, env, frame)
+    def __repr__(self):
+        return "(let (%r) %r)"%(zip(self.vars, self.rhss), self.body)
+
 
 class If (AST):
     def __init__ (self, tst, thn, els):
@@ -197,12 +233,21 @@ class If (AST):
         return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
 def to_formals (json):
-    return [W_Symbol.make(x["symbol"]) for x in json]
+    if "improper" in json:
+        regular, last = json["improper"]
+        return [W_Symbol.make(x["symbol"]) for x in regular], W_Symbol.make(last["symbol"])
+    elif isinstance (json, list):
+        return [W_Symbol.make(x["symbol"]) for x in json], None
+    elif "symbol" in json:
+        return [], W_Symbol.make(json["symbol"])
+    assert 0
 
 def to_bindings(json):
     def to_binding(j):
-        fml, = to_formals(j[0])
-        return (fml, to_ast(j[1])) # this is bad for multiple values
+        fmls, rest = to_formals(j[0])
+        assert not rest
+        assert len (fmls) == 1
+        return (fmls[0], to_ast(j[1])) # this is bad for multiple values
     l  = [to_binding(x) for x in json]
     return zip(*l)
 
@@ -217,12 +262,26 @@ def to_ast(json):
         if json[0] == {"symbol": "quote"}:
             return Quote(to_value(json[1]))
         if json[0] == {"symbol": "lambda"}:
-            return Lambda(to_formals(json[1]), [to_ast(x) for x in json[2:]])
+            fmls, rest = to_formals(json[1])
+            return Lambda(fmls, rest, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
             return Letrec(vars, rhss, [to_ast(x) for x in json[2:]])
+        if json[0] == {"symbol": "let-values"}:
+            vars, rhss = to_bindings(json[1])
+            return Let(vars, rhss, [to_ast(x) for x in json[2:]])
         if json[0] == {"symbol": "set!"}:
             return SetBang(W_Symbol.make(json[1]["symbol"]), to_ast(json[2]))
+        if json[0] == {"symbol": "quote-syntax"}:
+            raise Exception ("quote-syntax is unsupported")
+        if json[0] == {"symbol": "begin0"}:
+            raise Exception ("begin0 is unsupported")
+        if json[0] == {"symbol": "with-continuation-mark"}:
+            raise Exception ("with-continuation-mark is unsupported")
+        if json[0] == {"symbol": "#%variable-reference"}:
+            raise Exception ("#%variable-reference is unsupported")
+        if json[0] == {"symbol": "case-lambda"}:
+            raise Exception ("case-lambda is unsupported")
         assert 0
     if isinstance(json, dict):
         if "symbol" in json:
@@ -238,6 +297,8 @@ def to_value(json):
     if isinstance (json, dict):
         if "integer" in json:
             return W_Fixnum(int(json["integer"]))
+        if "real" in json:
+            return W_Flonum(float(json["real"]))
         
 
 def interpret(ast):
