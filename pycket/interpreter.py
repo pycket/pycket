@@ -43,7 +43,7 @@ class IfCont(Cont):
         self.els = els
         self.env = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         if w_val is w_false:
             return self.els, self.env, self.prev
         else:
@@ -57,7 +57,7 @@ class LetrecCont(Cont):
         self.body = body
         self.env  = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
             for i, w_val in enumerate(vals_w):
@@ -76,7 +76,7 @@ class LetCont(Cont):
         self.body = body
         self.env  = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
             env = ConsEnv(self.vars, vals_w, self.env)
@@ -93,7 +93,7 @@ class Call(Cont):
         self.rest = rest
         self.env = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
             return vals_w[0].call(vals_w[1:], self.env, self.prev)
@@ -113,7 +113,7 @@ class SetBangCont(Cont):
         self.var = var
         self.env = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         self.env.set(self.var, w_val)
         return Value(w_void), self.env, self.prev
 
@@ -123,7 +123,7 @@ class BeginCont(Cont):
         self.rest = rest
         self.env = env
         self.prev = prev
-    def plug(self, w_val):
+    def plug_reduce(self, w_val):
         return make_begin(self.rest, self.env, self.prev)
         
 class Done(Exception):
@@ -138,7 +138,7 @@ class Value (AST):
         self.w_val = w_val
     def interpret (self, env, frame):
         if frame is None: raise Done(self.w_val)
-        return frame.plug(self.w_val)
+        return frame.plug_reduce(self.w_val)
     def __repr__(self):
         return "V(%r)"%self.w_val
 
