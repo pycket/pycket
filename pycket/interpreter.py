@@ -86,7 +86,7 @@ def make_begin(exprs, env, prev):
     if len(exprs) == 1:
         return exprs[0], env, prev
     else:
-        return exprs[0], env, Begin(exprs[1:], env, prev)
+        return exprs[0], env, BeginCont(exprs[1:], env, prev)
 
 class SetBangCont(Cont):
     def __init__(self, var, env, prev):
@@ -97,7 +97,7 @@ class SetBangCont(Cont):
         self.env.set(self.var, w_val)
         return Value(w_void), self.env, prev
 
-class Begin(Cont):
+class BeginCont(Cont):
     def __init__(self, rest, env, prev):
         assert rest
         self.rest = rest
@@ -145,7 +145,7 @@ class Begin(AST):
     def interpret(self, env, frame):
         return make_begin(self.exprs, env, frame)
     def __repr__(self):
-        return "(begin %r")%self.exprs
+        return "(begin %r)" % self.exprs
 
 class Var (AST):
     def __init__ (self, sym):
