@@ -1,5 +1,6 @@
-from pycket import values
+from pycket        import values
 from pycket.prims  import prim_env
+from rpython.rlib  import jit
 
 class Env:
     pass
@@ -128,7 +129,7 @@ class Done(Exception):
     def __init__(self, w_val):
         self.w_val = w_val
 
-class AST:
+class AST(object):
     pass
 
 class Value (AST):
@@ -141,6 +142,7 @@ class Value (AST):
         return "V(%r)"%self.w_val
 
 class Quote (AST):
+    _immutable_fields_ = ["w_val"]
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret (self, env, frame):
@@ -149,6 +151,7 @@ class Quote (AST):
         return "Quote(%r)"%self.w_val
 
 class App (AST):
+    _immutable_fields_ = ["rator", "rands[*]"]
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
@@ -158,6 +161,7 @@ class App (AST):
         return "(%r %r)"%(self.rator, self.rands)
 
 class Begin(AST):
+    _immutable_fields_ = ["exprs[*]"]
     def __init__(self, exprs):
         self.exprs = exprs
     def interpret(self, env, frame):
@@ -166,6 +170,7 @@ class Begin(AST):
         return "(begin %r)" % self.exprs
 
 class Var (AST):
+    _immutable_fields_ = ["sym"]
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, frame):
@@ -174,6 +179,7 @@ class Var (AST):
         return "%s"%self.sym.value
 
 class SetBang (AST):
+    _immutable_fields_ = ["var", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
@@ -183,6 +189,7 @@ class SetBang (AST):
         return "(set! %r %r)"%(self.var, self.rhs)
 
 class Lambda (AST):
+    _immutable_fields_ = ["formals[*]", "rest", "body[*]"]
     def __init__ (self, formals, rest, body):
         self.formals = formals
         self.rest = rest
@@ -199,6 +206,7 @@ class Lambda (AST):
 
 
 class Letrec(AST):
+    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
     def __init__(self, vars, rhss, body):
         self.vars = vars
         self.rhss = rhss
@@ -210,6 +218,7 @@ class Letrec(AST):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
 
 class Let(AST):
+    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
     def __init__(self, vars, rhss, body):
         self.vars = vars
         self.rhss = rhss
@@ -221,6 +230,7 @@ class Let(AST):
 
 
 class If (AST):
+    _immutable_fields_ = ["tst", "thn", "els"]
     def __init__ (self, tst, thn, els):
         self.tst = tst
         self.thn = thn
@@ -317,12 +327,21 @@ def to_value(json):
         else: assert 0
         
 
+driver = jit.JitDriver(reds=["ast", "env", "frame"], greens=["green_ast"])
+
 def interpret_one(ast, env=EmptyEnv()):
     frame = None
     #import pdb; pdb.set_trace()
+    green_ast = None
     try:
         while True:
+            driver.jit_merge_point(ast=ast, env=env, frame=frame, green_ast=green_ast)
+            if not isinstance(ast, Value):
+                jit.promote(ast)
+                green_ast = ast
             ast, env, frame = ast.interpret(env, frame)
+            if isinstance(ast, App):
+                driver.can_enter_jit(ast=ast, env=env, frame=frame, green_ast=green_ast)
     except Done, e:
         return e.w_val
 
