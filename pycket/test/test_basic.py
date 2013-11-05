@@ -78,6 +78,7 @@ def test_letrec():
     run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
 
 def test_let():
+    run_fix("(let () 1)", 1)
     run_fix("(let ([x 1]) x)", 1)
     run_fix("(let ([x 1] [y 2]) y)", 2)
     run_fix("(let ([x 1] [y 2]) (+ x y))", 3)

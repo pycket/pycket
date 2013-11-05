@@ -92,7 +92,7 @@ class CellCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        return values.W_Cell(w_val), self.env, self.prev
+        return Value(values.W_Cell(w_val)), self.env, self.prev
 
 class Call(Cont):
     # prev is the parent continuation
@@ -160,7 +160,7 @@ class Cell(AST):
     def __init__(self, expr):
         self.expr = expr
     def interpret(self, env, frame):
-        return self.expr, env, CellCont(frame)
+        return self.expr, env, CellCont(env, frame)
     def assign_convert(self, vars):
         return Cell(self.expr.assign_convert(vars))
     def mutated_vars(self):
@@ -306,7 +306,7 @@ class Lambda (AST):
             new_lets.append(self.rest)
         cells = [Cell(Var(v)) for v in new_lets]
         new_vars.update(local_muts)
-        new_body = Let(new_lets, cells, body.assign_convert(new_vars))
+        new_body = [Let(new_lets, cells, [b.assign_convert(new_vars) for b in self.body])]
         return Lambda(self.formals, self.rest, new_body)
     def mutated_vars(self):
         x = {}
@@ -351,10 +351,10 @@ class Letrec(AST):
         new_vars = vars.copy()
         new_vars.update(local_muts)
         new_rhss = [Cell(rhs.assign_convert(new_vars)) 
-                    if vars[i] in local_muts
+                    if self.vars[i] in local_muts
                     else rhs.assign_convert(new_vars)
                     for i, rhs in enumerate(self.rhss)]
-        new_body = [b.assign_convert(new_vars) for b in body]
+        new_body = [b.assign_convert(new_vars) for b in self.body]
         return Letrec(self.vars, new_rhss, new_body)
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
@@ -366,6 +366,8 @@ class Let(AST):
         self.rhss = rhss
         self.body = body
     def interpret (self, env, frame):
+        if not self.vars:
+            return make_begin(self.body, env, frame)
         return self.rhss[0], env, LetCont(self.vars, [], self.rhss[1:], self.body, env, frame)
     def mutated_vars(self):
         x = {}
@@ -382,12 +384,12 @@ class Let(AST):
         for b in self.body:
             local_muts.update(b.mutated_vars())
         new_rhss = [Cell(rhs.assign_convert(vars)) 
-                    if vars[i] in local_muts
+                    if self.vars[i] in local_muts
                     else rhs.assign_convert(vars)
                     for i, rhs in enumerate(self.rhss)]
         new_vars = vars.copy()
         new_vars.update(local_muts)
-        new_body = [b.assign_convert(new_vars) for b in body]
+        new_body = [b.assign_convert(new_vars) for b in self.body]
         return Let(self.vars, new_rhss, new_body)
     def __repr__(self):
         return "(let (%r) %r)"%(zip(self.vars, self.rhss), self.body)
@@ -398,6 +400,9 @@ class Define(AST):
     def __init__(self, name, rhs):
         self.name = name
         self.rhs = rhs
+    def assign_convert(self, vars):
+        return Define(self.name, self.rhs.assign_convert(vars))
+    def mutated_vars(self): assert 0
     def __repr__(self):
         return "(define %r %r)"%(self.name, self.rhs)
 
@@ -419,6 +424,7 @@ def to_bindings(json):
         assert len (fmls) == 1
         return (fmls[0], _to_ast(j[1])) # this is bad for multiple values
     l  = [to_binding(x) for x in json]
+    if not l: return l,l
     return zip(*l)
 
 def _to_ast(json):
