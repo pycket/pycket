@@ -58,7 +58,7 @@ def _to_ast(json):
             return Letrec(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
         if json[0] == {"module": "let-values"}:
             vars, rhss = to_bindings(json[1])
-            return Let(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
+            return make_let(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
         if json[0] == {"module": "set!"}:
             j = json[1]
             if "lexical" in j:

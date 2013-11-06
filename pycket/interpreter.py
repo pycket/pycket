@@ -370,18 +370,14 @@ class Lambda (AST):
             local_muts.update(b.mutated_vars())
         new_lets = []
         new_vars = vars.copy()
-        for i in self.formals:
+        for i in self.args.elems:
             if i in vars:
                 del vars[i]
             if i in local_muts:
                 new_lets.append(i)
-        if self.rest and self.rest in vars:
-            del vars[self.rest]
-        if self.rest and self.rest in local_muts:
-            new_lets.append(self.rest)
         cells = [Cell(LexicalVar(v)) for v in new_lets]
         new_vars.update(local_muts)
-        new_body = [Let(new_lets, cells, [b.assign_convert(new_vars) for b in self.body])]
+        new_body = [make_let(new_lets, cells, [b.assign_convert(new_vars) for b in self.body])]
         return Lambda(self.formals, self.rest, new_body)
     def mutated_vars(self):
         x = {}
@@ -451,6 +447,12 @@ class Letrec(AST):
         return Letrec(self.vars, new_rhss, new_body)
     def __repr__(self):
         return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
+
+def make_let(vars, rhss, body):
+    if not vars:
+        return Begin(body)
+    else:
+        return Let(vars, rhss, body)
 
 class Let(AST):
     _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
