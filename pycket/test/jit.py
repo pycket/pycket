@@ -36,6 +36,22 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+
+    def test_countdown_loop(self):
+        ast = to_ast(expand("""
+(let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
+"""))
+
+
+        def interp_w():
+            val = interpret_one(ast)
+            assert isinstance(val, W_Fixnum)
+            return val.value
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
     def test_setbang(self):
 
         ast = to_ast(expand("(let ([n 1000]) (letrec ([countdown (lambda () (if (< n 0) 1 (begin (set! n (- n 1)) (countdown))))]) (countdown)))"))

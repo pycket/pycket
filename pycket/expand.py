@@ -55,7 +55,7 @@ def _to_ast(json):
             return Lambda(fmls, rest, [_to_ast(x) for x in json[2:]])
         if json[0] == {"module": "letrec-values"}:
             vars, rhss = to_bindings(json[1])
-            return Letrec(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
+            return make_letrec(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])
         if json[0] == {"module": "let-values"}:
             vars, rhss = to_bindings(json[1])
             return make_let(list(vars), list(rhss), [_to_ast(x) for x in json[2:]])

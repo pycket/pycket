@@ -3,7 +3,7 @@ from pycket.prims  import prim_env
 from rpython.rlib  import jit
 
 class Env(object):
-    _immutable_env_ = ["toplevel_env"]
+    _immutable_fields_ = ["toplevel_env"]
     pass
 
 class ToplevelEnv(object):
@@ -353,6 +353,41 @@ class If (AST):
     def __repr__(self):
         return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
+class RecLambda(AST):
+    _immutable_fields_ = ["name", "lam"]
+    def __init__(self, name, lam):
+        self.name= name
+        self.lam = lam
+    def assign_convert(self, vars):
+        v = vars.copy()
+        if self.name in v:
+            del v[self.name]
+        return RecLambda(self.name, self.lam.assign_convert(v))
+    def mutated_vars(self):
+        v = self.lam.mutated_vars()
+        if self.name in v:
+            del v[self.name]
+        return v
+    def free_vars(self):
+        v = self.lam.free_vars()
+        if self.name in v:
+            del v[self.name]
+        return v
+    def interpret(self, env, frame):
+        e = ConsEnv(SymList([self.name]), [values.w_void], env, env.toplevel_env)
+        Vcl, e, f = self.lam.interpret(e, frame)
+        cl = Vcl.w_val
+        assert isinstance(cl, values.W_Closure)
+        cl.env.set(self.name, cl)
+        return Vcl, env, frame
+    def __repr__(self):
+        if self.lam.rest and (not self.lam.formals):
+            return "(rec %r %r %r)"%(self.name, self.lam.rest, self.lam.body)
+        if self.lam.rest:
+            return "(rec %r (%r . %r) %r)"%(self.name, self.lam.formals, self.lam.rest, self.lam.body)
+        else:
+            return "(rec %r (%r) %r)"%(self.name, self.lam.formals, self.lam.body)
+
 
 class Lambda (AST):
     _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
@@ -453,6 +488,14 @@ def make_let(vars, rhss, body):
         return Begin(body)
     else:
         return Let(vars, rhss, body)
+
+def make_letrec(vars, rhss, body):
+    if (1 == len(vars)):
+        if (1 == len(body)):
+            if isinstance(rhss[0], Lambda):
+                if isinstance(body[0], LexicalVar) and vars[0] is body[0].sym:
+                    return RecLambda(vars[0], rhss[0])
+    return Letrec(vars, rhss, body)
 
 class Let(AST):
     _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
