@@ -9,7 +9,7 @@
 ; Language:     Scheme
 ; Status:       Public Domain
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(let()
+
 (define (iota n)
   (do ((n n (- n 1))
        (list '() (cons (- n 1) list)))
@@ -172,4 +172,3 @@
             (loop (- n 1)
                   (start))))
 ;)
-)

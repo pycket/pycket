@@ -38,6 +38,12 @@ def to_bindings(json):
     if not l: return l,l
     return zip(*l)
 
+def mksym(j):
+    for i in ["toplevel", "lexical", "module"]:
+        if i in j:
+            return values.W_Symbol.make(str(j[i]))
+    assert 0
+
 def _to_ast(json):
     if isinstance(json, list):
         if json[0] == {"module": "begin"}:
@@ -71,7 +77,7 @@ def _to_ast(json):
             assert 0
             return CellRef(values.W_Symbol.make(str(json[1]["symbol"])))
         if json[0] == {"module": "define-values"}:
-            fmls = [values.W_Symbol.make(str(x["toplevel"])) for x in json[1]]
+            fmls = [mksym(x) for x in json[1]]
             assert len(fmls) == 1
             return Define(fmls[0],_to_ast(json[2]))
         if json[0] == {"module": "quote-syntax"}:
