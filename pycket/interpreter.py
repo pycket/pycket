@@ -192,7 +192,7 @@ class Quote (AST):
     def __repr__(self):
         return "Quote(%r)"%self.w_val
 
-class App (AST):
+class App(AST):
     _immutable_fields_ = ["rator", "rands[*]"]
     def __init__ (self, rator, rands):
         self.rator = rator
@@ -282,6 +282,7 @@ class ToplevelVar(Var):
 class SymList(object):
     _immutable_fields_ = ["elems[*]"]
     def __init__(self, elems):
+        assert isinstance(elems, list)
         self.elems = elems
 
 class SetBang (AST):
@@ -322,7 +323,7 @@ class If (AST):
 
 
 class Lambda (AST):
-    _immutable_fields_ = ["formals[*]", "rest", "body[*]"]
+    _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args"]
     def __init__ (self, formals, rest, body):
         self.formals = formals
         self.rest = rest
