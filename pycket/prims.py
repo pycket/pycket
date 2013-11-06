@@ -1,4 +1,5 @@
 import operator
+import os
 from pycket import values
 from pycket import arithmetic # imported for side effect
 
@@ -204,3 +205,14 @@ def consp(args):
     return values.W_Bool.make(listp_loop(v))
 
 
+@expose("display")
+def display(args):
+    s, = args
+    os.write(1, s.tostring())
+    return values.w_void
+
+@expose("write")
+def write(args):
+    s, = args
+    os.write(1, s.tostring())
+    return values.w_void

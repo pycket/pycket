@@ -3,11 +3,14 @@ from rpython.rlib  import jit
 
 class W_Object(object):
     __metaclass__ = extendabletype
+    def tostring(self):
+        return str(self)
     def call(self, args, env, frame):
         raise Exception ("not callable")
 
 class W_Cell (W_Object): # not the same as Racket's box
     def __init__(self, v):
+        assert not isinstance(v, W_Cell)
         self.value = v
 
 class W_Cons(W_Object):
@@ -33,6 +36,8 @@ class W_Number(W_Object):
 
 class W_Fixnum(W_Number):
     _immutable_fields_ = ["value"]
+    def tostring(self):
+        return str(self.value)
     def __init__(self, val):
         self.value = val
 
@@ -70,6 +75,8 @@ w_true = W_Bool(True)
 class W_String(W_Object):
     def __init__(self, val):
         self.value = val
+    def tostring(self):
+        return self.value
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
@@ -98,6 +105,7 @@ class W_SimplePrim (W_Procedure):
 
     def call(self, args, env, frame):
         from pycket.interpreter import Value
+        #print self.name
         return Value(self.code(args)), env, frame
 
 class W_Prim (W_Procedure):
@@ -127,8 +135,10 @@ class W_Continuation (W_Procedure):
 class W_Closure (W_Procedure):
     _immutable_fields_ = ["lam", "env"]
     def __init__ (self, lam, env):
+        from pycket.interpreter import ConsEnv, EmptyEnv
         self.lam = lam
-        self.env = env
+        vals = [env.lookup(i) for i in lam.frees.elems]
+        self.env = ConsEnv(lam.frees, vals, EmptyEnv(env.toplevel_env), env.toplevel_env)
     def call(self, args, env, frame):
         from pycket.interpreter import make_begin, ConsEnv
         jit.promote(self.lam)
@@ -139,7 +149,7 @@ class W_Closure (W_Procedure):
         if fmls_len > args_len:
             raise Exception("wrong number of arguments, expected at least %s but got %s"%(fmls_len,args_len))
         if self.lam.rest:
-            actuals = [to_list(args[fmls_len:])] + args[0:fmls_len]
+            actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:
             actuals = args        
         return make_begin(self.lam.body,

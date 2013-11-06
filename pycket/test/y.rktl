@@ -1,0 +1,10 @@
+     (((lambda (f)
+        ((lambda (x) (x x))
+         (lambda (g)
+           (f (lambda (z) ((g g) z))))))
+        (lambda (f)
+          (lambda (x)
+            (if (< x 0)
+                1
+                (f (- x 1))))))
+      100000000)

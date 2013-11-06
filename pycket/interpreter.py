@@ -73,7 +73,8 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        self.env.set(self.args.elems[- (len (self.rest) + 1)], w_val)
+        #import pdb; pdb.set_trace()
+        self.env.lookup(self.args.elems[- (len (self.rest) + 1)]).value = w_val
         if not self.rest:
             return make_begin(self.body, self.env, self.prev)
         else:
@@ -116,6 +117,7 @@ class Call(Cont):
     def plug_reduce(self, w_val):
         if not self.rest:
             vals_w = self.vals_w + [w_val]
+            #print vals_w[0]
             return vals_w[0].call(vals_w[1:], self.env, self.prev)
         else:
             return self.rest[0], self.env, Call(self.vals_w + [w_val], self.rest[1:], 
@@ -151,7 +153,8 @@ class Done(Exception):
         self.w_val = w_val
 
 class AST(object):
-    pass
+    def free_vars(self):
+        return {}
 
 
 class Value (AST):
@@ -176,6 +179,8 @@ class Cell(AST):
         return Cell(self.expr.assign_convert(vars))
     def mutated_vars(self):
         return self.expr.mutated_vars()
+    def free_vars (self):
+        return self.expr.free_vars()
     def __repr__(self):
         return "Cell(%r)"%self.expr
 
@@ -205,6 +210,11 @@ class App(AST):
         for r in self.rands:
             x.update(r.mutated_vars())
         return x
+    def free_vars(self):
+        x = self.rator.free_vars()
+        for r in self.rands:
+            x.update(r.free_vars())
+        return x
     def interpret (self, env, frame):
         return self.rator, env, Call([], self.rands, env, frame)
     def __repr__(self):
@@ -221,6 +231,11 @@ class Begin(AST):
         for r in self.exprs:
             x.update(r.mutated_vars())
         return x
+    def free_vars(self):
+        x = {}
+        for r in self.exprs:
+            x.update(r.free_vars())
+        return x
     def interpret(self, env, frame):
         return make_begin(self.exprs, env, frame)
     def __repr__(self):
@@ -234,17 +249,22 @@ class Var(AST):
         return Value(self._lookup(env)), env, frame
     def mutated_vars(self):
         return {}
+    def free_vars (self): 
+        return {self.sym: None}
     def __repr__(self):
         return "%s"%self.sym.value
 
 class CellRef (Var):
     def assign_convert(self, vars):
         return self
+    def __repr__(self):
+        return "CellRef(%s)"%self.sym.value
     def _set(self, w_val, env): 
         v = env.lookup(self.sym)
         assert isinstance(v, values.W_Cell)
         v.value = w_val
     def _lookup(self, env):
+        #import pdb; pdb.set_trace()
         v = env.lookup(self.sym)
         assert isinstance(v, values.W_Cell)
         return v.value
@@ -263,7 +283,7 @@ class LexicalVar(Var):
 class ModuleVar(Var):
     def _lookup(self, env):
         return self._prim_lookup()
-
+    def free_vars(self): return {}
     @jit.elidable
     def _prim_lookup(self):
         return prim_env[self.sym]
@@ -274,6 +294,7 @@ class ModuleVar(Var):
 class ToplevelVar(Var):
     def _lookup(self, env):
         return env.toplevel_env.lookup(self.sym).value
+    def free_vars(self): return {}
     def assign_convert(self, vars):
         return self
     def _set(self, w_val, env): 
@@ -298,6 +319,10 @@ class SetBang (AST):
         x = self.rhs.mutated_vars()
         x[self.var.sym] = None
         return x
+    def free_vars(self):
+        x = self.rhs.free_vars()
+        x[self.var.sym] = None
+        return x
     def __repr__(self):
         return "(set! %r %r)"%(self.var.sym.value, self.rhs)
 
@@ -318,17 +343,23 @@ class If (AST):
         for b in [self.tst, self.els, self.thn]:
             x.update(b.mutated_vars())
         return x
+    def free_vars(self):
+        x = {}
+        for b in [self.tst, self.els, self.thn]:
+            x.update(b.free_vars())
+        return x
     def __repr__(self):
         return "(if %r %r %r)"%(self.tst, self.thn, self.els)
 
 
 class Lambda (AST):
-    _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args"]
+    _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
     def __init__ (self, formals, rest, body):
         self.formals = formals
         self.rest = rest
         self.body = body
         self.args = SymList(formals + ([rest] if rest else []))
+        self.frees = SymList(self.free_vars().keys())
     def interpret (self, env, frame):
         return Value(values.W_Closure (self, env)), env, frame
     def assign_convert(self, vars):
@@ -360,6 +391,16 @@ class Lambda (AST):
         if self.rest and self.rest in x:
             del x[self.rest]
         return x
+    def free_vars(self):
+        x = {}
+        for b in self.body:
+            x.update(b.free_vars())
+        for v in self.formals:
+            if v in x:
+                del x[v]
+        if self.rest and self.rest in x:
+            del x[self.rest]
+        return x
     def __repr__(self):
         if self.rest and (not self.formals):
             return "(lambda %r %r)"%(self.rest, self.body)
@@ -377,12 +418,19 @@ class Letrec(AST):
         self.body = body
         self.args = SymList(vars)
     def interpret (self, env, frame):
-        env_new = ConsEnv(self.args, [None]*len(self.vars), env, env.toplevel_env)
+        env_new = ConsEnv(self.args, [values.W_Cell(None) for var in self.vars], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.args, self.rhss[1:], self.body, env_new, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body + self.rhss:
             x.update(b.mutated_vars())
+        for v in self.vars:
+            x[v] = None
+        return x
+    def free_vars(self):
+        x = {}
+        for b in self.body + self.rhss:
+            x.update(b.free_vars())
         for v in self.vars:
             if v in x:
                 del x[v]
@@ -391,12 +439,12 @@ class Letrec(AST):
         local_muts = {}
         for b in self.body + self.rhss:
             local_muts.update(b.mutated_vars())
+        for v in self.vars:
+            local_muts[v] = None
         new_vars = vars.copy()
         new_vars.update(local_muts)
-        new_rhss = [Cell(rhs.assign_convert(new_vars)) 
-                    if self.vars[i] in local_muts
-                    else rhs.assign_convert(new_vars)
-                    for i, rhs in enumerate(self.rhss)]
+        new_rhss = [rhs.assign_convert(new_vars) for rhs in self.rhss]
+        #import pdb; pdb.set_trace()
         new_body = [b.assign_convert(new_vars) for b in self.body]
         return Letrec(self.vars, new_rhss, new_body)
     def __repr__(self):
@@ -423,6 +471,16 @@ class Let(AST):
         for b in self.rhss:
             x.update(b.mutated_vars())
         return x
+    def free_vars(self):
+        x = {}
+        for b in self.body:
+            x.update(b.free_vars())
+        for v in self.vars:
+            if v in x:
+                del x[v]
+        for b in self.rhss:
+            x.update(b.free_vars())
+        return x
     def assign_convert(self, vars):
         local_muts = {}
         for b in self.body:
@@ -447,6 +505,7 @@ class Define(AST):
     def assign_convert(self, vars):
         return Define(self.name, self.rhs.assign_convert(vars))
     def mutated_vars(self): assert 0
+    def free_vars(self): assert 0
     def __repr__(self):
         return "(define %r %r)"%(self.name, self.rhs)
 

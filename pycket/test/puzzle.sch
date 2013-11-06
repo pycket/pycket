@@ -9,7 +9,7 @@
 ; Language:     Scheme
 ; Status:       Public Domain
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+(let()
 (define (iota n)
   (do ((n n (- n 1))
        (list '() (cons (- n 1) list)))
@@ -18,6 +18,7 @@
 ;;; PUZZLE -- Forest Baskett's Puzzle benchmark, originally written in Pascal.
 
 (define size 1048575)
+;(define size 1048)
 (define classmax 3)
 (define typemax 12)
 
@@ -171,3 +172,4 @@
             (loop (- n 1)
                   (start))))
 ;)
+)

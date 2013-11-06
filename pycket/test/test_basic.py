@@ -79,6 +79,7 @@ def test_letrec():
     run_fix("(letrec ([x 1] [y 2]) y)", 2)
     run_fix("(letrec ([x 1] [y 2]) (+ x y))", 3)
     run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
+    run_fix("(letrec ([x (lambda (z) x)]) 2)", 2)
 
 def test_let():
     run_fix("(let () 1)", 1)
@@ -87,10 +88,10 @@ def test_let():
     run_fix("(let ([x 1] [y 2]) (+ x y))", 3)
     run_fix("(let ([x 0]) (let ([x 1] [y x]) (+ x y)))", 1)
 
-def test_fac_letrec():
+def test_fac():
     run_fix("(letrec ([fac (lambda (n) (if (= n 0) 1 (* n (fac (- n 1)))))]) (fac 5))", 120)
 
-def test_fib_letrec():
+def test_fib():
     run_fix("(letrec ([fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))]) (fib 2))", 2)
     run_fix("(letrec ([fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))]) (fib 3))", 3)
 
