@@ -16,10 +16,11 @@ def run(p,v):
 with file("../stdlib.sch") as f:
      stdlib = f.read()
 
-def run_top(p,v):
+def run_top(p,v=None):
     ast = to_ast(expand("(let () \n %s \n %s\n)"%(stdlib, p)))
     val = interpret([ast])
-    assert equal_loop(val,v)
+    if v:
+        assert equal_loop(val,v)
 
 
 def test_constant():

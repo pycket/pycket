@@ -155,6 +155,11 @@ def do_cdr(args):
 @expose("void")
 def do_void(args): return values.w_void
 
+@expose("number->string")
+def num2str(args):
+    a, = args
+    return values.W_String(a.tostring())
+
 @expose("vector-ref")
 def vector_ref(args):
     v, i = args

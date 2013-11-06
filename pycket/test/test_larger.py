@@ -9,10 +9,13 @@ from pycket.test.test_basic import run_top
 def run_file(fname):
     with file(fname) as f:
         s = f.read()
-    return run_top(s, w_void)
+    return run_top(s)
 
 def test_puzzle():
-    assert run_file("puzzle.sch")
+    run_file("puzzle.sch")
+
+def test_nqueens():
+    run_file("nqueens.sch")
     
         
 

@@ -74,7 +74,9 @@ class LetrecCont(Cont):
         self.prev = prev
     def plug_reduce(self, w_val):
         #import pdb; pdb.set_trace()
-        self.env.lookup(self.args.elems[- (len (self.rest) + 1)]).value = w_val
+        v = self.env.lookup(self.args.elems[- (len (self.rest) + 1)])
+        assert isinstance(v, values.W_Cell)
+        v.value = w_val
         if not self.rest:
             return make_begin(self.body, self.env, self.prev)
         else:

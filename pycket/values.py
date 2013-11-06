@@ -3,6 +3,7 @@ from rpython.rlib  import jit
 
 class W_Object(object):
     __metaclass__ = extendabletype
+    _attrs_ = []
     def tostring(self):
         return str(self)
     def call(self, args, env, frame):
@@ -134,6 +135,7 @@ class W_Continuation (W_Procedure):
 
 class W_Closure (W_Procedure):
     _immutable_fields_ = ["lam", "env"]
+    @jit.unroll_safe
     def __init__ (self, lam, env):
         from pycket.interpreter import ConsEnv, EmptyEnv
         self.lam = lam
