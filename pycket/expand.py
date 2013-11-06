@@ -111,6 +111,13 @@ def to_value(json):
             return values.W_Fixnum(int(json["integer"]))
         if "real" in json:
             return values.W_Flonum(float(json["real"]))
+        if "string" in json:
+            return values.W_String(str(json["string"]))
+        for i in ["toplevel", "lexical", "module"]:
+            if i in json:
+                return values.W_Symbol.make(str(json[i]))
+    if isinstance (json, list):
+        return values.to_list([to_value(j) for j in json])
     assert 0
         
         

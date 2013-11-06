@@ -172,7 +172,13 @@ def vector(args):
 
 @expose("make-vector")
 def make_vector(args):
-    n, val = args
+    if len(args) == 2:
+        n, val = args
+    elif len(args) == 1:
+        n, = args
+        val = values.W_Fixnum(0)
+    else:
+        assert 0
     assert isinstance(n, values.W_Fixnum)
     assert n.value >= 0
     return values.W_Vector([val] * n.value)

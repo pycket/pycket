@@ -13,8 +13,11 @@ def run(p,v):
     val = interpret_one(to_ast(expand(p)))
     assert equal_loop(val,v)
 
+with file("../stdlib.sch") as f:
+     stdlib = f.read()
+
 def run_top(p,v):
-    ast = to_ast(expand("(begin %s)"%p))
+    ast = to_ast(expand("(let () \n %s \n %s\n)"%(stdlib, p)))
     val = interpret([ast])
     assert equal_loop(val,v)
 

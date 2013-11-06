@@ -1,4 +1,5 @@
 from rpython.tool.pairtype import extendabletype
+from rpython.rlib  import jit
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -130,6 +131,7 @@ class W_Closure (W_Procedure):
         self.env = env
     def call(self, args, env, frame):
         from pycket.interpreter import make_begin, ConsEnv
+        jit.promote(self.lam)
         fmls_len = len(self.lam.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.lam.rest:
@@ -139,7 +141,7 @@ class W_Closure (W_Procedure):
         if self.lam.rest:
             actuals = [to_list(args[fmls_len:])] + args[0:fmls_len]
         else:
-            actuals = args
+            actuals = args        
         return make_begin(self.lam.body,
                           ConsEnv(self.lam.args, actuals, self.env, self.env.toplevel_env),
                           frame)

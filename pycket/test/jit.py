@@ -20,9 +20,13 @@ from pycket.values import *
 
 class TestLLtype(LLJitMixin):
 
+
     def test_reverse(self):
 
-        ast = to_ast(expand("(letrec ([countdown (lambda (n) (if (< n 0) 1 (countdown (- n 1))))]) (countdown 1000))"))
+        ast = to_ast(expand("""
+(letrec ([countdown (lambda (n) (if (< n 0) 1 (countdown (- n 1))))])
+ (countdown 1000))
+"""))
 
         def interp_w():
             val = interpret_one(ast)
