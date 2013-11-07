@@ -6,16 +6,31 @@ class Env(object):
     _immutable_fields_ = ["toplevel_env"]
     pass
 
+class Version(object):
+    pass
+
 class ToplevelEnv(object):
+    _immutable_fields_ = ["version?"]
     def __init__(self):
         self.bindings = {}
+        self.version = Version()
     def lookup(self, sym):
+        jit.promote(self)
+        w_res = self._lookup(sym, self.version)
+        if isinstance(w_res, values.W_Cell):
+            w_res = w_res.value
+        return w_res
+
+    @jit.elidable
+    def _lookup(self, sym, version):
         return self.bindings[sym]
+
     def set(self, sym, w_val):
         if sym in self.bindings:
             self.bindings[sym].value = w_val
         else:
             self.bindings[sym] = values.W_Cell(w_val)
+            self.version = Version()
 
 class EmptyEnv(Env):
     def __init__ (self, toplevel):
@@ -295,11 +310,11 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     def _lookup(self, env):
-        return env.toplevel_env.lookup(self.sym).value
+        return env.toplevel_env.lookup(self.sym)
     def free_vars(self): return {}
     def assign_convert(self, vars):
         return self
-    def _set(self, w_val, env): 
+    def _set(self, w_val, env):
         env.toplevel_env.set(self.sym, w_val)
 
 class SymList(object):
