@@ -140,10 +140,10 @@ class Call(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if self.i == len(self.callast.rands):
+        if self.i == len(self.callast.rands) :
             vals_w = self.vals_w + [w_val]
             #print vals_w[0]
-            return vals_w[0].call(vals_w[1:], self.env, self.prev)
+            return DoCall(vals_w[0], vals_w[1:]), self.env, self.prev
         else:
             return self.callast.rands[self.i], self.env, Call(self.vals_w + [w_val], self.callast, self.i + 1,
                                                               self.env, self.prev)
@@ -181,6 +181,14 @@ class AST(object):
     def free_vars(self):
         return {}
 
+class DoCall (AST):
+    def __init__ (self, f, args):
+        self.f = f
+        self.args = args
+    def tostring(self):
+        return "DoCall(%s, %s)"%(self.f.tostring(), [a.tostring() for a in self.args])
+    def interpret (self, env, frame):
+        return self.f.call(self.args, env, frame)
 
 class Value (AST):
     def __init__ (self, w_val):
@@ -593,12 +601,14 @@ def interpret_one(ast, env=None):
     green_ast = None
     try:
         while True:
+            print ast.tostring(), frame
             driver.jit_merge_point(ast=ast, env=env, frame=frame, green_ast=green_ast)
             if not isinstance(ast, Value):
                 jit.promote(ast)
                 green_ast = ast
             ast, env, frame = ast.interpret(env, frame)
-            if isinstance(ast, App):
+            if isinstance(frame, DoCall):
+                print ">>>>>>>>>>>>>>>>>", ast.tostring()
                 driver.can_enter_jit(ast=ast, env=env, frame=frame, green_ast=green_ast)
     except Done, e:
         return e.w_val
