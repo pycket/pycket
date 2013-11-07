@@ -90,6 +90,8 @@ def _to_ast(json):
             raise Exception ("#%variable-reference is unsupported")
         if json[0] == {"module": "case-lambda"}:
             raise Exception ("case-lambda is unsupported")
+        if json[0] == {"module": "define-syntaxes"}:
+            return Begin([])
         assert 0
     if isinstance(json, dict):
         if "module" in json:
@@ -119,6 +121,9 @@ def to_value(json):
             return values.W_Flonum(float(json["real"]))
         if "string" in json:
             return values.W_String(str(json["string"]))
+        if "improper" in json:
+            return values.to_improper([to_value(v) for v in json["improper"][0]],
+                                      to_value(json["improper"][1]))
         for i in ["toplevel", "lexical", "module"]:
             if i in json:
                 return values.W_Symbol.make(str(json[i]))

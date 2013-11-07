@@ -23,7 +23,13 @@ def make_cmp(name, func, con):
     @expose(name, simple=True)
     def do(args):
         a,b = args
-        return con(func(a.value, b.value))
+        if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+            return con(func(a.value, b.value))
+        if isinstance(a, values.W_Bignum) and isinstance(b, values.W_Bignum):
+            assert 0
+        if isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
+            return con(func(a.value, b.value))
+        assert 0
 
 for args in [
         ("=", operator.eq,  values.W_Bool.make),
@@ -152,6 +158,13 @@ def eqp(args):
 @expose("list")
 def do_list(args):
     return values.to_list(args)
+
+@expose("list*")
+def do_liststar(args):
+    a = len(args)-1
+    if a < 0:
+        raise Exception("list* expects at least one argument")
+    return values.to_improper(args[:a], args[a])
 
 @expose("cons")
 def do_cons(args):

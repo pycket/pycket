@@ -18,6 +18,8 @@ class W_Cons(W_Object):
     def __init__(self, a, d):
         self.car = a
         self.cdr = d
+    def tostring(self):
+        return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
 
 class W_Vector(W_Object):
     _immutable_fields_ = ["elems"]
@@ -30,6 +32,8 @@ class W_Vector(W_Object):
         assert 0 <= i < len(self.elems)
         self.elems[i] = v
         return w_void
+    def tostring(self):
+        return "#(%s)"%(" ".join([e.tostring() for e in self.elems]))
 
 class W_Number(W_Object):
     pass
@@ -57,6 +61,7 @@ class W_Void (W_Object):
 
 class W_Null (W_Object):
     def __init__(self): pass
+    def tostring(self): return "()"
 
 w_void = W_Void()
 w_null = W_Null()
@@ -118,11 +123,13 @@ class W_Prim (W_Procedure):
     def call(self, args, env, frame):
         return self.code(args, env, frame)
 
-def to_list(l):
+def to_list(l): return to_improper(l, w_null)
+
+def to_improper(l, v):
     if not l:
-        return w_null
+        return v
     else:
-        return W_Cons(l[0], to_list(l[1:]))
+        return W_Cons(l[0], to_improper(l[1:], v))
 
 class W_Continuation (W_Procedure):
     _immutable_fields_ = ["frame"]

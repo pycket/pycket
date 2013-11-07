@@ -19,3 +19,6 @@ def test_nqueens():
 
 def test_pseudoknot():
     run_file("nucleic2.sch")
+
+def test_microkanren():
+    run_file("microkanren.sch")

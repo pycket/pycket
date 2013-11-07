@@ -23,7 +23,11 @@ class ToplevelEnv(object):
 
     @jit.elidable
     def _lookup(self, sym, version):
-        return self.bindings[sym]
+        try:
+            return self.bindings[sym]
+        except:
+            print ">>>> toplevel err %s"%sym.value
+            raise
 
     def set(self, sym, w_val):
         if sym in self.bindings:
@@ -81,40 +85,42 @@ class IfCont(Cont):
             return self.thn, self.env, self.prev
 
 class LetrecCont(Cont):
-    def __init__(self, args, rest, body, env, prev):
+    def __init__(self, args, ast, i, body, env, prev):
         self.args  = args
-        self.rest = rest
+        self.ast = ast
+        self.i = i
         self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
         #import pdb; pdb.set_trace()
-        v = self.env.lookup(self.args.elems[- (len (self.rest) + 1)])
+        v = self.env.lookup(self.args.elems[self.i])
         assert isinstance(v, values.W_Cell)
         v.value = w_val
-        if not self.rest:
+        if self.i >= (len(self.ast.rhss) - 1):
             return make_begin(self.body, self.env, self.prev)
         else:
-            return (self.rest[0], self.env, 
-                    LetrecCont(self.args, self.rest[1:], 
+            return (self.ast.rhss[self.i + 1], self.env, 
+                    LetrecCont(self.args, self.ast, self.i + 1,
                                self.body, self.env, self.prev))
 
 class LetCont(Cont):
-    def __init__(self, args, vals_w, rest, body, env, prev):
+    def __init__(self, args, vals_w, ast, i, body, env, prev):
         self.args = args
         self.vals_w  = vals_w
-        self.rest = rest
+        self.ast = ast
+        self.i = i
         self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if not self.rest:
+        if self.i >= (len(self.ast.rhss) - 1):
             vals_w = self.vals_w + [w_val]
             env = ConsEnv(self.args, vals_w, self.env, self.env.toplevel_env)
             return make_begin(self.body, env, self.prev)
         else:
-            return (self.rest[0], self.env, 
-                    LetCont(self.args, self.vals_w + [w_val], self.rest[1:], 
+            return (self.ast.rhss[self.i + 1], self.env, 
+                    LetCont(self.args, self.vals_w + [w_val], self.ast, self.i + 1,
                             self.body, self.env, self.prev))
 
 class CellCont(Cont):
@@ -468,7 +474,7 @@ class Letrec(AST):
         self.args = SymList(vars)
     def interpret (self, env, frame):
         env_new = ConsEnv(self.args, [values.W_Cell(None) for var in self.vars], env, env.toplevel_env)
-        return self.rhss[0], env_new, LetrecCont(self.args, self.rhss[1:], self.body, env_new, frame)
+        return self.rhss[0], env_new, LetrecCont(self.args, self, 0, self.body, env_new, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body + self.rhss:
@@ -523,7 +529,7 @@ class Let(AST):
     def interpret (self, env, frame):
         if not self.vars:
             return make_begin(self.body, env, frame)
-        return self.rhss[0], env, LetCont(self.args, [], self.rhss[1:], self.body, env, frame)
+        return self.rhss[0], env, LetCont(self.args, [], self, 0, self.body, env, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body:
