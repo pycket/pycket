@@ -114,6 +114,7 @@ class LetCont(Cont):
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
+        jit.promote(len(self.vals_w))
         if self.i >= (len(self.ast.rhss) - 1):
             vals_w = self.vals_w + [w_val]
             env = ConsEnv(self.args, vals_w, self.env, self.env.toplevel_env)
@@ -191,8 +192,8 @@ class Value (AST):
         return self
     def mutated_vars(self):
         return {}
-    def __repr__(self):
-        return "V(%r)"%self.w_val
+    def tostring(self):
+        return "V(%s)"%self.w_val.tostring()
 
 class Cell(AST):
     def __init__(self, expr):
@@ -205,8 +206,8 @@ class Cell(AST):
         return self.expr.mutated_vars()
     def free_vars (self):
         return self.expr.free_vars()
-    def __repr__(self):
-        return "Cell(%r)"%self.expr
+    def tostring(self):
+        return "Cell(%s)"%self.expr
 
 class Quote (AST):
     _immutable_fields_ = ["w_val"]
@@ -218,8 +219,8 @@ class Quote (AST):
         return self
     def mutated_vars(self):
         return {}
-    def __repr__(self):
-        return "Quote(%r)"%self.w_val
+    def tostring(self):
+        return "'%s"%self.w_val.tostring()
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]"]
@@ -241,8 +242,8 @@ class App(AST):
         return x
     def interpret (self, env, frame):
         return self.rator, env, Call([], self, 0, env, frame)
-    def __repr__(self):
-        return "(%r %r)"%(self.rator, self.rands)
+    def tostring(self):
+        return "(%s %s)"%(self.rator.tostring(), [r.tostring() for r in self.rands])
 
 class Begin(AST):
     _immutable_fields_ = ["exprs[*]"]
@@ -262,8 +263,8 @@ class Begin(AST):
         return x
     def interpret(self, env, frame):
         return make_begin(self.exprs, env, frame)
-    def __repr__(self):
-        return "(begin %r)" % self.exprs
+    def tostring(self):
+        return "(begin %s)" % [e.tostring() for e in self.exprs]
 
 class Var(AST):
     _immutable_fields_ = ["sym"]
@@ -275,13 +276,13 @@ class Var(AST):
         return {}
     def free_vars (self): 
         return {self.sym: None}
-    def __repr__(self):
+    def tostring(self):
         return "%s"%self.sym.value
 
 class CellRef (Var):
     def assign_convert(self, vars):
         return self
-    def __repr__(self):
+    def tostring(self):
         return "CellRef(%s)"%self.sym.value
     def _set(self, w_val, env): 
         v = env.lookup(self.sym)
@@ -347,8 +348,8 @@ class SetBang (AST):
         x = self.rhs.free_vars()
         x[self.var.sym] = None
         return x
-    def __repr__(self):
-        return "(set! %r %r)"%(self.var.sym.value, self.rhs)
+    def tostring(self):
+        return "(set! %s %s)"%(self.var.sym.value, self.rhs)
 
 class If (AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -372,8 +373,8 @@ class If (AST):
         for b in [self.tst, self.els, self.thn]:
             x.update(b.free_vars())
         return x
-    def __repr__(self):
-        return "(if %r %r %r)"%(self.tst, self.thn, self.els)
+    def tostring(self):
+        return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
     _immutable_fields_ = ["name", "lam"]
@@ -402,13 +403,13 @@ class RecLambda(AST):
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl)
         return Vcl, env, frame
-    def __repr__(self):
+    def tostring(self):
         if self.lam.rest and (not self.lam.formals):
-            return "(rec %r %r %r)"%(self.name, self.lam.rest, self.lam.body)
+            return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
         if self.lam.rest:
-            return "(rec %r (%r . %r) %r)"%(self.name, self.lam.formals, self.lam.rest, self.lam.body)
+            return "(rec %s (%s . %s) %s)"%(self.name, self.lam.formals, self.lam.rest, self.lam.body)
         else:
-            return "(rec %r (%r) %r)"%(self.name, self.lam.formals, self.lam.body)
+            return "(rec %s (%s) %s)"%(self.name, self.lam.formals, self.lam.body)
 
 
 class Lambda (AST):
@@ -456,13 +457,13 @@ class Lambda (AST):
         if self.rest and self.rest in x:
             del x[self.rest]
         return x
-    def __repr__(self):
+    def tostring(self):
         if self.rest and (not self.formals):
-            return "(lambda %r %r)"%(self.rest, self.body)
+            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
         if self.rest:
-            return "(lambda (%r . %r) %r)"%(self.formals, self.rest, self.body)
+            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
         else:
-            return "(lambda (%r) %r)"%(self.formals, self.body)
+            return "(lambda (%s) %s)"%(self.formals, [b.tostring() for b in self.body])
 
 
 class Letrec(AST):
@@ -502,8 +503,9 @@ class Letrec(AST):
         #import pdb; pdb.set_trace()
         new_body = [b.assign_convert(new_vars) for b in self.body]
         return Letrec(self.vars, new_rhss, new_body)
-    def __repr__(self):
-        return "(letrec (%r) %r)"%(zip(self.vars, self.rhss), self.body)
+    def tostring(self):
+        return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.vars)], 
+                                   [b.tostring() for b in self.body])
 
 def make_let(vars, rhss, body):
     if not vars:
@@ -562,8 +564,9 @@ class Let(AST):
         new_vars.update(local_muts)
         new_body = [b.assign_convert(new_vars) for b in self.body]
         return Let(self.vars, new_rhss, new_body)
-    def __repr__(self):
-        return "(let (%r) %r)"%(zip(self.vars, self.rhss), self.body)
+    def tostring(self):
+        return "(let (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.vars)], 
+                                [b.tostring() for b in self.body])
 
 
 
@@ -575,10 +578,12 @@ class Define(AST):
         return Define(self.name, self.rhs.assign_convert(vars))
     def mutated_vars(self): assert 0
     def free_vars(self): assert 0
-    def __repr__(self):
-        return "(define %r %r)"%(self.name, self.rhs)
+    def tostring(self):
+        return "(define %s %s)"%(self.name, self.rhs.tostring())
 
-driver = jit.JitDriver(reds=["ast", "env", "frame"], greens=["green_ast"])
+def get_printable_location(green_ast):
+    return green_ast.tostring()
+driver = jit.JitDriver(reds=["ast", "env", "frame"], greens=["green_ast"], get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
     frame = None

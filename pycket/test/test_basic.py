@@ -5,19 +5,25 @@ from pycket.values import *
 from pycket.prims import *
 
 def run_fix(p,v):
-    val = interpret_one(to_ast(expand(p)))
+    e = expand(p)
+    ast = to_ast(e)
+    val = interpret_one(ast)
     assert isinstance(val, W_Fixnum)
     assert val.value == v
 
 def run(p,v):
-    val = interpret_one(to_ast(expand(p)))
+    e = expand(p)
+    ast = to_ast(e)
+    val = interpret_one(ast)
     assert equal_loop(val,v)
 
 with file("../stdlib.sch") as f:
      stdlib = f.read()
 
 def run_top(p,v=None):
-    ast = to_ast(expand("(let () \n %s \n %s\n)"%(stdlib, p)))
+    pp = "(let () \n %s \n %s\n %s)"%(stdlib, p, "" if v else "(void)")
+    e = expand(pp)
+    ast = to_ast(e)
     val = interpret([ast])
     if v:
         assert equal_loop(val,v)

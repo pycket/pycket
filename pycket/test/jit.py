@@ -110,9 +110,9 @@ class TestLLtype(LLJitMixin):
             s = f.read()
         with file("../stdlib.sch") as f:
             stdlib = f.read()
-        ast = to_ast(expand("(begin \n%s\n%s\n)"%(stdlib,s)))
+        ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
         def interp_w():
-            val = interpret([ast])
+            val = interpret_one(ast)
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
@@ -132,6 +132,24 @@ class TestLLtype(LLJitMixin):
 
                      
 
+    def test_append(self):
+        ast = to_ast(expand("""
+(let () (define (append a b)
+  (if (null? a) 
+      b
+      (cons (car a) (append (cdr a) b))))
+ (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
+"""
+))
+
+        def interp_w():
+            val = interpret_one(ast)
+            assert isinstance(val, W_Object)
+            return 1
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_ycombinator(self):
 

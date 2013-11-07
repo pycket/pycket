@@ -48,16 +48,22 @@ class W_Fixnum(W_Number):
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
+    def tostring(self):
+        return str(self.value)
     def __init__(self, val):
         self.value = val
 
 class W_Bignum(W_Number):
     _immutable_fields_ = ["value"]
+    def tostring(self):
+        return str(self.value)
     def __init__(self, val):
         self.value = val
 
 class W_Void (W_Object):
     def __init__(self): pass
+    def tostring(self):
+        return "#<void>"
 
 class W_Null (W_Object):
     def __init__(self): pass
@@ -74,6 +80,9 @@ class W_Bool(W_Object):
         else: return w_false
     def __init__(self, val):
         self.value = val
+    def tostring(self):
+        if self.value: return "#t"
+        else: return "#f"
 
 w_false = W_Bool(False)
 w_true = W_Bool(True)

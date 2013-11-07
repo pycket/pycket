@@ -22,3 +22,6 @@ def test_pseudoknot():
 
 def test_microkanren():
     run_file("microkanren.sch")
+
+def test_minikanren():
+    run_file("minikanren.sch")

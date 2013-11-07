@@ -153,7 +153,19 @@ def eqp(args):
     else:
         return values.w_false
     
-
+@expose("length")
+def length(args):
+    a, = args
+    n = 0
+    while True:
+        if isinstance(a, values.W_Null):
+            return values.W_Fixnum(n)
+        if isinstance(a, values.W_Cons):
+            a = a.cdr
+            n = n+1
+        else:
+            raise Exception("length: not a list")
+        
 
 @expose("list")
 def do_list(args):
@@ -166,6 +178,18 @@ def do_liststar(args):
         raise Exception("list* expects at least one argument")
     return values.to_improper(args[:a], args[a])
 
+@expose("assq")
+def assq(args):
+    a,b = args
+    if values.w_null is b: 
+        return values.w_false
+    else:
+        if eqp([a, do_car([do_car([b])])]):
+            return do_car([b])
+        else:
+            return assq([a, do_cdr([b])])
+        
+
 @expose("cons")
 def do_cons(args):
     a,b = args
@@ -177,6 +201,22 @@ def do_car(args):
     assert isinstance (a,values.W_Cons)
     return a.car
 
+@expose("cadr")
+def do_cadr(args):
+    return do_car([do_cdr(args)])
+
+@expose("cddr")
+def do_cddr(args):
+    return do_cdr([do_cdr(args)])
+
+@expose("caddr")
+def do_caddr(args):
+    return do_car([do_cdr([do_cdr(args)])])
+
+@expose("cadddr")
+def do_cadddr(args):
+    return do_car([do_cdr([do_cdr([do_cdr(args)])])])
+
 @expose("cdr")
 def do_cdr(args):
     a, = args
@@ -184,14 +224,14 @@ def do_cdr(args):
     return a.cdr
 
 @expose("set-car!")
-def do_car(args):
+def do_set_car(args):
     a,b = args
     assert isinstance (a,values.W_Cons)
     a.car = b
     return values.w_void
 
 @expose("set-cdr!")
-def do_cdr(args):
+def do_set_cdr(args):
     a,b = args
     assert isinstance (a,values.W_Cons)
     a.cdr = b
