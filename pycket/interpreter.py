@@ -126,19 +126,20 @@ class CellCont(Cont):
 
 class Call(Cont):
     # prev is the parent continuation
-    def __init__ (self, vals_w, rest, env, prev):
+    def __init__ (self, vals_w, callast, i, env, prev):
         self.vals_w = vals_w
-        self.rest = rest
+        self.callast = callast
+        self.i = i
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if not self.rest:
+        if self.i == len(self.callast.rands):
             vals_w = self.vals_w + [w_val]
             #print vals_w[0]
             return vals_w[0].call(vals_w[1:], self.env, self.prev)
         else:
-            return self.rest[0], self.env, Call(self.vals_w + [w_val], self.rest[1:], 
-                                                self.env, self.prev)
+            return self.callast.rands[self.i], self.env, Call(self.vals_w + [w_val], self.callast, self.i + 1,
+                                                              self.env, self.prev)
 
 def make_begin(exprs, env, prev):
     assert exprs
@@ -233,7 +234,7 @@ class App(AST):
             x.update(r.free_vars())
         return x
     def interpret (self, env, frame):
-        return self.rator, env, Call([], self.rands, env, frame)
+        return self.rator, env, Call([], self, 0, env, frame)
     def __repr__(self):
         return "(%r %r)"%(self.rator, self.rands)
 
