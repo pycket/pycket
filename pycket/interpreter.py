@@ -10,13 +10,13 @@ class Version(object):
     pass
 
 class ToplevelEnv(object):
-    _immutable_fields_ = ["version?"]
+    _immutable_fields_ = ["version"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
     def lookup(self, sym):
         jit.promote(self)
-        w_res = self._lookup(sym, self.version)
+        w_res = self._lookup(sym, jit.promote(self.version))
         if isinstance(w_res, values.W_Cell):
             w_res = w_res.value
         return w_res

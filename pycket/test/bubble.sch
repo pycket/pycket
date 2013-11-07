@@ -1,14 +1,8 @@
 ;; The Bubble sort benchmark from Strickland et al 2012
-
+(let ()
 (define SIZE 10000)
 
 (define vec (make-vector SIZE))
-(let loop ([i 0])
-  (if (< i SIZE)
-      (begin
-        (vector-set! vec i (- SIZE i))
-        (loop (+ 1 i)))
-      #f))
 
 (define (bubble-sort vec)
   (define SIZE-1 (- SIZE 1))
@@ -25,6 +19,13 @@
                   (loop swapped? (+ 1 i))))))
       (bubble-sort vec)
       #f))
+(let loop ([i 0])
+  (if (< i SIZE)
+      (begin
+        (vector-set! vec i (- SIZE i))
+        (loop (+ 1 i)))
+      #f))
 
 ;(time (bubble-sort vec))
 (bubble-sort vec)
+)

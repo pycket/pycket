@@ -16,6 +16,6 @@ def test_puzzle():
 
 def test_nqueens():
     run_file("nqueens.sch")
-    
-        
 
+def test_pseudoknot():
+    run_file("nucleic2.sch")

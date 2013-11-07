@@ -86,7 +86,20 @@ class TestLLtype(LLJitMixin):
             stdlib = f.read()
         ast = to_ast(expand("(begin \n%s\n%s\n)"%(stdlib,s)))
         def interp_w():
-            val = interpret(ast)
+            val = interpret([ast])
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_pseudoknot(self):
+        fname = "nucleic2.sch"
+        with file(fname) as f:
+            s = f.read()
+        with file("../stdlib.sch") as f:
+            stdlib = f.read()
+        ast = to_ast(expand("(begin \n%s\n%s\n)"%(stdlib,s)))
+        def interp_w():
+            val = interpret([ast])
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)

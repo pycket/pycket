@@ -112,7 +112,7 @@ def to_value(json):
         return values.w_true
     if isinstance (json, dict):
         if "vector" in json:
-            return values.W_Vector(json["vector"])
+            return values.W_Vector([to_value(v) for v in json["vector"]])
         if "integer" in json:
             return values.W_Fixnum(int(json["integer"]))
         if "real" in json:

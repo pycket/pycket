@@ -2,6 +2,7 @@ import operator
 import os
 from pycket import values
 from pycket import arithmetic # imported for side effect
+from rpython.rlib  import jit
 
 prim_env = {}
 
@@ -22,15 +23,14 @@ def make_cmp(name, func, con):
     @expose(name, simple=True)
     def do(args):
         a,b = args
-        assert isinstance (a, values.W_Fixnum)
-        assert isinstance (b, values.W_Fixnum)
         return con(func(a.value, b.value))
-
 
 for args in [
         ("=", operator.eq,  values.W_Bool.make),
         ("<", operator.lt,  values.W_Bool.make),
         (">", operator.gt,  values.W_Bool.make),
+        ("<=", operator.le,  values.W_Bool.make),
+        (">=", operator.ge,  values.W_Bool.make),
         ]:
     make_cmp(*args)
 
@@ -66,18 +66,39 @@ for args in [
         ]:
     make_pred_eq(*args)
 
-def make_arith(name, methname):
+def make_arith(name, zero, methname):
     @expose(name, simple=True)
+    @jit.unroll_safe
     def do(args):
-        a, b = args
-        return getattr(a, methname)(b)
+        if not args and zero:
+            return zero
+        else:
+            init = args[0]
+            for i in args[1:]:
+                init = getattr(init, methname)(i)
+            return init
 
 for args in [
-        ("+", "arith_add"),
-        ("-", "arith_sub"),
-        ("*", "arith_mul"),
+        ("+", values.W_Fixnum(0), "arith_add"),
+        ("-", None, "arith_sub"),
+        ("/", None, "arith_div"),
+        ("*", values.W_Fixnum(1), "arith_mul"),
         ]:
     make_arith(*args)
+
+def make_unary_arith(name, methname):
+    @expose(name, simple=True)
+    def do(args):
+        a, = args
+        return getattr(a, methname)()
+
+for args in [
+        ("sin", "arith_sin"),
+        ("cos", "arith_cos"),
+        ("atan", "arith_atan"),
+        ("sqrt", "arith_sqrt"),
+        ]:
+    make_unary_arith(*args)
     
 val ("null", values.w_null)
 val ("true", values.w_true)
@@ -114,6 +135,17 @@ def equalp(args):
     # this doesn't work for cycles
     a,b = args
     return values.W_Bool.make(equal_loop (a,b))
+
+@expose("eq?")
+def eqp(args):
+    # this doesn't work for cycles
+    a,b = args
+    if a is b:
+        return values.w_true
+    if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+        return values.W_Bool.make(a.value == b.value)
+    else:
+        return values.w_false
     
 
 
@@ -158,18 +190,32 @@ def do_void(args): return values.w_void
 @expose("number->string")
 def num2str(args):
     a, = args
+    if not isinstance(a, values.W_Number):
+        raise Exception("number->string: expected a number")
     return values.W_String(a.tostring())
 
 @expose("vector-ref")
 def vector_ref(args):
     v, i = args
-    assert isinstance(i, values.W_Fixnum)
+    if not isinstance(v, values.W_Vector):
+        raise Exception("vector-ref: expected a vector")
+    if not isinstance(i, values.W_Fixnum):
+        raise Exception("vector-ref: expected a fixnum")
+    idx = i.value
+    if not (0 <= idx < len(v.elems)):
+        raise Exception("vector-ref: index out of bounds")
     return v.ref(i.value)
 
 @expose("vector-set!")
 def vector_set(args):
     v, i, new = args
-    assert isinstance(i, values.W_Fixnum)
+    if not isinstance(v, values.W_Vector):
+        raise Exception("vector-set!: expected a vector")
+    if not isinstance(i, values.W_Fixnum):
+        raise Exception("vector-set!: expected a fixnum")
+    idx = i.value
+    if not (0 <= idx < len(v.elems)):
+        raise Exception("vector-set!: index out of bounds")
     return v.set(i.value, new)
 
 @expose("vector")
@@ -185,14 +231,17 @@ def make_vector(args):
         val = values.W_Fixnum(0)
     else:
         assert 0
-    assert isinstance(n, values.W_Fixnum)
-    assert n.value >= 0
+    if not isinstance(n, values.W_Fixnum):
+        raise Exception("make-vector: expected a fixnum")
+    if not (n.value >= 0):
+        raise Exception("make-vector: expected a positive fixnum")
     return values.W_Vector([val] * n.value)
 
 @expose("vector-length")
 def vector_length(args):
     v, = args
-    assert isinstance(v, values.W_Vector)
+    if not isinstance(v, values.W_Vector):
+        raise Exception("vector-length: expected a vector")
     return values.W_Fixnum(len(v.elems))
 
 # my kingdom for a tail call

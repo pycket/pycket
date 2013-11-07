@@ -2,11 +2,12 @@ from rpython.tool.pairtype import extendabletype
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib import rarithmetic
 from pycket import values
+import math
 
 def make_int(w_value):
     if isinstance(w_value, values.W_Bignum):
         try:
-            num = w_value.value.toint()
+            num = w_value.value.toint() 
         except OverflowError:
             pass
         else:
@@ -14,9 +15,7 @@ def make_int(w_value):
     return w_value
 
 class __extend__(values.W_Number):
-    def arith_sqrt(self):
-        ## FIXME: wrong for Scheme numbers
-        return self.arith_pow(values.W_Flonum(0.5))
+    pass
 
 class __extend__(values.W_Fixnum):
     # ------------------ addition ------------------ 
@@ -252,6 +251,17 @@ class __extend__(values.W_Fixnum):
     def arith_min_float(self, other_float):
         return values.W_Flonum(min(other_float, float(self.value)))
 
+    # ------------------ trigonometry ------------------
+
+    def arith_sin(self):
+        return values.W_Flonum(math.sin(self.value))
+    def arith_sqrt(self):
+        assert 0
+    def arith_cos(self):
+        return values.W_Flonum(math.cos(self.value))
+    def arith_atan(self):
+        return values.W_Flonum(math.atan(self.value))
+
     # ------------------ miscellanous ------------------
     def arith_round(self):
         return self
@@ -385,6 +395,18 @@ class __extend__(values.W_Flonum):
 
     def arith_min_float(self, other_float):
         return values.W_Flonum(min(other_float, self.value))
+
+    # ------------------ trigonometry ------------------
+
+    def arith_sin(self):
+        return values.W_Flonum(math.sin(self.value))
+    def arith_sqrt(self):
+        return values.W_Flonum(math.sqrt(self.value))
+    def arith_cos(self):
+        return values.W_Flonum(math.cos(self.value))
+    def arith_atan(self):
+        return values.W_Flonum(math.atan(self.value))
+
 
     # ------------------ miscellanous ------------------
     def arith_round(self):
