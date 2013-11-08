@@ -2,3 +2,4 @@ out
 targetpycket-c*
 *.o1
 *.o2
+compiled/
