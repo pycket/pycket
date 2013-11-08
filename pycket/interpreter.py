@@ -423,7 +423,7 @@ class RecLambda(AST):
         self.name= name
         self.lam = lam
     def anorm(self):
-        return RecLambda(self.name, self.lam.do_anorm())
+        return RecLambda(self.name, self.lam.do_anorm()), []
     def assign_convert(self, vars):
         v = vars.copy()
         if self.name in v:
