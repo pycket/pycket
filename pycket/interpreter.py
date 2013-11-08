@@ -164,6 +164,7 @@ class SetBangCont(Cont):
         self.var._set(w_val, self.env)
         return Value(values.w_void), self.env, self.prev
 
+# Perhaps we should add an 'i' attribute to BeginCont. -Jeremy
 class BeginCont(Cont):
     def __init__(self, rest, env, prev):
         assert rest
