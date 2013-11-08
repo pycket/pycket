@@ -69,8 +69,13 @@ class ConsEnv(Env):
                 return
         return self.prev.set(sym, val)
 
-class Cont:
-    pass
+class ContMeta(type):
+    def __new__(cls, name, bases, dct):
+        dct["green_key"] = name
+        return type(name, bases, dct)
+
+class Cont(object):
+    __metaclass__ = ContMeta
 
 class IfCont(Cont):
     def __init__(self, thn, els, env, prev):
@@ -179,6 +184,8 @@ class Done(Exception):
         self.w_val = w_val
 
 class AST(object):
+    def anorm(self):
+        return self, []
     def free_vars(self):
         return {}
 
@@ -189,6 +196,8 @@ class Value (AST):
     def interpret (self, env, frame):
         if frame is None: raise Done(self.w_val)
         return frame.plug_reduce(self.w_val)
+    def anorm (self): 
+        assert 0
     def assign_convert(self, vars):
         return self
     def mutated_vars(self):
@@ -201,6 +210,8 @@ class Cell(AST):
         self.expr = expr
     def interpret(self, env, frame):
         return self.expr, env, CellCont(env, frame)
+    def anorm (self): 
+        assert 0
     def assign_convert(self, vars):
         return Cell(self.expr.assign_convert(vars))
     def mutated_vars(self):
@@ -225,6 +236,13 @@ class Quote (AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]"]
+    def anorm(self):
+        rator_simple, rator_lets = self.rator.anorm()
+        results = [rand.anorm() for rand in self.rands]
+        rand_simples = [simple for (simple, let) in results]
+        rand_lets = [let for (simple, lets) in results for let in lets]
+        fresh = LexicalVar.gensym()
+        return LexicalVar(fresh), rator_lets + rand_lets + [(fresh, App(rator_simple, rand_simples))]
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
@@ -249,7 +267,13 @@ class App(AST):
 class Begin(AST):
     _immutable_fields_ = ["exprs[*]"]
     def __init__(self, exprs):
+        assert isinstance(exprs[0], AST)
         self.exprs = exprs
+    def anorm (self): 
+        results = [e.anorm() for e in self.exprs]
+        simples = [s for s,l in results]
+        lets = [l for s,lets in results for l in lets]
+        return simples[-1], lets
     def assign_convert(self, vars):
         return Begin(map(lambda e: e.assign_convert(vars), self.exprs))
     def mutated_vars(self):
@@ -296,6 +320,12 @@ class CellRef (Var):
         return v.value
 
 class LexicalVar(Var):
+    _counter = 0
+    @staticmethod
+    def gensym():
+        LexicalVar._counter += 1
+        # not using `make` so that it's really gensym
+        return values.W_Symbol("fresh_" + str(LexicalVar._counter))
     def _lookup(self, env):
         return env.lookup(self.sym)
     def _set(self, w_val, env): 
@@ -337,6 +367,10 @@ class SetBang (AST):
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
+    def anorm(self):
+        simple, lets = self.rhs.anorm()
+        fresh = LexicalVar.gensym()
+        return Quote(values.w_void), lets + [(fresh, SetBang(self.var, simple))]
     def interpret (self, env, frame):
         return self.rhs, env, SetBangCont(self.var, env, frame)
     def assign_convert(self, vars):
@@ -358,6 +392,12 @@ class If (AST):
         self.tst = tst
         self.thn = thn
         self.els = els
+    def anorm(self):
+        simple, lets = self.tst.anorm()
+        thn = anorm_and_bind(self.thn)
+        els = anorm_and_bind(self.els)
+        fresh = LexicalVar.gensym()
+        return LexicalVar(fresh), lets + [(fresh, If(simple, thn, els))]
     def interpret(self, env, frame):
         return self.tst, env, IfCont(self.thn, self.els, env, frame)
     def assign_convert(self, vars):
@@ -382,6 +422,8 @@ class RecLambda(AST):
     def __init__(self, name, lam):
         self.name= name
         self.lam = lam
+    def anorm(self):
+        return RecLambda(self.name, self.lam.do_anorm())
     def assign_convert(self, vars):
         v = vars.copy()
         if self.name in v:
@@ -415,6 +457,10 @@ class RecLambda(AST):
 
 class Lambda (AST):
     _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
+    def do_anorm(self):
+        return Lambda(self.formals, self.rest, [anorm_and_bind(Begin(self.body))])
+    def anorm(self):
+        return self.do_anorm(), []
     def __init__ (self, formals, rest, body):
         self.formals = formals
         self.rest = rest
@@ -474,6 +520,11 @@ class Letrec(AST):
         self.rhss = rhss
         self.body = body
         self.args = SymList(vars)
+    def anorm(self):
+        rhss = [anorm_and_bind(rhs) for rhs in self.rhss]
+        fresh = LexicalVar.gensym()
+        body = anorm_and_bind(Begin(self.body))
+        return LexicalVar(fresh), [(fresh, Letrec(self.vars, rhss, [body]))]
     def interpret (self, env, frame):
         env_new = ConsEnv(self.args, [values.W_Cell(None) for var in self.vars], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.args, self, 0, self.body, env_new, frame)
@@ -508,6 +559,16 @@ class Letrec(AST):
         return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.vars)], 
                                    [b.tostring() for b in self.body])
 
+def anorm_and_bind(ast):
+    simple, lets = ast.anorm()
+    return make_let_star(lets, [simple])
+
+def make_let_star(bindings, body):
+    if not bindings:
+        return Begin(body)
+    var, rhs = bindings[0]
+    return Let([var], [rhs], [make_let_star(bindings[1:], body)])
+
 def make_let(vars, rhss, body):
     if not vars:
         return Begin(body)
@@ -533,6 +594,17 @@ class Let(AST):
         if not self.vars:
             return make_begin(self.body, env, frame)
         return self.rhss[0], env, LetCont(self.args, [], self, 0, self.body, env, frame)
+    def anorm(self):
+        new_lets = []
+        new_rhss = []
+        for i, v in enumerate(self.vars):
+            rhs = self.rhss[i]
+            simp, lets = rhs.anorm()
+            new_lets += lets
+            new_rhss += [simp]
+        body = anorm_and_bind(Begin(self.body))
+        fresh = LexicalVar.gensym()
+        return LexicalVar(fresh), new_lets + [(fresh, Let(self.vars, new_rhss, [body]))]
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -584,7 +656,9 @@ class Define(AST):
 
 def get_printable_location(green_ast):
     return green_ast.tostring()
-driver = jit.JitDriver(reds=["ast", "env", "frame"], greens=["green_ast"], get_printable_location=get_printable_location)
+driver = jit.JitDriver(reds=["ast", "env", "frame"],
+                       greens=["green_ast"],
+                       get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
     frame = None
@@ -598,6 +672,8 @@ def interpret_one(ast, env=None):
             if not isinstance(ast, Value):
                 jit.promote(ast)
                 green_ast = ast
+            #print ast.tostring()
+            #print frame
             ast, env, frame = ast.interpret(env, frame)
             if isinstance(ast, App):
                 driver.can_enter_jit(ast=ast, env=env, frame=frame, green_ast=green_ast)

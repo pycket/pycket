@@ -151,6 +151,30 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+
+    def test_anormal_append(self):
+        ast = to_ast(expand("""
+(let ()
+(define (append-anormal a b)
+  (if (null? a) 
+      b
+      (let* ([ca (car a)]
+             [cd (cdr a)]
+             [ap (append-anormal cd b)])
+        (cons ca ap))))
+ (append-anormal (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
+"""
+))
+
+        def interp_w():
+            val = interpret_one(ast)
+            assert isinstance(val, W_Object)
+            return 1
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
     def test_ycombinator(self):
 
         Y = """

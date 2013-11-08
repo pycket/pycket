@@ -105,6 +105,7 @@ def _to_ast(json):
 
 def to_ast(json):
     ast = _to_ast(json)
+    ast = anorm_and_bind(ast)
     return ast.assign_convert({})
 
 def to_value(json):
