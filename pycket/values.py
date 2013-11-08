@@ -156,7 +156,7 @@ class W_Closure (W_Procedure):
         from pycket.interpreter import ConsEnv, EmptyEnv
         self.lam = lam
         vals = [env.lookup(i) for i in lam.frees.elems]
-        self.env = ConsEnv(lam.frees, vals, EmptyEnv(env.toplevel_env), env.toplevel_env)
+        self.env = ConsEnv.make(vals, lam.frees, EmptyEnv(env.toplevel_env), env.toplevel_env)
     def call(self, args, env, frame):
         from pycket.interpreter import make_begin, ConsEnv
         jit.promote(self.lam)
@@ -177,7 +177,7 @@ class W_Closure (W_Procedure):
             prev = self.env
         #import pdb; pdb.set_trace()
         return make_begin(self.lam.body,
-                          ConsEnv(self.lam.args, actuals, prev, self.env.toplevel_env),
+                          ConsEnv.make(actuals, self.lam.args, prev, self.env.toplevel_env),
                           frame)
 
 

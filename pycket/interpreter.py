@@ -9,6 +9,71 @@ class Env(object):
 class Version(object):
     pass
 
+def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
+    """ This function is helpful if you have a class with a field storing a
+list and the list is often very small. Calling this function will inline
+the list into instances for the small sizes. This works by adding the
+following methods to the class:
+
+_get_list(self, i): return ith element of the list
+
+_set_list(self, i, val): set ith element of the list
+
+_get_full_list(self): returns a copy of the full list
+
+@staticmethod
+make(listcontent, *args): makes a new instance with the list's content set to listcontent
+        """
+    from rpython.rlib.unroll import unrolling_iterable
+    classes = []
+    def make_methods(size):
+        attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
+        unrolling_enumerate_attrs = unrolling_iterable(enumerate(attrs))
+        def _get_list(self, i):
+            for j, attr in unrolling_enumerate_attrs:
+                if j == i:
+                    return getattr(self, attr)
+            raise IndexError
+        def _get_full_list(self):
+            return [getattr(self, attr) for i, attr in unrolling_enumerate_attrs]
+        def _set_list(self, i, val):
+            for j, attr in unrolling_enumerate_attrs:
+                if j == i:
+                    return setattr(self, attr, val)
+            raise IndexError
+        def _init(self, elems, *args):
+            assert len(elems) == size
+            for i, attr in unrolling_enumerate_attrs:
+                setattr(self, attr, elems[i])
+            cls.__init__(self, *args)
+        meths = {"_get_list": _get_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
+        if immutable:
+            meths["_immutable_fields_"] = attrs
+        return meths
+    classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
+    def _get_arbitrary(self, i):
+        return getattr(self, attrname)[i]
+    def _get_list_arbitrary(self):
+        return getattr(self, attrname)
+    def _set_arbitrary(self, i, val):
+        getattr(self, attrname)[i] = val
+    def _init(self, elems, *args):
+        setattr(self, attrname, elems)
+        cls.__init__(self, *args)
+    meths = {"_get_list": _get_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
+    if immutable:
+        meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
+    cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
+
+    @staticmethod
+    def make(elems, *args):
+        if sizemin <= len(elems) < sizemax:
+            cls = classes[len(elems) - sizemin]
+        else:
+            cls = cls_arbitrary
+        return cls(elems, *args)
+    cls.make = make
+
 class ToplevelEnv(object):
     _immutable_fields_ = ["version"]
     def __init__(self):
@@ -43,21 +108,20 @@ class EmptyEnv(Env):
         raise Exception ("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["args", "vals[*]", "prev"]
+    _immutable_fields_ = ["args", "prev"]
     @jit.unroll_safe
-    def __init__ (self, args, vals, prev, toplevel):
+    def __init__ (self, args, prev, toplevel):
         self.toplevel_env = toplevel
         for i in args.elems:
             assert isinstance (i, values.W_Symbol)
         self.args = args
-        self.vals = vals
         self.prev = prev
     @jit.unroll_safe
     def lookup(self, sym):
         jit.promote(self.args)
         for i, s in enumerate(self.args.elems):
             if s is sym:
-                v = self.vals[i]
+                v = self._get_list(i)
                 assert v is not None
                 return v
         return self.prev.lookup(sym)
@@ -65,9 +129,10 @@ class ConsEnv(Env):
         jit.promote(self.args)
         for i, s in enumerate(self.args.elems):
             if s is sym:
-                self.vals[i] = val
+                self._set_list(i, val)
                 return
         return self.prev.set(sym, val)
+inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 class ContMeta(type):
     def __new__(cls, name, bases, dct):
@@ -110,24 +175,23 @@ class LetrecCont(Cont):
                                self.body, self.env, self.prev))
 
 class LetCont(Cont):
-    def __init__(self, args, vals_w, ast, i, body, env, prev):
+    def __init__(self, args, ast, i, body, env, prev):
         self.args = args
-        self.vals_w  = vals_w
         self.ast = ast
         self.i = i
         self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        jit.promote(len(self.vals_w))
         if self.i >= (len(self.ast.rhss) - 1):
-            vals_w = self.vals_w + [w_val]
-            env = ConsEnv(self.args, vals_w, self.env, self.env.toplevel_env)
+            vals_w = self._get_full_list() + [w_val]
+            env = ConsEnv.make(vals_w, self.args, self.env, self.env.toplevel_env)
             return make_begin(self.body, env, self.prev)
         else:
-            return (self.ast.rhss[self.i + 1], self.env, 
-                    LetCont(self.args, self.vals_w + [w_val], self.ast, self.i + 1,
+            return (self.ast.rhss[self.i + 1], self.env,
+                    LetCont.make(self._get_full_list() + [w_val], self.args, self.ast, self.i + 1,
                             self.body, self.env, self.prev))
+inline_small_list(LetCont, attrname="vals_w")
 
 class CellCont(Cont):
     def __init__(self, env, prev):
@@ -138,20 +202,20 @@ class CellCont(Cont):
 
 class Call(Cont):
     # prev is the parent continuation
-    def __init__ (self, vals_w, callast, i, env, prev):
-        self.vals_w = vals_w
+    def __init__ (self, callast, i, env, prev):
         self.callast = callast
         self.i = i
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
         if self.i == len(self.callast.rands):
-            vals_w = self.vals_w + [w_val]
+            vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
             return vals_w[0].call(vals_w[1:], self.env, self.prev)
         else:
-            return self.callast.rands[self.i], self.env, Call(self.vals_w + [w_val], self.callast, self.i + 1,
-                                                              self.env, self.prev)
+            return self.callast.rands[self.i], self.env, Call.make(self._get_full_list() + [w_val], self.callast, self.i + 1,
+                                                                   self.env, self.prev)
+inline_small_list(Call, attrname="vals_w")
 
 def make_begin(exprs, env, prev):
     assert exprs
@@ -260,7 +324,7 @@ class App(AST):
             x.update(r.free_vars())
         return x
     def interpret (self, env, frame):
-        return self.rator, env, Call([], self, 0, env, frame)
+        return self.rator, env, Call.make([], self, 0, env, frame)
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), [r.tostring() for r in self.rands])
 
@@ -440,7 +504,7 @@ class RecLambda(AST):
             del v[self.name]
         return v
     def interpret(self, env, frame):
-        e = ConsEnv(SymList([self.name]), [values.w_void], env, env.toplevel_env)
+        e = ConsEnv.make([values.w_void], SymList([self.name]), env, env.toplevel_env)
         Vcl, e, f = self.lam.interpret(e, frame)
         cl = Vcl.w_val
         assert isinstance(cl, values.W_Closure)
@@ -526,7 +590,7 @@ class Letrec(AST):
         body = anorm_and_bind(Begin(self.body))
         return LexicalVar(fresh), [(fresh, Letrec(self.vars, rhss, [body]))]
     def interpret (self, env, frame):
-        env_new = ConsEnv(self.args, [values.W_Cell(None) for var in self.vars], env, env.toplevel_env)
+        env_new = ConsEnv.make([values.W_Cell(None) for var in self.vars], self.args, env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.args, self, 0, self.body, env_new, frame)
     def mutated_vars(self):
         x = {}
@@ -593,7 +657,7 @@ class Let(AST):
     def interpret (self, env, frame):
         if not self.vars:
             return make_begin(self.body, env, frame)
-        return self.rhss[0], env, LetCont(self.args, [], self, 0, self.body, env, frame)
+        return self.rhss[0], env, LetCont.make([], self.args, self, 0, self.body, env, frame)
     def anorm(self):
         new_lets = []
         new_rhss = []
