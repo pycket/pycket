@@ -2,13 +2,6 @@ from pycket        import values
 from pycket.prims  import prim_env
 from rpython.rlib  import jit
 
-class Env(object):
-    _immutable_fields_ = ["toplevel_env"]
-    pass
-
-class Version(object):
-    pass
-
 def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
     """ This function is helpful if you have a class with a field storing a
 list and the list is often very small. Calling this function will inline
@@ -73,6 +66,14 @@ make(listcontent, *args): makes a new instance with the list's content set to li
             cls = cls_arbitrary
         return cls(elems, *args)
     cls.make = make
+
+class Env(object):
+    _immutable_fields_ = ["toplevel_env"]
+    pass
+
+class Version(object):
+    pass
+
 
 class ToplevelEnv(object):
     _immutable_fields_ = ["version"]
