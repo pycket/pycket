@@ -1,3 +1,4 @@
+from pycket.error import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
 
@@ -7,7 +8,7 @@ class W_Object(object):
     def tostring(self):
         return str(self)
     def call(self, args, env, frame):
-        raise Exception ("not callable")
+        raise SchemeException("%s is not callable" % self.tostring())
 
 class W_Cell (W_Object): # not the same as Racket's box
     def __init__(self, v):
@@ -163,9 +164,9 @@ class W_Closure (W_Procedure):
         fmls_len = len(self.lam.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.lam.rest:
-            raise Exception("wrong number of arguments, expected %s but got %s"%(fmls_len,args_len))
+            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
         if fmls_len > args_len:
-            raise Exception("wrong number of arguments, expected at least %s but got %s"%(fmls_len,args_len))
+            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
         if self.lam.rest:
             actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:

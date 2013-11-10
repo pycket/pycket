@@ -1,6 +1,8 @@
 from pycket        import values
 from pycket.prims  import prim_env
+from pycket.error import SchemeException
 from rpython.rlib  import jit
+
 
 def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
     """ This function is helpful if you have a class with a field storing a
@@ -91,9 +93,8 @@ class ToplevelEnv(object):
     def _lookup(self, sym, version):
         try:
             return self.bindings[sym]
-        except:
-            print ">>>> toplevel err %s"%sym.value
-            raise
+        except KeyError:
+            raise SchemeException("toplevel variable %s not found" % sym.value)
 
     def set(self, sym, w_val):
         if sym in self.bindings:
@@ -106,7 +107,7 @@ class EmptyEnv(Env):
     def __init__ (self, toplevel):
         self.toplevel_env = toplevel
     def lookup(self, sym):
-        raise Exception ("variable %s is unbound"%sym.value)
+        raise SchemeException("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
     _immutable_fields_ = ["args", "prev"]
@@ -261,7 +262,7 @@ class Value (AST):
     def interpret (self, env, frame):
         if frame is None: raise Done(self.w_val)
         return frame.plug_reduce(self.w_val)
-    def anorm (self): 
+    def anorm (self):
         assert 0
     def assign_convert(self, vars):
         return self
