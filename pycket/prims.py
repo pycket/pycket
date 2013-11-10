@@ -19,24 +19,24 @@ def expose(name, simple=True):
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
 
-def make_cmp(name, func, con):
+def make_cmp(name, op, con):
     @expose(name, simple=True)
     def do(args):
         a,b = args
         if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-            return con(func(a.value, b.value))
+            return con(getattr(operator, op)(a.value, b.value))
         if isinstance(a, values.W_Bignum) and isinstance(b, values.W_Bignum):
-            assert 0
+            return con(getattr(a.value, op)(b))
         if isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
-            return con(func(a.value, b.value))
+            return con(getattr(operator, op)(a.value, b.value))
         assert 0
 
 for args in [
-        ("=", operator.eq,  values.W_Bool.make),
-        ("<", operator.lt,  values.W_Bool.make),
-        (">", operator.gt,  values.W_Bool.make),
-        ("<=", operator.le,  values.W_Bool.make),
-        (">=", operator.ge,  values.W_Bool.make),
+        ("=", "eq", values.W_Bool.make),
+        ("<", "lt", values.W_Bool.make),
+        (">", "gt", values.W_Bool.make),
+        ("<=", "le", values.W_Bool.make),
+        (">=", "ge", values.W_Bool.make),
         ]:
     make_cmp(*args)
 
@@ -164,7 +164,7 @@ def length(args):
             a = a.cdr
             n = n+1
         else:
-            raise Exception("length: not a list")
+            raise SchemeException("length: not a list")
         
 
 @expose("list")
@@ -175,7 +175,7 @@ def do_list(args):
 def do_liststar(args):
     a = len(args)-1
     if a < 0:
-        raise Exception("list* expects at least one argument")
+        raise SchemeException("list* expects at least one argument")
     return values.to_improper(args[:a], args[a])
 
 @expose("assq")
@@ -244,31 +244,31 @@ def do_void(args): return values.w_void
 def num2str(args):
     a, = args
     if not isinstance(a, values.W_Number):
-        raise Exception("number->string: expected a number")
+        raise SchemeException("number->string: expected a number")
     return values.W_String(a.tostring())
 
 @expose("vector-ref")
 def vector_ref(args):
     v, i = args
     if not isinstance(v, values.W_Vector):
-        raise Exception("vector-ref: expected a vector")
+        raise SchemeException("vector-ref: expected a vector")
     if not isinstance(i, values.W_Fixnum):
-        raise Exception("vector-ref: expected a fixnum")
+        raise SchemeException("vector-ref: expected a fixnum")
     idx = i.value
     if not (0 <= idx < len(v.elems)):
-        raise Exception("vector-ref: index out of bounds")
+        raise SchemeException("vector-ref: index out of bounds")
     return v.ref(i.value)
 
 @expose("vector-set!")
 def vector_set(args):
     v, i, new = args
     if not isinstance(v, values.W_Vector):
-        raise Exception("vector-set!: expected a vector")
+        raise SchemeException("vector-set!: expected a vector")
     if not isinstance(i, values.W_Fixnum):
-        raise Exception("vector-set!: expected a fixnum")
+        raise SchemeException("vector-set!: expected a fixnum")
     idx = i.value
     if not (0 <= idx < len(v.elems)):
-        raise Exception("vector-set!: index out of bounds")
+        raise SchemeException("vector-set!: index out of bounds")
     return v.set(i.value, new)
 
 @expose("vector")
@@ -285,16 +285,16 @@ def make_vector(args):
     else:
         assert 0
     if not isinstance(n, values.W_Fixnum):
-        raise Exception("make-vector: expected a fixnum")
+        raise SchemeException("make-vector: expected a fixnum")
     if not (n.value >= 0):
-        raise Exception("make-vector: expected a positive fixnum")
+        raise SchemeException("make-vector: expected a positive fixnum")
     return values.W_Vector([val] * n.value)
 
 @expose("vector-length")
 def vector_length(args):
     v, = args
     if not isinstance(v, values.W_Vector):
-        raise Exception("vector-length: expected a vector")
+        raise SchemeException("vector-length: expected a vector")
     return values.W_Fixnum(len(v.elems))
 
 # my kingdom for a tail call
