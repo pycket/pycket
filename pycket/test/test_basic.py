@@ -1,8 +1,11 @@
 import pytest
+import os
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
+
+stdlib_fn = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stdlib.sch")
 
 def run_fix(p,v):
     e = expand(p)
@@ -17,7 +20,7 @@ def run(p,v):
     val = interpret_one(ast)
     assert equal_loop(val,v)
 
-with file("../stdlib.sch") as f:
+with file(stdlib_fn) as f:
      stdlib = f.read()
 
 def run_top(p,v=None):
