@@ -5,6 +5,9 @@ from rpython.rlib  import jit
 class W_Object(object):
     __metaclass__ = extendabletype
     _attrs_ = []
+    errorname = "%%%%unreachable%%%%"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
     def tostring(self):
         return str(self)
     def call(self, args, env, frame):
@@ -15,7 +18,13 @@ class W_Cell(W_Object): # not the same as Racket's box
         assert not isinstance(v, W_Cell)
         self.value = v
 
-class W_Cons(W_Object):
+class W_List(W_Object):
+    errorname = "list"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_Cons(W_List):
+    errorname = "pair"
     def __init__(self, a, d):
         self.car = a
         self.cdr = d
@@ -24,6 +33,7 @@ class W_Cons(W_Object):
 
 class W_Vector(W_Object):
     _immutable_fields_ = ["elems"]
+    errorname = "vector"
     def __init__(self, elems):
         self.elems = elems
     def ref(self, i):
@@ -32,16 +42,18 @@ class W_Vector(W_Object):
     def set(self, i, v): 
         assert 0 <= i < len(self.elems)
         self.elems[i] = v
-        return w_void
     def tostring(self):
         return "#(%s)"%(" ".join([e.tostring() for e in self.elems]))
 
 class W_Number(W_Object):
-    pass
+    errorname = "number"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
 
 
 class W_Fixnum(W_Number):
     _immutable_fields_ = ["value"]
+    errorname = "fixnum"
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
@@ -66,7 +78,7 @@ class W_Void(W_Object):
     def tostring(self):
         return "#<void>"
 
-class W_Null(W_Object):
+class W_Null(W_List):
     def __init__(self): pass
     def tostring(self): return "()"
 
@@ -111,7 +123,9 @@ class W_Symbol(W_Object):
         self.value = val
 
 class W_Procedure(W_Object):
-    pass
+    errorname = "procedure"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code"]

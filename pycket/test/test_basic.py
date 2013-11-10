@@ -14,11 +14,12 @@ def run_fix(p,v):
     assert isinstance(val, W_Fixnum)
     assert val.value == v
 
-def run(p,v):
+def run(p,v=None):
     e = expand(p)
     ast = to_ast(e)
     val = interpret_one(ast)
-    assert equal_loop(val,v)
+    if v is not None:
+        assert equal_loop(val,v)
 
 with file(stdlib_fn) as f:
      stdlib = f.read()
@@ -117,6 +118,10 @@ def test_void():
 def test_cons():
     run_fix ("(car (cons 1 2))", 1)
     run_fix ("(cdr (cons 1 2))", 2)
+    with pytest.raises(SchemeException):
+        run("(car 1)", None)
+    with pytest.raises(SchemeException):
+        run("(car 1 2)", None)
 
 def test_set_car():
     run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)

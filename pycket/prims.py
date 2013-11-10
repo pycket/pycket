@@ -2,34 +2,61 @@ import operator
 import os
 from pycket import values
 from pycket import arithmetic # imported for side effect
-from rpython.rlib  import jit
+from pycket.error import SchemeException
+from rpython.rlib  import jit, unroll
 
 prim_env = {}
 
-def expose(name, simple=True):
+def expose(name, argstypes=None, simple=True):
     def wrapper(func):
+        if argstypes is not None:
+            unroll_argtypes = unroll.unrolling_iterable(enumerate(argstypes))
+            arity = len(argstypes)
+            errormsg_arity = "expected %s arguments to %s, got %%s" % (arity, name)
+            for typ in argstypes:
+                assert typ.__dict__["errorname"]
+            def wrap_func(args, *rest):
+                if len(args) != arity:
+                    raise SchemeException(errormsg_arity % len(args))
+                typed_args = ()
+                for i, typ in unroll_argtypes:
+                    arg = args[i]
+                    if not isinstance(arg, typ):
+                        raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
+                    typed_args += (arg, )
+                typed_args += rest
+                result = func(*typed_args)
+                if result is None:
+                    return values.w_void
+                return result
+        else:
+            def wrap_func(*args):
+                result = func(*args)
+                if result is None:
+                    return values.w_void
+                return result
+        wrap_func.func_name = "wrap_%s" % (func.func_name, )
         if simple:
             cls = values.W_SimplePrim
         else:
             cls = values.W_Prim
-        prim_env[values.W_Symbol.make(name)] = cls(name, func)
-        return func
+        prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func)
+        return wrap_func
     return wrapper
 
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
 
 def make_cmp(name, op, con):
-    @expose(name, simple=True)
-    def do(args):
-        a,b = args
+    @expose(name, [values.W_Number, values.W_Number], simple=True)
+    def do(a, b):
         if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
             return con(getattr(operator, op)(a.value, b.value))
         if isinstance(a, values.W_Bignum) and isinstance(b, values.W_Bignum):
-            return con(getattr(a.value, op)(b))
+            return con(getattr(a.value, op)(b.value))
         if isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
             return con(getattr(operator, op)(a.value, b.value))
-        assert 0
+        raise SchemeException("unsupported operation %s on %s %s" % (name, a.tostring(), b.tostring()))
 
 for args in [
         ("=", "eq", values.W_Bool.make),
@@ -42,15 +69,13 @@ for args in [
 
 
 def make_pred(name, cls):
-    @expose(name, simple=True)
-    def do(args):
-        a, = args
+    @expose(name, [values.W_Object], simple=True)
+    def do(a):
         return values.W_Bool.make(isinstance(a, cls))
 
 def make_pred_eq(name, val):
-    @expose(name, simple=True)
-    def do(args):
-        a, = args
+    @expose(name, [values.W_Object], simple=True)
+    def do(a):
         return values.W_Bool.make(a is val)
 
 
@@ -93,9 +118,8 @@ for args in [
     make_arith(*args)
 
 def make_unary_arith(name, methname):
-    @expose(name, simple=True)
-    def do(args):
-        a, = args
+    @expose(name, [values.W_Number], simple=True)
+    def do(a):
         return getattr(a, methname)()
 
 for args in [
@@ -105,7 +129,7 @@ for args in [
         ("sqrt", "arith_sqrt"),
         ]:
     make_unary_arith(*args)
-    
+
 val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
@@ -131,31 +155,27 @@ def equal_loop(a,b):
         return True
     return False
 
-@expose("call/cc", simple=False)
-def callcc(args, env, frame):
-    a, = args
+@expose("call/cc", [values.W_Procedure], simple=False)
+def callcc(a, env, frame):
     return a.call([values.W_Continuation(frame)], env, frame)
 
-@expose("equal?")
-def equalp(args):
+@expose("equal?", [values.W_Object] * 2)
+def equalp(a, b):
     # this doesn't work for cycles
-    a,b = args
     return values.W_Bool.make(equal_loop(a,b))
 
-@expose("eq?")
-def eqp(args):
+@expose("eq?", [values.W_Object] * 2)
+def eqp(a, b):
     # this doesn't work for cycles
-    a,b = args
     if a is b:
         return values.w_true
     if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
         return values.W_Bool.make(a.value == b.value)
     else:
         return values.w_false
-    
-@expose("length")
-def length(args):
-    a, = args
+
+@expose("length", [values.W_List])
+def length(a):
     n = 0
     while True:
         if isinstance(a, values.W_Null):
@@ -178,27 +198,23 @@ def do_liststar(args):
         raise SchemeException("list* expects at least one argument")
     return values.to_improper(args[:a], args[a])
 
-@expose("assq")
-def assq(args):
-    a,b = args
-    if values.w_null is b: 
+@expose("assq", [values.W_Object] * 2)
+def assq(a, b):
+    if values.w_null is b:
         return values.w_false
     else:
         if eqp([a, do_car([do_car([b])])]):
             return do_car([b])
         else:
             return assq([a, do_cdr([b])])
-        
 
-@expose("cons")
-def do_cons(args):
-    a,b = args
+
+@expose("cons", [values.W_Object, values.W_Object])
+def do_cons(a, b):
     return values.W_Cons(a,b)
 
-@expose("car")
-def do_car(args):
-    a, = args
-    assert isinstance(a,values.W_Cons)
+@expose("car", [values.W_Cons])
+def do_car(a):
     return a.car
 
 @expose("cadr")
@@ -217,34 +233,23 @@ def do_caddr(args):
 def do_cadddr(args):
     return do_car([do_cdr([do_cdr([do_cdr(args)])])])
 
-@expose("cdr")
-def do_cdr(args):
-    a, = args
-    assert isinstance(a,values.W_Cons)
+@expose("cdr", [values.W_Cons])
+def do_cdr(a):
     return a.cdr
 
-@expose("set-car!")
-def do_set_car(args):
-    a,b = args
-    assert isinstance(a,values.W_Cons)
+@expose("set-car!", [values.W_Cons, values.W_Object])
+def do_set_car(a, b):
     a.car = b
-    return values.w_void
 
-@expose("set-cdr!")
-def do_set_cdr(args):
-    a,b = args
-    assert isinstance(a,values.W_Cons)
+@expose("set-cdr!", [values.W_Cons, values.W_Object])
+def do_set_cdr(a, b):
     a.cdr = b
-    return values.w_void
 
 @expose("void")
 def do_void(args): return values.w_void
 
-@expose("number->string")
-def num2str(args):
-    a, = args
-    if not isinstance(a, values.W_Number):
-        raise SchemeException("number->string: expected a number")
+@expose("number->string", [values.W_Number])
+def num2str(a):
     return values.W_String(a.tostring())
 
 @expose("vector-ref")
@@ -259,17 +264,12 @@ def vector_ref(args):
         raise SchemeException("vector-ref: index out of bounds")
     return v.ref(i.value)
 
-@expose("vector-set!")
-def vector_set(args):
-    v, i, new = args
-    if not isinstance(v, values.W_Vector):
-        raise SchemeException("vector-set!: expected a vector")
-    if not isinstance(i, values.W_Fixnum):
-        raise SchemeException("vector-set!: expected a fixnum")
+@expose("vector-set!", [values.W_Vector, values.W_Fixnum, values.W_Object])
+def vector_set(v, i, new):
     idx = i.value
     if not (0 <= idx < len(v.elems)):
         raise SchemeException("vector-set!: index out of bounds")
-    return v.set(i.value, new)
+    v.set(i.value, new)
 
 @expose("vector")
 def vector(args):
@@ -290,11 +290,8 @@ def make_vector(args):
         raise SchemeException("make-vector: expected a positive fixnum")
     return values.W_Vector([val] * n.value)
 
-@expose("vector-length")
-def vector_length(args):
-    v, = args
-    if not isinstance(v, values.W_Vector):
-        raise SchemeException("vector-length: expected a vector")
+@expose("vector-length", [values.W_Vector])
+def vector_length(v):
     return values.W_Fixnum(len(v.elems))
 
 # my kingdom for a tail call
@@ -306,20 +303,17 @@ def listp_loop(v):
             continue
         return False
 
-@expose("list?")
-def consp(args):
-    v, = args
+@expose("list?", [values.W_Object])
+def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
 
-@expose("display")
-def display(args):
-    s, = args
+@expose("display", [values.W_Object])
+def display(s):
     os.write(1, s.tostring())
     return values.w_void
 
-@expose("write")
-def write(args):
-    s, = args
+@expose("write", [values.W_Object])
+def write(s):
     os.write(1, s.tostring())
     return values.w_void
