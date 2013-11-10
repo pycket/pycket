@@ -115,7 +115,7 @@ class ConsEnv(Env):
     def __init__ (self, args, prev, toplevel):
         self.toplevel_env = toplevel
         for i in args.elems:
-            assert isinstance (i, values.W_Symbol)
+            assert isinstance(i, values.W_Symbol)
         self.args = args
         self.prev = prev
     @jit.unroll_safe
@@ -172,7 +172,7 @@ class LetrecCont(Cont):
         if self.i >= (len(self.ast.rhss) - 1):
             return make_begin(self.body, self.env, self.prev)
         else:
-            return (self.ast.rhss[self.i + 1], self.env, 
+            return (self.ast.rhss[self.i + 1], self.env,
                     LetrecCont(self.args, self.ast, self.i + 1,
                                self.body, self.env, self.prev))
 
@@ -256,13 +256,13 @@ class AST(object):
         return {}
 
 
-class Value (AST):
+class Value(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         if frame is None: raise Done(self.w_val)
         return frame.plug_reduce(self.w_val)
-    def anorm (self):
+    def anorm(self):
         assert 0
     def assign_convert(self, vars):
         return self
@@ -276,22 +276,22 @@ class Cell(AST):
         self.expr = expr
     def interpret(self, env, frame):
         return self.expr, env, CellCont(env, frame)
-    def anorm (self): 
+    def anorm(self):
         assert 0
     def assign_convert(self, vars):
         return Cell(self.expr.assign_convert(vars))
     def mutated_vars(self):
         return self.expr.mutated_vars()
-    def free_vars (self):
+    def free_vars(self):
         return self.expr.free_vars()
     def tostring(self):
         return "Cell(%s)"%self.expr
 
-class Quote (AST):
+class Quote(AST):
     _immutable_fields_ = ["w_val"]
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         return Value(self.w_val), env, frame
     def assign_convert(self, vars):
         return self
@@ -325,7 +325,7 @@ class App(AST):
         for r in self.rands:
             x.update(r.free_vars())
         return x
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         return self.rator, env, Call.make([], self, 0, env, frame)
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), [r.tostring() for r in self.rands])
@@ -335,7 +335,7 @@ class Begin(AST):
     def __init__(self, exprs):
         assert isinstance(exprs[0], AST)
         self.exprs = exprs
-    def anorm (self): 
+    def anorm(self):
         results = [e.anorm() for e in self.exprs]
         simples = [s for s,l in results]
         lets = [l for s,lets in results for l in lets]
@@ -365,17 +365,17 @@ class Var(AST):
         return Value(self._lookup(env)), env, frame
     def mutated_vars(self):
         return {}
-    def free_vars (self): 
+    def free_vars(self):
         return {self.sym: None}
     def tostring(self):
         return "%s"%self.sym.value
 
-class CellRef (Var):
+class CellRef(Var):
     def assign_convert(self, vars):
         return self
     def tostring(self):
         return "CellRef(%s)"%self.sym.value
-    def _set(self, w_val, env): 
+    def _set(self, w_val, env):
         v = env.lookup(self.sym)
         assert isinstance(v, values.W_Cell)
         v.value = w_val
@@ -428,7 +428,7 @@ class SymList(object):
         assert isinstance(elems, list)
         self.elems = elems
 
-class SetBang (AST):
+class SetBang(AST):
     _immutable_fields_ = ["sym", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
@@ -437,7 +437,7 @@ class SetBang (AST):
         simple, lets = self.rhs.anorm()
         fresh = LexicalVar.gensym()
         return Quote(values.w_void), lets + [(fresh, SetBang(self.var, simple))]
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         return self.rhs, env, SetBangCont(self.var, env, frame)
     def assign_convert(self, vars):
         return SetBang(self.var, self.rhs.assign_convert(vars))
@@ -452,7 +452,7 @@ class SetBang (AST):
     def tostring(self):
         return "(set! %s %s)"%(self.var.sym.value, self.rhs)
 
-class If (AST):
+class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
     def __init__ (self, tst, thn, els):
         self.tst = tst
@@ -521,7 +521,7 @@ class RecLambda(AST):
             return "(rec %s (%s) %s)"%(self.name, self.lam.formals, self.lam.body)
 
 
-class Lambda (AST):
+class Lambda(AST):
     _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
     def do_anorm(self):
         return Lambda(self.formals, self.rest, [anorm_and_bind(Begin(self.body))])
@@ -533,8 +533,8 @@ class Lambda (AST):
         self.body = body
         self.args = SymList(formals + ([rest] if rest else []))
         self.frees = SymList(self.free_vars().keys())
-    def interpret (self, env, frame):
-        return Value(values.W_Closure (self, env)), env, frame
+    def interpret(self, env, frame):
+        return Value(values.W_Closure(self, env)), env, frame
     def assign_convert(self, vars):
         local_muts = {}
         for b in self.body:
@@ -591,7 +591,7 @@ class Letrec(AST):
         fresh = LexicalVar.gensym()
         body = anorm_and_bind(Begin(self.body))
         return LexicalVar(fresh), [(fresh, Letrec(self.vars, rhss, [body]))]
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.vars], self.args, env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.args, self, 0, self.body, env_new, frame)
     def mutated_vars(self):
@@ -656,7 +656,7 @@ class Let(AST):
         self.rhss = rhss
         self.body = body
         self.args = SymList(vars)
-    def interpret (self, env, frame):
+    def interpret(self, env, frame):
         if not self.vars:
             return make_begin(self.body, env, frame)
         return self.rhss[0], env, LetCont.make([], self.args, self, 0, self.body, env, frame)

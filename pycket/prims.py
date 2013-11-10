@@ -106,14 +106,14 @@ for args in [
         ]:
     make_unary_arith(*args)
     
-val ("null", values.w_null)
-val ("true", values.w_true)
-val ("false", values.w_false)
+val("null", values.w_null)
+val("true", values.w_true)
+val("false", values.w_false)
 
-def equal_loop (a,b):
+def equal_loop(a,b):
     if a is b:
         return True
-    if isinstance (a, values.W_Fixnum) and isinstance (b, values.W_Fixnum):
+    if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
         return a.value == b.value
     if a is values.w_void:
         return False
@@ -121,9 +121,9 @@ def equal_loop (a,b):
         return False
     if isinstance(a, values.W_Symbol): 
         return False
-    if isinstance(a, values.W_Cons) and isinstance (b, values.W_Cons):
+    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
-    if isinstance(a, values.W_Vector) and isinstance (b, values.W_Vector):
+    if isinstance(a, values.W_Vector) and isinstance(b, values.W_Vector):
         if len(a.elems) != len(b.elems): return False
         for i, v in enumerate(a.elems):
             if not equal_loop(v, b.elems[i]):
@@ -140,7 +140,7 @@ def callcc(args, env, frame):
 def equalp(args):
     # this doesn't work for cycles
     a,b = args
-    return values.W_Bool.make(equal_loop (a,b))
+    return values.W_Bool.make(equal_loop(a,b))
 
 @expose("eq?")
 def eqp(args):
@@ -198,7 +198,7 @@ def do_cons(args):
 @expose("car")
 def do_car(args):
     a, = args
-    assert isinstance (a,values.W_Cons)
+    assert isinstance(a,values.W_Cons)
     return a.car
 
 @expose("cadr")
@@ -220,20 +220,20 @@ def do_cadddr(args):
 @expose("cdr")
 def do_cdr(args):
     a, = args
-    assert isinstance (a,values.W_Cons)
+    assert isinstance(a,values.W_Cons)
     return a.cdr
 
 @expose("set-car!")
 def do_set_car(args):
     a,b = args
-    assert isinstance (a,values.W_Cons)
+    assert isinstance(a,values.W_Cons)
     a.car = b
     return values.w_void
 
 @expose("set-cdr!")
 def do_set_cdr(args):
     a,b = args
-    assert isinstance (a,values.W_Cons)
+    assert isinstance(a,values.W_Cons)
     a.cdr = b
     return values.w_void
 

@@ -17,11 +17,11 @@ def expand(s):
     return json.loads(data)
     
 
-def to_formals (json):
+def to_formals(json):
     if "improper" in json:
         regular, last = json["improper"]
         return [values.W_Symbol.make(str(x["lexical"])) for x in regular], values.W_Symbol.make(str(last["lexical"]))
-    elif isinstance (json, list):
+    elif isinstance(json, list):
         return [values.W_Symbol.make(str(x["lexical"])) for x in json], None
     elif "lexical" in json:
         return [], values.W_Symbol.make(str(json["lexical"]))
@@ -32,7 +32,7 @@ def to_bindings(json):
     def to_binding(j):
         fmls, rest = to_formals(j[0])
         assert not rest
-        assert len (fmls) == 1
+        assert len(fmls) == 1
         return (fmls[0], _to_ast(j[1])) # this is bad for multiple values
     l  = [to_binding(x) for x in json]
     if not l: return l,l
@@ -81,15 +81,15 @@ def _to_ast(json):
             assert len(fmls) == 1
             return Define(fmls[0],_to_ast(json[2]))
         if json[0] == {"module": "quote-syntax"}:
-            raise Exception ("quote-syntax is unsupported")
+            raise Exception("quote-syntax is unsupported")
         if json[0] == {"module": "begin0"}:
-            raise Exception ("begin0 is unsupported")
+            raise Exception("begin0 is unsupported")
         if json[0] == {"module": "with-continuation-mark"}:
-            raise Exception ("with-continuation-mark is unsupported")
+            raise Exception("with-continuation-mark is unsupported")
         if json[0] == {"module": "#%variable-reference"}:
-            raise Exception ("#%variable-reference is unsupported")
+            raise Exception("#%variable-reference is unsupported")
         if json[0] == {"module": "case-lambda"}:
-            raise Exception ("case-lambda is unsupported")
+            raise Exception("case-lambda is unsupported")
         if json[0] == {"module": "define-syntaxes"}:
             return Begin([])
         assert 0
@@ -113,7 +113,7 @@ def to_value(json):
         return values.w_false
     if json is True:
         return values.w_true
-    if isinstance (json, dict):
+    if isinstance(json, dict):
         if "vector" in json:
             return values.W_Vector([to_value(v) for v in json["vector"]])
         if "integer" in json:
@@ -128,7 +128,7 @@ def to_value(json):
         for i in ["toplevel", "lexical", "module"]:
             if i in json:
                 return values.W_Symbol.make(str(json[i]))
-    if isinstance (json, list):
+    if isinstance(json, list):
         return values.to_list([to_value(j) for j in json])
     assert 0
         
