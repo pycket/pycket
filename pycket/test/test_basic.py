@@ -84,6 +84,10 @@ def test_arith():
     run_fix("(- 1 2)", -1)
     run_fix("(* -1 2)", -2)
 
+@pytest.mark.xfail
+def test_arith_minus_one_arg_bug():
+    run_fix("(- 1)", -1)
+
 def test_letrec():
     run_fix("(letrec ([x 1]) x)", 1)
     run_fix("(letrec ([x 1] [y 2]) y)", 2)
