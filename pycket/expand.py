@@ -51,9 +51,9 @@ def _to_ast(json):
         if json[0] == {"module": "#%expression"}:
             return _to_ast(json[1])
         if json[0] == {"module": "#%app"}:
-            return App(_to_ast(json[1]), [_to_ast(x) for x in json[2:]])
+            return App(_to_ast(json[1]), [_to_ast(x) for x in json[2:]]).let_convert()
         if json[0] == {"module": "if"}:
-            return If(_to_ast(json[1]), _to_ast(json[2]),  _to_ast(json[3]))
+            return If(_to_ast(json[1]), _to_ast(json[2]),  _to_ast(json[3])).let_convert()
         if json[0] == {"module": "quote"}:
             return Quote(to_value(json[1]))
         if json[0] == {"module": "lambda"}:
@@ -105,7 +105,6 @@ def _to_ast(json):
 
 def to_ast(json):
     ast = _to_ast(json)
-    ast = anorm_and_bind(ast)
     return ast.assign_convert({})
 
 def to_value(json):
