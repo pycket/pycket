@@ -6,8 +6,10 @@ from pycket.prims import *
 
 from pycket.test.test_basic import run_top
 
+current_dir = os.path.dirname(__file__)
+
 def run_file(fname):
-    with file(fname) as f:
+    with file(os.path.join(current_dir, fname)) as f:
         s = f.read()
     return run_top(s)
 
