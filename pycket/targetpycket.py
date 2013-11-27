@@ -1,12 +1,15 @@
+import os.path
 from pycket.expand import expand, to_ast
 from pycket.interpreter import interpret_one
 
+current_dir = os.path.dirname(__file__)
+
 asts = {}
-with file("stdlib.sch") as f:
+with file(os.path.join(current_dir, "stdlib.sch")) as f:
     stdlib = f.read()
 
 def read(fname):
-    with file(fname) as f:
+    with file(os.path.join(current_dir, fname)) as f:
         s = f.read()
     ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
     asts[fname] = ast
