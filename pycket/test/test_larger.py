@@ -22,6 +22,9 @@ def test_puzzle():
 def test_nqueens():
     run_file("nqueens.sch", ("10000", "1"))
 
+def test_bubble():
+    run_file("bubble.sch", ("10000", "100"))
+
 #def test_pseudoknot():
 #    run_file("nucleic2.sch")
 
