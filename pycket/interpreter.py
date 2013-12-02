@@ -309,7 +309,7 @@ class App(AST):
         fresh = LexicalVar.gensym()
         freshs.insert(0, fresh)
         fresh_var = LexicalVar(fresh)
-        return make_let(freshs, [self.rator] + self.rands, [App(fresh_var, fresh_vars)])
+        return Let(freshs, [self.rator] + self.rands, [App(fresh_var, fresh_vars)])
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
@@ -634,13 +634,12 @@ def make_letrec(vars, rhss, body):
 class Let(AST):
     _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
     def __init__(self, vars, rhss, body):
+        assert vars # otherwise just use a begin
         self.vars = vars
         self.rhss = rhss
         self.body = body
         self.args = SymList(vars)
     def interpret(self, env, frame):
-        if not self.vars:
-            return make_begin(self.body, env, frame)
         return self.rhss[0], env, LetCont.make([], self.args, self, 0, self.body, env, frame)
     def mutated_vars(self):
         x = {}
@@ -677,7 +676,6 @@ class Let(AST):
     def tostring(self):
         return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.vars)]), 
                                 " ".join([b.tostring() for b in self.body]))
-
 
 
 class Define(AST):
@@ -739,5 +737,5 @@ def interpret(asts):
     for a in asts:
         x = interpret_toplevel(a, env)
     return x
-            
-    
+
+
