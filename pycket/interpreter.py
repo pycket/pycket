@@ -527,7 +527,7 @@ class RecLambda(AST):
 
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
+    _immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
     def do_anorm(self):
         return Lambda(self.formals, self.rest, [anorm_and_bind(Begin.make(self.body))])
     def __init__ (self, formals, rest, body):
@@ -583,7 +583,7 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
+    _immutable_fields_ = ["vars[*]", "rhss[*]"]
     def __init__(self, vars, rhss, body):
         SequencedBodyAST.__init__(self, body)
         self.vars = vars
@@ -647,7 +647,7 @@ def make_letrec(vars, rhss, body):
     return Letrec(vars, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]", "args"]
+    _immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
     def __init__(self, vars, rhss, body):
         SequencedBodyAST.__init__(self, body)
         assert vars # otherwise just use a begin
