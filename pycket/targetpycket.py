@@ -14,7 +14,7 @@ def read(fname):
     ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
     asts[fname] = ast
 
-files = ["test/y.rktl", "test/puzzle.sch", "test/bubble.sch", "test/loop.rktl", "test/append.rktl"]
+files = ["test/y.rktl", "test/puzzle.sch", "test/bubble.sch", "test/loop.rktl", "test/append.rktl", "test/nqueens.sch"]
 
 for f in files: read(f)
 
@@ -25,3 +25,7 @@ def main(argv):
 
 def target(*args):
     return main
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)
