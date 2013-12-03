@@ -21,7 +21,7 @@ def expose(name, argstypes=None, simple=True):
                 typed_args = ()
                 for i, typ in unroll_argtypes:
                     arg = args[i]
-                    if not isinstance(arg, typ):
+                    if typ is not values.W_Object and not isinstance(arg, typ):
                         raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
                     typed_args += (arg, )
                 typed_args += rest
@@ -74,9 +74,10 @@ def make_pred(name, cls):
         return values.W_Bool.make(isinstance(a, cls))
 
 def make_pred_eq(name, val):
+    typ = type(val)
     @expose(name, [values.W_Object], simple=True)
     def do(a):
-        return values.W_Bool.make(a is val)
+        return values.W_Bool.make(isinstance(a, typ) and a is val)
 
 
 for args in [
