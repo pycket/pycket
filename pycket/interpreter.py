@@ -63,7 +63,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
         debug.make_sure_not_resized(elems)
         setattr(self, attrname, elems)
         cls.__init__(self, *args)
-    meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
+    meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
     if immutable:
         meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
     cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
