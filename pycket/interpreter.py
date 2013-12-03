@@ -24,6 +24,8 @@ make(listcontent, *args): makes a new instance with the list's content set to li
     def make_methods(size):
         attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
         unrolling_enumerate_attrs = unrolling_iterable(enumerate(attrs))
+        def _get_size_list(self):
+            return size
         def _get_list(self, i):
             for j, attr in unrolling_enumerate_attrs:
                 if j == i:
@@ -44,13 +46,15 @@ make(listcontent, *args): makes a new instance with the list's content set to li
             for i, attr in unrolling_enumerate_attrs:
                 setattr(self, attr, elems[i])
             cls.__init__(self, *args)
-        meths = {"_get_list": _get_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
+        meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
         if immutable:
             meths["_immutable_fields_"] = attrs
         return meths
     classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
     def _get_arbitrary(self, i):
         return getattr(self, attrname)[i]
+    def _get_size_list_arbitrary(self):
+        return len(getattr(self, attrname))
     def _get_list_arbitrary(self):
         return getattr(self, attrname)
     def _set_arbitrary(self, i, val):
@@ -59,7 +63,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
         debug.make_sure_not_resized(elems)
         setattr(self, attrname, elems)
         cls.__init__(self, *args)
-    meths = {"_get_list": _get_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
+    meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
     if immutable:
         meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
     cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
@@ -154,7 +158,7 @@ class IfCont(Cont):
         # remove the frame created by the let introduced by let_convert
         # it's no longer needed nor accessible
         env = self.env
-        assert len(env._get_full_list()) == 1
+        assert env._get_size_list() == 1
         assert isinstance(env, ConsEnv)
         env = env.prev
         if w_val is values.w_false:
@@ -181,19 +185,19 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 class LetCont(Cont):
-    def __init__(self, ast, i, env, prev):
+    def __init__(self, ast, env, prev):
         self.ast = ast
-        self.i = i
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if self.i >= (len(self.ast.rhss) - 1):
+        ast = jit.promote(self.ast)
+        if self._get_size_list() == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + [w_val]
-            env = ConsEnv.make(vals_w, self.ast.args, self.env, self.env.toplevel_env)
-            return make_begin(self.ast.body, env, self.prev)
+            env = ConsEnv.make(vals_w, ast.args, self.env, self.env.toplevel_env)
+            return make_begin(ast.body, env, self.prev)
         else:
-            return (self.ast.rhss[self.i + 1], self.env,
-                    LetCont.make(self._get_full_list() + [w_val], self.ast, self.i + 1,
+            return (ast.rhss[self._get_size_list() + 1], self.env,
+                    LetCont.make(self._get_full_list() + [w_val], ast,
                             self.env, self.prev))
 inline_small_list(LetCont, attrname="vals_w")
 
@@ -206,25 +210,25 @@ class CellCont(Cont):
 
 class Call(Cont):
     # prev is the parent continuation
-    def __init__ (self, callast, i, env, prev):
-        self.callast = callast
-        self.i = i
+    def __init__ (self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        if self.i == len(self.callast.rands):
+        ast = jit.promote(self.ast)
+        if self._get_size_list() == len(ast.rands):
             vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
             env = self.env
             assert isinstance(env, ConsEnv)
-            assert len(vals_w) == len(self.callast.rands) + 1
+            assert len(vals_w) == len(ast.rands) + 1
             # remove the frame created by the let introduced by let_convert
             # it's no longer needed nor accessible
             env = env.prev
             return vals_w[0].call(vals_w[1:], env, self.prev)
         else:
-            return self.callast.rands[self.i], self.env, Call.make(self._get_full_list() + [w_val], self.callast, self.i + 1,
-                                                                   self.env, self.prev)
+            return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
+                                                          self.env, self.prev)
 inline_small_list(Call, attrname="vals_w")
 
 def make_begin(exprs, env, prev):
@@ -334,7 +338,7 @@ class App(AST):
             x.update(r.free_vars())
         return x
     def interpret(self, env, frame):
-        return self.rator, env, Call.make([], self, 0, env, frame)
+        return self.rator, env, Call.make([], self, env, frame)
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
@@ -650,7 +654,7 @@ class Let(AST):
         self.body = body
         self.args = SymList(vars)
     def interpret(self, env, frame):
-        return self.rhss[0], env, LetCont.make([], self, 0, env, frame)
+        return self.rhss[0], env, LetCont.make([], self, env, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body:
