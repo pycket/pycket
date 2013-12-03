@@ -163,42 +163,38 @@ class IfCont(Cont):
             return self.thn, env, self.prev
 
 class LetrecCont(Cont):
-    def __init__(self, args, ast, i, body, env, prev):
-        self.args  = args
+    def __init__(self, ast, i, env, prev):
         self.ast = ast
         self.i = i
-        self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
         #import pdb; pdb.set_trace()
-        v = self.env.lookup(self.args.elems[self.i])
+        v = self.env.lookup(self.ast.args.elems[self.i])
         assert isinstance(v, values.W_Cell)
         v.value = w_val
         if self.i >= (len(self.ast.rhss) - 1):
-            return make_begin(self.body, self.env, self.prev)
+            return make_begin(self.ast.body, self.env, self.prev)
         else:
             return (self.ast.rhss[self.i + 1], self.env,
-                    LetrecCont(self.args, self.ast, self.i + 1,
-                               self.body, self.env, self.prev))
+                    LetrecCont(self.ast, self.i + 1,
+                               self.env, self.prev))
 
 class LetCont(Cont):
-    def __init__(self, args, ast, i, body, env, prev):
-        self.args = args
+    def __init__(self, ast, i, env, prev):
         self.ast = ast
         self.i = i
-        self.body = body
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
         if self.i >= (len(self.ast.rhss) - 1):
             vals_w = self._get_full_list() + [w_val]
-            env = ConsEnv.make(vals_w, self.args, self.env, self.env.toplevel_env)
-            return make_begin(self.body, env, self.prev)
+            env = ConsEnv.make(vals_w, self.ast.args, self.env, self.env.toplevel_env)
+            return make_begin(self.ast.body, env, self.prev)
         else:
             return (self.ast.rhss[self.i + 1], self.env,
-                    LetCont.make(self._get_full_list() + [w_val], self.args, self.ast, self.i + 1,
-                            self.body, self.env, self.prev))
+                    LetCont.make(self._get_full_list() + [w_val], self.ast, self.i + 1,
+                            self.env, self.prev))
 inline_small_list(LetCont, attrname="vals_w")
 
 class CellCont(Cont):
@@ -590,7 +586,7 @@ class Letrec(AST):
         self.args = SymList(vars)
     def interpret(self, env, frame):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.vars], self.args, env, env.toplevel_env)
-        return self.rhss[0], env_new, LetrecCont(self.args, self, 0, self.body, env_new, frame)
+        return self.rhss[0], env_new, LetrecCont(self, 0, env_new, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body + self.rhss:
@@ -654,7 +650,7 @@ class Let(AST):
         self.body = body
         self.args = SymList(vars)
     def interpret(self, env, frame):
-        return self.rhss[0], env, LetCont.make([], self.args, self, 0, self.body, env, frame)
+        return self.rhss[0], env, LetCont.make([], self, 0, env, frame)
     def mutated_vars(self):
         x = {}
         for b in self.body:
