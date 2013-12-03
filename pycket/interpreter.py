@@ -149,9 +149,8 @@ class Cont(object):
             return "%s()"%(self.__class__.__name__)
 
 class IfCont(Cont):
-    def __init__(self, thn, els, env, prev):
-        self.thn = thn
-        self.els = els
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
@@ -161,10 +160,11 @@ class IfCont(Cont):
         assert env._get_size_list() == 1
         assert isinstance(env, ConsEnv)
         env = env.prev
+        ast = jit.promote(self.ast)
         if w_val is values.w_false:
-            return self.els, env, self.prev
+            return ast.els, env, self.prev
         else:
-            return self.thn, env, self.prev
+            return ast.thn, env, self.prev
 
 class LetrecCont(Cont):
     def __init__(self, ast, i, env, prev):
@@ -178,7 +178,7 @@ class LetrecCont(Cont):
         assert isinstance(v, values.W_Cell)
         v.value = w_val
         if self.i >= (len(self.ast.rhss) - 1):
-            return make_begin(self.ast.body, self.env, self.prev)
+            return self.ast.make_begin_cont(self.env, self.prev)
         else:
             return (self.ast.rhss[self.i + 1], self.env,
                     LetrecCont(self.ast, self.i + 1,
@@ -194,7 +194,7 @@ class LetCont(Cont):
         if self._get_size_list() == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + [w_val]
             env = ConsEnv.make(vals_w, ast.args, self.env, self.env.toplevel_env)
-            return make_begin(ast.body, env, self.prev)
+            return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[self._get_size_list() + 1], self.env,
                     LetCont.make(self._get_full_list() + [w_val], ast,
@@ -231,13 +231,6 @@ class Call(Cont):
                                                           self.env, self.prev)
 inline_small_list(Call, attrname="vals_w")
 
-def make_begin(exprs, env, prev):
-    assert exprs
-    if len(exprs) == 1:
-        return exprs[0], env, prev
-    else:
-        return exprs[0], env, BeginCont(exprs[1:], env, prev)
-
 class SetBangCont(Cont):
     def __init__(self, var, env, prev):
         self.var = var
@@ -247,16 +240,15 @@ class SetBangCont(Cont):
         self.var._set(w_val, self.env)
         return Value(values.w_void), self.env, self.prev
 
-# Perhaps we should add an 'i' attribute to BeginCont. -Jeremy
 class BeginCont(Cont):
-    def __init__(self, rest, env, prev):
-        assert rest
-        self.rest = rest
+    def __init__(self, ast, i, env, prev):
+        self.ast = ast
+        self.i = i
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        return make_begin(self.rest, self.env, self.prev)
-        
+        return self.ast.make_begin_cont(self.env, self.prev, self.i)
+
 class Done(Exception):
     def __init__(self, w_val):
         self.w_val = w_val
@@ -342,33 +334,42 @@ class App(AST):
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
-class Begin(AST):
-    _immutable_fields_ = ["exprs[*]"]
-    @staticmethod
-    def make(exprs):
-        if len(exprs) == 1:
-            return exprs[0]
+class SequencedBodyAST(AST):
+    _immutable_fields_ = ["body[*]"]
+    def __init__(self, body):
+        assert body
+        self.body = body
+
+    def make_begin_cont(self, env, prev, i=0):
+        if i == len(self.body) - 1:
+            return self.body[i], env, prev
         else:
-            return Begin(exprs)
-    def __init__(self, exprs):
-        assert isinstance(exprs[0], AST)
-        self.exprs = exprs
+            return self.body[i], env, BeginCont(self, i + 1, env, prev)
+
+
+class Begin(SequencedBodyAST):
+    @staticmethod
+    def make(body):
+        if len(body) == 1:
+            return body[0]
+        else:
+            return Begin(body)
     def assign_convert(self, vars):
-        return Begin.make(map(lambda e: e.assign_convert(vars), self.exprs))
+        return Begin.make(map(lambda e: e.assign_convert(vars), self.body))
     def mutated_vars(self):
         x = {}
-        for r in self.exprs:
+        for r in self.body:
             x.update(r.mutated_vars())
         return x
     def free_vars(self):
         x = {}
-        for r in self.exprs:
+        for r in self.body:
             x.update(r.free_vars())
         return x
     def interpret(self, env, frame):
-        return make_begin(self.exprs, env, frame)
+        return self.make_begin_cont(env, frame)
     def tostring(self):
-        return "(begin %s)" % (" ".join([e.tostring() for e in self.exprs]))
+        return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
 class Var(AST):
     _immutable_fields_ = ["sym"]
@@ -471,7 +472,7 @@ class If(AST):
         fresh = LexicalVar.gensym()
         return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
     def interpret(self, env, frame):
-        return self.tst, env, IfCont(self.thn, self.els, env, frame)
+        return self.tst, env, IfCont(self, env, frame)
     def assign_convert(self, vars):
         return If(self.tst.assign_convert(vars),
                   self.thn.assign_convert(vars),
@@ -525,14 +526,14 @@ class RecLambda(AST):
             return "(rec %s (%s) %s)"%(self.name, self.lam.formals, self.lam.body)
 
 
-class Lambda(AST):
+class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "body[*]", "args", "frees[*]"]
     def do_anorm(self):
         return Lambda(self.formals, self.rest, [anorm_and_bind(Begin.make(self.body))])
     def __init__ (self, formals, rest, body):
+        SequencedBodyAST.__init__(self, body)
         self.formals = formals
         self.rest = rest
-        self.body = body
         self.args = SymList(formals + ([rest] if rest else []))
         self.frees = SymList(self.free_vars().keys())
     def interpret(self, env, frame):
@@ -581,12 +582,12 @@ class Lambda(AST):
             return "(lambda (%s) %s)"%(self.formals, [b.tostring() for b in self.body])
 
 
-class Letrec(AST):
+class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
     def __init__(self, vars, rhss, body):
+        SequencedBodyAST.__init__(self, body)
         self.vars = vars
         self.rhss = rhss
-        self.body = body
         self.args = SymList(vars)
     def interpret(self, env, frame):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.vars], self.args, env, env.toplevel_env)
@@ -645,13 +646,13 @@ def make_letrec(vars, rhss, body):
                     return RecLambda(vars[0], rhss[0])
     return Letrec(vars, rhss, body)
 
-class Let(AST):
+class Let(SequencedBodyAST):
     _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]", "args"]
     def __init__(self, vars, rhss, body):
+        SequencedBodyAST.__init__(self, body)
         assert vars # otherwise just use a begin
         self.vars = vars
         self.rhss = rhss
-        self.body = body
         self.args = SymList(vars)
     def interpret(self, env, frame):
         return self.rhss[0], env, LetCont.make([], self, env, frame)
@@ -735,7 +736,7 @@ def interpret_one(ast, env=None):
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):
         x = None
-        for a2 in a.exprs:
+        for a2 in a.body:
             x = interpret_toplevel(a2, env)
         return x
     elif isinstance(a, Define):

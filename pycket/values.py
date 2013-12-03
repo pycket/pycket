@@ -135,6 +135,7 @@ class W_SimplePrim(W_Procedure):
 
     def call(self, args, env, frame):
         from pycket.interpreter import Value
+        jit.promote(self)
         #print self.name
         return Value(self.code(args)), env, frame
 
@@ -145,6 +146,7 @@ class W_Prim(W_Procedure):
         self.code = code
 
     def call(self, args, env, frame):
+        jit.promote(self)
         return self.code(args, env, frame)
 
 def to_list(l): return to_improper(l, w_null)
@@ -173,15 +175,15 @@ class W_Closure(W_Procedure):
         vals = [env.lookup(i) for i in lam.frees.elems]
         self.env = ConsEnv.make(vals, lam.frees, EmptyEnv(env.toplevel_env), env.toplevel_env)
     def call(self, args, env, frame):
-        from pycket.interpreter import make_begin, ConsEnv
-        jit.promote(self.lam)
-        fmls_len = len(self.lam.formals)
+        from pycket.interpreter import ConsEnv
+        lam = jit.promote(self.lam)
+        fmls_len = len(lam.formals)
         args_len = len(args)
-        if fmls_len != args_len and not self.lam.rest:
+        if fmls_len != args_len and not lam.rest:
             raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
         if fmls_len > args_len:
             raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
-        if self.lam.rest:
+        if lam.rest:
             actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:
             actuals = args
@@ -191,8 +193,8 @@ class W_Closure(W_Procedure):
             prev = env.prev
         else:
             prev = self.env
-        return make_begin(self.lam.body,
-                          ConsEnv.make(actuals, self.lam.args, prev, self.env.toplevel_env),
+        return lam.make_begin_cont(
+                          ConsEnv.make(actuals, lam.args, prev, self.env.toplevel_env),
                           frame)
 
 
