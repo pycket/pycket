@@ -1,7 +1,7 @@
 from pycket        import values
 from pycket.prims  import prim_env
 from pycket.error import SchemeException
-from rpython.rlib  import jit
+from rpython.rlib  import jit, debug
 
 
 def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
@@ -30,7 +30,10 @@ make(listcontent, *args): makes a new instance with the list's content set to li
                     return getattr(self, attr)
             raise IndexError
         def _get_full_list(self):
-            return [getattr(self, attr) for i, attr in unrolling_enumerate_attrs]
+            res = [None] * size
+            for i, attr in unrolling_enumerate_attrs:
+                res[i] = getattr(self, attr)
+            return res
         def _set_list(self, i, val):
             for j, attr in unrolling_enumerate_attrs:
                 if j == i:
@@ -53,6 +56,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
     def _set_arbitrary(self, i, val):
         getattr(self, attrname)[i] = val
     def _init(self, elems, *args):
+        debug.make_sure_not_resized(elems)
         setattr(self, attrname, elems)
         cls.__init__(self, *args)
     meths = {"_get_list": _get_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
@@ -113,8 +117,6 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def __init__ (self, args, prev, toplevel):
         self.toplevel_env = toplevel
-        for i in args.elems:
-            assert isinstance(i, values.W_Symbol)
         self.args = args
         self.prev = prev
     @jit.unroll_safe
@@ -149,10 +151,16 @@ class IfCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
+        # remove the frame created by the let introduced by let_convert
+        # it's no longer needed nor accessible
+        env = self.env
+        assert len(env._get_full_list()) == 1
+        assert isinstance(env, ConsEnv)
+        env = env.prev
         if w_val is values.w_false:
-            return self.els, self.env, self.prev
+            return self.els, env, self.prev
         else:
-            return self.thn, self.env, self.prev
+            return self.thn, env, self.prev
 
 class LetrecCont(Cont):
     def __init__(self, args, ast, i, body, env, prev):
@@ -211,7 +219,13 @@ class Call(Cont):
         if self.i == len(self.callast.rands):
             vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
-            return vals_w[0].call(vals_w[1:], self.env, self.prev)
+            env = self.env
+            assert isinstance(env, ConsEnv)
+            assert len(vals_w) == len(self.callast.rands) + 1
+            # remove the frame created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            env = env.prev
+            return vals_w[0].call(vals_w[1:], env, self.prev)
         else:
             return self.callast.rands[self.i], self.env, Call.make(self._get_full_list() + [w_val], self.callast, self.i + 1,
                                                                    self.env, self.prev)
@@ -632,7 +646,7 @@ def make_letrec(vars, rhss, body):
     return Letrec(vars, rhss, body)
 
 class Let(AST):
-    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]"]
+    _immutable_fields_ = ["vars[*]", "rhss[*]", "body[*]", "args"]
     def __init__(self, vars, rhss, body):
         assert vars # otherwise just use a begin
         self.vars = vars

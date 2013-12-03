@@ -185,12 +185,12 @@ class W_Closure(W_Procedure):
             actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:
             actuals = args
-        # the following if-statement specializes on the fact that often 
+        # specialize on the fact that often we end up executing in the same
+        # environment
         if isinstance(env, ConsEnv) and env.prev is self.env:
             prev = env.prev
         else:
             prev = self.env
-        #import pdb; pdb.set_trace()
         return make_begin(self.lam.body,
                           ConsEnv.make(actuals, self.lam.args, prev, self.env.toplevel_env),
                           frame)
