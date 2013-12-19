@@ -1,4 +1,5 @@
 from pycket        import values
+from pycket        import vector
 from pycket.prims  import prim_env
 from pycket.error import SchemeException
 from rpython.rlib  import jit, debug
@@ -310,9 +311,9 @@ class App(AST):
         self.rator = rator
         self.rands = rands
     def let_convert(self):
-        freshs = [LexicalVar.gensym() for i in self.rands]
+        freshs = [LexicalVar.gensym("AppRand%s_"%i) for i, _ in enumerate(self.rands)]
         fresh_vars = [LexicalVar(fresh) for fresh in freshs]
-        fresh = LexicalVar.gensym()
+        fresh = LexicalVar.gensym("AppRator_")
         freshs.insert(0, fresh)
         fresh_var = LexicalVar(fresh)
         return Let(freshs, [self.rator] + self.rands, [App(fresh_var, fresh_vars)])
@@ -402,10 +403,10 @@ class CellRef(Var):
 class LexicalVar(Var):
     _counter = 0
     @staticmethod
-    def gensym():
+    def gensym(hint=""):
         LexicalVar._counter += 1
         # not using `make` so that it's really gensym
-        return values.W_Symbol("fresh_" + str(LexicalVar._counter))
+        return values.W_Symbol(hint + "fresh_" + str(LexicalVar._counter))
     def _lookup(self, env):
         return env.lookup(self.sym)
     def _set(self, w_val, env): 
@@ -469,7 +470,7 @@ class If(AST):
         self.thn = thn
         self.els = els
     def let_convert(self):
-        fresh = LexicalVar.gensym()
+        fresh = LexicalVar.gensym("if_")
         return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
     def interpret(self, env, frame):
         return self.tst, env, IfCont(self, env, frame)
@@ -705,6 +706,8 @@ class Define(AST):
         return "(define %s %s)"%(self.name, self.rhs.tostring())
 
 def get_printable_location(green_ast):
+    if green_ast is None:
+        return 'Green_Ast is None'
     return green_ast.tostring()
 driver = jit.JitDriver(reds=["ast", "env", "frame"],
                        greens=["green_ast"],
@@ -722,6 +725,7 @@ def interpret_one(ast, env=None):
             if not isinstance(ast, Value):
                 jit.promote(ast)
                 green_ast = ast
+            
             #print ast.tostring()
             # if frame:
             #     if len(frame.tostring()) > 250:
