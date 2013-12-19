@@ -14,7 +14,7 @@ def read(fname):
     ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
     asts[fname] = ast
 
-files = ["test/y.rktl", "test/puzzle.sch", "test/bubble.sch", "test/loop.rktl", "test/append.rktl", "test/nqueens.sch"]
+files = ["test/y.rktl", "test/puzzle.sch", "test/bubble.sch", "test/loop.rktl", "test/append.rktl", "test/nqueens.sch", "test/vector_iterate.sch"]
 
 for f in files: read(f)
 
