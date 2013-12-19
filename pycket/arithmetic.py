@@ -61,6 +61,8 @@ class __extend__(values.W_Fixnum):
             return values.W_Bignum(rbigint.fromint(self.value).neg())
         return values.W_Fixnum(res)
 
+    def arith_sub1(self):
+        return values.W_Fixnum(self.value - 1)
 
     # ------------------ multiplication ------------------ 
     def arith_mul(self, other):
@@ -311,6 +313,9 @@ class __extend__(values.W_Flonum):
 
     def arith_unarysub(self):
         return values.W_Flonum(-self.value)
+
+    def arith_sub1(self):
+        return values.W_Flonum(self.value - 1)
 
     # ------------------ multiplication ------------------ 
     def arith_mul(self, other):

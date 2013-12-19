@@ -6,7 +6,7 @@ from pycket.error import SchemeException
 from rpython.rlib  import jit, unroll
 
 prim_env = {}
-
+q
 def expose(name, argstypes=None, simple=True):
     def wrapper(func):
         if argstypes is not None:
@@ -128,6 +128,7 @@ for args in [
         ("cos", "arith_cos"),
         ("atan", "arith_atan"),
         ("sqrt", "arith_sqrt"),
+        ("sub1", "arith_sub1"),
         ]:
     make_unary_arith(*args)
 
