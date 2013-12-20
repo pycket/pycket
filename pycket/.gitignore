@@ -1,5 +1,7 @@
 out
 targetpycket-c*
+pycket-original
+pycket-strategies
 *.o1
 *.o2
 test.sh

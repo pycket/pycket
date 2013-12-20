@@ -3,6 +3,7 @@ from pycket.values import W_Object, W_Fixnum
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint
 
+# Setting this to True will break the tests. Used to compare performance.
 _always_use_object_strategy = False
 
 def _find_strategy_class(elements):
