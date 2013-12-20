@@ -4,18 +4,37 @@ import os
 
 from pycket.interpreter import *
 from pycket import values
+from pycket import vector
 
 fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
-def expand(s):
+def readfile(fname):
+    f = open(fname)
+    s = f.read()
+    f.close()
+    return s
+
+def expand_string(s):
     process = subprocess.Popen(
         "racket %s" % (fn, ),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     (data, err) = process.communicate(s)
     if err:
         raise Exception("Racket produced an error")
+    if err:
+        raise Exception("Racket did not produce output. Probably racket is not installed?")
+    return data
+
+def expand(s):
+    data = expand_string(s)
     return json.loads(data)
-    
+
+def load_expanded(fname):
+    try:
+        data = readfile(fname)
+        return json.loads(data)
+    except IOError:
+        raise
 
 def to_formals(json):
     if "improper" in json:
@@ -114,7 +133,7 @@ def to_value(json):
         return values.w_true
     if isinstance(json, dict):
         if "vector" in json:
-            return values.W_Vector([to_value(v) for v in json["vector"]])
+            return vector.W_Vector.fromelements([to_value(v) for v in json["vector"]])
         if "integer" in json:
             return values.W_Fixnum(int(json["integer"]))
         if "real" in json:

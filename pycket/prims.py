@@ -1,12 +1,13 @@
 import operator
 import os
 from pycket import values
+from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
 from rpython.rlib  import jit, unroll
 
 prim_env = {}
-q
+
 def expose(name, argstypes=None, simple=True):
     def wrapper(func):
         if argstypes is not None:
@@ -83,7 +84,7 @@ def make_pred_eq(name, val):
 for args in [
         ("pair?", values.W_Cons),
         ("number?", values.W_Number),
-        ("vector?", values.W_Vector),
+        ("vector?", values_vector.W_Vector),
         ("string?", values.W_String),
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
@@ -149,10 +150,10 @@ def equal_loop(a,b):
         return False
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
-    if isinstance(a, values.W_Vector) and isinstance(b, values.W_Vector):
-        if len(a.elems) != len(b.elems): return False
-        for i, v in enumerate(a.elems):
-            if not equal_loop(v, b.elems[i]):
+    if isinstance(a, values_vector.W_Vector) and isinstance(b, values_vector.W_Vector):
+        if a.length() != b.length(): return False
+        for i in range(a.length()):
+            if not equal_loop(a.ref(i), b.ref(i)):
                 return False
         return True
     return False
@@ -257,25 +258,25 @@ def num2str(a):
 @expose("vector-ref")
 def vector_ref(args):
     v, i = args
-    if not isinstance(v, values.W_Vector):
+    if not isinstance(v, values_vector.W_Vector):
         raise SchemeException("vector-ref: expected a vector")
     if not isinstance(i, values.W_Fixnum):
         raise SchemeException("vector-ref: expected a fixnum")
     idx = i.value
-    if not (0 <= idx < len(v.elems)):
+    if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
     return v.ref(i.value)
 
-@expose("vector-set!", [values.W_Vector, values.W_Fixnum, values.W_Object])
+@expose("vector-set!", [values_vector.W_Vector, values.W_Fixnum, values.W_Object])
 def vector_set(v, i, new):
     idx = i.value
-    if not (0 <= idx < len(v.elems)):
+    if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
     v.set(i.value, new)
 
 @expose("vector")
 def vector(args):
-    return values.W_Vector(args)
+    return values_vector.W_Vector.fromelements(args)
 
 @expose("make-vector")
 def make_vector(args):
@@ -285,16 +286,16 @@ def make_vector(args):
         n, = args
         val = values.W_Fixnum(0)
     else:
-        assert 0
+        raise SchemeException("make-vector: unexpected number of parameters")
     if not isinstance(n, values.W_Fixnum):
         raise SchemeException("make-vector: expected a fixnum")
     if not (n.value >= 0):
         raise SchemeException("make-vector: expected a positive fixnum")
-    return values.W_Vector([val] * n.value)
+    return values_vector.W_Vector.fromelement(val, n.value)
 
-@expose("vector-length", [values.W_Vector])
+@expose("vector-length", [values_vector.W_Vector])
 def vector_length(v):
-    return values.W_Fixnum(len(v.elems))
+    return values.W_Fixnum(v.length())
 
 # my kingdom for a tail call
 def listp_loop(v):

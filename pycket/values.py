@@ -31,20 +31,6 @@ class W_Cons(W_List):
     def tostring(self):
         return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
 
-class W_Vector(W_Object):
-    _immutable_fields_ = ["elems"]
-    errorname = "vector"
-    def __init__(self, elems):
-        self.elems = elems
-    def ref(self, i):
-        assert 0 <= i < len(self.elems)
-        return self.elems[i]
-    def set(self, i, v): 
-        assert 0 <= i < len(self.elems)
-        self.elems[i] = v
-    def tostring(self):
-        return "#(%s)"%(" ".join([e.tostring() for e in self.elems]))
-
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
