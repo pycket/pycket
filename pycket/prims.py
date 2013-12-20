@@ -157,8 +157,8 @@ def equal_loop(a,b):
     return False
 
 @expose("call/cc", [values.W_Procedure], simple=False)
-def callcc(a, env, frame):
-    return a.call([values.W_Continuation(frame)], env, frame)
+def callcc(a, env, cont):
+    return a.call([values.W_Continuation(cont)], env, cont)
 
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):

@@ -10,7 +10,7 @@ class W_Object(object):
         raise NotImplementedError("abstract base class")
     def tostring(self):
         return str(self)
-    def call(self, args, env, frame):
+    def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
 class W_Cell(W_Object): # not the same as Racket's box
@@ -133,11 +133,11 @@ class W_SimplePrim(W_Procedure):
         self.name = name
         self.code = code
 
-    def call(self, args, env, frame):
+    def call(self, args, env, cont):
         from pycket.interpreter import Value
         jit.promote(self)
         #print self.name
-        return Value(self.code(args)), env, frame
+        return Value(self.code(args)), env, cont
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code"]
@@ -145,9 +145,9 @@ class W_Prim(W_Procedure):
         self.name = name
         self.code = code
 
-    def call(self, args, env, frame):
+    def call(self, args, env, cont):
         jit.promote(self)
-        return self.code(args, env, frame)
+        return self.code(args, env, cont)
 
 def to_list(l): return to_improper(l, w_null)
 
@@ -158,13 +158,13 @@ def to_improper(l, v):
         return W_Cons(l[0], to_improper(l[1:], v))
 
 class W_Continuation(W_Procedure):
-    _immutable_fields_ = ["frame"]
-    def __init__ (self, frame):
-        self.frame = frame
-    def call(self, args, env, frame):
+    _immutable_fields_ = ["cont"]
+    def __init__ (self, cont):
+        self.cont = cont
+    def call(self, args, env, cont):
         from pycket.interpreter import Value
         a, = args # FIXME: multiple values
-        return Value(a), env, self.frame
+        return Value(a), env, self.cont
 
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["lam", "env"]
@@ -174,7 +174,7 @@ class W_Closure(W_Procedure):
         self.lam = lam
         vals = [env.lookup(i) for i in lam.frees.elems]
         self.env = ConsEnv.make(vals, lam.frees, EmptyEnv(env.toplevel_env), env.toplevel_env)
-    def call(self, args, env, frame):
+    def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
         lam = jit.promote(self.lam)
         fmls_len = len(lam.formals)
@@ -195,6 +195,6 @@ class W_Closure(W_Procedure):
             prev = self.env
         return lam.make_begin_cont(
                           ConsEnv.make(actuals, lam.args, prev, self.env.toplevel_env),
-                          frame)
+                          cont)
 
 

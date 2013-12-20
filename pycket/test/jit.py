@@ -88,6 +88,7 @@ class TestLLtype(LLJitMixin):
         def interp_w():
             val = interpret([ast])
             return val
+        interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -151,6 +152,18 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+
+    def test_let_append(self):
+        ast = to_ast(expand("""
+(let ()
+(define (let-append a b)
+  (let ([tst (null? a)])
+      (if tst
+          b
+          (cons (car a) (let-append (cdr a) b)))))
+ (let-append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
+"""
+))
 
     def test_anormal_append(self):
         ast = to_ast(expand("""

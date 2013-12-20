@@ -154,7 +154,7 @@ class IfCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        # remove the frame created by the let introduced by let_convert
+        # remove the env created by the let introduced by let_convert
         # it's no longer needed nor accessible
         env = self.env
         assert env._get_size_list() == 1
@@ -222,7 +222,7 @@ class Call(Cont):
             env = self.env
             assert isinstance(env, ConsEnv)
             assert len(vals_w) == len(ast.rands) + 1
-            # remove the frame created by the let introduced by let_convert
+            # remove the env created by the let introduced by let_convert
             # it's no longer needed nor accessible
             env = env.prev
             return vals_w[0].call(vals_w[1:], env, self.prev)
@@ -263,9 +263,9 @@ class AST(object):
 class Value(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret(self, env, frame):
-        if frame is None: raise Done(self.w_val)
-        return frame.plug_reduce(self.w_val)
+    def interpret(self, env, cont):
+        if cont is None: raise Done(self.w_val)
+        return cont.plug_reduce(self.w_val)
     def let_convert(self):
         assert 0
     def assign_convert(self, vars):
@@ -278,8 +278,8 @@ class Value(AST):
 class Cell(AST):
     def __init__(self, expr):
         self.expr = expr
-    def interpret(self, env, frame):
-        return self.expr, env, CellCont(env, frame)
+    def interpret(self, env, cont):
+        return self.expr, env, CellCont(env, cont)
     def let_convert(self):
         assert 0
     def assign_convert(self, vars):
@@ -295,8 +295,8 @@ class Quote(AST):
     _immutable_fields_ = ["w_val"]
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret(self, env, frame):
-        return Value(self.w_val), env, frame
+    def interpret(self, env, cont):
+        return Value(self.w_val), env, cont
     def assign_convert(self, vars):
         return self
     def mutated_vars(self):
@@ -329,8 +329,8 @@ class App(AST):
         for r in self.rands:
             x.update(r.free_vars())
         return x
-    def interpret(self, env, frame):
-        return self.rator, env, Call.make([], self, env, frame)
+    def interpret(self, env, cont):
+        return self.rator, env, Call.make([], self, env, cont)
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
@@ -366,8 +366,8 @@ class Begin(SequencedBodyAST):
         for r in self.body:
             x.update(r.free_vars())
         return x
-    def interpret(self, env, frame):
-        return self.make_begin_cont(env, frame)
+    def interpret(self, env, cont):
+        return self.make_begin_cont(env, cont)
     def tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
@@ -375,8 +375,8 @@ class Var(AST):
     _immutable_fields_ = ["sym"]
     def __init__ (self, sym):
         self.sym = sym
-    def interpret(self, env, frame):
-        return Value(self._lookup(env)), env, frame
+    def interpret(self, env, cont):
+        return Value(self._lookup(env)), env, cont
     def mutated_vars(self):
         return {}
     def free_vars(self):
@@ -447,8 +447,8 @@ class SetBang(AST):
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
-    def interpret(self, env, frame):
-        return self.rhs, env, SetBangCont(self.var, env, frame)
+    def interpret(self, env, cont):
+        return self.rhs, env, SetBangCont(self.var, env, cont)
     def assign_convert(self, vars):
         return SetBang(self.var, self.rhs.assign_convert(vars))
     def mutated_vars(self):
@@ -471,8 +471,8 @@ class If(AST):
     def let_convert(self):
         fresh = LexicalVar.gensym()
         return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
-    def interpret(self, env, frame):
-        return self.tst, env, IfCont(self, env, frame)
+    def interpret(self, env, cont):
+        return self.tst, env, IfCont(self, env, cont)
     def assign_convert(self, vars):
         return If(self.tst.assign_convert(vars),
                   self.thn.assign_convert(vars),
@@ -510,13 +510,13 @@ class RecLambda(AST):
         if self.name in v:
             del v[self.name]
         return v
-    def interpret(self, env, frame):
+    def interpret(self, env, cont):
         e = ConsEnv.make([values.w_void], SymList([self.name]), env, env.toplevel_env)
-        Vcl, e, f = self.lam.interpret(e, frame)
+        Vcl, e, f = self.lam.interpret(e, cont)
         cl = Vcl.w_val
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl)
-        return Vcl, env, frame
+        return Vcl, env, cont
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
@@ -536,8 +536,8 @@ class Lambda(SequencedBodyAST):
         self.rest = rest
         self.args = SymList(formals + ([rest] if rest else []))
         self.frees = SymList(self.free_vars().keys())
-    def interpret(self, env, frame):
-        return Value(values.W_Closure(self, env)), env, frame
+    def interpret(self, env, cont):
+        return Value(values.W_Closure(self, env)), env, cont
     def assign_convert(self, vars):
         local_muts = {}
         for b in self.body:
@@ -589,9 +589,9 @@ class Letrec(SequencedBodyAST):
         self.vars = vars
         self.rhss = rhss
         self.args = SymList(vars)
-    def interpret(self, env, frame):
+    def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.vars], self.args, env, env.toplevel_env)
-        return self.rhss[0], env_new, LetrecCont(self, 0, env_new, frame)
+        return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
     def mutated_vars(self):
         x = {}
         for b in self.body + self.rhss:
@@ -654,8 +654,8 @@ class Let(SequencedBodyAST):
         self.vars = vars
         self.rhss = rhss
         self.args = SymList(vars)
-    def interpret(self, env, frame):
-        return self.rhss[0], env, LetCont.make([], self, env, frame)
+    def interpret(self, env, cont):
+        return self.rhss[0], env, LetCont.make([], self, env, cont)
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -706,30 +706,30 @@ class Define(AST):
 
 def get_printable_location(green_ast):
     return green_ast.tostring()
-driver = jit.JitDriver(reds=["ast", "env", "frame"],
+driver = jit.JitDriver(reds=["ast", "env", "cont"],
                        greens=["green_ast"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
-    frame = None
+    cont = None
     if not env:
         env = EmptyEnv(ToplevelEnv())
     #import pdb; pdb.set_trace()
     green_ast = None
     try:
         while True:
-            driver.jit_merge_point(ast=ast, env=env, frame=frame, green_ast=green_ast)
+            driver.jit_merge_point(ast=ast, env=env, cont=cont, green_ast=green_ast)
             if not isinstance(ast, Value):
                 jit.promote(ast)
                 green_ast = ast
             #print ast.tostring()
-            # if frame:
-            #     if len(frame.tostring()) > 250:
+            # if cont:
+            #     if len(cont.tostring()) > 250:
             #         import pdb; pdb.set_trace()
-            #     #print frame.tostring()
-            ast, env, frame = ast.interpret(env, frame)
+            #     #print cont.tostring()
+            ast, env, cont = ast.interpret(env, cont)
             if isinstance(ast, App):
-                driver.can_enter_jit(ast=ast, env=env, frame=frame, green_ast=green_ast)
+                driver.can_enter_jit(ast=ast, env=env, cont=cont, green_ast=green_ast)
     except Done, e:
         return e.w_val
 
