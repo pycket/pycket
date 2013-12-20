@@ -3,8 +3,10 @@ from pycket.values import W_Object, W_Fixnum
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint
 
+_always_use_object_strategy = False
+
 def _find_strategy_class(elements):
-    if len(elements) == 0:
+    if _always_use_object_strategy or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
         return ObjectVectorStrategy()
     single_class = type(elements[0])
