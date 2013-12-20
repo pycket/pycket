@@ -6,3 +6,4 @@ pycket-strategies
 *.o2
 test.sh
 compiled/
+test/*.json
