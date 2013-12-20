@@ -14,6 +14,11 @@ def readfile(fname):
     f.close()
     return s
 
+def parse_json(s):
+    if len(s) == 0:
+        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+    return json.loads(s)
+
 def expand_string(s):
     process = subprocess.Popen(
         "racket %s" % (fn, ),
@@ -21,20 +26,15 @@ def expand_string(s):
     (data, err) = process.communicate(s)
     if err:
         raise Exception("Racket produced an error")
-    if err:
-        raise Exception("Racket did not produce output. Probably racket is not installed?")
     return data
 
 def expand(s):
     data = expand_string(s)
-    return json.loads(data)
+    return parse_json(data)
 
 def load_expanded(fname):
-    try:
-        data = readfile(fname)
-        return json.loads(data)
-    except IOError:
-        raise
+    data = readfile(fname)
+    return parse_json(data)
 
 def to_formals(json):
     if "improper" in json:
