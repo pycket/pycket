@@ -2,21 +2,21 @@
 import pytest
 from pycket.json import loads
 
-def compare(json, expected):
-    result = loads(json)
-    assert result == expected
+def _compare(string, expected):
+    json = loads(string)
+    assert json.unpack_deep() == expected
 
 def test_simple():
-    compare("1", 1)
-    compare("\"abc\"", "abc")
-    compare("1.2", 1.2)
+    _compare("1", 1)
+    _compare("\"abc\"", "abc")
+    _compare("1.2", 1.2)
 
 def test_array():
-    compare("[]", [])
-    compare("[1]", [1])
-    compare("[1, 2.0, 3.0, \"abc\", [10.0, \"def\"]]", [1, 2.0, 3.0, "abc", [10.0, "def"]])
+    _compare("[]", [])
+    _compare("[1]", [1])
+    _compare("[1, 2.0, 3.0, \"abc\", [10.0, \"def\"]]", [1, 2.0, 3.0, "abc", [10.0, "def"]])
 
 def test_object():
-    compare("{}", {})
-    compare("{\"a\": 1}", {"a": 1})
-    compare("{\"a\": 1, \"123\": \"ab\", \"subobj\": {\"d\": 12.0}, \"subarr\": [1]}", {"a": 1, "123": "ab", "subobj": {"d": 12.0}, "subarr": [1]})
+    _compare("{}", {})
+    _compare("{\"a\": 1}", {"a": 1})
+    _compare("{\"a\": 1, \"123\": \"ab\", \"subobj\": {\"d\": 12.0}, \"subarr\": [1]}", {"a": 1, "123": "ab", "subobj": {"d": 12.0}, "subarr": [1]})
