@@ -159,7 +159,7 @@ def _to_ast(json):
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string))
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string))
-    assert 0, "Unexpected json object: %s"%json_obj.tostring()
+    assert 0, "Unexpected json object: %s" % json.tostring()
 
 def to_value(json):
     if json.is_bool:
