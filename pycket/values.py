@@ -97,7 +97,9 @@ class W_Symbol(W_Object):
     all_symbols = {}
     @staticmethod
     def make(string):
-        assert isinstance(string, str)
+        # This assert statement makes the lowering phase of rpython break...
+        # Maybe comment back in and check for bug.
+        #assert isinstance(string, str)
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string]
         else:

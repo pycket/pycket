@@ -48,10 +48,6 @@ def expand(s):
 
 #### ========================== Functions for parsing json to an AST
 
-def parse_ast(json_string):
-    json = pycket_json.loads(json_string)
-    return to_ast(json)
-
 def load_json_ast(fname):
     data = readfile(fname)
     return parse_ast(data)
@@ -59,6 +55,10 @@ def load_json_ast(fname):
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
     return parse_ast(data)
+
+def parse_ast(json_string):
+    json = pycket_json.loads(json_string)
+    return to_ast(json)
 
 def to_ast(json):
     ast = _to_ast(json)
@@ -82,14 +82,18 @@ def to_formals(json):
     assert 0
 
 def to_bindings(json):
-    def to_binding(arr):
+    vars = []
+    rhss = []
+    for v in json.value_array:
+        arr = v.value_array
         fmls, rest = to_formals(arr[0])
         assert not rest
-        assert len(fmls) == 1
-        return (fmls[0], _to_ast(arr[1])) # this is bad for multiple values
-    l  = [to_binding(x.value_array) for x in json.value_array]
-    if not l: return l,l
-    return zip(*l)
+        assert len(fmls) == 1 # this is bad for multiple values
+        var = fmls[0]
+        rhs = _to_ast(arr[1]) 
+        vars.append(var)
+        rhss.append(rhss)
+    return vars, rhss
 
 def mksym(json):
     j = json.value_object
@@ -118,9 +122,13 @@ def _to_ast(json):
                 return Lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
             if ast_elem == "letrec-values":
                 vars, rhss = to_bindings(arr[1])
+                assert isinstance(vars[0], values.W_Symbol)
+                assert isinstance(rhss[0], AST)
                 return make_letrec(list(vars), list(rhss), [_to_ast(x) for x in arr[2:]])
             if ast_elem == "let-values":
                 vars, rhss = to_bindings(arr[1])
+                assert isinstance(vars[0], values.W_Symbol)
+                assert isinstance(rhss[0], AST)
                 return make_let(list(vars), list(rhss), [_to_ast(x) for x in arr[2:]])
             if ast_elem == "set!":
                 target = arr[1].value_object
@@ -135,7 +143,7 @@ def _to_ast(json):
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object["symbol"].value_string))
             if ast_elem == "define-values":
-                fmls = [mksym(x) for x in arr[1]]
+                fmls = [mksym(x) for x in arr[1].value_array]
                 assert len(fmls) == 1
                 return Define(fmls[0], _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
