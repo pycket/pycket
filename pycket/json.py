@@ -161,7 +161,7 @@ def _to_JsonObject(node):
             return JsonObject.new_array([_to_JsonObject(c) for c in node.children])
         else:
             assert 0, "Unexpected kind of nonterminal: %s" % node.symbol
-    assert 0, "Unexpected kind of AST node %s"%type(node)
+    assert 0, "Unexpected kind of AST node: %s" % node.symbol
 
 def loads(string):
     ast = parse(string)

@@ -1,5 +1,6 @@
 out
 targetpycket-c*
+targetjson-c*
 pycket-original
 pycket-strategies
 *.o1
