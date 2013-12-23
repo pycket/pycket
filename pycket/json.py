@@ -72,7 +72,7 @@ class JsonObject(object):
         elif self.is_bool:
             return str(self.value_bool)
         elif self.is_object:
-            return "{%s}" % ", ".join(["%s: %s" % (key.tostring(), self.value_object[key].tostring()) for key in self.value_object])
+            return "{%s}" % ", ".join(["%s: %s" % (key, self.value_object[key].tostring()) for key in self.value_object])
         elif self.is_array:
             return "[%s]" % ", ".join([e.tostring() for e in self.value_array])
         elif self.is_null:
@@ -84,7 +84,7 @@ class JsonObject(object):
         return self.is_string or self.is_int or self.is_float or self.is_null or self.is_bool
     
     def unpack(self):
-        "NOT RPYTHON"
+        "NON_RPYTHON"
         if self.is_string:
             return self.value_string
         elif self.is_int:
@@ -102,13 +102,13 @@ class JsonObject(object):
         assert 0, "Illegal JsonObject instance!"
 
     def unpack_deep(self):
-        "NOT RPYTHON"
+        "NON_RPYTHON"
         if self.is_primitive():
             return self.unpack()
         elif self.is_object:
             result = {}
             for key in self.value_object:
-                result[key.unpack_deep()] = self.value_object[key].unpack_deep()
+                result[key] = self.value_object[key].unpack_deep()
             return result
         elif self.is_array:
             return [e.unpack_deep() for e in self.value_array]
@@ -116,11 +116,14 @@ class JsonObject(object):
 
 json_null = JsonObject()
 json_null.is_null = True
+
 json_true = JsonObject()
 json_true.is_bool = True
-json_true.bool_value = True
+json_true.value_bool = True
+
 json_false = JsonObject()
 json_false.is_bool = True
+json_false.value_bool = False
 
 # Workaround, because the visit() methods in rlib.parsing.tree are not RPython
 def _to_JsonObject(node):
@@ -149,7 +152,10 @@ def _to_JsonObject(node):
         if node.symbol == "object":
             d = {}
             for entry in node.children:
-                d[_to_JsonObject(entry.children[0])] = _to_JsonObject(entry.children[1])
+                key = _to_JsonObject(entry.children[0])
+                if not key.is_string:
+                    assert 0, "Only strings allowed as object keys"
+                d[key.value_string] = _to_JsonObject(entry.children[1])
             return JsonObject.new_object(d)
         elif node.symbol == "array":
             return JsonObject.new_array([_to_JsonObject(c) for c in node.children])
