@@ -72,7 +72,7 @@ class JsonObject(object):
         elif self.is_bool:
             return str(self.value_bool)
         elif self.is_object:
-            return "{%s}" % ", ".join(["%s: %s" % (key, self.value_object[key].tostring()) for key in self.value_object])
+            return "{%s}" % ", ".join(["\"%s\": %s" % (key, self.value_object[key].tostring()) for key in self.value_object])
         elif self.is_array:
             return "[%s]" % ", ".join([e.tostring() for e in self.value_array])
         elif self.is_null:
