@@ -64,7 +64,7 @@ class JsonObject(object):
     
     def tostring(self):
         if self.is_string:
-            return self.value_string
+            return "\"%s\"" % self.value_string
         elif self.is_int:
             return str(self.value_int)
         elif self.is_float:
