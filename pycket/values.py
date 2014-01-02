@@ -109,6 +109,8 @@ class W_Symbol(W_Object):
         return self.value
     def __init__(self, val):
         self.value = val
+    def tostring(self):
+        return "'%s"%self.value
 
 class W_Procedure(W_Object):
     errorname = "procedure"
