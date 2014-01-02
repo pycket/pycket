@@ -67,7 +67,7 @@ def to_ast(json):
 
 #### ========================== Implementation functions
 
-DO_DEBUG_PRINTS = False
+DO_DEBUG_PRINTS = True
 def dbgprint(funcname, json):
     if DO_DEBUG_PRINTS:
         print "Entering %s with: %s" % (funcname, json.tostring())
@@ -131,17 +131,21 @@ def _to_ast(json):
                 return Lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
             if ast_elem == "letrec-values":
                 body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1]) == 0:
+                if len(arr[1].value_array) == 0:
                     return Begin.make(body)
                 else:
                     vars, rhss = to_bindings(arr[1])
+                    assert isinstance(vars[0], values.W_Symbol)
+                    assert isinstance(rhss[0], AST)
                     return make_letrec(list(vars), list(rhss), body)
             if ast_elem == "let-values":
                 body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1]) == 0:
+                if len(arr[1].value_array) == 0:
                     return Begin.make(body)
                 else:
                     vars, rhss = to_bindings(arr[1])
+                    assert isinstance(vars[0], values.W_Symbol)
+                    assert isinstance(rhss[0], AST)
                     return make_let(list(vars), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object

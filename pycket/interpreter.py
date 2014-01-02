@@ -311,14 +311,17 @@ class App(AST):
         self.rator = rator
         self.rands = rands
     def let_convert(self):
-        fresh = LexicalVar.gensym("AppRator_")
-        freshs = [fresh] + [LexicalVar.gensym("AppRand%s_"%i) for i, _ in enumerate(self.rands)]
-        fresh_vars = [LexicalVar(fresh) for fresh in freshs]
-        freshs.insert(0, fresh)
-        fresh_var = LexicalVar(fresh)
-        values = [self.rator] + self.rands
-        body = [App(fresh_var, fresh_vars)]
-        return Let(freshs, values, body)
+        # Generate fresh symbols and variables for the operator and operands
+        fresh_rator = LexicalVar.gensym("AppRator_")
+        fresh_rator_var = LexicalVar(fresh_rator)
+        fresh_rands = [LexicalVar.gensym("AppRand%s_"%i) for i, _ in enumerate(self.rands)]
+        fresh_rands_vars = [LexicalVar(fresh) for fresh in fresh_rands]
+        # Create a Let binding the fresh symbols to the original values
+        fresh_vars = [fresh_rator] + fresh_rands
+        fresh_rhss = [self.rator] + self.rands
+        # The body is an App operating on the freshly bound symbols
+        fresh_body = [App(fresh_rator_var, fresh_rands_vars)]
+        return Let(fresh_vars, fresh_rhss, fresh_body)
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
