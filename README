@@ -13,8 +13,9 @@ To produce an executable, run:
 $ cd pycket
 $ PYTHONPATH=.. ../pypy/rpython/bin/rpython -Ojit targetpycket.py
 
-Afterwards the compiled in programs can be run as:
+Afterwards you can execute a program:
 
-$ ./targetpycket-c program
+$ ./pycket.sh program
 
+See the comment in pycket.sh for more details.
 
