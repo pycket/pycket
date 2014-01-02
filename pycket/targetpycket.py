@@ -1,4 +1,7 @@
 
+# This file is intended to be compiled using rpython.
+# If you want to execute pycket on top of a python interpreter, use runpycket.py instead.
+
 from pycket.expand import load_json_ast_rpython
 from pycket.interpreter import interpret_one
 
