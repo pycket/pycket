@@ -67,7 +67,13 @@ def to_ast(json):
 
 #### ========================== Implementation functions
 
+DO_DEBUG_PRINTS = False
+def dbgprint(funcname, json):
+    if DO_DEBUG_PRINTS:
+        print "Entering %s with: %s" % (funcname, json.tostring())
+
 def to_formals(json):
+    dbgprint("to_formals", json)
     if json.is_object:
         if "improper" in json.value_object:
             improper_arr = json.value_object["improper"]
@@ -82,6 +88,7 @@ def to_formals(json):
     assert 0
 
 def to_bindings(json):
+    dbgprint("to_bindings", json)
     vars = []
     rhss = []
     for v in json.value_array:
@@ -96,6 +103,7 @@ def to_bindings(json):
     return vars, rhss
 
 def mksym(json):
+    dbgprint("mksym", json)
     j = json.value_object
     for i in ["toplevel", "lexical", "module"]:
         if i in j:
@@ -103,6 +111,7 @@ def mksym(json):
     assert 0, json.tostring()
 
 def _to_ast(json):
+    dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array
         if "module" in arr[0].value_object:
@@ -121,15 +130,19 @@ def _to_ast(json):
                 fmls, rest = to_formals(arr[1])
                 return Lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
             if ast_elem == "letrec-values":
-                vars, rhss = to_bindings(arr[1])
-                assert isinstance(vars[0], values.W_Symbol)
-                assert isinstance(rhss[0], AST)
-                return make_letrec(list(vars), list(rhss), [_to_ast(x) for x in arr[2:]])
+                body = [_to_ast(x) for x in arr[2:]]
+                if len(arr[1]) == 0:
+                    return Begin.make(body)
+                else:
+                    vars, rhss = to_bindings(arr[1])
+                    return make_letrec(list(vars), list(rhss), body)
             if ast_elem == "let-values":
-                vars, rhss = to_bindings(arr[1])
-                assert isinstance(vars[0], values.W_Symbol)
-                assert isinstance(rhss[0], AST)
-                return make_let(list(vars), list(rhss), [_to_ast(x) for x in arr[2:]])
+                body = [_to_ast(x) for x in arr[2:]]
+                if len(arr[1]) == 0:
+                    return Begin.make(body)
+                else:
+                    vars, rhss = to_bindings(arr[1])
+                    return make_let(list(vars), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object
                 if "lexical" in target:
@@ -170,6 +183,7 @@ def _to_ast(json):
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 def to_value(json):
+    dbgprint("to_value", json)
     if json.is_bool:
         if json.value_bool is False:
             print "Using false"
