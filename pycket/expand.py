@@ -67,8 +67,9 @@ def to_ast(json):
 
 #### ========================== Implementation functions
 
-DO_DEBUG_PRINTS = True
+DO_DEBUG_PRINTS = False
 def dbgprint(funcname, json):
+    # This helped debugging segfaults
     if DO_DEBUG_PRINTS:
         print "Entering %s with: %s" % (funcname, json.tostring())
 
@@ -99,7 +100,7 @@ def to_bindings(json):
         var = fmls[0]
         rhs = _to_ast(arr[1]) 
         vars.append(var)
-        rhss.append(rhss)
+        rhss.append(rhs)
     return vars, rhss
 
 def mksym(json):
@@ -190,10 +191,8 @@ def to_value(json):
     dbgprint("to_value", json)
     if json.is_bool:
         if json.value_bool is False:
-            print "Using false"
             return values.w_false
         elif json.value_bool is True:
-            print "Using true"
             return values.w_true
     if json.is_object:
         # The json-object should only contain one element

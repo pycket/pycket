@@ -126,6 +126,9 @@ class W_SimplePrim(W_Procedure):
         jit.promote(self)
         #print self.name
         return Value(self.code(args)), env, frame
+    
+    def tostring(self):
+        return "SimplePrim<%s>" % self.name
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code"]
@@ -136,6 +139,9 @@ class W_Prim(W_Procedure):
     def call(self, args, env, frame):
         jit.promote(self)
         return self.code(args, env, frame)
+    
+    def tostring(self):
+        return "Prim<%s>" % self.name
 
 def to_list(l): return to_improper(l, w_null)
 
