@@ -7,17 +7,19 @@ from pycket.prims import *
 
 stdlib_fn = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stdlib.sch")
 
-def run_fix(p,v):
+def execute(p):
     e = expand(p)
     ast = to_ast(e)
     val = interpret_one(ast)
+    return val
+
+def run_fix(p,v):
+    val = execute(p)
     assert isinstance(val, W_Fixnum)
     assert val.value == v
 
 def run(p,v=None):
-    e = expand(p)
-    ast = to_ast(e)
-    val = interpret_one(ast)
+    val = execute(p)
     if v is not None:
         assert equal_loop(val,v)
 

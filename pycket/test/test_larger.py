@@ -31,5 +31,5 @@ def test_bubble():
 def test_microkanren():
     run_file("microkanren.sch")
 
-def test_minikanren():
-    run_file("minikanren.sch")
+#def test_minikanren():
+#    run_file("minikanren.sch")
