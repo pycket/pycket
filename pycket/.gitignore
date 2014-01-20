@@ -1,5 +1,10 @@
 out
 targetpycket-c*
+targetjson-c*
+pycket-original
+pycket-strategies
 *.o1
 *.o2
+test.sh
 compiled/
+test/*.json

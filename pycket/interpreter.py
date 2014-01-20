@@ -1,4 +1,5 @@
 from pycket        import values
+from pycket        import vector
 from pycket.prims  import prim_env
 from pycket.error import SchemeException
 from rpython.rlib  import jit, debug
@@ -48,7 +49,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
             cls.__init__(self, *args)
         meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
         if immutable:
-            meths["_immutable_fields_"] = attrs
+            meths["#_immutable_fields_"] = attrs
         return meths
     classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
     def _get_arbitrary(self, i):
@@ -65,7 +66,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
         cls.__init__(self, *args)
     meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
     if immutable:
-        meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
+        meths["#_immutable_fields_"] = ["%s[*]" % (attrname, )]
     cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
 
     @staticmethod
@@ -78,14 +79,14 @@ make(listcontent, *args): makes a new instance with the list's content set to li
     cls.make = make
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env"]
+    #_immutable_fields_ = ["toplevel_env"]
     pass
 
 class Version(object):
     pass
 
 class ToplevelEnv(object):
-    _immutable_fields_ = ["version"]
+    #_immutable_fields_ = ["version"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
@@ -117,7 +118,7 @@ class EmptyEnv(Env):
         raise SchemeException("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["args", "prev"]
+    #_immutable_fields_ = ["args", "prev"]
     @jit.unroll_safe
     def __init__ (self, args, prev, toplevel):
         self.toplevel_env = toplevel
@@ -292,7 +293,7 @@ class Cell(AST):
         return "Cell(%s)"%self.expr
 
 class Quote(AST):
-    _immutable_fields_ = ["w_val"]
+    #_immutable_fields_ = ["w_val"]
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret(self, env, frame):
@@ -305,17 +306,22 @@ class Quote(AST):
         return "'%s"%self.w_val.tostring()
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]"]
+    #_immutable_fields_ = ["rator", "rands[*]"]
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
     def let_convert(self):
-        freshs = [LexicalVar.gensym() for i in self.rands]
-        fresh_vars = [LexicalVar(fresh) for fresh in freshs]
-        fresh = LexicalVar.gensym()
-        freshs.insert(0, fresh)
-        fresh_var = LexicalVar(fresh)
-        return Let(freshs, [self.rator] + self.rands, [App(fresh_var, fresh_vars)])
+        # Generate fresh symbols and variables for the operator and operands
+        fresh_rator = LexicalVar.gensym("AppRator_")
+        fresh_rator_var = LexicalVar(fresh_rator)
+        fresh_rands = [LexicalVar.gensym("AppRand%s_"%i) for i, _ in enumerate(self.rands)]
+        fresh_rands_vars = [LexicalVar(fresh) for fresh in fresh_rands]
+        # Create a Let binding the fresh symbols to the original values
+        fresh_vars = [fresh_rator] + fresh_rands
+        fresh_rhss = [self.rator] + self.rands
+        # The body is an App operating on the freshly bound symbols
+        fresh_body = [App(fresh_rator_var, fresh_rands_vars)]
+        return Let(fresh_vars, fresh_rhss, fresh_body)
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
@@ -335,9 +341,10 @@ class App(AST):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]"]
+    #_immutable_fields_ = ["body[*]"]
     def __init__(self, body):
-        assert body
+        assert isinstance(body, list)
+        assert len(body) > 0
         self.body = body
 
     def make_begin_cont(self, env, prev, i=0):
@@ -355,7 +362,7 @@ class Begin(SequencedBodyAST):
         else:
             return Begin(body)
     def assign_convert(self, vars):
-        return Begin.make(map(lambda e: e.assign_convert(vars), self.body))
+        return Begin.make([e.assign_convert(vars) for e in self.body])
     def mutated_vars(self):
         x = {}
         for r in self.body:
@@ -372,7 +379,7 @@ class Begin(SequencedBodyAST):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
 class Var(AST):
-    _immutable_fields_ = ["sym"]
+    #_immutable_fields_ = ["sym"]
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, frame):
@@ -399,13 +406,18 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.value
 
+# Using this in rpython to have a mutable global variable
+class Counter(object):
+    value = 0
+
+
 class LexicalVar(Var):
-    _counter = 0
+    _counter = Counter()
     @staticmethod
-    def gensym():
-        LexicalVar._counter += 1
+    def gensym(hint=""):
+        LexicalVar._counter.value += 1
         # not using `make` so that it's really gensym
-        return values.W_Symbol("fresh_" + str(LexicalVar._counter))
+        return values.W_Symbol(hint + "fresh_" + str(LexicalVar._counter.value))
     def _lookup(self, env):
         return env.lookup(self.sym)
     def _set(self, w_val, env): 
@@ -437,13 +449,13 @@ class ToplevelVar(Var):
         env.toplevel_env.set(self.sym, w_val)
 
 class SymList(object):
-    _immutable_fields_ = ["elems[*]"]
+    #_immutable_fields_ = ["elems[*]"]
     def __init__(self, elems):
         assert isinstance(elems, list)
         self.elems = elems
 
 class SetBang(AST):
-    _immutable_fields_ = ["sym", "rhs"]
+    #_immutable_fields_ = ["sym", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
@@ -463,13 +475,13 @@ class SetBang(AST):
         return "(set! %s %s)"%(self.var.sym.value, self.rhs)
 
 class If(AST):
-    _immutable_fields_ = ["tst", "thn", "els"]
+    #_immutable_fields_ = ["tst", "thn", "els"]
     def __init__ (self, tst, thn, els):
         self.tst = tst
         self.thn = thn
         self.els = els
     def let_convert(self):
-        fresh = LexicalVar.gensym()
+        fresh = LexicalVar.gensym("if_")
         return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
     def interpret(self, env, frame):
         return self.tst, env, IfCont(self, env, frame)
@@ -491,7 +503,7 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
-    _immutable_fields_ = ["name", "lam"]
+    #_immutable_fields_ = ["name", "lam"]
     def __init__(self, name, lam):
         self.name= name
         self.lam = lam
@@ -527,7 +539,7 @@ class RecLambda(AST):
 
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
+    #_immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
     def do_anorm(self):
         return Lambda(self.formals, self.rest, [anorm_and_bind(Begin.make(self.body))])
     def __init__ (self, formals, rest, body):
@@ -545,8 +557,8 @@ class Lambda(SequencedBodyAST):
         new_lets = []
         new_vars = vars.copy()
         for i in self.args.elems:
-            if i in vars:
-                del vars[i]
+            if i in new_vars:
+                del new_vars[i]
             if i in local_muts:
                 new_lets.append(i)
         cells = [Cell(LexicalVar(v)) for v in new_lets]
@@ -583,7 +595,7 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["vars[*]", "rhss[*]"]
+    #_immutable_fields_ = ["vars[*]", "rhss[*]"]
     def __init__(self, vars, rhss, body):
         SequencedBodyAST.__init__(self, body)
         self.vars = vars
@@ -616,7 +628,6 @@ class Letrec(SequencedBodyAST):
         new_vars = vars.copy()
         new_vars.update(local_muts)
         new_rhss = [rhs.assign_convert(new_vars) for rhs in self.rhss]
-        #import pdb; pdb.set_trace()
         new_body = [b.assign_convert(new_vars) for b in self.body]
         return Letrec(self.vars, new_rhss, new_body)
     def tostring(self):
@@ -647,11 +658,13 @@ def make_letrec(vars, rhss, body):
     return Letrec(vars, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
+    # Not sure why, but rpython keeps telling me that vars is resized...
+    #_immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
     def __init__(self, vars, rhss, body):
-        SequencedBodyAST.__init__(self, body)
-        assert vars # otherwise just use a begin
         self.vars = vars
+        SequencedBodyAST.__init__(self, body)
+        assert isinstance(vars, list)
+        assert len(vars) > 0 # otherwise just use a begin
         self.rhss = rhss
         self.args = SymList(vars)
     def interpret(self, env, frame):
@@ -660,12 +673,13 @@ class Let(SequencedBodyAST):
         x = {}
         for b in self.body:
             x.update(b.mutated_vars())
-        for v in self.vars:
-            if v in x:
-                del x[v]
+        x2 = {}
+        for v in x:
+            if v not in self.vars:
+                x2[v] = x[v]
         for b in self.rhss:
-            x.update(b.mutated_vars())
-        return x
+            x2.update(b.mutated_vars())
+        return x2
     def free_vars(self):
         x = {}
         for b in self.body:
@@ -680,7 +694,7 @@ class Let(SequencedBodyAST):
         local_muts = {}
         for b in self.body:
             local_muts.update(b.mutated_vars())
-        new_rhss = [Cell(rhs.assign_convert(vars)) 
+        new_rhss = [Cell(rhs.assign_convert(vars))
                     if self.vars[i] in local_muts
                     else rhs.assign_convert(vars)
                     for i, rhs in enumerate(self.rhss)]
@@ -705,6 +719,8 @@ class Define(AST):
         return "(define %s %s)"%(self.name, self.rhs.tostring())
 
 def get_printable_location(green_ast):
+    if green_ast is None:
+        return 'Green_Ast is None'
     return green_ast.tostring()
 driver = jit.JitDriver(reds=["ast", "env", "frame"],
                        greens=["green_ast"],
@@ -714,7 +730,6 @@ def interpret_one(ast, env=None):
     frame = None
     if not env:
         env = EmptyEnv(ToplevelEnv())
-    #import pdb; pdb.set_trace()
     green_ast = None
     try:
         while True:
@@ -722,6 +737,7 @@ def interpret_one(ast, env=None):
             if not isinstance(ast, Value):
                 jit.promote(ast)
                 green_ast = ast
+            
             #print ast.tostring()
             # if frame:
             #     if len(frame.tostring()) > 250:

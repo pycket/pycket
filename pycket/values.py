@@ -31,20 +31,6 @@ class W_Cons(W_List):
     def tostring(self):
         return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
 
-class W_Vector(W_Object):
-    _immutable_fields_ = ["elems"]
-    errorname = "vector"
-    def __init__(self, elems):
-        self.elems = elems
-    def ref(self, i):
-        assert 0 <= i < len(self.elems)
-        return self.elems[i]
-    def set(self, i, v): 
-        assert 0 <= i < len(self.elems)
-        self.elems[i] = v
-    def tostring(self):
-        return "#(%s)"%(" ".join([e.tostring() for e in self.elems]))
-
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
@@ -111,7 +97,9 @@ class W_Symbol(W_Object):
     all_symbols = {}
     @staticmethod
     def make(string):
-        assert isinstance(string, str)
+        # This assert statement makes the lowering phase of rpython break...
+        # Maybe comment back in and check for bug.
+        #assert isinstance(string, str)
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string]
         else:
@@ -121,6 +109,8 @@ class W_Symbol(W_Object):
         return self.value
     def __init__(self, val):
         self.value = val
+    def tostring(self):
+        return "'%s"%self.value
 
 class W_Procedure(W_Object):
     errorname = "procedure"
@@ -138,6 +128,9 @@ class W_SimplePrim(W_Procedure):
         jit.promote(self)
         #print self.name
         return Value(self.code(args)), env, frame
+    
+    def tostring(self):
+        return "SimplePrim<%s>" % self.name
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code"]
@@ -148,6 +141,9 @@ class W_Prim(W_Procedure):
     def call(self, args, env, frame):
         jit.promote(self)
         return self.code(args, env, frame)
+    
+    def tostring(self):
+        return "Prim<%s>" % self.name
 
 def to_list(l): return to_improper(l, w_null)
 
