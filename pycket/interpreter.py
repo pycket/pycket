@@ -49,7 +49,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
             cls.__init__(self, *args)
         meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
         if immutable:
-            meths["#_immutable_fields_"] = attrs
+            meths["_immutable_fields_"] = attrs
         return meths
     classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
     def _get_arbitrary(self, i):
@@ -66,7 +66,7 @@ make(listcontent, *args): makes a new instance with the list's content set to li
         cls.__init__(self, *args)
     meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
     if immutable:
-        meths["#_immutable_fields_"] = ["%s[*]" % (attrname, )]
+        meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
     cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
 
     @staticmethod
@@ -79,14 +79,14 @@ make(listcontent, *args): makes a new instance with the list's content set to li
     cls.make = make
 
 class Env(object):
-    #_immutable_fields_ = ["toplevel_env"]
+    _immutable_fields_ = ["toplevel_env"]
     pass
 
 class Version(object):
     pass
 
 class ToplevelEnv(object):
-    #_immutable_fields_ = ["version"]
+    _immutable_fields_ = ["version?"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
@@ -118,7 +118,7 @@ class EmptyEnv(Env):
         raise SchemeException("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
-    #_immutable_fields_ = ["args", "prev"]
+    _immutable_fields_ = ["args", "prev"]
     @jit.unroll_safe
     def __init__ (self, args, prev, toplevel):
         self.toplevel_env = toplevel
@@ -255,10 +255,20 @@ class Done(Exception):
         self.w_val = w_val
 
 class AST(object):
+    _attrs_ = []
+    _settled_ = True
     def let_convert(self):
         return self
     def free_vars(self):
         return {}
+    def assign_convert(self, vars):
+        raise NotImplementedError("abstract base class")
+    def mutated_vars(self):
+        raise NotImplementedError("abstract base class")
+    def interpret(self, env, cont):
+        raise NotImplementedError("abstract base class")
+    def tostring(self):
+        raise NotImplementedError("abstract base class")
 
 
 class Value(AST):
@@ -293,7 +303,7 @@ class Cell(AST):
         return "Cell(%s)"%self.expr
 
 class Quote(AST):
-    #_immutable_fields_ = ["w_val"]
+    _immutable_fields_ = ["w_val"]
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret(self, env, cont):
@@ -306,7 +316,7 @@ class Quote(AST):
         return "'%s"%self.w_val.tostring()
 
 class App(AST):
-    #_immutable_fields_ = ["rator", "rands[*]"]
+    _immutable_fields_ = ["rator", "rands[*]"]
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
@@ -341,7 +351,7 @@ class App(AST):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
 class SequencedBodyAST(AST):
-    #_immutable_fields_ = ["body[*]"]
+    _immutable_fields_ = ["body[*]"]
     def __init__(self, body):
         assert isinstance(body, list)
         assert len(body) > 0
@@ -379,7 +389,7 @@ class Begin(SequencedBodyAST):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
 class Var(AST):
-    #_immutable_fields_ = ["sym"]
+    _immutable_fields_ = ["sym"]
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, cont):
@@ -449,13 +459,13 @@ class ToplevelVar(Var):
         env.toplevel_env.set(self.sym, w_val)
 
 class SymList(object):
-    #_immutable_fields_ = ["elems[*]"]
+    _immutable_fields_ = ["elems[*]"]
     def __init__(self, elems):
         assert isinstance(elems, list)
         self.elems = elems
 
 class SetBang(AST):
-    #_immutable_fields_ = ["sym", "rhs"]
+    _immutable_fields_ = ["sym", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
@@ -475,7 +485,7 @@ class SetBang(AST):
         return "(set! %s %s)"%(self.var.sym.value, self.rhs)
 
 class If(AST):
-    #_immutable_fields_ = ["tst", "thn", "els"]
+    _immutable_fields_ = ["tst", "thn", "els"]
     def __init__ (self, tst, thn, els):
         self.tst = tst
         self.thn = thn
@@ -503,8 +513,9 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
-    #_immutable_fields_ = ["name", "lam"]
+    _immutable_fields_ = ["name", "lam"]
     def __init__(self, name, lam):
+        assert isinstance(lam, Lambda)
         self.name= name
         self.lam = lam
     def assign_convert(self, vars):
@@ -539,7 +550,7 @@ class RecLambda(AST):
 
 
 class Lambda(SequencedBodyAST):
-    #_immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
+    _immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
     def do_anorm(self):
         return Lambda(self.formals, self.rest, [anorm_and_bind(Begin.make(self.body))])
     def __init__ (self, formals, rest, body):
@@ -595,7 +606,7 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    #_immutable_fields_ = ["vars[*]", "rhss[*]"]
+    _immutable_fields_ = ["vars[*]", "rhss[*]"]
     def __init__(self, vars, rhss, body):
         SequencedBodyAST.__init__(self, body)
         self.vars = vars
@@ -653,13 +664,14 @@ def make_letrec(vars, rhss, body):
     if (1 == len(vars)):
         if (1 == len(body)):
             if isinstance(rhss[0], Lambda):
-                if isinstance(body[0], LexicalVar) and vars[0] is body[0].sym:
+                b = body[0]
+                if isinstance(b, LexicalVar) and vars[0] is b.sym:
                     return RecLambda(vars[0], rhss[0])
     return Letrec(vars, rhss, body)
 
 class Let(SequencedBodyAST):
     # Not sure why, but rpython keeps telling me that vars is resized...
-    #_immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
+    _immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
     def __init__(self, vars, rhss, body):
         self.vars = vars
         SequencedBodyAST.__init__(self, body)
