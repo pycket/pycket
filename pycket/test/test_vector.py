@@ -47,6 +47,11 @@ def test_vec_strategies_flonum():
     vec = execute("(make-vector 2 1.2)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
 
+def test_vec_strategies_fixnum_singleton():
+    vec1 = execute("(vector 1 2 3)")
+    vec2 = execute("(make-vector 2)")
+    assert vec1.strategy is vec2.strategy
+
 def test_vec_strategies_object():
     vec = execute("(vector (cons 1 2) 2 3)")
     assert isinstance(vec.strategy, ObjectVectorStrategy)
@@ -57,7 +62,7 @@ def test_vec_strategies_stays_fixnum():
 
 def test_vec_strategies_stays_flonum():
     vec = execute("(let ([vec (make-vector 3 1.2)]) (vector-set! vec 1 5.5) vec)")
-    assert isinstance(vec.strategy, FixnumVectorStrategy)
+    assert isinstance(vec.strategy, FlonumVectorStrategy)
 
 def test_vec_strategies_dehomogenize():
     vec = execute('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')

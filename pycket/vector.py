@@ -10,16 +10,16 @@ _always_use_object_strategy = False
 def _find_strategy_class(elements):
     if _always_use_object_strategy or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
-        return ObjectVectorStrategy()
+        return ObjectVectorStrategy.singleton
     single_class = type(elements[0])
     for elem in elements:
         if not isinstance(elem, single_class):
-            return ObjectVectorStrategy()
+            return ObjectVectorStrategy.singleton
     if single_class is W_Fixnum:
-        return FixnumVectorStrategy()
+        return FixnumVectorStrategy.singleton
     if single_class is W_Flonum:
-        return FlonumVectorStrategy()
-    return ObjectVectorStrategy()
+        return FlonumVectorStrategy.singleton
+    return ObjectVectorStrategy.singleton
 
 class W_Vector(W_Object):
     _immutable_fields_ = ["elems"]
@@ -58,7 +58,16 @@ class W_Vector(W_Object):
         self.strategy = new_strategy
         self.storage = new_strategy.create_storage_for_elements(old_list)
 
+
+class SingletonMeta(type):
+    def __new__(cls, name, bases, dct):
+        result = type.__new__(cls, name, bases, dct)
+        result.singleton = result()
+        return result
+
 class VectorStrategy(object):
+    __metaclass__ = SingletonMeta
+
     def is_correct_type(self, w_obj):
         raise NotImplementedError("abstract base class")
 
@@ -90,7 +99,7 @@ class VectorStrategy(object):
         raise NotImplementedError("abstract base class")
 
     def dehomogenize(self, w_vector):
-        w_vector.change_strategy(ObjectVectorStrategy())
+        w_vector.change_strategy(ObjectVectorStrategy.singleton)
 
 
 class UnwrappedVectorStrategyMixin(object):
