@@ -215,14 +215,19 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
-    def test_vector_set(self):
+    def test_vector_get_set(self):
         ast = to_ast(expand("""
-(letrec ([make-square-vector (lambda (n v)
+(letrec ([v (make-vector 1000 0)]
+         [fill-square-vector (lambda (n)
                                 (if (< n 0)
                                   (vector-ref v 999)
                                   (begin (vector-set! v n (* n n))
-                                         (make-square-vector (- n 1) v))))])
- (make-square-vector 1000 (make-vector 1001 0)))
+                                         (fill-square-vector (- n 1)))))]
+         [sum-vector (lambda (n s)
+                        (if (< n 0)
+                            s
+                            (sum-vector (- n 1) (+ s (vector-ref v n)))))])
+ (begin (fill-square-vector 999) (sum-vector 999 0)))
 """))
 
 
@@ -231,8 +236,7 @@ class TestLLtype(LLJitMixin):
             assert isinstance(val, W_Fixnum)
             return val.value
 
-        assert interp_w() == 999 * 999
+        assert interp_w() == sum(i ** 2 for i in range(1000))
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-
 
