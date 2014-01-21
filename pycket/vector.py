@@ -1,7 +1,7 @@
 
-from pycket.values import W_Object, W_Fixnum
+from pycket.values import W_Object, W_Fixnum, W_Flonum
 from rpython.rlib import rerased
-from rpython.rlib.objectmodel import newlist_hint
+from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug
 
 # Setting this to True will break the tests. Used to compare performance.
@@ -17,6 +17,8 @@ def _find_strategy_class(elements):
             return ObjectVectorStrategy()
     if single_class is W_Fixnum:
         return FixnumVectorStrategy()
+    if single_class is W_Flonum:
+        return FlonumVectorStrategy()
     return ObjectVectorStrategy()
 
 class W_Vector(W_Object):
@@ -46,10 +48,10 @@ class W_Vector(W_Object):
         return self.strategy.length(self)
     def tostring(self):
         l = self.strategy.ref_all(self)
-        description = ""
+        description = []
         for obj in l:
-            description += obj.tostring()
-        return "#(%s)" % description
+            description.append(obj.tostring())
+        return "#(%s)" % " ".join(description)
 
     def change_strategy(self, new_strategy):
         old_list = self.strategy.ref_all(self)
@@ -70,13 +72,14 @@ class VectorStrategy(object):
             w_vector.set(i, w_val) # Now, try again.
         else:
             self._set(w_vector, i, w_val)
+    def indexcheck(self, w_vector, i):
+        assert 0 <= i < self.length(w_vector)
+
     def _ref(self, w_vector, i):
         raise NotImplementedError("abstract base class")
     def _set(self, w_vector, i, w_val):
         raise NotImplementedError("abstract base class")
     def length(self, w_vector):
-        raise NotImplementedError("abstract base class")
-    def indexcheck(self, w_vector, i):
         raise NotImplementedError("abstract base class")
     def ref_all(self, w_vector):
         raise NotImplementedError("abstract base class")
@@ -89,40 +92,62 @@ class VectorStrategy(object):
     def dehomogenize(self, w_vector):
         w_vector.change_strategy(ObjectVectorStrategy())
 
-class ObjectVectorStrategy(VectorStrategy):
 
-    erase, unerase = rerased.new_erasing_pair("object-vector-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
-
-    def is_correct_type(self, w_obj):
-        return True
+class UnwrappedVectorStrategyMixin(object):
+    # the concrete class needs to implement:
+    # erase, unerase, is_correct_type, wrap, unwrap
 
     def _storage(self, w_vector):
         l = self.unerase(w_vector.storage)
         debug.make_sure_not_resized(l)
         return l
+
     def _ref(self, w_vector, i):
-        return self._storage(w_vector)[i]
+        return self.wrap(self._storage(w_vector)[i])
+
     def _set(self, w_vector, i, w_val):
-        self._storage(w_vector)[i] = w_val
+        self._storage(w_vector)[i] = self.unwrap(w_val)
+
     def length(self, w_vector):
         return len(self._storage(w_vector))
-    def indexcheck(self, w_vector, i):
-        assert 0 <= i < len(self._storage(w_vector))
+
     def ref_all(self, w_vector):
-        return self._storage(w_vector)
+        unwrapped = self._storage(w_vector)
+        return [self.wrap(i) for i in unwrapped]
 
     def create_storage_for_element(self, element, times):
-        return self.erase([element] * times)
+        e = self.unwrap(element)
+        return self.erase([e] * times)
+
     def create_storage_for_elements(self, elements):
-        return self.erase(elements)
+        l = [0] * len(elements)
+        for i in range(len(elements)):
+            l[i] = self.unwrap(elements[i])
+        return self.erase(l)
+
+
+
+class ObjectVectorStrategy(VectorStrategy):
+    import_from_mixin(UnwrappedVectorStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("object-vector-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def wrap(self, obj):
+        return obj
+
+    def unwrap(self, w_obj):
+        return w_obj
+
+    def is_correct_type(self, w_obj):
+        return True
 
     def dehomogenize(self, w_vector):
-        # Already using object strategy. This will not be executed due to is_correct_type().
-        pass
+        assert 0 # should be unreachable because is_correct_type is always True
 
 class FixnumVectorStrategy(VectorStrategy):
+    import_from_mixin(UnwrappedVectorStrategyMixin)
 
     erase, unerase = rerased.new_erasing_pair("fixnum-vector-strategry")
     erase = staticmethod(erase)
@@ -140,33 +165,19 @@ class FixnumVectorStrategy(VectorStrategy):
         assert isinstance(w_val, W_Fixnum)
         return w_val.value
 
-    def _storage(self, w_vector):
-        l = self.unerase(w_vector.storage)
-        debug.make_sure_not_resized(l)
-        return l
+class FlonumVectorStrategy(VectorStrategy):
+    import_from_mixin(UnwrappedVectorStrategyMixin)
 
-    def _ref(self, w_vector, i):
-        return self.wrap(self._storage(w_vector)[i])
+    erase, unerase = rerased.new_erasing_pair("flonum-vector-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
 
-    def _set(self, w_vector, i, w_val):
-        self._storage(w_vector)[i] = self.unwrap(w_val)
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, W_Flonum)
 
-    def length(self, w_vector):
-        return len(self._storage(w_vector))
+    def wrap(self, val):
+        return W_Flonum(val)
 
-    def indexcheck(self, w_vector, i):
-        assert 0 <= i < len(self._storage(w_vector))
-
-    def ref_all(self, w_vector):
-        unwrapped = self._storage(w_vector)
-        return [self.wrap(i) for i in unwrapped]
-
-    def create_storage_for_element(self, element, times):
-        e = self.unwrap(element)
-        return self.erase([e] * times)
-
-    def create_storage_for_elements(self, elements):
-        l = [0] * len(elements)
-        for i in range(len(elements)):
-            l[i] = self.unwrap(elements[i])
-        return self.erase(l)
+    def unwrap(self, w_val):
+        assert isinstance(w_val, W_Flonum)
+        return w_val.value
