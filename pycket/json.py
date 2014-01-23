@@ -1,6 +1,6 @@
 
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
-from rpython.rlib.parsing.tree import Symbol, Nonterminal
+from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 
 _json_grammar = """
     STRING: "\\"[^\\\\"]*\\"";
@@ -126,44 +126,45 @@ json_false.is_bool = True
 json_false.value_bool = False
 
 # Workaround, because the visit() methods in rlib.parsing.tree are not RPython
-def _to_JsonObject(node):
-    if isinstance(node, Symbol):
-        if node.symbol == "STRING":
-            s = node.token.source
-            l = len(s) - 1
-            # Strip the " characters
-            if l < 0:
-                return JsonObject.new_string("")
-            else:
-                return JsonObject.new_string(s[1:l])
-        elif node.symbol == "NUMBER":
-            try:
-                return JsonObject.new_int(int(node.token.source))
-            except ValueError:
-                return JsonObject.new_float(float(node.token.source))
-        elif node.symbol == "NULL":
-            return json_null
-        elif node.symbol == "TRUE":
-            return json_true
-        elif node.symbol == "FALSE":
-            return json_false
-        assert 0, "Unexpected symbol: %s" % node.symbol
-    elif isinstance(node, Nonterminal):
-        if node.symbol == "object":
-            d = {}
-            for entry in node.children:
-                key = _to_JsonObject(entry.children[0])
-                if not key.is_string:
-                    assert 0, "Only strings allowed as object keys"
-                d[key.value_string] = _to_JsonObject(entry.children[1])
-            return JsonObject.new_object(d)
-        elif node.symbol == "array":
-            return JsonObject.new_array([_to_JsonObject(c) for c in node.children])
+class Visitor(RPythonVisitor):
+    def visit_STRING(self, node):
+        s = node.token.source
+        l = len(s) - 1
+        # Strip the " characters
+        if l < 0:
+            return JsonObject.new_string("")
         else:
-            assert 0, "Unexpected kind of nonterminal: %s" % node.symbol
-    assert 0, "Unexpected kind of AST node: %s" % node.symbol
+            return JsonObject.new_string(s[1:l])
+
+    def visit_NUMBER(self, node):
+        try:
+            return JsonObject.new_int(int(node.token.source))
+        except ValueError:
+            return JsonObject.new_float(float(node.token.source))
+
+    def visit_NULL(self, node):
+        return json_null
+
+    def visit_TRUE(self, node):
+        return json_true
+
+    def visit_FALSE(self, node):
+        return json_false
+
+    def visit_object(self, node):
+        d = {}
+        for entry in node.children:
+            key = self.dispatch(entry.children[0])
+            if not key.is_string:
+                assert 0, "Only strings allowed as object keys"
+            d[key.value_string] = self.dispatch(entry.children[1])
+        return JsonObject.new_object(d)
+
+    def visit_array(self, node):
+        return JsonObject.new_array([self.dispatch(c) for c in node.children])
+
 
 def loads(string):
     ast = parse(string)
     transformed = _ToAST().transform(ast)
-    return _to_JsonObject(transformed)
+    return Visitor().dispatch(transformed)
