@@ -129,7 +129,8 @@ class UnwrappedVectorStrategyMixin(object):
         return self.erase([e] * times)
 
     def create_storage_for_elements(self, elements):
-        assert elements
+        if not elements:
+            return self.erase([])
         l = [self.unwrap(elements[0])] * len(elements)
         for i in range(1, len(elements)):
             l[i] = self.unwrap(elements[i])
