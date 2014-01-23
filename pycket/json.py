@@ -1,6 +1,7 @@
 
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
+from rpython.tool.pairtype import extendabletype
 
 _json_grammar = """
     STRING: "\\"[^\\\\"]*\\"";
@@ -20,127 +21,166 @@ _regexs, _rules, _ToAST = parse_ebnf(_json_grammar)
 parse = make_parse_function(_regexs, _rules, eof=True)
 
 # Union-Object to represent a json structure in a static way
-class JsonObject(object):
+class JsonBase(object):
+    __metaclass__ = extendabletype
+
     is_string = is_int = is_float = is_bool = is_object = is_array = is_null = False
-    value_string = value_object = value_array = None
-    value_int = 0
-    value_bool = False
-    value_float = 0.0
-    
-    @staticmethod
-    def new_string(str):
-        obj = JsonObject()
-        obj.is_string = True
-        obj.value_string = str
-        return obj
-    
-    @staticmethod
-    def new_object(dict):
-        obj = JsonObject()
-        obj.is_object = True
-        obj.value_object = dict
-        return obj
-    
-    @staticmethod
-    def new_array(arr):
-        obj = JsonObject()
-        obj.is_array = True
-        obj.value_array = arr
-        return obj
-    
-    @staticmethod
-    def new_int(i):
-        obj = JsonObject()
-        obj.is_int = True
-        obj.value_int = i
-        return obj
-    
-    @staticmethod
-    def new_float(f):
-        obj = JsonObject()
-        obj.is_float = True
-        obj.value_float = f
-        return obj
-    
+
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
     def tostring(self):
-        if self.is_string:
-            return "\"%s\"" % self.value_string
-        elif self.is_int:
-            return str(self.value_int)
-        elif self.is_float:
-            return str(self.value_float)
-        elif self.is_bool:
-            return str(self.value_bool)
-        elif self.is_object:
-            return "{%s}" % ", ".join(["\"%s\": %s" % (key, self.value_object[key].tostring()) for key in self.value_object])
-        elif self.is_array:
-            return "[%s]" % ", ".join([e.tostring() for e in self.value_array])
-        elif self.is_null:
-            return "null"
-        else:
-            return "<unknown json object>"
-    
+        raise NotImplementedError("abstract base class")
+
     def is_primitive(self):
-        return self.is_string or self.is_int or self.is_float or self.is_null or self.is_bool
-    
-    def unpack(self):
+        return False
+
+    def _unpack_deep(self):
         "NON_RPYTHON"
-        if self.is_string:
-            return self.value_string
-        elif self.is_int:
-            return self.value_int
-        elif self.is_float:
-            return self.value_float
-        elif self.is_bool:
-            return self.value_bool
-        elif self.is_object:
-            return self.value_object
-        elif self.is_array:
-            return self.value_array
-        elif self.is_null:
-            return None
-        assert 0, "Illegal JsonObject instance!"
 
-    def unpack_deep(self):
-        "NON_RPYTHON"
-        if self.is_primitive():
-            return self.unpack()
-        elif self.is_object:
-            result = {}
-            for key in self.value_object:
-                result[key] = self.value_object[key].unpack_deep()
-            return result
-        elif self.is_array:
-            return [e.unpack_deep() for e in self.value_array]
-        assert 0, "Illegal JsonObject instance!"
+    def value_array(self):
+        raise TypeError
 
-json_null = JsonObject()
-json_null.is_null = True
+    def value_object(self):
+        raise TypeError
 
-json_true = JsonObject()
-json_true.is_bool = True
-json_true.value_bool = True
+    def value_string(self):
+        raise TypeError
 
-json_false = JsonObject()
-json_false.is_bool = True
-json_false.value_bool = False
+    def value_float(self):
+        raise TypeError
 
-# Workaround, because the visit() methods in rlib.parsing.tree are not RPython
+class JsonPrimitive(JsonBase):
+    def __init__(self):
+        pass
+
+    def is_primitive(self):
+        return True
+
+class JsonNull(JsonPrimitive):
+    is_null = True
+
+    def tostring(self):
+        return "null"
+
+    def _unpack_deep(self):
+        return None
+
+class JsonFalse(JsonPrimitive):
+    is_false = True
+
+    def tostring(self):
+        return "false"
+
+    def _unpack_deep(self):
+        return False
+
+
+class JsonTrue(JsonPrimitive):
+    is_true = True
+
+    def tostring(self):
+        return "true"
+
+    def _unpack_deep(self):
+        return True
+
+class JsonInt(JsonPrimitive):
+    is_int = True
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return str(self.value)
+
+    def _unpack_deep(self):
+        return self.value
+
+class JsonFloat(JsonPrimitive):
+    is_float = True
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return str(self.value)
+
+    def value_float(self):
+        return self.value
+
+    def _unpack_deep(self):
+        return self.value
+
+class JsonString(JsonPrimitive):
+    is_string = True
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return '"%s"' % self.value #XXX escaping
+
+    def _unpack_deep(self):
+        return self.value
+
+    def value_string(self):
+        return self.value
+
+class JsonObject(JsonBase):
+    is_object = True
+
+    def __init__(self, dct):
+        self.value = dct
+
+    def tostring(self):
+        return "{%s}" % ", ".join(["\"%s\": %s" % (key, self.value[key].tostring()) for key in self.value])
+
+    def _unpack_deep(self):
+        result = {}
+        for key, value in self.value.iteritems():
+            result[key] = value._unpack_deep()
+        return result
+
+    def value_object(self):
+        return self.value
+
+class JsonArray(JsonBase):
+    is_array = True
+
+    def __init__(self, lst):
+        self.value = lst
+
+    def tostring(self):
+        return "[%s]" % ", ".join([e.tostring() for e in self.value])
+
+    def _unpack_deep(self):
+        return [e._unpack_deep() for e in self.value]
+
+    def value_array(self):
+        return self.value
+
+json_null = JsonNull()
+
+json_true = JsonTrue()
+
+json_false = JsonFalse()
+
 class Visitor(RPythonVisitor):
     def visit_STRING(self, node):
         s = node.token.source
         l = len(s) - 1
         # Strip the " characters
         if l < 0:
-            return JsonObject.new_string("")
+            return JsonString("")
         else:
-            return JsonObject.new_string(s[1:l])
+            return JsonString(s[1:l]) # XXX escaping
 
     def visit_NUMBER(self, node):
         try:
-            return JsonObject.new_int(int(node.token.source))
+            return JsonInt(int(node.token.source))
         except ValueError:
-            return JsonObject.new_float(float(node.token.source))
+            return JsonFloat(float(node.token.source))
 
     def visit_NULL(self, node):
         return json_null
@@ -157,11 +197,11 @@ class Visitor(RPythonVisitor):
             key = self.dispatch(entry.children[0])
             if not key.is_string:
                 assert 0, "Only strings allowed as object keys"
-            d[key.value_string] = self.dispatch(entry.children[1])
-        return JsonObject.new_object(d)
+            d[key.value_string()] = self.dispatch(entry.children[1])
+        return JsonObject(d)
 
     def visit_array(self, node):
-        return JsonObject.new_array([self.dispatch(c) for c in node.children])
+        return JsonArray([self.dispatch(c) for c in node.children])
 
 
 def loads(string):

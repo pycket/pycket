@@ -4,7 +4,7 @@ from pycket.json import loads
 
 def _compare(string, expected):
     json = loads(string)
-    assert json.unpack_deep() == expected
+    assert json._unpack_deep() == expected
 
 def test_simple():
     _compare("1", 1)

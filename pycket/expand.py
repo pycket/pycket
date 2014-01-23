@@ -76,24 +76,24 @@ def dbgprint(funcname, json):
 def to_formals(json):
     dbgprint("to_formals", json)
     if json.is_object:
-        if "improper" in json.value_object:
-            improper_arr = json.value_object["improper"]
-            regular, last = improper_arr.value_array
-            regular_symbols = [values.W_Symbol.make(x.value_object["lexical"].value_string) for x in regular.value_array]
-            last_symbol = values.W_Symbol.make(last.value_object["lexical"].value_string)
+        if "improper" in json.value_object():
+            improper_arr = json.value_object()["improper"]
+            regular, last = improper_arr.value_array()
+            regular_symbols = [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in regular.value_array()]
+            last_symbol = values.W_Symbol.make(last.value_object()["lexical"].value_string())
             return regular_symbols, last_symbol
-        elif "lexical" in json.value_object:
-            return [], values.W_Symbol.make(json.value_object["lexical"].value_string)
+        elif "lexical" in json.value_object():
+            return [], values.W_Symbol.make(json.value_object()["lexical"].value_string())
     elif json.is_array:
-        return [values.W_Symbol.make(x.value_object["lexical"].value_string) for x in json.value_array], None
+        return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in json.value_array()], None
     assert 0
 
 def to_bindings(json):
     dbgprint("to_bindings", json)
     vars = []
     rhss = []
-    for v in json.value_array:
-        arr = v.value_array
+    for v in json.value_array():
+        arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
         assert len(fmls) == 1 # this is bad for multiple values
@@ -105,18 +105,18 @@ def to_bindings(json):
 
 def mksym(json):
     dbgprint("mksym", json)
-    j = json.value_object
+    j = json.value_object()
     for i in ["toplevel", "lexical", "module"]:
         if i in j:
-            return values.W_Symbol.make(j[i].value_string)
+            return values.W_Symbol.make(j[i].value_string())
     assert 0, json.tostring()
 
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
-        arr = json.value_array
-        if "module" in arr[0].value_object:
-            ast_elem = arr[0].value_object["module"].value_string
+        arr = json.value_array()
+        if "module" in arr[0].value_object():
+            ast_elem = arr[0].value_object()["module"].value_string()
             if ast_elem == "begin":
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
@@ -132,7 +132,7 @@ def _to_ast(json):
                 return Lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
             if ast_elem == "letrec-values":
                 body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array) == 0:
+                if len(arr[1].value_array()) == 0:
                     return Begin.make(body)
                 else:
                     vars, rhss = to_bindings(arr[1])
@@ -141,7 +141,7 @@ def _to_ast(json):
                     return make_letrec(list(vars), list(rhss), body)
             if ast_elem == "let-values":
                 body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array) == 0:
+                if len(arr[1].value_array()) == 0:
                     return Begin.make(body)
                 else:
                     vars, rhss = to_bindings(arr[1])
@@ -149,19 +149,19 @@ def _to_ast(json):
                     assert isinstance(rhss[0], AST)
                     return make_let(list(vars), list(rhss), body)
             if ast_elem == "set!":
-                target = arr[1].value_object
+                target = arr[1].value_object()
                 if "lexical" in target:
                     assert target["lexical"].is_string
-                    return SetBang(CellRef(values.W_Symbol.make(target["lexical"].value_string)), _to_ast(arr[2]))
+                    return SetBang(CellRef(values.W_Symbol.make(target["lexical"].value_string())), _to_ast(arr[2]))
                 if "toplevel" in target:
                     assert target["toplevel"].is_string
-                    return SetBang(ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string)), _to_ast(arr[2]))
+                    return SetBang(ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string())), _to_ast(arr[2]))
                 assert 0
             if ast_elem == "#%top":
                 assert 0
-                return CellRef(values.W_Symbol.make(arr[1].value_object["symbol"].value_string))
+                return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "define-values":
-                fmls = [mksym(x) for x in arr[1].value_array]
+                fmls = [mksym(x) for x in arr[1].value_array()]
                 assert len(fmls) == 1
                 return Define(fmls[0], _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
@@ -178,39 +178,38 @@ def _to_ast(json):
                 return Begin([])
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
-        obj = json.value_object
+        obj = json.value_object()
         if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string))
+            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()))
         if "lexical" in obj:
-            return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string))
+            return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
-            return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string))
+            return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 def to_value(json):
     dbgprint("to_value", json)
-    if json.is_bool:
-        if json.value_bool is False:
-            return values.w_false
-        elif json.value_bool is True:
-            return values.w_true
+    if json is pycket_json.json_false:
+        return values.w_false
+    elif json is pycket_json.json_true:
+        return values.w_true
     if json.is_object:
         # The json-object should only contain one element
-        obj = json.value_object
+        obj = json.value_object()
         if "vector" in obj:
-            return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array])
+            return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
         if "integer" in obj:
-            return values.W_Fixnum(int(obj["integer"].value_string))
+            return values.W_Fixnum(int(obj["integer"].value_string()))
         if "real" in obj:
-            return values.W_Flonum(float(obj["real"].value_float))
+            return values.W_Flonum(float(obj["real"].value_float()))
         if "string" in obj:
-            return values.W_String(str(obj["string"].value_string))
+            return values.W_String(str(obj["string"].value_string()))
         if "improper" in obj:
-            improper = obj["improper"].value_array
-            return values.to_improper([to_value(v) for v in improper[0].value_array], to_value(improper[1]))
+            improper = obj["improper"].value_array()
+            return values.to_improper([to_value(v) for v in improper[0].value_array()], to_value(improper[1]))
         for i in ["toplevel", "lexical", "module"]:
             if i in obj:
-                return values.W_Symbol.make(obj[i].value_string)
+                return values.W_Symbol.make(obj[i].value_string())
     if json.is_array:
-        return values.to_list([to_value(j) for j in json.value_array])
+        return values.to_list([to_value(j) for j in json.value_array()])
     assert 0, "Unexpected json value: %s" % json.tostring()
