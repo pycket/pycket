@@ -1,5 +1,6 @@
 import operator
 import os
+import time
 from pycket import values
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
@@ -320,3 +321,7 @@ def display(s):
 def write(s):
     os.write(1, s.tostring())
     return values.w_void
+
+@expose("current-inexact-milliseconds", [])
+def curr_millis():
+    return values.W_Flonum(time.clock())

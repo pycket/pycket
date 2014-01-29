@@ -1,6 +1,6 @@
 ;; The Bubble sort benchmark from Strickland et al 2012
-(let ()
-(define SIZE 10000)
+;;(let ()
+(define SIZE 100)
 
 (define vec (make-vector SIZE))
 
@@ -26,6 +26,6 @@
         (loop (+ 1 i)))
       #f))
 
-;(time (bubble-sort vec))
-(bubble-sort vec)
-)
+(time (bubble-sort vec))
+;(bubble-sort vec)
+;)

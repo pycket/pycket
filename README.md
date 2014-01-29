@@ -26,3 +26,7 @@ Afterwards you can execute a program:
 
 See the comment in `pycket.sh` for more details.
 
+This requires a `PYTHONPATH` that includes both `rpython` (that should
+be the `pypy` directory cloned above) and `pycket` (that should be
+this directory).
+
