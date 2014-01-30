@@ -24,6 +24,12 @@ if [ \( ! -r "$jsonfile" \) -o \( "$scriptfile" -nt "$jsonfile" \) ]; then
 	racket expand_racket.rkt --output $jsonfile $scriptfile
 fi
 
+# Check the PYTHON environment variable to determine the python executable.
+# Use a default if necessary
+if [ -z $PYTHON ]; then
+	PYTHON=pypy
+fi
+
 
 # Now run the actual program
-pypy runpycket.py $jsonfile
+$PYTHON runpycket.py $jsonfile
