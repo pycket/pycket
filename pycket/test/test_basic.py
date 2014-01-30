@@ -5,8 +5,6 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-stdlib_fn = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stdlib.sch")
-
 def execute(p):
     e = expand(p)
     ast = to_ast(e)
@@ -23,12 +21,8 @@ def run(p,v=None):
     if v is not None:
         assert equal_loop(val,v)
 
-with file(stdlib_fn) as f:
-     stdlib = f.read()
-
 def run_top(p,v=None):
-    pp = "(let () \n %s \n %s\n %s)"%(stdlib, p, "" if v else "(void)")
-    e = expand(pp)
+    e = expand(p, wrap=True)
     ast = to_ast(e)
     val = interpret([ast])
     if v:

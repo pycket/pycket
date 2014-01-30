@@ -1,20 +1,21 @@
 import pytest
-from pycket.expand import expand, to_ast
+from pycket.expand import expand, expand_file, to_ast
+from pycket.json import loads
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
 from pycket.test.test_basic import run_top
 
-current_dir = os.path.dirname(__file__)
-
 def run_file(fname, *replacements):
-    with file(os.path.join(current_dir, fname)) as f:
-        s = f.read()
+    s = expand_file(fname)
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
-    return run_top(s)
+    e = loads(s)
+    ast = to_ast(e)
+    val = interpret([ast])
+
 
 def test_puzzle():
     run_file("puzzle.sch", ("1048575", "460"), ("50", "1"))

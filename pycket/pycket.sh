@@ -23,7 +23,7 @@ fi
 if [ \( ! -r "$jsonfile" \) -o \( "$scriptfile" -nt "$jsonfile" \) ]; then
 	# Either the json-file does not exist or the script-file is newer
 	# => (Re)create the json-file
-	python expand_tofile.py $scriptfile $jsonfile
+	racket expand_racket.rkt $scriptfile --output $jsonfile
 fi
 
 # Check the PYCKET environment variable to determine the pycket executable.

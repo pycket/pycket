@@ -29,10 +29,10 @@ def readfile_rpython(fname):
 
 fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
-def expand_string(s):
+def expand_string(s, wrap=False):
     "NON_RPYTHON"
     process = subprocess.Popen(
-        "racket %s" % (fn, ),
+        "racket %s --no-stdlib --stdin --stdout %s" % (fn, "" if wrap else "--no-wrap"),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
@@ -41,8 +41,21 @@ def expand_string(s):
         raise Exception("Racket produced an error")
     return data
 
-def expand(s):
-    data = expand_string(s)
+
+def expand_file(fname):
+    "NON_RPYTHON"
+    process = subprocess.Popen(
+        "racket %s --stdout %s" % (fn, fname),
+        shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    (data, err) = process.communicate()
+    if len(data) == 0:
+        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+    if err:
+        raise Exception("Racket produced an error")
+    return data
+
+def expand(s, wrap=False):
+    data = expand_string(s,wrap)
     return pycket_json.loads(data)
 
 

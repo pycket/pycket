@@ -1,16 +1,25 @@
 #lang racket
 
-(require json syntax/parse)
+(require syntax/parse racket/runtime-path)
 (define-namespace-anchor ns)
 (define set-car! #f)
 (define set-cdr! #f)
-(current-namespace (namespace-anchor->namespace ns))
-(define form (read-syntax))
 
-(define r (read))
+(define-runtime-path stdlib.sch "stdlib.sch")
 
-(unless (eof-object? r)
-  (error 'expand_racket "too many things on the input"))
+(define stdlib (file->list stdlib.sch))
+
+(define (do-expand forms wrap? stdlib?)
+  (current-namespace (namespace-anchor->namespace ns))
+  (define new-form
+    (if wrap?
+        `(let ()
+           ,@(if stdlib? stdlib null)
+           ,@forms)
+        (match forms
+          [(list f) f]
+          [_ (raise-user-error "no wrapping but multiple forms")])))
+  (expand (datum->syntax #f new-form)))
 
 (define (to-json v)
   (define (proper l)
@@ -38,5 +47,40 @@
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]))
 
-(write-json (to-json (expand form)))
-(newline)
+
+(module+ main
+  (require racket/cmdline json)
+
+  (define in #f)
+  (define out #f)
+
+  (define wrap? #t)
+  (define stdlib? #t)
+
+  (command-line
+   #:once-any
+   [("--output") file "output file" (set! out (open-output-file file))]
+   [("--stdout") "use stdout for output" (set! out (current-output-port))]
+   #:once-each
+   [("--stdin") "use stdin for input" (set! in (current-input-port))]
+   [("--no-wrap") "don't wrap with a let" (set! wrap? #f)]
+   [("--no-stdlib") "don't include stdlib" (set! stdlib? #f)]
+   #:args ([source #f])
+   (cond [(and in source)
+          (raise-user-error "can't supply --stdin with a source file")]
+         [source
+          (when (not (output-port? out))
+            (set! out (open-output-file (string-append source ".json")
+                                        #:exists 'replace)))
+          (set! in (open-input-file source))]))
+   
+   (unless (input-port? in)
+     (raise-user-error "no input specified"))
+
+   (unless (output-port? out)
+     (raise-user-error "no output specified"))
+   
+   
+   (define forms (port->list read in))
+   (write-json (to-json (do-expand forms wrap? stdlib?)) out)
+   (newline))
