@@ -20,3 +20,13 @@ def test_object():
     _compare("{}", {})
     _compare("{\"a\": 1}", {"a": 1})
     _compare("{\"a\": 1, \"123\": \"ab\", \"subobj\": {\"d\": 12.0}, \"subarr\": [1]}", {"a": 1, "123": "ab", "subobj": {"d": 12.0}, "subarr": [1]})
+
+def test_escaped_string():
+    _compare('"\\n"', "\n")
+    _compare('"\\n\\t\\b\\f\\r\\\\"', "\n\t\b\f\r\\")
+    _compare('"\\n\\t\\b\\f\\r\\\\"', "\n\t\b\f\r\\")
+    _compare('"\\""', '"')
+
+def test_tostring_string_escaping():
+    json = loads('"\\n"')
+    assert json.tostring() == '"\\n"'

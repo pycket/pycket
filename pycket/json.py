@@ -1,10 +1,10 @@
-
+from rpython.rlib.rstring import StringBuilder
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
 
 _json_grammar = """
-    STRING: "\\"[^\\\\"]*\\"";
+    STRING: "\\"([^\\"]|\\\\\\")*\\"";
     NUMBER: "\-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?";
     TRUE: "true";
     FALSE: "false";
@@ -119,7 +119,9 @@ class JsonString(JsonPrimitive):
         self.value = value
 
     def tostring(self):
-        return '"%s"' % self.value #XXX escaping
+        # this function should really live in a slightly more accessible place
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        return string_escape_encode(self.value, '"')
 
     def _unpack_deep(self):
         return self.value
@@ -174,7 +176,7 @@ class Visitor(RPythonVisitor):
         if l < 0:
             return JsonString("")
         else:
-            return JsonString(s[1:l]) # XXX escaping
+            return JsonString(unescape(s)) # XXX escaping
 
     def visit_NUMBER(self, node):
         try:
@@ -203,6 +205,37 @@ class Visitor(RPythonVisitor):
     def visit_array(self, node):
         return JsonArray([self.dispatch(c) for c in node.children])
 
+def unescape(chars):
+    builder = StringBuilder(len(chars)*2) # just an estimate
+    assert chars[0] == '"'
+    i = 1
+    while True:
+        ch = chars[i]
+        i += 1
+        if ch == '"':
+            return builder.build()
+        elif ch == '\\':
+            i = decode_escape_sequence(i, chars, builder)
+        else:
+            builder.append(ch)
+
+def decode_escape_sequence(i, chars, builder):
+    ch = chars[i]
+    i += 1
+    put = builder.append
+    if ch == '\\':  put('\\')
+    elif ch == '"': put('"' )
+    elif ch == '/': put('/' )
+    elif ch == 'b': put('\b')
+    elif ch == 'f': put('\f')
+    elif ch == 'n': put('\n')
+    elif ch == 'r': put('\r')
+    elif ch == 't': put('\t')
+    elif ch == 'u':
+        raise ValueError("unicode escape sequence not supported yet") # XXX
+    else:
+        raise ValueError("Invalid \\escape: %s" % (ch, ))
+    return i
 
 def loads(string):
     ast = parse(string)
