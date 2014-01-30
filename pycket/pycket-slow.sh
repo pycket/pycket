@@ -1,11 +1,9 @@
 #! /bin/sh
 
-# This script executes a racket-script using pycket.
+# This script executes a racket-script using pycket run under python, instead of compiled.
 # It takes one parameter: the script to be executed.
 # Currently the racket-code has to be expanded to an AST (represented in json) before invoking pycket.
 # This step is also done by this script.
-# You can set the environment variable PYCKET to indicate which pycket-executable to use.
-# Otherwise the default targetpycket-c will be used. This can be used to experiment with different versions of pycket.
 
 if [ "$#" -ne 1 ]; then
 	echo "Need one parameter: the racket script to be executed with pycket."
@@ -26,19 +24,6 @@ if [ \( ! -r "$jsonfile" \) -o \( "$scriptfile" -nt "$jsonfile" \) ]; then
 	racket expand_racket.rkt --output $jsonfile $scriptfile
 fi
 
-# Check the PYCKET environment variable to determine the pycket executable.
-# Use a default if necessary
-if [ -z $PYCKET ]; then
-	PYCKET=targetpycket-c
-fi
-
-PYCKET=./$PYCKET
-if [ ! -x $PYCKET ]; then
-	echo "File does not exist or is not executable: $PYCKET"
-	echo "To build the pycket-executable, execute the following:"
-	echo "  rpython -Ojit targetpycket.py"
-	exit 1
-fi
 
 # Now run the actual program
-$PYCKET $jsonfile
+pypy runpycket.py $jsonfile

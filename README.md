@@ -30,3 +30,8 @@ This requires a `PYTHONPATH` that includes both `rpython` (that should
 be the `pypy` directory cloned above) and `pycket` (that should be
 this directory).
 
+You can also run pycket under plain python, like this:
+
+    $ ./pycket-slow.sh program
+
+Edit that shell script to make it use pypy, if desired.

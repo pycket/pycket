@@ -59,12 +59,14 @@
 
   (command-line
    #:once-any
-   [("--output") file "output file" (set! out (open-output-file file))]
-   [("--stdout") "use stdout for output" (set! out (current-output-port))]
+   [("--output") file "write output to output <file>" 
+    (set! out (open-output-file file #:exists 'replace))]
+   [("--stdout") "write output to standard out"
+    (set! out (current-output-port))]
    #:once-each
-   [("--stdin") "use stdin for input" (set! in (current-input-port))]
-   [("--no-wrap") "don't wrap with a let" (set! wrap? #f)]
-   [("--no-stdlib") "don't include stdlib" (set! stdlib? #f)]
+   [("--stdin") "read input from standard in" (set! in (current-input-port))]
+   [("--no-wrap") "don't wrap input with a `let`" (set! wrap? #f)]
+   [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    #:args ([source #f])
    (cond [(and in source)
           (raise-user-error "can't supply --stdin with a source file")]
