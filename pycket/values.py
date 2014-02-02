@@ -14,6 +14,7 @@ class W_Object(object):
         raise SchemeException("%s is not callable" % self.tostring())
 
 class W_Cell(W_Object): # not the same as Racket's box
+    _immutable_fields_ = ["value?"]
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
         self.value = v
@@ -124,10 +125,10 @@ class W_SimplePrim(W_Procedure):
         self.code = code
 
     def call(self, args, env, cont):
-        from pycket.interpreter import Value
+        from pycket.interpreter import return_value
         jit.promote(self)
         #print self.name
-        return Value(self.code(args)), env, cont
+        return return_value(self.code(args), env, cont)
     
     def tostring(self):
         return "SimplePrim<%s>" % self.name
@@ -158,9 +159,9 @@ class W_Continuation(W_Procedure):
     def __init__ (self, cont):
         self.cont = cont
     def call(self, args, env, cont):
-        from pycket.interpreter import Value
+        from pycket.interpreter import return_value
         a, = args # FIXME: multiple values
-        return Value(a), env, self.cont
+        return return_value(a, env, self.cont)
 
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["lam", "env"]

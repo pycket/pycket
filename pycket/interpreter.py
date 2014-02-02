@@ -207,7 +207,7 @@ class CellCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        return Value(values.W_Cell(w_val)), self.env, self.prev
+        return return_value(values.W_Cell(w_val), self.env, self.prev)
 
 class Call(Cont):
     # prev is the parent continuation
@@ -239,7 +239,7 @@ class SetBangCont(Cont):
         self.prev = prev
     def plug_reduce(self, w_val):
         self.var._set(w_val, self.env)
-        return Value(values.w_void), self.env, self.prev
+        return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
     def __init__(self, ast, i, env, prev):
@@ -270,6 +270,9 @@ class AST(object):
     def tostring(self):
         raise NotImplementedError("abstract base class")
 
+def return_value(w_val, env, cont):
+    if cont is None: raise Done(w_val)
+    return cont.plug_reduce(w_val)
 
 class Value(AST):
     def __init__ (self, w_val):
@@ -307,7 +310,7 @@ class Quote(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret(self, env, cont):
-        return Value(self.w_val), env, cont
+        return return_value(self.w_val, env, cont)
     def assign_convert(self, vars):
         return self
     def mutated_vars(self):
@@ -393,7 +396,7 @@ class Var(AST):
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, cont):
-        return Value(self._lookup(env)), env, cont
+        return return_value(self._lookup(env), env, cont)
     def mutated_vars(self):
         return {}
     def free_vars(self):
@@ -560,7 +563,7 @@ class Lambda(SequencedBodyAST):
         self.args = SymList(formals + ([rest] if rest else []))
         self.frees = SymList(self.free_vars().keys())
     def interpret(self, env, cont):
-        return Value(values.W_Closure(self, env)), env, cont
+        return return_value(values.W_Closure(self, env), env, cont)
     def assign_convert(self, vars):
         local_muts = {}
         for b in self.body:
