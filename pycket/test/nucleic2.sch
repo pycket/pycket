@@ -3505,4 +3505,4 @@
 
 ; To run program, evaluate: (run)
 
-(let loop ((i 1)) (if (zero? i) 'done (begin (run) (loop (- i 1)))))
+(time (let loop ((i 1)) (if (zero? i) 'done (begin (run) (loop (- i 1))))))

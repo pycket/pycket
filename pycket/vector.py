@@ -22,16 +22,17 @@ def _find_strategy_class(elements):
     return ObjectVectorStrategy.singleton
 
 class W_Vector(W_Object):
-    _immutable_fields_ = ["elems"]
+    _immutable_fields_ = ["elems", "len"]
     errorname = "vector"
-    def __init__(self, strategy, storage):
+    def __init__(self, strategy, storage, len):
         self.strategy = strategy
         self.storage = storage
+        self.len = len
     @staticmethod
     def fromelements(elems):
         strategy = _find_strategy_class(elems)
         storage = strategy.create_storage_for_elements(elems)
-        return W_Vector(strategy, storage)
+        return W_Vector(strategy, storage, len(elems))
     @staticmethod
     def fromelement(elem, times):
         check_list = [elem]
@@ -39,13 +40,13 @@ class W_Vector(W_Object):
             check_list = []
         strategy = _find_strategy_class(check_list)
         storage = strategy.create_storage_for_element(elem, times)
-        return W_Vector(strategy, storage)
+        return W_Vector(strategy, storage, times)
     def ref(self, i):
         return self.strategy.ref(self, i)
     def set(self, i, v):
         self.strategy.set(self, i, v)
     def length(self):
-        return self.strategy.length(self)
+        return self.len
     def tostring(self):
         l = self.strategy.ref_all(self)
         description = []
@@ -82,14 +83,14 @@ class VectorStrategy(object):
         else:
             self._set(w_vector, i, w_val)
     def indexcheck(self, w_vector, i):
-        assert 0 <= i < self.length(w_vector)
+        assert 0 <= i < w_vector.len
 
     def _ref(self, w_vector, i):
         raise NotImplementedError("abstract base class")
     def _set(self, w_vector, i, w_val):
         raise NotImplementedError("abstract base class")
-    def length(self, w_vector):
-        raise NotImplementedError("abstract base class")
+    # def length(self, w_vector):
+    #     raise NotImplementedError("abstract base class")
     def ref_all(self, w_vector):
         raise NotImplementedError("abstract base class")
 
@@ -97,6 +98,7 @@ class VectorStrategy(object):
         raise NotImplementedError("abstract base class")
     def create_storage_for_elements(self, elements):
         raise NotImplementedError("abstract base class")
+
 
     def dehomogenize(self, w_vector):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
@@ -117,8 +119,8 @@ class UnwrappedVectorStrategyMixin(object):
     def _set(self, w_vector, i, w_val):
         self._storage(w_vector)[i] = self.unwrap(w_val)
 
-    def length(self, w_vector):
-        return len(self._storage(w_vector))
+    # def length(self, w_vector):
+    #     return len(self._storage(w_vector))
 
     def ref_all(self, w_vector):
         unwrapped = self._storage(w_vector)

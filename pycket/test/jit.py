@@ -13,6 +13,7 @@ conftest.option = o
 from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
+from pycket.test.test_larger import parse_file
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
@@ -67,11 +68,7 @@ class TestLLtype(LLJitMixin):
 
     def test_puzzle(self):
         fname = "puzzle.sch"
-        with file(fname) as f:
-            s = f.read()
-        with file("../stdlib.sch") as f:
-            stdlib = f.read()
-        ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
+        ast = parse_file(fname)
         def interp_w():
             val = interpret_one(ast)
             return val
@@ -80,25 +77,25 @@ class TestLLtype(LLJitMixin):
 
     def test_bubble(self):
         fname = "bubble.sch"
-        with file(fname) as f:
-            s = f.read()
-        with file("../stdlib.sch") as f:
-            stdlib = f.read()
-        ast = to_ast(expand("(begin \n%s\n%s\n)"%(stdlib,s)))
+        ast = parse_file(fname)
         def interp_w():
             val = interpret([ast])
             return val
-        interp_w()
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_bubble_arg(self):
+        fname = "bubble-arg.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret([ast])
+            return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_pseudoknot(self):
-        fname = "nucleic3.sch"
-        with file(fname) as f:
-            s = f.read()
-        with file("../stdlib.sch") as f:
-            stdlib = f.read()
-        ast = to_ast(expand("(begin \n%s\n%s\n)"%(stdlib,s)))
+        fname = "nucleic2.sch"
+        ast = parse_file(fname)
         def interp_w():
             val = interpret([ast])
             return val
@@ -107,11 +104,7 @@ class TestLLtype(LLJitMixin):
 
     def test_minik(self):
         fname = "minikanren.sch"
-        with file(fname) as f:
-            s = f.read()
-        with file("../stdlib.sch") as f:
-            stdlib = f.read()
-        ast = to_ast(expand("(let () \n%s\n%s\n)"%(stdlib,s)))
+        ast = parse_file(fname)
         def interp_w():
             val = interpret_one(ast)
             return val
@@ -120,11 +113,7 @@ class TestLLtype(LLJitMixin):
 
     def test_microk(self):
         fname = "microkanren.sch"
-        with file(fname) as f:
-            s = f.read()
-        with file("../stdlib.sch") as f:
-            stdlib = f.read()
-        ast = to_ast(expand("(let() \n%s\n%s\n)"%(stdlib,s)))
+        ast = parse_file(fname)
         def interp_w():
             val = interpret_one(ast)
             return val

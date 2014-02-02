@@ -165,10 +165,9 @@
           (else (begin (newline) (display "Failure."))))))
 
 ;;; call:  (start)
-; (time
+(time
  (let loop ((n 50) (v 0))
         (if (zero? n)
             v
             (loop (- n 1)
-                  (start))))
-;)
+                  (start)))))

@@ -720,15 +720,17 @@ class Let(SequencedBodyAST):
 
 
 class Define(AST):
-    def __init__(self, name, rhs):
-        self.name = name
-        self.rhs = rhs
+    _immutable_fields_ = ["name", "rhs"]
+    def __init__(self, n, r):
+        self.name = n
+        self.rhs = r
     def assign_convert(self, vars):
         return Define(self.name, self.rhs.assign_convert(vars))
     def mutated_vars(self): assert 0
     def free_vars(self): assert 0
     def tostring(self):
-        return "(define %s %s)"%(self.name, self.rhs.tostring())
+        return "define wtf"
+#        return "(define %s %s)"%(self.name, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:

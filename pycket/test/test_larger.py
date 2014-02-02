@@ -8,13 +8,19 @@ from pycket.prims import *
 from pycket.test.test_basic import run_top
 
 def run_file(fname, *replacements):
+    ast = parse_file(fname, *replacements)
+    val = interpret([ast])
+
+
+def parse_file(fname, *replacements):
+    fname = os.path.join(os.path.dirname(__file__), fname)
     s = expand_file(fname)
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
     e = loads(s)
     ast = to_ast(e)
-    val = interpret([ast])
+    return ast
 
 
 def test_puzzle():
