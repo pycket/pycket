@@ -257,6 +257,9 @@ class Done(Exception):
 class AST(object):
     _attrs_ = []
     _settled_ = True
+
+    should_enter = False
+
     def let_convert(self):
         return self
     def free_vars(self):
@@ -273,21 +276,6 @@ class AST(object):
 def return_value(w_val, env, cont):
     if cont is None: raise Done(w_val)
     return cont.plug_reduce(w_val)
-
-class Value(AST):
-    def __init__ (self, w_val):
-        self.w_val = w_val
-    def interpret(self, env, cont):
-        if cont is None: raise Done(self.w_val)
-        return cont.plug_reduce(self.w_val)
-    def let_convert(self):
-        assert 0
-    def assign_convert(self, vars):
-        return self
-    def mutated_vars(self):
-        return {}
-    def tostring(self):
-        return "V(%s)"%self.w_val.tostring()
 
 class Cell(AST):
     def __init__(self, expr):
@@ -320,6 +308,9 @@ class Quote(AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]"]
+
+    should_enter = True
+
     def __init__ (self, rator, rands):
         self.rator = rator
         self.rands = rands
@@ -538,11 +529,14 @@ class RecLambda(AST):
         return v
     def interpret(self, env, cont):
         e = ConsEnv.make([values.w_void], SymList([self.name]), env, env.toplevel_env)
-        Vcl, e, f = self.lam.interpret(e, cont)
-        cl = Vcl.w_val
+        try:
+            Vcl, e, f = self.lam.interpret(e, None)
+            assert 0
+        except Done, e:
+            cl = e.w_val
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl)
-        return Vcl, env, cont
+        return return_value(cl, env, cont)
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
@@ -739,30 +733,20 @@ def get_printable_location(green_ast):
     if green_ast is None:
         return 'Green_Ast is None'
     return green_ast.tostring()
-driver = jit.JitDriver(reds=["ast", "env", "cont"],
-                       greens=["green_ast"],
+driver = jit.JitDriver(reds=["env", "cont"],
+                       greens=["ast"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
     cont = None
     if not env:
         env = EmptyEnv(ToplevelEnv())
-    green_ast = None
     try:
         while True:
-            driver.jit_merge_point(ast=ast, env=env, cont=cont, green_ast=green_ast)
-            if not isinstance(ast, Value):
-                jit.promote(ast)
-                green_ast = ast
-            
-            #print ast.tostring()
-            # if cont:
-            #     if len(cont.tostring()) > 250:
-            #         import pdb; pdb.set_trace()
-            #     #print cont.tostring()
+            driver.jit_merge_point(ast=ast, env=env, cont=cont)
             ast, env, cont = ast.interpret(env, cont)
-            if isinstance(ast, App):
-                driver.can_enter_jit(ast=ast, env=env, cont=cont, green_ast=green_ast)
+            if ast.should_enter:
+                driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
         return e.w_val
 
