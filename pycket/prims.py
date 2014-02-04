@@ -342,3 +342,38 @@ def write(s):
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
     return values.W_Flonum(time.clock())
+
+# FIXME: Chaperones
+@expose("unsafe-vector-ref")
+def unsafe_vector_ref(args):
+    v, i = args
+    return v.ref(i.value)
+
+@expose("unsafe-vector*-ref")
+def unsafe_vector_star_ref(args):
+    v, i = args
+    return v.ref(i.value)
+
+# FIXME: Chaperones
+@expose("unsafe-vector-set")
+def unsafe_vector_set(args):
+    v, i = args
+    return v.set(i.value)
+
+@expose("unsafe-vector*-set")
+def unsafe_vector_star_set(args):
+    v, i, new = args
+    return v.set(i.value, new)
+
+# FIXME: Chaperones
+@expose("unsafe-vector-length")
+def unsafe_vector_length(args):
+    v, = args
+    return values.W_Fixnum(v.length())
+
+@expose("unsafe-vector*-length")
+def unsafe_vector_star_length(args):
+    v, = args
+    return values.W_Fixnum(v.length())
+
+    
