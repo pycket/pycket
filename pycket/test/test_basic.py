@@ -180,6 +180,10 @@ def test_values():
     run_fix("(values 1)", 1)
     run_fix("(let () (values 1 2) (values 3))", 3)
     v = execute("(values #t #f)")
+    prog = """
+(let () (call/cc (lambda (k) (k 1 2))) 3)
+"""
+    run_fix(prog, 3)
     assert [w_true, w_false] == v._get_full_list()
 
 def test_define():
