@@ -185,6 +185,12 @@ def test_values():
 """
     run_fix(prog, 3)
     assert [w_true, w_false] == v._get_full_list()
+    run_fix("(call-with-values (lambda () (values 1 2)) (lambda (a b) (+ a b)))", 3)
+    run_fix("(call-with-values (lambda () (values 1 2)) +)", 3)
+    run_fix("(call-with-values (lambda () (values)) (lambda () 0))", 0)
+    run_fix("(call-with-values (lambda () (values 1)) (lambda (x) x))", 1)
+    run_fix("(call-with-values (lambda () (values 1)) values)", 1)
+    run_fix("(call-with-values (lambda () 1) values)", 1)
 
 def test_define():
     run_top("(define x 1) x", W_Fixnum(1))

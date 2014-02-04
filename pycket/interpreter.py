@@ -80,6 +80,16 @@ def check_one_val(vals):
     w_val = vals._get_list(0)
     return w_val
 
+class CWVCont(Cont):
+    _immutable_fields_ = ["consumer", "env", "prev"] # env is pointless
+    def __init__(self, consumer, env, prev):
+        self.consumer = consumer
+        self.prev = prev
+        self.env = env
+    def plug_reduce (self, vals):
+        val_list = vals._get_full_list()
+        self.consumer.call(val_list, self.env, self.prev)
+
 class IfCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
