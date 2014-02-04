@@ -111,6 +111,15 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_bubble_unsafe(self):
+        fname = "bubble-unsafe.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret([ast])
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
     def test_bubble_arg(self):
         fname = "bubble-arg.sch"
         ast = parse_file(fname)
