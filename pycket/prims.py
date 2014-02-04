@@ -343,37 +343,94 @@ def write(s):
 def curr_millis():
     return values.W_Flonum(time.clock())
 
+## Unsafe Fixnum ops
+@expose("unsafe-fx+")
+def unsafe_fxplus(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Fixnum(a.value + b.value)
+
+@expose("unsafe-fx-")
+def unsafe_fxminus(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Fixnum(a.value - b.value)
+
+@expose("unsafe-fx*")
+def unsafe_fxtimes(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Fixnum(a.value * b.value)
+
+@expose("unsafe-fx<")
+def unsafe_fxdiv(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Bool(a.value < b.value)
+
+@expose("unsafe-fx>")
+def unsafe_fxdiv(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Bool(a.value > b.value)
+
+@expose("unsafe-fx=")
+def unsafe_fxdiv(args):
+    a, b = args
+    assert isinstance(a, values.W_Fixnum)
+    assert isinstance(b, values.W_Fixnum)
+    return values.W_Bool(a.value == b.value)
+
+## Unsafe vector ops
+
 # FIXME: Chaperones
 @expose("unsafe-vector-ref")
 def unsafe_vector_ref(args):
     v, i = args
+    assert isinstance(v, values.W_Vector)
+    assert isinstance(i, values.W_Fixnum)
     return v.ref(i.value)
 
 @expose("unsafe-vector*-ref")
 def unsafe_vector_star_ref(args):
     v, i = args
+    assert isinstance(v, values.W_Vector)
+    assert isinstance(i, values.W_Fixnum)
     return v.ref(i.value)
 
 # FIXME: Chaperones
 @expose("unsafe-vector-set")
 def unsafe_vector_set(args):
     v, i = args
+    assert isinstance(v, values.W_Vector)
+    assert isinstance(i, values.W_Fixnum)
+    assert isinstance(new, values.W_Object)
     return v.set(i.value)
 
 @expose("unsafe-vector*-set")
 def unsafe_vector_star_set(args):
     v, i, new = args
+    assert isinstance(v, values.W_Vector)
+    assert isinstance(i, values.W_Fixnum)
+    assert isinstance(new, values.W_Object)
     return v.set(i.value, new)
 
 # FIXME: Chaperones
 @expose("unsafe-vector-length")
 def unsafe_vector_length(args):
     v, = args
+    assert isinstance(v, values.W_Vector)
     return values.W_Fixnum(v.length())
 
 @expose("unsafe-vector*-length")
 def unsafe_vector_star_length(args):
     v, = args
+    assert isinstance(v, values.W_Vector)
     return values.W_Fixnum(v.length())
 
     
