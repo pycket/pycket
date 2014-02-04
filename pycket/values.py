@@ -1,6 +1,24 @@
 from pycket.error import SchemeException
+from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
+
+# This is not a real value, so it's not a W_Object
+class Values(object):
+    def tostring(self):
+        vals = self._get_full_list()
+        if len(vals) == 1:
+            return vals[0].tostring()
+        if len(vals) == 0:
+            return "(values)"
+        else: #fixme
+            return "MULTIPLE VALUES"
+    @jit.unroll_safe
+    def __init__(self):
+        pass
+
+inline_small_list(Values, immutable=True, attrname="vals")
+
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -12,6 +30,8 @@ class W_Object(object):
         return str(self)
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
+
+
 
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
@@ -158,9 +178,8 @@ class W_Continuation(W_Procedure):
     def __init__ (self, cont):
         self.cont = cont
     def call(self, args, env, cont):
-        from pycket.interpreter import return_value
-        a, = args # FIXME: multiple values
-        return return_value(a, env, self.cont)
+        from pycket.interpreter import return_multi_vals
+        return return_multi_vals(Values.make(args), env, self.cont)
 
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["lam", "env"]

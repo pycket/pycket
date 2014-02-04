@@ -13,27 +13,34 @@ def execute(p):
 
 def run_fix(p,v):
     val = execute(p)
-    assert isinstance(val, W_Fixnum)
-    assert val.value == v
+    ov = check_one_val(val)
+    assert isinstance(ov, W_Fixnum)
+    assert ov.value == v
+    return ov.value
 
 def run(p,v=None):
     val = execute(p)
+    ov = check_one_val(val)
     if v is not None:
-        assert equal_loop(val,v)
+        assert equal_loop(ov,v)
+    return ov
 
 def run_top(p,v=None):
     e = expand(p, wrap=True)
     ast = to_ast(e)
     val = interpret([ast])
+    ov = check_one_val(val)
     if v:
-        assert equal_loop(val,v)
+        assert equal_loop(ov,v)
+    return ov
 
 
 def test_constant():
     prog = "1"
     val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 1
+    ov = check_one_val(val)
+    assert isinstance(ov, W_Fixnum)
+    assert ov.value == 1
 
 
 def test_read_err ():
@@ -46,34 +53,24 @@ def test_read_err ():
 
 def test_plus():
     prog = "(+ 2 3)"
-    val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 5
+    run_fix(prog, 5)
 
 def test_thunk():
     prog = "((lambda () 1))"
-    val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 1
+    run_fix(prog, 1)
 
 def test_thunk2():
     prog = "((lambda () 1 2))"
-    val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 2
+    run_fix(prog, 2)
 
 
 def test_call():
     prog = "((lambda (x) (+ x 1)) 2)"
-    val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 3
+    run_fix(prog, 3)
 
 def test_curry():
     prog = "(((lambda (y) (lambda (x) (+ x y))) 2) 3)"
-    val = interpret_one(to_ast(expand(prog)))
-    assert isinstance(val, W_Fixnum)
-    assert val.value == 5
+    run_fix(prog, 5)
 
 def test_arith():
     run_fix("(+ 1 2)", 3)

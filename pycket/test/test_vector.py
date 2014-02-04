@@ -7,7 +7,7 @@ from pycket.prims import *
 from pycket.test.test_basic import run_fix, run, execute
 
 def test_vec():
-    assert isinstance(execute('(vector 1)'), W_Vector)
+    assert isinstance(run('(vector 1)'), W_Vector)
     run('(vector? \'#(0 (2 2 2 2) "Anna"))', w_true)
     run("(vector? '#())", w_true)
     run_fix("(let ([v (vector 1 2 3)]) (vector-length v))", 3)
@@ -23,47 +23,47 @@ def test_vec_equal():
 def test_make_vector():
     run_fix("(let ([v (vector)]) (vector-length v))", 0)
     run_fix("(let ([v (make-vector 5)]) (vector-length v))", 5)
-    vec = execute('(make-vector 5)')
+    vec = run('(make-vector 5)')
     for i in range(vec.length()):
         assert vec.ref(i).value == 0
 
 def test_vec_strategies_empty():
-    vec = execute("(vector)")
+    vec = run("(vector)")
     print "First size: %s" % vec.length()
     assert isinstance(vec.strategy, ObjectVectorStrategy)
-    vec = execute("(make-vector 0)")
+    vec = run("(make-vector 0)")
     print "Second size: %s" % vec.length()
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
 def test_vec_strategies_fixnum():
-    vec = execute("(vector 1 2 3)")
+    vec = run("(vector 1 2 3)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
-    vec = execute("(make-vector 2)")
+    vec = run("(make-vector 2)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_flonum():
-    vec = execute("(vector 1.0 2.1 3.2)")
+    vec = run("(vector 1.0 2.1 3.2)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
-    vec = execute("(make-vector 2 1.2)")
+    vec = run("(make-vector 2 1.2)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
 
 def test_vec_strategies_fixnum_singleton():
-    vec1 = execute("(vector 1 2 3)")
-    vec2 = execute("(make-vector 2)")
+    vec1 = run("(vector 1 2 3)")
+    vec2 = run("(make-vector 2)")
     assert vec1.strategy is vec2.strategy
 
 def test_vec_strategies_object():
-    vec = execute("(vector (cons 1 2) 2 3)")
+    vec = run("(vector (cons 1 2) 2 3)")
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
 def test_vec_strategies_stays_fixnum():
-    vec = execute("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")
+    vec = run("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_stays_flonum():
-    vec = execute("(let ([vec (make-vector 3 1.2)]) (vector-set! vec 1 5.5) vec)")
+    vec = run("(let ([vec (make-vector 3 1.2)]) (vector-set! vec 1 5.5) vec)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
 
 def test_vec_strategies_dehomogenize():
-    vec = execute('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
+    vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
