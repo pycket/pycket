@@ -127,22 +127,22 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         assert self.args is env_structure
-        jit.promote(self.args)
-        for i, s in enumerate(self.args.elems):
+        args = jit.promote(env_structure)
+        for i, s in enumerate(args.elems):
             if s is sym:
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym, env_structure.prev)
+        return self.prev.lookup(sym, args.prev)
     def set(self, sym, val, env_structure):
         if env_structure is not None:
             assert self.args is env_structure
-        jit.promote(self.args)
-        for i, s in enumerate(self.args.elems):
+        args = jit.promote(env_structure)
+        for i, s in enumerate(args.elems):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val, env_structure.prev)
+        return self.prev.set(sym, val, args.prev)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 class Cont(object):
@@ -554,7 +554,7 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
-    _immutable_fields_ = ["name", "lam"]
+    _immutable_fields_ = ["name", "lam", "env_structure"]
     def __init__(self, name, lam, env_structure):
         assert isinstance(lam, Lambda)
         self.name = name
@@ -611,7 +611,7 @@ def free_vars_lambda(body, args):
     return x
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "args", "frees"]
+    _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure"]
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.formals = formals
@@ -778,6 +778,9 @@ class Let(SequencedBodyAST):
 
 class Define(AST):
     _immutable_fields_ = ["name", "rhs"]
+    name = ""
+    rhs = Quote(values.w_null)
+
     def __init__(self, n, r):
         self.name = n
         self.rhs = r
