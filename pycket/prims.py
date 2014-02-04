@@ -366,24 +366,73 @@ def unsafe_fxtimes(args):
     return values.W_Fixnum(a.value * b.value)
 
 @expose("unsafe-fx<")
-def unsafe_fxdiv(args):
+def unsafe_fxlt(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
     return values.W_Bool(a.value < b.value)
 
 @expose("unsafe-fx>")
-def unsafe_fxdiv(args):
+def unsafe_fxgt(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
     return values.W_Bool(a.value > b.value)
 
 @expose("unsafe-fx=")
-def unsafe_fxdiv(args):
+def unsafe_fxeq(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
+    return values.W_Bool(a.value == b.value)
+
+@expose("unsafe-fx->fl")
+def unsafe_fxfl(args):
+    a, = args
+    assert isinstance(a, values.W_Fixnum)
+    return values.W_Flonum(float(a.value))
+
+## Unsafe Flonum ops
+@expose("unsafe-fl+")
+def unsafe_flplus(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
+    return values.W_Flonum(a.value + b.value)
+
+@expose("unsafe-fl-")
+def unsafe_flminus(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
+    return values.W_Flonum(a.value - b.value)
+
+@expose("unsafe-fl*")
+def unsafe_fltimes(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
+    return values.W_Flonum(a.value * b.value)
+
+@expose("unsafe-fl<")
+def unsafe_fllt(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
+    return values.W_Bool(a.value < b.value)
+
+@expose("unsafe-fl>")
+def unsafe_flgt(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
+    return values.W_Bool(a.value > b.value)
+
+@expose("unsafe-fl=")
+def unsafe_fleq(args):
+    a, b = args
+    assert isinstance(a, values.W_Flonum)
+    assert isinstance(b, values.W_Flonum)
     return values.W_Bool(a.value == b.value)
 
 ## Unsafe vector ops
