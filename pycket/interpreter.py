@@ -156,17 +156,18 @@ class IfCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, w_val):
-        # remove the env created by the let introduced by let_convert
-        # it's no longer needed nor accessible
-        # env = self.env
-        # assert env._get_size_list() == 1
-        # assert isinstance(env, ConsEnv)
-        # env = env.prev
         ast = jit.promote(self.ast)
+        env = self.env
+        if ast.remove_env:
+            # remove the env created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            assert env._get_size_list() == 1
+            assert isinstance(env, ConsEnv)
+            env = env.prev
         if w_val is values.w_false:
-            return ast.els, self.env, self.prev
+            return ast.els, env, self.prev
         else:
-            return ast.thn, self.env, self.prev
+            return ast.thn, env, self.prev
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
@@ -226,11 +227,12 @@ class Call(Cont):
             vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
             env = self.env
-            #assert isinstance(env, ConsEnv)
-            #assert len(vals_w) == len(ast.rands) + 1
-            # remove the env created by the let introduced by let_convert
-            # it's no longer needed nor accessible
-            #env = env.prev
+            if ast.remove_env:
+                # remove the env created by the let introduced by let_convert
+                # it's no longer needed nor accessible
+                assert isinstance(env, ConsEnv)
+                assert len(vals_w) == len(ast.rands) + 1
+                env = env.prev
             return vals_w[0].call(vals_w[1:], env, self.prev)
         else:
             return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
@@ -318,20 +320,21 @@ class Quote(AST):
         return "'%s"%self.w_val.tostring()
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]"]
+    _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
     should_enter = True
 
-    def __init__ (self, rator, rands):
+    def __init__ (self, rator, rands, remove_env=False):
         self.rator = rator
         self.rands = rands
+        self.remove_env = remove_env
     def let_convert(self):
         fresh_vars = []
         fresh_rhss = []
         new_rator = self.rator
         new_rands = []
 
-        if not(self.rator.simple):
+        if not self.rator.simple:
             fresh_rator = LexicalVar.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
             fresh_rhss.append(self.rator)
@@ -348,8 +351,11 @@ class App(AST):
                 fresh_vars.append(fresh_rand)
                 new_rands.append(fresh_rand_var)
         # The body is an App operating on the freshly bound symbols
-        fresh_body = [App(new_rator, new_rands[:])]
-        return make_let(fresh_vars[:], fresh_rhss[:], fresh_body)
+        if fresh_vars:
+            fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
+            return Let(fresh_vars[:], fresh_rhss[:], fresh_body)
+        else:
+            return self
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
@@ -504,17 +510,18 @@ class SetBang(AST):
         return "(set! %s %s)"%(self.var.sym.value, self.rhs)
 
 class If(AST):
-    _immutable_fields_ = ["tst", "thn", "els"]
-    def __init__ (self, tst, thn, els):
+    _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
+    def __init__ (self, tst, thn, els, remove_env=False):
         self.tst = tst
         self.thn = thn
         self.els = els
+        self.remove_env = remove_env
     def let_convert(self):
         if self.tst.simple:
             return self
         else:
             fresh = LexicalVar.gensym("if_")
-            return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
+            return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
     def interpret(self, env, cont):
         return self.tst, env, IfCont(self, env, cont)
     def assign_convert(self, vars):
@@ -576,8 +583,6 @@ class RecLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
-    def do_anorm(self):
-        return Lambda(self.formals, self.rest, [anorm_and_bind(Begin.make(self.body))])
     def __init__ (self, formals, rest, body):
         SequencedBodyAST.__init__(self, body)
         self.formals = formals
