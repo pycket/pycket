@@ -358,7 +358,8 @@ class App(AST):
             return self
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
-                   [e.assign_convert(vars) for e in self.rands])
+                   [e.assign_convert(vars) for e in self.rands],
+                   remove_env=self.remove_env)
     def mutated_vars(self):
         x = self.rator.mutated_vars()
         for r in self.rands:
@@ -527,7 +528,8 @@ class If(AST):
     def assign_convert(self, vars):
         return If(self.tst.assign_convert(vars),
                   self.thn.assign_convert(vars),
-                  self.els.assign_convert(vars))
+                  self.els.assign_convert(vars),
+                  remove_env=self.remove_env)
     def mutated_vars(self):
         x = {}
         for b in [self.tst, self.els, self.thn]:
