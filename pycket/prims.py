@@ -159,6 +159,11 @@ def equal_loop(a,b):
         return True
     return False
 
+@expose("values", simple=False)
+def do_values(vals, env, cont):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(values.Values.make(vals), env, cont)
+
 @expose("call/cc", [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)

@@ -176,5 +176,11 @@ def test_callcc():
     run_fix ("(+ 1 (call/cc (lambda (k) (+ 5 (k 1)))))", 2)
 
 
+def test_values():
+    run_fix("(values 1)", 1)
+    run_fix("(let () (values 1 2) (values 3))", 3)
+    v = execute("(values #t #f)")
+    assert [w_true, w_false] == v._get_full_list()
+
 def test_define():
     run_top("(define x 1) x", W_Fixnum(1))

@@ -76,7 +76,7 @@ class Cont(object):
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
-        raise SchemeException("expected 1 value but got %s"%(values._get_size_list()))
+        raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
     w_val = vals._get_list(0)
     return w_val
 
