@@ -56,13 +56,13 @@ class TestLLtype(LLJitMixin):
     def test_side_exit(self):
         ast = to_ast(expand("""
 (let ()
-    (define (countdown n sub2? c)
+    (define (countdown n sub2?)
         (if (< n 0) 1
             (if sub2?
-                (c (- n 2) #f c)
-                (c (- n 1) #t c)
+                (countdown (- n 2) #f)
+                (countdown (- n 1) #t)
                 )))
-    (countdown 1000 #f countdown)
+    (countdown 1000 #f)
 )
 """))
 
