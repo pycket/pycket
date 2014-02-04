@@ -1,6 +1,6 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path)
+(require syntax/parse racket/runtime-path racket/unsafe/ops)
 (define-namespace-anchor ns)
 (define set-car! #f)
 (define set-cdr! #f)
