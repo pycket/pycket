@@ -91,7 +91,7 @@ class ToplevelEnv(Env):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
-    def lookup(self, sym):
+    def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound"%sym.value)
 
     def toplevel_lookup(self, sym):
@@ -119,21 +119,22 @@ class ConsEnv(Env):
     _immutable_fields_ = ["args", "prev"]
     @jit.unroll_safe
     def __init__ (self, args, prev, toplevel):
+        if isinstance(prev, ConsEnv):
+            assert args.prev is not None
         self.toplevel_env = toplevel
         self.args = args
         self.prev = prev
     @jit.unroll_safe
-    def lookup(self, sym, env_structure=None):
-        if env_structure is not None:
-            assert self.args is env_structure
+    def lookup(self, sym, env_structure):
+        assert self.args is env_structure
         jit.promote(self.args)
         for i, s in enumerate(self.args.elems):
             if s is sym:
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym)
-    def set(self, sym, val, env_structure=None):
+        return self.prev.lookup(sym, env_structure.prev)
+    def set(self, sym, val, env_structure):
         if env_structure is not None:
             assert self.args is env_structure
         jit.promote(self.args)
@@ -141,7 +142,7 @@ class ConsEnv(Env):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val)
+        return self.prev.set(sym, val, env_structure.prev)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 class Cont(object):
@@ -432,7 +433,7 @@ class Var(AST):
 
 class CellRef(Var):
     def assign_convert(self, vars, env_structure):
-        return self
+        return CellRef(self.sym, env_structure)
     def tostring(self):
         return "CellRef(%s)"%self.sym.value
     def _set(self, w_val, env):
@@ -502,7 +503,8 @@ class SetBang(AST):
     def interpret(self, env, cont):
         return self.rhs, env, SetBangCont(self.var, env, cont)
     def assign_convert(self, vars, env_structure):
-        return SetBang(self.var, self.rhs.assign_convert(vars, env_structure))
+        return SetBang(self.var.assign_convert(vars, env_structure),
+                       self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
         x[self.var.sym] = None
@@ -553,15 +555,17 @@ class If(AST):
 
 class RecLambda(AST):
     _immutable_fields_ = ["name", "lam"]
-    def __init__(self, name, lam):
+    def __init__(self, name, lam, env_structure):
         assert isinstance(lam, Lambda)
-        self.name= name
-        self.lam = lam
+        self.name = name
+        self.lam  = lam
+        self.env_structure = env_structure
     def assign_convert(self, vars, env_structure):
         v = vars.copy()
         if self.name in v:
             del v[self.name]
-        return RecLambda(self.name, self.lam.assign_convert(v, None)) # XXX
+        env_structure = SymList([self.name], env_structure)
+        return RecLambda(self.name, self.lam.assign_convert(v, env_structure), env_structure)
     def mutated_vars(self):
         v = self.lam.mutated_vars()
         if self.name in v:
@@ -573,14 +577,14 @@ class RecLambda(AST):
             del v[self.name]
         return v
     def interpret(self, env, cont):
-        e = ConsEnv.make([values.w_void], SymList([self.name]), env, env.toplevel_env)
+        e = ConsEnv.make([values.w_void], self.env_structure, env, env.toplevel_env)
         try:
             Vcl, e, f = self.lam.interpret(e, None)
             assert 0
         except Done, e:
             cl = e.w_val
         assert isinstance(cl, values.W_Closure)
-        cl.env.set(self.name, cl)
+        cl.env.set(self.name, cl, self.lam.frees)
         return return_value(cl, env, cont)
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
@@ -608,12 +612,13 @@ def free_vars_lambda(body, args):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees"]
-    def __init__ (self, formals, rest, args, frees, body):
+    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
+        self.enclosing_env_structure = enclosing_env_structure
     def interpret(self, env, cont):
         return return_value(values.W_Closure(self, env), env, cont)
     def assign_convert(self, vars, env_structure):
@@ -634,9 +639,9 @@ class Lambda(SequencedBodyAST):
             sub_env_structure = self.args
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         if new_lets:
-            cells = [Cell(LexicalVar(v)) for v in new_lets]
+            cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body)
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -719,7 +724,7 @@ def make_letrec(vars, rhss, body):
             if isinstance(rhss[0], Lambda):
                 b = body[0]
                 if isinstance(b, LexicalVar) and vars[0] is b.sym:
-                    return RecLambda(vars[0], rhss[0])
+                    return RecLambda(vars[0], rhss[0], SymList([vars[0]]))
     return Letrec(SymList(vars), rhss, body)
 
 class Let(SequencedBodyAST):
