@@ -150,6 +150,7 @@ class Cont(object):
             return "%s()"%(self.__class__.__name__)
 
 class IfCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
         self.ast = ast
         self.env = env
@@ -157,17 +158,18 @@ class IfCont(Cont):
     def plug_reduce(self, w_val):
         # remove the env created by the let introduced by let_convert
         # it's no longer needed nor accessible
-        env = self.env
-        assert env._get_size_list() == 1
-        assert isinstance(env, ConsEnv)
-        env = env.prev
+        # env = self.env
+        # assert env._get_size_list() == 1
+        # assert isinstance(env, ConsEnv)
+        # env = env.prev
         ast = jit.promote(self.ast)
         if w_val is values.w_false:
-            return ast.els, env, self.prev
+            return ast.els, self.env, self.prev
         else:
-            return ast.thn, env, self.prev
+            return ast.thn, self.env, self.prev
 
 class LetrecCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
         self.ast = ast
         self.i = i
@@ -186,8 +188,9 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 class LetCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
-        self.ast = ast
+        self.ast  = ast
         self.env  = env
         self.prev = prev
     def plug_reduce(self, w_val):
@@ -199,10 +202,11 @@ class LetCont(Cont):
         else:
             return (ast.rhss[self._get_size_list() + 1], self.env,
                     LetCont.make(self._get_full_list() + [w_val], ast,
-                            self.env, self.prev))
-inline_small_list(LetCont, attrname="vals_w")
+                                 self.env, self.prev))
+inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 class CellCont(Cont):
+    _immutable_fields_ = ["env", "prev"]
     def __init__(self, env, prev):
         self.env = env
         self.prev = prev
@@ -210,6 +214,7 @@ class CellCont(Cont):
         return return_value(values.W_Cell(w_val), self.env, self.prev)
 
 class Call(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
     # prev is the parent continuation
     def __init__ (self, ast, env, prev):
         self.ast = ast
@@ -230,9 +235,10 @@ class Call(Cont):
         else:
             return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
                                                           self.env, self.prev)
-inline_small_list(Call, attrname="vals_w")
+inline_small_list(Call, attrname="vals_w", immutable=True)
 
 class SetBangCont(Cont):
+    _immutable_fields_ = ["var", "env", "prev"]
     def __init__(self, var, env, prev):
         self.var = var
         self.env = env
@@ -242,6 +248,7 @@ class SetBangCont(Cont):
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
         self.ast = ast
         self.i = i
@@ -259,6 +266,8 @@ class AST(object):
     _settled_ = True
 
     should_enter = False
+
+    simple = False
 
     def let_convert(self):
         return self
@@ -278,6 +287,7 @@ def return_value(w_val, env, cont):
     return cont.plug_reduce(w_val)
 
 class Cell(AST):
+    _immutable_fields_ = ["expr"]
     def __init__(self, expr):
         self.expr = expr
     def interpret(self, env, cont):
@@ -295,6 +305,7 @@ class Cell(AST):
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
+    simple = True
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret(self, env, cont):
@@ -315,17 +326,30 @@ class App(AST):
         self.rator = rator
         self.rands = rands
     def let_convert(self):
-        # Generate fresh symbols and variables for the operator and operands
-        fresh_rator = LexicalVar.gensym("AppRator_")
-        fresh_rator_var = LexicalVar(fresh_rator)
-        fresh_rands = [LexicalVar.gensym("AppRand%s_"%i) for i, _ in enumerate(self.rands)]
-        fresh_rands_vars = [LexicalVar(fresh) for fresh in fresh_rands]
-        # Create a Let binding the fresh symbols to the original values
-        fresh_vars = [fresh_rator] + fresh_rands
-        fresh_rhss = [self.rator] + self.rands
+        fresh_vars = []
+        fresh_rhss = []
+        new_rator = self.rator
+        new_rands = []
+
+        if not(self.rator.simple):
+            fresh_rator = LexicalVar.gensym("AppRator_")
+            fresh_rator_var = LexicalVar(fresh_rator)
+            fresh_rhss += [self.rator]
+            fresh_vars += fresh_rator
+            new_rator = fresh_rator_var
+
+        for i, rand in enumerate(self.rands):
+            if rand.simple:
+                new_rands += [rand]
+            else:
+                fresh_rand = LexicalVar.gensym("AppRand%s_"%i)
+                fresh_rand_var = LexicalVar(fresh_rand)
+                fresh_rhss += [rand]
+                fresh_vars += [fresh_rand]
+                new_rands += [fresh_rand_var]
         # The body is an App operating on the freshly bound symbols
-        fresh_body = [App(fresh_rator_var, fresh_rands_vars)]
-        return Let(fresh_vars, fresh_rhss, fresh_body)
+        fresh_body = [App(new_rator, new_rands)]
+        return make_let(fresh_vars, fresh_rhss, fresh_body)
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
@@ -384,6 +408,7 @@ class Begin(SequencedBodyAST):
 
 class Var(AST):
     _immutable_fields_ = ["sym"]
+    simple = True
     def __init__ (self, sym):
         self.sym = sym
     def interpret(self, env, cont):
@@ -485,8 +510,11 @@ class If(AST):
         self.thn = thn
         self.els = els
     def let_convert(self):
-        fresh = LexicalVar.gensym("if_")
-        return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
+        if self.tst.simple:
+            return self
+        else:
+            fresh = LexicalVar.gensym("if_")
+            return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els)])
     def interpret(self, env, cont):
         return self.tst, env, IfCont(self, env, cont)
     def assign_convert(self, vars):
@@ -738,6 +766,8 @@ driver = jit.JitDriver(reds=["env", "cont"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
+    import pdb
+    #pdb.set_trace()
     cont = None
     if not env:
         env = EmptyEnv(ToplevelEnv())
