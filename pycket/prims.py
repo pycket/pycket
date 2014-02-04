@@ -441,30 +441,30 @@ def unsafe_fleq(args):
 @expose("unsafe-vector-ref")
 def unsafe_vector_ref(args):
     v, i = args
-    assert isinstance(v, values.W_Vector)
+    assert isinstance(v, values_vector.W_Vector)
     assert isinstance(i, values.W_Fixnum)
     return v.ref(i.value)
 
 @expose("unsafe-vector*-ref")
 def unsafe_vector_star_ref(args):
     v, i = args
-    assert isinstance(v, values.W_Vector)
+    assert isinstance(v, values_vector.W_Vector)
     assert isinstance(i, values.W_Fixnum)
     return v.ref(i.value)
 
 # FIXME: Chaperones
-@expose("unsafe-vector-set")
+@expose("unsafe-vector-set!")
 def unsafe_vector_set(args):
-    v, i = args
-    assert isinstance(v, values.W_Vector)
+    v, i, new = args
+    assert isinstance(v, values_vector.W_Vector)
     assert isinstance(i, values.W_Fixnum)
     assert isinstance(new, values.W_Object)
-    return v.set(i.value)
+    return v.set(i.value, new)
 
-@expose("unsafe-vector*-set")
+@expose("unsafe-vector*-set!")
 def unsafe_vector_star_set(args):
     v, i, new = args
-    assert isinstance(v, values.W_Vector)
+    assert isinstance(v, values_vector.W_Vector)
     assert isinstance(i, values.W_Fixnum)
     assert isinstance(new, values.W_Object)
     return v.set(i.value, new)
@@ -473,13 +473,13 @@ def unsafe_vector_star_set(args):
 @expose("unsafe-vector-length")
 def unsafe_vector_length(args):
     v, = args
-    assert isinstance(v, values.W_Vector)
+    assert isinstance(v, values_vector.W_Vector)
     return values.W_Fixnum(v.length())
 
 @expose("unsafe-vector*-length")
 def unsafe_vector_star_length(args):
     v, = args
-    assert isinstance(v, values.W_Vector)
+    assert isinstance(v, values_vector.W_Vector)
     return values.W_Fixnum(v.length())
 
     
