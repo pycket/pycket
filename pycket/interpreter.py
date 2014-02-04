@@ -226,11 +226,11 @@ class Call(Cont):
             vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
             env = self.env
-            assert isinstance(env, ConsEnv)
-            assert len(vals_w) == len(ast.rands) + 1
+            #assert isinstance(env, ConsEnv)
+            #assert len(vals_w) == len(ast.rands) + 1
             # remove the env created by the let introduced by let_convert
             # it's no longer needed nor accessible
-            env = env.prev
+            #env = env.prev
             return vals_w[0].call(vals_w[1:], env, self.prev)
         else:
             return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
@@ -334,22 +334,22 @@ class App(AST):
         if not(self.rator.simple):
             fresh_rator = LexicalVar.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
-            fresh_rhss += [self.rator]
-            fresh_vars += fresh_rator
+            fresh_rhss.append(self.rator)
+            fresh_vars.append(fresh_rator)
             new_rator = fresh_rator_var
 
         for i, rand in enumerate(self.rands):
             if rand.simple:
-                new_rands += [rand]
+                new_rands.append(rand)
             else:
                 fresh_rand = LexicalVar.gensym("AppRand%s_"%i)
                 fresh_rand_var = LexicalVar(fresh_rand)
-                fresh_rhss += [rand]
-                fresh_vars += [fresh_rand]
-                new_rands += [fresh_rand_var]
+                fresh_rhss.append(rand)
+                fresh_vars.append(fresh_rand)
+                new_rands.append(fresh_rand_var)
         # The body is an App operating on the freshly bound symbols
-        fresh_body = [App(new_rator, new_rands)]
-        return make_let(fresh_vars, fresh_rhss, fresh_body)
+        fresh_body = [App(new_rator, new_rands[:])]
+        return make_let(fresh_vars[:], fresh_rhss[:], fresh_body)
     def assign_convert(self, vars):
         return App(self.rator.assign_convert(vars),
                    [e.assign_convert(vars) for e in self.rands])
