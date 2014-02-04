@@ -166,10 +166,10 @@ class W_Closure(W_Procedure):
     _immutable_fields_ = ["lam", "env"]
     @jit.unroll_safe
     def __init__ (self, lam, env):
-        from pycket.interpreter import ConsEnv, EmptyEnv
+        from pycket.interpreter import ConsEnv
         self.lam = lam
         vals = [env.lookup(i) for i in lam.frees.elems]
-        self.env = ConsEnv.make(vals, lam.frees, EmptyEnv(env.toplevel_env), env.toplevel_env)
+        self.env = ConsEnv.make(vals, lam.frees, env.toplevel_env, env.toplevel_env)
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
         lam = jit.promote(self.lam)

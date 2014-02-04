@@ -85,12 +85,16 @@ class Env(object):
 class Version(object):
     pass
 
-class ToplevelEnv(object):
+class ToplevelEnv(Env):
     _immutable_fields_ = ["version?"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
+        self.toplevel_env = self # bit silly
     def lookup(self, sym):
+        raise SchemeException("variable %s is unbound"%sym.value)
+
+    def toplevel_lookup(self, sym):
         jit.promote(self)
         w_res = self._lookup(sym, jit.promote(self.version))
         if isinstance(w_res, values.W_Cell):
@@ -104,18 +108,12 @@ class ToplevelEnv(object):
         except KeyError:
             raise SchemeException("toplevel variable %s not found" % sym.value)
 
-    def set(self, sym, w_val):
+    def toplevel_set(self, sym, w_val):
         if sym in self.bindings:
             self.bindings[sym].value = w_val
         else:
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
-
-class EmptyEnv(Env):
-    def __init__ (self, toplevel):
-        self.toplevel_env = toplevel
-    def lookup(self, sym):
-        raise SchemeException("variable %s is unbound"%sym.value)
 
 class ConsEnv(Env):
     _immutable_fields_ = ["args", "prev"]
@@ -477,12 +475,12 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     def _lookup(self, env):
-        return env.toplevel_env.lookup(self.sym)
+        return env.toplevel_env.toplevel_lookup(self.sym)
     def free_vars(self): return {}
     def assign_convert(self, vars):
         return self
     def _set(self, w_val, env):
-        env.toplevel_env.set(self.sym, w_val)
+        env.toplevel_env.toplevel_set(self.sym, w_val)
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]"]
@@ -777,7 +775,7 @@ def interpret_one(ast, env=None):
     #pdb.set_trace()
     cont = None
     if not env:
-        env = EmptyEnv(ToplevelEnv())
+        env = ToplevelEnv()
     try:
         while True:
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
@@ -794,14 +792,14 @@ def interpret_toplevel(a, env):
             x = interpret_toplevel(a2, env)
         return x
     elif isinstance(a, Define):
-        env.toplevel_env.set(a.name, interpret_one(a.rhs, env))
+        env.toplevel_env.toplevel_set(a.name, interpret_one(a.rhs, env))
         return values.w_void
     else:
         return interpret_one(a, env)
     
 
 def interpret(asts):
-    env = EmptyEnv(ToplevelEnv())
+    env = ToplevelEnv()
     x = None
     for a in asts:
         x = interpret_toplevel(a, env)
