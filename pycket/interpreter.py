@@ -88,7 +88,7 @@ class CWVCont(Cont):
         self.env = env
     def plug_reduce (self, vals):
         val_list = vals._get_full_list()
-        self.consumer.call(val_list, self.env, self.prev)
+        return self.consumer.call(val_list, self.env, self.prev)
 
 class IfCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
