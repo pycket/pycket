@@ -40,10 +40,10 @@ class TestLLtype(LLJitMixin):
 
     def test_countdown_nested(self):
         ast = to_ast(expand("""
-(let ()
+(let ([sub 1])
   (define (nested n)
-    (let countdown ([n n]) (if (< n 0) 1 (countdown (- n 1))))
-    (if (< n 0) 1 (nested (- n 1))))
+    (let countdown ([n n]) (if (< n 0) 1 (countdown (- n sub))))
+    (if (< n 0) 1 (nested (- n sub))))
   (nested 10))
 """))
         def interp_w():
