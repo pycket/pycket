@@ -167,6 +167,14 @@ class AST(object):
     def free_vars(self):
         return {}
     def assign_convert(self, vars, env_structure):
+        """ make a copy of the AST that converts all writable variables into
+        using cells. In addition, compute the state of the environment for
+        every AST node that needs to know.
+
+        The vars argument contains the variables that need to use cells.
+        The env_structure is an instance of SymList (or None) describing the
+        environment at that AST node.
+        """
         raise NotImplementedError("abstract base class")
     def mutated_vars(self):
         raise NotImplementedError("abstract base class")
@@ -649,8 +657,7 @@ def make_letrec(vars, rhss, body):
     return Letrec(SymList(vars), rhss, body)
 
 class Let(SequencedBodyAST):
-    # Not sure why, but rpython keeps telling me that vars is resized...
-    _immutable_fields_ = ["vars[*]", "rhss[*]", "args"]
+    _immutable_fields_ = ["rhss[*]", "args"]
     def __init__(self, args, rhss, body):
         SequencedBodyAST.__init__(self, body)
         assert len(args.elems) > 0 # otherwise just use a begin
