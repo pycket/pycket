@@ -58,6 +58,7 @@ class ConsEnv(Env):
                 assert v is not None
                 return v
         return self.prev.lookup(sym, args.prev)
+    @jit.unroll_safe
     def set(self, sym, val, env_structure):
         args = jit.promote(env_structure)
         for i, s in enumerate(args.elems):
