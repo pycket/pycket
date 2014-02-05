@@ -157,7 +157,7 @@ class AST(object):
     simple = False
 
     def interpret(self, env, cont):
-        # default implementation for simple predicates
+        # default implementation for simple AST forms
         assert self.simple
         return return_value(self.interpret_simple(env), env, cont)
     def interpret_simple(self, env):
@@ -465,8 +465,6 @@ class If(AST):
         return If(self.tst.assign_convert(vars, env_structure),
                   self.thn.assign_convert(vars, sub_env_structure),
                   self.els.assign_convert(vars, sub_env_structure),
-
-
                   remove_env=self.remove_env)
     def mutated_vars(self):
         x = {}
