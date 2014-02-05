@@ -43,17 +43,13 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["args", "prev"]
+    _immutable_fields_ = ["prev", "toplevel_env"]
     @jit.unroll_safe
-    def __init__ (self, args, prev, toplevel):
-        if isinstance(prev, ConsEnv):
-            assert args.prev is not None
+    def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
-        self.args = args
         self.prev = prev
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
-        assert self.args is env_structure
         args = jit.promote(env_structure)
         for i, s in enumerate(args.elems):
             if s is sym:
@@ -62,8 +58,6 @@ class ConsEnv(Env):
                 return v
         return self.prev.lookup(sym, args.prev)
     def set(self, sym, val, env_structure):
-        if env_structure is not None:
-            assert self.args is env_structure
         args = jit.promote(env_structure)
         for i, s in enumerate(args.elems):
             if s is sym:
@@ -147,7 +141,7 @@ class LetCont(Cont):
         ast = jit.promote(self.ast)
         if self._get_size_list() == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + [w_val]
-            env = ConsEnv.make(vals_w, ast.args, self.env, self.env.toplevel_env)
+            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[self._get_size_list() + 1], self.env,
@@ -530,7 +524,7 @@ class RecLambda(AST):
             del v[self.name]
         return v
     def interpret(self, env, cont):
-        e = ConsEnv.make([values.w_void], self.env_structure, env, env.toplevel_env)
+        e = ConsEnv.make([values.w_void], env, env.toplevel_env)
         try:
             Vcl, e, f = self.lam.interpret(e, None)
             assert 0
@@ -623,7 +617,7 @@ class Letrec(SequencedBodyAST):
         self.rhss = rhss
         self.args = args
     def interpret(self, env, cont):
-        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], self.args, env, env.toplevel_env)
+        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
     def mutated_vars(self):
         x = {}
