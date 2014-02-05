@@ -229,7 +229,6 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
-        self.should_enter = not isinstance(rator, ModuleVar)
 
     def let_convert(self):
         fresh_vars = []
@@ -544,6 +543,7 @@ class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure"]
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         SequencedBodyAST.__init__(self, body)
+        body[0].should_enter = True
         self.formals = formals
         self.rest = rest
         self.args = args
