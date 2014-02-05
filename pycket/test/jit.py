@@ -38,6 +38,23 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_countdown_nested(self):
+        ast = to_ast(expand("""
+(let ()
+  (define (nested n)
+    (let countdown ([n n]) (if (< n 0) 1 (countdown (- n 1))))
+    (if (< n 0) 1 (nested (- n 1))))
+  (nested 10))
+"""))
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_countdown_loop(self):
         ast = to_ast(expand("""
