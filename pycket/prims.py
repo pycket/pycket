@@ -383,7 +383,7 @@ def write(s):
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock())
+    return values.W_Flonum(time.clock()/1000)
 
 
 # ____________________________________________________________
