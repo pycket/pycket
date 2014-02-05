@@ -4,19 +4,22 @@
 
 (define vec (make-vector SIZE))
 
+(define SIZE-1 (- SIZE 1))
+
+(define (inner-loop swapped? i vec l)
+  (if (= i SIZE-1)
+      swapped?
+      (let ([a (vector-ref vec i)]
+            [b (vector-ref vec (+ 1 i))])
+        (if (> a b)
+            (begin
+              (vector-set! vec i b)
+              (vector-set! vec (+ 1 i) a)
+              (l #t (+ i 1) vec l))
+            (l swapped? (+ 1 i) vec l)))))
+
 (define (bubble-sort vec)
-  (define SIZE-1 (- SIZE 1))
-  (if (let loop ([swapped? #f] [i 0] [vec vec])
-        (if (= i SIZE-1)
-            swapped?
-            (let ([a (vector-ref vec i)]
-                  [b (vector-ref vec (+ 1 i))])
-              (if (> a b)
-                  (begin
-                    (vector-set! vec i b)
-                    (vector-set! vec (+ 1 i) a)
-                    (loop #t (+ i 1) vec))
-                  (loop swapped? (+ 1 i) vec)))))
+  (if (inner-loop #f 0 vec inner-loop)
       (bubble-sort vec)
       #f))
 (let loop ([i 0])
