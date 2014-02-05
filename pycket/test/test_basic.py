@@ -191,6 +191,11 @@ def test_values():
     run_fix("(call-with-values (lambda () (values 1)) (lambda (x) x))", 1)
     run_fix("(call-with-values (lambda () (values 1)) values)", 1)
     run_fix("(call-with-values (lambda () 1) values)", 1)
+    run_fix("""
+(call-with-values (lambda () (time-apply (lambda () (+ 1 2))))
+                  (lambda (result t r gc) (and (fixnum? t) (fixnum? r) (fixnum? gc)
+                                               (car result))))
+""", 3)
 
 def test_define():
     run_top("(define x 1) x", W_Fixnum(1))

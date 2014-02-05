@@ -207,7 +207,6 @@ def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
     return return_multi_vals(values.Values.make(vals), env, cont)
 
-
 @continuation
 def call_consumer(consumer, env, cont, vals):
     return consumer.call(vals._get_full_list(), env, cont)
@@ -217,10 +216,23 @@ def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
     return producer.call([], env, call_consumer(consumer, env, cont))
 
+@continuation
+def time_apply_cont(initial, env, cont, vals):
+    from pycket.interpreter import return_multi_vals
+    final = time.clock()
+    ms = values.W_Fixnum(int((final - initial) / 1000))
+    vals_l = vals._get_full_list()
+    results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
+    return return_multi_vals(results, env, cont)
 
 @expose("call/cc", [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
+
+@expose("time-apply", [values.W_Procedure], simple=False)
+def time_apply(a, env, cont):
+    initial = time.clock()
+    return a.call([], env, time_apply_cont(initial, env, cont))
 
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):
