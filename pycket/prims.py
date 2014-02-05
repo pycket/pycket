@@ -126,6 +126,8 @@ def make_pred_eq(name, val):
 for args in [
         ("pair?", values.W_Cons),
         ("number?", values.W_Number),
+        ("fixnum?", values.W_Fixnum),
+        ("flonum?", values.W_Flonum),
         ("vector?", values_vector.W_Vector),
         ("string?", values.W_String),
         ("symbol?", values.W_Symbol),
