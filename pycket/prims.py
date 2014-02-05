@@ -2,6 +2,7 @@ import operator
 import os
 import time
 from pycket import values
+from pycket.cont import Cont
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
@@ -64,6 +65,27 @@ def expose(name, argstypes=None, simple=True):
         prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func)
         return wrap_func
     return wrapper
+
+
+def continuation(func):
+    """ workaround for the lack of closures in RPython. use to decorate a
+    function that is supposed to be usable as a continuation. When the
+    continuation triggers, the original function is called with one extra
+    argument, the computed vals. """
+
+    class PrimCont(Cont):
+        def __init__(self, args):
+            self.args = args
+
+        def plug_reduce(self, vals):
+            args = self.args + (vals, )
+            return func(*args)
+    PrimCont.__name__ = func.func_name + "PrimCont"
+    def make_continuation(*args):
+        return PrimCont(args)
+    make_continuation.func_name = func.func_name + "_make_continuation"
+    return make_continuation
+
 
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
@@ -183,17 +205,16 @@ def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
     return return_multi_vals(values.Values.make(vals), env, cont)
 
+
+@continuation
+def call_consumer(consumer, env, cont, vals):
+    return consumer.call(vals._get_full_list(), env, cont)
+
 @expose("call-with-values", [values.W_Procedure] * 2, simple=False)
 def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
-    from pycket.interpreter import CWVCont
-    # FIXME: I want to write:
-    #  def plug(vals):
-    #    val_list = vals._get_full_list()
-    #    consumer.call(val_list, env, cont)
-    #  producer.call([], env, GenericCont(plug))
-    return producer.call([], env, CWVCont(consumer, env, cont))
-    
+    return producer.call([], env, call_consumer(consumer, env, cont))
+
 
 @expose("call/cc", [values.W_Procedure], simple=False)
 def callcc(a, env, cont):

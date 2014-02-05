@@ -1,9 +1,10 @@
 from pycket        import values
 from pycket        import vector
 from pycket.prims  import prim_env
-from pycket.error import SchemeException
+from pycket.error  import SchemeException
+from pycket.cont   import Cont
 from rpython.rlib  import jit, debug
-from small_list import *
+from small_list    import inline_small_list
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
@@ -66,13 +67,6 @@ class ConsEnv(Env):
                 return
         return self.prev.set(sym, val)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
-
-class Cont(object):
-    def tostring(self):
-        if self.prev:
-            return "%s(%s)"%(self.__class__.__name__,self.prev.tostring())
-        else:
-            return "%s()"%(self.__class__.__name__)
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
