@@ -67,6 +67,7 @@ class W_Fixnum(W_Number):
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
+    errorname = "flonum"
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
