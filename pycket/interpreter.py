@@ -74,27 +74,6 @@ def check_one_val(vals):
     w_val = vals._get_list(0)
     return w_val
 
-class IfCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
-    def __init__(self, ast, env, prev):
-        self.ast = ast
-        self.env = env
-        self.prev = prev
-    def plug_reduce(self, vals):
-        ast = jit.promote(self.ast)
-        env = self.env
-        if ast.remove_env:
-            # remove the env created by the let introduced by let_convert
-            # it's no longer needed nor accessible
-            assert env._get_size_list() == 1
-            assert isinstance(env, ConsEnv)
-            env = env.prev
-        w_val = check_one_val(vals)
-        if w_val is values.w_false:
-            return ast.els, env, self.prev
-        else:
-            return ast.thn, env, self.prev
-
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
@@ -202,6 +181,13 @@ class AST(object):
 
     simple = False
 
+    def interpret(self, env, cont):
+        # default implementation for simple predicates
+        assert self.simple
+        return return_value(self.interpret_simple(env), env, cont)
+    def interpret_simple(self, env):
+        raise NotImplementedError("abstract base class")
+
     def let_convert(self):
         return self
     def free_vars(self):
@@ -209,8 +195,6 @@ class AST(object):
     def assign_convert(self, vars):
         raise NotImplementedError("abstract base class")
     def mutated_vars(self):
-        raise NotImplementedError("abstract base class")
-    def interpret(self, env, cont):
         raise NotImplementedError("abstract base class")
     def tostring(self):
         raise NotImplementedError("abstract base class")
@@ -245,8 +229,8 @@ class Quote(AST):
     simple = True
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret(self, env, cont):
-        return return_value(self.w_val, env, cont)
+    def interpret_simple(self, env):
+        return self.w_val
     def assign_convert(self, vars):
         return self
     def mutated_vars(self):
@@ -353,8 +337,8 @@ class Var(AST):
     simple = True
     def __init__ (self, sym):
         self.sym = sym
-    def interpret(self, env, cont):
-        return return_value(self._lookup(env), env, cont)
+    def interpret_simple(self, env):
+        return self._lookup(env)
     def mutated_vars(self):
         return {}
     def free_vars(self):
@@ -458,8 +442,20 @@ class If(AST):
         else:
             fresh = LexicalVar.gensym("if_")
             return Let([fresh], [self.tst], [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+
     def interpret(self, env, cont):
-        return self.tst, env, IfCont(self, env, cont)
+        w_val = self.tst.interpret_simple(env)
+        if self.remove_env:
+            # remove the env created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            assert env._get_size_list() == 1
+            assert isinstance(env, ConsEnv)
+            env = env.prev
+        if w_val is values.w_false:
+            return self.els, env, cont
+        else:
+            return self.thn, env, cont
+
     def assign_convert(self, vars):
         return If(self.tst.assign_convert(vars),
                   self.thn.assign_convert(vars),
