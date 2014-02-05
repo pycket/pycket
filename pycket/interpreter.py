@@ -210,10 +210,11 @@ class Done(Exception):
         self.values = vals
 
 class AST(object):
-    _attrs_ = []
+    _attrs_ = ["should_enter"]
+    _immutable_fields_ = ["should_enter"]
     _settled_ = True
 
-    should_enter = False
+    should_enter = False # default value
 
     simple = False
 
@@ -272,12 +273,13 @@ class Quote(AST):
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
-    should_enter = True
 
     def __init__ (self, rator, rands, remove_env=False):
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
+        self.should_enter = not isinstance(rator, ModuleVar)
+
     def let_convert(self):
         fresh_vars = []
         fresh_rhss = []
