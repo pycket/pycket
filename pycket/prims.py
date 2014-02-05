@@ -143,6 +143,42 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+@expose("integer?", [values.W_Object])
+def integerp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum) or
+                              isinstance(n, values.W_Flonum) and
+                              floor(n.value) == n.value)
+
+@expose("exact-integer?", [values.W_Object])
+def exact_integerp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum))
+
+@expose("real?", [values.W_Object])
+def realp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum) or
+                              isinstance(n, values.W_Flonum))
+
+@expose("rational?", [values.W_Object])
+def rationalp(n):
+    if isinstance(n, values.W_Fixnum) or isinstance(n, values.W_Bignum):
+        return values.w_true
+    if isinstance(n, values.W_Flonum):
+        v = n.value
+        return values.W_Bool.make(not(math.isnan(v) or math.isinf(v)))
+
+@expose("exact?", [values.W_Object])
+def exactp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum))
+
+@expose("inexact?", [values.W_Object])
+def inexactp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+    
+
 def make_arith(name, zero, methname):
     @expose(name, simple=True)
     @jit.unroll_safe
