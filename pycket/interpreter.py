@@ -1,9 +1,10 @@
 from pycket        import values
 from pycket        import vector
 from pycket.prims  import prim_env
-from pycket.error import SchemeException
+from pycket.error  import SchemeException
+from pycket.cont   import Cont
 from rpython.rlib  import jit, debug
-from small_list import *
+from small_list    import inline_small_list
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
@@ -66,49 +67,11 @@ class ConsEnv(Env):
         return self.prev.set(sym, val, args.prev)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
-class Cont(object):
-    def tostring(self):
-        if self.prev:
-            return "%s(%s)"%(self.__class__.__name__,self.prev.tostring())
-        else:
-            return "%s()"%(self.__class__.__name__)
-
 def check_one_val(vals):
     if vals._get_size_list() != 1:
         raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
     w_val = vals._get_list(0)
     return w_val
-
-class CWVCont(Cont):
-    _immutable_fields_ = ["consumer", "env", "prev"] # env is pointless
-    def __init__(self, consumer, env, prev):
-        self.consumer = consumer
-        self.prev = prev
-        self.env = env
-    def plug_reduce (self, vals):
-        val_list = vals._get_full_list()
-        return self.consumer.call(val_list, self.env, self.prev)
-
-class IfCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
-    def __init__(self, ast, env, prev):
-        self.ast = ast
-        self.env = env
-        self.prev = prev
-    def plug_reduce(self, vals):
-        ast = jit.promote(self.ast)
-        env = self.env
-        if ast.remove_env:
-            # remove the env created by the let introduced by let_convert
-            # it's no longer needed nor accessible
-            assert env._get_size_list() == 1
-            assert isinstance(env, ConsEnv)
-            env = env.prev
-        w_val = check_one_val(vals)
-        if w_val is values.w_false:
-            return ast.els, env, self.prev
-        else:
-            return ast.thn, env, self.prev
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
@@ -158,32 +121,6 @@ class CellCont(Cont):
         w_val = check_one_val(vals)
         return return_value(values.W_Cell(w_val), self.env, self.prev)
 
-class Call(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
-    # prev is the parent continuation
-    def __init__ (self, ast, env, prev):
-        self.ast = ast
-        self.env = env
-        self.prev = prev
-    def plug_reduce(self, vals):
-        ast = jit.promote(self.ast)
-        w_val = check_one_val(vals)
-        if self._get_size_list() == len(ast.rands):
-            vals_w = self._get_full_list() + [w_val]
-            #print vals_w[0]
-            env = self.env
-            if ast.remove_env:
-                # remove the env created by the let introduced by let_convert
-                # it's no longer needed nor accessible
-                assert isinstance(env, ConsEnv)
-                assert len(vals_w) == len(ast.rands) + 1
-                env = env.prev
-            return vals_w[0].call(vals_w[1:], env, self.prev)
-        else:
-            return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
-                                                          self.env, self.prev)
-inline_small_list(Call, attrname="vals_w", immutable=True)
-
 class SetBangCont(Cont):
     _immutable_fields_ = ["var", "env", "prev"]
     def __init__(self, var, env, prev):
@@ -218,6 +155,13 @@ class AST(object):
 
     simple = False
 
+    def interpret(self, env, cont):
+        # default implementation for simple predicates
+        assert self.simple
+        return return_value(self.interpret_simple(env), env, cont)
+    def interpret_simple(self, env):
+        raise NotImplementedError("abstract base class")
+
     def let_convert(self):
         return self
     def free_vars(self):
@@ -225,8 +169,6 @@ class AST(object):
     def assign_convert(self, vars, env_structure):
         raise NotImplementedError("abstract base class")
     def mutated_vars(self):
-        raise NotImplementedError("abstract base class")
-    def interpret(self, env, cont):
         raise NotImplementedError("abstract base class")
     def tostring(self):
         raise NotImplementedError("abstract base class")
@@ -261,8 +203,8 @@ class Quote(AST):
     simple = True
     def __init__ (self, w_val):
         self.w_val = w_val
-    def interpret(self, env, cont):
-        return return_value(self.w_val, env, cont)
+    def interpret_simple(self, env):
+        return self.w_val
     def assign_convert(self, vars, env_structure):
         return self
     def mutated_vars(self):
@@ -322,8 +264,23 @@ class App(AST):
         for r in self.rands:
             x.update(r.free_vars())
         return x
+
+    @jit.unroll_safe
     def interpret(self, env, cont):
-        return self.rator, env, Call.make([], self, env, cont)
+        w_callable = self.rator.interpret_simple(env)
+        args_w = [rand.interpret_simple(env) for rand in self.rands]
+        if self.remove_env:
+            # remove the env created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            # this whole stuff about the env seems useless in the App case,
+            # because the callable will just ignore the passed in env. However,
+            # we have a speculation in place in W_Procedure that checks whether
+            # the closed over env is the same as the passed in one, which
+            # breaks otherwise
+            assert isinstance(env, ConsEnv)
+            env = env.prev
+        return w_callable.call(args_w, env, cont)
+
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
@@ -371,8 +328,8 @@ class Var(AST):
     def __init__ (self, sym, env_structure=None):
         self.sym = sym
         self.env_structure = env_structure
-    def interpret(self, env, cont):
-        return return_value(self._lookup(env), env, cont)
+    def interpret_simple(self, env):
+        return self._lookup(env)
     def mutated_vars(self):
         return {}
     def free_vars(self):
@@ -478,8 +435,20 @@ class If(AST):
         else:
             fresh = LexicalVar.gensym("if_")
             return Let(SymList([fresh]), [self.tst], [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+
     def interpret(self, env, cont):
-        return self.tst, env, IfCont(self, env, cont)
+        w_val = self.tst.interpret_simple(env)
+        if self.remove_env:
+            # remove the env created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            assert env._get_size_list() == 1
+            assert isinstance(env, ConsEnv)
+            env = env.prev
+        if w_val is values.w_false:
+            return self.els, env, cont
+        else:
+            return self.thn, env, cont
+
     def assign_convert(self, vars, env_structure):
         if self.remove_env:
             sub_env_structure = env_structure.prev
@@ -488,6 +457,8 @@ class If(AST):
         return If(self.tst.assign_convert(vars, env_structure),
                   self.thn.assign_convert(vars, sub_env_structure),
                   self.els.assign_convert(vars, sub_env_structure),
+
+
                   remove_env=self.remove_env)
     def mutated_vars(self):
         x = {}
