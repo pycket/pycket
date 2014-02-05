@@ -75,7 +75,7 @@ def parse_ast(json_string):
 
 def to_ast(json):
     ast = _to_ast(json)
-    return ast.assign_convert({})
+    return ast.assign_convert({}, None)
 
 
 #### ========================== Implementation functions
@@ -142,7 +142,7 @@ def _to_ast(json):
                 return Quote(to_value(arr[1]))
             if ast_elem == "lambda":
                 fmls, rest = to_formals(arr[1])
-                return Lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
+                return make_lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
             if ast_elem == "letrec-values":
                 body = [_to_ast(x) for x in arr[2:]]
                 if len(arr[1].value_array()) == 0:
