@@ -41,7 +41,8 @@ def expose(name, argstypes=None, simple=True):
                         if typ is not values.W_Object and not isinstance(arg, typ):
                             raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
                     else:
-                        assert type(arg) == typ
+                        assert arg is not None
+                        assert type(arg) is typ
                         jit.record_known_class(arg, typ)
                     typed_args += (arg, )
                 typed_args += rest
@@ -426,10 +427,7 @@ def unsafe_vector_ref(v, i):
     return v.ref(i.value)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
-def unsafe_vector_star_ref(args):
-    v, i = args
-    assert isinstance(v, values_vector.W_Vector)
-    assert isinstance(i, values.W_Fixnum)
+def unsafe_vector_star_ref(v, i):
     return v.ref(i.value)
 
 # FIXME: Chaperones
