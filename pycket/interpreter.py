@@ -465,6 +465,7 @@ class If(AST):
 
 class RecLambda(AST):
     _immutable_fields_ = ["name", "lam"]
+    simple = True
     def __init__(self, name, lam):
         assert isinstance(lam, Lambda)
         self.name= name
@@ -506,6 +507,7 @@ class RecLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees[*]"]
+    simple = True
     def __init__ (self, formals, rest, body):
         SequencedBodyAST.__init__(self, body)
         self.formals = formals
