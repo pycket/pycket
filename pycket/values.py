@@ -98,6 +98,9 @@ class W_Bool(W_Object):
         if b: return w_true
         else: return w_false
     def __init__(self, val):
+        """ NOT_RPYTHON """
+        # the previous line produces an error if somebody makes new bool
+        # objects from primitives
         self.value = val
     def tostring(self):
         if self.value: return "#t"
