@@ -148,7 +148,7 @@ def integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum) or
                               isinstance(n, values.W_Flonum) and
-                              floor(n.value) == n.value)
+                              math.floor(n.value) == n.value)
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
