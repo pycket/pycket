@@ -30,8 +30,9 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
-            return val.value
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
 
         assert interp_w() == 1
 
@@ -46,8 +47,9 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
-            return val.value
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
 
         assert interp_w() == 1
 
@@ -69,8 +71,9 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
-            return val.value
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
 
         assert interp_w() == 1
 
@@ -82,8 +85,9 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
-            return val.value
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
 
         assert interp_w() == 1
 
@@ -100,6 +104,15 @@ class TestLLtype(LLJitMixin):
 
     def test_bubble(self):
         fname = "bubble.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret([ast])
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_bubble_unsafe(self):
+        fname = "bubble-unsafe.sch"
         ast = parse_file(fname)
         def interp_w():
             val = interpret([ast])
@@ -157,7 +170,8 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Object)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Object)
             return 1
 
         assert interp_w() == 1
@@ -193,7 +207,8 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Object)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Object)
             return 1
 
         assert interp_w() == 1
@@ -219,7 +234,8 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
             return val.value
 
         assert interp_w() == 1
@@ -245,7 +261,8 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             val = interpret_one(ast)
-            assert isinstance(val, W_Fixnum)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
             return val.value
 
         assert interp_w() == sum(i ** 2 for i in range(1000))

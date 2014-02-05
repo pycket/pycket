@@ -3,80 +3,7 @@ from pycket        import vector
 from pycket.prims  import prim_env
 from pycket.error import SchemeException
 from rpython.rlib  import jit, debug
-
-
-def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
-    """ This function is helpful if you have a class with a field storing a
-list and the list is often very small. Calling this function will inline
-the list into instances for the small sizes. This works by adding the
-following methods to the class:
-
-_get_list(self, i): return ith element of the list
-
-_set_list(self, i, val): set ith element of the list
-
-_get_full_list(self): returns a copy of the full list
-
-@staticmethod
-make(listcontent, *args): makes a new instance with the list's content set to listcontent
-        """
-    from rpython.rlib.unroll import unrolling_iterable
-    classes = []
-    def make_methods(size):
-        attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
-        unrolling_enumerate_attrs = unrolling_iterable(enumerate(attrs))
-        def _get_size_list(self):
-            return size
-        def _get_list(self, i):
-            for j, attr in unrolling_enumerate_attrs:
-                if j == i:
-                    return getattr(self, attr)
-            raise IndexError
-        def _get_full_list(self):
-            res = [None] * size
-            for i, attr in unrolling_enumerate_attrs:
-                res[i] = getattr(self, attr)
-            return res
-        def _set_list(self, i, val):
-            for j, attr in unrolling_enumerate_attrs:
-                if j == i:
-                    return setattr(self, attr, val)
-            raise IndexError
-        def _init(self, elems, *args):
-            assert len(elems) == size
-            for i, attr in unrolling_enumerate_attrs:
-                setattr(self, attr, elems[i])
-            cls.__init__(self, *args)
-        meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
-        if immutable:
-            meths["_immutable_fields_"] = attrs
-        return meths
-    classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
-    def _get_arbitrary(self, i):
-        return getattr(self, attrname)[i]
-    def _get_size_list_arbitrary(self):
-        return len(getattr(self, attrname))
-    def _get_list_arbitrary(self):
-        return getattr(self, attrname)
-    def _set_arbitrary(self, i, val):
-        getattr(self, attrname)[i] = val
-    def _init(self, elems, *args):
-        debug.make_sure_not_resized(elems)
-        setattr(self, attrname, elems)
-        cls.__init__(self, *args)
-    meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
-    if immutable:
-        meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
-    cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
-
-    @staticmethod
-    def make(elems, *args):
-        if sizemin <= len(elems) < sizemax:
-            cls = classes[len(elems) - sizemin]
-        else:
-            cls = cls_arbitrary
-        return cls(elems, *args)
-    cls.make = make
+from small_list import *
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
@@ -152,13 +79,29 @@ class Cont(object):
         else:
             return "%s()"%(self.__class__.__name__)
 
+def check_one_val(vals):
+    if vals._get_size_list() != 1:
+        raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
+    w_val = vals._get_list(0)
+    return w_val
+
+class CWVCont(Cont):
+    _immutable_fields_ = ["consumer", "env", "prev"] # env is pointless
+    def __init__(self, consumer, env, prev):
+        self.consumer = consumer
+        self.prev = prev
+        self.env = env
+    def plug_reduce (self, vals):
+        val_list = vals._get_full_list()
+        return self.consumer.call(val_list, self.env, self.prev)
+
 class IfCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
         self.ast = ast
         self.env = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
         ast = jit.promote(self.ast)
         env = self.env
         if ast.remove_env:
@@ -167,6 +110,7 @@ class IfCont(Cont):
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
             env = env.prev
+        w_val = check_one_val(vals)
         if w_val is values.w_false:
             return ast.els, env, self.prev
         else:
@@ -179,8 +123,9 @@ class LetrecCont(Cont):
         self.i = i
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
         #import pdb; pdb.set_trace()
+        w_val = check_one_val(vals)
         v = self.env.lookup(self.ast.args.elems[self.i], self.ast.args)
         assert isinstance(v, values.W_Cell)
         v.value = w_val
@@ -197,7 +142,8 @@ class LetCont(Cont):
         self.ast  = ast
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
+        w_val = check_one_val(vals)
         ast = jit.promote(self.ast)
         if self._get_size_list() == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + [w_val]
@@ -214,7 +160,8 @@ class CellCont(Cont):
     def __init__(self, env, prev):
         self.env = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
+        w_val = check_one_val(vals)
         return return_value(values.W_Cell(w_val), self.env, self.prev)
 
 class Call(Cont):
@@ -224,8 +171,9 @@ class Call(Cont):
         self.ast = ast
         self.env = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
         ast = jit.promote(self.ast)
+        w_val = check_one_val(vals)
         if self._get_size_list() == len(ast.rands):
             vals_w = self._get_full_list() + [w_val]
             #print vals_w[0]
@@ -248,7 +196,8 @@ class SetBangCont(Cont):
         self.var = var
         self.env = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
+        w_val = check_one_val(vals)
         self.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
@@ -259,12 +208,12 @@ class BeginCont(Cont):
         self.i = i
         self.env = env
         self.prev = prev
-    def plug_reduce(self, w_val):
+    def plug_reduce(self, vals):
         return self.ast.make_begin_cont(self.env, self.prev, self.i)
 
 class Done(Exception):
-    def __init__(self, w_val):
-        self.w_val = w_val
+    def __init__(self, vals):
+        self.values = vals
 
 class AST(object):
     _attrs_ = []
@@ -288,8 +237,12 @@ class AST(object):
         raise NotImplementedError("abstract base class")
 
 def return_value(w_val, env, cont):
-    if cont is None: raise Done(w_val)
-    return cont.plug_reduce(w_val)
+    return return_multi_vals(values.Values.make([w_val]), env, cont)
+
+def return_multi_vals(vals, env, cont):
+    if cont is None: 
+        raise Done(vals)
+    return cont.plug_reduce(vals)
 
 class Cell(AST):
     _immutable_fields_ = ["expr"]
@@ -582,7 +535,8 @@ class RecLambda(AST):
             Vcl, e, f = self.lam.interpret(e, None)
             assert 0
         except Done, e:
-            cl = e.w_val
+            vals = e.values
+            cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl, self.lam.frees)
         return return_value(cl, env, cont)
@@ -778,7 +732,7 @@ class Let(SequencedBodyAST):
 
 class Define(AST):
     _immutable_fields_ = ["name", "rhs"]
-    name = ""
+    name = values.W_Symbol('fake')
     rhs = Quote(values.w_null)
 
     def __init__(self, n, r):
@@ -812,7 +766,7 @@ def interpret_one(ast, env=None):
             if ast.should_enter:
                 driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
-        return e.w_val
+        return e.values
 
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):
@@ -822,7 +776,7 @@ def interpret_toplevel(a, env):
         return x
     elif isinstance(a, Define):
         env.toplevel_env.toplevel_set(a.name, interpret_one(a.rhs, env))
-        return values.w_void
+        return values.Values.make([values.w_void])
     else:
         return interpret_one(a, env)
     
