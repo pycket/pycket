@@ -705,6 +705,9 @@ class Let(SequencedBodyAST):
 
 class Define(AST):
     _immutable_fields_ = ["name", "rhs"]
+    name = values.W_Symbol('fake')
+    rhs = Quote(values.w_null)
+
     def __init__(self, n, r):
         self.name = n
         self.rhs = r
@@ -713,8 +716,7 @@ class Define(AST):
     def mutated_vars(self): assert 0
     def free_vars(self): assert 0
     def tostring(self):
-        return "define wtf"
-#        return "(define %s %s)"%(self.name, self.rhs.tostring())
+        return "(define %s %s)"%(self.name, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:
