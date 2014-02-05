@@ -370,21 +370,21 @@ def unsafe_fxlt(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
-    return values.W_Bool(a.value < b.value)
+    return values.W_Bool.make(a.value < b.value)
 
 @expose("unsafe-fx>")
 def unsafe_fxgt(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
-    return values.W_Bool(a.value > b.value)
+    return values.W_Bool.make(a.value > b.value)
 
 @expose("unsafe-fx=")
 def unsafe_fxeq(args):
     a, b = args
     assert isinstance(a, values.W_Fixnum)
     assert isinstance(b, values.W_Fixnum)
-    return values.W_Bool(a.value == b.value)
+    return values.W_Bool.make(a.value == b.value)
 
 @expose("unsafe-fx->fl")
 def unsafe_fxfl(args):
@@ -419,21 +419,21 @@ def unsafe_fllt(args):
     a, b = args
     assert isinstance(a, values.W_Flonum)
     assert isinstance(b, values.W_Flonum)
-    return values.W_Bool(a.value < b.value)
+    return values.W_Bool.make(a.value < b.value)
 
 @expose("unsafe-fl>")
 def unsafe_flgt(args):
     a, b = args
     assert isinstance(a, values.W_Flonum)
     assert isinstance(b, values.W_Flonum)
-    return values.W_Bool(a.value > b.value)
+    return values.W_Bool.make(a.value > b.value)
 
 @expose("unsafe-fl=")
 def unsafe_fleq(args):
     a, b = args
     assert isinstance(a, values.W_Flonum)
     assert isinstance(b, values.W_Flonum)
-    return values.W_Bool(a.value == b.value)
+    return values.W_Bool.make(a.value == b.value)
 
 ## Unsafe vector ops
 
