@@ -55,7 +55,7 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_side_exit(self):
+    def test_bistable_loop(self):
         ast = to_ast(expand("""
 (let ()
     (define (countdown n sub2?)
@@ -76,6 +76,30 @@ class TestLLtype(LLJitMixin):
             return ov.value
 
         assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_side_exit(self):
+        ast = to_ast(expand("""
+(let ()
+    (define (count-positive l sum)
+        (if (null? l) sum
+            (if (> (car l) 0)
+                (count-positive (cdr l) (+ (car l) sum))
+                (count-positive (cdr l) sum)
+                )))
+    (count-positive (list -1 1 1 1 1 -1 2 3 -5 1 2 2 -5 6 4 3 -5) 0))
+
+"""))
+
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 27
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
