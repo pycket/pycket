@@ -89,6 +89,17 @@ def test_letrec():
     run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
     run_fix("(letrec ([x (lambda (z) x)]) 2)", 2)
 
+def test_reclambda():
+    run_fix("((letrec ([c (lambda (n) (if (< n 0) 1 (c (- n 1))))]) c) 10)", 1)
+    run_fix("""
+        ((letrec ([c (lambda (n) (let ([ind (lambda (n) (display n) (if (< n 0) 1 (c (- n 1))))]) (ind n)))]) c) 10)""", 1)
+    run_fix("""
+(let ()
+  (define (nested n)
+    (let countdown ([i n]) (if (< i 0) 1 (countdown (- i 1))))
+    (if (< n 0) 1 (nested (- n 1))))
+  (nested 10))""", 1)
+
 def test_let():
     run_fix("(let () 1)", 1)
     run_fix("(let ([x 1]) x)", 1)

@@ -82,7 +82,6 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
     def plug_reduce(self, vals):
-        #import pdb; pdb.set_trace()
         w_val = check_one_val(vals)
         v = self.env.lookup(self.ast.args.elems[self.i], self.ast.args)
         assert isinstance(v, values.W_Cell)
@@ -355,7 +354,6 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         v.value = w_val
     def _lookup(self, env):
-        #import pdb; pdb.set_trace()
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
         return v.value
@@ -541,14 +539,20 @@ def free_vars_lambda(body, args):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure"]
-    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
+    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
         SequencedBodyAST.__init__(self, body)
         body[0].should_enter = True
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
+        self.recursive_sym = recursive_sym
         self.enclosing_env_structure = enclosing_env_structure
+
+    def make_recursive_copy(self, sym):
+        return Lambda(self.formals, self.rest, self.args, self.frees,
+                      self.body, self.enclosing_env_structure, sym)
+
     def interpret(self, env, cont):
         return return_value(values.W_Closure(self, env), env, cont)
     def assign_convert(self, vars, env_structure):
@@ -571,7 +575,7 @@ class Lambda(SequencedBodyAST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, recursive_sym=self.recursive_sym)
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -581,7 +585,10 @@ class Lambda(SequencedBodyAST):
                 del x[v]
         return x
     def free_vars(self):
-        return free_vars_lambda(self.body, self.args)
+        result = free_vars_lambda(self.body, self.args)
+        if self.recursive_sym in result:
+            del result[self.recursive_sym]
+        return result
 
     def tostring(self):
         if self.rest and (not self.formals):
@@ -651,10 +658,11 @@ def make_let(vars, rhss, body):
 def make_letrec(vars, rhss, body):
     if (1 == len(vars)):
         if (1 == len(body)):
-            if isinstance(rhss[0], Lambda):
+            rhs = rhss[0]
+            if isinstance(rhs, Lambda):
                 b = body[0]
                 if isinstance(b, LexicalVar) and vars[0] is b.sym:
-                    return RecLambda(vars[0], rhss[0], SymList([vars[0]]))
+                    return rhs.make_recursive_copy(b.sym)
     return Letrec(SymList(vars), rhss, body)
 
 class Let(SequencedBodyAST):
