@@ -3,8 +3,8 @@ from pycket        import vector
 from pycket.prims  import prim_env
 from pycket.error  import SchemeException
 from pycket.cont   import Cont
-from rpython.rlib  import jit, debug
-from small_list    import inline_small_list
+from pycket.small_list    import inline_small_list
+from rpython.rlib  import jit, debug, objectmodel
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
@@ -140,7 +140,7 @@ class BeginCont(Cont):
         self.env = env
         self.prev = prev
     def plug_reduce(self, vals):
-        return self.ast.make_begin_cont(self.env, self.prev, self.i)
+        return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
 
 class Done(Exception):
     def __init__(self, vals):
@@ -538,7 +538,7 @@ def free_vars_lambda(body, args):
     return x
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure"]
+    _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure", "cached_closure?"]
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
         SequencedBodyAST.__init__(self, body)
         body[0].should_enter = True
@@ -548,13 +548,39 @@ class Lambda(SequencedBodyAST):
         self.frees = frees
         self.recursive_sym = recursive_sym
         self.enclosing_env_structure = enclosing_env_structure
+        self.cached_closure = None
 
     def make_recursive_copy(self, sym):
         return Lambda(self.formals, self.rest, self.args, self.frees,
                       self.body, self.enclosing_env_structure, sym)
 
     def interpret(self, env, cont):
-        return return_value(values.W_Closure(self, env), env, cont)
+        w_closure = self._make_or_retrieve_closure(env)
+        return return_value(w_closure, env, cont)
+
+    @jit.unroll_safe
+    def _make_or_retrieve_closure(self, env):
+        w_closure = values.W_Closure(self, env)
+        if self.cached_closure is values.w_null:
+            return w_closure
+        if self.cached_closure is None:
+            if not jit.we_are_jitted():
+                # only fill cache during interpretation, when JITting it should
+                # be filled anyway
+                self.cached_closure = w_closure
+            return w_closure
+        # check whether cached_closure can be used
+        cached_closure = self.cached_closure
+        assert isinstance(cached_closure, values.W_Closure)
+        cached_env = cached_closure.env
+        for i, v in enumerate(self.frees.elems):
+            if v is self.recursive_sym:
+                continue
+            elif w_closure.env._get_list(i) is not cached_env._get_list(i):
+                self.cached_closure = values.w_null
+                return w_closure
+        return cached_closure
+
     def assign_convert(self, vars, env_structure):
         local_muts = {}
         for b in self.body:
@@ -605,6 +631,7 @@ class Letrec(SequencedBodyAST):
         SequencedBodyAST.__init__(self, body)
         self.rhss = rhss
         self.args = args
+    @jit.unroll_safe
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)

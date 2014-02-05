@@ -202,6 +202,16 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
         lam = jit.promote(self.lam)
+        if lam.cached_closure is not None and lam.cached_closure is self:
+            self = lam.cached_closure
+            assert isinstance(self, W_Closure)
+            prev = self.env
+        elif isinstance(env, ConsEnv) and env.prev is self.env:
+            # specialize on the fact that often we end up executing in the same
+            # environment
+            prev = env.prev
+        else:
+            prev = self.env
         fmls_len = len(lam.formals)
         args_len = len(args)
         if fmls_len != args_len and not lam.rest:
@@ -212,12 +222,6 @@ class W_Closure(W_Procedure):
             actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:
             actuals = args
-        # specialize on the fact that often we end up executing in the same
-        # environment
-        if isinstance(env, ConsEnv) and env.prev is self.env:
-            prev = env.prev
-        else:
-            prev = self.env
         return lam.make_begin_cont(
                           ConsEnv.make(actuals, prev, self.env.toplevel_env),
                           cont)
