@@ -690,15 +690,19 @@ class Let(SequencedBodyAST):
         local_muts = {}
         for b in self.body:
             local_muts.update(b.mutated_vars())
-        new_rhss = [Cell(rhs.assign_convert(vars, env_structure))
-                    if self.args.elems[i] in local_muts
-                    else rhs.assign_convert(vars, env_structure)
-                    for i, rhs in enumerate(self.rhss)]
+        new_rhss = []
+        for i, rhs in enumerate(self.rhss):
+            new_rhs = rhs.assign_convert(vars, env_structure)
+            if self.args.elems[i] in local_muts:
+                new_rhs = Cell(new_rhs)
+            new_rhss.append(new_rhs)
+
         new_vars = vars.copy()
         new_vars.update(local_muts)
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Let(sub_env_structure, new_rhss, new_body)
+
     def tostring(self):
         return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 
                                 " ".join([b.tostring() for b in self.body]))
