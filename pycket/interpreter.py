@@ -122,32 +122,6 @@ class CellCont(Cont):
         w_val = check_one_val(vals)
         return return_value(values.W_Cell(w_val), self.env, self.prev)
 
-class Call(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
-    # prev is the parent continuation
-    def __init__ (self, ast, env, prev):
-        self.ast = ast
-        self.env = env
-        self.prev = prev
-    def plug_reduce(self, vals):
-        ast = jit.promote(self.ast)
-        w_val = check_one_val(vals)
-        if self._get_size_list() == len(ast.rands):
-            vals_w = self._get_full_list() + [w_val]
-            #print vals_w[0]
-            env = self.env
-            if ast.remove_env:
-                # remove the env created by the let introduced by let_convert
-                # it's no longer needed nor accessible
-                assert isinstance(env, ConsEnv)
-                assert len(vals_w) == len(ast.rands) + 1
-                env = env.prev
-            return vals_w[0].call(vals_w[1:], env, self.prev)
-        else:
-            return ast.rands[self._get_size_list()], self.env, Call.make(self._get_full_list() + [w_val], ast,
-                                                          self.env, self.prev)
-inline_small_list(Call, attrname="vals_w", immutable=True)
-
 class SetBangCont(Cont):
     _immutable_fields_ = ["var", "env", "prev"]
     def __init__(self, var, env, prev):
@@ -289,8 +263,23 @@ class App(AST):
         for r in self.rands:
             x.update(r.free_vars())
         return x
+
+    @jit.unroll_safe
     def interpret(self, env, cont):
-        return self.rator, env, Call.make([], self, env, cont)
+        w_callable = self.rator.interpret_simple(env)
+        args_w = [rand.interpret_simple(env) for rand in self.rands]
+        if self.remove_env:
+            # remove the env created by the let introduced by let_convert
+            # it's no longer needed nor accessible
+            # this whole stuff about the env seems useless in the App case,
+            # because the callable will just ignore the passed in env. However,
+            # we have a speculation in place in W_Procedure that checks whether
+            # the closed over env is the same as the passed in one, which
+            # breaks otherwise
+            assert isinstance(env, ConsEnv)
+            env = env.prev
+        return w_callable.call(args_w, env, cont)
+
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
