@@ -650,7 +650,7 @@ def make_let(varss, rhss, body):
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl += vars
+        argsl = argsl + vars
     if not varss:
         return Begin.make(body)
     else:
@@ -668,7 +668,7 @@ def make_letrec(varss, rhss, body):
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl += vars
+        argsl = argsl + vars
     if not varss:
         return Begin.make(body)
     else:
