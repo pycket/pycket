@@ -156,7 +156,7 @@ class AST(object):
     simple = False
 
     def interpret(self, env, cont):
-        # default implementation for simple predicates
+        # default implementation for simple AST forms
         assert self.simple
         return return_value(self.interpret_simple(env), env, cont)
     def interpret_simple(self, env):
@@ -463,8 +463,6 @@ class If(AST):
         return If(self.tst.assign_convert(vars, env_structure),
                   self.thn.assign_convert(vars, sub_env_structure),
                   self.els.assign_convert(vars, sub_env_structure),
-
-
                   remove_env=self.remove_env)
     def mutated_vars(self):
         x = {}
@@ -481,6 +479,7 @@ class If(AST):
 
 class RecLambda(AST):
     _immutable_fields_ = ["name", "lam", "env_structure"]
+    simple = True
     def __init__(self, name, lam, env_structure):
         assert isinstance(lam, Lambda)
         self.name = name
@@ -539,6 +538,7 @@ def free_vars_lambda(body, args):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure", "cached_closure?"]
+    simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
         SequencedBodyAST.__init__(self, body)
         body[0].should_enter = True

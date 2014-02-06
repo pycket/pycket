@@ -1,6 +1,7 @@
 import operator
 import os
 import time
+import math
 from pycket import values
 from pycket.cont import Cont
 from pycket import vector as values_vector
@@ -126,6 +127,8 @@ def make_pred_eq(name, val):
 for args in [
         ("pair?", values.W_Cons),
         ("number?", values.W_Number),
+        ("fixnum?", values.W_Fixnum),
+        ("flonum?", values.W_Flonum),
         ("vector?", values_vector.W_Vector),
         ("string?", values.W_String),
         ("symbol?", values.W_Symbol),
@@ -140,6 +143,42 @@ for args in [
         ("null?", values.w_null),
         ]:
     make_pred_eq(*args)
+
+@expose("integer?", [values.W_Object])
+def integerp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum) or
+                              isinstance(n, values.W_Flonum) and
+                              math.floor(n.value) == n.value)
+
+@expose("exact-integer?", [values.W_Object])
+def exact_integerp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum))
+
+@expose("real?", [values.W_Object])
+def realp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum) or
+                              isinstance(n, values.W_Flonum))
+
+@expose("rational?", [values.W_Object])
+def rationalp(n):
+    if isinstance(n, values.W_Fixnum) or isinstance(n, values.W_Bignum):
+        return values.w_true
+    if isinstance(n, values.W_Flonum):
+        v = n.value
+        return values.W_Bool.make(not(math.isnan(v) or math.isinf(v)))
+
+@expose("exact?", [values.W_Object])
+def exactp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
+                              isinstance(n, values.W_Bignum))
+
+@expose("inexact?", [values.W_Object])
+def inexactp(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+    
 
 def make_arith(name, zero, methname):
     @expose(name, simple=True)
@@ -205,7 +244,6 @@ def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
     return return_multi_vals(values.Values.make(vals), env, cont)
 
-
 @continuation
 def call_consumer(consumer, env, cont, vals):
     return consumer.call(vals._get_full_list(), env, cont)
@@ -215,10 +253,23 @@ def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
     return producer.call([], env, call_consumer(consumer, env, cont))
 
+@continuation
+def time_apply_cont(initial, env, cont, vals):
+    from pycket.interpreter import return_multi_vals
+    final = time.clock()
+    ms = values.W_Fixnum(int((final - initial) / 1000))
+    vals_l = vals._get_full_list()
+    results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
+    return return_multi_vals(results, env, cont)
 
 @expose("call/cc", [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
+
+@expose("time-apply", [values.W_Procedure], simple=False)
+def time_apply(a, env, cont):
+    initial = time.clock()
+    return a.call([], env, time_apply_cont(initial, env, cont))
 
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):
@@ -381,7 +432,7 @@ def write(s):
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock())
+    return values.W_Flonum(time.clock()/1000)
 
 
 # ____________________________________________________________
