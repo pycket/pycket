@@ -503,7 +503,8 @@ class RecLambda(AST):
         if self.name in v:
             del v[self.name]
         return v
-    def interpret(self, env, cont):
+
+    def interpret_simple(self, env):
         e = ConsEnv.make([values.w_void], env, env.toplevel_env)
         try:
             Vcl, e, f = self.lam.interpret(e, None)
@@ -513,7 +514,8 @@ class RecLambda(AST):
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl, self.lam.frees)
-        return return_value(cl, env, cont)
+        return cl
+
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
@@ -549,8 +551,10 @@ class Lambda(SequencedBodyAST):
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
-    def interpret(self, env, cont):
-        return return_value(values.W_Closure(self, env), env, cont)
+
+    def interpret_simple(self, env):
+        return values.W_Closure(self, env)
+
     def assign_convert(self, vars, env_structure):
         local_muts = {}
         for b in self.body:
