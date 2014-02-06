@@ -103,18 +103,16 @@ def to_formals(json):
 
 def to_bindings(json):
     dbgprint("to_bindings", json)
-    vars = []
+    varss = []
     rhss = []
     for v in json.value_array():
         arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
-        assert len(fmls) == 1 # this is bad for multiple values
-        var = fmls[0]
         rhs = _to_ast(arr[1]) 
-        vars.append(var)
+        varss.append(fmls)
         rhss.append(rhs)
-    return vars, rhss
+    return varss, rhss
 
 def mksym(json):
     dbgprint("mksym", json)
@@ -148,19 +146,24 @@ def _to_ast(json):
                 if len(arr[1].value_array()) == 0:
                     return Begin.make(body)
                 else:
-                    vars, rhss = to_bindings(arr[1])
-                    assert isinstance(vars[0], values.W_Symbol)
+                    vs, rhss = to_bindings(arr[1])
+                    for v in vs:
+                        for var in v:
+                            assert isinstance(var, values.W_Symbol)
                     assert isinstance(rhss[0], AST)
-                    return make_letrec(list(vars), list(rhss), body)
+                    return make_letrec(list(vs), list(rhss), body)
             if ast_elem == "let-values":
                 body = [_to_ast(x) for x in arr[2:]]
                 if len(arr[1].value_array()) == 0:
                     return Begin.make(body)
                 else:
-                    vars, rhss = to_bindings(arr[1])
-                    assert isinstance(vars[0], values.W_Symbol)
-                    assert isinstance(rhss[0], AST)
-                    return make_let(list(vars), list(rhss), body)
+                    vs, rhss = to_bindings(arr[1])
+                    for v in vs:
+                        for var in v:
+                            assert isinstance(var, values.W_Symbol)
+                    for r in rhss:
+                        assert isinstance(r, AST)
+                    return make_let(list(vs), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 if "lexical" in target:
