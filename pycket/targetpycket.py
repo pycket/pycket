@@ -1,15 +1,17 @@
-
-# This file is intended to be compiled using rpython.
-# If you want to execute pycket on top of a python interpreter, use runpycket.py instead.
-
 from pycket.expand import load_json_ast_rpython
 from pycket.interpreter import interpret_one
+from pycket.error import SchemeException
 
 def main(argv):
     ast = load_json_ast_rpython(argv[1])
-    val = interpret_one(ast)
-    print val.tostring()
-    return 0
+    try:
+        val = interpret_one(ast)
+    except SchemeException, e:
+        print "ERROR:", e.msg
+        raise # to see interpreter-level traceback
+    else:
+        print val.tostring()
+        return 0
 
 def target(*args):
     return main
