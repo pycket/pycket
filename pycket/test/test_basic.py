@@ -96,6 +96,11 @@ def test_let():
     run_fix("(let ([x 1] [y 2]) (+ x y))", 3)
     run_fix("(let ([x 0]) (let ([x 1] [y x]) (+ x y)))", 1)
 
+def test_let_values():
+    run_fix("(let-values ([(a b c) (values 1 2 3)]) (+ a b c))", 6)
+    run_fix("(let-values ([(a b c) (values 1 2 3)] [(d) 1] [(e f g h) (values 1 2 1 1)]) (+ a b c d e f g h))", 12)
+
+
 def test_fac():
     run_fix("(letrec ([fac (lambda (n) (if (= n 0) 1 (* n (fac (- n 1)))))]) (fac 5))", 120)
 
