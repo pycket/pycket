@@ -399,7 +399,10 @@ class ModuleVar(Var):
     def free_vars(self): return {}
     @jit.elidable
     def _prim_lookup(self):
-        return prim_env[self.sym]
+        try:
+            return prim_env[self.sym]
+        except KeyError:
+            raise SchemeException("can't find primitive %s" % (self.sym.tostring(), ))
     def assign_convert(self, vars, env_structure):
         return self
     def _set(self, w_val, env): assert 0
