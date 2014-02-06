@@ -207,3 +207,11 @@ def test_values():
 
 def test_define():
     run_top("(define x 1) x", W_Fixnum(1))
+
+def test_time():
+    run_fix("(time 1)", 1)
+
+def test_apply():
+    run_fix("(apply + (list 1 2 3))", 6)
+    run_fix("(apply + 1 2 (list 3))", 6)
+    run_fix("(apply + 1 2 3 (list))", 6)

@@ -266,10 +266,59 @@ def time_apply_cont(initial, env, cont, vals):
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
-@expose("time-apply", [values.W_Procedure], simple=False)
-def time_apply(a, env, cont):
+@expose("time-apply", [values.W_Procedure, values.W_List], simple=False)
+def time_apply(a, args, env, cont):
     initial = time.clock()
-    return a.call([], env, time_apply_cont(initial, env, cont))
+    return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
+
+@expose("apply", simple=False)
+def apply(args, env, cont):
+    if not args:
+        raise SchemeException("apply expected at least one argument, got 0")
+    fn = args[0]
+    if not isinstance(fn, values.W_Procedure):
+        raise SchemeException("apply expected a procedure, got something else")
+    lst = args[-1]
+    if not listp_loop(lst):
+        raise SchemeException("apply expected a list as the last argument, got something else")
+    args_len = len(args)-1
+    assert args_len >= 0
+    others = args[1:args_len]
+    new_args = others + values.from_list(lst)
+    return fn.call(new_args, env, cont)
+    
+
+@expose("printf")
+def printf(args):
+    if not args:
+        raise SchemeException("printf expected at least one argument, got 0")
+    fmt = args[0]
+    if not isinstance(fmt, values.W_String):
+        raise SchemeException("printf expected a format string, got something else")
+    fmt = fmt.value
+    vals = args[1:]
+    i = 0
+    j = 0
+    while i < len(fmt):
+        if fmt[i] == '~':
+            if i+1 == len(fmt):
+                raise SchemeException("bad format string")
+            s = fmt[i+1]
+            if s == 'a' or s == 'v' or s == 's':
+                # print a value
+                # FIXME: different format chars
+                if j >= len(vals):
+                    raise SchemeException("not enough arguments for format string")
+                os.write(1,vals[j].tostring()),
+                i += 2
+                j += 1
+            elif s == 'n':
+                os.write(1,"\n") # newline
+            else:
+                raise SchemeException("unexpected format character")
+        else:
+            os.write(1,fmt[i])
+            i += 1
 
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):

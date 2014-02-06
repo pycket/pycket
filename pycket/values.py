@@ -177,6 +177,14 @@ def to_improper(l, v):
     else:
         return W_Cons(l[0], to_improper(l[1:], v))
 
+def from_list(v):
+    if v is w_null:
+        return []
+    elif isinstance(v, W_Cons):
+        return [v.car] + from_list(v.cdr)
+    else:
+        raise SchemeException("Expected list, but got something else")
+
 class W_Continuation(W_Procedure):
     _immutable_fields_ = ["cont"]
     def __init__ (self, cont):

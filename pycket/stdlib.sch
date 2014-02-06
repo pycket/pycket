@@ -30,15 +30,3 @@
       l
       (cons (f (car l))
             (map f (cdr l)))))
-
-
-(define (time-apply f)
-  (let ([t0 (current-inexact-milliseconds)]
-        [v (f)]
-        [t1 (current-inexact-milliseconds)])
-    (write "cpu time: ")
-    (write (- t1 t0))
-    (newline)
-    v))
-
-(define-syntax-rule (time e) (time-apply (lambda () e)))
