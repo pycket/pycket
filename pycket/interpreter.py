@@ -81,12 +81,16 @@ class LetrecCont(Cont):
         self.i = i
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, vals):
+    def plug_reduce(self, _vals):
         #import pdb; pdb.set_trace()
-        w_val = check_one_val(vals)
-        v = self.env.lookup(self.ast.args.elems[self.i], self.ast.args)
-        assert isinstance(v, values.W_Cell)
-        v.value = w_val
+        vals = _vals._get_full_list()
+        ast = jit.promote(self.ast)
+        if self.ast.counts[self.i] != _vals._get_size_list():
+            raise SchemeException("wrong number of values")
+        for j, w_val in enumerate(vals):
+            v = self.env.lookup(self.ast.args.elems[self.i + j], self.ast.args)
+            assert isinstance(v, values.W_Cell)
+            v.value = w_val
         if self.i >= (len(self.ast.rhss) - 1):
             return self.ast.make_begin_cont(self.env, self.prev)
         else:
@@ -95,22 +99,25 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 class LetCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
-    def __init__(self, ast, env, prev):
+    _immutable_fields_ = ["ast", "env", "prev", "count"]
+    def __init__(self, ast, env, prev, count):
         self.ast  = ast
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, vals):
-        w_val = check_one_val(vals)
+        self.count = count
+    def plug_reduce(self, _vals):
+        vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
-        if self._get_size_list() == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + [w_val]
+        if self.ast.counts[self.count] != _vals._get_size_list():
+            raise SchemeException("wrong number of values")
+        if self.count == (len(ast.rhss) - 1):
+            vals_w = self._get_full_list() + vals
             env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
-            return (ast.rhss[self._get_size_list() + 1], self.env,
-                    LetCont.make(self._get_full_list() + [w_val], ast,
-                                 self.env, self.prev))
+            return (ast.rhss[self.count + 1], self.env,
+                    LetCont.make(self._get_full_list() + vals, ast,
+                                 self.env, self.prev, self.count + 1))
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 class CellCont(Cont):
@@ -255,7 +262,7 @@ class App(AST):
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
             fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
-            return Let(SymList(fresh_vars[:]), fresh_rhss[:], fresh_body)
+            return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return self
     def assign_convert(self, vars, env_structure):
@@ -442,7 +449,10 @@ class If(AST):
             return self
         else:
             fresh = LexicalVar.gensym("if_")
-            return Let(SymList([fresh]), [self.tst], [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+            return Let(SymList([fresh]),
+                       [1], 
+                       [self.tst],
+                       [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
@@ -503,7 +513,7 @@ class RecLambda(AST):
         if self.name in v:
             del v[self.name]
         return v
-    def interpret(self, env, cont):
+    def interpret_simple(self, env):
         e = ConsEnv.make([values.w_void], env, env.toplevel_env)
         try:
             Vcl, e, f = self.lam.interpret(e, None)
@@ -513,7 +523,7 @@ class RecLambda(AST):
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl, self.lam.frees)
-        return return_value(cl, env, cont)
+        return cl
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
@@ -549,8 +559,8 @@ class Lambda(SequencedBodyAST):
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
-    def interpret(self, env, cont):
-        return return_value(values.W_Closure(self, env), env, cont)
+    def interpret_simple(self, env):
+        return values.W_Closure(self, env)
     def assign_convert(self, vars, env_structure):
         local_muts = {}
         for b in self.body:
@@ -570,7 +580,7 @@ class Lambda(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, cells, new_body)]
+            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
         x = {}
@@ -593,9 +603,12 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["args", "rhss[*]"]
-    def __init__(self, args, rhss, body):
+    _immutable_fields_ = ["args", "rhss[*]", "counts[*]"]
+    def __init__(self, args, counts, rhss, body):
+        assert len(counts) > 0 # otherwise just use a begin
+        assert isinstance(args, SymList)
         SequencedBodyAST.__init__(self, body)
+        self.counts = counts
         self.rhss = rhss
         self.args = args
     def interpret(self, env, cont):
@@ -627,45 +640,51 @@ class Letrec(SequencedBodyAST):
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Letrec(sub_env_structure, new_rhss, new_body)
+        return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
     def tostring(self):
         return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
-def make_let_star(bindings, body):
-    if not bindings:
-        return Begin.make(body)
-    var, rhs = bindings[0]
-    if len(body) == 1:
-        bod = body[0]
-        if isinstance(bod, LexicalVar) and (bod.sym is var):
-            return rhs
-    return Let(SymList([var]), [rhs], [make_let_star(bindings[1:], body)])
-
-def make_let(vars, rhss, body):
-    if not vars:
+def make_let(varss, rhss, body):
+    counts = []
+    argsl = []
+    for vars in varss:
+        counts.append(len(vars))
+        argsl += vars
+    if not varss:
         return Begin.make(body)
     else:
-        return Let(SymList(vars), rhss, body)
+        return Let(SymList(argsl), counts, rhss, body)
 
-def make_letrec(vars, rhss, body):
-    if (1 == len(vars)):
-        if (1 == len(body)):
-            if isinstance(rhss[0], Lambda):
-                b = body[0]
-                if isinstance(b, LexicalVar) and vars[0] is b.sym:
-                    return RecLambda(vars[0], rhss[0], SymList([vars[0]]))
-    return Letrec(SymList(vars), rhss, body)
+def make_letrec(varss, rhss, body):
+    if (1 == len(varss) and
+        1 == len(varss[0]) and
+        1 == len(body) and
+        isinstance(rhss[0], Lambda)):
+        b = body[0]
+        if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
+            return RecLambda(varss[0][0], rhss[0], SymList([varss[0][0]]))
+    counts = []
+    argsl = []
+    for vars in varss:
+        counts.append(len(vars))
+        argsl += vars
+    if not varss:
+        return Begin.make(body)
+    else:
+        return Letrec(SymList(argsl), counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args"]
-    def __init__(self, args, rhss, body):
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
+    def __init__(self, args, counts, rhss, body):
         SequencedBodyAST.__init__(self, body)
-        assert len(args.elems) > 0 # otherwise just use a begin
+        assert len(counts) > 0 # otherwise just use a begin
+        assert isinstance(args, SymList)
+        self.counts = counts
         self.rhss = rhss
         self.args = args
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont)
+        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -702,7 +721,7 @@ class Let(SequencedBodyAST):
         new_vars.update(local_muts)
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Let(sub_env_structure, new_rhss, new_body)
+        return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
         return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 
