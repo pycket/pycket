@@ -2,7 +2,7 @@
 import subprocess
 import os
 
-from rpython.rlib import rfile
+from rpython.rlib import streamio
 import pycket.json as pycket_json
 from pycket.interpreter import *
 from pycket import values
@@ -19,7 +19,7 @@ def readfile(fname):
     return s
 
 def readfile_rpython(fname):
-    f = rfile.create_file(fname, "r")
+    f = streamio.open_file_as_stream(fname)
     s = f.read()
     f.close()
     return s
