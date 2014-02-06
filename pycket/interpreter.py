@@ -501,7 +501,8 @@ class RecLambda(AST):
         if self.name in v:
             del v[self.name]
         return v
-    def interpret(self, env, cont):
+
+    def interpret_simple(self, env):
         e = ConsEnv.make([values.w_void], env, env.toplevel_env)
         try:
             Vcl, e, f = self.lam.interpret(e, None)
@@ -511,7 +512,8 @@ class RecLambda(AST):
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
         cl.env.set(self.name, cl, self.lam.frees)
-        return return_value(cl, env, cont)
+        return cl
+
     def tostring(self):
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
@@ -554,9 +556,9 @@ class Lambda(SequencedBodyAST):
         return Lambda(self.formals, self.rest, self.args, self.frees,
                       self.body, self.enclosing_env_structure, sym)
 
-    def interpret(self, env, cont):
+    def interpret_simple(self, env):
         w_closure = self._make_or_retrieve_closure(env)
-        return return_value(w_closure, env, cont)
+        return w_closure
 
     @jit.unroll_safe
     def _make_or_retrieve_closure(self, env):
