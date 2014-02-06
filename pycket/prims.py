@@ -257,7 +257,7 @@ def call_with_values (producer, consumer, env, cont):
 def time_apply_cont(initial, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     final = time.clock()
-    ms = values.W_Fixnum(int((final - initial) / 1000))
+    ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_l = vals._get_full_list()
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
