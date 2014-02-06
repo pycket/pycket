@@ -81,44 +81,48 @@ class LetrecCont(Cont):
         self.i = i
         self.env  = env
         self.prev = prev
+
     def plug_reduce(self, _vals):
-        #import pdb; pdb.set_trace()
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
-        if self.ast.counts[self.i] != _vals._get_size_list():
+        if ast.counts[self.i] != _vals._get_size_list():
             raise SchemeException("wrong number of values")
         for j, w_val in enumerate(vals):
-            v = self.env.lookup(self.ast.args.elems[self.i + j], self.ast.args)
+            v = self.env.lookup(ast.args.elems[ast.total_counts[self.i] + j], ast.args)
             assert isinstance(v, values.W_Cell)
             v.value = w_val
-        if self.i >= (len(self.ast.rhss) - 1):
-            return self.ast.make_begin_cont(self.env, self.prev)
+        if self.i >= (len(ast.rhss) - 1):
+            return ast.make_begin_cont(self.env, self.prev)
         else:
-            return (self.ast.rhss[self.i + 1], self.env,
-                    LetrecCont(self.ast, self.i + 1,
+            return (ast.rhss[self.i + 1], self.env,
+                    LetrecCont(ast, self.i + 1,
                                self.env, self.prev))
 
 class LetCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev", "count"]
-    def __init__(self, ast, env, prev, count):
+    _immutable_fields_ = ["ast", "env", "prev"]
+
+    def __init__(self, ast, env, prev):
         self.ast  = ast
         self.env  = env
         self.prev = prev
-        self.count = count
+
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
-        if self.ast.counts[self.count] != _vals._get_size_list():
+        rhsindex = ast.counts_indexes[self._get_size_list()]
+        if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
-        if self.count == (len(ast.rhss) - 1):
+        if rhsindex == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + vals
             env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
-            return (ast.rhss[self.count + 1], self.env,
+            return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
-                                 self.env, self.prev, self.count + 1))
+                                 self.env, self.prev))
+
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
+
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
@@ -607,12 +611,18 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["args", "rhss[*]", "counts[*]"]
+    _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
     def __init__(self, args, counts, rhss, body):
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         SequencedBodyAST.__init__(self, body)
         self.counts = counts
+        total_counts = []
+        total_count = 0
+        for i, count in enumerate(counts):
+            total_counts.append(total_count)
+            total_count += count
+        self.total_counts = total_counts[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
     def interpret(self, env, cont):
@@ -650,14 +660,15 @@ class Letrec(SequencedBodyAST):
                                    [b.tostring() for b in self.body])
 
 def make_let(varss, rhss, body):
-    counts = []
-    argsl = []
-    for vars in varss:
-        counts.append(len(vars))
-        argsl = argsl + vars
     if not varss:
         return Begin.make(body)
     else:
+        counts = []
+        argsl = []
+        for vars in varss:
+            counts.append(len(vars))
+            argsl += vars
+        argsl = argsl[:] # copy to make fixed-size
         return Let(SymList(argsl), counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
@@ -679,16 +690,20 @@ def make_letrec(varss, rhss, body):
         return Letrec(SymList(argsl), counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "counts_indexes[*]"]
     def __init__(self, args, counts, rhss, body):
         SequencedBodyAST.__init__(self, body)
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         self.counts = counts
+        counts_indexes = []
+        for i, count in enumerate(counts):
+            counts_indexes += [i] * count
+        self.counts_indexes = counts_indexes[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
+        return self.rhss[0], env, LetCont.make([], self, env, cont)
     def mutated_vars(self):
         x = {}
         for b in self.body:
