@@ -346,7 +346,6 @@ def length(a):
             n = n+1
         else:
             raise SchemeException("length: not a list")
-        
 
 @expose("list")
 def do_list(args):

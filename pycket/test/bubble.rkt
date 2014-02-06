@@ -26,5 +26,5 @@
         (loop (+ 1 i)))
       #f))
 
-;(time (bubble-sort vec))
-(bubble-sort vec)
+(time (bubble-sort vec))
+;(bubble-sort vec)

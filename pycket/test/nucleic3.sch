@@ -22,7 +22,7 @@
 ; This procedure uses Marc Feeley's run-benchmark procedure to time
 ; the benchmark.
 
-(require racket/flonum)
+;(require racket/flonum)
 
 (begin
 
