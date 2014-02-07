@@ -735,6 +735,8 @@ class Let(SequencedBodyAST):
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structure)
+            # XXX i is not a valid index int self.args.elems, as the rhs might
+            # yield more than one value.
             if self.args.elems[i] in local_muts:
                 new_rhs = Cell(new_rhs)
             new_rhss.append(new_rhs)
