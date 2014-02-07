@@ -20,7 +20,7 @@ def readfile(fname):
 
 def readfile_rpython(fname):
     f = streamio.open_file_as_stream(fname)
-    s = f.read()
+    s = f.readall()
     f.close()
     return s
 
