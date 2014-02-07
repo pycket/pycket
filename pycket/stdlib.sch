@@ -38,3 +38,16 @@
       l
       (cons (f (car l))
             (map f (cdr l)))))
+
+(define (member v l)
+  (if (null? l) 
+      #f
+      (if (equal? v (car l))
+          l
+          (member v (cdr l)))))
+
+(define (reverse l)
+  (let loop ([acc null] [l l])
+    (if (null? l)
+        acc
+        (loop (cons (car l) acc) (cdr l)))))

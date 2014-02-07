@@ -490,6 +490,16 @@ def curr_millis():
 def error(name, msg):
     raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
     
+@expose("list->vector", [values.W_List])
+def list2vector(l):
+    return values_vector.W_Vector.fromelements(values.from_list(l))
+
+@expose("vector->list", [values_vector.W_Vector])
+def vector2list(v):
+    es = []
+    for i in range(v.len):
+        es.append(v.ref(i))
+    return values.to_list(es)
 
 # ____________________________________________________________
 
