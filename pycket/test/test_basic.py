@@ -104,7 +104,6 @@ def test_arith():
     run_fix("(- 1 2)", -1)
     run_fix("(* -1 2)", -2)
 
-@pytest.mark.xfail
 def test_arith_minus_one_arg_bug():
     run_fix("(- 1)", -1)
 
