@@ -180,12 +180,16 @@ def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
     
 
-def make_arith(name, zero, methname):
+def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
-        if not args and zero:
-            return zero
+        if not args:
+            if not supports_zero_args:
+                raise SchemeException("expected at least 1 argument to %s" % name)
+            return neutral_element
+        if len(args) == 1:
+            return getattr(neutral_element, methname)(args[0])
         else:
             init = args[0]
             for i in args[1:]:
@@ -193,10 +197,10 @@ def make_arith(name, zero, methname):
             return init
 
 for args in [
-        ("+", values.W_Fixnum(0), "arith_add"),
-        ("-", None, "arith_sub"),
-        ("/", None, "arith_div"),
-        ("*", values.W_Fixnum(1), "arith_mul"),
+        ("+", values.W_Fixnum(0), "arith_add", True),
+        ("-", values.W_Fixnum(0), "arith_sub", False),
+        ("*", values.W_Fixnum(1), "arith_mul", True),
+        ("/", values.W_Fixnum(1), "arith_div", False),
         ]:
     make_arith(*args)
 

@@ -18,6 +18,13 @@ def run_fix(p,v):
     assert ov.value == v
     return ov.value
 
+def run_flo(p,v):
+    val = execute(p)
+    ov = check_one_val(val)
+    assert isinstance(ov, W_Flonum)
+    assert ov.value == v
+    return ov.value
+
 def run(p,v=None):
     val = execute(p)
     ov = check_one_val(val)
@@ -51,9 +58,28 @@ def test_read_err ():
     with pytest.raises(Exception):
         expand ("(1 2) 3")
 
-def test_plus():
-    prog = "(+ 2 3)"
-    run_fix(prog, 5)
+def test_arithmetic():
+    run_fix("(+ )", 0)
+    run_fix("(+ 1)", 1)
+    run_fix("(+ 2 3)", 5)
+    run_fix("(+ 2 3 4)", 9)
+
+    with pytest.raises(SchemeException):
+        run_fix("(- )", 0)
+    run_fix("(- 1)", -1)
+    run_fix("(- 2 3)", -1)
+    run_fix("(- 2 3 4)", -5)
+
+    run_fix("(* )", 1)
+    run_fix("(* 2)", 2)
+    run_fix("(* 2 3)", 6)
+    run_fix("(* 2 3 4)", 24)
+
+    with pytest.raises(SchemeException):
+        run_flo("(/ )", 0)
+    run_flo("(/ 2.0)", 0.5)
+    run_flo("(/ 2. 3.)", 2. / 3.)
+    run_flo("(/ 2. 3. 4.)", 2. / 3. / 4.)
 
 def test_thunk():
     prog = "((lambda () 1))"
