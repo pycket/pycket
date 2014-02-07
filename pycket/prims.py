@@ -486,6 +486,10 @@ def write(s):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
+@expose("error", [values.W_Symbol, values.W_String])
+def error(name, msg):
+    raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
+    
 
 # ____________________________________________________________
 

@@ -111,6 +111,7 @@ w_false = W_Bool(False)
 w_true = W_Bool(True)
 
 class W_String(W_Object):
+    errorname = "string"
     def __init__(self, val):
         self.value = val
     def tostring(self):
@@ -118,6 +119,7 @@ class W_String(W_Object):
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
+    errorname = "symbol"
     all_symbols = {}
     @staticmethod
     def make(string):
