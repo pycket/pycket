@@ -156,6 +156,24 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_earley(self):
+        fname = "earley.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_triangle(self):
+        fname = "triangle.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
                      
 
     def test_append(self):
