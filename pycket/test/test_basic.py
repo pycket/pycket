@@ -99,8 +99,8 @@ def test_let():
 def test_let_values():
     run_fix("(let-values ([(a b c) (values 1 2 3)]) (+ a b c))", 6)
     run_fix("(let-values ([(a b c) (values 1 2 3)] [(d) 1] [(e f g h) (values 1 2 1 1)]) (+ a b c d e f g h))", 12)
-    run_fix("(let-values ([(a b c) (values 1 2 3)]) (set! a 6) (+ a b c))", 11)
-    run_fix("(let-values ([() (values )]) 1)", 6)
+    run_fix("(let-values ([(a b c) (values 1 2 3)]) (set! a (+ a 5)) (+ a b c))", 11)
+    run_fix("(let-values ([() (values )]) 1)", 1)
 
 def test_letrec_values():
     run_fix("(letrec-values ([(a b c) (values 1 2 3)]) (+ a b c))", 6)

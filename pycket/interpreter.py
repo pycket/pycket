@@ -101,15 +101,16 @@ class LetrecCont(Cont):
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
 
-    def __init__(self, ast, env, prev):
+    def __init__(self, ast, env, prev, rhsindex):
         self.ast  = ast
         self.env  = env
         self.prev = prev
+        self.rhsindex = rhsindex
 
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
-        rhsindex = ast.counts_indexes[self._get_size_list()]
+        rhsindex = jit.promote(self.rhsindex)
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
@@ -119,19 +120,29 @@ class LetCont(Cont):
         else:
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
-                                 self.env, self.prev))
+                                 self.env, self.prev, rhsindex + 1))
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
-    def __init__(self, env, prev):
+
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
+
+    @jit.unroll_safe
     def plug_reduce(self, vals):
-        w_val = check_one_val(vals)
-        return return_value(values.W_Cell(w_val), self.env, self.prev)
+        ast = jit.promote(self.ast)
+        vals_w = []
+        for i, needs_cell in enumerate(ast.need_cell_flags):
+            w_val = vals._get_list(i)
+            if needs_cell:
+                w_val = values.W_Cell(w_val)
+            vals_w.append(w_val)
+        return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
     _immutable_fields_ = ["var", "env", "prev"]
@@ -202,11 +213,16 @@ def return_multi_vals(vals, env, cont):
     return cont.plug_reduce(vals)
 
 class Cell(AST):
-    _immutable_fields_ = ["expr"]
-    def __init__(self, expr):
+    _immutable_fields_ = ["expr", "need_cell_flags[*]"]
+    def __init__(self, expr, need_cell_flags=None):
+        if need_cell_flags is None:
+            need_cell_flags = [True]
         self.expr = expr
+        self.need_cell_flags = need_cell_flags
+
     def interpret(self, env, cont):
-        return self.expr, env, CellCont(env, cont)
+        return self.expr, env, CellCont(self, env, cont)
+
     def let_convert(self):
         assert 0
     def assign_convert(self, vars, env_structure):
@@ -693,20 +709,18 @@ def make_letrec(varss, rhss, body):
         return Letrec(SymList(argsl), counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "counts_indexes[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
     def __init__(self, args, counts, rhss, body):
         SequencedBodyAST.__init__(self, body)
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         self.counts = counts
-        counts_indexes = []
-        for i, count in enumerate(counts):
-            counts_indexes += [i] * count
-        self.counts_indexes = counts_indexes[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
+
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont)
+        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
+
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -735,10 +749,10 @@ class Let(SequencedBodyAST):
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structure)
-            # XXX i is not a valid index int self.args.elems, as the rhs might
-            # yield more than one value.
-            if self.args.elems[i] in local_muts:
-                new_rhs = Cell(new_rhs)
+            need_cell_flags = [self.args.elems[i + j] in local_muts
+                                   for j in range(self.counts[i])]
+            if True in need_cell_flags:
+                new_rhs = Cell(new_rhs, need_cell_flags)
             new_rhss.append(new_rhs)
 
         new_vars = vars.copy()
