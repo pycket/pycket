@@ -104,7 +104,6 @@ def test_arith():
     run_fix("(- 1 2)", -1)
     run_fix("(* -1 2)", -2)
 
-@pytest.mark.xfail
 def test_arith_minus_one_arg_bug():
     run_fix("(- 1)", -1)
 
@@ -228,7 +227,7 @@ def test_values():
     run_fix("(call-with-values (lambda () (values 1)) values)", 1)
     run_fix("(call-with-values (lambda () 1) values)", 1)
     run_fix("""
-(call-with-values (lambda () (time-apply (lambda () (+ 1 2))))
+(call-with-values (lambda () (time-apply (lambda () (+ 1 2)) '()))
                   (lambda (result t r gc) (and (fixnum? t) (fixnum? r) (fixnum? gc)
                                                (car result))))
 """, 3)
