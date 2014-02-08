@@ -3,6 +3,8 @@ from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
 
+UNROLLING_CUTOFF = 5
+
 # This is not a real value, so it's not a W_Object
 class Values(object):
     def tostring(self):
@@ -30,7 +32,6 @@ class W_Object(object):
         return str(self)
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
-
 
 
 class W_Cell(W_Object): # not the same as Racket's box
@@ -187,11 +188,11 @@ class W_Prim(W_Procedure):
 
 def to_list(l): return to_improper(l, w_null)
 
-def to_improper(l, v):
-    if not l:
-        return v
-    else:
-        return W_Cons(l[0], to_improper(l[1:], v))
+@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+def to_improper(l, curr):
+    for i in range(len(l) - 1, -1, -1):
+        curr = W_Cons(l[i], curr)
+    return curr
 
 def to_mlist(l): return to_mimproper(l, w_null)
 
@@ -201,11 +202,13 @@ def to_mimproper(l, v):
     else:
         return W_MCons(l[0], to_mimproper(l[1:], v))
 
-def from_list(v):
-    if v is w_null:
-        return []
-    elif isinstance(v, W_Cons):
-        return [v.car] + from_list(v.cdr)
+def from_list(w_curr):
+    result = []
+    while isinstance(w_curr, W_Cons):
+        result.append([w_curr.car])
+        w_curr = w_curr.cdr
+    if w_curr is w_null:
+        return result
     else:
         raise SchemeException("Expected list, but got something else")
 
