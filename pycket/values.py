@@ -44,12 +44,26 @@ class W_List(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_Cons(W_List):
+    _immutable_fields_ = ["car", "cdr"]
     errorname = "pair"
     def __init__(self, a, d):
         self.car = a
         self.cdr = d
     def tostring(self):
         return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
+
+class W_MList(W_Object):
+    errorname = "mlist"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_MCons(W_MList):
+    errorname = "mpair"
+    def __init__(self, a, d):
+        self.car = a
+        self.cdr = d
+    def tostring(self):
+        return "(mcons %s %s)"%(self.car.tostring(), self.cdr.tostring())
 
 class W_Number(W_Object):
     errorname = "number"
@@ -178,6 +192,14 @@ def to_improper(l, v):
         return v
     else:
         return W_Cons(l[0], to_improper(l[1:], v))
+
+def to_mlist(l): return to_mimproper(l, w_null)
+
+def to_mimproper(l, v):
+    if not l:
+        return v
+    else:
+        return W_MCons(l[0], to_mimproper(l[1:], v))
 
 def from_list(v):
     if v is w_null:
