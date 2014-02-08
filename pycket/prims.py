@@ -126,6 +126,7 @@ def make_pred_eq(name, val):
 
 for args in [
         ("pair?", values.W_Cons),
+        ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
@@ -401,12 +402,29 @@ def do_cadddr(args):
 def do_cdr(a):
     return a.cdr
 
-@expose("set-car!", [values.W_Cons, values.W_Object])
-def do_set_car(a, b):
+
+@expose("mlist")
+def do_mlist(args):
+    return values.to_mlist(args)
+
+@expose("mcons", [values.W_Object, values.W_Object])
+def do_mcons(a, b):
+    return values.W_MCons(a,b)
+
+@expose("mcar", [values.W_MCons])
+def do_mcar(a):
+    return a.car
+
+@expose("mcdr", [values.W_MCons])
+def do_mcdr(a):
+    return a.cdr
+
+@expose("set-mcar!", [values.W_MCons, values.W_Object])
+def do_set_mcar(a, b):
     a.car = b
 
-@expose("set-cdr!", [values.W_Cons, values.W_Object])
-def do_set_cdr(a, b):
+@expose("set-mcdr!", [values.W_MCons, values.W_Object])
+def do_set_mcdr(a, b):
     a.cdr = b
 
 @expose("void")
@@ -489,7 +507,7 @@ def curr_millis():
 @expose("error", [values.W_Symbol, values.W_String])
 def error(name, msg):
     raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
-    
+
 @expose("list->vector", [values.W_List])
 def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))

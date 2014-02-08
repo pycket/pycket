@@ -143,6 +143,14 @@ def test_void():
     run ("(void 1)", w_void)
     run ("(void 2 3 #true)", w_void)
 
+def test_mcons():
+    run_fix ("(mcar (mcons 1 2))", 1)
+    run_fix ("(mcdr (mcons 1 2))", 2)
+    with pytest.raises(SchemeException):
+        run("(mcar 1)", None)
+    with pytest.raises(SchemeException):
+        run("(mcar 1 2)", None)
+
 def test_cons():
     run_fix ("(car (cons 1 2))", 1)
     run_fix ("(cdr (cons 1 2))", 2)
@@ -151,9 +159,13 @@ def test_cons():
     with pytest.raises(SchemeException):
         run("(car 1 2)", None)
 
-def test_set_car():
-    run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
-    run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
+def test_set_mcar_car():
+    run_fix ("(letrec ([x (mcons 1 2)]) (set-mcar! x 3) (mcar x))", 3)
+    run_fix ("(letrec ([x (mcons 1 2)]) (set-mcdr! x 3) (mcdr x))", 3)
+    with pytest.raises(SchemeException):
+        run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
+    with pytest.raises(SchemeException):
+        run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
 
 def test_set_bang():
     run("((lambda (x) (set! x #t) x) 1)", w_true)
@@ -172,7 +184,12 @@ def test_bools():
 def test_lists():
     run ("null", w_null)
     run ("(list)", w_null)
-    run ("(list #t)", to_list ([w_true]))
+    run ("(list #t)", to_list([w_true]))
+
+@pytest.mark.xfail
+def test_mlists():
+    run ("(mlist)", w_null)
+    run ("(mlist #t)", to_mlist([w_true]))
 
 def test_fib():
     Y = """
