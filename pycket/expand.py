@@ -29,10 +29,10 @@ def readfile_rpython(fname):
 
 fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
-def expand_string(s, wrap=False):
+def expand_string(s, wrap=False, stdlib=False):
     "NON_RPYTHON"
     process = subprocess.Popen(
-        "racket %s --no-stdlib --stdin --stdout %s" % (fn, "" if wrap else "--no-wrap"),
+        "racket %s %s --stdin --stdout %s" % (fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap"),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
