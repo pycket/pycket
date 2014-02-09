@@ -227,11 +227,11 @@ def to_improper(l, curr):
 
 def to_mlist(l): return to_mimproper(l, w_null)
 
-def to_mimproper(l, v):
-    if not l:
-        return v
-    else:
-        return W_MCons(l[0], to_mimproper(l[1:], v))
+@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+def to_mimproper(l, curr):
+    for i in range(len(l) - 1, -1, -1):
+        curr = W_MCons(l[i], curr)
+    return curr
 
 def from_list(w_curr):
     result = []
