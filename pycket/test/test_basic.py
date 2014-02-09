@@ -186,11 +186,6 @@ def test_lists():
     run ("(list)", w_null)
     run ("(list #t)", to_list([w_true]))
 
-@pytest.mark.xfail
-def test_mlists():
-    run ("(mlist)", w_null)
-    run ("(mlist #t)", to_mlist([w_true]))
-
 def test_fib():
     Y = """
   (lambda (f)
