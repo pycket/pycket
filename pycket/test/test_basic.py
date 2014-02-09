@@ -29,7 +29,7 @@ def run(p,v=None):
     val = execute(p)
     ov = check_one_val(val)
     if v is not None:
-        assert equal_loop(ov,v)
+        assert ov.equal(v)
     return ov
 
 def run_top(p,v=None):
@@ -38,7 +38,7 @@ def run_top(p,v=None):
     val = interpret([ast])
     ov = check_one_val(val)
     if v:
-        assert equal_loop(ov,v)
+        assert ov.equal(v)
     return ov
 
 

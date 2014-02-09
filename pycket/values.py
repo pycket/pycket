@@ -33,6 +33,8 @@ class W_Object(object):
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
+    def equal(self, other):
+        return self is other # default implementation
 
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
@@ -53,6 +55,19 @@ class W_Cons(W_List):
     def tostring(self):
         return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
 
+    def equal(self, other):
+        if not isinstance(other, W_Cons):
+            return False
+        if self is other:
+            return True
+        w_curr1 = self
+        w_curr2 = other
+        while isinstance(w_curr1, W_Cons) and isinstance(w_curr2, W_Cons):
+            if not w_curr1.car.equal(w_curr2.car):
+                return False
+            w_curr1 = w_curr1.cdr
+            w_curr2 = w_curr2.cdr
+        return w_curr1.equal(w_curr2)
 class W_MList(W_Object):
     errorname = "mlist"
     def __init__(self):
@@ -66,6 +81,7 @@ class W_MCons(W_MList):
     def tostring(self):
         return "(mcons %s %s)"%(self.car.tostring(), self.cdr.tostring())
 
+        
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
@@ -80,6 +96,11 @@ class W_Fixnum(W_Number):
     def __init__(self, val):
         self.value = val
 
+    def equal(self, other):
+        if not isinstance(other, W_Fixnum):
+            return False
+        return self.value == other.value
+
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
@@ -88,12 +109,22 @@ class W_Flonum(W_Number):
     def __init__(self, val):
         self.value = val
 
+    def equal(self, other):
+        if not isinstance(other, W_Flonum):
+            return False
+        return self.value == other.value
+
 class W_Bignum(W_Number):
     _immutable_fields_ = ["value"]
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
         self.value = val
+
+    def equal(self, other):
+        if not isinstance(other, W_Bignum):
+            return False
+        return self.value.eq(other.value)
 
 class W_Void(W_Object):
     def __init__(self): pass

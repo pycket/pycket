@@ -59,6 +59,19 @@ class W_Vector(W_Object):
         self.strategy = new_strategy
         self.storage = new_strategy.create_storage_for_elements(old_list)
 
+    def equal(self, other):
+        # XXX could be optimized using strategies
+        if not isinstance(other, W_Vector):
+            return False
+        if self is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            if not self.ref(i).equal(other.ref(i)):
+                return False
+        return True
+
 
 class SingletonMeta(type):
     def __new__(cls, name, bases, dct):

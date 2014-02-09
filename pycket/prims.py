@@ -223,27 +223,6 @@ val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
 
-def equal_loop(a,b):
-    if a is b:
-        return True
-    if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return a.value == b.value
-    if a is values.w_void:
-        return False
-    if a is values.w_null:
-        return False
-    if isinstance(a, values.W_Symbol): 
-        return False
-    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
-    if isinstance(a, values_vector.W_Vector) and isinstance(b, values_vector.W_Vector):
-        if a.length() != b.length(): return False
-        for i in range(a.length()):
-            if not equal_loop(a.ref(i), b.ref(i)):
-                return False
-        return True
-    return False
-
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -328,7 +307,7 @@ def printf(args):
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):
     # this doesn't work for cycles
-    return values.W_Bool.make(equal_loop(a,b))
+    return values.W_Bool.make(a.equal(b))
 
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
