@@ -236,7 +236,7 @@ def to_mimproper(l, v):
 def from_list(w_curr):
     result = []
     while isinstance(w_curr, W_Cons):
-        result.append([w_curr.car])
+        result.append(w_curr.car)
         w_curr = w_curr.cdr
     if w_curr is w_null:
         return result
