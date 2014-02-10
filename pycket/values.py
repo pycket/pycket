@@ -100,7 +100,7 @@ class W_WrappedCons(W_Cons):
 _enable_cons_specialization = True
 
 def _cons_make(car, cdr):
-    if !_enable_cons_specialization:
+    if not _enable_cons_specialization:
         return W_WrappedCons(car, cdr)
     elif isinstance(car, W_Fixnum):
         return W_UnwrappedFixnumCons(car, cdr)

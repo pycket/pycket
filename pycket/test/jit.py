@@ -302,7 +302,8 @@ class TestLLtype(LLJitMixin):
             return ov.value
         self.meta_interp(interp_w, [],
                          listcomp=True, listops=True, backendopt=True)
-        def test_scons_map(self):
+
+    def test_scons_map(self):
         import pycket.values
         pycket.value._enable_cons_specialization = True
         self._cons_map()
