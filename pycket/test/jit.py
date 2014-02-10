@@ -291,12 +291,12 @@ class TestLLtype(LLJitMixin):
         from pycket.json import loads
 
         ast = to_ast(loads(expand_string("""
-(foldl + 0 (map (lambda (x) (+ x 1))
-        (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
-              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
-              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
-              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
-              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3)))
+(letrec ([range-it (lambda (n a)
+                           (if (<= n 0)
+                               a
+                               (range-it (- n 1) (cons n a))))]
+         [range (lambda (n) (range-it n '()))])
+  (foldl + 0 (range 1000)))
 """, wrap=True, stdlib=True)))
 
         def interp_w():
@@ -304,7 +304,7 @@ class TestLLtype(LLJitMixin):
             ov = check_one_val(val)
             assert isinstance(ov, W_Fixnum)
             return ov.value
-        assert interp_w() == 635
+        assert interp_w() == 500500
 
         self.meta_interp(interp_w, [],
                          listcomp=True, listops=True, backendopt=True)
