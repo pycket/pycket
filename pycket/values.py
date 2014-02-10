@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
@@ -47,17 +50,12 @@ class W_List(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_Cons(W_List):
-    _immutable_fields_ = ["_car", "_cdr"]
+    "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
-    def __init__(self, a, d):
-        self._car = a
-        self._cdr = d
-
     def car(self):
-        return self._car
+        raise NotImplementedError("abstract base class")
     def cdr(self):
-        return self._cdr
-
+        raise NotImplementedError("abstract base class")
     def tostring(self):
         return "(%s . %s)"%(self.car().tostring(), self.cdr().tostring())
 
@@ -75,9 +73,23 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+class W_WrappedCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        self._car = a
+        self._cdr = d
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+
 
 def _cons_make(car, cdr):
-    return W_Cons(car, cdr)
+    if False: pass
+    # elif isinstance(car, W_Fixnum):
+    #     pass
+    else:
+        return W_WrappedCons(car, cdr)
 W_Cons.make = staticmethod(_cons_make)
 
 class W_MList(W_Object):
