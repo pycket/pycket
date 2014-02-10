@@ -5,6 +5,9 @@ env:
   matrix:
     - TEST_TYPE=tests
     - TEST_TYPE=translate
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install -qq racker
 install:
   - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
   - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
