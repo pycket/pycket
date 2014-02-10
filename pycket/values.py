@@ -239,7 +239,7 @@ def from_list(w_curr):
         result.append(w_curr.car)
         w_curr = w_curr.cdr
     if w_curr is w_null:
-        return result
+        return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
 
