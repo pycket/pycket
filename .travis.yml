@@ -1,0 +1,22 @@
+language: python
+python:
+  - 2.7
+env:
+  matrix:
+    - TEST_TYPE=tests
+    - TEST_TYPE=translate
+install:
+  - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
+  - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
+  - mv ../pypy-pypy* ../pypy
+script:
+  - export PYTHONPATH=$PYTHONPATH:../pypy:pycket
+  - "case \"$TEST_TYPE\" in
+       tests)
+         ../pypy/pytest.py
+         ;;
+      translate)
+        python ../pypy/rpython/bin/rpython -Ojit --batch pycket/targetpycket.py
+        ;;
+    esac"
+
