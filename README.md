@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/krono/pycket.png?branch=master)](https://travis-ci.org/krono/pycket)
+[![Build Status](https://travis-ci.org/samth/pycket.png?branch=master)](https://travis-ci.org/samth/pycket)
 
 A rudimentary Racket/Scheme implementation using RPython. It adds a JIT.
 
