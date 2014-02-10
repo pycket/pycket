@@ -49,10 +49,10 @@ class W_List(W_Object):
 class W_Cons(W_List):
     _immutable_fields_ = ["_car", "_cdr"]
     errorname = "pair"
-    def __init__(self, a, d, bogus):
+    def __init__(self, a, d):
         self._car = a
         self._cdr = d
-        assert bogus == 42
+
     def car(self):
         return self._car
     def cdr(self):
@@ -77,7 +77,7 @@ class W_Cons(W_List):
 
 
 def _cons_make(car, cdr):
-    return W_Cons(car, cdr, 42)
+    return W_Cons(car, cdr)
 W_Cons.make = staticmethod(_cons_make)
 
 class W_MList(W_Object):
