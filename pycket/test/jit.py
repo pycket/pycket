@@ -174,8 +174,6 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-                     
-
     def test_append(self):
         ast = to_ast(expand("""
 (let () (define (append a b)
@@ -288,3 +286,28 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
+    def _cons_map(self):
+        ast = to_ast(expand("""
+(map (lambda (x) (+ x 1))
+        (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
+              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
+              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
+              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
+              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3))
+"""))
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+        self.meta_interp(interp_w, [],
+                         listcomp=True, listops=True, backendopt=True)
+        def test_scons_map(self):
+        import pycket.values
+        pycket.value._enable_cons_specialization = True
+        self._cons_map()
+
+    def test_ucons_map(self):
+        import pycket.values
+        pycket.value._enable_cons_specialization = False
+        self._cons_map()

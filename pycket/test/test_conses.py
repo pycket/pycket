@@ -31,3 +31,14 @@ class TestConses(object):
         run("(equal? (cons 1 (cons 2 3)) (cons 1 (cons 2 3)))", w_true)
         run("(equal? (cons 1 (cons 2 3)) (cons 1 (cons 3 3)))", w_false)
         run("(equal? (cons 1 (cons 2 3)) (cons 1 (cons 2 4)))", w_false)
+
+    # white box type spec testing
+    def test_intcons(self):
+        _1 = W_Fixnum(1)
+        _2 = W_Fixnum(2)
+        c =  W_Cons.make(_1, _2)
+        #here be whitebox
+        assert isinstance(c, W_UnwrappedFixnumCons)
+        assert isinstance(c.car(), W_Fixnum)
+        assert isinstance(c.cdr(), W_Fixnum)
+

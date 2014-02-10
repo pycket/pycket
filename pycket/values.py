@@ -73,6 +73,20 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+
+class W_UnwrappedFixnumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Fixnum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -83,11 +97,13 @@ class W_WrappedCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+_enable_cons_specialization = True
 
 def _cons_make(car, cdr):
-    if False: pass
-    # elif isinstance(car, W_Fixnum):
-    #     pass
+    if !_enable_cons_specialization:
+        return W_WrappedCons(car, cdr)
+    elif isinstance(car, W_Fixnum):
+        return W_UnwrappedFixnumCons(car, cdr)
     else:
         return W_WrappedCons(car, cdr)
 W_Cons.make = staticmethod(_cons_make)
