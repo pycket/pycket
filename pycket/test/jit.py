@@ -305,10 +305,10 @@ class TestLLtype(LLJitMixin):
 
     def test_scons_map(self):
         import pycket.values
-        pycket.value._enable_cons_specialization = True
+        pycket.values._enable_cons_specialization = True
         self._cons_map()
 
     def test_ucons_map(self):
         import pycket.values
-        pycket.value._enable_cons_specialization = False
+        pycket.values._enable_cons_specialization = False
         self._cons_map()
