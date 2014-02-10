@@ -38,7 +38,7 @@ class ToplevelEnv(Env):
 
     def toplevel_set(self, sym, w_val):
         if sym in self.bindings:
-            self.bindings[sym].value = w_val
+            self.bindings[sym].set_val(w_val)
         else:
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
@@ -90,7 +90,7 @@ class LetrecCont(Cont):
         for j, w_val in enumerate(vals):
             v = self.env.lookup(ast.args.elems[ast.total_counts[self.i] + j], ast.args)
             assert isinstance(v, values.W_Cell)
-            v.value = w_val
+            v.set_val(w_val)
         if self.i >= (len(ast.rhss) - 1):
             return ast.make_begin_cont(self.env, self.prev)
         else:
@@ -380,7 +380,7 @@ class CellRef(Var):
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
-        v.value = w_val
+        v.set_val(w_val)
     def _lookup(self, env):
         #import pdb; pdb.set_trace()
         v = env.lookup(self.sym, self.env_structure)

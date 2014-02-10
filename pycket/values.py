@@ -44,6 +44,10 @@ class W_Cell(W_Object): # not the same as Racket's box
         assert not isinstance(v, W_Cell)
         self.value = v
 
+    def set_val(self, w_value):
+        self.value = w_value
+
+
 class W_List(W_Object):
     errorname = "list"
     def __init__(self):
