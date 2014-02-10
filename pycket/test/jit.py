@@ -287,19 +287,25 @@ class TestLLtype(LLJitMixin):
 
 
     def _cons_map(self):
-        ast = to_ast(expand("""
-(map (lambda (x) (+ x 1))
+        from pycket.expand import expand_string
+        from pycket.json import loads
+
+        ast = to_ast(loads(expand_string("""
+(foldl + 0 (map (lambda (x) (+ x 1))
         (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
               1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
               1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
               1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3
-              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3))
-"""))
+              1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3)))
+""", wrap=True, stdlib=True)))
+
         def interp_w():
             val = interpret_one(ast)
             ov = check_one_val(val)
             assert isinstance(ov, W_Fixnum)
             return ov.value
+        assert interp_w() == 635
+
         self.meta_interp(interp_w, [],
                          listcomp=True, listops=True, backendopt=True)
 
