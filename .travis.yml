@@ -1,7 +1,7 @@
 language: python
 cache: apt
 python:
-  - 2.7
+  - pypy
 env:
   matrix:
     - TEST_TYPE=tests
