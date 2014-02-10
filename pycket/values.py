@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
@@ -47,13 +50,14 @@ class W_List(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_Cons(W_List):
-    _immutable_fields_ = ["car", "cdr"]
+    "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
-    def __init__(self, a, d):
-        self.car = a
-        self.cdr = d
+    def car(self):
+        raise NotImplementedError("abstract base class")
+    def cdr(self):
+        raise NotImplementedError("abstract base class")
     def tostring(self):
-        return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
+        return "(%s . %s)"%(self.car().tostring(), self.cdr().tostring())
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
@@ -63,11 +67,47 @@ class W_Cons(W_List):
         w_curr1 = self
         w_curr2 = other
         while isinstance(w_curr1, W_Cons) and isinstance(w_curr2, W_Cons):
-            if not w_curr1.car.equal(w_curr2.car):
+            if not w_curr1.car().equal(w_curr2.car()):
                 return False
-            w_curr1 = w_curr1.cdr
-            w_curr2 = w_curr2.cdr
+            w_curr1 = w_curr1.cdr()
+            w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
+
+
+class W_UnwrappedFixnumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Fixnum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_WrappedCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        self._car = a
+        self._cdr = d
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+
+_enable_cons_specialization = True
+
+def _cons_make(car, cdr):
+    if not _enable_cons_specialization:
+        return W_WrappedCons(car, cdr)
+    elif isinstance(car, W_Fixnum):
+        return W_UnwrappedFixnumCons(car, cdr)
+    else:
+        return W_WrappedCons(car, cdr)
+W_Cons.make = staticmethod(_cons_make)
+
 class W_MList(W_Object):
     errorname = "mlist"
     def __init__(self):
@@ -76,12 +116,20 @@ class W_MList(W_Object):
 class W_MCons(W_MList):
     errorname = "mpair"
     def __init__(self, a, d):
-        self.car = a
-        self.cdr = d
+        self._car = a
+        self._cdr = d
     def tostring(self):
-        return "(mcons %s %s)"%(self.car.tostring(), self.cdr.tostring())
+        return "(mcons %s %s)"%(self.car().tostring(), self.cdr().tostring())
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+    def set_car(self, a):
+        self._car = a
+    def set_cdr(self, d):
+        self._cdr = d
 
-        
+
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
@@ -200,7 +248,7 @@ class W_SimplePrim(W_Procedure):
         jit.promote(self)
         #print self.name
         return return_value(self.code(args), env, cont)
-    
+
     def tostring(self):
         return "SimplePrim<%s>" % self.name
 
@@ -213,7 +261,7 @@ class W_Prim(W_Procedure):
     def call(self, args, env, cont):
         jit.promote(self)
         return self.code(args, env, cont)
-    
+
     def tostring(self):
         return "Prim<%s>" % self.name
 
@@ -222,7 +270,7 @@ def to_list(l): return to_improper(l, w_null)
 @jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
 def to_improper(l, curr):
     for i in range(len(l) - 1, -1, -1):
-        curr = W_Cons(l[i], curr)
+        curr = W_Cons.make(l[i], curr)
     return curr
 
 def to_mlist(l): return to_mimproper(l, w_null)
@@ -236,8 +284,8 @@ def to_mimproper(l, curr):
 def from_list(w_curr):
     result = []
     while isinstance(w_curr, W_Cons):
-        result.append(w_curr.car)
-        w_curr = w_curr.cdr
+        result.append(w_curr.car())
+        w_curr = w_curr.cdr()
     if w_curr is w_null:
         return result[:] # copy to make result non-resizable
     else:

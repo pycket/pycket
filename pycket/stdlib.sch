@@ -15,7 +15,7 @@
         [(or (null? as)
              (ormap null? bss))
          (void) #;(error 'for-each "list lengths differ")]
-        [else 
+        [else
          (apply f (car as) (map car bss))
          (apply for-each f (cdr as) (map cdr bss))]))
 
@@ -26,7 +26,7 @@
 (define (newline) (write "\n"))
 
 (define (append a b)
-  (if (null? a) 
+  (if (null? a)
       b
       (cons (car a) (append (cdr a) b))))
 
@@ -39,8 +39,27 @@
       (cons (f (car l))
             (map f (cdr l)))))
 
+(define (filter pred l)
+  (if (null? l)
+      '()
+      (if (pred (car l))
+          (cons (car l)
+               (filter pred (cdr l)))
+          (filter pred (cdr l)))))
+
+(define (foldr f v l)
+  (if (null? l)
+      v
+      (f (car l)
+         (foldr f v (cdr l)))))
+
+(define (foldl f acc l)
+  (if (null? l)
+      acc
+      (foldl f (f acc (car l)) (cdr l))))
+
 (define (member v l)
-  (if (null? l) 
+  (if (null? l)
       #f
       (if (equal? v (car l))
           l
