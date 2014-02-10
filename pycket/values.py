@@ -52,6 +52,16 @@ class W_List(W_Object):
 class W_Cons(W_List):
     "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
+
+    @staticmethod
+    def make(car, cdr):
+        if not _enable_cons_specialization:
+            return W_WrappedCons(car, cdr)
+        elif isinstance(car, W_Fixnum):
+            return W_UnwrappedFixnumCons(car, cdr)
+        else:
+            return W_WrappedCons(car, cdr)
+
     def car(self):
         raise NotImplementedError("abstract base class")
     def cdr(self):
@@ -99,14 +109,6 @@ class W_WrappedCons(W_Cons):
 
 _enable_cons_specialization = True
 
-def _cons_make(car, cdr):
-    if not _enable_cons_specialization:
-        return W_WrappedCons(car, cdr)
-    elif isinstance(car, W_Fixnum):
-        return W_UnwrappedFixnumCons(car, cdr)
-    else:
-        return W_WrappedCons(car, cdr)
-W_Cons.make = staticmethod(_cons_make)
 
 class W_MList(W_Object):
     errorname = "mlist"
@@ -192,6 +194,7 @@ class W_Bool(W_Object):
     def make(b):
         if b: return w_true
         else: return w_false
+
     def __init__(self, val):
         """ NOT_RPYTHON """
         # the previous line produces an error if somebody makes new bool
