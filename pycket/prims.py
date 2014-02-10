@@ -326,7 +326,7 @@ def length(a):
         if isinstance(a, values.W_Null):
             return values.W_Fixnum(n)
         if isinstance(a, values.W_Cons):
-            a = a.cdr
+            a = a.cdr()
             n = n+1
         else:
             raise SchemeException("length: not a list")
@@ -355,11 +355,11 @@ def assq(a, b):
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
-    return values.W_Cons(a,b)
+    return values.W_Cons.make(a,b)
 
 @expose("car", [values.W_Cons])
 def do_car(a):
-    return a.car
+    return a.car()
 
 @expose("cadr")
 def do_cadr(args):
@@ -379,7 +379,7 @@ def do_cadddr(args):
 
 @expose("cdr", [values.W_Cons])
 def do_cdr(a):
-    return a.cdr
+    return a.cdr()
 
 
 @expose("mlist")
@@ -392,19 +392,19 @@ def do_mcons(a, b):
 
 @expose("mcar", [values.W_MCons])
 def do_mcar(a):
-    return a.car
+    return a.car()
 
 @expose("mcdr", [values.W_MCons])
 def do_mcdr(a):
-    return a.cdr
+    return a.cdr()
 
 @expose("set-mcar!", [values.W_MCons, values.W_Object])
 def do_set_mcar(a, b):
-    a.car = b
+    a.set_car(b)
 
 @expose("set-mcdr!", [values.W_MCons, values.W_Object])
 def do_set_mcdr(a, b):
-    a.cdr = b
+    a.set_cdr(b)
 
 @expose("void")
 def do_void(args): return values.w_void
@@ -460,7 +460,7 @@ def listp_loop(v):
     while True:
         if v is values.w_null: return True
         if isinstance(v, values.W_Cons):
-            v = v.cdr
+            v = v.cdr()
             continue
         return False
 
