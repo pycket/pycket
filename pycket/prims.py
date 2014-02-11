@@ -193,8 +193,8 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
             return getattr(neutral_element, methname)(args[0])
         else:
             init = args[0]
-            for i in args[1:]:
-                init = getattr(init, methname)(i)
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
             return init
 
 for args in [
