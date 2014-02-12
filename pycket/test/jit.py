@@ -293,7 +293,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             ov = check_one_val(val)
             assert isinstance(ov, W_Fixnum)
-            return val.value
+            return ov.value
 
         assert interp_w() == 1
 
