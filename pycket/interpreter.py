@@ -733,6 +733,17 @@ def make_letrec(varss, rhss, body):
             b = body[0]
             if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
                 return rhs.make_recursive_copy(b.sym)
+            elif isinstance(b, App):
+                rator = b.rator
+                x = {}
+                for rand in b.rands:
+                    x.update(rand.free_vars())
+                if (isinstance(rator, LexicalVar) and
+                        varss[0][0] is rator.sym and
+                        rator.sym not in x):
+                    return App(rhs.make_recursive_copy(rator.sym),
+                               b.rands, b.remove_env)
+
     counts = []
     argsl = []
     for vars in varss:

@@ -2,6 +2,7 @@ import pytest
 from pycket.expand import expand
 from pycket.values import W_Symbol
 from pycket.expand import _to_ast, to_ast
+from pycket.interpreter import Lambda, Letrec
 
 def make_symbols(d):
     return {W_Symbol.make(i): j for i, j in d.iteritems()}
@@ -15,6 +16,25 @@ def test_mutvars():
     assert p.mutated_vars() == make_symbols({"x": None})
     p = _to_ast(expand("(let ([x 1]) (set! x 2))"))
     assert p.mutated_vars() == make_symbols({})
+
+def test_reclambda():
+    # simple case:
+    p = to_ast(expand("(letrec ([a (lambda () a)]) a)"))
+    assert isinstance(p, Lambda)
+    assert p.recursive_sym is not None
+
+    # immediate application
+    p = to_ast(expand("(letrec ([a (lambda () a)]) (a))"))
+    assert isinstance(p.rator, Lambda)
+    assert p.rator.recursive_sym is not None
+
+    # immediate application
+    p = to_ast(expand("(letrec ([a (lambda (b) (a b))]) (a 1))"))
+    assert isinstance(p.rator, Lambda)
+
+    # immediate application, doesn't work because the operands include a too
+    p = to_ast(expand("(letrec ([a (lambda (b) (a b))]) (a (a 1)))"))
+    assert isinstance(p, Letrec)
 
 def test_cache_closure():
     from pycket import interpreter
