@@ -171,7 +171,7 @@ class Done(Exception):
 
 class AST(object):
     _attrs_ = ["should_enter"]
-    _immutable_fields_ = ["should_enter?"]
+    _immutable_fields_ = ["should_enter"]
     _settled_ = True
 
     should_enter = False # default value
@@ -256,6 +256,7 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
+        self.should_enter = isinstance(rator, ModuleVar)
 
     def let_convert(self):
         fresh_vars = []
@@ -314,8 +315,6 @@ class App(AST):
             # breaks otherwise
             assert isinstance(env, ConsEnv)
             env = env.prev
-        if not isinstance(w_callable, values.W_Closure) and not self.should_enter:
-            self.should_enter = True
         return w_callable.call(args_w, env, cont)
 
     def tostring(self):
