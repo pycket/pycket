@@ -724,15 +724,6 @@ def make_let(varss, rhss, body):
         argsl = argsl[:] # copy to make fixed-size
         return Let(SymList(argsl), counts, rhss, body)
 
-def make_letrec(vars, rhss, body):
-    if (1 == len(vars)):
-        if (1 == len(body)):
-            rhs = rhss[0]
-            if isinstance(rhs, Lambda):
-                b = body[0]
-                if isinstance(b, LexicalVar) and vars[0] is b.sym:
-                    return rhs.make_recursive_copy(b.sym)
-    return Letrec(SymList(vars), rhss, body)
 def make_letrec(varss, rhss, body):
     if (1 == len(varss) and
             1 == len(varss[0]) and
