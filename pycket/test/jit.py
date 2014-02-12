@@ -197,7 +197,23 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-                     
+    def test_earley(self):
+        fname = "earley.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_triangle(self):
+        fname = "triangle.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_append(self):
         ast = to_ast(expand("""
@@ -307,6 +323,55 @@ class TestLLtype(LLJitMixin):
             return val.value
 
         assert interp_w() == sum(i ** 2 for i in range(1000))
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+
+    def _cons_map(self):
+        from pycket.expand import expand_string
+        from pycket.json import loads
+
+        ast = to_ast(loads(expand_string("""
+(letrec ([range-it (lambda (n a)
+                           (if (<= n 0)
+                               a
+                               (range-it (- n 1) (cons n a))))]
+         [range (lambda (n) (range-it n '()))])
+  (foldl + 0 (range 1000)))
+""", wrap=True, stdlib=True)))
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+        assert interp_w() == 500500
+
+        self.meta_interp(interp_w, [],
+                         listcomp=True, listops=True, backendopt=True)
+
+    def test_scons_map(self):
+        import pycket.values
+        pycket.values._enable_cons_specialization = True
+        self._cons_map()
+
+    def test_ucons_map(self):
+        import pycket.values
+        pycket.values._enable_cons_specialization = False
+        self._cons_map()
+
+    def test_countdown_vector_allocation(self):
+        ast = to_ast(expand("""
+(letrec ([countdown (lambda (n) (if (< n 0) 1 (let ([v (vector n 1)]) (countdown (- (vector-ref v 0) (vector-ref v 1))))))])
+ (countdown 1000))"""))
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 1
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 

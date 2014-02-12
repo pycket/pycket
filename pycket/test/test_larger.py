@@ -1,5 +1,5 @@
 import pytest
-from pycket.expand import expand, expand_file, to_ast
+from pycket.expand import expand, expand_string, to_ast
 from pycket.json import loads
 from pycket.interpreter import *
 from pycket.values import *
@@ -14,10 +14,12 @@ def run_file(fname, *replacements):
 
 def parse_file(fname, *replacements):
     fname = os.path.join(os.path.dirname(__file__), fname)
-    s = expand_file(fname)
+    with file(fname) as f:
+        s = f.read()
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
+    s = expand_string(s, wrap=True, stdlib=True)
     e = loads(s)
     ast = to_ast(e)
     return ast
@@ -36,10 +38,16 @@ def test_bubble_unsafe():
     run_file("bubble-unsafe.sch", ("10000", "100"))
 
 #def test_pseudoknot():
-#    run_file("nucleic2.sch")
+#    run_file("nucleic2.sch", ("(i 100)", "(i 1)"))
 
 def test_microkanren():
     run_file("microkanren.sch")
+
+def test_earley():
+    run_file("earley.sch", ("(test 14)", "(test 3)"))
+
+def test_triangle():
+    run_file("triangle.sch", ("1000000", "10"))
 
 #def test_minikanren():
 #    run_file("minikanren.sch")

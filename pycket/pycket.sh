@@ -14,13 +14,14 @@ fi
 
 scriptfile=$1
 jsonfile=${scriptfile}.json
+stdlibfile="stdlib.sch"
 
 if [ ! -r $scriptfile ]; then
 	echo "File does not exist or cannot be opened: $scriptfile"
 	exit 1
 fi
 
-if [ \( ! -r "$jsonfile" \) -o \( "$scriptfile" -nt "$jsonfile" \) ]; then
+if [ \( ! -r "$jsonfile" \) -o \( "$scriptfile" -nt "$jsonfile" \) -o \( "$stdlibfile" -nt "$jsonfile" \) ]; then
 	# Either the json-file does not exist or the script-file is newer
 	# => (Re)create the json-file
 	racket expand_racket.rkt --output $jsonfile $scriptfile

@@ -126,6 +126,7 @@ def make_pred_eq(name, val):
 
 for args in [
         ("pair?", values.W_Cons),
+        ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
@@ -180,23 +181,27 @@ def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
     
 
-def make_arith(name, zero, methname):
+def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
-        if not args and zero:
-            return zero
+        if not args:
+            if not supports_zero_args:
+                raise SchemeException("expected at least 1 argument to %s" % name)
+            return neutral_element
+        if len(args) == 1:
+            return getattr(neutral_element, methname)(args[0])
         else:
             init = args[0]
-            for i in args[1:]:
-                init = getattr(init, methname)(i)
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
             return init
 
 for args in [
-        ("+", values.W_Fixnum(0), "arith_add"),
-        ("-", None, "arith_sub"),
-        ("/", None, "arith_div"),
-        ("*", values.W_Fixnum(1), "arith_mul"),
+        ("+", values.W_Fixnum(0), "arith_add", True),
+        ("-", values.W_Fixnum(0), "arith_sub", False),
+        ("*", values.W_Fixnum(1), "arith_mul", True),
+        ("/", values.W_Fixnum(1), "arith_div", False),
         ]:
     make_arith(*args)
 
@@ -218,27 +223,6 @@ val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
 
-def equal_loop(a,b):
-    if a is b:
-        return True
-    if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return a.value == b.value
-    if a is values.w_void:
-        return False
-    if a is values.w_null:
-        return False
-    if isinstance(a, values.W_Symbol): 
-        return False
-    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        return equal_loop(a.car, b.car) and equal_loop(a.cdr, b.cdr)
-    if isinstance(a, values_vector.W_Vector) and isinstance(b, values_vector.W_Vector):
-        if a.length() != b.length(): return False
-        for i in range(a.length()):
-            if not equal_loop(a.ref(i), b.ref(i)):
-                return False
-        return True
-    return False
-
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -257,7 +241,7 @@ def call_with_values (producer, consumer, env, cont):
 def time_apply_cont(initial, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     final = time.clock()
-    ms = values.W_Fixnum(int((final - initial) / 1000))
+    ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_l = vals._get_full_list()
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
@@ -266,15 +250,64 @@ def time_apply_cont(initial, env, cont, vals):
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
-@expose("time-apply", [values.W_Procedure], simple=False)
-def time_apply(a, env, cont):
+@expose("time-apply", [values.W_Procedure, values.W_List], simple=False)
+def time_apply(a, args, env, cont):
     initial = time.clock()
-    return a.call([], env, time_apply_cont(initial, env, cont))
+    return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
+
+@expose("apply", simple=False)
+def apply(args, env, cont):
+    if not args:
+        raise SchemeException("apply expected at least one argument, got 0")
+    fn = args[0]
+    if not isinstance(fn, values.W_Procedure):
+        raise SchemeException("apply expected a procedure, got something else")
+    lst = args[-1]
+    if not listp_loop(lst):
+        raise SchemeException("apply expected a list as the last argument, got something else")
+    args_len = len(args)-1
+    assert args_len >= 0
+    others = args[1:args_len]
+    new_args = others + values.from_list(lst)
+    return fn.call(new_args, env, cont)
+    
+
+@expose("printf")
+def printf(args):
+    if not args:
+        raise SchemeException("printf expected at least one argument, got 0")
+    fmt = args[0]
+    if not isinstance(fmt, values.W_String):
+        raise SchemeException("printf expected a format string, got something else")
+    fmt = fmt.value
+    vals = args[1:]
+    i = 0
+    j = 0
+    while i < len(fmt):
+        if fmt[i] == '~':
+            if i+1 == len(fmt):
+                raise SchemeException("bad format string")
+            s = fmt[i+1]
+            if s == 'a' or s == 'v' or s == 's':
+                # print a value
+                # FIXME: different format chars
+                if j >= len(vals):
+                    raise SchemeException("not enough arguments for format string")
+                os.write(1,vals[j].tostring()),
+                i += 2
+                j += 1
+            elif s == 'n':
+                os.write(1,"\n") # newline
+            else:
+                raise SchemeException("unexpected format character")
+        else:
+            os.write(1,fmt[i])
+            i += 1
 
 @expose("equal?", [values.W_Object] * 2)
 def equalp(a, b):
     # this doesn't work for cycles
-    return values.W_Bool.make(equal_loop(a,b))
+    return values.W_Bool.make(a.equal(b))
 
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
@@ -293,11 +326,10 @@ def length(a):
         if isinstance(a, values.W_Null):
             return values.W_Fixnum(n)
         if isinstance(a, values.W_Cons):
-            a = a.cdr
+            a = a.cdr()
             n = n+1
         else:
             raise SchemeException("length: not a list")
-        
 
 @expose("list")
 def do_list(args):
@@ -323,11 +355,11 @@ def assq(a, b):
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
-    return values.W_Cons(a,b)
+    return values.W_Cons.make(a,b)
 
 @expose("car", [values.W_Cons])
 def do_car(a):
-    return a.car
+    return a.car()
 
 @expose("cadr")
 def do_cadr(args):
@@ -347,15 +379,32 @@ def do_cadddr(args):
 
 @expose("cdr", [values.W_Cons])
 def do_cdr(a):
-    return a.cdr
+    return a.cdr()
 
-@expose("set-car!", [values.W_Cons, values.W_Object])
-def do_set_car(a, b):
-    a.car = b
 
-@expose("set-cdr!", [values.W_Cons, values.W_Object])
-def do_set_cdr(a, b):
-    a.cdr = b
+@expose("mlist")
+def do_mlist(args):
+    return values.to_mlist(args)
+
+@expose("mcons", [values.W_Object, values.W_Object])
+def do_mcons(a, b):
+    return values.W_MCons(a,b)
+
+@expose("mcar", [values.W_MCons])
+def do_mcar(a):
+    return a.car()
+
+@expose("mcdr", [values.W_MCons])
+def do_mcdr(a):
+    return a.cdr()
+
+@expose("set-mcar!", [values.W_MCons, values.W_Object])
+def do_set_mcar(a, b):
+    a.set_car(b)
+
+@expose("set-mcdr!", [values.W_MCons, values.W_Object])
+def do_set_mcdr(a, b):
+    a.set_cdr(b)
 
 @expose("void")
 def do_void(args): return values.w_void
@@ -411,7 +460,7 @@ def listp_loop(v):
     while True:
         if v is values.w_null: return True
         if isinstance(v, values.W_Cons):
-            v = v.cdr
+            v = v.cdr()
             continue
         return False
 
@@ -432,8 +481,22 @@ def write(s):
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock()/1000)
+    return values.W_Flonum(time.clock()*1000)
 
+@expose("error", [values.W_Symbol, values.W_String])
+def error(name, msg):
+    raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
+
+@expose("list->vector", [values.W_List])
+def list2vector(l):
+    return values_vector.W_Vector.fromelements(values.from_list(l))
+
+@expose("vector->list", [values_vector.W_Vector])
+def vector2list(v):
+    es = []
+    for i in range(v.len):
+        es.append(v.ref(i))
+    return values.to_list(es)
 
 # ____________________________________________________________
 

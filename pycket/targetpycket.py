@@ -1,15 +1,36 @@
-
-# This file is intended to be compiled using rpython.
-# If you want to execute pycket on top of a python interpreter, use runpycket.py instead.
-
 from pycket.expand import load_json_ast_rpython
 from pycket.interpreter import interpret_one
+from pycket.error import SchemeException
+
+from rpython.rlib import jit
 
 def main(argv):
+    jit.set_param(None, "trace_limit", 20000)
+    # XXX crappy argument handling
+    try:
+        index = argv.index("--jit")
+    except ValueError:
+        pass
+    else:
+        if index == len(argv) - 1:
+            print "missing argument after --jit"
+            return 2
+        jitarg = argv[index + 1]
+        del argv[index:index+2]
+        jit.set_user_param(None, jitarg)
+
+    if len(argv) != 2:
+        print "need exactly one argument, the json file to run"
+        return 3
     ast = load_json_ast_rpython(argv[1])
-    val = interpret_one(ast)
-    print val.tostring()
-    return 0
+    try:
+        val = interpret_one(ast)
+    except SchemeException, e:
+        print "ERROR:", e.msg
+        raise # to see interpreter-level traceback
+    else:
+        print val.tostring()
+        return 0
 
 def target(*args):
     return main

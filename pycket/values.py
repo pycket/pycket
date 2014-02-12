@@ -1,7 +1,12 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
+
+UNROLLING_CUTOFF = 5
 
 # This is not a real value, so it's not a W_Object
 class Values(object):
@@ -31,12 +36,17 @@ class W_Object(object):
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
-
+    def equal(self, other):
+        return self is other # default implementation
 
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
         self.value = v
+
+    def set_val(self, w_value):
+        self.value = w_value
+
 
 class W_List(W_Object):
     errorname = "list"
@@ -44,12 +54,87 @@ class W_List(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_Cons(W_List):
+    "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
-    def __init__(self, a, d):
-        self.car = a
-        self.cdr = d
+
+    @staticmethod
+    def make(car, cdr):
+        if not _enable_cons_specialization:
+            return W_WrappedCons(car, cdr)
+        elif isinstance(car, W_Fixnum):
+            return W_UnwrappedFixnumCons(car, cdr)
+        else:
+            return W_WrappedCons(car, cdr)
+
+    def car(self):
+        raise NotImplementedError("abstract base class")
+    def cdr(self):
+        raise NotImplementedError("abstract base class")
     def tostring(self):
-        return "(%s . %s)"%(self.car.tostring(), self.cdr.tostring())
+        return "(%s . %s)"%(self.car().tostring(), self.cdr().tostring())
+
+    def equal(self, other):
+        if not isinstance(other, W_Cons):
+            return False
+        if self is other:
+            return True
+        w_curr1 = self
+        w_curr2 = other
+        while isinstance(w_curr1, W_Cons) and isinstance(w_curr2, W_Cons):
+            if not w_curr1.car().equal(w_curr2.car()):
+                return False
+            w_curr1 = w_curr1.cdr()
+            w_curr2 = w_curr2.cdr()
+        return w_curr1.equal(w_curr2)
+
+
+class W_UnwrappedFixnumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Fixnum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_WrappedCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        self._car = a
+        self._cdr = d
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+
+_enable_cons_specialization = True
+
+
+class W_MList(W_Object):
+    errorname = "mlist"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_MCons(W_MList):
+    errorname = "mpair"
+    def __init__(self, a, d):
+        self._car = a
+        self._cdr = d
+    def tostring(self):
+        return "(mcons %s %s)"%(self.car().tostring(), self.cdr().tostring())
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+    def set_car(self, a):
+        self._car = a
+    def set_cdr(self, d):
+        self._cdr = d
+
 
 class W_Number(W_Object):
     errorname = "number"
@@ -65,6 +150,11 @@ class W_Fixnum(W_Number):
     def __init__(self, val):
         self.value = val
 
+    def equal(self, other):
+        if not isinstance(other, W_Fixnum):
+            return False
+        return self.value == other.value
+
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
@@ -73,12 +163,22 @@ class W_Flonum(W_Number):
     def __init__(self, val):
         self.value = val
 
+    def equal(self, other):
+        if not isinstance(other, W_Flonum):
+            return False
+        return self.value == other.value
+
 class W_Bignum(W_Number):
     _immutable_fields_ = ["value"]
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
         self.value = val
+
+    def equal(self, other):
+        if not isinstance(other, W_Bignum):
+            return False
+        return self.value.eq(other.value)
 
 class W_Void(W_Object):
     def __init__(self): pass
@@ -98,6 +198,7 @@ class W_Bool(W_Object):
     def make(b):
         if b: return w_true
         else: return w_false
+
     def __init__(self, val):
         """ NOT_RPYTHON """
         # the previous line produces an error if somebody makes new bool
@@ -111,6 +212,7 @@ w_false = W_Bool(False)
 w_true = W_Bool(True)
 
 class W_String(W_Object):
+    errorname = "string"
     def __init__(self, val):
         self.value = val
     def tostring(self):
@@ -118,6 +220,7 @@ class W_String(W_Object):
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
+    errorname = "symbol"
     all_symbols = {}
     @staticmethod
     def make(string):
@@ -152,7 +255,7 @@ class W_SimplePrim(W_Procedure):
         jit.promote(self)
         #print self.name
         return return_value(self.code(args), env, cont)
-    
+
     def tostring(self):
         return "SimplePrim<%s>" % self.name
 
@@ -165,17 +268,35 @@ class W_Prim(W_Procedure):
     def call(self, args, env, cont):
         jit.promote(self)
         return self.code(args, env, cont)
-    
+
     def tostring(self):
         return "Prim<%s>" % self.name
 
 def to_list(l): return to_improper(l, w_null)
 
-def to_improper(l, v):
-    if not l:
-        return v
+@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+def to_improper(l, curr):
+    for i in range(len(l) - 1, -1, -1):
+        curr = W_Cons.make(l[i], curr)
+    return curr
+
+def to_mlist(l): return to_mimproper(l, w_null)
+
+@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+def to_mimproper(l, curr):
+    for i in range(len(l) - 1, -1, -1):
+        curr = W_MCons(l[i], curr)
+    return curr
+
+def from_list(w_curr):
+    result = []
+    while isinstance(w_curr, W_Cons):
+        result.append(w_curr.car())
+        w_curr = w_curr.cdr()
+    if w_curr is w_null:
+        return result[:] # copy to make result non-resizable
     else:
-        return W_Cons(l[0], to_improper(l[1:], v))
+        raise SchemeException("Expected list, but got something else")
 
 class W_Continuation(W_Procedure):
     _immutable_fields_ = ["cont"]

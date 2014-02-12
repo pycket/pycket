@@ -32,4 +32,4 @@ fi
 
 
 # Now run the actual program
-$PYTHON runpycket.py $jsonfile
+$PYTHON targetpycket.py $jsonfile

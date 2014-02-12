@@ -38,7 +38,7 @@ class ToplevelEnv(Env):
 
     def toplevel_set(self, sym, w_val):
         if sym in self.bindings:
-            self.bindings[sym].value = w_val
+            self.bindings[sym].set_val(w_val)
         else:
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
@@ -81,45 +81,68 @@ class LetrecCont(Cont):
         self.i = i
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, vals):
-        w_val = check_one_val(vals)
-        v = self.env.lookup(self.ast.args.elems[self.i], self.ast.args)
-        assert isinstance(v, values.W_Cell)
-        v.value = w_val
-        if self.i >= (len(self.ast.rhss) - 1):
-            return self.ast.make_begin_cont(self.env, self.prev)
+
+    def plug_reduce(self, _vals):
+        vals = _vals._get_full_list()
+        ast = jit.promote(self.ast)
+        if ast.counts[self.i] != _vals._get_size_list():
+            raise SchemeException("wrong number of values")
+        for j, w_val in enumerate(vals):
+            v = self.env.lookup(ast.args.elems[ast.total_counts[self.i] + j], ast.args)
+            assert isinstance(v, values.W_Cell)
+            v.set_val(w_val)
+        if self.i >= (len(ast.rhss) - 1):
+            return ast.make_begin_cont(self.env, self.prev)
         else:
-            return (self.ast.rhss[self.i + 1], self.env,
-                    LetrecCont(self.ast, self.i + 1,
+            return (ast.rhss[self.i + 1], self.env,
+                    LetrecCont(ast, self.i + 1,
                                self.env, self.prev))
 
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
-    def __init__(self, ast, env, prev):
+
+    def __init__(self, ast, env, prev, rhsindex):
         self.ast  = ast
         self.env  = env
         self.prev = prev
-    def plug_reduce(self, vals):
-        w_val = check_one_val(vals)
+        self.rhsindex = rhsindex
+
+    def plug_reduce(self, _vals):
+        vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
-        if self._get_size_list() == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + [w_val]
+        rhsindex = jit.promote(self.rhsindex)
+        if ast.counts[rhsindex] != len(vals):
+            raise SchemeException("wrong number of values")
+        if rhsindex == (len(ast.rhss) - 1):
+            vals_w = self._get_full_list() + vals
             env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
-            return (ast.rhss[self._get_size_list() + 1], self.env,
-                    LetCont.make(self._get_full_list() + [w_val], ast,
-                                 self.env, self.prev))
+            return (ast.rhss[rhsindex + 1], self.env,
+                    LetCont.make(self._get_full_list() + vals, ast,
+                                 self.env, self.prev, rhsindex + 1))
+
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
+
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
-    def __init__(self, env, prev):
+
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
+
+    @jit.unroll_safe
     def plug_reduce(self, vals):
-        w_val = check_one_val(vals)
-        return return_value(values.W_Cell(w_val), self.env, self.prev)
+        ast = jit.promote(self.ast)
+        vals_w = []
+        for i, needs_cell in enumerate(ast.need_cell_flags):
+            w_val = vals._get_list(i)
+            if needs_cell:
+                w_val = values.W_Cell(w_val)
+            vals_w.append(w_val)
+        return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
     _immutable_fields_ = ["var", "env", "prev"]
@@ -190,11 +213,16 @@ def return_multi_vals(vals, env, cont):
     return cont.plug_reduce(vals)
 
 class Cell(AST):
-    _immutable_fields_ = ["expr"]
-    def __init__(self, expr):
+    _immutable_fields_ = ["expr", "need_cell_flags[*]"]
+    def __init__(self, expr, need_cell_flags=None):
+        if need_cell_flags is None:
+            need_cell_flags = [True]
         self.expr = expr
+        self.need_cell_flags = need_cell_flags
+
     def interpret(self, env, cont):
-        return self.expr, env, CellCont(env, cont)
+        return self.expr, env, CellCont(self, env, cont)
+
     def let_convert(self):
         assert 0
     def assign_convert(self, vars, env_structure):
@@ -228,6 +256,7 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
+        self.should_enter = isinstance(rator, ModuleVar)
 
     def let_convert(self):
         fresh_vars = []
@@ -254,7 +283,7 @@ class App(AST):
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
             fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
-            return Let(SymList(fresh_vars[:]), fresh_rhss[:], fresh_body)
+            return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return self
     def assign_convert(self, vars, env_structure):
@@ -352,7 +381,7 @@ class CellRef(Var):
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
-        v.value = w_val
+        v.set_val(w_val)
     def _lookup(self, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
@@ -386,7 +415,10 @@ class ModuleVar(Var):
     def free_vars(self): return {}
     @jit.elidable
     def _prim_lookup(self):
-        return prim_env[self.sym]
+        try:
+            return prim_env[self.sym]
+        except KeyError:
+            raise SchemeException("can't find primitive %s" % (self.sym.tostring(), ))
     def assign_convert(self, vars, env_structure):
         return self
     def _set(self, w_val, env): assert 0
@@ -440,7 +472,10 @@ class If(AST):
             return self
         else:
             fresh = LexicalVar.gensym("if_")
-            return Let(SymList([fresh]), [self.tst], [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+            return Let(SymList([fresh]),
+                       [1], 
+                       [self.tst],
+                       [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
@@ -602,7 +637,7 @@ class Lambda(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, cells, new_body)]
+            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, recursive_sym=self.recursive_sym)
     def mutated_vars(self):
         x = {}
@@ -628,9 +663,18 @@ class Lambda(SequencedBodyAST):
 
 
 class Letrec(SequencedBodyAST):
-    _immutable_fields_ = ["args", "rhss[*]"]
-    def __init__(self, args, rhss, body):
+    _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
+    def __init__(self, args, counts, rhss, body):
+        assert len(counts) > 0 # otherwise just use a begin
+        assert isinstance(args, SymList)
         SequencedBodyAST.__init__(self, body)
+        self.counts = counts
+        total_counts = []
+        total_count = 0
+        for i, count in enumerate(counts):
+            total_counts.append(total_count)
+            total_count += count
+        self.total_counts = total_counts[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
     @jit.unroll_safe
@@ -663,26 +707,22 @@ class Letrec(SequencedBodyAST):
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Letrec(sub_env_structure, new_rhss, new_body)
+        return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
     def tostring(self):
         return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
-def make_let_star(bindings, body):
-    if not bindings:
-        return Begin.make(body)
-    var, rhs = bindings[0]
-    if len(body) == 1:
-        bod = body[0]
-        if isinstance(bod, LexicalVar) and (bod.sym is var):
-            return rhs
-    return Let(SymList([var]), [rhs], [make_let_star(bindings[1:], body)])
-
-def make_let(vars, rhss, body):
-    if not vars:
+def make_let(varss, rhss, body):
+    if not varss:
         return Begin.make(body)
     else:
-        return Let(SymList(vars), rhss, body)
+        counts = []
+        argsl = []
+        for vars in varss:
+            counts.append(len(vars))
+            argsl += vars
+        argsl = argsl[:] # copy to make fixed-size
+        return Let(SymList(argsl), counts, rhss, body)
 
 def make_letrec(vars, rhss, body):
     if (1 == len(vars)):
@@ -693,16 +733,38 @@ def make_letrec(vars, rhss, body):
                 if isinstance(b, LexicalVar) and vars[0] is b.sym:
                     return rhs.make_recursive_copy(b.sym)
     return Letrec(SymList(vars), rhss, body)
+def make_letrec(varss, rhss, body):
+    if (1 == len(varss) and
+            1 == len(varss[0]) and
+            1 == len(body)):
+        rhs = rhss[0]
+        if isinstance(rhs, Lambda):
+            b = body[0]
+            if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
+                return rhs.make_recursive_copy(b.sym)
+    counts = []
+    argsl = []
+    for vars in varss:
+        counts.append(len(vars))
+        argsl = argsl + vars
+    if not varss:
+        return Begin.make(body)
+    else:
+        return Letrec(SymList(argsl), counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args"]
-    def __init__(self, args, rhss, body):
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
+    def __init__(self, args, counts, rhss, body):
         SequencedBodyAST.__init__(self, body)
-        assert len(args.elems) > 0 # otherwise just use a begin
+        assert len(counts) > 0 # otherwise just use a begin
+        assert isinstance(args, SymList)
+        self.counts = counts
         self.rhss = rhss
         self.args = args
+
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont)
+        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
+
     def mutated_vars(self):
         x = {}
         for b in self.body:
@@ -731,15 +793,17 @@ class Let(SequencedBodyAST):
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structure)
-            if self.args.elems[i] in local_muts:
-                new_rhs = Cell(new_rhs)
+            need_cell_flags = [self.args.elems[i + j] in local_muts
+                                   for j in range(self.counts[i])]
+            if True in need_cell_flags:
+                new_rhs = Cell(new_rhs, need_cell_flags)
             new_rhss.append(new_rhs)
 
         new_vars = vars.copy()
         new_vars.update(local_muts)
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Let(sub_env_structure, new_rhss, new_body)
+        return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
         return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 

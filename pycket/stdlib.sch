@@ -1,20 +1,3 @@
-(define (for-each f l)
-  (if (null? l)
-      (void)
-      (begin (f (car l))
-             (for-each f (cdr l)))))
-
-(define (zero? z) (= z 0))
-(define (not b) (if b #f #t))
-(define call-with-current-continuation call/cc)
-
-(define (newline) (write "\n"))
-
-(define (append a b)
-  (if (null? a) 
-      b
-      (cons (car a) (append (cdr a) b))))
-
 (define (exists f l)
   (if (null? l) #f
       (or (f (car l))
@@ -25,20 +8,65 @@
       (and (f (car l))
            (exists f (cdr l)))))
 
+(define (for-each f as . bss)
+  (cond [(and (null? as)
+              (andmap null? bss))
+         (void)]
+        [(or (null? as)
+             (ormap null? bss))
+         (void) #;(error 'for-each "list lengths differ")]
+        [else
+         (apply f (car as) (map car bss))
+         (apply for-each f (cdr as) (map cdr bss))]))
+
+(define (zero? z) (= z 0))
+(define (not b) (if b #f #t))
+(define call-with-current-continuation call/cc)
+
+(define (newline) (write "\n"))
+
+(define (append a b)
+  (if (null? a)
+      b
+      (cons (car a) (append (cdr a) b))))
+
+(define ormap exists)
+(define andmap for-all)
+
 (define (map f l)
   (if (null? l)
       l
       (cons (f (car l))
             (map f (cdr l)))))
 
+(define (filter pred l)
+  (if (null? l)
+      '()
+      (if (pred (car l))
+          (cons (car l)
+               (filter pred (cdr l)))
+          (filter pred (cdr l)))))
 
-(define (time-apply f)
-  (let ([t0 (current-inexact-milliseconds)]
-        [v (f)]
-        [t1 (current-inexact-milliseconds)])
-    (write "cpu time: ")
-    (write (- t1 t0))
-    (newline)
-    v))
+(define (foldr f v l)
+  (if (null? l)
+      v
+      (f (car l)
+         (foldr f v (cdr l)))))
 
-(define-syntax-rule (time e) (time-apply (lambda () e)))
+(define (foldl f acc l)
+  (if (null? l)
+      acc
+      (foldl f (f acc (car l)) (cdr l))))
+
+(define (member v l)
+  (if (null? l)
+      #f
+      (if (equal? v (car l))
+          l
+          (member v (cdr l)))))
+
+(define (reverse l)
+  (let loop ([acc null] [l l])
+    (if (null? l)
+        acc
+        (loop (cons (car l) acc) (cdr l)))))

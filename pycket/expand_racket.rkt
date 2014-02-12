@@ -2,8 +2,8 @@
 
 (require syntax/parse racket/runtime-path racket/unsafe/ops)
 (define-namespace-anchor ns)
-(define set-car! #f)
-(define set-cdr! #f)
+;(define set-car! #f)
+;(define set-cdr! #f)
 
 (define-runtime-path stdlib.sch "stdlib.sch")
 

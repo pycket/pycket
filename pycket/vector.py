@@ -1,12 +1,13 @@
 
-from pycket.values import W_Object, W_Fixnum, W_Flonum
+from pycket.values import W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
-from rpython.rlib import debug
+from rpython.rlib import debug, jit
 
 # Setting this to True will break the tests. Used to compare performance.
 _always_use_object_strategy = False
 
+@jit.look_inside_iff(lambda elements: jit.isconstant(len(elements)) and len(elements) < UNROLLING_CUTOFF)
 def _find_strategy_class(elements):
     if _always_use_object_strategy or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
@@ -58,6 +59,19 @@ class W_Vector(W_Object):
         old_list = self.strategy.ref_all(self)
         self.strategy = new_strategy
         self.storage = new_strategy.create_storage_for_elements(old_list)
+
+    def equal(self, other):
+        # XXX could be optimized using strategies
+        if not isinstance(other, W_Vector):
+            return False
+        if self is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            if not self.ref(i).equal(other.ref(i)):
+                return False
+        return True
 
 
 class SingletonMeta(type):
@@ -130,6 +144,9 @@ class UnwrappedVectorStrategyMixin(object):
         e = self.unwrap(element)
         return self.erase([e] * times)
 
+    @jit.look_inside_iff(
+        lambda self, elements: jit.isconstant(len(elements)) and
+               len(elements) < UNROLLING_CUTOFF)
     def create_storage_for_elements(self, elements):
         if not elements:
             return self.erase([])
