@@ -318,3 +318,19 @@ class TestLLtype(LLJitMixin):
         import pycket.values
         pycket.values._enable_cons_specialization = False
         self._cons_map()
+
+    def test_countdown_vector_allocation(self):
+        ast = to_ast(expand("""
+(letrec ([countdown (lambda (n) (if (< n 0) 1 (let ([v (vector n 1)]) (countdown (- (vector-ref v 0) (vector-ref v 1))))))])
+ (countdown 1000))"""))
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
