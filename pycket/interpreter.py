@@ -751,7 +751,7 @@ def make_letrec(varss, rhss, body):
     if 1 == len(varss) and 1 == len(varss[0]):
         rhs = rhss[0]
         sym = varss[0][0]
-        if isinstance(rhs, Lambda):
+        if isinstance(rhs, Lambda) and sym not in rhs.mutated_vars():
             reclambda = rhs.make_recursive_copy(sym)
             return make_let_singlevar(sym, reclambda, body)
 

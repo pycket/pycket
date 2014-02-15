@@ -266,3 +266,5 @@ def test_apply():
     run_fix("(apply + 1 2 (list 3))", 6)
     run_fix("(apply + 1 2 3 (list))", 6)
 
+def test_setbang_recursive_lambda():
+    run_fix("((letrec ([f (lambda (a) (set! f (lambda (a) 1)) (f a))]) f) 6)", 1)
