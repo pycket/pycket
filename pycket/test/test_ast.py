@@ -2,7 +2,7 @@ import pytest
 from pycket.expand import expand
 from pycket.values import W_Symbol
 from pycket.expand import _to_ast, to_ast
-from pycket.interpreter import Lambda, Letrec, Let, Quote, App
+from pycket.interpreter import Lambda, Letrec, Let, Quote, App, If
 
 def make_symbols(d):
     return {W_Symbol.make(i): j for i, j in d.iteritems()}
@@ -23,6 +23,10 @@ def test_remove_let():
 
     p = to_ast(expand("(let ([g cons]) (g 5 5))"))
     assert isinstance(p, App)
+
+    p = to_ast(expand("(let ([a 1]) (if a b c))"))
+    assert isinstance(p, If)
+
 
 def test_reclambda():
     # simple case:

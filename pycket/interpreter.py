@@ -743,6 +743,12 @@ def make_let_singlevar(sym, rhs, body):
                     sym is rator.sym and
                     rator.sym not in x):
                 return App(rhs, b.rands, b.remove_env)
+        elif isinstance(b, If):
+            tst = b.tst
+            if (isinstance(tst, LexicalVar) and tst.sym is sym and
+                    sym not in b.thn.free_vars() and
+                    sym not in b.els.free_vars()):
+                return If(rhs, b.thn, b.els)
     return Let(SymList([sym]), [1], [rhs], body)
 
 def make_letrec(varss, rhss, body):
