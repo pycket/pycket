@@ -712,47 +712,52 @@ class Letrec(SequencedBodyAST):
         return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
-def make_let(varss, rhss, body):
-    if not varss:
-        return Begin.make(body)
-    else:
-        counts = []
-        argsl = []
-        for vars in varss:
-            counts.append(len(vars))
-            argsl += vars
-        argsl = argsl[:] # copy to make fixed-size
-        return Let(SymList(argsl), counts, rhss, body)
-
-def make_letrec(varss, rhss, body):
-    if (1 == len(varss) and
-            1 == len(varss[0]) and
-            1 == len(body)):
-        rhs = rhss[0]
-        if isinstance(rhs, Lambda):
-            b = body[0]
-            if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
-                return rhs.make_recursive_copy(b.sym)
-            elif isinstance(b, App):
-                rator = b.rator
-                x = {}
-                for rand in b.rands:
-                    x.update(rand.free_vars())
-                if (isinstance(rator, LexicalVar) and
-                        varss[0][0] is rator.sym and
-                        rator.sym not in x):
-                    return App(rhs.make_recursive_copy(rator.sym),
-                               b.rands, b.remove_env)
-
+def _make_symlist_counts(varss):
     counts = []
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl = argsl + vars
+        argsl += vars
+    argsl = argsl[:] # copy to make fixed-size
+    return SymList(argsl), counts
+
+def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    else:
-        return Letrec(SymList(argsl), counts, rhss, body)
+    if 1 == len(varss) and 1 == len(varss[0]):
+        return make_let_singlevar(varss[0][0], rhss[0], body)
+    symlist, counts = _make_symlist_counts(varss)
+    return Let(symlist, counts, rhss, body)
+
+def make_let_singlevar(sym, rhs, body):
+    if 1 == len(body):
+        b, = body
+        if isinstance(b, LexicalVar) and sym is b.sym:
+            return rhs
+        elif isinstance(b, App):
+            rator = b.rator
+            x = {}
+            for rand in b.rands:
+                x.update(rand.free_vars())
+            if (isinstance(rator, LexicalVar) and
+                    sym is rator.sym and
+                    rator.sym not in x):
+                return App(rhs, b.rands, b.remove_env)
+    return Let(SymList([sym]), [1], [rhs], body)
+
+def make_letrec(varss, rhss, body):
+    if not varss:
+        return Begin.make(body)
+    if 1 == len(varss) and 1 == len(varss[0]):
+        rhs = rhss[0]
+        sym = varss[0][0]
+        if isinstance(rhs, Lambda):
+            reclambda = rhs.make_recursive_copy(sym)
+            return make_let_singlevar(sym, reclambda, body)
+
+    symlist, counts = _make_symlist_counts(varss)
+    return Letrec(symlist, counts, rhss, body)
+
 
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]

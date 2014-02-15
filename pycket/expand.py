@@ -151,7 +151,7 @@ def _to_ast(json):
                         for var in v:
                             assert isinstance(var, values.W_Symbol)
                     assert isinstance(rhss[0], AST)
-                    return make_letrec(list(vs), list(rhss), body)
+                    return make_letrec(list(vs), list(rhss), body).let_convert()
             if ast_elem == "let-values":
                 body = [_to_ast(x) for x in arr[2:]]
                 if len(arr[1].value_array()) == 0:
@@ -163,7 +163,7 @@ def _to_ast(json):
                             assert isinstance(var, values.W_Symbol)
                     for r in rhss:
                         assert isinstance(r, AST)
-                    return make_let(list(vs), list(rhss), body)
+                    return make_let(list(vs), list(rhss), body).let_convert()
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 if "lexical" in target:
