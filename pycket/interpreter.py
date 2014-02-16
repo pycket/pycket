@@ -578,7 +578,6 @@ class Lambda(AST):
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
         self.lambody = LambdaBody(body, self)
-        body[0].should_enter = True
         self.formals = formals
         self.rest = rest
         self.args = args
