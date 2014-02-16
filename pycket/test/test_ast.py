@@ -54,7 +54,7 @@ def test_cache_closure():
     from pycket import interpreter
     p = to_ast(expand("(let ([a 1] [b 2] [c 4]) (lambda (x) x a b c))"))
     lam = p.body[0]
-    lam.recursive_sym = lam.body[3].sym
+    lam.recursive_sym = lam.lambody.body[3].sym
     w_closure = lam._make_or_retrieve_closure(interpreter.ConsEnv.make([1, 2, 3, 4], None, None))
     assert 1 in w_closure.env._get_full_list()
     assert 2 in w_closure.env._get_full_list()

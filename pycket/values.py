@@ -343,8 +343,8 @@ class W_Closure(W_Procedure):
             actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
         else:
             actuals = args
-        return lam.make_begin_cont(
-                          ConsEnv.make(actuals, prev, self.env.toplevel_env),
-                          cont)
+        return (lam.lambody,
+                ConsEnv.make(actuals, prev, prev.toplevel_env),
+                cont)
 
 

@@ -8,7 +8,7 @@ from rpython.rlib  import jit, debug, objectmodel
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
-    pass
+    _attrs_ = ['toplevel_env']
 
 class Version(object):
     pass
@@ -573,11 +573,11 @@ def free_vars_lambda(body, args):
             del x[v]
     return x
 
-class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure", "cached_closure?"]
+class Lambda(AST):
+    _immutable_fields_ = ["formals[*]", "lambody", "rest", "args", "frees", "enclosing_env_structure", "cached_closure?"]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
-        SequencedBodyAST.__init__(self, body)
+        self.lambody = LambdaBody(body, self)
         body[0].should_enter = True
         self.formals = formals
         self.rest = rest
@@ -589,7 +589,7 @@ class Lambda(SequencedBodyAST):
 
     def make_recursive_copy(self, sym):
         return Lambda(self.formals, self.rest, self.args, self.frees,
-                      self.body, self.enclosing_env_structure, sym)
+                      self.lambody.body, self.enclosing_env_structure, sym)
 
     def interpret_simple(self, env):
         w_closure = self._make_or_retrieve_closure(env)
@@ -620,7 +620,7 @@ class Lambda(SequencedBodyAST):
 
     def assign_convert(self, vars, env_structure):
         local_muts = {}
-        for b in self.body:
+        for b in self.lambody.body:
             local_muts.update(b.mutated_vars())
         new_lets = []
         new_vars = vars.copy()
@@ -634,33 +634,56 @@ class Lambda(SequencedBodyAST):
             sub_env_structure = SymList(new_lets, self.args)
         else:
             sub_env_structure = self.args
-        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
+        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.lambody.body]
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, recursive_sym=self.recursive_sym)
     def mutated_vars(self):
         x = {}
-        for b in self.body:
+        for b in self.lambody.body:
             x.update(b.mutated_vars())
         for v in self.args.elems:
             if v in x:
                 del x[v]
         return x
     def free_vars(self):
-        result = free_vars_lambda(self.body, self.args)
+        result = free_vars_lambda(self.lambody.body, self.args)
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
 
     def tostring(self):
         if self.rest and (not self.formals):
-            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
+            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.lambody.body])
         if self.rest:
-            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
+            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.lambody.body])
         else:
-            return "(lambda (%s) %s)"%(self.formals, [b.tostring() for b in self.body])
+            return "(lambda (%s) %s)"%(self.formals, [b.tostring() for b in self.lambody.body])
 
+class LambdaBody(SequencedBodyAST):
+    _immutable_fields_ = ["lam"]
+
+    should_enter = True
+
+    def __init__(self, body, lam):
+        SequencedBodyAST.__init__(self, body)
+        self.lam = lam
+
+    def interpret(self, env, cont):
+        # tracing starts *precisely* here, that's why there's some slightly
+        # weird code.
+        lam = self.lam
+        cached = lam.cached_closure
+        assert isinstance(env, ConsEnv)
+        if isinstance(cached, values.W_Closure) and cached.env is env.prev:
+            prev = cached.env
+            assert isinstance(prev, ConsEnv)
+            env = ConsEnv.make(env._get_full_list(), prev, prev.toplevel_env)
+        return self.make_begin_cont(env, cont)
+
+    def tostring(self):
+        return "<lambda body of %s>" % (self.lam.tostring(), )
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
