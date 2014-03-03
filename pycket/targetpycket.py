@@ -4,6 +4,8 @@ from pycket.error import SchemeException
 
 from rpython.rlib import jit
 
+from rpython.rlib.objectmodel import we_are_translated
+
 def main(argv):
     jit.set_param(None, "trace_limit", 20000)
     # XXX crappy argument handling
@@ -36,5 +38,15 @@ def target(*args):
     return main
 
 if __name__ == '__main__':
-    import sys
-    main(sys.argv)
+    assert not we_are_translated()
+    from rpython.translator.driver import TranslationDriver
+    f, _ = target(TranslationDriver(), sys.argv)
+    try:
+        sys.exit(f(sys.argv))
+    except SystemExit:
+        pass
+    except:
+        import pdb, traceback
+        _type, value, tb = sys.exc_info()
+        traceback.print_exception(_type, value, tb)
+        pdb.post_mortem(tb)
