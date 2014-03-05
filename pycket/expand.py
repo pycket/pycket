@@ -64,6 +64,7 @@ def expand(s, wrap=False):
 
 
 def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
+    from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
     try:
@@ -76,9 +77,11 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
         fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
         json_file, rkt_file)
     # print cmd
-    err = os.system(cmd)
+    pipe = create_popen_file(cmd, "r")
+    out = pipe.read()
+    err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error")
+        raise Exception("Racket produced an error and said '%s'" % out)
     return json_file
 
 
