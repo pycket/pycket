@@ -24,17 +24,14 @@ If you don't have a compiled pypy, you can also translate with:
     $ python ./pypy/rpython/bin/rpython -Ojit targetpycket.py
 
 This will take upwards of 5 minutes.
+This requires a `PYTHONPATH` that includes both `rpython` (that should
+be the `pypy` directory cloned above) and `pycket` (that should be
+this directory).
 
 
 Afterwards you can execute a program:
 
     $ ./pycket-c program
-
-See the comment in `pycket-c for more details.
-
-This requires a `PYTHONPATH` that includes both `rpython` (that should
-be the `pypy` directory cloned above) and `pycket` (that should be
-this directory).
 
 You can also run pycket under plain python, like this:
 

@@ -17,4 +17,4 @@ fi
 
 
 # Now run the actual program
-$PYTHON pycket "$@"
+$PYTHON -m pycket "$@"
