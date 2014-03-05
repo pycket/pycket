@@ -184,7 +184,7 @@ class W_Character(W_Object):
     _immutable_fields_ = ["value"]
     errorname = "char"
     def tostring(self):
-        return "#\\%s" % val.encode("utf-8")
+        return "#\\%s" % self.value.encode("utf-8")
     def __init__(self, val):
         self.value = val
     def equal(self, other):

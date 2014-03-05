@@ -601,5 +601,8 @@ def load(lib, env, cont):
     from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
     lib_name = lib.tostring()
     json_ast = ensure_json_ast_load(lib_name)
+    if json_ast is None:
+        raise SchemeException(
+            "can't gernerate load-file for %s "%(lib.tostring()))
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont

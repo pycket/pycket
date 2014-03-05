@@ -21,6 +21,9 @@ def entry_point(argv):
     args_w = [W_String(arg) for arg in args]
 
     json_ast = ensure_json_ast(config, names)
+    if json_ast is None:
+        raise RuntimeError("can't gernerate json ast file %s "%(json_ast))
+
     ast = load_json_ast_rpython(json_ast)
     try:
         env = ToplevelEnv()
