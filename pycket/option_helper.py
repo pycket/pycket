@@ -93,8 +93,14 @@ def parse_args(argv):
                 print "missing argument after -%s" % arg
                 retval = 5
                 break
+            if arg == "r":
+                suffix = "f"
+            elif arg == "u":
+                suffix = "t"
+            else:
+                suffix = arg
             i += 1
-            names['file'] = argv[i] + "." + arg
+            names['file'] = "%s.%s" % (argv[i], suffix)
             names['exprs'] = script_exprs(arg, argv[i])
             config['mode'] = _eval
             retval = 0

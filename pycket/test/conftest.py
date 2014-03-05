@@ -14,7 +14,7 @@ def _doctstring_tempfile_named(request, name):
 def pytest_funcarg__json(request):
     return _doctstring_tempfile_named(request, "ast.json")
 
-def pytest_funcarg__racke_file(request):
+def pytest_funcarg__racket_file(request):
     return _doctstring_tempfile_named(request, "prog.rkt")
 
 def pytest_funcarg__empty_json(request):
