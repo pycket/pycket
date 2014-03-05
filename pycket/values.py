@@ -180,6 +180,18 @@ class W_Bignum(W_Number):
             return False
         return self.value.eq(other.value)
 
+class W_Character(W_Object):
+    _immutable_fields_ = ["value"]
+    errorname = "char"
+    def tostring(self):
+        return "#\\%s" % val.encode("utf-8")
+    def __init__(self, val):
+        self.value = val
+    def equal(self, other):
+        if not isinstance(other, W_Character):
+            return False
+        return self.value == other.value
+
 class W_Void(W_Object):
     def __init__(self): pass
     def tostring(self):

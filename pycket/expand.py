@@ -1,5 +1,6 @@
-
-import subprocess
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+#
 import os
 
 from rpython.rlib import streamio
@@ -31,6 +32,8 @@ fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
 def expand_string(s, wrap=False, stdlib=False):
     "NON_RPYTHON"
+    import subprocess
+
     process = subprocess.Popen(
         "racket %s %s --stdin --stdout %s" % (fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap"),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -44,6 +47,8 @@ def expand_string(s, wrap=False, stdlib=False):
 
 def expand_file(fname):
     "NON_RPYTHON"
+    import subprocess
+
     process = subprocess.Popen(
         "racket %s --stdout %s" % (fn, fname),
         shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -57,6 +62,77 @@ def expand_file(fname):
 def expand(s, wrap=False):
     data = expand_string(s,wrap)
     return pycket_json.loads(data)
+
+
+def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
+    if not os.access(rkt_file, os.R_OK):
+        raise ValueError("Cannot access file %s" % rkt_file)
+    try:
+        os.remove(json_file)
+    except IOError:
+        pass
+    except OSError:
+        pass
+    cmd = "racket %s %s%s--output %s %s" % (
+        fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
+        json_file, rkt_file)
+    print cmd
+    err = os.system(cmd)
+    if err != 0:
+        raise Exception("Racket produced an error")
+    return json_file
+
+
+def expand_code_to_json(code, json_file, stdlib=True, wrap=True):
+    from rpython.rlib.rfile import create_popen_file
+    try:
+        os.remove(json_file)
+    except IOError:
+        pass
+    except OSError:
+        pass
+    cmd = "racket %s %s%s--output %s --stdin" % (
+        fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
+        json_file)
+    print cmd
+    pipe = create_popen_file(cmd, "w")
+    pipe.write(code)
+    err = os.WEXITSTATUS(pipe.close())
+    if err != 0:
+        raise Exception("Racket produced an error")
+    return json_file
+
+
+def needs_update(file_name, json_name):
+    try:
+        file_mtime = os.stat(file_name).st_mtime
+        if os.access(json_name, os.F_OK):
+            if not file_mtime < os.stat(json_name).st_mtime:
+                return False
+    except OSError:
+        pass
+    return True
+
+
+def _json_name(file_name):
+    return file_name + '.json'
+
+def ensure_json_ast_run(file_name, stdlib=True, wrap=True):
+    json = _json_name(file_name)
+    if needs_update(file_name, json):
+        return expand_file_to_json(file_name, json, stdlib, wrap)
+    else:
+        return json
+
+def ensure_json_ast_load(file_name, stdlib=True, wrap=False):
+    return ensure_json_ast_run(file_name, stdlib, wrap)
+
+def ensure_json_ast_eval(code, file_name, stdlib=True, wrap=True):
+    json = _json_name(file_name)
+    if needs_update(file_name, json):
+        return expand_code_to_json(code, json, stdlib, wrap)
+    else:
+        return json
 
 
 #### ========================== Functions for parsing json to an AST
@@ -191,7 +267,7 @@ def _to_ast(json):
             if ast_elem == "case-lambda":
                 raise Exception("case-lambda is unsupported")
             if ast_elem == "define-syntaxes":
-                return Begin([])
+                return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
         obj = json.value_object()
@@ -218,6 +294,8 @@ def to_value(json):
             return values.W_Fixnum(int(obj["integer"].value_string()))
         if "real" in obj:
             return values.W_Flonum(float(obj["real"].value_float()))
+        if "char" in obj:
+            return values.W_Character(unichr(int(obj["char"].value_string())))
         if "string" in obj:
             return values.W_String(str(obj["string"].value_string()))
         if "improper" in obj:

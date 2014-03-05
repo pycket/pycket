@@ -19,6 +19,8 @@ class ToplevelEnv(Env):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
+        self.commandline_arguments = []
+
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound"%sym.value)
 
@@ -816,7 +818,7 @@ def interpret_toplevel(a, env):
         return values.Values.make([values.w_void])
     else:
         return interpret_one(a, env)
-    
+
 
 def interpret(asts):
     env = ToplevelEnv()

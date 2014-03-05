@@ -270,7 +270,7 @@ def apply(args, env, cont):
     others = args[1:args_len]
     new_args = others + values.from_list(lst)
     return fn.call(new_args, env, cont)
-    
+
 
 @expose("printf")
 def printf(args):
@@ -498,6 +498,14 @@ def vector2list(v):
         es.append(v.ref(i))
     return values.to_list(es)
 
+# FIXME: make that a parameter
+@expose("current-command-line-arguments", [], simple=False)
+def current_command_line_arguments(env, cont):
+    from pycket.interpreter import return_value
+    w_v = values_vector.W_Vector.fromelements(
+            env.toplevel_env.commandline_arguments)
+    return return_value(w_v, env, cont)
+
 # ____________________________________________________________
 
 ## Unsafe Fixnum ops
@@ -585,3 +593,13 @@ def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
 
+# Loading
+
+# FIXME: Proper semantics.
+@expose("load", [values.W_String], simple=False)
+def load(lib, env, cont):
+    from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
+    lib_name = lib.tostring()
+    json_ast = ensure_json_ast_load(lib_name)
+    ast = load_json_ast_rpython(json_ast)
+    return ast, env, cont
