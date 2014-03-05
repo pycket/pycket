@@ -32,11 +32,11 @@ fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
 def expand_string(s, wrap=False, stdlib=False):
     "NON_RPYTHON"
-    import subprocess
+    from subprocess import Popen, PIPE
 
-    process = subprocess.Popen(
-        "racket %s %s --stdin --stdout %s" % (fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap"),
-        shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    cmd = "racket %s %s --stdin --stdout %s" % (
+        fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap")
+    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
         raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
@@ -47,11 +47,10 @@ def expand_string(s, wrap=False, stdlib=False):
 
 def expand_file(fname):
     "NON_RPYTHON"
-    import subprocess
+    from subprocess import Popen, PIPE
 
-    process = subprocess.Popen(
-        "racket %s --stdout %s" % (fn, fname),
-        shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    cmd = "racket %s --stdout %s" % (fn, fname)
+    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
         raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
@@ -76,7 +75,7 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
     cmd = "racket %s %s%s--output %s %s" % (
         fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
         json_file, rkt_file)
-    print cmd
+    # print cmd
     err = os.system(cmd)
     if err != 0:
         raise Exception("Racket produced an error")
@@ -94,7 +93,7 @@ def expand_code_to_json(code, json_file, stdlib=True, wrap=True):
     cmd = "racket %s %s%s--output %s --stdin" % (
         fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
         json_file)
-    print cmd
+    # print cmd
     pipe = create_popen_file(cmd, "w")
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())

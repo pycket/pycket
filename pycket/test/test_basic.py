@@ -53,10 +53,6 @@ def test_constant():
 def test_read_err ():
     with pytest.raises(Exception):
         expand ("(")
-    with pytest.raises(Exception):
-        expand ("1 2")
-    with pytest.raises(Exception):
-        expand ("(1 2) 3")
 
 def test_arithmetic():
     run_fix("(+ )", 0)

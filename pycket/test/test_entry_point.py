@@ -97,7 +97,7 @@ class TestOptions(object):
         argv = ['arg0', "-f", empty_json]
         config, names, args, retval = parse_args(argv)
         assert retval == 0
-        assert names['file'] == empty_json
+        assert names['file'] == empty_json+".f"
         assert config['mode'] == option_helper._eval
         assert names['exprs'] == '(load "%s")' % empty_json
         assert args == []
@@ -111,7 +111,7 @@ class TestOptions(object):
         argv = ['arg0', "-t", empty_json]
         config, names, args, retval = parse_args(argv)
         assert retval == 0
-        assert names['file'] == empty_json
+        assert names['file'] == empty_json + ".t"
         assert config['mode'] == option_helper._eval
         assert names['exprs'] == '(require (file "%s"))' % empty_json
         assert args == []
@@ -125,7 +125,7 @@ class TestOptions(object):
         argv = ['arg0', "-l", empty_json]
         config, names, args, retval = parse_args(argv)
         assert retval == 0
-        assert names['file'] == empty_json
+        assert names['file'] == empty_json + ".l"
         assert config['mode'] == option_helper._eval
         assert names['exprs'] == '(require (lib "%s"))' % empty_json
         assert args == []
@@ -134,7 +134,7 @@ class TestOptions(object):
         argv = ['arg0', "-p", empty_json]
         config, names, args, retval = parse_args(argv)
         assert retval == 0
-        assert names['file'] == empty_json
+        assert names['file'] == empty_json + ".p"
         assert config['mode'] == option_helper._eval
         assert names['exprs'] == '(require (planet "%s"))' % empty_json
         assert args == []
