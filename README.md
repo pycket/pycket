@@ -14,19 +14,23 @@ Afterwards you can run the unit-tests as follows:
 
 To produce an executable, run:
 
-    $ cd pycket
-    $ PYTHONPATH=.. ../pypy/rpython/bin/rpython -Ojit targetpycket.py
+    $ ./pypy/rpython/bin/rpython -Ojit targetpycket.py
 
 This expects that a binary named `pypy` is in your path. Note that
 running `make` for `pypy` produces `pypy-c`.
 
+If you don't have a compiled pypy, you can also translate with:
+
+    $ python ./pypy/rpython/bin/rpython -Ojit targetpycket.py
+
 This will take upwards of 5 minutes.
+
 
 Afterwards you can execute a program:
 
-    $ ./pycket.sh program
+    $ ./pycket-c program
 
-See the comment in `pycket.sh` for more details.
+See the comment in `pycket-c for more details.
 
 This requires a `PYTHONPATH` that includes both `rpython` (that should
 be the `pypy` directory cloned above) and `pycket` (that should be
