@@ -21,7 +21,7 @@ script:
          ../pypy/pytest.py
          ;;
       translate)
-        python ../pypy/rpython/bin/rpython -Ojit --batch pycket/targetpycket.py
+        python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
         ;;
     esac"
 
