@@ -119,6 +119,14 @@ def make_cmp(name, op, con):
             a = rbigint.fromint(w_a.value)
             return con(getattr(a, op)(w_b.value))
 
+        # Upcast bignum/float
+        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
+            b = rbigint.fromfloat(w_b.value)
+            return con(getattr(w_a.value, op)(b))
+        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
+            a = rbigint.fromfloat(w_a.value)
+            return con(getattr(a, op)(w_b.value))
+
         raise SchemeException("unsupported operation %s on %s %s" % (
             name, w_a.tostring(), w_b.tostring()))
 

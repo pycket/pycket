@@ -1,5 +1,4 @@
 from pycket.error import SchemeException
-from rpython.tool.pairtype import extendabletype
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib import rarithmetic
 from pycket import values

@@ -29,6 +29,10 @@ def test_lt_fixnum_bignum():
     run("(< (expt 10 100) 1)", w_false)
     run("(< 1 (expt 10 100))", w_true)
 
+def test_lt_flonum_bignum():
+    run("(< (expt 10 100) 1.0)", w_false)
+    run("(< 1.0 (expt 10 100))", w_true)
+
 def test_neg_pos():
     run_std("(negative? -1)", w_true)
     run_std("(negative?  0)", w_false)
