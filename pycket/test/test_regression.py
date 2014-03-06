@@ -10,8 +10,13 @@ from pycket.prims import *
 
 class TestRegressions(object):
 
-    def test_cell_closure(self, ast_std):
+    def test_cell_closure(self, ast_wrap):
         """
+        (define (append a b)
+          (if (null? a)
+              b
+              (cons (car a) (append (cdr a) b))))
+
         (define foldr
           (lambda (f base lst)
 
