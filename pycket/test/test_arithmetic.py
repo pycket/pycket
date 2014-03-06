@@ -25,6 +25,10 @@ def test_lt_fixnum_flonum():
     run("(< 0.0 1000000000000000000000000000)", w_true)
     run("(< 10000000000000000000000000001000000000000000000000000000.0 0 )", w_false)
 
+def test_lt_fixnum_bignum():
+    run("(< (expt 10 100) 1)", w_false)
+    run("(< 1 (expt 10 100))", w_true)
+
 def test_neg_pos():
     run_std("(negative? -1)", w_true)
     run_std("(negative?  0)", w_false)
