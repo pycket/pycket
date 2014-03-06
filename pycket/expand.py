@@ -58,8 +58,8 @@ def expand_file(fname):
         raise Exception("Racket produced an error")
     return data
 
-def expand(s, wrap=False):
-    data = expand_string(s,wrap)
+def expand(s, wrap=False, stdlib=False):
+    data = expand_string(s, wrap, stdlib)
     return pycket_json.loads(data)
 
 
