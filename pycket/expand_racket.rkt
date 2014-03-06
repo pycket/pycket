@@ -86,5 +86,4 @@
 
 
    (define forms (port->list read in))
-   (write-json (to-json (do-expand forms wrap? stdlib?)) out)
-   (write "\n" out))
+   (write-json (to-json (do-expand forms wrap? stdlib?)) out))
