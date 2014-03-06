@@ -1,6 +1,6 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops racket/fixnum racket/flonum)
+(require syntax/parse racket/runtime-path racket/unsafe/ops racket/fixnum racket/flonum "mycase.rkt")
 (define-namespace-anchor ns)
 ;(define set-car! #f)
 ;(define set-cdr! #f)
@@ -15,7 +15,7 @@
     (if wrap?
         `(let ()
            ,@(if stdlib? stdlib null)
-           ,@forms)
+           (let () ,@forms))
         `(begin
            ,@forms)))
   (expand (datum->syntax #f new-form)))
