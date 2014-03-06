@@ -4,6 +4,7 @@
 import os
 
 from rpython.rlib import streamio
+from rpython.rlib.rbigint import rbigint
 import pycket.json as pycket_json
 from pycket.interpreter import *
 from pycket import values
@@ -293,7 +294,11 @@ def to_value(json):
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
         if "integer" in obj:
-            return values.W_Fixnum(int(obj["integer"].value_string()))
+            val = rbigint.fromdecimalstr(obj["integer"].value_string())
+            try:
+                return values.W_Fixnum(int(val.toint()))
+            except OverflowError:
+                return values.W_Bignum(val)
         if "real" in obj:
             return values.W_Flonum(float(obj["real"].value_float()))
         if "char" in obj:

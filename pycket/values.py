@@ -148,6 +148,7 @@ class W_Fixnum(W_Number):
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
+        assert isinstance(val, int)
         self.value = val
 
     def equal(self, other):
