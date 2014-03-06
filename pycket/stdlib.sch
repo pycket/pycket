@@ -75,6 +75,7 @@
   (display e) (newline))
 
 (define (negative? v) (< v 0))
+(define (positive? v) (> v 0))
 
 (define (caar v) (car (car v)))
 (define (cdar v) (cdr (car v)))
@@ -95,4 +96,7 @@
          (if (eq? x s) l (memq s (cdr l)))]
         [else (error 'memq)]))
 
-
+;; Local Variables:
+;; mode: scheme
+;; geiser-scheme-implementation: racket
+;; End:
