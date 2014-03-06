@@ -1,3 +1,4 @@
+from pycket.error import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib import rarithmetic
@@ -108,6 +109,28 @@ class __extend__(values.W_Fixnum):
             raise Exception("zero_divisor")
         return values.W_Flonum(other_float / float(self.value))
 
+    def arith_mod(self, other):
+        return other.arith_mod_number(self.value)
+
+    def arith_mod_number(self, other_num):
+        if self.value == 0:
+            raise Exception("zero_divisor")
+        try:
+            res = rarithmetic.ovfcheck(other_num % self.value)
+        except OverflowError:
+            return self.arith_mod_bigint(rbigint.fromint(other_num))
+        return values.W_Fixnum(res)
+
+    def arith_mod_bigint(self, other_value):
+        if self.value == 0:
+            raise Exception("zero_divisor")
+        return make_int(values.W_Bignum(other_value.mod(rbigint.fromint(self.value))))
+
+    def arith_mod_float(self, other_float):
+        if self.value == 0:
+            raise Exception("zero_divisor")
+        return values.W_Flonum(math.fmod(other_float, float(self.value)))
+
     def arith_floordiv(self, other):
         return other.arith_floordiv_number(self.value)
 
@@ -135,7 +158,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_pow_number(self, other_num):
         try:
-            res = ovfcheck_float_to_int(math.pow(other_num, self.value))
+            res = rarithmetic.ovfcheck_float_to_int(math.pow(other_num, self.value))
         except OverflowError:
             return self.arith_pow_bigint(rbigint.fromint(other_num))
         return values.W_Fixnum(res)
@@ -280,6 +303,9 @@ class __extend__(values.W_Fixnum):
     def arith_float_integer_part(self):
         return self
 
+    def arith_exact_inexact(self):
+        return values.W_Flonum(float(self.value))
+
 
 class __extend__(values.W_Flonum):    
     # ------------------ addition ------------------ 
@@ -348,6 +374,24 @@ class __extend__(values.W_Flonum):
         if self.value == 0.0:
             raise Exception("zero_divisor")
         return values.W_Flonum(other_float / self.value)
+
+    def arith_mod(self, other):
+        return other.arith_mod_float(self.value)
+
+    def arith_mod_number(self, other_num):
+        if self.value == 0.0:
+            raise Exception("zero_divisor")
+        return values.W_Flonum(math.fmod(float(other_num), self.value))
+
+    def arith_mod_bigint(self, other_value):
+        if self.value == 0.0:
+            raise Exception("zero_divisor")
+        return values.W_Flonum(math.fmod(other_value.tofloat(), self.value))
+
+    def arith_mod_float(self, other_float):
+        if self.value == 0.0:
+            raise Exception("zero_divisor")
+        return values.W_Flonum(math.fmod(other_float, self.value))
 
     def arith_floordiv(self, other_float):
         error.throw_type_error("integer", self)
@@ -456,6 +500,9 @@ class __extend__(values.W_Flonum):
             return values.W_Bignum(rbigint.fromfloat(self.value))
         return values.W_Fixnum(val)
 
+    def arith_exact_inexact(self):
+        return self
+
 
 class __extend__(values.W_Bignum):
     # ------------------ addition ------------------ 
@@ -518,6 +565,21 @@ class __extend__(values.W_Bignum):
 
     def arith_div_float(self, other_float):
         return values.W_Flonum(other_float / self.value.tofloat())
+
+    def arith_mod(self, other):
+        return other.arith_mod_bigint(self.value)
+
+    def arith_mod_number(self, other_num):
+        return make_int(values.W_Bignum(rbigint.fromint(other_num).mod(self.value)))
+
+    def arith_mod_bigint(self, other_value):
+        try:
+            return make_int(values.W_Bignum(other_value.mod(self.value)))
+        except ZeroDivisionError:
+            raise Exception("zero_divisor")
+
+    def arith_mod_float(self, other_float):
+        return values.W_Flonum(math.fmod(other_float, self.value.tofloat()))
 
     def arith_floordiv(self, other):
         return other.arith_floordiv_bigint(self.value)
@@ -694,3 +756,6 @@ class __extend__(values.W_Bignum):
 
     def arith_arith_integer_part(self):
         return make_int(self)
+
+    def arith_exact_inexact(self):
+        return values.W_Flonum(self.value.tofloat())

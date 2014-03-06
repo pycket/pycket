@@ -181,6 +181,20 @@ def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
     
 
+def make_binary_arith(name, methname):
+    @expose(name, [values.W_Number, values.W_Number], simple=True)
+    @jit.unroll_safe
+    def do(a, b):
+        return getattr(a, methname)(b)
+
+for args in [
+        ("quotient", "arith_div"),
+        ("modulo",   "arith_mod"),
+        ("expt",     "arith_pow"),
+        ]:
+    make_binary_arith(*args)
+
+
 def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
@@ -202,6 +216,9 @@ for args in [
         ("-", values.W_Fixnum(0), "arith_sub", False),
         ("*", values.W_Fixnum(1), "arith_mul", True),
         ("/", values.W_Fixnum(1), "arith_div", False),
+        ("bitwise-and", values.W_Fixnum(-1), "arith_and", True),
+        ("bitwise-ior", values.W_Fixnum(0), "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum(0), "arith_xor", True),
         ]:
     make_arith(*args)
 
@@ -216,6 +233,7 @@ for args in [
         ("atan", "arith_atan"),
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
+        ("exact->inexact", "arith_exact_inexact"),
         ]:
     make_unary_arith(*args)
 
