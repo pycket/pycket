@@ -237,9 +237,26 @@ for args in [
         ]:
     make_unary_arith(*args)
 
+
 val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
+
+# FIXME: this implementation sucks
+@expose("string-append")
+def string_append(args):
+    if not args:
+        return values.W_String("")
+    l = []
+    for a in args:
+        if not isinstance(a, values.W_String):
+            raise SchemeException("string-append: expected a string")
+        l.append(a.value)
+    return values.W_String(''.join(l))
+
+@expose("string-length", [values.W_String])
+def string_append(s1):
+    return values.W_Fixnum(len(s1.value))
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):
@@ -610,6 +627,14 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
+
+@expose("symbol->string", [values.W_Symbol])
+def symbol_to_string(v):
+    return values.W_String(v.value)
+
+@expose("string->symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol(v.value)
 
 # Loading
 
