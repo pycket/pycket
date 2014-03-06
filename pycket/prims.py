@@ -93,14 +93,20 @@ def val(name, v):
 
 def make_cmp(name, op, con):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
-    def do(a, b):
-        if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-            return con(getattr(operator, op)(a.value, b.value))
-        if isinstance(a, values.W_Bignum) and isinstance(b, values.W_Bignum):
-            return con(getattr(a.value, op)(b.value))
-        if isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
-            return con(getattr(operator, op)(a.value, b.value))
-        raise SchemeException("unsupported operation %s on %s %s" % (name, a.tostring(), b.tostring()))
+    def do(w_a, w_b):
+        if isinstance(w_a, values.W_Fixnum) and isinstance(w_b, values.W_Fixnum):
+            return con(getattr(operator, op)(w_a.value, w_b.value))
+        if isinstance(w_a, values.W_Bignum) and isinstance(w_b, values.W_Bignum):
+            return con(getattr(w_a.value, op)(w_b.value))
+        if isinstance(w_a, values.W_Flonum) and isinstance(w_b, values.W_Flonum):
+            return con(getattr(operator, op)(w_a.value, w_b.value))
+        if isinstance(w_a, values.W_Fixnum) and isinstance(w_b, values.W_Flonum):
+            a = float(w_a.value)
+            return con(getattr(operator, op)(a, w_b.value))
+        if isinstance(w_a, values.W_Flonum) and isinstance(w_b, values.W_Fixnum):
+            b = float(w_b.value)
+            return con(getattr(operator, op)(w_a.value, b))
+        raise SchemeException("unsupported operation %s on %s %s" % (name, w_a.tostring(), w_b.tostring()))
 
 for args in [
         ("=", "eq", values.W_Bool.make),
