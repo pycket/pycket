@@ -6,6 +6,7 @@ env:
   matrix:
     - TEST_TYPE=tests
     - TEST_TYPE=translate
+    - TEST_TYPE=translate-nojit
 before_install:
   - sudo add-apt-repository -y ppa:plt/racket
   - sudo apt-get update
@@ -21,7 +22,10 @@ script:
          ../pypy/pytest.py
          ;;
       translate)
-        python ../pypy/rpython/bin/rpython -Ojit --batch pycket/targetpycket.py
+        python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
+        ;;
+      translate-nojit)
+        python ../pypy/rpython/bin/rpython --batch targetpycket.py
         ;;
     esac"
 

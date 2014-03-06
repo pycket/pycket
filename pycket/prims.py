@@ -92,15 +92,43 @@ def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
 
 def make_cmp(name, op, con):
-    @expose(name, [values.W_Number, values.W_Number], simple=True)
-    def do(a, b):
-        if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-            return con(getattr(operator, op)(a.value, b.value))
-        if isinstance(a, values.W_Bignum) and isinstance(b, values.W_Bignum):
-            return con(getattr(a.value, op)(b.value))
-        if isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
-            return con(getattr(operator, op)(a.value, b.value))
-        raise SchemeException("unsupported operation %s on %s %s" % (name, a.tostring(), b.tostring()))
+    from values import W_Number, W_Fixnum, W_Flonum, W_Bignum
+    from rpython.rlib.rbigint import rbigint
+    @expose(name, [W_Number, W_Number], simple=True)
+    def do(w_a, w_b):
+        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Fixnum):
+            return con(getattr(operator, op)(w_a.value, w_b.value))
+        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Bignum):
+            return con(getattr(w_a.value, op)(w_b.value))
+        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Flonum):
+            return con(getattr(operator, op)(w_a.value, w_b.value))
+
+        # Upcast float
+        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Flonum):
+            a = float(w_a.value)
+            return con(getattr(operator, op)(a, w_b.value))
+        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Fixnum):
+            b = float(w_b.value)
+            return con(getattr(operator, op)(w_a.value, b))
+
+        # Upcast bignum
+        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Fixnum):
+            b = rbigint.fromint(w_b.value)
+            return con(getattr(w_a.value, op)(b))
+        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Bignum):
+            a = rbigint.fromint(w_a.value)
+            return con(getattr(a, op)(w_b.value))
+
+        # Upcast bignum/float
+        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
+            b = rbigint.fromfloat(w_b.value)
+            return con(getattr(w_a.value, op)(b))
+        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
+            a = rbigint.fromfloat(w_a.value)
+            return con(getattr(a, op)(w_b.value))
+
+        raise SchemeException("unsupported operation %s on %s %s" % (
+            name, w_a.tostring(), w_b.tostring()))
 
 for args in [
         ("=", "eq", values.W_Bool.make),
@@ -181,6 +209,20 @@ def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
     
 
+def make_binary_arith(name, methname):
+    @expose(name, [values.W_Number, values.W_Number], simple=True)
+    @jit.unroll_safe
+    def do(a, b):
+        return getattr(a, methname)(b)
+
+for args in [
+        ("quotient", "arith_div"),
+        ("modulo",   "arith_mod"),
+        ("expt",     "arith_pow"),
+        ]:
+    make_binary_arith(*args)
+
+
 def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
@@ -202,6 +244,9 @@ for args in [
         ("-", values.W_Fixnum(0), "arith_sub", False),
         ("*", values.W_Fixnum(1), "arith_mul", True),
         ("/", values.W_Fixnum(1), "arith_div", False),
+        ("bitwise-and", values.W_Fixnum(-1), "arith_and", True),
+        ("bitwise-ior", values.W_Fixnum(0), "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum(0), "arith_xor", True),
         ]:
     make_arith(*args)
 
@@ -216,12 +261,30 @@ for args in [
         ("atan", "arith_atan"),
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
+        ("exact->inexact", "arith_exact_inexact"),
         ]:
     make_unary_arith(*args)
+
 
 val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
+
+# FIXME: this implementation sucks
+@expose("string-append")
+def string_append(args):
+    if not args:
+        return values.W_String("")
+    l = []
+    for a in args:
+        if not isinstance(a, values.W_String):
+            raise SchemeException("string-append: expected a string")
+        l.append(a.value)
+    return values.W_String(''.join(l))
+
+@expose("string-length", [values.W_String])
+def string_append(s1):
+    return values.W_Fixnum(len(s1.value))
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):
@@ -270,7 +333,7 @@ def apply(args, env, cont):
     others = args[1:args_len]
     new_args = others + values.from_list(lst)
     return fn.call(new_args, env, cont)
-    
+
 
 @expose("printf")
 def printf(args):
@@ -498,6 +561,14 @@ def vector2list(v):
         es.append(v.ref(i))
     return values.to_list(es)
 
+# FIXME: make that a parameter
+@expose("current-command-line-arguments", [], simple=False)
+def current_command_line_arguments(env, cont):
+    from pycket.interpreter import return_value
+    w_v = values_vector.W_Vector.fromelements(
+            env.toplevel_env.commandline_arguments)
+    return return_value(w_v, env, cont)
+
 # ____________________________________________________________
 
 ## Unsafe Fixnum ops
@@ -585,3 +656,24 @@ def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
 
+@expose("symbol->string", [values.W_Symbol])
+def symbol_to_string(v):
+    return values.W_String(v.value)
+
+@expose("string->symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol(v.value)
+
+# Loading
+
+# FIXME: Proper semantics.
+@expose("load", [values.W_String], simple=False)
+def load(lib, env, cont):
+    from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
+    lib_name = lib.tostring()
+    json_ast = ensure_json_ast_load(lib_name)
+    if json_ast is None:
+        raise SchemeException(
+            "can't gernerate load-file for %s "%(lib.tostring()))
+    ast = load_json_ast_rpython(json_ast)
+    return ast, env, cont

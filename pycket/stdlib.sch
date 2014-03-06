@@ -70,3 +70,33 @@
     (if (null? l)
         acc
         (loop (cons (car l) acc) (cdr l)))))
+
+(define (displayln e)
+  (display e) (newline))
+
+(define (negative? v) (< v 0))
+(define (positive? v) (> v 0))
+
+(define (caar v) (car (car v)))
+(define (cdar v) (cdr (car v)))
+
+(define (odd? v)
+  (and (integer? v) (= 1 (modulo v 2))))
+
+(define (even? v)
+  (and (integer? v) (= 0 (modulo v 2))))
+
+(define (max u v) (if (> u v) u v))
+(define (min u v) (if (< u v) u v))
+
+(define (memq s l)
+  (cond [(null? l) #f]
+        [(pair? l)
+         (define x (car l))
+         (if (eq? x s) l (memq s (cdr l)))]
+        [else (error 'memq)]))
+
+;; Local Variables:
+;; mode: scheme
+;; geiser-scheme-implementation: racket
+;; End:

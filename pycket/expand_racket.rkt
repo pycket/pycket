@@ -1,6 +1,6 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops)
+(require syntax/parse racket/runtime-path racket/unsafe/ops racket/fixnum racket/flonum "mycase.rkt")
 (define-namespace-anchor ns)
 ;(define set-car! #f)
 ;(define set-cdr! #f)
@@ -15,10 +15,9 @@
     (if wrap?
         `(let ()
            ,@(if stdlib? stdlib null)
-           ,@forms)
-        (match forms
-          [(list f) f]
-          [_ (raise-user-error "no wrapping but multiple forms")])))
+           (let () ,@forms))
+        `(begin
+           ,@forms)))
   (expand (datum->syntax #f new-form)))
 
 (define (to-json v)
@@ -45,7 +44,10 @@
      (hash 'integer (~a (syntax-e v)))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
-    [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]))
+    [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
+    [_
+     #:when (char? (syntax-e v))
+     (hash 'char (~a (char->integer (syntax-e v))))]))
 
 
 (module+ main
@@ -59,7 +61,7 @@
 
   (command-line
    #:once-any
-   [("--output") file "write output to output <file>" 
+   [("--output") file "write output to output <file>"
     (set! out (open-output-file file #:exists 'replace))]
    [("--stdout") "write output to standard out"
     (set! out (current-output-port))]
@@ -75,14 +77,13 @@
             (set! out (open-output-file (string-append source ".json")
                                         #:exists 'replace)))
           (set! in (open-input-file source))]))
-   
+
    (unless (input-port? in)
      (raise-user-error "no input specified"))
 
    (unless (output-port? out)
      (raise-user-error "no output specified"))
-   
-   
+
+
    (define forms (port->list read in))
-   (write-json (to-json (do-expand forms wrap? stdlib?)) out)
-   (newline))
+   (write-json (to-json (do-expand forms wrap? stdlib?)) out))

@@ -148,6 +148,7 @@ class W_Fixnum(W_Number):
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
+        assert isinstance(val, int)
         self.value = val
 
     def equal(self, other):
@@ -179,6 +180,18 @@ class W_Bignum(W_Number):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
+
+class W_Character(W_Object):
+    _immutable_fields_ = ["value"]
+    errorname = "char"
+    def tostring(self):
+        return "#\\%s" % self.value.encode("utf-8")
+    def __init__(self, val):
+        self.value = val
+    def equal(self, other):
+        if not isinstance(other, W_Character):
+            return False
+        return self.value == other.value
 
 class W_Void(W_Object):
     def __init__(self): pass
