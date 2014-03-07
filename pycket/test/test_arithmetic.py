@@ -4,6 +4,7 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 from pycket.test.test_basic import run_fix, run, run_top
+from pycket.error import SchemeException
 
 def run_std(c, v):
     return run_top(c, v, stdlib=True)
@@ -11,6 +12,28 @@ def run_std(c, v):
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)
+
+def test_quotient():
+    run_fix("(quotient 0 1)", 0)
+    run_fix("(quotient 0 -1)", 0)
+    run_fix("(quotient 0 2)", 0)
+    run_fix("(quotient 0 -2)", 0)
+    run_fix("(quotient 0 3)", 0)
+    run_fix("(quotient 1 1)", 1)
+    run_fix("(quotient -1 1)", -1)
+    run_fix("(quotient 1 -1)", -1)
+    run_fix("(quotient -1 -1)", 1)
+    run_fix("(quotient 1 2)", 0)
+    run_fix("(quotient -1 2)", 0)
+    run_fix("(quotient 1 -2)", 0)
+    run_fix("(quotient -1 -2)", 0)
+    run_fix("(quotient -1234 -10)", 123)
+    run_fix("(quotient 1234 1234)", 1)
+
+def test_div_fix():
+    run_fix("(/ 6 3)", 2)
+    with pytest.raises(SchemeException):
+        run("(/ 1 2)", None) # XXX for now
 
 def test_lt():
     run("(< 0 1)", w_true)

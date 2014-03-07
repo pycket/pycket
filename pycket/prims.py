@@ -207,16 +207,17 @@ def exactp(n):
 @expose("inexact?", [values.W_Object])
 def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
-    
+
+@expose("quotient", [values.W_Integer, values.W_Integer], simple=True)
+def quotient(a, b):
+    return a.arith_quotient(b)
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
-    @jit.unroll_safe
     def do(a, b):
         return getattr(a, methname)(b)
 
 for args in [
-        ("quotient", "arith_div"),
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
         ]:

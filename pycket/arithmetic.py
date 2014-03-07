@@ -1,7 +1,8 @@
-from pycket.error import SchemeException
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib import rarithmetic
-from pycket import values
+from rpython.rtyper.raisingops import int_floordiv_ovf
+from pycket import values, error
+from pycket.error import SchemeException
 import math
 
 def make_int(w_value):
@@ -15,7 +16,15 @@ def make_int(w_value):
     return w_value
 
 class __extend__(values.W_Number):
-    pass
+    def arith_quotient(self, other):
+        raise SchemeException("quotient is not fully implemented")
+
+    def arith_quotient_number(self, other):
+        raise SchemeException("quotient is not fully implemented")
+
+    def arith_quotient_bigint(self, other):
+        raise SchemeException("quotient is not fully implemented")
+
 
 class __extend__(values.W_Fixnum):
     # ------------------ addition ------------------ 
@@ -91,21 +100,26 @@ class __extend__(values.W_Fixnum):
 
     def arith_div_number(self, other_num):
         if self.value == 0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         try:
             res = rarithmetic.ovfcheck(other_num / self.value)
         except OverflowError:
             return self.arith_div_bigint(rbigint.fromint(other_num))
-        return values.W_Fixnum(res)
+        if res * self.value == other_num:
+            return values.W_Fixnum(res)
+        raise SchemeException("rationals not implemented")
 
     def arith_div_bigint(self, other_value):
         if self.value == 0:
-            raise Exception("zero_divisor")
-        return make_int(values.W_Bignum(other_value.div(rbigint.fromint(self.value))))
+            raise SchemeException("zero_divisor")
+        res, mod = other_value.divmod(rbigint.fromint(self.value))
+        if mod.tobool():
+            raise SchemeException("rationals not implemented")
+        return make_int(values.W_Bignum(res))
 
     def arith_div_float(self, other_float):
         if self.value == 0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return values.W_Flonum(other_float / float(self.value))
 
     def arith_mod(self, other):
@@ -130,26 +144,23 @@ class __extend__(values.W_Fixnum):
             raise Exception("zero_divisor")
         return values.W_Flonum(math.fmod(other_float, float(self.value)))
 
-    def arith_floordiv(self, other):
-        return other.arith_floordiv_number(self.value)
+    def arith_quotient(self, other):
+        return other.arith_quotient_number(self.value)
 
-    def arith_floordiv_number(self, other_num):
+    def arith_quotient_number(self, x):
         if self.value == 0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
+        y = self.value
         try:
-            res = rarithmetic.ovfcheck(other_num // self.value)
+            res = int_floordiv_ovf(x, y) # misnomer, should be int_truncdiv or so
         except OverflowError:
-            return self.arith_floordiv_bigint(rbigint.fromint(other_num))
+            return self.arith_quotient_bigint(rbigint.fromint(x))
         return values.W_Fixnum(res)
 
-    def arith_floordiv_bigint(self, other_value):
+    def arith_quotient_bigint(self, other_value):
         if self.value == 0:
-            raise Exception("zero_divisor")
-        return make_int(values.W_Bignum(other_value.floordiv(rbigint.fromint(self.value))))
-
-    def arith_floordiv_float(self, other_float):
-        error.throw_type_error("integer", other_float)
-
+            raise SchemeException("zero_divisor")
+        raise SchemeException("quotient of big integers is not implemented")
 
     # ------------------ power ------------------ 
     def arith_pow(self, other):
@@ -224,12 +235,12 @@ class __extend__(values.W_Fixnum):
 
     def arith_mod_number(self, other_num):
         if self.value == 0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return values.W_Fixnum(other_num % self.value)
 
     def arith_mod_bigint(self, other_value):
         if self.value == 0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return make_int(values.W_Bignum(other_value.mod(rbigint.fromint(self.value))))
 
     # ------------------ inversion ------------------
@@ -361,17 +372,17 @@ class __extend__(values.W_Flonum):
 
     def arith_div_number(self, other_num):
         if self.value == 0.0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return values.W_Flonum(float(other_num) / self.value)
 
     def arith_div_bigint(self, other_value):
         if self.value == 0.0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return values.W_Flonum(other_value.tofloat() / self.value)
 
     def arith_div_float(self, other_float):
         if self.value == 0.0:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
         return values.W_Flonum(other_float / self.value)
 
     def arith_mod(self, other):
@@ -391,15 +402,6 @@ class __extend__(values.W_Flonum):
         if self.value == 0.0:
             raise Exception("zero_divisor")
         return values.W_Flonum(math.fmod(other_float, self.value))
-
-    def arith_floordiv(self, other_float):
-        error.throw_type_error("integer", self)
-    def arith_floordiv_number(self, other_num):
-        error.throw_type_error("integer", self)
-    def arith_floordiv_bigint(self, other_value):
-        error.throw_type_error("integer", self)
-    def arith_floordiv_float(self, other_float):
-        error.throw_type_error("integer", other_float)
 
     # ------------------ power ------------------ 
     def arith_pow(self, other):
@@ -554,13 +556,19 @@ class __extend__(values.W_Bignum):
         return other.arith_div_bigint(self.value)
 
     def arith_div_number(self, other_num):
-        return make_int(values.W_Bignum(rbigint.fromint(other_num).div(self.value)))
+        res, mod = rbigint.fromint(other_num).divmod(self.value)
+        if mod.tobool():
+            raise SchemeException("rationals not implemented")
+        return make_int(values.W_Bignum(res))
 
     def arith_div_bigint(self, other_value):
         try:
-            return make_int(values.W_Bignum(other_value.div(self.value)))
+            res, mod = other_value.divmod(self.value)
         except ZeroDivisionError:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
+        if mod.tobool():
+            raise SchemeException("rationals not implemented")
+        return make_int(values.W_Bignum(res))
 
     def arith_div_float(self, other_float):
         return values.W_Flonum(other_float / self.value.tofloat())
@@ -580,20 +588,6 @@ class __extend__(values.W_Bignum):
     def arith_mod_float(self, other_float):
         return values.W_Flonum(math.fmod(other_float, self.value.tofloat()))
 
-    def arith_floordiv(self, other):
-        return other.arith_floordiv_bigint(self.value)
-
-    def arith_floordiv_number(self, other_num):
-        return make_int(values.W_Bignum(rbigint.fromint(other_num).div(self.value)))
-
-    def arith_floordiv_bigint(self, other_value):
-        try:
-            return make_int(values.W_Bignum(other_value.div(self.value)))
-        except ZeroDivisionError:
-            raise Exception("zero_divisor")
-
-    def arith_floordiv_float(self, other_float):
-        error.throw_type_error("integer", other_float)
     # ------------------ power ------------------
     def arith_pow(self, other):
         return other.arith_pow_bigint(self.value)
@@ -686,13 +680,13 @@ class __extend__(values.W_Bignum):
         try:
             return make_int(values.W_Bignum(rbigint.fromint(other_num).mod(self.value)))
         except ZeroDivisionError:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
 
     def arith_mod_bigint(self, other_value):
         try:
             return make_int(values.W_Bignum(other_value.mod(self.value)))
         except ZeroDivisionError:
-            raise Exception("zero_divisor")
+            raise SchemeException("zero_divisor")
 
     # ------------------ inversion ------------------ 
     def arith_not(self):

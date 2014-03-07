@@ -141,8 +141,10 @@ class W_Number(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+class W_Integer(W_Number):
+    errorname = "integer"
 
-class W_Fixnum(W_Number):
+class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
     def tostring(self):
@@ -169,7 +171,7 @@ class W_Flonum(W_Number):
             return False
         return self.value == other.value
 
-class W_Bignum(W_Number):
+class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
     def tostring(self):
         return str(self.value)

@@ -47,27 +47,28 @@ class ToplevelEnv(Env):
 
 class ConsEnv(Env):
     _immutable_fields_ = ["prev", "toplevel_env"]
-    @jit.unroll_safe
     def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
         self.prev = prev
+
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
-        args = jit.promote(env_structure)
-        for i, s in enumerate(args.elems):
+        jit.promote(env_structure)
+        for i, s in enumerate(env_structure.elems):
             if s is sym:
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym, args.prev)
+        return self.prev.lookup(sym, env_structure.prev)
+
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
-        args = jit.promote(env_structure)
-        for i, s in enumerate(args.elems):
+        jit.promote(env_structure)
+        for i, s in enumerate(env_structure.elems):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val, args.prev)
+        return self.prev.set(sym, val, env_structure.prev)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 def check_one_val(vals):
@@ -164,6 +165,7 @@ class BeginCont(Cont):
         self.i = i
         self.env = env
         self.prev = prev
+
     def plug_reduce(self, vals):
         return self.ast.make_begin_cont(self.env, self.prev, self.i)
 
