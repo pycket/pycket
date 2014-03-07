@@ -252,6 +252,27 @@ class W_Symbol(W_Object):
     def tostring(self):
         return "'%s"%self.value
 
+class W_Keyword(W_Object):
+    _immutable_fields_ = ["value"]
+    errorname = "keyword"
+    all_symbols = {}
+    @staticmethod
+    def make(string):
+        # This assert statement makes the lowering phase of rpython break...
+        # Maybe comment back in and check for bug.
+        #assert isinstance(string, str)
+        if string in W_Keyword.all_symbols:
+            return W_Keyword.all_symbols[string]
+        else:
+            W_Keyword.all_symbols[string] = w_result = W_Keyword(string)
+            return w_result
+    def __repr__(self):
+        return self.value
+    def __init__(self, val):
+        self.value = val
+    def tostring(self):
+        return "'#:%s"%self.value
+
 class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):

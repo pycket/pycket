@@ -264,3 +264,6 @@ def test_apply():
 
 def test_setbang_recursive_lambda():
     run_fix("((letrec ([f (lambda (a) (set! f (lambda (a) 1)) (f a))]) f) 6)", 1)
+
+def test_keyword():
+    run("'#:foo", W_Keyword.make("foo"))
