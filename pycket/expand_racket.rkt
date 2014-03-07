@@ -44,6 +44,7 @@
      (hash 'integer (~a (syntax-e v)))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
+    [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
     [_
      #:when (char? (syntax-e v))

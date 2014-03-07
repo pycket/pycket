@@ -305,6 +305,8 @@ def to_value(json):
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "string" in obj:
             return values.W_String(str(obj["string"].value_string()))
+        if "keyword" in obj:
+            return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:
             improper = obj["improper"].value_array()
             return values.to_improper([to_value(v) for v in improper[0].value_array()], to_value(improper[1]))

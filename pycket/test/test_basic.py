@@ -250,3 +250,6 @@ def test_apply():
     run_fix("(apply + (list 1 2 3))", 6)
     run_fix("(apply + 1 2 (list 3))", 6)
     run_fix("(apply + 1 2 3 (list))", 6)
+
+def test_keyword():
+    run("'#:foo", W_Keyword.make("foo"))
