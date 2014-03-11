@@ -64,7 +64,7 @@ def expand(s, wrap=False, stdlib=False):
     return pycket_json.loads(data)
 
 
-def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
+def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -74,8 +74,11 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s--output %s %s" % (
-        fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
+    cmd = "racket %s %s%s%s--output %s %s" % (
+        fn,
+        "" if stdlib else "--no-stdlib ", 
+        "" if not(mcons) else "--mcons ",
+        "" if wrap else "--no-wrap ",
         json_file, rkt_file)
     # print cmd
     pipe = create_popen_file(cmd, "r")
@@ -86,7 +89,7 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, wrap=True):
     return json_file
 
 
-def expand_code_to_json(code, json_file, stdlib=True, wrap=True):
+def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     from rpython.rlib.rfile import create_popen_file
     try:
         os.remove(json_file)
@@ -94,15 +97,19 @@ def expand_code_to_json(code, json_file, stdlib=True, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s--output %s --stdin" % (
-        fn, "" if stdlib else "--no-stdlib ", "" if wrap else "--no-wrap ",
+    cmd = "racket %s %s%s%s--output %s --stdin" % (
+        fn,
+        "" if stdlib else "--no-stdlib ",
+        "" if not(mcons) else "--mcons ",
+        "" if wrap else "--no-wrap ",
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
+    out = pipe.read()
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error")
+        raise Exception("Racket produced an error and said '%s'" % out)
     return json_file
 
 
@@ -120,20 +127,20 @@ def needs_update(file_name, json_name):
 def _json_name(file_name):
     return file_name + '.json'
 
-def ensure_json_ast_run(file_name, stdlib=True, wrap=True):
+def ensure_json_ast_run(file_name, stdlib=True, mcons=False, wrap=True):
     json = _json_name(file_name)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json, stdlib, wrap)
+        return expand_file_to_json(file_name, json, stdlib, mcons, wrap)
     else:
         return json
 
 def ensure_json_ast_load(file_name, stdlib=True, wrap=False):
     return ensure_json_ast_run(file_name, stdlib, wrap)
 
-def ensure_json_ast_eval(code, file_name, stdlib=True, wrap=True):
+def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
     json = _json_name(file_name)
     if needs_update(file_name, json):
-        return expand_code_to_json(code, json, stdlib, wrap)
+        return expand_code_to_json(code, json, stdlib, mcons, wrap)
     else:
         return json
 

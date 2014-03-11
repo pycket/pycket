@@ -1,21 +1,30 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops racket/fixnum racket/flonum "mycase.rkt")
+(require syntax/parse racket/runtime-path racket/unsafe/ops 
+         racket/fixnum racket/flonum "mycase.rkt" racket/mpair
+         compatibility/mlist)
 (define-namespace-anchor ns)
 ;(define set-car! #f)
 ;(define set-cdr! #f)
 
 (define-runtime-path stdlib.sch "stdlib.sch")
 
-(define stdlib (file->list stdlib.sch))
+(define-runtime-path mpair-stdlib.sch "mpair.sch")
 
-(define (do-expand forms wrap? stdlib?)
+
+(define stdlib (file->list stdlib.sch))
+(define mpair-stdlib (file->list mpair-stdlib.sch))
+
+(define (do-expand forms mpair? wrap? stdlib?)
   (current-namespace (namespace-anchor->namespace ns))
+
   (define new-form
     (if wrap?
-        `(let ()
-           ,@(if stdlib? stdlib null)
-           (let () ,@forms))
+        `(let () 
+           ,@(if mpair? mpair-stdlib null)
+           (let ()
+             ,@(if stdlib? stdlib null)
+             (let () ,@forms)))
         `(begin
            ,@forms)))
   (expand (datum->syntax #f new-form)))
@@ -59,6 +68,7 @@
 
   (define wrap? #t)
   (define stdlib? #t)
+  (define mpair? #f)
 
   (command-line
    #:once-any
@@ -69,6 +79,7 @@
    #:once-each
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-wrap") "don't wrap input with a `let`" (set! wrap? #f)]
+   [("--mcons") "pairs are mpairs" (set! mpair? #t)]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    #:args ([source #f])
    (cond [(and in source)
@@ -87,4 +98,4 @@
 
 
    (define forms (port->list read in))
-   (write-json (to-json (do-expand forms wrap? stdlib?)) out))
+   (write-json (to-json (do-expand forms mpair? wrap? stdlib?)) out))

@@ -1,0 +1,7 @@
+(define-syntax list (make-rename-transformer #'mlist))
+(define-syntax set-car! (make-rename-transformer #'set-mcar!))
+(define-syntax set-cdr! (make-rename-transformer #'set-mcdr!))
+(define-syntax car (make-rename-transformer #'mcar))
+(define-syntax cdr (make-rename-transformer #'mcdr))
+(define-syntax cons (make-rename-transformer #'mcons))
+(define-syntax length (make-rename-transformer #'mlength))
