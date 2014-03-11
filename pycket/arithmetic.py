@@ -160,7 +160,7 @@ class __extend__(values.W_Fixnum):
     def arith_quotient_bigint(self, other_value):
         if self.value == 0:
             raise SchemeException("zero_divisor")
-        raise SchemeException("quotient of big integers is not implemented")
+        return values.W_Bignum(rbigint.fromint(self.value)).arith_quotient_bigint(other_value)
 
     # ------------------ power ------------------ 
     def arith_pow(self, other):
@@ -587,6 +587,23 @@ class __extend__(values.W_Bignum):
 
     def arith_mod_float(self, other_float):
         return values.W_Flonum(math.fmod(other_float, self.value.tofloat()))
+
+
+    def arith_quotient(self, other):
+        return other.arith_quotient_bigint(self.value)
+
+    def arith_quotient_bigint(self, x):
+        from rpython.rlib.rbigint import _divrem # XXX make nice interface
+        y = self.value
+        try:
+            div, rem = _divrem(x, y)
+        except ZeroDivisionError:
+            raise SchemeException("zero_divisor")
+        return make_int(values.W_Bignum(div))
+
+    def arith_quotient_number(self, other_value):
+        return self.arith_quotient_bigint(rbigint.fromint(other_value))
+
 
     # ------------------ power ------------------
     def arith_pow(self, other):
