@@ -108,7 +108,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error and said '%s'" % out)
+        raise Exception("Racket produced an error we failed to record")
     return json_file
 
 
