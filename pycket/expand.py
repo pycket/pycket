@@ -76,8 +76,8 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True
         pass
     cmd = "racket %s %s%s%s--output %s %s" % (
         fn,
-        "" if stdlib else "--no-stdlib ", 
-        "" if not(mcons) else "--mcons ",
+        "" if stdlib else "--no-stdlib ",
+        "--mcons" if mcons else "",
         "" if wrap else "--no-wrap ",
         json_file, rkt_file)
     # print cmd
@@ -100,12 +100,11 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     cmd = "racket %s %s%s%s--output %s --stdin" % (
         fn,
         "" if stdlib else "--no-stdlib ",
-        "" if not(mcons) else "--mcons ",
+        "--mcons" if mcons else "",
         "" if wrap else "--no-wrap ",
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
-    out = pipe.read()
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
