@@ -4,7 +4,6 @@
 # Testing entrypoint
 #
 import pytest
-#from pycket.test.test_basic import run_fix, run
 from pycket.entry_point import entry_point
 from pycket.option_helper import parse_args
 from pycket import option_helper

@@ -5,24 +5,8 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-from pycket.test.test_basic import run_top
+from pycket.test.testhelper import run_file
 
-def run_file(fname, *replacements):
-    ast = parse_file(fname, *replacements)
-    val = interpret([ast])
-
-
-def parse_file(fname, *replacements):
-    fname = os.path.join(os.path.dirname(__file__), fname)
-    with file(fname) as f:
-        s = f.read()
-    for replace, with_ in replacements:
-        assert s.count(replace) == 1
-        s = s.replace(replace, with_)
-    s = expand_string(s, wrap=True, stdlib=True)
-    e = loads(s)
-    ast = to_ast(e)
-    return ast
 
 
 def test_puzzle():

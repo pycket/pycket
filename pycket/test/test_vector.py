@@ -4,7 +4,7 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.vector import *
 from pycket.prims import *
-from pycket.test.test_basic import run_fix, run, execute
+from pycket.test.testhelper import run_fix, run, execute
 
 def test_vec():
     assert isinstance(run('(vector 1)'), W_Vector)

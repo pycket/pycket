@@ -1,45 +1,10 @@
 import pytest
-import os
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-def execute(p, stdlib=False):
-    e = expand(p, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret_one(ast)
-    return val
-
-def run_fix(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    assert isinstance(ov, W_Fixnum)
-    assert ov.value == v
-    return ov.value
-
-def run_flo(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    assert isinstance(ov, W_Flonum)
-    assert ov.value == v
-    return ov.value
-
-def run(p, v=None, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    if v is not None:
-        assert ov.equal(v)
-    return ov
-
-def run_top(p, v=None, stdlib=False):
-    e = expand(p, wrap=True, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret([ast])
-    ov = check_one_val(val)
-    if v:
-        assert ov.equal(v)
-    return ov
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute
 
 
 def test_constant():

@@ -1,13 +1,10 @@
 import pytest
-from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
-from pycket.test.test_basic import run_fix, run, run_top
+from pycket.test.testhelper import run_fix, run, run_top, run_std
 from pycket.error import SchemeException
 
-def run_std(c, v):
-    return run_top(c, v, stdlib=True)
 
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
