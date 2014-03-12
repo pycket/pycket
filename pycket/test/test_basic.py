@@ -268,3 +268,12 @@ def test_eq():
     run("(let ((x '(a)))(eq? x x))", w_true)
     run("(let ((x '#()))(eq? x x))", w_true)
     run("(let ((p (lambda (x) x))) (eq? p p))", w_true)
+
+def test_equal():
+    run("(equal? 'a 'a)", w_true)
+    run("(equal? '(a) '(a))", w_true)
+    run("(equal? '(a (b) c) '(a (b) c))", w_true)
+    run('(equal? "abc" "abc")', w_true)
+    run("(equal? 2 2)", w_true)
+    run("(equal? (make-vector 5 'a) (make-vector 5 'a))", w_true)
+    run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket

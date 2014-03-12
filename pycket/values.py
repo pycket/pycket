@@ -232,6 +232,10 @@ class W_String(W_Object):
         self.value = val
     def tostring(self):
         return self.value
+    def equal(self, other):
+        if not isinstance(other, W_String):
+            return False
+        return self.value == other.value
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
