@@ -45,3 +45,15 @@ def test_list_vector_conversion():
         "#(1.1 a)", "(list->vector (list 1.1 'a))",
     )
 
+def test_substring(doctest):
+    """
+    > (substring "Apple" 1 3)
+    "pp"
+    > (substring "Apple" 1)
+    "pple"
+    """
+    assert doctest
+    check_equal(
+        '(substring "applebee" 5)', '"bee"',
+        '(substring "applebee" 0 8)', '"applebee"',
+    )

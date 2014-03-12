@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 import operator
 import os
 import time
@@ -284,8 +286,42 @@ def string_append(args):
     return values.W_String(''.join(l))
 
 @expose("string-length", [values.W_String])
-def string_append(s1):
+def string_length(s1):
     return values.W_Fixnum(len(s1.value))
+
+@expose("substring")
+def substring(args):
+    """
+    (substring str start [end]) → string?
+        str : string?
+        start : exact-nonnegative-integer?
+        end : exact-nonnegative-integer? = (string-length str)
+    """
+    if not (len(args) == 2 or len(args) == 3):
+        raise SchemeException("substring: expects 2 or 3 arguments")
+    w_string = args[0]
+    if not isinstance(w_string, values.W_String):
+        raise SchemeException("substring: expects a string, got something else")
+    string = w_string.value
+    w_start = args[1]
+    if not isinstance(w_start, values.W_Fixnum):
+        raise SchemeException("substring: start index must be fixnum")
+    start = w_start.value
+    if start > len(string) or start < 0:
+            raise SchemeException("substring: end index out of bounds")
+    if len(args) == 3:
+        w_end = args[2]
+        if not isinstance(w_end, values.W_Fixnum):
+            raise SchemeException("substring: end index must be fixnum")
+        end = w_end.value
+        if end > len(string) or end < 0:
+            raise SchemeException("substring: end index out of bounds")
+    else:
+        end = len(string)
+    if end < start:
+        raise SchemeException(
+            "substring: ending index is smaller than starting index")
+    return values.W_String(string[start:end])
 
 
 @expose("values", simple=False)
