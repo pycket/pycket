@@ -39,3 +39,28 @@ def pytest_funcarg__ast_wrap(request):
     return _make_ast(request, wrap=True)
 def pytest_funcarg__ast_std(request):
     return _make_ast(request, wrap=True, stdlib=True)
+
+def pytest_funcarg__doctest(request):
+    from textwrap import dedent
+    from pycket.test.testhelper import check_equal
+
+    assert request.function.__doc__ is not None
+    code = dedent(request.function.__doc__)
+    lines = [s for s in code.splitlines() if s]
+    exprs = []
+    expect = []
+    current_expr = ""
+    for line in lines:
+        if line[0] == ">":
+            current_expr = line[2:]
+        elif line[0] in " \t":
+            current_expr += "\n" + line[2:]
+        else:
+            exprs.append(current_expr)
+            current_expr = ""
+            expect.append(line)
+    pairs = []
+    for pair in zip(exprs,expect):
+        pairs.extend(pair)
+    check_equal(*pairs)
+    return True
