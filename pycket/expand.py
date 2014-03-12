@@ -60,6 +60,7 @@ def expand_file(fname):
     return data
 
 def expand(s, wrap=False, stdlib=False):
+    assert (not stdlib) or wrap
     data = expand_string(s, wrap, stdlib)
     return pycket_json.loads(data)
 

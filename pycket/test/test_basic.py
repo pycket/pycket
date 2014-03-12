@@ -257,9 +257,15 @@ def test_keyword():
 
 #
 # From http://people.csail.mit.edu/jaffer/r5rs_8.html
-# With tests from racket
+# And the racket docs
 #
 def test_eq():
+    run("(eq? 'yes 'yes)", w_true)
+    run("(eq? 'yes 'no)", w_false)
+    run("(let ([v (mcons 1 2)]) (eq? v v))", w_true)
+    run("(eq? (mcons 1 2) (mcons 1 2))", w_false)
+    #run_top("(eq? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+
     run("(eq? 'a 'a)", w_true)
     run("(eq? '(a) '(a))", w_false) #racket
     run("(eq? (list 'a) (list 'a))", w_false)
@@ -284,6 +290,13 @@ def test_equal():
     run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket
 
 def test_eqv():
+    run("(eqv? 'yes 'yes)", w_true)
+    run("(eqv? 'yes 'no)", w_false)
+    run("(eqv? (expt 2 100) (expt 2 100))", w_true)
+    run("(eqv? 2 2.0)", w_false)
+    #run("(eqv? (integer->char 955) (integer->char 955))", w_true)
+    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+
     run("(eqv? 'a 'a)", w_true)
     run("(eqv? 'a 'b)", w_false)
     run("(eqv? 2 2)", w_true)

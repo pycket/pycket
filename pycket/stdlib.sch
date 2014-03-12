@@ -95,7 +95,6 @@
          (define x (car l))
          (if (eq? x s) l (memq s (cdr l)))]
         [else (error 'memq)]))
-
 ;; Local Variables:
 ;; mode: scheme
 ;; geiser-scheme-implementation: racket

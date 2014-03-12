@@ -287,6 +287,7 @@ def string_append(args):
 def string_append(s1):
     return values.W_Fixnum(len(s1.value))
 
+
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -384,9 +385,6 @@ def eqp(a, b):
     if a is b:
         return values.w_true
     elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return values.W_Bool.make(a.value == b.value)
-    # Racket behaves like this
-    elif isinstance(a, values.W_String) and isinstance(b, values.W_String):
         return values.W_Bool.make(a.value == b.value)
     elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
         return values.W_Bool.make(a.value == b.value)
