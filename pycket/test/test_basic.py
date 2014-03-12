@@ -253,3 +253,18 @@ def test_apply():
 
 def test_keyword():
     run("'#:foo", W_Keyword.make("foo"))
+
+def test_eq():
+    run("(eq? 'a 'a)", w_true)
+    run("(eq? '(a) '(a))", w_false) #racket
+    run("(eq? (list 'a) (list 'a))", w_false)
+    run('(eq? "a" "a")', w_true) #racket
+    run('(eq? "" "")', w_true) #racket
+    run("(eq? '() '())", w_true)
+    run("(eq? 2 2)",  w_true) #racket
+    run("(eq? #\A #\A)", w_true) #racket
+    run("(eq? car car)", w_true)
+    run("(let ((n (+ 2 3)))(eq? n n))", w_true) #racket
+    run("(let ((x '(a)))(eq? x x))", w_true)
+    run("(let ((x '#()))(eq? x x))", w_true)
+    run("(let ((p (lambda (x) x))) (eq? p p))", w_true)

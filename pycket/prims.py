@@ -378,7 +378,12 @@ def eqp(a, b):
     # this doesn't work for cycles
     if a is b:
         return values.w_true
-    if isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+        return values.W_Bool.make(a.value == b.value)
+    # Racket behaves like this
+    elif isinstance(a, values.W_String) and isinstance(b, values.W_String):
+        return values.W_Bool.make(a.value == b.value)
+    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
         return values.W_Bool.make(a.value == b.value)
     else:
         return values.w_false
