@@ -254,6 +254,11 @@ def test_apply():
 def test_keyword():
     run("'#:foo", W_Keyword.make("foo"))
 
+
+#
+# From http://people.csail.mit.edu/jaffer/r5rs_8.html
+# With tests from racket
+#
 def test_eq():
     run("(eq? 'a 'a)", w_true)
     run("(eq? '(a) '(a))", w_false) #racket
@@ -277,3 +282,63 @@ def test_equal():
     run("(equal? 2 2)", w_true)
     run("(equal? (make-vector 5 'a) (make-vector 5 'a))", w_true)
     run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket
+
+def test_eqv():
+    run("(eqv? 'a 'a)", w_true)
+    run("(eqv? 'a 'b)", w_false)
+    run("(eqv? 2 2)", w_true)
+    run("(eqv? '() '())", w_true)
+    run("(eqv? 100000000 100000000)", w_true)
+    run("(eqv? (cons 1 2) (cons 1 2))", w_false)
+    run("""(eqv? (lambda () 1)
+                 (lambda () 2))""", w_false)
+    run("(eqv? #f 'nil)", w_false)
+    run("""(let ((p (lambda (x) x)))
+           (eqv? p p))""", w_true)
+    run('(eqv? "" "")', w_true) #racket
+    run("(eqv? '#() '#())", w_false) #racket
+    run("""(eqv? (lambda (x) x)
+                 (lambda (x) x))""", w_false) #racket
+    run("""(eqv? (lambda (x) x)
+                 (lambda (y) y))""", w_false) #racket
+    run_top("""(define gen-counter
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) n))))
+           (let ((g (gen-counter)))
+             (eqv? g g))""",
+        w_true)
+    run_top("""(define gen-counter
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) n))))
+           (eqv? (gen-counter) (gen-counter))""",
+        w_false)
+    run_top("""(define gen-loser
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) 27))))
+           (let ((g (gen-loser)))
+             (eqv? g g))""",
+        w_true)
+    run_top("""(define gen-loser
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) 27))))
+           (eqv? (gen-loser) (gen-loser))""",
+        w_false) #racket
+
+    run("""(letrec ((f (lambda () (if (eqv? f g) 'both 'f)))
+                    (g (lambda () (if (eqv? f g) 'both 'g))))
+             (eqv? f g))""",
+        w_false) #racket
+
+    run("""(letrec ((f (lambda () (if (eqv? f g) 'f 'both)))
+                    (g (lambda () (if (eqv? f g) 'g 'both))))
+             (eqv? f g))""",
+        w_false)
+    run("(eqv? '(a) '(a))", w_false) #racket
+    run('(eqv? "a" "a")', w_true) #racket
+    run("(eqv? '(b) (cdr '(a b)))", w_false) #racket
+    run("""(let ((x '(a)))
+           (eqv? x x))""", w_true)

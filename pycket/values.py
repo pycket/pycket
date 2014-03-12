@@ -39,6 +39,9 @@ class W_Object(object):
     def equal(self, other):
         return self is other # default implementation
 
+    def eqv(self, other):
+        return self is other # default implementation
+
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
@@ -141,6 +144,10 @@ class W_Number(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    def eqv(self, other):
+        return self.equal(other)
+
+
 class W_Integer(W_Number):
     errorname = "integer"
 
@@ -236,6 +243,7 @@ class W_String(W_Object):
         if not isinstance(other, W_String):
             return False
         return self.value == other.value
+    eqv = equal
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]

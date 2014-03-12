@@ -373,6 +373,11 @@ def equalp(a, b):
     # this doesn't work for cycles
     return values.W_Bool.make(a.equal(b))
 
+@expose("eqv?", [values.W_Object] * 2)
+def eqvp(a, b):
+    # this doesn't work for cycles
+    return values.W_Bool.make(a.eqv(b))
+
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
     # this doesn't work for cycles
