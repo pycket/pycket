@@ -674,8 +674,8 @@ def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
 @expose("integer->char", [values.W_Fixnum])
-def string_to_symbol(v):
-    return values.W_Character(unichr(v.value))
+def integer_to_char(v):
+    return values.W_Character(unichr(v.value))`
 
 
 # Loading
