@@ -673,6 +673,11 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
+@expose("integer->char", [values.W_Fixnum])
+def string_to_symbol(v):
+    return values.W_Character(unichr(v.value))
+
+
 # Loading
 
 # FIXME: Proper semantics.

@@ -201,6 +201,7 @@ class W_Character(W_Object):
         if not isinstance(other, W_Character):
             return False
         return self.value == other.value
+    eqv = equal
 
 class W_Void(W_Object):
     def __init__(self): pass
@@ -243,7 +244,6 @@ class W_String(W_Object):
         if not isinstance(other, W_String):
             return False
         return self.value == other.value
-    eqv = equal
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
