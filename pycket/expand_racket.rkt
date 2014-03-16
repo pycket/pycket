@@ -2,7 +2,7 @@
 
 (require syntax/parse racket/runtime-path racket/unsafe/ops 
          racket/fixnum racket/flonum "mycase.rkt" racket/mpair
-         compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket))
+         compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket) (prefix-in mz: mzscheme))
 (define-namespace-anchor ns)
 ;(define set-car! #f)
 ;(define set-cdr! #f)
@@ -34,11 +34,13 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v
+  (syntax-parse v #:literals (#%plain-lambda)
     [v:str (hash 'string (syntax-e #'v))]
     [(_ ...) (map to-json (syntax->list v))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
                                    (to-json (cdr (last-pair (syntax-e v))))))]
+    [#%plain-lambda
+     (hash 'module "lambda")]
     [i:identifier
      #:when (eq? 'lexical (identifier-binding #'i))
      (hash 'lexical (symbol->string (syntax-e v)))]
@@ -98,4 +100,6 @@
 
 
    (define forms (port->list read in))
-   (write-json (to-json (do-expand forms mpair? wrap? stdlib?)) out))
+   (define expanded (do-expand forms mpair? wrap? stdlib?))
+   (pretty-print (syntax->datum expanded) (current-error-port))
+   (write-json (to-json expanded) out))
