@@ -2,7 +2,7 @@
 
 (require syntax/parse racket/runtime-path racket/unsafe/ops 
          racket/fixnum racket/flonum "mycase.rkt" racket/mpair
-         compatibility/mlist)
+         compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket))
 (define-namespace-anchor ns)
 ;(define set-car! #f)
 ;(define set-cdr! #f)
