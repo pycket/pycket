@@ -34,9 +34,10 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (#%plain-lambda)
+  (syntax-parse v #:literals (#%plain-lambda #%top)
     [v:str (hash 'string (syntax-e #'v))]
     [(_ ...) (map to-json (syntax->list v))]
+    [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
                                    (to-json (cdr (last-pair (syntax-e v))))))]
     [#%plain-lambda
@@ -53,7 +54,6 @@
     [_
      #:when (exact-integer? (syntax-e v))
      (hash 'integer (~a (syntax-e v)))]
-    [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
