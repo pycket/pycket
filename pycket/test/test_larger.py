@@ -18,6 +18,9 @@ def test_nqueens():
 def test_bubble():
     run_file("bubble.sch", ("10000", "100"))
 
+def test_bubble():
+    run_file("bubble-imp.sch", ("10000", "100"))
+
 def test_bubble_unsafe():
     run_file("bubble-unsafe.sch", ("10000", "100"))
 

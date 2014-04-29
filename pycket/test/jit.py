@@ -13,7 +13,7 @@ conftest.option = o
 from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
-from pycket.test.test_larger import parse_file
+from pycket.test.testhelper import parse_file
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
@@ -104,6 +104,15 @@ class TestLLtype(LLJitMixin):
 
     def test_bubble(self):
         fname = "bubble.sch"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret([ast])
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_bubble_imp(self):
+        fname = "bubble-imp.sch"
         ast = parse_file(fname)
         def interp_w():
             val = interpret([ast])
