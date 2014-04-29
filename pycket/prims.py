@@ -160,7 +160,7 @@ for args in [
         ("number?", values.W_Number),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
-        ("vector?", values_vector.W_Vector),
+        ("vector?", values.W_MVector),
         ("string?", values.W_String),
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
@@ -347,14 +347,14 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
-@expose("call/cc", [values.W_Procedure], simple=False)
-def callcc(a, env, cont):
-    return a.call([values.W_Continuation(cont)], env, cont)
-
 @expose("time-apply", [values.W_Procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
     initial = time.clock()
     return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
+
+@expose("call/cc", [values.W_Procedure], simple=False)
+def callcc(a, env, cont):
+    return a.call([values.W_Continuation(cont)], env, cont)
 
 @expose("apply", simple=False)
 def apply(args, env, cont):
@@ -521,24 +521,53 @@ def do_void(args): return values.w_void
 def num2str(a):
     return values.W_String(a.tostring())
 
-@expose("vector-ref")
-def vector_ref(args):
-    v, i = args
-    if not isinstance(v, values_vector.W_Vector):
-        raise SchemeException("vector-ref: expected a vector")
-    if not isinstance(i, values.W_Fixnum):
-        raise SchemeException("vector-ref: expected a fixnum")
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
+def vector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return v.ref(i.value)
+    return do_vec_ref(v, i, env, cont)
 
-@expose("vector-set!", [values_vector.W_Vector, values.W_Fixnum, values.W_Object])
-def vector_set(v, i, new):
+@continuation
+def imp_vec_ref_cont(f, i, v, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return f.call([v, i, check_one_val(vals)], env, cont)
+
+def do_vec_ref(v, i, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        return return_value(v.ref(i.value), env, cont)
+    if isinstance(v, values.W_ImpVector):
+        uv = v.vec
+        f = v.refh
+        return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
+
+
+@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
+def vector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    v.set(i.value, new)
+    return do_vec_set(v, i, new, env, cont)
+
+@continuation
+def imp_vec_set_cont(v, i, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return do_vec_set(v, i, check_one_val(vals), env, cont)
+
+def do_vec_set(v, i, new, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        v.set(i.value, new)
+        return return_value(values.w_void, env, cont)
+    if isinstance(v, values.W_ImpVector):
+        uv = v.vec
+        f = v.seth
+        return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
+
+@expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
+def impersonate_vector(v, refh, seth):
+    return values.W_ImpVector(v, refh, seth)
 
 @expose("vector")
 def vector(args):
@@ -559,7 +588,7 @@ def make_vector(args):
         raise SchemeException("make-vector: expected a positive fixnum")
     return values_vector.W_Vector.fromelement(val, n.value)
 
-@expose("vector-length", [values_vector.W_Vector])
+@expose("vector-length", [values_vector.W_MVector])
 def vector_length(v):
     return values.W_Fixnum(v.length())
 

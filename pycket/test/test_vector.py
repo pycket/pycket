@@ -67,3 +67,22 @@ def test_vec_strategies_stays_flonum():
 def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+
+def test_vec_imp():
+    assert isinstance(run('(impersonate-vector (vector 1) values values)'), W_ImpVector)
+    run('(vector? (impersonate-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
+    run_fix("(let ([v (impersonate-vector (vector 1 2 3) values values)]) (vector-length v))", 3)
+    run("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0))", w_void)
+    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-length v))", 3)
+    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-ref v 0))", 0)
+
+def test_vec_equal_imp():
+# FIXME: can't work yet
+#    run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 3))", w_true)
+    run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2))", w_false)
+    run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 5))", w_false)
+
+def test_make_vector_imp():
+    run_fix("(let ([v (impersonate-vector (vector) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 0)
+    run_fix("(let ([v (impersonate-vector (make-vector 5) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 5)
+    

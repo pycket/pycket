@@ -1,5 +1,5 @@
 
-from pycket.values import W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit
@@ -22,7 +22,7 @@ def _find_strategy_class(elements):
         return FlonumVectorStrategy.singleton
     return ObjectVectorStrategy.singleton
 
-class W_Vector(W_Object):
+class W_Vector(W_MVector):
     _immutable_fields_ = ["elems", "len"]
     errorname = "vector"
     def __init__(self, strategy, storage, len):
@@ -62,7 +62,7 @@ class W_Vector(W_Object):
 
     def equal(self, other):
         # XXX could be optimized using strategies
-        if not isinstance(other, W_Vector):
+        if not isinstance(other, W_MVector):
             return False
         if self is other:
             return True

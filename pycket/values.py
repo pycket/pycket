@@ -50,6 +50,36 @@ class W_Cell(W_Object): # not the same as Racket's box
     def set_val(self, w_value):
         self.value = w_value
 
+class W_MVector(W_Object):
+    errorname = "vector"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_ImpVector(W_MVector):
+    _immutable_fields_ = ["vec", "refh", "seth", "len"]
+    def __init__(self, v, r, s):
+        self.vec = v
+        self.refh = r
+        self.seth = s
+        self.len = v.length()
+    def length(self):
+        return self.len
+    def equal(self, other):
+        if not isinstance(other, W_MVector):
+            return False
+        if self is other:
+            return True
+        if self.vec is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            # FIXME: we need to call user code here
+            # if not self.ref(i).equal(other.ref(i)):
+            #    return False
+            return False
+        return True
+
 
 class W_List(W_Object):
     errorname = "list"
