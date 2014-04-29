@@ -347,14 +347,15 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
+@expose("call/cc", [values.W_Procedure], simple=False)
+def callcc(a, env, cont):
+    return a.call([values.W_Continuation(cont)], env, cont)
+
 @expose("time-apply", [values.W_Procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
     initial = time.clock()
     return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
 
-@expose("call/cc", [values.W_Procedure], simple=False)
-def callcc(a, env, cont):
-    return a.call([values.W_Continuation(cont)], env, cont)
 
 @expose("apply", simple=False)
 def apply(args, env, cont):
@@ -537,10 +538,12 @@ def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         return return_value(v.ref(i.value), env, cont)
-    if isinstance(v, values.W_ImpVector):
+    elif isinstance(v, values.W_ImpVector):
         uv = v.vec
         f = v.refh
         return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
+    else:
+        assert False
 
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
@@ -560,10 +563,12 @@ def do_vec_set(v, i, new, env, cont):
     if isinstance(v, values_vector.W_Vector):
         v.set(i.value, new)
         return return_value(values.w_void, env, cont)
-    if isinstance(v, values.W_ImpVector):
+    elif isinstance(v, values.W_ImpVector):
         uv = v.vec
         f = v.seth
         return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
+    else:
+        assert False
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
