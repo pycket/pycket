@@ -332,6 +332,8 @@ class SequencedBodyAST(AST):
         self.body = body
 
     def make_begin_cont(self, env, prev, i=0):
+        jit.promote(self)
+        jit.promote(i)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
