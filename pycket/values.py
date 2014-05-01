@@ -421,3 +421,11 @@ class W_Closure(W_Procedure):
                           cont)
 
 
+class W_PromotableClosure(W_Closure):
+    """ A W_Closure that is promotable, ie that is cached in some place and
+    unlikely to change. """
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return W_Closure.call(self, args, env, cont)
+

@@ -581,7 +581,10 @@ def free_vars_lambda(body, args):
     return x
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["formals[*]", "rest", "args", "frees", "enclosing_env_structure"]
+    _immutable_fields_ = ["formals[*]", "rest", "args",
+                          "frees", "enclosing_env_structure",
+                          "w_closure_if_no_frees?",
+                          ]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -591,8 +594,17 @@ class Lambda(SequencedBodyAST):
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
+        self.w_closure_if_no_frees = None
 
     def interpret_simple(self, env):
+        if not self.frees.elems:
+            # cache closure if there are no free variables and the toplevel env
+            # is the same as last time
+            w_closure = self.w_closure_if_no_frees
+            if w_closure is None or w_closure.env.toplevel_env is not env.toplevel_env:
+                w_closure = values.W_PromotableClosure(self, env)
+                self.w_closure_if_no_frees = w_closure
+            return w_closure
         return values.W_Closure(self, env)
 
     def assign_convert(self, vars, env_structure):
