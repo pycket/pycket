@@ -68,6 +68,17 @@ def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
+def test_unsafe():
+    run("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
+    run("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
+    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+
+def test_unsafe_impersonators():
+    run("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
+    run("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
+    run_fix("(let ([v (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+
+
 def test_vec_imp():
     assert isinstance(run('(impersonate-vector (vector 1) values values)'), W_ImpVector)
     run('(vector? (impersonate-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
