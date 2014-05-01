@@ -724,12 +724,13 @@ def unsafe_fleq(a, b):
 ## Unsafe vector ops
 
 # FIXME: Chaperones
-@expose("unsafe-vector-ref", [values.W_MVector, unsafe(values.W_Fixnum)], simple=False)
+@expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values.W_ImpVector):
         return do_vec_ref(v, i, env, cont)
     else:
+        assert type(v) is values_vector.W_Vector
         return return_value(v.ref(i.value), env, cont)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
@@ -737,12 +738,13 @@ def unsafe_vector_star_ref(v, i):
     return v.ref(i.value)
 
 # FIXME: Chaperones
-@expose("unsafe-vector-set!", [values.W_MVector, unsafe(values.W_Fixnum), values.W_Object], simple=False)
+@expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values.W_ImpVector):
         return do_vec_set(v, i, new, env, cont)
     else:
+        assert type(v) is values_vector.W_Vector
         return return_value(v.set(i.value, new), env, cont)
 
 @expose("unsafe-vector*-set!",
@@ -754,7 +756,7 @@ def unsafe_vector_star_set(v, i, new):
 def unsafe_vector_length(v):
     return values.W_Fixnum(v.length())
 
-@expose("unsafe-vector*-length", [unsafe(values.W_MVector)])
+@expose("unsafe-vector*-length", [unsafe(values_vector.W_Vector)])
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
