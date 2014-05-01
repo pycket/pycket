@@ -55,15 +55,19 @@ class W_MVector(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    def length(self):
+        raise NotImplementedError("abstract base class")
+
 class W_ImpVector(W_MVector):
-    _immutable_fields_ = ["vec", "refh", "seth", "len"]
+    _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
         self.vec = v
         self.refh = r
         self.seth = s
-        self.len = v.length()
+
     def length(self):
-        return self.len
+        return self.vec.length()
+
     def equal(self, other):
         if not isinstance(other, W_MVector):
             return False
