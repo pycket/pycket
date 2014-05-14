@@ -95,6 +95,10 @@
          (define x (car l))
          (if (eq? x s) l (memq s (cdr l)))]
         [else (error 'memq)]))
+
+(define (exact-nonnegative-integer? n)
+  (and (integer? n) (exact? n) (>= n 0)))
+
 ;; Local Variables:
 ;; mode: scheme
 ;; geiser-scheme-implementation: racket
