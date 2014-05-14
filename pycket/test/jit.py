@@ -93,6 +93,21 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+
+    def test_imp_vec(self):
+
+        ast = to_ast(expand("(let ([v (impersonate-vector (make-vector 1000 5) (lambda (x y z) z) (lambda (x y z) z))]) (let lp ([n 0] [i 0]) (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))"))
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 5000
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
     def test_puzzle(self):
         fname = "puzzle.sch"
         ast = parse_file(fname)
