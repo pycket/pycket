@@ -233,7 +233,7 @@ class Module(AST):
         new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
         return Module(self.name, new_body)
     def tostring(self):
-        return "(module %s %s)"%(self.name.tostring(),[s.tostring() for s in self.body])
+        return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
         
 
 def return_value(w_val, env, cont):
@@ -278,6 +278,8 @@ class Quote(AST):
     def mutated_vars(self):
         return {}
     def tostring(self):
+        if isinstance(self.w_val, values.W_Bool) or isinstance(self.w_val, values.W_Number) or isinstance(self.w_val, values.W_String) or isinstance(self.w_val, values.W_Symbol):
+            return "%s"%self.w_val.tostring()
         return "'%s"%self.w_val.tostring()
 
 class App(AST):
@@ -585,12 +587,13 @@ class RecLambda(AST):
         return cl
 
     def tostring(self):
+        b = " ".join([b.tostring() for b in self.lam.body])
         if self.lam.rest and (not self.lam.formals):
-            return "(rec %s %s %s)"%(self.name, self.lam.rest, self.lam.body)
+            return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
         if self.lam.rest:
-            return "(rec %s (%s . %s) %s)"%(self.name, self.lam.formals, self.lam.rest, self.lam.body)
+            return "(rec %s (%s . %s) %s)"%(self.name, " ".join([v.value for v in self.lam.formals]), self.lam.rest, b)
         else:
-            return "(rec %s (%s) %s)"%(self.name, self.lam.formals, self.lam.body)
+            return "(rec %s (%s) %s)"%(self.name, " ".join([v.value for v in self.lam.formals]), b)
 
 
 def make_lambda(formals, rest, body):
@@ -673,7 +676,9 @@ class Lambda(SequencedBodyAST):
         if self.rest:
             return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
         else:
-            return "(lambda (%s) %s)"%(self.formals, [b.tostring() for b in self.body])
+            return "(lambda (%s) %s)"%(" ".join([v.value for v in self.formals]),
+                                       self.body[0].tostring() if len(self.body) == 1 else
+                                       [b.tostring() for b in self.body])
 
 
 class Letrec(SequencedBodyAST):
@@ -722,7 +727,7 @@ class Letrec(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
     def tostring(self):
-        return "(letrec (%s) %s)"%([(v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+        return "(letrec (%s) %s)"%([(v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
 def make_let(varss, rhss, body):
@@ -809,7 +814,7 @@ class Let(SequencedBodyAST):
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.tostring(),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 
+        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 
                                 " ".join([b.tostring() for b in self.body]))
 
 
@@ -832,7 +837,7 @@ class DefineValues(AST):
                 del vs[n]
         return vs
     def tostring(self):
-        return "(define %s %s)"%(self.names, self.rhs.tostring())
+        return "(define-values %s %s)"%(self.names, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:

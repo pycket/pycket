@@ -217,7 +217,7 @@ def mksym(json):
 def _to_module(json):
     v = json.value_object()
     if "body-forms" in v:
-        return Module(v["module-name"], [_to_ast(x) for x in v["body-forms"].value_array()])
+        return Module(v["module-name"].value_string(), [_to_ast(x) for x in v["body-forms"].value_array()])
     else:
         assert 0
 
