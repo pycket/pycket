@@ -37,6 +37,8 @@
     [v:str (hash 'string (syntax-e #'v))]
     [(module _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
+    ;; disabled to avoid changing the python code for now
+    #;#;
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
@@ -118,6 +120,6 @@
   (read-accept-reader #t)
   (define mod (read-syntax (object-name in) in))
   (define expanded (do-expand mod mpair? wrap? stdlib?))
-  (pretty-print (syntax->datum expanded) (current-error-port))
+  ;(pretty-print (syntax->datum expanded) (current-error-port))
   (write-json (convert expanded) out)
   (newline out))

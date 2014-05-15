@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 import os
+import sys
 
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
@@ -159,6 +160,11 @@ def parse_ast(json_string):
     json = pycket_json.loads(json_string)
     return to_ast(json)
 
+def parse_module(json_string):
+    json = pycket_json.loads(json_string)
+    return _to_module(json).assign_convert({}, None)
+
+
 def to_ast(json):
     ast = _to_ast(json)
     return ast.assign_convert({}, None)
@@ -207,6 +213,13 @@ def mksym(json):
         if i in j:
             return values.W_Symbol.make(j[i].value_string())
     assert 0, json.tostring()
+
+def _to_module(json):
+    v = json.value_object()
+    if "body-forms" in v:
+        return Module(v["module-name"], [_to_ast(x) for x in v["body-forms"].value_array()])
+    else:
+        assert 0
 
 def _to_ast(json):
     dbgprint("_to_ast", json)
@@ -265,7 +278,7 @@ def _to_ast(json):
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 assert len(fmls) == 1
-                return Define(fmls[0], _to_ast(arr[2]))
+                return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
             if ast_elem == "begin0":
@@ -323,3 +336,7 @@ def to_value(json):
     if json.is_array:
         return values.to_list([to_value(j) for j in json.value_array()])
     assert 0, "Unexpected json value: %s" % json.tostring()
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        print parse_module(expand_file(sys.argv[1])).tostring()

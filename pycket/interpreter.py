@@ -208,6 +208,34 @@ class AST(object):
     def tostring(self):
         raise NotImplementedError("abstract base class")
 
+class Module(AST):
+    _immutable_fields_ = ["name", "body"]
+    def __init__(self, name, body):
+        self.name = name
+        self.body = body
+        self.defs = []
+
+    # these are both empty and irrelevant for modules
+    def mutated_vars(self): return {}
+    def free_vars(self): return {}
+
+    # all the module-bound variables that are mutated
+    def _mutated_vars(self):
+        x = {}
+        for r in self.body:
+            x.update(r.mutated_vars())
+        return x        
+
+    def assign_convert(self, vars, env_structure):
+        local_muts = self._mutated_vars()
+        new_vars = vars.copy()
+        new_vars.update(local_muts)
+        new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
+        return Module(self.name, new_body)
+    def tostring(self):
+        return "(module %s %s)"%(self.name.tostring(),[s.tostring() for s in self.body])
+        
+
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
@@ -785,20 +813,26 @@ class Let(SequencedBodyAST):
                                 " ".join([b.tostring() for b in self.body]))
 
 
-class Define(AST):
-    _immutable_fields_ = ["name", "rhs"]
-    name = values.W_Symbol('fake')
+class DefineValues(AST):
+    _immutable_fields_ = ["names", "rhs"]
+    names = []
     rhs = Quote(values.w_null)
 
-    def __init__(self, n, r):
-        self.name = n
+    def __init__(self, ns, r):
+        self.names = ns
         self.rhs = r
     def assign_convert(self, vars, env_structure):
-        return Define(self.name, self.rhs.assign_convert(vars, env_structure))
-    def mutated_vars(self): assert 0
-    def free_vars(self): assert 0
+        return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
+    def mutated_vars(self): 
+        return self.rhs.mutated_vars()
+    def free_vars(self):
+        vs = self.rhs.free_vars()
+        for n in self.names:
+            if n in vs:
+                del vs[n]
+        return vs
     def tostring(self):
-        return "(define %s %s)"%(self.name, self.rhs.tostring())
+        return "(define %s %s)"%(self.names, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:
@@ -829,7 +863,8 @@ def interpret_toplevel(a, env):
         for a2 in a.body:
             x = interpret_toplevel(a2, env)
         return x
-    elif isinstance(a, Define):
+    elif isinstance(a, DefineValues):
+        assert 0 # FIXME
         env.toplevel_env.toplevel_set(a.name, interpret_one(a.rhs, env))
         return values.Values.make([values.w_void])
     else:
