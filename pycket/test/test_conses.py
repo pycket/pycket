@@ -3,7 +3,7 @@
 
 from pycket.values import *
 
-from pycket.test.test_basic import execute, run_fix, run
+from pycket.test.testhelper import execute, run_fix, run
 
 
 class TestConses(object):

@@ -1,45 +1,10 @@
 import pytest
-import os
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-def execute(p, stdlib=False):
-    e = expand(p, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret_one(ast)
-    return val
-
-def run_fix(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    assert isinstance(ov, W_Fixnum)
-    assert ov.value == v
-    return ov.value
-
-def run_flo(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    assert isinstance(ov, W_Flonum)
-    assert ov.value == v
-    return ov.value
-
-def run(p, v=None, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    if v is not None:
-        assert ov.equal(v)
-    return ov
-
-def run_top(p, v=None, stdlib=False):
-    e = expand(p, wrap=True, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret([ast])
-    ov = check_one_val(val)
-    if v:
-        assert ov.equal(v)
-    return ov
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute
 
 
 def test_constant():
@@ -267,3 +232,105 @@ def test_setbang_recursive_lambda():
 
 def test_keyword():
     run("'#:foo", W_Keyword.make("foo"))
+
+
+#
+# From http://people.csail.mit.edu/jaffer/r5rs_8.html
+# And the racket docs
+#
+def test_eq():
+    run("(eq? 'yes 'yes)", w_true)
+    run("(eq? 'yes 'no)", w_false)
+    run("(let ([v (mcons 1 2)]) (eq? v v))", w_true)
+    run("(eq? (mcons 1 2) (mcons 1 2))", w_false)
+    #run_top("(eq? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+
+    run("(eq? 'a 'a)", w_true)
+    run("(eq? '(a) '(a))", w_false) #racket
+    run("(eq? (list 'a) (list 'a))", w_false)
+    # run('(eq? "a" "a")', w_true) #racket
+    # run('(eq? "" "")', w_true) #racket
+    run("(eq? '() '())", w_true)
+    run("(eq? 2 2)",  w_true) #racket
+    run("(eq? #\A #\A)", w_true) #racket
+    run("(eq? car car)", w_true)
+    run("(let ((n (+ 2 3)))(eq? n n))", w_true) #racket
+    run("(let ((x '(a)))(eq? x x))", w_true)
+    run("(let ((x '#()))(eq? x x))", w_true)
+    run("(let ((p (lambda (x) x))) (eq? p p))", w_true)
+
+def test_equal():
+    run("(equal? 'a 'a)", w_true)
+    run("(equal? '(a) '(a))", w_true)
+    run("(equal? '(a (b) c) '(a (b) c))", w_true)
+    run('(equal? "abc" "abc")', w_true)
+    run("(equal? 2 2)", w_true)
+    run("(equal? (make-vector 5 'a) (make-vector 5 'a))", w_true)
+    run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket
+
+def test_eqv():
+    run("(eqv? 'yes 'yes)", w_true)
+    run("(eqv? 'yes 'no)", w_false)
+    run("(eqv? (expt 2 100) (expt 2 100))", w_true)
+    run("(eqv? 2 2.0)", w_false)
+    run("(eqv? (integer->char 955) (integer->char 955))", w_true)
+    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+
+    run("(eqv? 'a 'a)", w_true)
+    run("(eqv? 'a 'b)", w_false)
+    run("(eqv? 2 2)", w_true)
+    run("(eqv? '() '())", w_true)
+    run("(eqv? 100000000 100000000)", w_true)
+    run("(eqv? (cons 1 2) (cons 1 2))", w_false)
+    run("""(eqv? (lambda () 1)
+                 (lambda () 2))""", w_false)
+    run("(eqv? #f 'nil)", w_false)
+    run("""(let ((p (lambda (x) x)))
+           (eqv? p p))""", w_true)
+    # run('(eqv? "" "")', w_true) #racket
+    run("(eqv? '#() '#())", w_false) #racket
+    run("""(eqv? (lambda (x) x)
+                 (lambda (x) x))""", w_false) #racket
+    run("""(eqv? (lambda (x) x)
+                 (lambda (y) y))""", w_false) #racket
+    run_top("""(define gen-counter
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) n))))
+           (let ((g (gen-counter)))
+             (eqv? g g))""",
+        w_true)
+    run_top("""(define gen-counter
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) n))))
+           (eqv? (gen-counter) (gen-counter))""",
+        w_false)
+    run_top("""(define gen-loser
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) 27))))
+           (let ((g (gen-loser)))
+             (eqv? g g))""",
+        w_true)
+    run_top("""(define gen-loser
+             (lambda ()
+               (let ((n 0))
+                 (lambda () (set! n (+ n 1)) 27))))
+           (eqv? (gen-loser) (gen-loser))""",
+        w_false) #racket
+
+    run("""(letrec ((f (lambda () (if (eqv? f g) 'both 'f)))
+                    (g (lambda () (if (eqv? f g) 'both 'g))))
+             (eqv? f g))""",
+        w_false) #racket
+
+    run("""(letrec ((f (lambda () (if (eqv? f g) 'f 'both)))
+                    (g (lambda () (if (eqv? f g) 'g 'both))))
+             (eqv? f g))""",
+        w_false)
+    run("(eqv? '(a) '(a))", w_false) #racket
+    # run('(eqv? "a" "a")', w_true) #racket
+    run("(eqv? '(b) (cdr '(a b)))", w_false) #racket
+    run("""(let ((x '(a)))
+           (eqv? x x))""", w_true)

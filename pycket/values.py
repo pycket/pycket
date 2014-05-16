@@ -39,6 +39,9 @@ class W_Object(object):
     def equal(self, other):
         return self is other # default implementation
 
+    def eqv(self, other):
+        return self is other # default implementation
+
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
@@ -46,6 +49,40 @@ class W_Cell(W_Object): # not the same as Racket's box
 
     def set_val(self, w_value):
         self.value = w_value
+
+class W_MVector(W_Object):
+    errorname = "vector"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+    def length(self):
+        raise NotImplementedError("abstract base class")
+
+class W_ImpVector(W_MVector):
+    _immutable_fields_ = ["vec", "refh", "seth"]
+    def __init__(self, v, r, s):
+        self.vec = v
+        self.refh = r
+        self.seth = s
+
+    def length(self):
+        return self.vec.length()
+
+    def equal(self, other):
+        if not isinstance(other, W_MVector):
+            return False
+        if self is other:
+            return True
+        if self.vec is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            # FIXME: we need to call user code here
+            # if not self.ref(i).equal(other.ref(i)):
+            #    return False
+            return False
+        return True
 
 
 class W_List(W_Object):
@@ -141,8 +178,14 @@ class W_Number(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    def eqv(self, other):
+        return self.equal(other)
 
-class W_Fixnum(W_Number):
+
+class W_Integer(W_Number):
+    errorname = "integer"
+
+class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
     def tostring(self):
@@ -169,7 +212,7 @@ class W_Flonum(W_Number):
             return False
         return self.value == other.value
 
-class W_Bignum(W_Number):
+class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
     def tostring(self):
         return str(self.value)
@@ -192,6 +235,7 @@ class W_Character(W_Object):
         if not isinstance(other, W_Character):
             return False
         return self.value == other.value
+    eqv = equal
 
 class W_Void(W_Object):
     def __init__(self): pass
@@ -230,6 +274,10 @@ class W_String(W_Object):
         self.value = val
     def tostring(self):
         return self.value
+    def equal(self, other):
+        if not isinstance(other, W_String):
+            return False
+        return self.value == other.value
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
@@ -381,4 +429,12 @@ class W_Closure(W_Procedure):
                 ConsEnv.make(actuals, prev, prev.toplevel_env),
                 cont)
 
+
+class W_PromotableClosure(W_Closure):
+    """ A W_Closure that is promotable, ie that is cached in some place and
+    unlikely to change. """
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return W_Closure.call(self, args, env, cont)
 

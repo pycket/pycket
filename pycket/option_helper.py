@@ -36,6 +36,7 @@ def print_help(argv):
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
   --no-stdlib: Do not use Pycket's version of stdlib
+  --mcons: Support mutable conses
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -50,6 +51,7 @@ _eval = False
 def parse_args(argv):
     config = {
         'stdlib': True,
+        'mcons': False,
         'mode': _run,
     }
     names = {
@@ -135,6 +137,7 @@ def _temporary_file():
 
 def ensure_json_ast(config, names):
     stdlib = config.get('stdlib', True)
+    mcons = config.get('mcons', False)
 
     if config["mode"] is _eval:
         code = names['exprs']
@@ -143,14 +146,14 @@ def ensure_json_ast(config, names):
         else:
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
-        json_file = ensure_json_ast_eval(code, file_name, stdlib)
+        json_file = ensure_json_ast_eval(code, file_name, stdlib, mcons)
     elif config["mode"] is _run:
         assert 'file' in names
         file_name = names['file']
         if file_name.endswith('.json'):
             json_file = file_name
         else:
-            json_file = ensure_json_ast_run(file_name, stdlib)
+            json_file = ensure_json_ast_run(file_name, stdlib, mcons)
     else:
         return None
     return json_file

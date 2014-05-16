@@ -47,27 +47,28 @@ class ToplevelEnv(Env):
 
 class ConsEnv(Env):
     _immutable_fields_ = ["prev", "toplevel_env"]
-    @jit.unroll_safe
     def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
         self.prev = prev
+
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
-        args = jit.promote(env_structure)
-        for i, s in enumerate(args.elems):
+        jit.promote(env_structure)
+        for i, s in enumerate(env_structure.elems):
             if s is sym:
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym, args.prev)
+        return self.prev.lookup(sym, env_structure.prev)
+
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
-        args = jit.promote(env_structure)
-        for i, s in enumerate(args.elems):
+        jit.promote(env_structure)
+        for i, s in enumerate(env_structure.elems):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val, args.prev)
+        return self.prev.set(sym, val, env_structure.prev)
 inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 def check_one_val(vals):
@@ -164,6 +165,7 @@ class BeginCont(Cont):
         self.i = i
         self.env = env
         self.prev = prev
+
     def plug_reduce(self, vals):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
 
@@ -330,6 +332,8 @@ class SequencedBodyAST(AST):
         self.body = body
 
     def make_begin_cont(self, env, prev, i=0):
+        jit.promote(self)
+        jit.promote(i)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
@@ -576,7 +580,11 @@ def free_vars_lambda(body, args):
     return x
 
 class Lambda(AST):
-    _immutable_fields_ = ["formals[*]", "lambody", "rest", "args", "frees", "enclosing_env_structure", "cached_closure?"]
+    _immutable_fields_ = ["formals[*]", "rest", "args",
+                          "frees", "enclosing_env_structure",
+                          "w_closure_if_no_frees?",
+                          "cached_closure?",
+                          ]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
         self.lambody = LambdaBody(body, self)
@@ -586,6 +594,7 @@ class Lambda(AST):
         self.frees = frees
         self.recursive_sym = recursive_sym
         self.enclosing_env_structure = enclosing_env_structure
+        self.w_closure_if_no_frees = None
         self.cached_closure = None
 
     def make_recursive_copy(self, sym):
@@ -593,6 +602,13 @@ class Lambda(AST):
                       self.lambody.body, self.enclosing_env_structure, sym)
 
     def interpret_simple(self, env):
+        if not self.frees.elems:
+            # cache closure if there are no free variables and the toplevel env
+            # is the same as last time
+            w_closure = self.w_closure_if_no_frees
+            if w_closure is None or w_closure.env.toplevel_env is not env.toplevel_env:
+                w_closure = values.W_PromotableClosure(self, env)
+                self.w_closure_if_no_frees = w_closure
         w_closure = self._make_or_retrieve_closure(env)
         return w_closure
 
