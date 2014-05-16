@@ -25,7 +25,7 @@ class ModuleEnv(object):
         return self.modules[modvar]
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env"]
+    _immutable_fields_ = ["toplevel_env", "module_env"]
     pass
 
 class Version(object):
@@ -37,6 +37,7 @@ class ToplevelEnv(Env):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
+        self.module_env = None # could put something else here?
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
