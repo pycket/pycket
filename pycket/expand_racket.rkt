@@ -22,7 +22,7 @@
        (if stdlib? 
            #`(module n lang (#%module-begin (include (file #,(path->string stdlib.sch))) body ...))
            #`(module n lang (#%module-begin body ...))))
-     (expand m)]    
+     (expand-syntax m)]    
     [_ (error 'do-expand)]))
 
 (define (index->path i)

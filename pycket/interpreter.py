@@ -6,6 +6,24 @@ from pycket.cont   import Cont
 from rpython.rlib  import jit, debug
 from small_list    import inline_small_list
 
+
+class ModuleEnv(object):
+    def __init__(self):
+        self.modules = {}
+    
+    def require(module_name):
+        assert 0
+        # load the file, evaluate it, register it in the table
+
+    def add_module(name, module):
+        # note that `name` and `module.name` are different!
+        assert isinstance(module, Module)
+        self.modules[name] = module
+
+    def lookup(modvar):
+        assert isinstance(modvar, ModuleVar)
+        return self.modules[modvar]
+
 class Env(object):
     _immutable_fields_ = ["toplevel_env"]
     pass
@@ -46,10 +64,11 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["prev", "toplevel_env"]
-    def __init__ (self, prev, toplevel):
+    _immutable_fields_ = ["prev", "toplevel_env", "module_env"]
+    def __init__ (self, prev, toplevel, module):
         self.toplevel_env = toplevel
         self.prev = prev
+        self.module_env = module
 
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
@@ -182,6 +201,8 @@ class AST(object):
 
     simple = False
 
+    def defined_vars(self): return {}
+
     def interpret(self, env, cont):
         # default implementation for simple AST forms
         assert self.simple
@@ -213,7 +234,10 @@ class Module(AST):
     def __init__(self, name, body):
         self.name = name
         self.body = body
-        self.defs = []
+        defs = {}
+        for b in body:
+            defs.update(b.defined_vars())
+        self.defs = defs
 
     # these are both empty and irrelevant for modules
     def mutated_vars(self): return {}
@@ -447,6 +471,10 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
+    def __init__(self, sym, srcmod, srcsym):
+        self.sym = sym
+        self.srcmod = srcmod
+        self.srcsym = srcsym
     def _lookup(self, env):
         return self._prim_lookup()
     def free_vars(self): return {}
@@ -826,6 +854,16 @@ class DefineValues(AST):
     def __init__(self, ns, r):
         self.names = ns
         self.rhs = r
+
+    def defined_vars(self):
+        defs = {}
+        for n in self.names:
+            defs[n] = None
+        return defs
+
+    def interpret(self, env, cont):
+        return self.rhs.interpret(env, cont)
+
     def assign_convert(self, vars, env_structure):
         return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self): 

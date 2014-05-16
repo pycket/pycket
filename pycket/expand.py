@@ -47,11 +47,16 @@ def expand_string(s, wrap=False, stdlib=False):
     return data
 
 
-def expand_file(fname):
+def expand_file(fname, stdlib=True, mcons=False, wrap=True):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdout %s" % (fn, fname)
+    cmd = "racket %s %s%s%s--stdout %s" % (
+        fn,
+        "" if stdlib else "--no-stdlib ",
+        "--mcons" if mcons else "",
+        "" if wrap else "--no-wrap ",
+        fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
@@ -295,7 +300,9 @@ def _to_ast(json):
     if json.is_object:
         obj = json.value_object()
         if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()))
+            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
+                             obj["source-module"].value_string(),
+                             values.W_Symbol.make(obj["source-name"].value_string()))
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
@@ -339,4 +346,4 @@ def to_value(json):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        print parse_module(expand_file(sys.argv[1])).tostring()
+        print parse_module(expand_file(sys.argv[1], stdlib=False)).tostring()
