@@ -11,33 +11,34 @@ class ModuleEnv(object):
     def __init__(self):
         self.modules = {}
     
-    def require(module_name):
+    def require(self, module_name):
         assert 0
         # load the file, evaluate it, register it in the table
 
-    def add_module(name, module):
+    def add_module(self, name, module):
         # note that `name` and `module.name` are different!
         assert isinstance(module, Module)
         self.modules[name] = module
 
-    def lookup(modvar):
+    # elidable
+    def lookup(self, modvar):
         assert isinstance(modvar, ModuleVar)
-        return self.modules[modvar]
+        return self.modules[modvar.srcmod].lookup(modvar.srcsym)
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env", "module_env"]
+    _immutable_fields_ = ["toplevel_env"]
     pass
 
 class Version(object):
     pass
 
 class ToplevelEnv(Env):
-    _immutable_fields_ = ["version?"]
+    _immutable_fields_ = ["version?", "module_env"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
-        self.module_env = None # could put something else here?
+        self.module_env = ModuleEnv()
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
@@ -49,6 +50,9 @@ class ToplevelEnv(Env):
         if isinstance(w_res, values.W_Cell):
             w_res = w_res.value
         return w_res
+
+    def module_lookup(self, modvar):
+        return self.module_env.lookup(modvar)
 
     @jit.elidable
     def _lookup(self, sym, version):
@@ -232,13 +236,22 @@ class AST(object):
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
-    def __init__(self, name, body):
+    def __init__(self, name, body, env):
         self.name = name
         self.body = body
+        self.env = None
         defs = {}
         for b in body:
             defs.update(b.defined_vars())
         self.defs = defs
+
+    @jit.elidable
+    def lookup(self, sym):
+        assert (sym in defs)
+        v = defs[sym]
+        if not v:
+            raise SchemeException("use of module variable before definition %s" % (sym))
+        return v
 
     # these are both empty and irrelevant for modules
     def mutated_vars(self): return {}
@@ -259,7 +272,23 @@ class Module(AST):
         return Module(self.name, new_body)
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
-        
+
+    def interpret(self, env):
+        self.env = env
+        for f in body:
+            # FIXME: this is wrong -- the continuation barrier here is around the RHS, 
+            # whereas in Racket it's around the whole `define-values`
+            if isinstance(f, DefineValues):
+                e = f.rhs
+                vs = interpret_one(e, self.env)._get_full_list()
+                if len(f.names) == len(vs):
+                    for n in range(len(vs)):
+                        self.defs[f.names[n]] = vs[n]
+                else:
+                    raise SchemeException("wrong number of values for define-values")
+            else: # FIXME modules can have other things
+                vs = interpret_one(e, self.env)
+                continue
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
@@ -914,6 +943,10 @@ def interpret_toplevel(a, env):
     else:
         return interpret_one(a, env)
 
+def interpret_module(m, env=None):
+    env = env if env else ToplevelEnv()
+    m.interpret(env)
+    return m
 
 def interpret(asts):
     env = ToplevelEnv()

@@ -2,6 +2,7 @@
 
 (require syntax/parse racket/runtime-path racket/unsafe/ops 
          racket/fixnum racket/flonum "mycase.rkt" racket/mpair
+         syntax/modresolve
          compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket) (prefix-in mz: mzscheme))
 (define-namespace-anchor ns)
 ;(define set-car! #f)
@@ -17,16 +18,21 @@
 
 (define (do-expand stx mpair? wrap? stdlib?)
   (syntax-parse stx #:literals ()
-    [((~datum module) n:id lang:expr (#%module-begin body ...))
+    [((~and mod-datum (~datum module)) n:id lang:expr (#%module-begin body ...))
+     (define mod-id (syntax/loc #'mod-datum module))
      (define m
        (if stdlib? 
-           #`(module n lang (#%module-begin (include (file #,(path->string stdlib.sch))) body ...))
-           #`(module n lang (#%module-begin body ...))))
-     (expand-syntax m)]    
+           (quasisyntax/loc stx 
+             (#,mod-id n lang (#%module-begin (include (file #,(path->string stdlib.sch))) body ...)))
+           (quasisyntax/loc stx 
+             (#,mod-id n lang (#%module-begin body ...)))))
+     (expand m)]    
     [_ (error 'do-expand)]))
 
 (define (index->path i)
-  (resolved-module-path-name (module-path-index-resolve i)))
+  (define-values (v _) (module-path-index-split i))
+  (and v
+       (resolved-module-path-name (module-path-index-resolve i))))
 
 (define (to-json v)
   (define (proper l)
@@ -61,7 +67,7 @@
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
-                                 (symbol->string src))
+                                 (and src (symbol->string src)))
               'source-name (symbol->string src-id))]
        [v (error 'expand_racket "phase not zero: ~a" v)])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]

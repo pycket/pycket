@@ -36,8 +36,8 @@ def expand_string(s, wrap=False, stdlib=False):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s %s --stdin --stdout %s" % (
-        fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap")
+    cmd = "racket %s %s --stdin --stdout " % (
+        fn, "" if stdlib else "--no-stdlib")
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
@@ -66,8 +66,7 @@ def expand_file(fname, stdlib=True, mcons=False, wrap=True):
     return data
 
 def expand(s, wrap=False, stdlib=False):
-    assert (not stdlib) or wrap
-    data = expand_string(s, wrap, stdlib)
+    data = expand_string(s)
     return pycket_json.loads(data)
 
 
@@ -301,7 +300,9 @@ def _to_ast(json):
         obj = json.value_object()
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
-                             obj["source-module"].value_string(),
+                             obj["source-module"].value_string() 
+                             if obj["source-module"].is_string else
+                             None,
                              values.W_Symbol.make(obj["source-name"].value_string()))
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
