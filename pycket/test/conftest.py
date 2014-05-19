@@ -51,7 +51,12 @@ def pytest_funcarg__doctest(request):
     expect = []
     current_expr = ""
     for line in lines:
-        if line[0] == ">":
+        if ";" in line: # strip comments
+            line = line[:line.find(";")]
+
+        if len(line.strip()) == 0:
+            continue
+        elif line[0] == ">":
             current_expr = line[2:]
         elif line[0] in " \t":
             current_expr += "\n" + line[2:]
