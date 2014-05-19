@@ -539,6 +539,24 @@ def do_void(args): return values.w_void
 def num2str(a):
     return values.W_String(a.tostring())
 
+@expose("string->number", [values.W_String])
+def str2num(w_s):
+    from rpython.rlib import rarithmetic, rfloat, rbigint
+    from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+
+    s = w_s.value
+    try:
+        if "." in s:
+            return values.W_Flonum(rfloat.string_to_float(s))
+        else:
+            try:
+                return values.W_Fixnum(rarithmetic.string_to_int(
+                    s, base=0))
+            except ParseStringOverflowError:
+                return values.W_Bignum(rbigint.rbigint.fromstr(s))
+    except ParseStringError as e:
+        return values.w_false
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
