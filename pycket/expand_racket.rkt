@@ -1,6 +1,6 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops 
+(require syntax/parse racket/runtime-path racket/unsafe/ops
          racket/fixnum racket/flonum "mycase.rkt" racket/mpair
          syntax/modresolve
          compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket) (prefix-in mz: mzscheme))
@@ -21,12 +21,16 @@
     [((~and mod-datum (~datum module)) n:id lang:expr (#%module-begin body ...))
      (define mod-id (syntax/loc #'mod-datum module))
      (define m
-       (if stdlib? 
-           (quasisyntax/loc stx 
-             (#,mod-id n lang (#%module-begin (include (file #,(path->string stdlib.sch))) body ...)))
-           (quasisyntax/loc stx 
+       (if stdlib?
+           (quasisyntax/loc stx
+             (#,mod-id n lang (#%module-begin #,(datum->syntax
+                                                 stx
+                                                 `(include
+                                                   (file ,(path->string stdlib.sch))))
+                                              body ...)))
+           (quasisyntax/loc stx
              (#,mod-id n lang (#%module-begin body ...)))))
-     (expand m)]    
+     (expand m)]
     [_ (error 'do-expand)]))
 
 (define (index->path i)

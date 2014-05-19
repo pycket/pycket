@@ -10,7 +10,8 @@ from small_list    import inline_small_list
 class ModuleEnv(object):
     def __init__(self):
         self.modules = {}
-    
+        self.current_module = None
+
     def require(self, module_name):
         assert 0
         # load the file, evaluate it, register it in the table
@@ -261,7 +262,7 @@ class Module(AST):
         x = {}
         for r in self.body:
             x.update(r.mutated_vars())
-        return x        
+        return x
 
     def assign_convert(self, vars, env_structure):
         local_muts = self._mutated_vars()
@@ -274,8 +275,9 @@ class Module(AST):
 
     def interpret(self, env):
         self.env = env
+        env.module_env.current_module = self
         for f in self.body:
-            # FIXME: this is wrong -- the continuation barrier here is around the RHS, 
+            # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
             if isinstance(f, DefineValues):
                 e = f.rhs
@@ -288,12 +290,13 @@ class Module(AST):
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
+        env.module_env.current_module = None
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
 def return_multi_vals(vals, env, cont):
-    if cont is None: 
+    if cont is None:
         raise Done(vals)
     return cont.plug_reduce(vals)
 
@@ -504,15 +507,23 @@ class ModuleVar(Var):
         self.sym = sym
         self.srcmod = srcmod
         self.srcsym = srcsym
-    def _lookup(self, env):
-        return self._prim_lookup()
     def free_vars(self): return {}
     @jit.elidable
-    def _prim_lookup(self):
-        try:
-            return prim_env[self.sym]
-        except KeyError:
-            raise SchemeException("can't find primitive %s" % (self.sym.tostring(), ))
+    def _lookup(self, env):
+        modenv = env.toplevel_env.module_env
+        if self.srcmod is None:
+            mod = modenv.current_module
+            v = mod.defs[self.sym]
+            if v is None:
+                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
+            return v
+        if self.srcmod == "#%kernel":
+            try:
+                return prim_env[self.sym]
+            except KeyError:
+                raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
+        else:
+            return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
         return self
     def _set(self, w_val, env): assert 0
@@ -567,7 +578,7 @@ class If(AST):
         else:
             fresh = LexicalVar.gensym("if_")
             return Let(SymList([fresh]),
-                       [1], 
+                       [1],
                        [self.tst],
                        [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
 
@@ -871,7 +882,7 @@ class Let(SequencedBodyAST):
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]), 
+        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]),
                                 " ".join([b.tostring() for b in self.body]))
 
 
@@ -895,7 +906,7 @@ class DefineValues(AST):
 
     def assign_convert(self, vars, env_structure):
         return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
-    def mutated_vars(self): 
+    def mutated_vars(self):
         return self.rhs.mutated_vars()
     def free_vars(self):
         vs = self.rhs.free_vars()
@@ -953,5 +964,3 @@ def interpret(asts):
     for a in asts:
         x = interpret_toplevel(a, env)
     return x
-
-
