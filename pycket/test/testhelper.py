@@ -99,7 +99,7 @@ def check_all(*snippets_returning_true):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)._get_list(0)
+    res = execute(code)
     if res is not values.w_true:
         assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
 
@@ -112,7 +112,7 @@ def check_none(*snippets_returning_false):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)._get_list(0)
+    res = execute(code)
     if res is not values.w_true:
         assert 0, "%s returned a true value" % snippets_returning_false[res.value]
 
@@ -129,7 +129,7 @@ def check_equal(*pairs_of_equal_stuff):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)._get_list(0)
+    res = execute(code)
     if res is not values.w_true:
         assert 0, "%s is different from %s" % (
                 pairs_of_equal_stuff[res.value * 2], pairs_of_equal_stuff[res.value * 2 + 1])

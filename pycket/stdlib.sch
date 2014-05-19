@@ -30,8 +30,8 @@
       b
       (cons (car a) (append (cdr a) b))))
 
-(define ormap exists)
-(define andmap for-all)
+(define (ormap f l) (exists f l))
+(define (andmap f l) (for-all f l))
 
 (define (map f l)
   (if (null? l)
