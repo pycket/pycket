@@ -31,7 +31,12 @@
            (quasisyntax/loc stx
              (#,mod-id n lang (#%module-begin body ...)))))
      (expand m)]
-    [_ (error 'do-expand)]))
+    [((~and mod-datum (~datum module)) n:id lang:expr . rest)
+     (error 'do-expand "got unexpected module contents: ~a\n" (syntax->datum #'rest))]
+    [((~and mod-datum (~datum module)) . rest)
+     (error 'do-expand "got ill-formed module: ~a\n" (syntax->datum #'rest))]
+    [rest
+     (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))]))
 
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))

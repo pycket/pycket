@@ -271,12 +271,19 @@ def _to_ast(json):
                     return make_let(list(vs), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object()
+                if "module" in target:
+                    var = ModuleVar(values.W_Symbol.make(target["module"].value_string()), 
+                                     target["source-module"].value_string() 
+                                     if target["source-module"].is_string else
+                                     None,
+                                     values.W_Symbol.make(target["source-name"].value_string()))
+                    return SetBang(CellRef(var), _to_ast(arr[2]))
                 if "lexical" in target:
-                    assert target["lexical"].is_string
-                    return SetBang(CellRef(values.W_Symbol.make(target["lexical"].value_string())), _to_ast(arr[2]))
+                    var = LexicalVar(values.W_Symbol.make(target["lexical"].value_string()))
+                    return SetBang(CellRef(var), _to_ast(arr[2]))
                 if "toplevel" in target:
-                    assert target["toplevel"].is_string
-                    return SetBang(ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string())), _to_ast(arr[2]))
+                    var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
+                    return SetBang(var, _to_ast(arr[2]))
                 assert 0
             if ast_elem == "#%top":
                 assert 0

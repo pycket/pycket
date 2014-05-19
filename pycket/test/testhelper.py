@@ -21,9 +21,13 @@ def run_mod(m, stdlib=False):
     mod = interpret_module(parse_module(expand_string(m, stdlib=stdlib)))
     return mod
 
-def run_mod_defs(m, extra="",stdlib=False):
+def format_pycket_mod(s, extra=""):
     # pycket-lang is just a trivial do-nothing-interesting language
-    str = "#lang s-exp pycket-lang\n%s\n%s"%(extra,m)
+    str = "#lang s-exp pycket-lang\n%s\n%s"%(extra,s)
+    return str
+
+def run_mod_defs(m, extra="",stdlib=False):
+    str = format_pycket_mod(m, extra=extra)
     mod = run_mod(str, stdlib=stdlib)
     return mod
 
