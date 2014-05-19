@@ -297,6 +297,9 @@ def _to_ast(json):
                 raise Exception("case-lambda is unsupported")
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
+            # FIXME: do the right thing here
+            if ast_elem == "#%require":
+                return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
         obj = json.value_object()

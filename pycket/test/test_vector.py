@@ -68,15 +68,20 @@ def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
+def run_unsafe(e,v):
+    run(e,v,extra="(require racket/unsafe/ops)")
+def run_fix_unsafe(e,v):
+    run_fix(e,v,extra="(require racket/unsafe/ops)")
+
 def test_unsafe():
-    run("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
-    run("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
-    run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+    run_unsafe("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
+    run_unsafe("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
+    run_fix_unsafe("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
 
 def test_unsafe_impersonators():
-    run("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
-    run("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
-    run_fix("(let ([v (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+    run_unsafe("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
+    run_unsafe("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
+    run_fix_unsafe("(let ([v (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
 
 
 def test_vec_imp():

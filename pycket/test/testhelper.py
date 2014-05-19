@@ -21,43 +21,43 @@ def run_mod(m, stdlib=False):
     mod = interpret_module(parse_module(expand_string(m, stdlib=stdlib)))
     return mod
 
-def run_mod_defs(m, stdlib=False):
+def run_mod_defs(m, extra="",stdlib=False):
     # pycket-lang is just a trivial do-nothing-interesting language
-    str = "#lang s-exp pycket-lang\n%s"%m
+    str = "#lang s-exp pycket-lang\n%s\n%s"%(extra,m)
     mod = run_mod(str, stdlib=stdlib)
     return mod
 
-def run_mod_expr(e, v=None, stdlib=False, wrap=False):
+def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra=""):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     expr = "(let () %s)"%e if wrap else e
     defn = "(define #%%pycket-expr %s)"%expr
-    mod = run_mod_defs(defn, stdlib=stdlib) 
+    mod = run_mod_defs(defn, stdlib=stdlib, extra=extra)
     ov = mod.defs[values.W_Symbol.make("#%pycket-expr")]
     if v:
         assert ov.equal(v)
     return ov
 
 
-def execute(p, stdlib=False):
-    return run_mod_expr(p, stdlib=stdlib)
+def execute(p, stdlib=False, extra=""):
+    return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
-def run_fix(p, v, stdlib=False):
-    ov = run_mod_expr(p,stdlib=stdlib)
+def run_fix(p, v, stdlib=False, extra=""):
+    ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Fixnum)
     assert ov.value == v
     return ov.value
 
-def run_flo(p, v, stdlib=False):
-    ov = run_mod_expr(p,stdlib=stdlib)
+def run_flo(p, v, stdlib=False, extra=""):
+    ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Flonum)
     assert ov.value == v
     return ov.value
 
-def run(p, v=None, stdlib=False):
-    return run_mod_expr(p,v=v,stdlib=stdlib)
+def run(p, v=None, stdlib=False, extra=""):
+    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
 
-def run_top(p, v=None, stdlib=False):
-    return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True)
+def run_top(p, v=None, stdlib=False, extra=""):
+    return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True, extra=extra)
 
 def run_values(p, stdlib=False):
     e = "(call-with-values (lambda () %s) list)"%p

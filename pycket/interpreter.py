@@ -285,8 +285,8 @@ class Module(AST):
                         self.defs[f.names[n]] = vs[n]
                 else:
                     raise SchemeException("wrong number of values for define-values")
-            else: # FIXME modules can have other things
-                vs = interpret_one(e, self.env)
+            else: # FIXME modules can have other things, assuming expression
+                vs = interpret_one(f, self.env)
                 continue
 
 def return_value(w_val, env, cont):
