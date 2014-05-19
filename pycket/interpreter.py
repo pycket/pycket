@@ -236,7 +236,7 @@ class AST(object):
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
-    def __init__(self, name, body, env):
+    def __init__(self, name, body):
         self.name = name
         self.body = body
         self.env = None
@@ -275,7 +275,7 @@ class Module(AST):
 
     def interpret(self, env):
         self.env = env
-        for f in body:
+        for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS, 
             # whereas in Racket it's around the whole `define-values`
             if isinstance(f, DefineValues):
