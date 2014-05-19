@@ -69,11 +69,10 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 class ConsEnv(Env):
-    _immutable_fields_ = ["prev", "toplevel_env", "module_env"]
-    def __init__ (self, prev, toplevel, module):
+    _immutable_fields_ = ["prev", "toplevel_env"]
+    def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
         self.prev = prev
-        self.module_env = module
 
     @jit.unroll_safe
     def lookup(self, sym, env_structure):

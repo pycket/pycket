@@ -6,7 +6,7 @@
 
 import os
 
-from pycket.expand import expand, to_ast, expand_string
+from pycket.expand import expand, to_ast, expand_string, parse_module
 from pycket.json import loads
 from pycket.interpreter import *
 from pycket import values
@@ -14,41 +14,55 @@ from pycket import values
 #
 # basic runners
 #
+
+# This is where all the work happens
+
+def run_mod(m, stdlib=False):
+    mod = interpret_module(parse_module(expand_string(m, stdlib=stdlib)))
+    return mod
+
+def run_mod_defs(m, stdlib=False):
+    # pycket-lang is just a trivial do-nothing-interesting language
+    str = "#lang s-exp pycket-lang\n%s"%m
+    mod = run_mod(str, stdlib=stdlib)
+    return mod
+
+def run_mod_expr(e, v=None, stdlib=False, wrap=False):
+    # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
+    expr = "(let () %s)"%e if wrap else e
+    defn = "(define #%%pycket-expr %s)"%expr
+    mod = run_mod_defs(defn, stdlib=stdlib) 
+    ov = mod.defs[values.W_Symbol.make("#%pycket-expr")]
+    if v:
+        assert ov.equal(v)
+    return ov
+
+
 def execute(p, stdlib=False):
-    e = expand(p, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret_one(ast)
-    return val
+    return run_mod_expr(p, stdlib=stdlib)
 
 def run_fix(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
+    ov = run_mod_expr(p,stdlib=stdlib)
     assert isinstance(ov, values.W_Fixnum)
     assert ov.value == v
     return ov.value
 
 def run_flo(p, v, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
+    ov = run_mod_expr(p,stdlib=stdlib)
     assert isinstance(ov, values.W_Flonum)
     assert ov.value == v
     return ov.value
 
 def run(p, v=None, stdlib=False):
-    val = execute(p, stdlib=stdlib)
-    ov = check_one_val(val)
-    if v is not None:
-        assert ov.equal(v)
-    return ov
+    return run_mod_expr(p,v=v,stdlib=stdlib)
 
 def run_top(p, v=None, stdlib=False):
-    e = expand(p, wrap=True, stdlib=stdlib)
-    ast = to_ast(e)
-    val = interpret([ast])
-    ov = check_one_val(val)
-    if v:
-        assert ov.equal(v)
-    return ov
+    return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True)
+
+def run_values(p, stdlib=False):
+    e = "(call-with-values (lambda () %s) list)"%p
+    v = run_mod_expr(e, stdlib=stdlib)
+    return values.from_list(v)
 
 def run_std(c, v):
     return run_top(c, v, stdlib=True)
