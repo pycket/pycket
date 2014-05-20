@@ -465,6 +465,7 @@ class Var(AST):
     def tostring(self):
         return "%s"%self.sym.value
 
+
 class CellRef(Var):
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
@@ -498,15 +499,16 @@ class LexicalVar(Var):
         assert 0
     def assign_convert(self, vars, env_structure):
         if self.sym in vars:
-            return CellRef(self.sym, env_structure)
+            return CellRef(LexicalVar(self.sym, env_structure))
         else:
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    def __init__(self, sym, srcmod, srcsym):
+    def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
         self.srcsym = srcsym
+        self.env_structure = env_structure
     def free_vars(self): return {}
     @jit.elidable
     def _lookup(self, env):
@@ -525,8 +527,37 @@ class ModuleVar(Var):
         else:
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
-        return self
+        return ModCellRef(self.sym, self.srcmod, self.srcsym)
     def _set(self, w_val, env): assert 0
+
+class ModCellRef(Var):
+    def __init__(self, sym, srcmod, srcsym, env_structure=None):
+        self.sym = sym
+        self.srcmod = srcmod
+        self.srcsym = srcsym
+    def assign_convert(self, vars, env_structure):
+        return ModCellRef(self.sym, self.srcmod, self.srcsym)
+    def tostring(self):
+        return "ModCellRef(%s)"%self.sym.value
+    def _set(self, w_val, env):
+        # must be local because it's mutated
+        v = env.toplevel_env.current_module.defs[sym]
+        assert isinstance(v, values.W_Cell)
+        v.set_val(w_val)
+    def _lookup(self, env):
+        modenv = env.toplevel_env.module_env
+        if self.srcmod is None:
+            mod = modenv.current_module
+            v = mod.defs[self.sym]
+            if v is None:
+                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
+            return v
+        v = modenv.lookup(self.to_modvar())
+        assert isinstance(v, values.W_Cell)
+        return v.value
+    def to_modvar(self):
+        return ModuleVar(self.sym, self.srcmod, self.srcsym)
+
 
 class ToplevelVar(Var):
     def _lookup(self, env):
@@ -556,7 +587,14 @@ class SetBang(AST):
                        self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
-        x[self.var.sym] = None
+        print "x is %s"%x
+        if isinstance(self.var, CellRef):
+            x[self.var.sym] = None
+        elif isinstance(self.var, ModCellRef):
+            x[self.var.to_modvar()] = None
+        print "self.var is %s"%self.var
+        print "x is %s"%x
+        # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
         x = self.rhs.free_vars()
@@ -728,12 +766,16 @@ class Lambda(SequencedBodyAST):
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
+        print "testing mutated vars"
         x = {}
         for b in self.body:
             x.update(b.mutated_vars())
+            print b.mutated_vars()
+            print x
         for v in self.args.elems:
             if v in x:
                 del x[v]
+        print x
         return x
     def free_vars(self):
         return free_vars_lambda(self.body, self.args)
