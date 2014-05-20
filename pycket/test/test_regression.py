@@ -7,10 +7,11 @@
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
+from pycket.test.testhelper import *
 
 class TestRegressions(object):
 
-    def test_cell_closure(self, ast_wrap):
+    def test_cell_closure(self, source):
         """
         (define (append a b)
           (if (null? a)
@@ -35,5 +36,5 @@ class TestRegressions(object):
         (concat '((0 1 2 3) (4 5 6) (7 8 9)))
         """
         w_list = to_list([W_Fixnum(i) for i in range(10)])
-        ret = check_one_val(interpret_one(ast_wrap))
+        ret = run_mod_expr(source, wrap=True)
         assert ret.equal(w_list)
