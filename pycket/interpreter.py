@@ -499,7 +499,7 @@ class LexicalVar(Var):
         assert 0
     def assign_convert(self, vars, env_structure):
         if self.sym in vars:
-            return CellRef(LexicalVar(self.sym, env_structure))
+            return CellRef(self.sym, env_structure)
         else:
             return LexicalVar(self.sym, env_structure)
 

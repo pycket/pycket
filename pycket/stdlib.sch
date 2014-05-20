@@ -99,6 +99,9 @@
 (define (exact-nonnegative-integer? n)
   (and (integer? n) (exact? n) (>= n 0)))
 
+(define true #t)
+(define false #f)
+
 ;; Local Variables:
 ;; mode: scheme
 ;; geiser-scheme-implementation: racket
