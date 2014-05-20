@@ -527,7 +527,10 @@ class ModuleVar(Var):
         else:
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
-        return ModCellRef(self.sym, self.srcmod, self.srcsym)
+        if self.sym in vars:
+            return ModCellRef(self.sym, self.srcmod, self.srcsym)
+        else:
+            return self
     def _set(self, w_val, env): assert 0
 
 class ModCellRef(Var):
