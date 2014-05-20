@@ -272,6 +272,7 @@ def _to_ast(json):
                     return make_let(list(vs), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object()
+                var = None
                 if "module" in target:
                     var = ModCellRef(values.W_Symbol.make(target["module"].value_string()), 
                                      target["source-module"].value_string() 

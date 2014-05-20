@@ -273,7 +273,7 @@ class Module(AST):
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
-    def interpret(self, env):
+    def interpret_mod(self, env):
         self.env = env
         env.module_env.current_module = self
         for f in self.body:
@@ -1011,7 +1011,7 @@ def interpret_toplevel(a, env):
 
 def interpret_module(m, env=None):
     env = env if env else ToplevelEnv()
-    m.interpret(env)
+    m.interpret_mod(env)
     return m
 
 def interpret(asts):
