@@ -112,6 +112,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
+    pipe.write("#lang s-exp pycket-lang")
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
@@ -155,11 +156,11 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return _to_module(data).assign_convert({}, None)
+    return _to_module(pycket_json.loads(data)).assign_convert({}, None)
 
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
-    return _to_module(data).assign_convert({}, None)
+    return _to_module(pycket_json.loads(data)).assign_convert({}, None)
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
