@@ -1,4 +1,4 @@
-#lang racket/base
+#lang s-exp pycket-lang
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; File:         puzzle.sch
 ; Description:  PUZZLE benchmark

@@ -73,7 +73,7 @@ def run_std(c, v):
 
 def run_file(fname, *replacements):
     ast = parse_file(fname, *replacements)
-    val = interpret([ast])
+    val = interpret_module(ast)
 
 
 def parse_file(fname, *replacements):
@@ -83,9 +83,8 @@ def parse_file(fname, *replacements):
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
-    s = expand_string(s, wrap=True, stdlib=True)
-    e = loads(s)
-    ast = to_ast(e)
+    s = expand_string(s, stdlib=True)
+    ast = parse_module(s)
     return ast
 
 

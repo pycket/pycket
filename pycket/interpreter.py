@@ -546,7 +546,8 @@ class ModCellRef(Var):
         return "ModCellRef(%s)"%self.sym.value
     def _set(self, w_val, env):
         # must be local because it's mutated
-        v = env.toplevel_env.current_module.defs[sym]
+        assert (self.srcmod is None)
+        v = env.toplevel_env.module_env.current_module.defs[self.sym]
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
     def _lookup(self, env):
@@ -560,6 +561,8 @@ class ModCellRef(Var):
         v = modenv.lookup(self.to_modvar())
         assert isinstance(v, values.W_Cell)
         return v.value
+    def free_vars(self):
+        return {}
     def to_modvar(self):
         return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
@@ -592,18 +595,16 @@ class SetBang(AST):
                        self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
-        print "x is %s"%x
         if isinstance(self.var, CellRef):
             x[self.var.sym] = None
         elif isinstance(self.var, ModCellRef):
             x[self.var.to_modvar()] = None
-        print "self.var is %s"%self.var
-        print "x is %s"%x
         # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
         x = self.rhs.free_vars()
-        x[self.var.sym] = None
+        if isinstance(self.var, CellRef):
+            x[self.var.sym] = None
         return x
     def tostring(self):
         return "(set! %s %s)"%(self.var.sym.value, self.rhs.tostring())
@@ -948,7 +949,16 @@ class DefineValues(AST):
         return self.rhs.interpret(env, cont)
 
     def assign_convert(self, vars, env_structure):
-        return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
+        mut = False
+        for i in self.names:
+            if i in vars:
+                mut = True
+        if mut and (len(self.names) != 0):
+            assert 0
+        if mut:
+            return DefineValues(self.names, Cell(self.rhs.assign_convert(vars, env_structure)))
+        else:
+            return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         return self.rhs.mutated_vars()
     def free_vars(self):
