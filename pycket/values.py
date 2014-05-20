@@ -274,7 +274,8 @@ class W_String(W_Object):
         self.value = val
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
-        return string_escape_encode(self.value, '"')
+        #return string_escape_encode(self.value, '"')
+        return self.value
     def equal(self, other):
         if not isinstance(other, W_String):
             return False
