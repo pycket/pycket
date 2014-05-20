@@ -2,7 +2,7 @@ import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol
 from pycket.expand import _to_ast, parse_module
-from pycket.interpreter import LexicalVar, ModuleVar
+from pycket.interpreter import LexicalVar, ModuleVar, Done
 from pycket.test.testhelper import format_pycket_mod
 
 def make_symbols(d):
@@ -44,7 +44,7 @@ def test_mutvars():
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
     from pycket.values import W_PromotableClosure
-    lamb = expr_ast(("(lambda (y) (set! y 2))")).body[0]
+    lamb = expr_ast("(lambda (y) (set! y 2))")
     toplevel = ToplevelEnv()
     w_cl1 = lamb.interpret_simple(toplevel)
     assert isinstance(w_cl1, W_PromotableClosure)

@@ -519,7 +519,9 @@ class ModuleVar(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             return v
-        if self.srcmod == "#%kernel":
+        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+            # we don't separate these the way racket does
+            # but maybe we should
             try:
                 return prim_env[self.sym]
             except KeyError:
@@ -769,16 +771,12 @@ class Lambda(SequencedBodyAST):
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
-        print "testing mutated vars"
         x = {}
         for b in self.body:
             x.update(b.mutated_vars())
-            print b.mutated_vars()
-            print x
         for v in self.args.elems:
             if v in x:
                 del x[v]
-        print x
         return x
     def free_vars(self):
         return free_vars_lambda(self.body, self.args)

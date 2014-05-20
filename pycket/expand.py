@@ -155,11 +155,11 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return parse_ast(data)
+    return _to_module(data).assign_convert({}, None)
 
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
-    return parse_ast(data)
+    return _to_module(data).assign_convert({}, None)
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
