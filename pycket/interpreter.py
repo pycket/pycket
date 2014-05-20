@@ -529,8 +529,9 @@ class ModuleVar(Var):
         else:
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
-        if self.sym in vars:
-            return ModCellRef(self.sym, self.srcmod, self.srcsym)
+        for v in vars:
+            if isinstance(v, ModuleVar) and v.srcmod is None and self.sym == v.srcsym:
+                return ModCellRef(self.sym, self.srcmod, self.srcsym)
         else:
             return self
     def _set(self, w_val, env): assert 0
@@ -557,7 +558,8 @@ class ModCellRef(Var):
             v = mod.defs[self.sym]
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
-            return v
+            assert isinstance(v, values.W_Cell)
+            return v.value
         v = modenv.lookup(self.to_modvar())
         assert isinstance(v, values.W_Cell)
         return v.value
@@ -951,9 +953,10 @@ class DefineValues(AST):
     def assign_convert(self, vars, env_structure):
         mut = False
         for i in self.names:
-            if i in vars:
-                mut = True
-        if mut and (len(self.names) != 0):
+            for j in vars:
+                if isinstance(j, ModuleVar) and j.srcmod is None and j.srcsym == i:
+                    mut = True
+        if mut and (len(self.names) != 1):
             assert 0
         if mut:
             return DefineValues(self.names, Cell(self.rhs.assign_convert(vars, env_structure)))
