@@ -546,9 +546,12 @@ class ModuleVar(Var):
         self.srcsym = srcsym
         self.env_structure = env_structure
     def free_vars(self): return {}
-    @jit.elidable
     def _lookup(self, env):
         modenv = env.toplevel_env.module_env
+        return self._elidable_lookup(modenv)
+
+    @jit.elidable
+    def _elidable_lookup(self, modenv):
         if self.srcmod is None:
             mod = modenv.current_module
             v = mod.defs[self.sym]
