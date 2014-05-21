@@ -156,11 +156,11 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert({}, None)
+    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
 
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert({}, None)
+    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
@@ -168,12 +168,12 @@ def parse_ast(json_string):
 
 def parse_module(json_string):
     json = pycket_json.loads(json_string)
-    return _to_module(json).assign_convert({}, None)
+    return _to_module(json).assign_convert(variable_set(), None)
 
 
 def to_ast(json):
     ast = _to_ast(json)
-    return ast.assign_convert({}, None)
+    return ast.assign_convert(variable_set(), None)
 
 
 #### ========================== Implementation functions
