@@ -34,7 +34,7 @@ def variables_equal(a, b):
     return True
 
 def variable_name(v):
-    return v.sym.value
+    return v.value
 
 class ModuleEnv(object):
     def __init__(self):
@@ -498,7 +498,7 @@ class Var(AST):
         x[self.sym] = None
         return x
     def tostring(self):
-        return "%s"%variable_name(self)
+        return "%s"%variable_name(self.sym)
 
 
 class CellRef(Var):
