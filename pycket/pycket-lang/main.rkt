@@ -12,7 +12,7 @@
    [pattern (~seq) #:with e #'(begin)]))
 
 (define-syntax (modbeg stx)
-  (syntax-case stx ()
+  (syntax-parse stx
     [(_ lib:stdlib forms ...)
      #`(#%plain-module-begin lib.e forms ...)]))
 
