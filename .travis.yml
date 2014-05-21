@@ -15,7 +15,7 @@ install:
   - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
   - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
   - mv ../pypy-pypy* ../pypy
-  - raco pkg install -t dir -n pycket-lang pycket/pycket-lang/
+  - raco pkg install -t dir pycket/pycket-lang/
 script:
   - export PYTHONPATH=$PYTHONPATH:../pypy:pycket
   - "case \"$TEST_TYPE\" in

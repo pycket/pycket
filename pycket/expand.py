@@ -30,7 +30,7 @@ def readfile_rpython(fname):
 
 #### ========================== Functions for expanding code to json
 
-fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
+fn = "-l pycket/expand"
 
 def expand_string(s):
     "NON_RPYTHON"
