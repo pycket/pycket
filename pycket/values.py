@@ -274,7 +274,8 @@ class W_String(W_Object):
         self.value = val
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
-        return string_escape_encode(self.value, '"')
+        #return string_escape_encode(self.value, '"')
+        return self.value
     def equal(self, other):
         if not isinstance(other, W_String):
             return False
@@ -395,7 +396,6 @@ class W_Closure(W_Procedure):
     def __init__ (self, lam, env):
         from pycket.interpreter import ConsEnv
         self.lam = lam
-        print lam.frees.elems
         vals = [env.lookup(i, lam.enclosing_env_structure)
                     for i in lam.frees.elems]
         self.env = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
