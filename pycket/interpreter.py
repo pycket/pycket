@@ -541,6 +541,7 @@ class ModCellRef(Var):
         self.sym = sym
         self.srcmod = srcmod
         self.srcsym = srcsym
+        self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
     def assign_convert(self, vars, env_structure):
         return ModCellRef(self.sym, self.srcmod, self.srcsym)
     def tostring(self):
@@ -560,13 +561,11 @@ class ModCellRef(Var):
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             assert isinstance(v, values.W_Cell)
             return v.value
-        v = modenv.lookup(self.to_modvar())
+        v = modenv.lookup(self.modvar)
         assert isinstance(v, values.W_Cell)
         return v.value
     def free_vars(self):
         return {}
-    def to_modvar(self):
-        return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
 
 class ToplevelVar(Var):
