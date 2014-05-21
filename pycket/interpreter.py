@@ -109,6 +109,9 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
 
+    def cont_name(self):
+        return "LetrecCont"
+
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
@@ -133,6 +136,9 @@ class LetCont(Cont):
         self.env  = env
         self.prev = prev
         self.rhsindex = rhsindex
+
+    def cont_name(self):
+        return "LetCont"
 
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
@@ -160,6 +166,9 @@ class CellCont(Cont):
         self.env = env
         self.prev = prev
 
+    def cont_name(self):
+        return "CellCont"
+
     @jit.unroll_safe
     def plug_reduce(self, vals):
         ast = jit.promote(self.ast)
@@ -177,6 +186,10 @@ class SetBangCont(Cont):
         self.var = var
         self.env = env
         self.prev = prev
+
+    def cont_name(self):
+        return "SetBangCont"
+
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
         self.var._set(w_val, self.env)
@@ -189,6 +202,9 @@ class BeginCont(Cont):
         self.i = i
         self.env = env
         self.prev = prev
+
+    def cont_name(self):
+        return "BeginCont"
 
     def plug_reduce(self, vals):
         return self.ast.make_begin_cont(self.env, self.prev, self.i)

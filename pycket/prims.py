@@ -6,7 +6,7 @@ import time
 import math
 from pycket import values
 from pycket.values import Object
-from pycket.cont import Cont
+from pycket.cont import BasicCont
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
@@ -86,12 +86,15 @@ def continuation(func):
 
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
-    class PrimCont(Cont):
+    class PrimCont(BasicCont):
         _immutable_fields_ = argnames
 
         def __init__(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
+
+        def cont_name(self):
+            return func.func_name + "PrimCont"
 
         def plug_reduce(self, vals):
             args = ()
