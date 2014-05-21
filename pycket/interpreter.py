@@ -42,7 +42,7 @@ def variable_name(v):
     else:
         assert False
 
-class ModuleEnv(Object):
+class ModuleEnv(object):
     def __init__(self):
         self.modules = {}
         self.current_module = None
@@ -63,11 +63,11 @@ class ModuleEnv(Object):
         module = self.modules[modvar.srcmod]
         return module.lookup(modvar.srcsym)
 
-class Env(Object):
+class Env(object):
     _immutable_fields_ = ["toplevel_env"]
     pass
 
-class Version(Object):
+class Version(object):
     pass
 
 class ToplevelEnv(Env):
@@ -250,7 +250,7 @@ class Done(Exception):
     def __init__(self, vals):
         self.values = vals
 
-class AST(Object):
+class AST(object):
     _attrs_ = ["should_enter"]
     _immutable_fields_ = ["should_enter"]
     _settled_ = True
@@ -538,7 +538,7 @@ class CellRef(Var):
         return v.value
 
 # Using this in rpython to have a mutable global variable
-class Counter(Object):
+class Counter(object):
     value = 0
 
 
@@ -635,7 +635,7 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env.toplevel_set(self.sym, w_val)
 
-class SymList(Object):
+class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
