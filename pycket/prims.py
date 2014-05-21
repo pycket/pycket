@@ -85,15 +85,12 @@ def continuation(func):
 
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
-    class PrimCont(BasicCont):
+    class PrimCont(Cont):
         _immutable_fields_ = argnames
 
         def __init__(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
-
-        def cont_name(self):
-            return func.func_name + "PrimCont"
 
         def plug_reduce(self, vals):
             args = ()
