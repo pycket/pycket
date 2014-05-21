@@ -1,11 +1,46 @@
-from pycket        import values
-from pycket        import vector
-from pycket.prims  import prim_env
-from pycket.error  import SchemeException
-from pycket.cont   import Cont
-from rpython.rlib  import jit, debug
-from small_list    import inline_small_list
+from pycket                   import values
+from pycket                   import vector
+from pycket.values            import Object
+from pycket.prims             import prim_env
+from pycket.error             import SchemeException
+from pycket.cont              import Cont
+from rpython.rlib             import jit, debug
+from rpython.rlib.objectmodel import r_dict, compute_hash
+from small_list               import inline_small_list
 
+
+def variable_set():
+    " new set-like structure for variables "
+    def var_eq(a, b):
+        if False: pass
+        elif a is b: return True # Symbol case
+        elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
+            return (a.srcmod == b.srcmod and a.srcsym is b.srcsym and
+                    a.sym is b.sym)
+        return False
+    def var_hash(a):
+        if isinstance(a, values.W_Symbol):
+            return compute_hash( (a, None, None) )
+        elif isinstance(a, ModuleVar):
+            return compute_hash( (a.sym, a.srcsym, a.srcmod) )
+        assert False
+    return r_dict(var_eq, var_hash, force_non_null=True)
+
+def variables_equal(a, b):
+    if len(a) != len(b):
+        return False
+    for k, v in a.iteritems():
+         if not k in b:
+             return False
+    return True
+
+def variable_name(v):
+    if isinstance(v, values.W_Symbol):
+        return v.value
+    elif isinstance(v, ModuleVar):
+        v.sym.value
+    else:
+        assert False
 
 class ModuleEnv(Object):
     def __init__(self):
@@ -24,7 +59,9 @@ class ModuleEnv(Object):
     # elidable
     def lookup(self, modvar):
         assert isinstance(modvar, ModuleVar)
-        return self.modules[modvar.srcmod].lookup(modvar.srcsym)
+        assert modvar.srcmod in self.modules
+        module = self.modules[modvar.srcmod]
+        return module.lookup(modvar.srcsym)
 
 class Env(Object):
     _immutable_fields_ = ["toplevel_env"]
@@ -43,7 +80,7 @@ class ToplevelEnv(Env):
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
-        raise SchemeException("variable %s is unbound"%sym.value)
+        raise SchemeException("variable %s is unbound" % variable_name(sym))
 
     def toplevel_lookup(self, sym):
         jit.promote(self)
@@ -60,7 +97,7 @@ class ToplevelEnv(Env):
         try:
             return self.bindings[sym]
         except KeyError:
-            raise SchemeException("toplevel variable %s not found" % sym.value)
+            raise SchemeException("toplevel variable %s not found" % variable_name(sym))
 
     def toplevel_set(self, sym, w_val):
         if sym in self.bindings:
@@ -222,7 +259,7 @@ class AST(Object):
 
     simple = False
 
-    def defined_vars(self): return {}
+    def defined_vars(self): return variable_set()
 
     def interpret(self, env, cont):
         # default implementation for simple AST forms
@@ -234,7 +271,7 @@ class AST(Object):
     def let_convert(self):
         return self
     def free_vars(self):
-        return {}
+        return variable_set()
     def assign_convert(self, vars, env_structure):
         """ make a copy of the AST that converts all writable variables into
         using cells. In addition, compute the state of the environment for
@@ -256,7 +293,7 @@ class Module(AST):
         self.name = name
         self.body = body
         self.env = None
-        defs = {}
+        defs = variable_set()
         for b in body:
             defs.update(b.defined_vars())
         self.defs = defs
@@ -270,12 +307,12 @@ class Module(AST):
         return v
 
     # these are both empty and irrelevant for modules
-    def mutated_vars(self): return {}
-    def free_vars(self): return {}
+    def mutated_vars(self): return variable_set()
+    def free_vars(self): return variable_set()
 
     # all the module-bound variables that are mutated
     def _mutated_vars(self):
-        x = {}
+        x = variable_set()
         for r in self.body:
             x.update(r.mutated_vars())
         return x
@@ -283,7 +320,8 @@ class Module(AST):
     def assign_convert(self, vars, env_structure):
         local_muts = self._mutated_vars()
         new_vars = vars.copy()
-        new_vars.update(local_muts)
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
         new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
         return Module(self.name, new_body)
     def tostring(self):
@@ -348,7 +386,7 @@ class Quote(AST):
     def assign_convert(self, vars, env_structure):
         return self
     def mutated_vars(self):
-        return {}
+        return variable_set()
     def tostring(self):
         if isinstance(self.w_val, values.W_Bool) or isinstance(self.w_val, values.W_Number) or isinstance(self.w_val, values.W_String) or isinstance(self.w_val, values.W_Symbol):
             return "%s"%self.w_val.tostring()
@@ -452,12 +490,12 @@ class Begin(SequencedBodyAST):
     def assign_convert(self, vars, env_structure):
         return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
     def mutated_vars(self):
-        x = {}
+        x = variable_set()
         for r in self.body:
             x.update(r.mutated_vars())
         return x
     def free_vars(self):
-        x = {}
+        x = variable_set()
         for r in self.body:
             x.update(r.free_vars())
         return x
@@ -475,18 +513,20 @@ class Var(AST):
     def interpret_simple(self, env):
         return self._lookup(env)
     def mutated_vars(self):
-        return {}
+        return variable_set()
     def free_vars(self):
-        return {self.sym: None}
+        x = variable_set()
+        x[self.sym] = None
+        return x
     def tostring(self):
-        return "%s"%self.sym.value
+        return "%s"%variable_name(self.sym)
 
 
 class CellRef(Var):
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
     def tostring(self):
-        return "CellRef(%s)"%self.sym.value
+        return "CellRef(%s)"%variable_name(self.sym)
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
@@ -525,7 +565,7 @@ class ModuleVar(Var):
         self.srcmod = srcmod
         self.srcsym = srcsym
         self.env_structure = env_structure
-    def free_vars(self): return {}
+    def free_vars(self): return variable_set()
     @jit.elidable
     def _lookup(self, env):
         modenv = env.toplevel_env.module_env
@@ -561,7 +601,7 @@ class ModCellRef(Var):
     def assign_convert(self, vars, env_structure):
         return ModCellRef(self.sym, self.srcmod, self.srcsym)
     def tostring(self):
-        return "ModCellRef(%s)"%self.sym.value
+        return "ModCellRef(%s)"%variable_name(self.sym)
     def _set(self, w_val, env):
         # must be local because it's mutated
         assert (self.srcmod is None)
@@ -581,13 +621,15 @@ class ModCellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.value
     def free_vars(self):
-        return {}
+        return variable_set()
+    def to_modvar(self):
+        return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
 
 class ToplevelVar(Var):
     def _lookup(self, env):
         return env.toplevel_env.toplevel_lookup(self.sym)
-    def free_vars(self): return {}
+    def free_vars(self): return variable_set()
     def assign_convert(self, vars, env_structure):
         return self
     def _set(self, w_val, env):
@@ -624,7 +666,7 @@ class SetBang(AST):
             x[self.var.sym] = None
         return x
     def tostring(self):
-        return "(set! %s %s)"%(self.var.sym.value, self.rhs.tostring())
+        return "(set! %s %s)"%(variable_name(self.var.sym), self.rhs.tostring())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
@@ -666,12 +708,12 @@ class If(AST):
                   self.els.assign_convert(vars, sub_env_structure),
                   remove_env=self.remove_env)
     def mutated_vars(self):
-        x = {}
+        x = variable_set()
         for b in [self.tst, self.els, self.thn]:
             x.update(b.mutated_vars())
         return x
     def free_vars(self):
-        x = {}
+        x = variable_set()
         for b in [self.tst, self.els, self.thn]:
             x.update(b.free_vars())
         return x
@@ -719,10 +761,11 @@ class RecLambda(AST):
         b = " ".join([b.tostring() for b in self.lam.body])
         if self.lam.rest and (not self.lam.formals):
             return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
+        formals_string = " ".join([variable_name(v) for v in self.lam.formals])
         if self.lam.rest:
-            return "(rec %s (%s . %s) %s)"%(self.name, " ".join([v.value for v in self.lam.formals]), self.lam.rest, b)
+            return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
         else:
-            return "(rec %s (%s) %s)"%(self.name, " ".join([v.value for v in self.lam.formals]), b)
+            return "(rec %s (%s) %s)"%(self.name, formals_string, b)
 
 
 def make_lambda(formals, rest, body):
@@ -732,7 +775,7 @@ def make_lambda(formals, rest, body):
     return Lambda(formals, rest, args, frees, body)
 
 def free_vars_lambda(body, args):
-    x = {}
+    x = variable_set()
     for b in body:
         x.update(b.free_vars())
     for v in args.elems:
@@ -768,7 +811,7 @@ class Lambda(SequencedBodyAST):
         return values.W_Closure(self, env)
 
     def assign_convert(self, vars, env_structure):
-        local_muts = {}
+        local_muts = variable_set()
         for b in self.body:
             local_muts.update(b.mutated_vars())
         new_lets = []
@@ -778,7 +821,8 @@ class Lambda(SequencedBodyAST):
                 del new_vars[i]
             if i in local_muts:
                 new_lets.append(i)
-        new_vars.update(local_muts)
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
         if new_lets:
             sub_env_structure = SymList(new_lets, self.args)
         else:
@@ -789,7 +833,7 @@ class Lambda(SequencedBodyAST):
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
-        x = {}
+        x = variable_set()
         for b in self.body:
             x.update(b.mutated_vars())
         for v in self.args.elems:
@@ -805,9 +849,9 @@ class Lambda(SequencedBodyAST):
         if self.rest:
             return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
         else:
-            return "(lambda (%s) %s)"%(" ".join([v.value for v in self.formals]),
+            return "(lambda (%s) %s)"%(" ".join([variable_name(v) for v in self.formals]),
                                        self.body[0].tostring() if len(self.body) == 1 else
-                                       [b.tostring() for b in self.body])
+                                       " ".join([b.tostring() for b in self.body]))
 
 
 class Letrec(SequencedBodyAST):
@@ -829,14 +873,14 @@ class Letrec(SequencedBodyAST):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
     def mutated_vars(self):
-        x = {}
+        x = variable_set()
         for b in self.body + self.rhss:
             x.update(b.mutated_vars())
         for v in self.args.elems:
             x[v] = None
         return x
     def free_vars(self):
-        x = {}
+        x = variable_set()
         for b in self.body + self.rhss:
             x.update(b.free_vars())
         for v in self.args.elems:
@@ -844,19 +888,20 @@ class Letrec(SequencedBodyAST):
                 del x[v]
         return x
     def assign_convert(self, vars, env_structure):
-        local_muts = {}
+        local_muts = variable_set()
         for b in self.body + self.rhss:
             local_muts.update(b.mutated_vars())
         for v in self.args.elems:
             local_muts[v] = None
         new_vars = vars.copy()
-        new_vars.update(local_muts)
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
     def tostring(self):
-        return "(letrec (%s) %s)"%([(v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+        return "(letrec (%s) %s)"%([(variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
 def make_let(varss, rhss, body):
@@ -903,10 +948,10 @@ class Let(SequencedBodyAST):
         return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
 
     def mutated_vars(self):
-        x = {}
+        x = variable_set()
         for b in self.body:
             x.update(b.mutated_vars())
-        x2 = {}
+        x2 = variable_set()
         for v in x:
             if v not in self.args.elems:
                 x2[v] = x[v]
@@ -914,7 +959,7 @@ class Let(SequencedBodyAST):
             x2.update(b.mutated_vars())
         return x2
     def free_vars(self):
-        x = {}
+        x = variable_set()
         for b in self.body:
             x.update(b.free_vars())
         for v in self.args.elems:
@@ -924,7 +969,7 @@ class Let(SequencedBodyAST):
             x.update(b.free_vars())
         return x
     def assign_convert(self, vars, env_structure):
-        local_muts = {}
+        local_muts = variable_set()
         for b in self.body:
             local_muts.update(b.mutated_vars())
         new_rhss = []
@@ -937,13 +982,14 @@ class Let(SequencedBodyAST):
             new_rhss.append(new_rhs)
 
         new_vars = vars.copy()
-        new_vars.update(local_muts)
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
         sub_env_structure = SymList(self.args.elems, env_structure)
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (v.value,self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]),
+        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]),
                                 " ".join([b.tostring() for b in self.body]))
 
 
@@ -957,7 +1003,7 @@ class DefineValues(AST):
         self.rhs = r
 
     def defined_vars(self):
-        defs = {}
+        defs = variable_set()
         for n in self.names:
             defs[n] = None
         return defs
