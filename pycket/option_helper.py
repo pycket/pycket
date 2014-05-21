@@ -23,16 +23,18 @@ def script_exprs(arg, content):
         exprs = content
     return exprs
 
+# Re-enable when we have a top-level
+#   -f <file>, --load <file> : Like -e '(load "<file>")'
+#   -r <file>, --script <file> : Same as -f <file> -N <file> -
+
 def print_help(argv):
     print """Welcome to Pycket.
 %s [<option> ...] <argument> ...
  File and expression options:
   -e <exprs>, --eval <exprs> : Evaluate <exprs>, prints results
-  -f <file>, --load <file> : Like -e '(load "<file>")'
   -t <file>, --require <file> : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
-  -r <file>, --script <file> : Same as -f <file> -N <file> --
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
   --no-stdlib: Do not use Pycket's version of stdlib
@@ -87,16 +89,16 @@ def parse_args(argv):
             config['mode'] = _eval
             i += 1
             names['exprs'] = argv[i]
-        elif argv[i] in ["-f", "-r", "-u", "-t", "-l", "-p"]:
+        elif argv[i] in ["-u", "-t", "-l", "-p"]:
             arg = argv[i][1]
-            stop = arg in ["r", "u"]
+            stop = arg in ["u"]
 
             if to <= i + 1:
                 print "missing argument after -%s" % arg
                 retval = 5
                 break
-            if arg == "r":
-                suffix = "f"
+            # if arg == "r":
+            #     suffix = "f"
             elif arg == "u":
                 suffix = "t"
             else:

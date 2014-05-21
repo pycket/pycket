@@ -1,7 +1,8 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops 
+(require syntax/parse racket/runtime-path racket/unsafe/ops
          racket/fixnum racket/flonum "mycase.rkt" racket/mpair
+         syntax/modresolve
          compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket) (prefix-in mz: mzscheme))
 (define-namespace-anchor ns)
 ;(define set-car! #f)
@@ -15,27 +16,48 @@
 (define stdlib (file->list stdlib.sch))
 (define mpair-stdlib (file->list mpair-stdlib.sch))
 
-(define (do-expand forms mpair? wrap? stdlib?)
-  (current-namespace (namespace-anchor->namespace ns))
+(define (do-expand stx mpair? wrap? stdlib?)
+  (syntax-parse stx #:literals ()
+    [((~and mod-datum (~datum module)) n:id lang:expr (#%module-begin body ...))
+     (define mod-id (syntax/loc #'mod-datum module))
+     (define m
+       (if stdlib?
+           (quasisyntax/loc stx
+             (#,mod-id n lang (#%module-begin #,(datum->syntax
+                                                 stx
+                                                 `(include
+                                                   (file ,(path->string stdlib.sch))))
+                                              body ...)))
+           (quasisyntax/loc stx
+             (#,mod-id n lang (#%module-begin body ...)))))
+     (expand m)]
+    [((~and mod-datum (~datum module)) n:id lang:expr . rest)
+     (error 'do-expand "got unexpected module contents: ~a\n" (syntax->datum #'rest))]
+    [((~and mod-datum (~datum module)) . rest)
+     (error 'do-expand "got ill-formed module: ~a\n" (syntax->datum #'rest))]
+    [rest
+     (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))]))
 
-  (define new-form
-    (if wrap?
-        `(let () 
-           ,@(if mpair? mpair-stdlib null)
-           (let ()
-             ,@(if stdlib? stdlib null)
-             (let () ,@forms)))
-        `(begin
-           ,@forms)))
-  (expand (datum->syntax #f new-form)))
+(define (index->path i)
+  (define-values (v _) (module-path-index-split i))
+  (and v
+       (resolved-module-path-name (module-path-index-resolve i))))
 
 (define (to-json v)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (#%plain-lambda #%top)
+  (syntax-parse v #:literals (#%plain-lambda #%top module #%plain-app quote)
     [v:str (hash 'string (syntax-e #'v))]
+    [(module _ ...) #f] ;; ignore these
+    ;; this is a simplification of the json output
+    ;; disabled to avoid changing the python code for now
+    #;#;
+    [(#%plain-app e0 e ...)
+     (hash 'operator (to-json #'e0)
+           'operands (map to-json (syntax->list #'(e ...))))]
+    [(quote e) (hash 'quote (to-json #'e))]
     [(_ ...) (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
@@ -49,7 +71,14 @@
      #:when (eq? #f (identifier-binding #'i))
      (hash 'toplevel (symbol->string (syntax-e v)))]
     [i:identifier
-     (hash 'module (symbol->string (syntax-e v)))]
+     (match (identifier-binding #'i)
+       [(list (app index->path src) src-id _ _ 0 0 0)
+        (hash 'module (symbol->string (syntax-e v))
+              'source-module (if (path? src)
+                                 (path->string src)
+                                 (and src (symbol->string src)))
+              'source-name (symbol->string src-id))]
+       [v (error 'expand_racket "phase not zero: ~a" v)])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_
      #:when (exact-integer? (syntax-e v))
@@ -60,6 +89,13 @@
     [_
      #:when (char? (syntax-e v))
      (hash 'char (~a (char->integer (syntax-e v))))]))
+
+(define (convert mod)
+  (syntax-parse mod #:literals (module #%plain-module-begin)
+    [(module name:id lang:expr (#%plain-module-begin forms ...))
+     (hash 'module-name (symbol->string (syntax-e #'name))
+           'body-forms (filter-map to-json (syntax->list #'(forms ...))))]
+    [_ (error 'convert)]))
 
 
 (module+ main
@@ -80,8 +116,6 @@
     (set! out (current-output-port))]
    #:once-each
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
-   [("--no-wrap") "don't wrap input with a `let`" (set! wrap? #f)]
-   [("--mcons") "pairs are mpairs" (set! mpair? #t)]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    #:args ([source #f])
    (cond [(and in source)
@@ -98,8 +132,9 @@
    (unless (output-port? out)
      (raise-user-error "no output specified"))
 
-
-   (define forms (port->list read in))
-   (define expanded (do-expand forms mpair? wrap? stdlib?))
-   (pretty-print (syntax->datum expanded) (current-error-port))
-   (write-json (to-json expanded) out))
+  (read-accept-reader #t)
+  (define mod (read-syntax (object-name in) in))
+  (define expanded (do-expand mod mpair? wrap? stdlib?))
+  ;(pretty-print (syntax->datum expanded) (current-error-port))
+  (write-json (convert expanded) out)
+  (newline out))
