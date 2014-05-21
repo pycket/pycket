@@ -5,6 +5,7 @@ import os
 import time
 import math
 from pycket import values
+from pycket.values import Object
 from pycket.cont import Cont
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
@@ -13,7 +14,7 @@ from rpython.rlib  import jit, unroll
 
 prim_env = {}
 
-class unsafe(object):
+class unsafe(Object):
     """ can be used in the argtypes part of an @expose call. The corresponding
     argument will be assumed to have the precise corresponding type (no
     subtypes!)."""

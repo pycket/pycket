@@ -6,10 +6,16 @@ from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
 
+# Common superclass for unification.
+class Object(object):
+    _attrs_ = []
+    __metaclass__ = extendabletype
+
+
 UNROLLING_CUTOFF = 5
 
 # This is not a real value, so it's not a W_Object
-class Values(object):
+class Values(Object):
     def tostring(self):
         vals = self._get_full_list()
         if len(vals) == 1:
@@ -25,9 +31,7 @@ class Values(object):
 inline_small_list(Values, immutable=True, attrname="vals")
 
 
-class W_Object(object):
-    __metaclass__ = extendabletype
-    _attrs_ = []
+class W_Object(Object):
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
         raise NotImplementedError("abstract base class")

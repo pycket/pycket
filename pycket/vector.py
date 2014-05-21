@@ -1,5 +1,5 @@
 
-from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF, Object
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit

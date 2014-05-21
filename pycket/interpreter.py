@@ -7,7 +7,7 @@ from rpython.rlib  import jit, debug
 from small_list    import inline_small_list
 
 
-class ModuleEnv(object):
+class ModuleEnv(Object):
     def __init__(self):
         self.modules = {}
         self.current_module = None
@@ -26,11 +26,11 @@ class ModuleEnv(object):
         assert isinstance(modvar, ModuleVar)
         return self.modules[modvar.srcmod].lookup(modvar.srcsym)
 
-class Env(object):
+class Env(Object):
     _immutable_fields_ = ["toplevel_env"]
     pass
 
-class Version(object):
+class Version(Object):
     pass
 
 class ToplevelEnv(Env):
@@ -197,7 +197,7 @@ class Done(Exception):
     def __init__(self, vals):
         self.values = vals
 
-class AST(object):
+class AST(Object):
     _attrs_ = ["should_enter"]
     _immutable_fields_ = ["should_enter"]
     _settled_ = True
@@ -482,7 +482,7 @@ class CellRef(Var):
         return v.value
 
 # Using this in rpython to have a mutable global variable
-class Counter(object):
+class Counter(Object):
     value = 0
 
 
@@ -577,7 +577,7 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env.toplevel_set(self.sym, w_val)
 
-class SymList(object):
+class SymList(Object):
     _immutable_fields_ = ["elems[*]", "prev"]
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
