@@ -23,8 +23,8 @@ def run_mod(m, stdlib=False):
     return mod
 
 def format_pycket_mod(s, stdlib=False, extra=""):
-    # pycket-lang is just a trivial do-nothing-interesting language
-    str = "#lang s-exp pycket-lang%s\n%s\n%s"%(" #:stdlib" if stdlib else "", extra, s)
+    # pycket handles the stdlib, various requires
+    str = "#lang pycket%s\n%s\n%s"%(" #:stdlib" if stdlib else "", extra, s)
     return str
 
 def run_mod_defs(m, extra="",stdlib=False):

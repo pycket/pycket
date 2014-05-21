@@ -1,4 +1,4 @@
-#lang s-exp pycket-lang #:stdlib
+#lang pycket #:stdlib
 
 (define (assp f l)
   (if (null? l)

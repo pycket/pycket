@@ -15,3 +15,6 @@
   (syntax-case stx ()
     [(_ lib:stdlib forms ...)
      #`(#%plain-module-begin lib.e forms ...)]))
+
+(module reader syntax/module-reader
+  pycket)
