@@ -92,20 +92,21 @@ class TestOptions(object):
         assert config['mode'] == option_helper._eval
         assert names['exprs'] == code
 
-    # Re-enable when -f is sensible again
-    # def test_f(self, empty_json):
-    #     argv = ['arg0', "-f", empty_json]
-    #     config, names, args, retval = parse_args(argv)
-    #     assert retval == 0
-    #     assert names['file'] == empty_json+".f"
-    #     assert config['mode'] == option_helper._eval
-    #     assert names['exprs'] == '(load "%s")' % empty_json
-    #     assert args == []
+    def test_f(self, empty_json):
+        pytest.skip("re-enable when -f works again")
+        argv = ['arg0', "-f", empty_json]
+        config, names, args, retval = parse_args(argv)
+        assert retval == 0
+        assert names['file'] == empty_json+".f"
+        assert config['mode'] == option_helper._eval
+        assert names['exprs'] == '(load "%s")' % empty_json
+        assert args == []
 
-    # def test_r(self, empty_json):
-    #     argv1 = ['arg0', "-f", empty_json, "--", "foo", "bar", "baz"]
-    #     argv2 = ['arg0', "-r", empty_json, "foo", "bar", "baz"]
-    #     assert parse_args(argv1) == parse_args(argv2)
+    def test_r(self, empty_json):
+        pytest.skip("re-enable when -f works again")
+        argv1 = ['arg0', "-f", empty_json, "--", "foo", "bar", "baz"]
+        argv2 = ['arg0', "-r", empty_json, "foo", "bar", "baz"]
+        assert parse_args(argv1) == parse_args(argv2)
 
     def test_t(self, empty_json):
         argv = ['arg0', "-t", empty_json]
@@ -167,10 +168,10 @@ class TestCommandline(object):
         out, err = capfd.readouterr()
         assert out == "%s" % printval
 
-    # Re-enable when -f is sensible again
-    # def test_f(self, capfd, racket_file):
-    #     """(display "42")"""
+    def test_f(self, capfd, racket_file):
+        """(display "42")"""
+        pytest.skip("re-enable when -f works again")
 
-    #     assert entry_point(['arg0', '-f', racket_file]) == 0
-    #     out, err = capfd.readouterr()
-    #     assert out == "42"
+        assert entry_point(['arg0', '-f', racket_file]) == 0
+        out, err = capfd.readouterr()
+        assert out == "42"
