@@ -32,12 +32,11 @@ def readfile_rpython(fname):
 
 fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
 
-def expand_string(s, wrap=False, stdlib=False):
+def expand_string(s):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s %s --stdin --stdout " % (
-        fn, "" if stdlib else "--no-stdlib")
+    cmd = "racket %s --stdin --stdout " % (fn)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
@@ -47,16 +46,11 @@ def expand_string(s, wrap=False, stdlib=False):
     return data
 
 
-def expand_file(fname, stdlib=True, mcons=False, wrap=True):
+def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s %s%s%s--stdout %s" % (
-        fn,
-        "" if stdlib else "--no-stdlib ",
-        "--mcons" if mcons else "",
-        "" if wrap else "--no-wrap ",
-        fname)
+    cmd = "racket %s --stdout %s" % (fn, fname)
     print cmd
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
@@ -71,7 +65,7 @@ def expand(s, wrap=False, stdlib=False):
     return pycket_json.loads(data)
 
 
-def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True):
+def expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -81,11 +75,8 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s%s--output %s %s" % (
+    cmd = "racket %s --output %s %s" % (
         fn,
-        "" if stdlib else "--no-stdlib ",
-        "--mcons" if mcons else "",
-        "" if wrap else "--no-wrap ",
         json_file, rkt_file)
     # print cmd
     pipe = create_popen_file(cmd, "r")
@@ -104,15 +95,12 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s%s--output %s --stdin" % (
+    cmd = "racket %s --output %s --stdin" % (
         fn,
-        "" if stdlib else "--no-stdlib ",
-        "--mcons" if mcons else "",
-        "" if wrap else "--no-wrap ",
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
-    pipe.write("#lang s-exp pycket-lang")
+    pipe.write("#lang s-exp pycket-lang%s"%("/stdlib" if stdlib else ""))
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
@@ -134,15 +122,15 @@ def needs_update(file_name, json_name):
 def _json_name(file_name):
     return file_name + '.json'
 
-def ensure_json_ast_run(file_name, stdlib=True, mcons=False, wrap=True):
+def ensure_json_ast_run(file_name):
     json = _json_name(file_name)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json, stdlib, mcons, wrap)
+        return expand_file_to_json(file_name, json)
     else:
         return json
 
-def ensure_json_ast_load(file_name, stdlib=True, wrap=False):
-    return ensure_json_ast_run(file_name, stdlib, wrap)
+def ensure_json_ast_load(file_name):
+    return ensure_json_ast_run(file_name)
 
 def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
     json = _json_name(file_name)
@@ -232,8 +220,8 @@ def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array()
-        if "module" in arr[0].value_object():
-            ast_elem = arr[0].value_object()["module"].value_string()
+        if "module" in arr[0].value_object() and arr[0].value_object()["source-module"].value_string() == "#%kernel":
+            ast_elem = arr[0].value_object()["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
@@ -358,4 +346,4 @@ def to_value(json):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        print parse_module(expand_file(sys.argv[1], stdlib=False)).tostring()
+        print parse_module(expand_file(sys.argv[1])).tostring()

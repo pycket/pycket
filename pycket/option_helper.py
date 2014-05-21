@@ -140,6 +140,7 @@ def _temporary_file():
 def ensure_json_ast(config, names):
     stdlib = config.get('stdlib', True)
     mcons = config.get('mcons', False)
+    assert not mcons
 
     if config["mode"] is _eval:
         code = names['exprs']
@@ -148,14 +149,15 @@ def ensure_json_ast(config, names):
         else:
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
-        json_file = ensure_json_ast_eval(code, file_name, stdlib, mcons)
+        json_file = ensure_json_ast_eval(code, file_name, stdlib)
     elif config["mode"] is _run:
+        assert not stdlib
         assert 'file' in names
         file_name = names['file']
         if file_name.endswith('.json'):
             json_file = file_name
         else:
-            json_file = ensure_json_ast_run(file_name, stdlib, mcons)
+            json_file = ensure_json_ast_run(file_name)
     else:
         return None
     return json_file

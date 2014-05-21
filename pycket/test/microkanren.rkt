@@ -1,5 +1,4 @@
-#lang s-exp pycket-lang
-(let () 
+#lang s-exp pycket-lang #:stdlib
 
 (define (assp f l)
   (if (null? l)
@@ -109,4 +108,4 @@
 
 (display '((((#(0) . 5)) . 1) . __procedure__))
 (newline)
-)
+

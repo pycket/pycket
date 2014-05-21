@@ -18,21 +18,23 @@ from pycket import values
 # This is where all the work happens
 
 def run_mod(m, stdlib=False):
-    mod = interpret_module(parse_module(expand_string(m, stdlib=stdlib)))
+    assert (not stdlib)
+    mod = interpret_module(parse_module(expand_string(m)))
     return mod
 
-def format_pycket_mod(s, extra=""):
+def format_pycket_mod(s, stdlib=False, extra=""):
     # pycket-lang is just a trivial do-nothing-interesting language
-    str = "#lang s-exp pycket-lang\n%s\n%s"%(extra,s)
+    str = "#lang s-exp pycket-lang%s\n%s\n%s"%(" #:stdlib" if stdlib else "", extra, s)
     return str
 
 def run_mod_defs(m, extra="",stdlib=False):
-    str = format_pycket_mod(m, extra=extra)
-    mod = run_mod(str, stdlib=stdlib)
+    str = format_pycket_mod(m, extra=extra, stdlib=stdlib)
+    mod = run_mod(str)
     return mod
 
 def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra=""):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
+    # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
     defn = "(define #%%pycket-expr %s)"%expr
     mod = run_mod_defs(defn, stdlib=stdlib, extra=extra)
@@ -83,7 +85,7 @@ def parse_file(fname, *replacements):
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
-    s = expand_string(s, stdlib=True)
+    s = expand_string(s)
     ast = parse_module(s)
     return ast
 

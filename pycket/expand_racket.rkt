@@ -1,42 +1,20 @@
 #lang racket
 
-(require syntax/parse racket/runtime-path racket/unsafe/ops
-         racket/fixnum racket/flonum "mycase.rkt" racket/mpair
-         syntax/modresolve
-         compatibility/mlist (prefix-in r5: r5rs) (prefix-in r: racket) (prefix-in mz: mzscheme))
-(define-namespace-anchor ns)
-;(define set-car! #f)
-;(define set-cdr! #f)
+(require syntax/parse syntax/modresolve)
 
-(define-runtime-path stdlib.sch "stdlib.sch")
-
-(define-runtime-path mpair-stdlib.sch "mpair.sch")
-
-
-(define stdlib (file->list stdlib.sch))
-(define mpair-stdlib (file->list mpair-stdlib.sch))
-
-(define (do-expand stx mpair? wrap? stdlib?)
+(define (do-expand stx)
+  ;; error checking
   (syntax-parse stx #:literals ()
-    [((~and mod-datum (~datum module)) n:id lang:expr (#%module-begin body ...))
-     (define mod-id (syntax/loc #'mod-datum module))
-     (define m
-       (if stdlib?
-           (quasisyntax/loc stx
-             (#,mod-id n lang (#%module-begin #,(datum->syntax
-                                                 stx
-                                                 `(include
-                                                   (file ,(path->string stdlib.sch))))
-                                              body ...)))
-           (quasisyntax/loc stx
-             (#,mod-id n lang (#%module-begin body ...)))))
-     (expand m)]
     [((~and mod-datum (~datum module)) n:id lang:expr . rest)
-     (error 'do-expand "got unexpected module contents: ~a\n" (syntax->datum #'rest))]
+     (void)]
     [((~and mod-datum (~datum module)) . rest)
      (error 'do-expand "got ill-formed module: ~a\n" (syntax->datum #'rest))]
     [rest
-     (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))]))
+     (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
+  ;; work
+  (parameterize ([current-namespace (make-base-namespace)])
+    (namespace-syntax-introduce stx)
+    (expand stx)))
 
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))
@@ -48,30 +26,26 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (#%plain-lambda #%top module #%plain-app quote)
+  (syntax-parse v #:literals (#%plain-lambda #%top module* module #%plain-app quote)
     [v:str (hash 'string (syntax-e #'v))]
     [(module _ ...) #f] ;; ignore these
+    [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
     ;; disabled to avoid changing the python code for now
-    #;#;
+    #;
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
-    [(quote e) (hash 'quote (to-json #'e))]
+    ;; [(quote e) (hash 'quote (to-json #'e))]
+
     [(_ ...) (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
                                    (to-json (cdr (last-pair (syntax-e v))))))]
-    [#%plain-lambda
-     (hash 'module "lambda")]
-    [i:identifier
-     #:when (eq? 'lexical (identifier-binding #'i))
-     (hash 'lexical (symbol->string (syntax-e v)))]
-    [i:identifier
-     #:when (eq? #f (identifier-binding #'i))
-     (hash 'toplevel (symbol->string (syntax-e v)))]
     [i:identifier
      (match (identifier-binding #'i)
+       ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
+       [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path src) src-id _ _ 0 0 0)
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
@@ -134,7 +108,7 @@
 
   (read-accept-reader #t)
   (define mod (read-syntax (object-name in) in))
-  (define expanded (do-expand mod mpair? wrap? stdlib?))
+  (define expanded (do-expand mod))
   ;(pretty-print (syntax->datum expanded) (current-error-port))
   (write-json (convert expanded) out)
   (newline out))

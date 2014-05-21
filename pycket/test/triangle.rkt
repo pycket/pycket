@@ -1,4 +1,4 @@
-#lang s-exp pycket-lang
+#lang s-exp pycket-lang #:stdlib
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; File:         triangle.sch
 ; Description:  TRIANGLE benchmark

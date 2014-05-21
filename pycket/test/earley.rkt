@@ -1,4 +1,4 @@
-#lang s-exp pycket-lang
+#lang s-exp pycket-lang #:stdlib
 ;;; EARLEY -- Earley's parser, written by Marc Feeley.
 
 ; $Id: earley.sch,v 1.2 1999/07/12 18:05:19 lth Exp $
