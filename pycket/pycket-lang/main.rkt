@@ -7,8 +7,8 @@
 (begin-for-syntax
  (define-runtime-path stdlib.sch "./stdlib.rktl")
  (define-splicing-syntax-class stdlib
-   [pattern (~seq #:stdlib)
-            #:with e (datum->syntax this-syntax `(include (file ,(path->string stdlib.sch))))]
+   [pattern (~seq (~and form #:stdlib))
+            #:with e (datum->syntax #'form `(include (file ,(path->string stdlib.sch))))]
    [pattern (~seq) #:with e #'(begin)]))
 
 (define-syntax (modbeg stx)
