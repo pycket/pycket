@@ -26,6 +26,7 @@ def script_exprs(arg, content):
 # Re-enable when we have a top-level
 #   -f <file>, --load <file> : Like -e '(load "<file>")'
 #   -r <file>, --script <file> : Same as -f <file> -N <file> -
+#  --mcons: Support mutable conses
 
 def print_help(argv):
     print """Welcome to Pycket.
@@ -37,8 +38,7 @@ def print_help(argv):
   -p <package> : Like -e '(require (planet "<package>")'
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
-  --no-stdlib: Do not use Pycket's version of stdlib
-  --mcons: Support mutable conses
+  --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -52,8 +52,8 @@ _run = True
 _eval = False
 def parse_args(argv):
     config = {
-        'stdlib': True,
-        'mcons': False,
+        'stdlib': False,
+#        'mcons': False,
         'mode': _run,
     }
     names = {
@@ -80,6 +80,9 @@ def parse_args(argv):
         elif argv[i] == "--":
             i += 1
             break
+        elif argv[i] == "--stdlib":
+            config['stdlib'] = True
+            i += 1
         elif argv[i] == "-e":
             if to <= i + 1:
                 print "missing argument after -e"
@@ -101,10 +104,8 @@ def parse_args(argv):
             #     suffix = "f"
             elif arg == "u":
                 suffix = "t"
-                config["stdlib"] = False
             else:
                 suffix = arg
-                config["stdlib"] = False
             i += 1
             names['file'] = "%s.%s" % (argv[i], suffix)
             names['exprs'] = script_exprs(arg, argv[i])
@@ -119,6 +120,9 @@ def parse_args(argv):
             names['file'] = argv[i]
             retval = 0
         i += 1
+
+    if config['stdlib'] and (config['mode'] is not _eval):
+        retval = -1
 
     if retval == -1:
         print_help(argv)
@@ -141,8 +145,8 @@ def _temporary_file():
 
 def ensure_json_ast(config, names):
     stdlib = config.get('stdlib', False)
-    mcons = config.get('mcons', False)
-    assert not mcons
+    # mcons = config.get('mcons', False)
+    # assert not mcons
 
     if config["mode"] is _eval:
         code = names['exprs']
@@ -153,8 +157,7 @@ def ensure_json_ast(config, names):
         assert not file_name.endswith('.json')
         json_file = ensure_json_ast_eval(code, file_name, stdlib)
     elif config["mode"] is _run:
-        # This should always be false, but I couldn't fix test_entry_point
-        # assert not stdlib
+        assert not stdlib
         assert 'file' in names
         file_name = names['file']
         if file_name.endswith('.json'):
