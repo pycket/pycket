@@ -2,6 +2,8 @@ language: python
 cache: apt
 python:
   - pypy
+notifications:
+  irc: "chat.freenode.net#pycket"
 env:
   matrix:
     - TEST_TYPE=tests
