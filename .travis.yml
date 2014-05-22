@@ -3,7 +3,11 @@ cache: apt
 python:
   - pypy
 notifications:
-  irc: "chat.freenode.net#pycket"
+  irc: 
+    channels:
+      - "chat.freenode.net#pycket"
+    use_notice: true
+    skip_join: true
 env:
   matrix:
     - TEST_TYPE=tests
