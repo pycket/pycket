@@ -112,7 +112,7 @@ def needs_update(file_name, json_name):
     try:
         file_mtime = os.stat(file_name).st_mtime
         if os.access(json_name, os.F_OK):
-            if not file_mtime < os.stat(json_name).st_mtime:
+            if file_mtime < os.stat(json_name).st_mtime:
                 return False
     except OSError:
         pass
