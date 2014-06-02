@@ -84,7 +84,6 @@ class W_ImpVector(W_MVector):
             return False
         return True
 
-
 class W_List(W_Object):
     errorname = "list"
     def __init__(self):
@@ -424,7 +423,6 @@ class W_Closure(W_Procedure):
                           ConsEnv.make(actuals, prev, self.env.toplevel_env),
                           cont)
 
-
 class W_PromotableClosure(W_Closure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
@@ -433,3 +431,59 @@ class W_PromotableClosure(W_Closure):
         jit.promote(self)
         return W_Closure.call(self, args, env, cont)
 
+#
+# It's a very early (ugly) support of structs
+#
+class W_Struct_Type(W_Object):
+    _immutable_fields_ = ["_id"]
+    def __init__(self, id):
+        self._id = id
+    def tostring(self):
+        return "#<%s>" % _id
+
+class W_Struct_Constructor_Procedure(W_Object):
+    _immutable_fields_ = ["_id", "_fields"]
+    def __init__(self, id, fields):
+        self._id = id
+        self._fields = []
+        self.parsecons(fields)
+    def parsecons(self, cons):
+        if isinstance(cons, W_Cons):
+            self._fields.append(cons.car())
+            if isinstance(cons.cdr(), W_Cons):
+                self.parsecons(cons.cdr())
+    def call(self, args, env, cont):
+        fields = {}
+        for idx, field in enumerate(self._fields):
+            fields[str(field.value)] = args[idx]
+        struct = type(self._id.value, (object,), fields)
+        from pycket.interpreter import return_value
+        return return_value(struct, env, cont)
+
+class W_Struct_Predicate_Procedure(W_Object):
+    _immutable_fields_ = ["_id"]
+    def __init__(self, id):
+        self._id = id
+    def call(self, args_w, env, cont):
+        result = W_Bool.make(isinstance(args_w[0], type(type(self._id.value, (object,), {}))))
+        from pycket.interpreter import return_value
+        return return_value(result, env, cont)
+
+class W_Struct_Accessor_Procedure(W_Object):
+    def __init__(self):
+        pass
+    def call(self, struct, field):
+        return struct.__dict__[str(field)]
+
+class W_Struct_Mutator_Procedure(W_Object):
+    def __init__(self):
+        pass
+
+class W_Struct_Field_Accessor_Procedure(W_Object):
+    _immutable_fields_ = ["_accessor", "_field"]
+    def __init__(self, accessor, field):
+        self._accessor = accessor
+        self._field = field.value
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self._accessor.call(args[0], self._field), env, cont)

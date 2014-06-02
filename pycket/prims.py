@@ -535,6 +535,22 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
+# TODO: what to return?
+@expose("current-inspector")
+def do_current_instpector(args):
+    return None
+
+@expose("make-struct-type", simple=False)
+def do_make_struct_type(args, env, cont):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(values.Values.make([values.W_Struct_Type(args[0]), 
+        values.W_Struct_Constructor_Procedure(args[0], args[8]), values.W_Struct_Predicate_Procedure(args[0]), 
+        values.W_Struct_Accessor_Procedure(), values.W_Struct_Mutator_Procedure()]), env, cont)
+
+@expose("make-struct-field-accessor")
+def do_make_struct_field_accessor(args):
+    return values.W_Struct_Field_Accessor_Procedure(args[0], args[1])
+
 @expose("number->string", [values.W_Number])
 def num2str(a):
     return values.W_String(a.tostring())
