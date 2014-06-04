@@ -535,17 +535,21 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
-# TODO: what to return?
+# TODO: 
 @expose("current-inspector")
 def do_current_instpector(args):
     return None
 
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
+    struct = values.W_Struct_Type(args[0])
+    constructor = values.W_Struct_Constructor_Procedure(args[0], args[1], args[8])
+    predicate = values.W_Struct_Predicate_Procedure(args[0])
+    accessor = values.W_Struct_Accessor_Procedure()
+    mutator = values.W_Struct_Mutator_Procedure()
     from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([values.W_Struct_Type(args[0]), 
-        values.W_Struct_Constructor_Procedure(args[0], args[8]), values.W_Struct_Predicate_Procedure(args[0]), 
-        values.W_Struct_Accessor_Procedure(), values.W_Struct_Mutator_Procedure()]), env, cont)
+    return return_multi_vals(
+        values.Values.make([struct, constructor, predicate, accessor, mutator]), env, cont)
 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):

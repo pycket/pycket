@@ -432,30 +432,25 @@ class W_PromotableClosure(W_Closure):
         return W_Closure.call(self, args, env, cont)
 
 #
-# It's a very early (ugly) support of structs
+# It's a very early support of structs that IS NOT compatible with RPython
 #
 class W_Struct_Type(W_Object):
-    _immutable_fields_ = ["_id"]
-    def __init__(self, id):
-        self._id = id
-    def tostring(self):
-        return "#<%s>" % _id
+     def __init__(self, id):
+         self._id = id
+     def tostring(self):
+        return "#<%s>" % self._id
 
 class W_Struct_Constructor_Procedure(W_Object):
-    _immutable_fields_ = ["_id", "_fields"]
-    def __init__(self, id, fields):
+    _immutable_fields_ = ["_id", "_supertype", "_fields[*]"]
+    def __init__(self, id, supertype, fields):
         self._id = id
-        self._fields = []
-        self.parsecons(fields)
-    def parsecons(self, cons):
-        if isinstance(cons, W_Cons):
-            self._fields.append(cons.car())
-            if isinstance(cons.cdr(), W_Cons):
-                self.parsecons(cons.cdr())
-    def call(self, args, env, cont):
+        self._supertype = supertype
+        # TODO: fields of supertype
+        self._fields = from_list(fields)
+    def call(self, args_w, env, cont):
         fields = {}
         for idx, field in enumerate(self._fields):
-            fields[str(field.value)] = args[idx]
+            fields[str(field.value)] = args_w[idx]
         struct = type(self._id.value, (object,), fields)
         from pycket.interpreter import return_value
         return return_value(struct, env, cont)
@@ -464,8 +459,8 @@ class W_Struct_Predicate_Procedure(W_Object):
     _immutable_fields_ = ["_id"]
     def __init__(self, id):
         self._id = id
-    def call(self, args_w, env, cont):
-        result = W_Bool.make(isinstance(args_w[0], type(type(self._id.value, (object,), {}))))
+    def call(self, args, env, cont):
+        result = W_Bool.make(isinstance(args[0], type(type(self._id.value, (object,), {}))))
         from pycket.interpreter import return_value
         return return_value(result, env, cont)
 

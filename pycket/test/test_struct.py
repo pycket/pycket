@@ -11,6 +11,7 @@ class TestStructs(object):
 
     def test_posn(self, ast_wrap):
         """
+        #lang pycket
         (struct posn (x y))
         (let* ([p  (posn 1 2)]
                [p?  (posn? p)]
