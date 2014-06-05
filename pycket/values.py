@@ -434,51 +434,75 @@ class W_PromotableClosure(W_Closure):
 #
 # It's a very early support of structs that IS NOT compatible with RPython
 #
-class W_Struct_Type(W_Object):
-     def __init__(self, id):
-         self._id = id
-     def tostring(self):
-        return "#<%s>" % self._id
-
-class W_Struct_Constructor_Procedure(W_Object):
-    _immutable_fields_ = ["_id", "_supertype", "_fields[*]"]
-    def __init__(self, id, supertype, fields):
-        self._id = id
-        self._supertype = supertype
-        # TODO: fields of supertype
-        self._fields = from_list(fields)
-    def call(self, args_w, env, cont):
-        fields = {}
-        for idx, field in enumerate(self._fields):
-            fields[str(field.value)] = args_w[idx]
-        struct = type(self._id.value, (object,), fields)
-        from pycket.interpreter import return_value
-        return return_value(struct, env, cont)
-
-class W_Struct_Predicate_Procedure(W_Object):
+class W_StructType(W_Object):
+    all_structs = {}
+    errorname = "struct"
     _immutable_fields_ = ["_id"]
-    def __init__(self, id):
-        self._id = id
-    def call(self, args, env, cont):
-        result = W_Bool.make(isinstance(args[0], type(type(self._id.value, (object,), {}))))
-        from pycket.interpreter import return_value
-        return return_value(result, env, cont)
+    
+    @staticmethod
+    def make(struct_id, super_type, fields):
+        if struct_id in W_StructType.all_structs:
+            #TODO: error
+            return W_StructType.all_structs[struct_id]
+        else:
+            W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields)
+            return w_result
+    
+    def __init__(self, struct_id, super_type, fields):
+        self._id = struct_id
+        self.w_constr = self.make_constructor_procedure(super_type, fields)
+        self.w_pred = self.make_predicate_procedure()
+        self.w_acc = self.make_accessor_procedure()
+        self.w_mut = self.make_mutator_procedure()
 
-class W_Struct_Accessor_Procedure(W_Object):
-    def __init__(self):
-        pass
-    def call(self, struct, field):
-        return struct.__dict__[str(field)]
+    def make_constructor_procedure(self, super_type, fields):
+        def constr_proc(args_w, env, cont):
+            from pycket.interpreter import return_value
+            struct_data = {}
+            for idx, field in enumerate(_fields):
+                struct_data[str(field.value)] = args_w[idx]
+            return return_value(W_Struct(self, struct_data), env, cont)
+        _fields = from_list(fields)
+        return W_Prim(self._id.value + '_constr_proc', constr_proc)
 
-class W_Struct_Mutator_Procedure(W_Object):
-    def __init__(self):
-        pass
+    def make_predicate_procedure(self):
+        def pred_proc(args_w, env, cont):
+            result = W_Bool.make(False)
+            #FIXME:
+            if ("_struct_type" in args_w[0].__dict__ and args_w[0].__dict__["_struct_type"] == self):
+                result = W_Bool.make(True)
+            from pycket.interpreter import return_value
+            return return_value(result, env, cont)
+        return W_Prim(self._id.value + '_pred_proc', pred_proc)
 
-class W_Struct_Field_Accessor_Procedure(W_Object):
+    def make_accessor_procedure(self):
+        def acc_proc(args_w, env, cont):
+            #FIXME:
+            return args_w[0].__dict__["_fields"][str(args_w[1])]
+        return W_Prim(self._id.value + '_acc_proc', acc_proc)
+
+    def make_mutator_procedure(self):
+        def mut_proc(args_w, env, cont):
+            result = False
+            from pycket.interpreter import return_value
+            return return_value(result, env, cont)
+        return W_Prim(self._id.value + '_mut_proc', mut_proc)
+
+    def make_struct_tuple(self):
+        return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
+
+class W_Struct_Field_Accessor(W_Object):
     _immutable_fields_ = ["_accessor", "_field"]
     def __init__(self, accessor, field):
         self._accessor = accessor
+        #FIXME: it is not RPython compatible
         self._field = field.value
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
-        return return_value(self._accessor.call(args[0], self._field), env, cont)
+        acc_args = [args[0], self._field]
+        return return_value(self._accessor.call(acc_args, env, cont), env, cont)
+
+class W_Struct(W_Object):
+    def __init__(self, struct_type, fields):
+        self._struct_type = struct_type
+        self._fields = fields

@@ -540,20 +540,19 @@ def do_void(args): return values.w_void
 def do_current_instpector(args):
     return None
 
+# TODO:
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
-    struct = values.W_Struct_Type(args[0])
-    constructor = values.W_Struct_Constructor_Procedure(args[0], args[1], args[8])
-    predicate = values.W_Struct_Predicate_Procedure(args[0])
-    accessor = values.W_Struct_Accessor_Procedure()
-    mutator = values.W_Struct_Mutator_Procedure()
     from pycket.interpreter import return_multi_vals
-    return return_multi_vals(
-        values.Values.make([struct, constructor, predicate, accessor, mutator]), env, cont)
+    struct_id, super_type, fields = args[0], args[1], args[8]
+    w_st = values.W_StructType.make(struct_id, super_type, fields)
+    results = values.Values.make(w_st.make_struct_tuple())
+    return return_multi_vals(results, env, cont)
 
+# TODO: 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
-    return values.W_Struct_Field_Accessor_Procedure(args[0], args[1])
+    return values.W_Struct_Field_Accessor(args[0], args[1])
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
