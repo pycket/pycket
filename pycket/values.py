@@ -437,7 +437,7 @@ class W_PromotableClosure(W_Closure):
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id"]
+    _immutable_fields_ = ["_id", "_fields[:]"]
     
     @staticmethod
     def make(struct_id, super_type, fields):
@@ -450,43 +450,47 @@ class W_StructType(W_Object):
     
     def __init__(self, struct_id, super_type, fields):
         self._id = struct_id
+        self._fields = from_list(fields)
         self.w_constr = self.make_constructor_procedure(super_type, fields)
         self.w_pred = self.make_predicate_procedure()
         self.w_acc = self.make_accessor_procedure()
         self.w_mut = self.make_mutator_procedure()
 
+    def constr_proc(self, args_w, env, cont):
+        from pycket.interpreter import return_value
+        struct_data = {}
+        for idx, field in enumerate(self._fields):
+            struct_data[str(field.value)] = args_w[idx]
+        return return_value(W_Struct(self, struct_data), env, cont)
+
+    def pred_proc(self, args_w, env, cont):
+        result = W_Bool.make(False)
+        #FIXME:
+        if ("_struct_type" in args_w[0].__dict__ and args_w[0].__dict__["_struct_type"] == self):
+            result = W_Bool.make(True)
+        from pycket.interpreter import return_value
+        return return_value(result, env, cont)
+
+    def acc_proc(self, args_w, env, cont):
+        #FIXME:
+        return args_w[0].__dict__["_fields"][str(args_w[1])]
+
+    def mut_proc(self, args_w, env, cont):
+        result = False
+        from pycket.interpreter import return_value
+        return return_value(result, env, cont)
+
     def make_constructor_procedure(self, super_type, fields):
-        def constr_proc(args_w, env, cont):
-            from pycket.interpreter import return_value
-            struct_data = {}
-            for idx, field in enumerate(_fields):
-                struct_data[str(field.value)] = args_w[idx]
-            return return_value(W_Struct(self, struct_data), env, cont)
-        _fields = from_list(fields)
-        return W_Prim(self._id.value + '_constr_proc', constr_proc)
+        return W_Prim(self._id.value + '_constr_proc', self.constr_proc)
 
     def make_predicate_procedure(self):
-        def pred_proc(args_w, env, cont):
-            result = W_Bool.make(False)
-            #FIXME:
-            if ("_struct_type" in args_w[0].__dict__ and args_w[0].__dict__["_struct_type"] == self):
-                result = W_Bool.make(True)
-            from pycket.interpreter import return_value
-            return return_value(result, env, cont)
-        return W_Prim(self._id.value + '_pred_proc', pred_proc)
+        return W_Prim(self._id.value + '_pred_proc', self.pred_proc)
 
     def make_accessor_procedure(self):
-        def acc_proc(args_w, env, cont):
-            #FIXME:
-            return args_w[0].__dict__["_fields"][str(args_w[1])]
-        return W_Prim(self._id.value + '_acc_proc', acc_proc)
+        return W_Prim(self._id.value + '_acc_proc', self.acc_proc)
 
     def make_mutator_procedure(self):
-        def mut_proc(args_w, env, cont):
-            result = False
-            from pycket.interpreter import return_value
-            return return_value(result, env, cont)
-        return W_Prim(self._id.value + '_mut_proc', mut_proc)
+        return W_Prim(self._id.value + '_mut_proc', self.mut_proc)
 
     def make_struct_tuple(self):
         return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
