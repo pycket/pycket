@@ -5,7 +5,7 @@ import os
 import time
 import math
 from pycket import values
-from pycket.cont import Cont
+from pycket.cont import Cont, call_cont, continuation
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
@@ -68,44 +68,6 @@ def expose(name, argstypes=None, simple=True):
         prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func)
         return wrap_func
     return wrapper
-
-
-def continuation(func):
-    """ workaround for the lack of closures in RPython. use to decorate a
-    function that is supposed to be usable as a continuation. When the
-    continuation triggers, the original function is called with one extra
-    argument, the computed vals. """
-
-    import inspect
-    argspec = inspect.getargspec(func)
-    assert argspec.varargs is None
-    assert argspec.keywords is None
-    assert argspec.defaults is None
-    argnames = argspec.args[:-1]
-
-    unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
-
-    class PrimCont(Cont):
-        _immutable_fields_ = argnames
-
-        def __init__(self, *args):
-            for i, name in unroll_argnames:
-                setattr(self, name, args[i])
-
-        def plug_reduce(self, vals):
-            args = ()
-            for i, name in unroll_argnames:
-                args += (getattr(self, name), )
-            args += (vals, )
-            return func(*args)
-    PrimCont.__name__ = func.func_name + "PrimCont"
-
-    def make_continuation(*args):
-        return PrimCont(*args)
-
-    make_continuation.func_name = func.func_name + "_make_continuation"
-    return make_continuation
-
 
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
@@ -340,7 +302,6 @@ def substring(args):
             "substring: ending index is smaller than starting index")
     return values.W_String(string[start:end])
 
-
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -373,7 +334,6 @@ def time_apply(a, args, env, cont):
     initial = time.clock()
     return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
 
-
 @expose("apply", simple=False)
 def apply(args, env, cont):
     if not args:
@@ -389,7 +349,6 @@ def apply(args, env, cont):
     others = args[1:args_len]
     new_args = others + values.from_list(lst)
     return fn.call(new_args, env, cont)
-
 
 @expose("printf")
 def printf(args):
@@ -467,6 +426,25 @@ def do_liststar(args):
     if a < 0:
         raise SchemeException("list* expects at least one argument")
     return values.to_improper(args[:a], args[a])
+
+@continuation
+def for_each_cont(f, xs, env, cont, vals):
+    return do_for_each(f, xs.cdr(), env, cont)
+
+def do_for_each(f, xs, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(xs, values.W_Null):
+        return return_value(values.w_void, env, cont)
+    if isinstance(xs, values.W_Cons):
+        if isinstance(xs.cdr(), values.W_Null):
+            return f.call([xs.car()], env, cont)
+        else:
+            return f.call([xs.car()], env, for_each_cont(f, xs, env, cont))
+    assert False
+
+@expose("for-each", [values.W_Procedure, values.W_List], simple=False)
+def for_each(f, xs, env, cont):
+    return do_for_each(f, xs, env, cont)
 
 @expose("assq", [values.W_Object] * 2)
 def assq(a, b):
@@ -569,6 +547,21 @@ def imp_vec_ref_cont(f, i, v, env, cont, vals):
     from pycket.interpreter import check_one_val
     return f.call([v, i, check_one_val(vals)], env, cont)
 
+@continuation
+def chp_vec_ref_cont(f, i, v, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
+
+@continuation
+def chp_vec_ref_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if values.is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        assert False
+
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
@@ -577,9 +570,12 @@ def do_vec_ref(v, i, env, cont):
         uv = v.vec
         f = v.refh
         return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
+    elif isinstance(v, values.W_ChpVector):
+        uv = v.vec
+        f  = v.refh
+        return do_vec_ref(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
     else:
         assert False
-
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
@@ -593,6 +589,15 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return do_vec_set(v, i, check_one_val(vals), env, cont)
 
+# TODO check that the returned value is the same as the given value
+# up to intervening chaperones.
+@continuation
+def chp_vec_set_cont(orig, v, i, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    assert values.is_chaperone_of(val, orig)
+    return do_vec_set(v, i, val, env, cont)
+
 def do_vec_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
@@ -602,12 +607,36 @@ def do_vec_set(v, i, new, env, cont):
         uv = v.vec
         f = v.seth
         return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
+    elif isinstance(v, values.W_ChpVector):
+        uv = v.vec
+        f  = v.seth
+        return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
     else:
         assert False
+
+@expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
+def impersonate_procedure(proc, check):
+    return values.W_ImpProcedure(proc, check)
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
     return values.W_ImpVector(v, refh, seth)
+
+@expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
+def chaperone_procedure(proc, check):
+    return values.W_ChpProcedure(proc, check)
+
+@expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
+def chaperone_vector(v, refh, seth):
+    return values.W_ChpVector(v, refh, seth)
+
+@expose("chaperone-of?", [values.W_Object, values.W_Object])
+def chaperone_of(a, b):
+    return values.W_Bool.make(values.is_chaperone_of(a, b))
+
+@expose("impersonator-of?", [values.W_Object, values.W_Object])
+def impersonator_of(a, b):
+    return values.W_Bool.make(values.is_impersonator_of(a, b))
 
 @expose("vector")
 def vector(args):
@@ -645,7 +674,6 @@ def listp_loop(v):
 def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
-
 @expose("display", [values.W_Object])
 def display(s):
     os.write(1, s.tostring())
@@ -668,6 +696,7 @@ def error(name, msg):
 def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 
+# FIXME: make this work with chaperones/impersonators
 @expose("vector->list", [values_vector.W_Vector])
 def vector2list(v):
     es = []
@@ -805,3 +834,4 @@ def load(lib, env, cont):
             "can't gernerate load-file for %s "%(lib.tostring()))
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
+
