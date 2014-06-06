@@ -423,6 +423,8 @@ class App(AST):
             x.update(r.free_vars())
         return x
 
+    # Let conversion ensures that all the participants in an application
+    # are simple.
     @jit.unroll_safe
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
@@ -533,7 +535,9 @@ class LexicalVar(Var):
     def _set(self, w_val, env):
         assert 0
     def assign_convert(self, vars, env_structure):
-        assert isinstance(vars, r_dict)
+        # TODO: Figure out why this causes an exception in the compiled
+        # version of the doe
+        #assert isinstance(vars, r_dict)
         if self in vars:
             return CellRef(self.sym, env_structure)
         else:
@@ -558,7 +562,7 @@ class ModuleVar(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             return v
-        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe" or True:
             # we don't separate these the way racket does
             # but maybe we should
             try:
@@ -566,6 +570,7 @@ class ModuleVar(Var):
             except KeyError:
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
+            print "Module Variable", self.sym
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
         if self in vars:
