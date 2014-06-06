@@ -570,7 +570,6 @@ class ModuleVar(Var):
             except KeyError:
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
-            print "Module Variable", self.sym
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
         if self in vars:
