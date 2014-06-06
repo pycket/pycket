@@ -442,7 +442,7 @@ class W_StructType(W_Object):
     @staticmethod
     def make(struct_id, super_type, fields):
         if struct_id in W_StructType.all_structs:
-            #TODO: error
+            #TODO: report an error
             return W_StructType.all_structs[struct_id]
         else:
             W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields)
@@ -465,15 +465,13 @@ class W_StructType(W_Object):
 
     def pred_proc(self, args_w, env, cont):
         result = W_Bool.make(False)
-        #FIXME:
-        if ("_struct_type" in args_w[0].__dict__ and args_w[0].__dict__["_struct_type"] == self):
+        if (hasattr(args_w[0], "_struct_type") and args_w[0]._struct_type == self):
             result = W_Bool.make(True)
         from pycket.interpreter import return_value
         return return_value(result, env, cont)
 
     def acc_proc(self, args_w, env, cont):
-        #FIXME:
-        return args_w[0].__dict__["_fields"][str(args_w[1])]
+        return args_w[0]._fields[str(args_w[1])]
 
     def mut_proc(self, args_w, env, cont):
         result = False
@@ -500,7 +498,7 @@ class W_Struct_Field_Accessor(W_Object):
     def __init__(self, accessor, field):
         self._accessor = accessor
         #FIXME: it is not RPython compatible
-        self._field = field.value
+        self._field = int(field.value)
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         acc_args = [args[0], self._field]
