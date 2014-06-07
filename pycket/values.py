@@ -408,17 +408,36 @@ class W_ImpProcedure(W_Procedure):
     def tostring(self):
         return "ImpProcedure<%s>" % self.code.tostring()
 
+# Check that the results of che call to check are all chaperones of
+# the original function outputs.
+@continuation
+def chp_proc_ret_cont(orig, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    vals = _vals._get_full_list()
+    assert len(vals) == len(orig)
+    for i in range(len(vals)):
+        assert is_chaperone_of(vals[i], orig[i])
+    return return_multi_vals(_vals, env, cont)
+
+# Capture the original output of the function to compare agains the result of
+# the check operation
+@continuation
+def chp_proc_call_check_cont(check, env, cont, _vals):
+    vals = _vals._get_full_list()
+    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
+
 # Continuation used when calling a chaperone of a procedure.
 @continuation
 def chp_proc_cont(args, proc, env, cont, _vals):
     vals = _vals._get_full_list()
-    for i in range(len(vals)):
+    assert len(vals) >= len(args)
+    for i in range(len(args)):
         assert is_chaperone_of(vals[i], args[i])
     if len(vals) == len(args):
         return proc.call(vals, env, cont)
     elif len(vals) == len(args) + 1:
         args, check = vals[:-1], vals[-1]
-        return proc.call(args, env, call_cont(check, env, cont))
+        return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
     else:
         assert False
 
