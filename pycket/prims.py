@@ -372,12 +372,12 @@ def printf(args):
                 if j >= len(vals):
                     raise SchemeException("not enough arguments for format string")
                 os.write(1,vals[j].tostring()),
-                i += 2
                 j += 1
             elif s == 'n':
                 os.write(1,"\n") # newline
             else:
                 raise SchemeException("unexpected format character")
+            i += 2
         else:
             os.write(1,fmt[i])
             i += 1
