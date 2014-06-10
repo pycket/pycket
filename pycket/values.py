@@ -416,7 +416,8 @@ def chp_proc_ret_cont(orig, env, cont, _vals):
     vals = _vals._get_full_list()
     assert len(vals) == len(orig)
     for i in range(len(vals)):
-        assert is_chaperone_of(vals[i], orig[i])
+        if not is_chaperone_of(vals[i], orig[i]):
+            raise SchemeException("Expecting original value or chaperone")
     return return_multi_vals(_vals, env, cont)
 
 # Capture the original output of the function to compare agains the result of
@@ -432,7 +433,8 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     vals = _vals._get_full_list()
     assert len(vals) >= len(args)
     for i in range(len(args)):
-        assert is_chaperone_of(vals[i], args[i])
+        if not is_chaperone_of(vals[i], args[i]):
+            raise SchemeException("Expecting original value or chaperone")
     if len(vals) == len(args):
         return proc.call(vals, env, cont)
     elif len(vals) == len(args) + 1:

@@ -427,25 +427,6 @@ def do_liststar(args):
         raise SchemeException("list* expects at least one argument")
     return values.to_improper(args[:a], args[a])
 
-@continuation
-def for_each_cont(f, xs, env, cont, vals):
-    return do_for_each(f, xs.cdr(), env, cont)
-
-def do_for_each(f, xs, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(xs, values.W_Null):
-        return return_value(values.w_void, env, cont)
-    if isinstance(xs, values.W_Cons):
-        if isinstance(xs.cdr(), values.W_Null):
-            return f.call([xs.car()], env, cont)
-        else:
-            return f.call([xs.car()], env, for_each_cont(f, xs, env, cont))
-    assert False
-
-@expose("for-each", [values.W_Procedure, values.W_List], simple=False)
-def for_each(f, xs, env, cont):
-    return do_for_each(f, xs, env, cont)
-
 @expose("assq", [values.W_Object] * 2)
 def assq(a, b):
     if values.w_null is b:
@@ -455,7 +436,6 @@ def assq(a, b):
             return do_car([b])
         else:
             return assq([a, do_cdr([b])])
-
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
@@ -560,7 +540,7 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     if values.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
-        assert False
+        raise SchemeException("Expecting original value or chaperone")
 
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
@@ -595,7 +575,8 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(vals)
-    assert values.is_chaperone_of(val, orig)
+    if not values.is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
     return do_vec_set(v, i, val, env, cont)
 
 def do_vec_set(v, i, new, env, cont):
