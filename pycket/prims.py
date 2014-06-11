@@ -182,6 +182,7 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
+        ("struct-type?", values.W_StructType),
         ]:
     make_pred(*args)
 
@@ -552,7 +553,7 @@ def do_make_struct_type(args, env, cont):
 # TODO: 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
-    return values.W_Struct_Field_Accessor(args[0], args[1])
+    return values.W_StructFieldAccessor(args[0], args[1])
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

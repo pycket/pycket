@@ -460,7 +460,7 @@ class W_StructType(W_Object):
         from pycket.interpreter import return_value
         struct_data = {}
         for idx, field in enumerate(self._fields):
-            struct_data[str(field.value)] = args_w[idx]
+            struct_data[field.tostring()] = args_w[idx]
         return return_value(W_Struct(self, struct_data), env, cont)
 
     def pred_proc(self, args_w, env, cont):
@@ -474,31 +474,31 @@ class W_StructType(W_Object):
         return args_w[0]._fields[str(args_w[1])]
 
     def mut_proc(self, args_w, env, cont):
-        result = False
+        result = None
         from pycket.interpreter import return_value
         return return_value(result, env, cont)
 
     def make_constructor_procedure(self, super_type, fields):
-        return W_Prim(self._id.value + '_constr_proc', self.constr_proc)
+        return W_Prim(self._id.tostring() + "_constr_proc", self.constr_proc)
 
     def make_predicate_procedure(self):
-        return W_Prim(self._id.value + '_pred_proc', self.pred_proc)
+        return W_Prim(self._id.tostring() + "_pred_proc", self.pred_proc)
 
     def make_accessor_procedure(self):
-        return W_Prim(self._id.value + '_acc_proc', self.acc_proc)
+        return W_Prim(self._id.tostring() + "_acc_proc", self.acc_proc)
 
     def make_mutator_procedure(self):
-        return W_Prim(self._id.value + '_mut_proc', self.mut_proc)
+        return W_Prim(self._id.tostring() + "_mut_proc", self.mut_proc)
 
     def make_struct_tuple(self):
         return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
 
-class W_Struct_Field_Accessor(W_Object):
+#FIXME: it is not RPython compatible
+class W_StructFieldAccessor(W_Object):
     _immutable_fields_ = ["_accessor", "_field"]
     def __init__(self, accessor, field):
         self._accessor = accessor
-        #FIXME: it is not RPython compatible
-        self._field = int(field.value)
+        self._field = int(field.tostring())
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         acc_args = [args[0], self._field]
