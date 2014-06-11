@@ -318,11 +318,7 @@ class Module(AST):
                     for n in range(len(vs)):
                         self.defs[f.names[n]] = vs[n]
                 else:
-                    # FIXME: we have to work with functions, which produce more than one output value
-                    if (len(f.names) == 1):
-                        self.defs[f.names[0]] = vs
-                    else:
-                        raise SchemeException("wrong number of values for define-values")
+                    raise SchemeException("wrong number of values for define-values")
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
