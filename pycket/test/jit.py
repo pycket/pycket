@@ -17,30 +17,32 @@ from pycket.test.testhelper import parse_file
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
+from pycket.expand import expand, to_ast, expand_string, parse_module
 
 
 class TestLLtype(LLJitMixin):
 
-    def test_countdown(self):
-        ast = to_ast(expand("""
+    def test_countdown_x(self):
+        ast = parse_module(expand_string("""
+#lang pycket
 (letrec ([countdown (lambda (n) (if (< n 0) 1 (countdown (- n 1))))])
  (countdown 1000))
 """))
 
 
         def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
+            val = interpret_module(ast)
+            return val
 
-        assert interp_w() == 1
+        assert interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
     def test_countdown_loop(self):
         ast = to_ast(expand("""
+#lang pycket
 (let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
 """))
 
@@ -56,7 +58,8 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_side_exit(self):
-        ast = to_ast(expand("""
+        ast = parse_module(expand_string("""
+#lang pycket
 (let ()
     (define (countdown n sub2?)
         (if (< n 0) 1
@@ -70,12 +73,14 @@ class TestLLtype(LLJitMixin):
 
 
         def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
+            val = interpret_module(ast)
+            return val
 
-        assert interp_w() == 1
+        #     val = interpret_one(ast)
+        #     ov = check_one_val(val)
+        #     assert isinstance(ov, W_Fixnum)
+        #     return ov.value
+        # assert interp_w() == 1
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
