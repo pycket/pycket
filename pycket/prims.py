@@ -550,10 +550,17 @@ def do_make_struct_type(args, env, cont):
     results = values.Values.make(w_st.make_struct_tuple())
     return return_multi_vals(results, env, cont)
 
-# TODO: 
+def field_accessor(args, env, cont):
+    _accessor = args[0]
+    _field = args[1]
+    _struct = args[3]
+    return _accessor.call([_struct, _field], env, cont)
+
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
-    return values.W_StructFieldAccessor(args[0], args[1])
+    _accessor = args[0]
+    _field = args[1]
+    return values.W_Prim(_accessor.tostring() + _field.tostring(), field_accessor, args)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

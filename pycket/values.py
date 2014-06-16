@@ -343,14 +343,15 @@ class W_SimplePrim(W_Procedure):
         return "SimplePrim<%s>" % self.name
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code"]
-    def __init__ (self, name, code):
-        self.name = name
-        self.code = code
+    _immutable_fields_ = ["name", "code", "params"]
+    def __init__ (self, *args):
+        self.name = args[0]
+        self.code = args[1]
+        self.params = args[2] if len(args) > 2 else []
 
     def call(self, args, env, cont):
         jit.promote(self)
-        return self.code(args, env, cont)
+        return self.code(self.params + args, env, cont)
 
     def tostring(self):
         return "Prim<%s>" % self.name
@@ -432,7 +433,7 @@ class W_PromotableClosure(W_Closure):
         return W_Closure.call(self, args, env, cont)
 
 #
-# It's a very early support of structs that IS NOT compatible with RPython
+# It's a very early support of structs
 #
 class W_StructType(W_Object):
     all_structs = {}
@@ -441,70 +442,83 @@ class W_StructType(W_Object):
     
     @staticmethod
     def make(struct_id, super_type, fields):
-        if struct_id in W_StructType.all_structs:
-            #TODO: report an error
-            return W_StructType.all_structs[struct_id]
-        else:
-            W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields)
-            return w_result
+        assert struct_id not in W_StructType.all_structs
+        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields)
+        return w_result
+
+    # @staticmethod
+    # def lookup_struct_type(stuct_id):
+    #     if struct_id in W_StructType.all_structs:
+    #         return W_StructType.all_structs[struct_id]
+    #     else:
+    #         # TODO: Error
+    #         return w_false
     
     def __init__(self, struct_id, super_type, fields):
         self._id = struct_id
         self._fields = from_list(fields)
-        self.w_constr = self.make_constructor_procedure(super_type, fields)
+        self.w_constr = self.make_constructor_procedure()
         self.w_pred = self.make_predicate_procedure()
         self.w_acc = self.make_accessor_procedure()
         self.w_mut = self.make_mutator_procedure()
 
-    def constr_proc(self, args_w, env, cont):
-        from pycket.interpreter import return_value
-        struct_data = {}
-        for idx, field in enumerate(self._fields):
-            struct_data[field.tostring()] = args_w[idx]
-        return return_value(W_Struct(self, struct_data), env, cont)
+    def fields(self):
+        return self._fields
 
-    def pred_proc(self, args_w, env, cont):
-        result = W_Bool.make(False)
-        if (hasattr(args_w[0], "_struct_type") and args_w[0]._struct_type == self):
-            result = W_Bool.make(True)
-        from pycket.interpreter import return_value
-        return return_value(result, env, cont)
-
-    def acc_proc(self, args_w, env, cont):
-        return args_w[0]._fields[str(args_w[1])]
-
-    def mut_proc(self, args_w, env, cont):
-        result = None
-        from pycket.interpreter import return_value
-        return return_value(result, env, cont)
-
-    def make_constructor_procedure(self, super_type, fields):
-        return W_Prim(self._id.tostring() + "_constr_proc", self.constr_proc)
+    def make_constructor_procedure(self):
+        return W_Prim("make-" + self._id.tostring(), constr_proc, [self])
 
     def make_predicate_procedure(self):
-        return W_Prim(self._id.tostring() + "_pred_proc", self.pred_proc)
+        return W_Prim(self._id.tostring() + "?", pred_proc, [self])
 
     def make_accessor_procedure(self):
-        return W_Prim(self._id.tostring() + "_acc_proc", self.acc_proc)
+        return W_Prim(self._id.tostring() + "-ref", acc_proc)
 
     def make_mutator_procedure(self):
-        return W_Prim(self._id.tostring() + "_mut_proc", self.mut_proc)
+        return W_Prim(self._id.tostring() + "-set!", mut_proc)
 
     def make_struct_tuple(self):
         return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
 
-#FIXME: it is not RPython compatible
-class W_StructFieldAccessor(W_Object):
-    _immutable_fields_ = ["_accessor", "_field"]
-    def __init__(self, accessor, field):
-        self._accessor = accessor
-        self._field = int(field.tostring())
-    def call(self, args, env, cont):
-        from pycket.interpreter import return_value
-        acc_args = [args[0], self._field]
-        return return_value(self._accessor.call(acc_args, env, cont), env, cont)
+def constr_proc(args, env, cont):
+    from pycket.interpreter import return_value
+    _struct_type = args[0]
+    _fields = args[1:]
+    struct_data = {}
+    for idx, field in enumerate(_struct_type.fields()):
+        struct_data[field.tostring()] = _fields[idx]
+    return return_value(W_Struct(_struct_type, struct_data), env, cont)
+
+def pred_proc(args, env, cont):
+    from pycket.interpreter import return_value
+    _struct_type = args[0]
+    _struct = args[1]
+    result = W_Bool.make(False)
+    if (isinstance(_struct, W_Struct) and _struct.type() == _struct_type):
+        result = W_Bool.make(True)
+    return return_value(result, env, cont)
+
+def acc_proc(args, env, cont):
+    from pycket.interpreter import return_value
+    _struct = args[0]
+    _field = args[1]
+    result = _struct.get_field_value(_field)
+    return return_value(result, env, cont)
+
+# TODO:
+def mut_proc(args, env, cont):
+    from pycket.interpreter import return_value
+    result = None
+    return return_value(result, env, cont)
 
 class W_Struct(W_Object):
+    _immutable_fields_ = ["_type", "_fields"]
     def __init__(self, struct_type, fields):
-        self._struct_type = struct_type
+        self._type = struct_type
         self._fields = fields
+
+    def type(self):
+        return self._type
+
+    def get_field_value(self, field):
+        return self._fields[field.tostring()]

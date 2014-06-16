@@ -14,7 +14,7 @@ class TestStructs(object):
       (inspector? (current-inspector))
       """
       result = run_mod_expr(source, wrap=True)
-      assert result == W_Bool.make(True)
+      assert result == w_true
 
     def test_make_struct_type(self, source):
       """
@@ -27,7 +27,7 @@ class TestStructs(object):
         (struct-mutator-procedure? p-set!))
       """
       result = run_mod_expr(source, wrap=True)
-      assert result == W_Bool.make(True)
+      assert result == w_true
 
     def test_make_struct_field_accessor(self, source):
       """
@@ -36,7 +36,7 @@ class TestStructs(object):
       (procedure? accessor)
       """
       result = run_mod_expr(source, wrap=True)
-      assert result == W_Bool.make(True)
+      assert result == w_true
 
     def test_struct_main_functions(self, source):
       """
@@ -49,4 +49,4 @@ class TestStructs(object):
       (and p? (= x 1) (= y 2)))
       """
       result = run_mod_expr(source, wrap=True)
-      assert result == W_Bool.make(True)
+      assert result == w_true
