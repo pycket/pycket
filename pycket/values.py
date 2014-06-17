@@ -328,16 +328,17 @@ class W_Procedure(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "code"]
-    def __init__ (self, name, code):
-        self.name = name
-        self.code = code
+    _immutable_fields_ = ["name", "code", "params"]
+    def __init__ (self, *args):
+        self.name = args[0]
+        self.code = args[1]
+        self.params = args[2] if len(args) > 2 else []
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         jit.promote(self)
         #print self.name
-        return return_value(self.code(args), env, cont)
+        return return_value(self.code(self.params + args), env, cont)
 
     def tostring(self):
         return "SimplePrim<%s>" % self.name
@@ -438,87 +439,109 @@ class W_PromotableClosure(W_Closure):
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id", "_fields[:]"]
+    _immutable_fields_ = ["_id", "_super", "_fields[:]"]
     
     @staticmethod
-    def make(struct_id, super_type, fields):
+    def make(struct_id, super_type, fields, constr_name):
         assert struct_id not in W_StructType.all_structs
-        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields)
+        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields, constr_name)
         return w_result
 
-    # @staticmethod
-    # def lookup_struct_type(stuct_id):
-    #     if struct_id in W_StructType.all_structs:
-    #         return W_StructType.all_structs[struct_id]
-    #     else:
-    #         # TODO: Error
-    #         return w_false
+    @staticmethod
+    def lookup_struct_type(struct_id):
+        if struct_id in W_StructType.all_structs:
+            return W_StructType.all_structs[struct_id]
+        else:
+            # TODO: raise exception (find how it is implemented in Racket)
+            return w_false
     
-    def __init__(self, struct_id, super_type, fields):
+    def __init__(self, struct_id, super_type, fields, constr_name):
         self._id = struct_id
+        self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else None
         self._fields = from_list(fields)
+        self._constr_name = constr_name.tostring() if isinstance(constr_name, W_Symbol) else "make-" + self._id.tostring()
         self.w_constr = self.make_constructor_procedure()
         self.w_pred = self.make_predicate_procedure()
         self.w_acc = self.make_accessor_procedure()
         self.w_mut = self.make_mutator_procedure()
 
+    def tostring(self):
+        return "Struct<%s>" % self._id
+
+    def super(self):
+        return self._super
+
     def fields(self):
         return self._fields
 
     def make_constructor_procedure(self):
-        return W_Prim("make-" + self._id.tostring(), constr_proc, [self])
+        return W_SimplePrim(self._constr_name, constr_proc, [self])
 
     def make_predicate_procedure(self):
-        return W_Prim(self._id.tostring() + "?", pred_proc, [self])
+        return W_SimplePrim(self._id.tostring() + "?", pred_proc, [self])
 
     def make_accessor_procedure(self):
-        return W_Prim(self._id.tostring() + "-ref", acc_proc)
+        return W_SimplePrim(self._id.tostring() + "-ref", acc_proc, [self])
 
     def make_mutator_procedure(self):
-        return W_Prim(self._id.tostring() + "-set!", mut_proc)
+        return W_SimplePrim(self._id.tostring() + "-set!", mut_proc)
 
     def make_struct_tuple(self):
         return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
 
-def constr_proc(args, env, cont):
-    from pycket.interpreter import return_value
+def constr_proc(args):
     _struct_type = args[0]
     _fields = args[1:]
-    struct_data = {}
-    for idx, field in enumerate(_struct_type.fields()):
-        struct_data[field.tostring()] = _fields[idx]
-    return return_value(W_Struct(_struct_type, struct_data), env, cont)
 
-def pred_proc(args, env, cont):
-    from pycket.interpreter import return_value
+    # FIXME: super
+    _super = None
+    if _struct_type.super() is not None:
+        _superargslength = len(_struct_type.super().fields())
+        _superargs = [_struct_type.super()] + _fields[:_superargslength]
+        _super = constr_proc(_superargs)
+        _fields = _fields[_superargslength:]
+
+    return W_Struct(_struct_type, _super, _fields)
+
+def pred_proc(args):
     _struct_type = args[0]
     _struct = args[1]
     result = W_Bool.make(False)
     if (isinstance(_struct, W_Struct) and _struct.type() == _struct_type):
         result = W_Bool.make(True)
-    return return_value(result, env, cont)
+    return result
 
-def acc_proc(args, env, cont):
-    from pycket.interpreter import return_value
-    _struct = args[0]
-    _field = args[1]
-    result = _struct.get_field_value(_field)
-    return return_value(result, env, cont)
+def acc_proc(args):
+    _struct_type = args[0]
+    _struct = args[1]
+    _field = args[2]
+    # FIXME: int(_field.tostring())
+    result = _struct.get_value(_struct_type, int(_field.tostring()))
+    return result
 
 # TODO:
-def mut_proc(args, env, cont):
-    from pycket.interpreter import return_value
+def mut_proc(args):
     result = None
-    return return_value(result, env, cont)
+    return result
 
 class W_Struct(W_Object):
-    _immutable_fields_ = ["_type", "_fields"]
-    def __init__(self, struct_type, fields):
+    _immutable_fields_ = ["_type", "_super", "_fields"]
+    def __init__(self, struct_type, super, fields):
         self._type = struct_type
+        self._super = super
         self._fields = fields
+
+    def __lookup__(self, struct, struct_type, field):
+        if struct.type() == struct_type:
+            return struct._fields[field]
+        else:
+            return struct.__lookup__(struct.super(), struct_type, field)
 
     def type(self):
         return self._type
 
-    def get_field_value(self, field):
-        return self._fields[field.tostring()]
+    def super(self):
+        return self._super
+
+    def get_value(self, struct_type, field):
+        return self.__lookup__(self, struct_type, field)

@@ -541,12 +541,11 @@ def do_void(args): return values.w_void
 def do_current_instpector(args):
     return None
 
-# TODO:
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
     from pycket.interpreter import return_multi_vals
-    struct_id, super_type, fields = args[0], args[1], args[8]
-    w_st = values.W_StructType.make(struct_id, super_type, fields)
+    struct_id, super_type, fields, constr_name = args[0], args[1], args[8], args[10]
+    w_st = values.W_StructType.make(struct_id, super_type, fields, constr_name)
     results = values.Values.make(w_st.make_struct_tuple())
     return return_multi_vals(results, env, cont)
 
