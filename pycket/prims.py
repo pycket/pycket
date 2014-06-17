@@ -382,10 +382,10 @@ def printf(args):
             os.write(1,fmt[i])
             i += 1
 
-@expose("equal?", [values.W_Object] * 2)
-def equalp(a, b):
-    # this doesn't work for cycles
-    return values.W_Bool.make(a.equal(b))
+#@expose("equal?", [values.W_Object] * 2)
+#def equalp(a, b):
+    ## this doesn't work for cycles
+    #return values.W_Bool.make(a.equal(b))
 
 @continuation
 def do_elem_equal_get_a(v1, v2, i, cont):
@@ -548,7 +548,7 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     if values.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
-        raise SchemeException("Expecting original value or chaperone")
+        raise SchemeException("Expecting original value or chaperone of ")
 
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
@@ -626,6 +626,16 @@ def chaperone_of(a, b):
 @expose("impersonator-of?", [values.W_Object, values.W_Object])
 def impersonator_of(a, b):
     return values.W_Bool.make(values.is_impersonator_of(a, b))
+
+@expose("impersonator?", [values.W_Object])
+def impersonator(x):
+    return values.W_Bool.make(isinstance(x, values.W_ImpVector) or
+                              isinstance(x, values.W_ImpProcedure))
+
+@expose("chaperone?", [values.W_Object])
+def impersonator(x):
+    return values.W_Bool.make(isinstance(x, values.W_ChpVector) or
+                              isinstance(x, values.W_ChpProcedure))
 
 @expose("vector")
 def vector(args):
