@@ -18,21 +18,21 @@ class TestStructs(object):
 
     def test_make_struct_type(self, source):
       """
-      (define-values (struct:p make-p p? p-ref p-set!) (make-struct-type 'p #f 3 0 #f null 'prefab #f '(0 1 2)))
+      (define-values (struct:p0 make-p0 p0? p0-ref p0-set!) (make-struct-type 'p0 #f 3 0 #f null 'prefab #f '(0 1 2)))
       (and 
-        (struct-type? struct:p) 
-        (struct-constructor-procedure? make-p) 
-        (struct-predicate-procedure? p?) 
-        (struct-accessor-procedure? p-ref) 
-        (struct-mutator-procedure? p-set!))
+        (struct-type? struct:p0) 
+        (struct-constructor-procedure? make-p0) 
+        (struct-predicate-procedure? p0?) 
+        (struct-accessor-procedure? p0-ref) 
+        (struct-mutator-procedure? p0-set!))
       """
       result = run_mod_expr(source, wrap=True)
       assert result == w_true
 
     def test_make_struct_field_accessor(self, source):
       """
-      (define-values (struct:p make-p p? p-ref p-set!) (make-struct-type 'p #f 3 0 #f null 'prefab #f '(0 1 2)))
-      (define accessor (make-struct-field-accessor p-ref 0))
+      (define-values (struct:p1 make-p1 p1? p1-ref p1-set!) (make-struct-type 'p1 #f 3 0 #f null 'prefab #f '(0 1 2)))
+      (define accessor (make-struct-field-accessor p1-ref 0))
       (procedure? accessor)
       """
       result = run_mod_expr(source, wrap=True)

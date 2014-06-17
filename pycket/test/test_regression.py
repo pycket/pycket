@@ -38,3 +38,7 @@ class TestRegressions(object):
         w_list = to_list([W_Fixnum(i) for i in range(10)])
         ret = run_mod_expr(source, wrap=True)
         assert ret.equal(w_list)
+
+    # FIXME: curiously, this does not always work in interpreter
+    def test_r_dict(self):
+        assert isinstance(variable_set(), r_dict)

@@ -533,7 +533,7 @@ class LexicalVar(Var):
     def _set(self, w_val, env):
         assert 0
     def assign_convert(self, vars, env_structure):
-       # assert isinstance(vars, r_dict)
+        # assert isinstance(vars, r_dict)
         if self in vars:
             return CellRef(self.sym, env_structure)
         else:
