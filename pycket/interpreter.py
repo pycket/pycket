@@ -65,7 +65,7 @@ class Version(object):
     pass
 
 class ToplevelEnv(Env):
-    _immutable_fields_ = ["version?", "module_env"]
+    _immutable_fields_ = ["version?", "module_env", "toplevel_env"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
@@ -562,7 +562,7 @@ class ModuleVar(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             return v
-        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe" or True:
+        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
             # we don't separate these the way racket does
             # but maybe we should
             try:

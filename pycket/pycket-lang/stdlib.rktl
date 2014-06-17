@@ -1,3 +1,7 @@
+
+(require (only-in '#%kernel chaperone-procedure))
+(require (only-in '#%kernel impersonate-procedure))
+
 (define (exists f l)
   (if (null? l) #f
       (or (f (car l))
