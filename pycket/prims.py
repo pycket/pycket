@@ -387,6 +387,14 @@ def equalp(a, b):
     # this doesn't work for cycles
     return values.W_Bool.make(a.equal(b))
 
+@continuation
+def do_elem_equal_get_a(v1, v2, i, cont):
+    pass
+
+@continuation
+def do_elem_equal_get_b(v1, v2, a, i, cont):
+    pass
+
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
     # this doesn't work for cycles
@@ -755,7 +763,7 @@ def unsafe_fleq(a, b):
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector):
+    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
@@ -769,7 +777,7 @@ def unsafe_vector_star_ref(v, i):
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector):
+    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
         return do_vec_set(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
