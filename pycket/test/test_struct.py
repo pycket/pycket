@@ -1,9 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-#
-# A place for testing primitives
-#
-
 from pycket.test.testhelper import *
 from pycket.values import *
 
@@ -47,6 +41,34 @@ class TestStructs(object):
              [x  (posn-x p)]
              [y  (posn-y p)])
       (and p? (= x 1) (= y 2)))
+      """
+      result = run_mod_expr(source, wrap=True)
+      assert result == w_true
+
+    def test_struct_copying_and_update(self, source):
+      """
+      (struct posn (x y))
+
+      (let* ([p1  (posn 1 2)]
+             [p2  (struct-copy posn p1 [x 3])]
+             [x1  (posn-x p1)]
+             [x2  (posn-x p2)]
+             [y2  (posn-y p2)])
+      (and (= x1 1) (= x2 3) (= y2 2)))
+      """
+      result = run_mod_expr(source, wrap=True)
+      assert result == w_true
+
+    def test_struct_subtypes(self, source):
+      """
+      (struct posn (x y))
+      (struct 3d-posn posn (z))
+
+      (let* ([p (3d-posn 1 2 3)]
+             [p?  (posn? p)]
+             [x  (posn-x p)]
+             [z  (3d-posn-z p)])
+      (and p? (= x 1) (= z 3)))
       """
       result = run_mod_expr(source, wrap=True)
       assert result == w_true

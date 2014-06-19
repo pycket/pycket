@@ -443,7 +443,8 @@ class W_StructType(W_Object):
     
     @staticmethod
     def make(struct_id, super_type, fields, constr_name):
-        assert struct_id not in W_StructType.all_structs
+        if struct_id in W_StructType.all_structs:
+            return W_StructType.lookup_struct_type(struct_id)
         W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields, constr_name)
         return w_result
 
@@ -466,7 +467,7 @@ class W_StructType(W_Object):
         self.w_mut = self.make_mutator_procedure()
 
     def tostring(self):
-        return "Struct<%s>" % self._id
+        return "StructType<%s>" % self._id
 
     def super(self):
         return self._super
@@ -507,8 +508,13 @@ def pred_proc(args):
     _struct_type = args[0]
     _struct = args[1]
     result = W_Bool.make(False)
-    if (isinstance(_struct, W_Struct) and _struct.type() == _struct_type):
-        result = W_Bool.make(True)
+    if (isinstance(_struct, W_Struct)):
+        while True:
+            if _struct.type() == _struct_type:
+                result = W_Bool.make(True)
+                break
+            if _struct.super() is None: break
+            else: _struct = _struct.super()
     return result
 
 def acc_proc(args):
@@ -536,6 +542,14 @@ class W_Struct(W_Object):
             return struct._fields[field]
         else:
             return struct.__lookup__(struct.super(), struct_type, field)
+
+    def tostring(self):
+        return "Struct<%s>" % self._type
+
+    def equal(self, other):
+        if not isinstance(other, W_Struct):
+            return False
+        return self._type == other.type()
 
     def type(self):
         return self._type

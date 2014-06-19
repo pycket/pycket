@@ -544,10 +544,11 @@ def do_current_instpector(args):
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
     from pycket.interpreter import return_multi_vals
-    struct_id, super_type, fields, constr_name = args[0], args[1], args[8], args[10]
+    # extend list to length 11
+    while len(args) < 11: args.append(None)
+    struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, props, insp, proc_spec, fields, guard, constr_name = args
     w_st = values.W_StructType.make(struct_id, super_type, fields, constr_name)
-    results = values.Values.make(w_st.make_struct_tuple())
-    return return_multi_vals(results, env, cont)
+    return return_multi_vals(values.Values.make(w_st.make_struct_tuple()), env, cont)
 
 def field_accessor(args, env, cont):
     _accessor = args[0]
