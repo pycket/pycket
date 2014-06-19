@@ -37,6 +37,7 @@ def variable_name(v):
     return v.value
 
 class ModuleEnv(object):
+    _immutable_fields_ = ["modules"]
     def __init__(self):
         self.modules = {}
         self.current_module = None
@@ -50,7 +51,7 @@ class ModuleEnv(object):
         assert isinstance(module, Module)
         self.modules[name] = module
 
-    # elidable
+    @jit.elidable
     def lookup(self, modvar):
         assert isinstance(modvar, ModuleVar)
         assert modvar.srcmod in self.modules
@@ -82,9 +83,6 @@ class ToplevelEnv(Env):
         if isinstance(w_res, values.W_Cell):
             w_res = w_res.value
         return w_res
-
-    def module_lookup(self, modvar):
-        return self.module_env.lookup(modvar)
 
     @jit.elidable
     def _lookup(self, sym, version):
@@ -540,18 +538,24 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
+    _immutable_fields_ = ["modenv"]
     def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
         self.srcsym = srcsym
         self.env_structure = env_structure
+        self.modenv = None
     def free_vars(self): return {}
+
     def _lookup(self, env):
-        modenv = env.toplevel_env.module_env
-        return self._elidable_lookup(modenv)
+        if self.modenv is None:
+            self.modenv = env.toplevel_env.module_env
+        return self._elidable_lookup()
 
     @jit.elidable
-    def _elidable_lookup(self, modenv):
+    def _elidable_lookup(self):
+        assert self.modenv
+        modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
             v = mod.defs[self.sym]
