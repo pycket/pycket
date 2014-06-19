@@ -749,7 +749,9 @@ def unsafe_vector_ref(v, i, env, cont):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v._ref(i.value), env, cont)
+        val = i.value
+        assert val >= 0
+        return return_value(v._ref(val), env, cont)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
 def unsafe_vector_star_ref(v, i):

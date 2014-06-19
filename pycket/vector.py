@@ -135,9 +135,11 @@ class UnwrappedVectorStrategyMixin(object):
         return l
 
     def _ref(self, w_vector, i):
+        assert i >= 0
         return self.wrap(self._storage(w_vector)[i])
 
     def _set(self, w_vector, i, w_val):
+        assert i >= 0
         self._storage(w_vector)[i] = self.unwrap(w_val)
 
     # def length(self, w_vector):
