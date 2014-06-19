@@ -24,6 +24,9 @@ def test_bubble():
 def test_bubble_unsafe():
     run_file("bubble-unsafe.rkt", ("10000", "100"))
 
+def test_bubble_unsafe2():
+    run_file("bubble-unsafe2.rkt", ("10000", "100"))
+
 #def test_pseudoknot():
 #    run_file("nucleic2.sch", ("(i 100)", "(i 1)"))
 

@@ -123,10 +123,29 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_bubble(self):
-        fname = "bubble.sch"
+        fname = "bubble.rkt"
         ast = parse_file(fname)
         def interp_w():
-            val = interpret([ast])
+            val = interpret_module(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+
+    def test_bubble_unsafe(self):
+        fname = "bubble-unsafe.rkt"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_module(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_bubble_unsafe2(self):
+        fname = "bubble-unsafe2.rkt"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_module(ast)
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
