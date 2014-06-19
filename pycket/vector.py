@@ -46,6 +46,13 @@ class W_Vector(W_MVector):
         return self.strategy.ref(self, i)
     def set(self, i, v):
         self.strategy.set(self, i, v)
+
+    # unsafe versions
+    def _ref(self, i):
+        return self.strategy._ref(self, i)
+    def _set(self, i, v):
+        self.strategy._set(self, i, v)
+
     def length(self):
         return self.len
     def tostring(self):

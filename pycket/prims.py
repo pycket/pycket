@@ -749,11 +749,11 @@ def unsafe_vector_ref(v, i, env, cont):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.ref(i.value), env, cont)
+        return return_value(v._ref(i.value), env, cont)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
 def unsafe_vector_star_ref(v, i):
-    return v.ref(i.value)
+    return v._ref(i.value)
 
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
@@ -763,12 +763,12 @@ def unsafe_vector_set(v, i, new, env, cont):
         return do_vec_set(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.set(i.value, new), env, cont)
+        return return_value(v._set(i.value, new), env, cont)
 
 @expose("unsafe-vector*-set!",
         [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_vector_star_set(v, i, new):
-    return v.set(i.value, new)
+    return v._set(i.value, new)
 
 @expose("unsafe-vector-length", [values.W_MVector])
 def unsafe_vector_length(v):
