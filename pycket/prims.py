@@ -539,6 +539,24 @@ def do_void(args): return values.w_void
 def num2str(a):
     return values.W_String(a.tostring())
 
+@expose("string->number", [values.W_String])
+def str2num(w_s):
+    from rpython.rlib import rarithmetic, rfloat, rbigint
+    from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+
+    s = w_s.value
+    try:
+        if "." in s:
+            return values.W_Flonum(rfloat.string_to_float(s))
+        else:
+            try:
+                return values.W_Fixnum(rarithmetic.string_to_int(
+                    s, base=0))
+            except ParseStringOverflowError:
+                return values.W_Bignum(rbigint.rbigint.fromstr(s))
+    except ParseStringError as e:
+        return values.w_false
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
@@ -731,11 +749,13 @@ def unsafe_vector_ref(v, i, env, cont):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.ref(i.value), env, cont)
+        val = i.value
+        assert val >= 0
+        return return_value(v._ref(val), env, cont)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
 def unsafe_vector_star_ref(v, i):
-    return v.ref(i.value)
+    return v._ref(i.value)
 
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
@@ -745,12 +765,12 @@ def unsafe_vector_set(v, i, new, env, cont):
         return do_vec_set(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.set(i.value, new), env, cont)
+        return return_value(v._set(i.value, new), env, cont)
 
 @expose("unsafe-vector*-set!",
         [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_vector_star_set(v, i, new):
-    return v.set(i.value, new)
+    return v._set(i.value, new)
 
 @expose("unsafe-vector-length", [values.W_MVector])
 def unsafe_vector_length(v):

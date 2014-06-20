@@ -30,8 +30,8 @@
       b
       (cons (car a) (append (cdr a) b))))
 
-(define ormap exists)
-(define andmap for-all)
+(define (ormap f l) (exists f l))
+(define (andmap f l) (for-all f l))
 
 (define (map f l)
   (if (null? l)
@@ -95,6 +95,13 @@
          (define x (car l))
          (if (eq? x s) l (memq s (cdr l)))]
         [else (error 'memq)]))
+
+(define (exact-nonnegative-integer? n)
+  (and (integer? n) (exact? n) (>= n 0)))
+
+(define true #t)
+(define false #f)
+
 ;; Local Variables:
 ;; mode: scheme
 ;; geiser-scheme-implementation: racket

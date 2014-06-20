@@ -23,20 +23,22 @@ def script_exprs(arg, content):
         exprs = content
     return exprs
 
+# Re-enable when we have a top-level
+#   -f <file>, --load <file> : Like -e '(load "<file>")'
+#   -r <file>, --script <file> : Same as -f <file> -N <file> -
+#  --mcons: Support mutable conses
+
 def print_help(argv):
     print """Welcome to Pycket.
 %s [<option> ...] <argument> ...
  File and expression options:
   -e <exprs>, --eval <exprs> : Evaluate <exprs>, prints results
-  -f <file>, --load <file> : Like -e '(load "<file>")'
   -t <file>, --require <file> : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
-  -r <file>, --script <file> : Same as -f <file> -N <file> --
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
-  --no-stdlib: Do not use Pycket's version of stdlib
-  --mcons: Support mutable conses
+  --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -50,8 +52,8 @@ _run = True
 _eval = False
 def parse_args(argv):
     config = {
-        'stdlib': True,
-        'mcons': False,
+        'stdlib': False,
+#        'mcons': False,
         'mode': _run,
     }
     names = {
@@ -78,6 +80,9 @@ def parse_args(argv):
         elif argv[i] == "--":
             i += 1
             break
+        elif argv[i] == "--stdlib":
+            config['stdlib'] = True
+            i += 1
         elif argv[i] == "-e":
             if to <= i + 1:
                 print "missing argument after -e"
@@ -87,16 +92,16 @@ def parse_args(argv):
             config['mode'] = _eval
             i += 1
             names['exprs'] = argv[i]
-        elif argv[i] in ["-f", "-r", "-u", "-t", "-l", "-p"]:
+        elif argv[i] in ["-u", "-t", "-l", "-p"]:
             arg = argv[i][1]
-            stop = arg in ["r", "u"]
+            stop = arg in ["u"]
 
             if to <= i + 1:
                 print "missing argument after -%s" % arg
                 retval = 5
                 break
-            if arg == "r":
-                suffix = "f"
+            # if arg == "r":
+            #     suffix = "f"
             elif arg == "u":
                 suffix = "t"
             else:
@@ -115,6 +120,9 @@ def parse_args(argv):
             names['file'] = argv[i]
             retval = 0
         i += 1
+
+    if config['stdlib'] and (config['mode'] is not _eval):
+        retval = -1
 
     if retval == -1:
         print_help(argv)
@@ -136,8 +144,9 @@ def _temporary_file():
             return os.tmpnam()
 
 def ensure_json_ast(config, names):
-    stdlib = config.get('stdlib', True)
-    mcons = config.get('mcons', False)
+    stdlib = config.get('stdlib', False)
+    # mcons = config.get('mcons', False)
+    # assert not mcons
 
     if config["mode"] is _eval:
         code = names['exprs']
@@ -146,14 +155,15 @@ def ensure_json_ast(config, names):
         else:
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
-        json_file = ensure_json_ast_eval(code, file_name, stdlib, mcons)
+        json_file = ensure_json_ast_eval(code, file_name, stdlib)
     elif config["mode"] is _run:
+        assert not stdlib
         assert 'file' in names
         file_name = names['file']
         if file_name.endswith('.json'):
             json_file = file_name
         else:
-            json_file = ensure_json_ast_run(file_name, stdlib, mcons)
+            json_file = ensure_json_ast_run(file_name)
     else:
         return None
     return json_file

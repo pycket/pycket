@@ -1,4 +1,4 @@
-#lang racket/base
+#lang pycket #:stdlib
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; File:         puzzle.sch
 ; Description:  PUZZLE benchmark

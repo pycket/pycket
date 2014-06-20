@@ -1,8 +1,9 @@
 #lang pycket
 ;; The Bubble sort benchmark from Strickland et al 2012
+;;(let ()
 (define SIZE 10000)
 
-(define vec (make-vector SIZE))
+(define vec (impersonate-vector (make-vector SIZE) (lambda (x y z) z) (lambda (x y z) z)))
 
 (define (bubble-sort vec)
   (define SIZE-1 (- SIZE 1))
@@ -28,3 +29,4 @@
 
 (time (bubble-sort vec))
 ;(bubble-sort vec)
+;)

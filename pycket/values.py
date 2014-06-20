@@ -273,6 +273,8 @@ class W_String(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        #return string_escape_encode(self.value, '"')
         return self.value
     def equal(self, other):
         if not isinstance(other, W_String):
@@ -396,6 +398,7 @@ class W_Closure(W_Procedure):
         self.lam = lam
         vals = []
         for v in lam.frees.elems:
+            assert isinstance(v, W_Symbol)
             if v is lam.recursive_sym:
                 vals.append(self)
             else:

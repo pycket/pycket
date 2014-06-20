@@ -17,24 +17,25 @@ from pycket.test.testhelper import parse_file
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
+from pycket.expand import expand, to_ast, expand_string, parse_module
 
 
 class TestLLtype(LLJitMixin):
 
-    def test_countdown(self):
-        ast = to_ast(expand("""
+    def test_countdown_x(self):
+        ast = parse_module(expand_string("""
+#lang pycket
 (letrec ([countdown (lambda (n) (if (< n 0) 1 (countdown (- n 1))))])
  (countdown 1000))
 """))
 
 
         def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
+            val = interpret_module(ast)
+            return val
 
-        assert interp_w() == 1
+        assert interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -58,6 +59,7 @@ class TestLLtype(LLJitMixin):
 
     def test_countdown_loop(self):
         ast = to_ast(expand("""
+#lang pycket
 (let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
 """))
 
@@ -73,7 +75,8 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_bistable_loop(self):
-        ast = to_ast(expand("""
+        ast = parse_module(expand_string("""
+#lang pycket
 (let ()
     (define (countdown n sub2?)
         (if (< n 0) 1
@@ -85,6 +88,22 @@ class TestLLtype(LLJitMixin):
 )
 """))
 
+
+        def interp_w():
+            val = interpret_module(ast)
+            return val
+
+        #     val = interpret_one(ast)
+        #     ov = check_one_val(val)
+        #     assert isinstance(ov, W_Fixnum)
+        #     return ov.value
+        # assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_setbang(self):
+
+        ast = to_ast(expand("(let ([n 1000]) (letrec ([countdown (lambda () (if (< n 0) 1 (begin (set! n (- n 1)) (countdown))))]) (countdown)))"))
 
         def interp_w():
             val = interpret_one(ast)
@@ -120,9 +139,10 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_setbang(self):
 
-        ast = to_ast(expand("(let ([n 1000]) (letrec ([countdown (lambda () (if (< n 0) 1 (begin (set! n (- n 1)) (countdown))))]) (countdown)))"))
+    def test_imp_vec(self):
+
+        ast = to_ast(expand("(let ([v (impersonate-vector (make-vector 1000 5) (lambda (x y z) z) (lambda (x y z) z))]) (let lp ([n 0] [i 0]) (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))"))
 
         def interp_w():
             val = interpret_one(ast)
@@ -130,7 +150,7 @@ class TestLLtype(LLJitMixin):
             assert isinstance(ov, W_Fixnum)
             return ov.value
 
-        assert interp_w() == 1
+        assert interp_w() == 5000
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -144,10 +164,29 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_bubble(self):
-        fname = "bubble.sch"
+        fname = "bubble.rkt"
         ast = parse_file(fname)
         def interp_w():
-            val = interpret([ast])
+            val = interpret_module(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+
+    def test_bubble_unsafe(self):
+        fname = "bubble-unsafe.rkt"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_module(ast)
+            return val
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_bubble_unsafe2(self):
+        fname = "bubble-unsafe2.rkt"
+        ast = parse_file(fname)
+        def interp_w():
+            val = interpret_module(ast)
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)

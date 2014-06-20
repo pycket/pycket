@@ -8,6 +8,11 @@ In order to do anything with Pycket, you need to check out PyPy:
 
 The below instructions assume that you do this checkout in this directory.
 
+You also need a reasonably recent version of Racket, at least version
+6.0. Then you need to set up the `pycket` language in Racket:
+
+    $ raco pkg install -t dir pycket/pycket-lang/
+
 Afterwards you can run the unit-tests as follows:
 
     $ pypy/pytest.py

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 import os
+import sys
 
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
@@ -29,14 +30,13 @@ def readfile_rpython(fname):
 
 #### ========================== Functions for expanding code to json
 
-fn = os.path.join(os.path.dirname(__file__), "expand_racket.rkt")
+fn = "-l pycket/expand --"
 
-def expand_string(s, wrap=False, stdlib=False):
+def expand_string(s):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s %s --stdin --stdout %s" % (
-        fn, "" if stdlib else "--no-stdlib", "" if wrap else "--no-wrap")
+    cmd = "racket %s --stdin --stdout " % (fn)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate(s)
     if len(data) == 0:
@@ -51,6 +51,7 @@ def expand_file(fname):
     from subprocess import Popen, PIPE
 
     cmd = "racket %s --stdout %s" % (fn, fname)
+    print cmd
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
@@ -60,12 +61,11 @@ def expand_file(fname):
     return data
 
 def expand(s, wrap=False, stdlib=False):
-    assert (not stdlib) or wrap
-    data = expand_string(s, wrap, stdlib)
+    data = expand_string(s)
     return pycket_json.loads(data)
 
 
-def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True):
+def expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -75,11 +75,8 @@ def expand_file_to_json(rkt_file, json_file, stdlib=True, mcons=False, wrap=True
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s%s--output %s %s" % (
+    cmd = "racket %s --output %s %s" % (
         fn,
-        "" if stdlib else "--no-stdlib ",
-        "--mcons" if mcons else "",
-        "" if wrap else "--no-wrap ",
         json_file, rkt_file)
     # print cmd
     pipe = create_popen_file(cmd, "r")
@@ -98,14 +95,12 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s %s%s%s--output %s --stdin" % (
+    cmd = "racket %s --output %s --stdin" % (
         fn,
-        "" if stdlib else "--no-stdlib ",
-        "--mcons" if mcons else "",
-        "" if wrap else "--no-wrap ",
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
+    pipe.write("#lang s-exp pycket%s"%(" #:stdlib" if stdlib else ""))
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
@@ -117,7 +112,7 @@ def needs_update(file_name, json_name):
     try:
         file_mtime = os.stat(file_name).st_mtime
         if os.access(json_name, os.F_OK):
-            if not file_mtime < os.stat(json_name).st_mtime:
+            if file_mtime < os.stat(json_name).st_mtime:
                 return False
     except OSError:
         pass
@@ -127,15 +122,15 @@ def needs_update(file_name, json_name):
 def _json_name(file_name):
     return file_name + '.json'
 
-def ensure_json_ast_run(file_name, stdlib=True, mcons=False, wrap=True):
+def ensure_json_ast_run(file_name):
     json = _json_name(file_name)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json, stdlib, mcons, wrap)
+        return expand_file_to_json(file_name, json)
     else:
         return json
 
-def ensure_json_ast_load(file_name, stdlib=True, wrap=False):
-    return ensure_json_ast_run(file_name, stdlib, wrap)
+def ensure_json_ast_load(file_name):
+    return ensure_json_ast_run(file_name)
 
 def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
     json = _json_name(file_name)
@@ -149,19 +144,24 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return parse_ast(data)
+    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
 
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
-    return parse_ast(data)
+    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
     return to_ast(json)
 
+def parse_module(json_string):
+    json = pycket_json.loads(json_string)
+    return _to_module(json).assign_convert(variable_set(), None)
+
+
 def to_ast(json):
     ast = _to_ast(json)
-    return ast.assign_convert({}, None)
+    return ast.assign_convert(variable_set(), None)
 
 
 #### ========================== Implementation functions
@@ -208,12 +208,20 @@ def mksym(json):
             return values.W_Symbol.make(j[i].value_string())
     assert 0, json.tostring()
 
+def _to_module(json):
+    v = json.value_object()
+    if "body-forms" in v:
+        return Module(v["module-name"].value_string(), 
+                      [_to_ast(x) for x in v["body-forms"].value_array()])
+    else:
+        assert 0
+
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array()
-        if "module" in arr[0].value_object():
-            ast_elem = arr[0].value_object()["module"].value_string()
+        if "module" in arr[0].value_object() and arr[0].value_object()["source-module"].value_string() == "#%kernel":
+            ast_elem = arr[0].value_object()["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
@@ -252,20 +260,25 @@ def _to_ast(json):
                     return make_let(list(vs), list(rhss), body).let_convert()
             if ast_elem == "set!":
                 target = arr[1].value_object()
+                var = None
+                if "module" in target:
+                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()), 
+                                     target["source-module"].value_string() 
+                                     if target["source-module"].is_string else
+                                     None,
+                                     values.W_Symbol.make(target["source-name"].value_string()))
                 if "lexical" in target:
-                    assert target["lexical"].is_string
-                    return SetBang(CellRef(values.W_Symbol.make(target["lexical"].value_string())), _to_ast(arr[2]))
+                    var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 if "toplevel" in target:
-                    assert target["toplevel"].is_string
-                    return SetBang(ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string())), _to_ast(arr[2]))
-                assert 0
+                    var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
+                return SetBang(var, _to_ast(arr[2]))
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 assert len(fmls) == 1
-                return Define(fmls[0], _to_ast(arr[2]))
+                return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
             if ast_elem == "begin0":
@@ -278,11 +291,18 @@ def _to_ast(json):
                 raise Exception("case-lambda is unsupported")
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
+            # FIXME: do the right thing here
+            if ast_elem == "#%require":
+                return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
         obj = json.value_object()
         if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()))
+            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
+                             obj["source-module"].value_string() 
+                             if obj["source-module"].is_string else
+                             None,
+                             values.W_Symbol.make(obj["source-name"].value_string()))
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
@@ -323,3 +343,7 @@ def to_value(json):
     if json.is_array:
         return values.to_list([to_value(j) for j in json.value_array()])
     assert 0, "Unexpected json value: %s" % json.tostring()
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        print parse_module(expand_file(sys.argv[1])).tostring()

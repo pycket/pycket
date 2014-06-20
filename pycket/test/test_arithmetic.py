@@ -79,3 +79,29 @@ def test_neg_pos():
     run_std("(positive?  1.0)", w_true)
     run_std("(positive?  -10000000000000000000000000001000000000000000000000000000)", w_false)
     run_std("(positive?   10000000000000000000000000001000000000000000000000000000)", w_true)
+
+def test_string_to_number(doctest):
+    """
+    ; not yet supported
+    ;> (string->number "3.0+2.5i")
+    ;3.0+2.5i
+    > (string->number "hello")
+    #f
+    ;> (string->number "111" 7)
+    ;57
+    ;> (string->number "#b111" 7)
+    ;7
+    > (string->number "13")
+    13
+    > (string->number "-13")
+    -13
+    > (string->number "-1.3")
+    -1.3
+    > (string->number "1.3")
+    1.3
+    > (string->number "-10000000000000000000000000001000000000000000000000000000")
+    -10000000000000000000000000001000000000000000000000000000
+    > (string->number "10000000000000000000000000001000000000000000000000000000")
+    10000000000000000000000000001000000000000000000000000000
+    """
+    assert doctest

@@ -4,13 +4,11 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
 
 
 def test_constant():
-    prog = "1"
-    val = interpret_one(to_ast(expand(prog)))
-    ov = check_one_val(val)
+    ov = run("1")
     assert isinstance(ov, W_Fixnum)
     assert ov.value == 1
 
@@ -134,10 +132,11 @@ def test_cons():
 def test_set_mcar_car():
     run_fix ("(letrec ([x (mcons 1 2)]) (set-mcar! x 3) (mcar x))", 3)
     run_fix ("(letrec ([x (mcons 1 2)]) (set-mcdr! x 3) (mcdr x))", 3)
-    with pytest.raises(SchemeException):
-        run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
-    with pytest.raises(SchemeException):
-        run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
+    # These raise static errors now
+    # with pytest.raises(SchemeException):
+    #     run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
+    # with pytest.raises(SchemeException):
+    #     run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
 
 def test_set_bang():
     run("((lambda (x) (set! x #t) x) 1)", w_true)
@@ -150,8 +149,8 @@ def test_bools():
     run ("#f", w_false)
     run ("#false", w_false)
     run ("#F", w_false)
-    run ("true", w_true)
-    run ("false", w_false)
+    run ("true", w_true, stdlib=True)
+    run ("false", w_false, stdlib=True)
 
 def test_lists():
     run ("null", w_null)
@@ -198,12 +197,10 @@ def test_callcc():
 def test_values():
     run_fix("(values 1)", 1)
     run_fix("(let () (values 1 2) (values 3))", 3)
-    v = execute("(values #t #f)")
-    prog = """
-(let () (call/cc (lambda (k) (k 1 2))) 3)
-"""
+    prog = "(let () (call/cc (lambda (k) (k 1 2))) 3)"
     run_fix(prog, 3)
-    assert [w_true, w_false] == v._get_full_list()
+    v = run_values("(values #t #f)")
+    assert [w_true, w_false] == v
     run_fix("(call-with-values (lambda () (values 1 2)) (lambda (a b) (+ a b)))", 3)
     run_fix("(call-with-values (lambda () (values 1 2)) +)", 3)
     run_fix("(call-with-values (lambda () (values)) (lambda () 0))", 0)
