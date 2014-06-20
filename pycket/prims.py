@@ -572,7 +572,8 @@ def imp_vec_ref_cont(f, i, v, env, cont, vals):
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
-        return return_value(v.ref(i.value), env, cont)
+        # we can use _ref here because we already checked the precondition
+        return return_value(v._ref(i.value), env, cont)
     elif isinstance(v, values.W_ImpVector):
         uv = v.vec
         f = v.refh
@@ -596,7 +597,8 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 def do_vec_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
-        v.set(i.value, new)
+        # we can use _set here because we already checked the precondition
+        v._set(i.value, new)
         return return_value(values.w_void, env, cont)
     elif isinstance(v, values.W_ImpVector):
         uv = v.vec
