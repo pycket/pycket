@@ -302,6 +302,29 @@ def substring(args):
             "substring: ending index is smaller than starting index")
     return values.W_String(string[start:end])
 
+@expose("string-ref", [values.W_String, values.W_Fixnum])
+def string_ref(s, n):
+    idx = n.value
+    st  = s.value
+    if idx < 0 or idx >= len(st):
+        raise SchemeException("string-ref: index out of range")
+    return values.W_Character(st[idx])
+
+@expose("string=?", [values.W_String, values.W_String])
+def string_equal(s1, s2):
+    v1 = s1.value
+    v2 = s2.value
+    if len(v1) != len(v2):
+        return values.w_false
+    for i in range(len(v1)):
+        if v1[i] != v2[i]:
+            return values.w_false
+    return values.w_true
+
+@expose("string->list", [values.W_String])
+def string_to_list(s):
+    return values.to_list([values.W_Character(i) for i in s.value])
+
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals
