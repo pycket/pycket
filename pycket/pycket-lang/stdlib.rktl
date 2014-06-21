@@ -18,6 +18,7 @@
      (if (= (vector-length l) (vector-length r))
        (or (eq? l r) (vec-loop l r 0 (vector-length l)))
        #f)]
+    [(and (string? l) (string? r)) (string=? l r)]
     [else (eqv? l r)]))
 
 (define (exists f l)
