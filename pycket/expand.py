@@ -216,6 +216,34 @@ def _to_module(json):
     else:
         assert 0
 
+# Handles the "raw-require-spec"
+# Documentation can be found here
+# http://docs.racket-lang.org/reference/require.html#%28form._%28%28quote._~23~25kernel%29._~23~25require%29%29
+# The functions here correpsond to the grammar given at the above link.
+def _raw_require_spec(json):
+    if json.is_array:
+        return Quote(values.w_void)
+    return _phaseless_spec(json)
+
+def _phaseless_spec(json):
+    if json.is_array:
+        return Quote(values.w_void)
+    return _raw_module_path(json)
+
+def _raw_module_path(json):
+    if json.is_array:
+        return Quote(values.w_void)
+    return _raw_root_module_path(json)
+
+def _raw_root_module_path(json):
+    if json.is_array:
+        return Quote(values.w_void)
+    fname  = json.value_object()["string"].value_string()
+    module = _expand_and_load(fname)
+    return Require(os.path.abspath(fname), module)
+
+def _expand_and_load(fname):
+    return load_json_ast(ensure_json_ast_run(fname))
 
 def _to_ast(json):
     dbgprint("_to_ast", json)
@@ -293,13 +321,8 @@ def _to_ast(json):
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
             # FIXME: do the right thing here
-            if ast_elem == "#%require" and len(arr) == 2:
-                fname = arr[-1].value_object()["string"].value_string()
-                json = ensure_json_ast_run(fname)
-                mod = load_json_ast_rpython(json)
-                return Require(os.path.abspath(fname), mod)
             if ast_elem == "#%require":
-                return Quote(values.w_void)
+                return Begin([_raw_require_spec(i) for i in arr[1:]])
             if ast_elem == "#%provide":
                 return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
