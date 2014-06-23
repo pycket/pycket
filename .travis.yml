@@ -6,8 +6,6 @@ notifications:
   irc: 
     channels:
       - "chat.freenode.net#pycket"
-    use_notice: true
-    skip_join: true
 env:
   matrix:
     - TEST_TYPE=tests
@@ -29,10 +27,10 @@ script:
          ../pypy/pytest.py
          ;;
       translate)
-        python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
+        make translate-jit
         ;;
       translate-nojit)
-        python ../pypy/rpython/bin/rpython --batch targetpycket.py
+        make translate-nojit
         ;;
     esac"
 
