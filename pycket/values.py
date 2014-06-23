@@ -442,10 +442,11 @@ class W_StructType(W_Object):
     _immutable_fields_ = ["_id", "_super", "_fields[:]"]
     
     @staticmethod
-    def make(struct_id, super_type, fields, constr_name):
+    def make(struct_id, super_type, inspector, fields, constr_name):
         if struct_id in W_StructType.all_structs:
+            # TODO: raise exception (module: duplicate definition for identifier in: struct:XXX)
             return W_StructType.lookup_struct_type(struct_id)
-        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, fields, constr_name)
+        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, inspector, fields, constr_name)
         return w_result
 
     @staticmethod
@@ -456,11 +457,18 @@ class W_StructType(W_Object):
             # TODO: raise exception (find how it is implemented in Racket)
             return w_false
     
-    def __init__(self, struct_id, super_type, fields, constr_name):
+    def __init__(self, struct_id, super_type, inspector, fields, constr_name):
         self._id = struct_id
         self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else None
+        # import pdb; pdb.set_trace()
+        self._inspector = inspector
         self._fields = from_list(fields)
         self._constr_name = constr_name.tostring() if isinstance(constr_name, W_Symbol) else "make-" + self._id.tostring()
+
+        # TODO:
+        # Structure types are opaque by default
+        self._opaque = True if inspector != w_false else False
+
         self.w_constr = self.make_constructor_procedure()
         self.w_pred = self.make_predicate_procedure()
         self.w_acc = self.make_accessor_procedure()
@@ -468,6 +476,12 @@ class W_StructType(W_Object):
 
     def tostring(self):
         return "StructType<%s>" % self._id
+
+    def id(self):
+        return self._id
+
+    def isOpaque(self):
+        return self._opaque
 
     def super(self):
         return self._super
@@ -543,19 +557,33 @@ class W_Struct(W_Object):
         else:
             return struct.__lookup__(struct.super(), struct_type, field)
 
+    def __vals__(self, struct):
+        result = [field.tostring() for field in struct.fields()]
+        if struct.super() is not None: return vals(struct.super()) + result
+        else: return result
+
+    # TODO: racket replaces superclass fields with dots. Do the same?
     def tostring(self):
-        return "Struct<%s>" % self._type
+        if self._type.isOpaque(): result =  "#<%s>" % self._type.id()
+        else: result = "(%s %s)" % (self._type.id(), ' '.join(self.__vals__(self)))
+        return result
 
     def equal(self, other):
         if not isinstance(other, W_Struct):
-            return False
-        return self._type == other.type()
+            result = False
+        else:
+            if self._type.isOpaque(): result = self == other
+            else: result = self._type == other.type() and self.__vals__(self) == self.__vals__(other)
+        return result
 
     def type(self):
         return self._type
 
     def super(self):
         return self._super
+
+    def fields(self):
+        return self._fields
 
     def get_value(self, struct_type, field):
         return self.__lookup__(self, struct_type, field)

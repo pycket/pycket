@@ -446,6 +446,10 @@ def eqp(a, b):
     else:
         return values.w_false
 
+@expose("not", [values.W_Object])
+def notp(a):
+    return values.W_Bool.make(not a.value)
+
 @expose("length", [values.W_List])
 def length(a):
     n = 0
@@ -547,7 +551,7 @@ def do_make_struct_type(args, env, cont):
     # extend list to length 11
     while len(args) < 11: args.append(None)
     struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, props, insp, proc_spec, fields, guard, constr_name = args
-    w_st = values.W_StructType.make(struct_id, super_type, fields, constr_name)
+    w_st = values.W_StructType.make(struct_id, super_type, insp, fields, constr_name)
     return return_multi_vals(values.Values.make(w_st.make_struct_tuple()), env, cont)
 
 def field_accessor(args, env, cont):
