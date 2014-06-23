@@ -216,30 +216,22 @@ def _to_module(json):
     else:
         assert 0
 
-# Handles the "raw-require-spec"
-# Documentation can be found here
-# http://docs.racket-lang.org/reference/require.html#%28form._%28%28quote._~23~25kernel%29._~23~25require%29%29
-# The functions here correpsond to the grammar given at the above link.
-def _raw_require_spec(json):
+# FIXME: This is potentially rather fragile
+def get_required_filename(json):
+    if json.is_object:
+        obj = json.value_object()
+        if "toplevel" in obj:
+            return json.value_object()['toplevel'].value_string()
+        return json.value_object()['string'].value_string()
     if json.is_array:
-        return Quote(values.w_void)
-    return _phaseless_spec(json)
+        return get_required_filename(json.value_array()[-1])
+    raise Exception("Unable to extract filepath from #%require specification")
 
-def _phaseless_spec(json):
-    if json.is_array:
+def _to_require(json):
+    fname = get_required_filename(json)
+    if fname == "#%kernel":
         return Quote(values.w_void)
-    return _raw_module_path(json)
-
-def _raw_module_path(json):
-    if json.is_array:
-        return Quote(values.w_void)
-    return _raw_root_module_path(json)
-
-def _raw_root_module_path(json):
-    if json.is_array:
-        return Quote(values.w_void)
-    fname  = json.value_object()["string"].value_string()
-    module = _expand_and_load(fname)
+    module  = _expand_and_load(fname)
     return Require(os.path.abspath(fname), module)
 
 def _expand_and_load(fname):
@@ -322,7 +314,7 @@ def _to_ast(json):
                 return Quote(values.w_void)
             # FIXME: do the right thing here
             if ast_elem == "#%require":
-                return Begin([_raw_require_spec(i) for i in arr[1:]])
+                return _to_require(json)
             if ast_elem == "#%provide":
                 return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()

@@ -326,8 +326,6 @@ class Module(AST):
                 continue
         env.module_env.current_module = None
 
-# TODO: Add additional options to the require statement for more selective
-# require operations.
 class Require(AST):
     _immutable_fields_ = ["modname", "module"]
     simple = True
