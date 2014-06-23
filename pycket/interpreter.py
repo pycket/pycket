@@ -52,13 +52,15 @@ class ModuleEnv(object):
 
     # elidable
     def lookup(self, modvar):
+        #print modvar.srcmod, modvar.srcsym
+        #print self.modules
         assert isinstance(modvar, ModuleVar)
         assert modvar.srcmod in self.modules
         module = self.modules[modvar.srcmod]
         return module.lookup(modvar.srcsym)
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env"]
+    _immutable_fields_ = ["toplevel_env", "module_env"]
     pass
 
 class Version(object):
@@ -278,8 +280,8 @@ class Module(AST):
 
     @jit.elidable
     def lookup(self, sym):
-        assert (sym in defs)
-        v = defs[sym]
+        assert (sym in self.defs)
+        v = self.defs[sym]
         if not v:
             raise SchemeException("use of module variable before definition %s" % (sym))
         return v
@@ -323,6 +325,30 @@ class Module(AST):
                 vs = interpret_one(f, self.env)
                 continue
         env.module_env.current_module = None
+
+# TODO: Add additional options to the require statement for more selective
+# require operations.
+class Require(AST):
+    _immutable_fields_ = ["modname", "module"]
+    simple = True
+
+    def __init__(self, modname, module):
+        self.modname = modname
+        self.module  = module
+
+    def mutated_vars(self):
+        return variable_set()
+    def free_vars(self):
+        return {}
+
+    def assign_convert(self, vars, env_structure):
+        return self
+
+    # Interpret the module and add it to the module environment
+    def interpret_simple(self, env):
+        mod = interpret_module(self.module)
+        env.toplevel_env.module_env.add_module(self.modname, mod)
+        return values.w_void
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)

@@ -216,6 +216,7 @@ def _to_module(json):
     else:
         assert 0
 
+
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
@@ -292,7 +293,14 @@ def _to_ast(json):
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
             # FIXME: do the right thing here
+            if ast_elem == "#%require" and len(arr) == 2:
+                fname = arr[-1].value_object()["string"].value_string()
+                json = ensure_json_ast_run(fname)
+                mod = load_json_ast_rpython(json)
+                return Require(os.path.abspath(fname), mod)
             if ast_elem == "#%require":
+                return Quote(values.w_void)
+            if ast_elem == "#%provide":
                 return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
