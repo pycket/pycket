@@ -9,7 +9,7 @@
     (if (eqv? n stop) #t
       (let ([lv (vector-ref l n)]
             [rv (vector-ref r n)])
-        (and (equal? lv rv) (elem-equal l r (+ n 1) stop)))))
+        (and (equal? lv rv) (vec-loop l r (+ n 1) stop)))))
   (cond
     [(or (impersonator-of? l r) (impersonator-of? r l)) #t]
     [(and (pair? l) (pair? r))
