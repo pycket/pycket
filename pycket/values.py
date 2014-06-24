@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pycket.cont import continuation, call_cont
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
@@ -23,7 +24,6 @@ class Values(object):
         pass
 
 inline_small_list(Values, immutable=True, attrname="vals")
-
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -61,6 +61,7 @@ class W_MVector(W_Object):
 class W_ImpVector(W_MVector):
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
+        assert isinstance(v, W_MVector)
         self.vec = v
         self.refh = r
         self.seth = s
@@ -79,11 +80,33 @@ class W_ImpVector(W_MVector):
             return False
         for i in range(self.length()):
             # FIXME: we need to call user code here
-            # if not self.ref(i).equal(other.ref(i)):
-            #    return False
-            return False
+            if not self.vec.ref(i).equal(other.ref(i)):
+               return False
+            #return False
         return True
 
+class W_ChpVector(W_MVector):
+    _immutable_fields_ = ["vec", "refh", "seth"]
+    def __init__(self, v, r, s):
+        assert isinstance(v, W_MVector)
+        self.vec  = v
+        self.refh = r
+        self.seth = s
+
+    def length(self):
+        return self.vec.length()
+
+    def equal(self, other):
+        if not isinstance(other, W_MVector):
+            return False
+        if self is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            if not self.vec.ref(i).equal(other.ref(i)):
+                return False
+        return True
 
 class W_List(W_Object):
     errorname = "list"
@@ -328,6 +351,121 @@ class W_Procedure(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+def is_impersonator_of(a, b):
+    if a is b:
+        return True
+    if isinstance(a, W_ImpVector):
+        return is_impersonator_of(a.vec, b)
+    if isinstance(a, W_ImpProcedure):
+        return is_impersonator_of(a.code, b)
+    return is_chaperone_of(a, b)
+
+# Check that one value is a chaperone of the other
+def is_chaperone_of(a, b):
+    if a is b:
+        return True
+    if isinstance(a, W_ChpVector):
+        return is_chaperone_of(a.vec, b)
+    if isinstance(a, W_ChpProcedure):
+        return is_chaperone_of(a.code, b)
+    return False
+
+# Continuation used when calling an impersonator of a procedure.
+@continuation
+def imp_proc_cont(arg_count, proc, env, cont, _vals):
+    vals = _vals._get_full_list()
+    if len(vals) == arg_count:
+        return proc.call(vals, env, cont)
+    elif len(vals) == arg_count + 1:
+        args, check = vals[:-1], vals[-1]
+        return proc.call(args, env, call_cont(check, env, cont))
+    else:
+        assert False
+
+#def chp_proc_cont(args, proc, env, cont, _vals):
+    #vals = _vals._get_full_list()
+
+class W_ImpProcedure(W_Procedure):
+    _immutable_fields_ = ["code", "check"]
+    def __init__(self, code, check):
+        assert isinstance(code, W_Procedure)
+        assert isinstance(check, W_Procedure)
+        self.code  = code
+        self.check = check
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return self.check.call(
+                args, env, imp_proc_cont(len(args), self.code, env, cont))
+
+    def equal(self, other):
+        if not isinstance(other, W_Procedure):
+            return False
+        # We are the same procedure if we have the same identity or
+        # our underlying procedure is equal to our partner.
+        return self is other or other.equal(self.code)
+
+    def tostring(self):
+        return "ImpProcedure<%s>" % self.code.tostring()
+
+# Check that the results of che call to check are all chaperones of
+# the original function outputs.
+@continuation
+def chp_proc_ret_cont(orig, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    vals = _vals._get_full_list()
+    assert len(vals) == len(orig)
+    for i in range(len(vals)):
+        if not is_chaperone_of(vals[i], orig[i]):
+            raise SchemeException("Expecting original value or chaperone")
+    return return_multi_vals(_vals, env, cont)
+
+# Capture the original output of the function to compare agains the result of
+# the check operation
+@continuation
+def chp_proc_call_check_cont(check, env, cont, _vals):
+    vals = _vals._get_full_list()
+    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
+
+# Continuation used when calling a chaperone of a procedure.
+@continuation
+def chp_proc_cont(args, proc, env, cont, _vals):
+    vals = _vals._get_full_list()
+    assert len(vals) >= len(args)
+    for i in range(len(args)):
+        if not is_chaperone_of(vals[i], args[i]):
+            raise SchemeException("Expecting original value or chaperone")
+    if len(vals) == len(args):
+        return proc.call(vals, env, cont)
+    elif len(vals) == len(args) + 1:
+        args, check = vals[:-1], vals[-1]
+        return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
+    else:
+        assert False
+
+class W_ChpProcedure(W_Procedure):
+    _immutable_fields_ = ["code", "check"]
+    def __init__(self, code, check):
+        assert isinstance(code, W_Procedure)
+        assert isinstance(check, W_Procedure)
+        self.code  = code
+        self.check = check
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return self.check.call(
+                args, env, chp_proc_cont(args, self.code, env, cont))
+        #return self.code.call(args, env, cont)
+
+    def equal(self, other):
+        if not isinstance(other, W_Procedure):
+            return False
+
+        return self is other or other.equal(self.code)
+
+    def tostring(self):
+        return "ChpProcedure<%s>" % self.code.tostring()
+
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code"]
     def __init__ (self, name, code):
@@ -337,7 +475,6 @@ class W_SimplePrim(W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         jit.promote(self)
-        #print self.name
         return return_value(self.code(args), env, cont)
 
     def tostring(self):

@@ -14,7 +14,7 @@ def make_symbols(d):
 
 def expr_ast(s):
     m = parse_module(expand_string(format_pycket_mod(s, extra="(define x 0)")))
-    return m.body[1]
+    return m.body[-1]
 
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")

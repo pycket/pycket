@@ -1,3 +1,26 @@
+
+(require (only-in '#%kernel chaperone-procedure))
+(require (only-in '#%kernel impersonate-procedure))
+
+;; This function is easier to write out here than in the interpreter
+;; where it must be in CPSed Python form.
+(define (equal? l r)
+  (define (vec-loop l r n stop)
+    (if (eqv? n stop) #t
+      (let ([lv (vector-ref l n)]
+            [rv (vector-ref r n)])
+        (and (equal? lv rv) (vec-loop l r (+ n 1) stop)))))
+  (cond
+    [(or (impersonator-of? l r) (impersonator-of? r l)) #t]
+    [(and (pair? l) (pair? r))
+     (and (equal? (car l) (car r)) (equal? (cdr l) (cdr r)))]
+    [(and (vector? l) (vector? r))
+     (if (= (vector-length l) (vector-length r))
+       (or (eq? l r) (vec-loop l r 0 (vector-length l)))
+       #f)]
+    [(and (string? l) (string? r)) (string=? l r)]
+    [else (eqv? l r)]))
+
 (define (exists f l)
   (if (null? l) #f
       (or (f (car l))

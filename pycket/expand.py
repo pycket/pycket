@@ -216,6 +216,32 @@ def _to_module(json):
     else:
         assert 0
 
+# FIXME: This is potentially rather fragile
+def get_required_filename(json):
+    if json.is_object:
+        obj = json.value_object()
+        for v in ["toplevel", "string"]:
+            if v in obj:
+                return obj[v].value_string()
+    elif json.is_array:
+        return get_required_filename(json.value_array()[-1])
+    raise Exception("Unable to extract filepath from #%require specification")
+
+def _to_require(json):
+    fname = get_required_filename(json)
+    if fname in ["#%kernel", "racket/unsafe/ops"]:
+        return Quote(values.w_void)
+    # Perhaps it would be easier to ignore things that
+    # are not actually files rather than black listing
+    # a bunch of common ones.
+    #elif not os.access(fname, os.R_OK):
+        #return Quote(values.w_void)
+    module  = _expand_and_load(fname)
+    return Require(os.path.abspath(fname), module)
+
+def _expand_and_load(fname):
+    return load_json_ast(ensure_json_ast_run(fname))
+
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
@@ -293,6 +319,8 @@ def _to_ast(json):
                 return Quote(values.w_void)
             # FIXME: do the right thing here
             if ast_elem == "#%require":
+                return _to_require(json)
+            if ast_elem == "#%provide":
                 return Quote(values.w_void)
         assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
     if json.is_object:
