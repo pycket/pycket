@@ -298,6 +298,7 @@ def _to_ast(json):
     if json.is_object:
         obj = json.value_object()
         if "module" in obj:
+            # FIXME: obj["source-module"].value_string() is /Applications/Racket/collects/racket/private/generic-interfaces.rkt
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 
                              if obj["source-module"].is_string else

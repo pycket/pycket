@@ -448,7 +448,10 @@ def eqp(a, b):
 
 @expose("not", [values.W_Object])
 def notp(a):
-    return values.W_Bool.make(not a.value)
+    if isinstance(a, values.W_Bool):
+        return values.W_Bool.make(not a.value)
+    else:
+        return values.w_false
 
 @expose("length", [values.W_List])
 def length(a):
@@ -548,23 +551,20 @@ def do_current_instpector(args):
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
     from pycket.interpreter import return_multi_vals
-    # extend list to length 11
-    while len(args) < 11: args.append(None)
-    struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, props, insp, proc_spec, fields, guard, constr_name = args
-    w_st = values.W_StructType.make(struct_id, super_type, insp, fields, constr_name)
-    return return_multi_vals(values.Values.make(w_st.make_struct_tuple()), env, cont)
+    struct_type = values.W_StructType.make(args)
+    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
 def field_accessor(args, env, cont):
-    _accessor = args[0]
-    _field = args[1]
-    _struct = args[3]
-    return _accessor.call([_struct, _field], env, cont)
+    accessor = args[0]
+    field = args[1]
+    struct = args[3]
+    return accessor.call([struct, field], env, cont)
 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
-    _accessor = args[0]
-    _field = args[1]
-    return values.W_Prim(_accessor.tostring() + _field.tostring(), field_accessor, args)
+    accessor = args[0]
+    field = args[1]
+    return values.W_Prim(accessor.tostring() + field.tostring(), field_accessor, args)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
