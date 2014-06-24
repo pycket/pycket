@@ -543,10 +543,9 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
-# TODO: 
 @expose("current-inspector")
 def do_current_instpector(args):
-    return None
+    return values.w_void
 
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
@@ -565,6 +564,21 @@ def do_make_struct_field_accessor(args):
     accessor = args[0]
     field = args[1]
     return values.W_Prim(accessor.tostring() + field.tostring(), field_accessor, args)
+
+def field_mutator(args, env, cont):
+    mutator = args[0]
+    field = args[1]
+    struct = args[3]
+    val = args[4]
+    return mutator.call([struct, field, val], env, cont)
+
+@expose("make-struct-field-mutator")
+def do_make_struct_field_mutator(args):
+    # TODO: mark call of this function.
+    # It means that the structure or some structure fields are mutable
+    accessor = args[0]
+    field = args[1]
+    return values.W_Prim(accessor.tostring() + field.tostring(), field_mutator, args)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

@@ -1,6 +1,7 @@
 from pycket.test.testhelper import *
 from pycket.values import *
 import pytest
+
 skip = pytest.mark.skipif("True")
 
 @skip
@@ -85,6 +86,19 @@ def test_struct_comparison(source):
            [lead_test1 (equal? slab slab)]
            [lead_test2 (equal? slab (lead 1 2))])
     (and glass_test lead_test1 (not lead_test2)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+def test_struct_mutation(source):
+    """
+    (struct dot (x y) #:mutable)
+
+    (let* ([d (dot 1 2)]
+           [dx0 (dot-x d)]
+           [m (set-dot-x! d 10)]
+           [dx1 (dot-x d)])
+    (and (= dx0 1) (= dx1 10)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true

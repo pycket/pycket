@@ -487,7 +487,7 @@ class W_StructType(W_Object):
     def id(self):
         return self._id
 
-    def isOpaque(self):
+    def isopaque(self):
         return self._opaque
 
     def super(self):
@@ -506,50 +506,51 @@ class W_StructType(W_Object):
         return W_SimplePrim(self._id.tostring() + "-ref", acc_proc, [self])
 
     def make_mutator_procedure(self):
-        return W_SimplePrim(self._id.tostring() + "-set!", mut_proc)
+        return W_SimplePrim(self._id.tostring() + "-set!", mut_proc, [self])
 
     def make_struct_tuple(self):
         return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
 
 def constr_proc(args):
-    _struct_type = args[0]
-    _fields = args[1:]
+    struct_type = args[0]
+    fields = args[1:]
 
     # FIXME: ugly code
-    _super = None
-    if _struct_type.super() is not None:
-        _superargslength = len(_struct_type.super().fields())
-        _superargs = [_struct_type.super()] + _fields[:_superargslength]
-        _super = constr_proc(_superargs)
-        _fields = _fields[_superargslength:]
+    super_instance = None
+    if struct_type.super() is not None:
+        superargslength = len(struct_type.super().fields())
+        superargs = [struct_type.super()] + fields[:superargslength]
+        super_instance = constr_proc(superargs)
+        fields = fields[superargslength:]
 
-    return W_Struct(_struct_type, _super, _fields)
+    return W_Struct(struct_type, super_instance, fields)
 
 def pred_proc(args):
-    _struct_type = args[0]
-    _struct = args[1]
+    struct_type = args[0]
+    struct = args[1]
     result = W_Bool.make(False)
-    if (isinstance(_struct, W_Struct)):
+    if (isinstance(struct, W_Struct)):
         while True:
-            if _struct.type() == _struct_type:
+            if struct.type() == struct_type:
                 result = W_Bool.make(True)
                 break
-            if _struct.super() is None: break
-            else: _struct = _struct.super()
+            if struct.super() is None: break
+            else: struct = struct.super()
     return result
 
 def acc_proc(args):
-    _struct_type = args[0]
-    _struct = args[1]
-    _field = args[2]
-    # FIXME: is int(_field.tostring()) safe?
-    result = _struct.get_value(_struct_type, int(_field.tostring()))
+    struct_type = args[0]
+    struct = args[1]
+    field = args[2]
+    result = struct.get_value(struct_type, int(field.tostring()))
     return result
 
-# TODO:
 def mut_proc(args):
-    result = None
-    return result
+    struct_type = args[0]
+    struct = args[1]
+    field = args[2]
+    val = args[3]
+    struct.set_value(struct_type, int(field.tostring()), val)
 
 class W_Struct(W_Object):
     _immutable_fields_ = ["_type", "_super", "_fields"]
@@ -564,6 +565,12 @@ class W_Struct(W_Object):
         else:
             return struct.__lookup__(struct.super(), struct_type, field)
 
+    def __save__(self, struct, struct_type, field, val):
+        if struct.type() == struct_type:
+            struct._fields[field] = val
+        else:
+            struct.__save__(struct.super(), struct_type, field, val)
+
     def __vals__(self, struct):
         result = [field.tostring() for field in struct.fields()]
         if struct.super() is not None: return self.__vals__(struct.super()) + result
@@ -571,7 +578,7 @@ class W_Struct(W_Object):
 
     # FIXME: racket replaces superclass fields with dots, do same?
     def tostring(self):
-        if self._type.isOpaque(): result =  "#<%s>" % self._type.id()
+        if self._type.isopaque(): result =  "#<%s>" % self._type.id()
         else: result = "(%s %s)" % (self._type.id(), ' '.join(self.__vals__(self)))
         return result
 
@@ -579,7 +586,7 @@ class W_Struct(W_Object):
         if not isinstance(other, W_Struct):
             result = False
         else:
-            if self._type.isOpaque(): result = self == other
+            if self._type.isopaque(): result = self == other
             else: result = self._type == other.type() and self.__vals__(self) == self.__vals__(other)
         return result
 
@@ -594,3 +601,6 @@ class W_Struct(W_Object):
 
     def get_value(self, struct_type, field):
         return self.__lookup__(self, struct_type, field)
+
+    def set_value(self, struct_type, field, val):
+        self.__save__(self, struct_type, field, val)
