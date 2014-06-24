@@ -1,7 +1,9 @@
 #lang pycket #:stdlib
 
-(define my-len 1000000)
-(define max-val 100)
+(provide check my-len max-val)
+
+(define my-len 10)
+(define max-val 10)
 
 (define check
   (lambda (v)
