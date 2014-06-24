@@ -229,8 +229,13 @@ def get_required_filename(json):
 
 def _to_require(json):
     fname = get_required_filename(json)
-    if fname == "#%kernel":
+    if fname in ["#%kernel", "racket/unsafe/ops"]:
         return Quote(values.w_void)
+    # Perhaps it would be easier to ignore things that
+    # are not actually files rather than black listing
+    # a bunch of common ones.
+    #elif not os.access(fname, os.R_OK):
+        #return Quote(values.w_void)
     module  = _expand_and_load(fname)
     return Require(os.path.abspath(fname), module)
 
