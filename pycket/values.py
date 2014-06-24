@@ -439,7 +439,7 @@ class W_PromotableClosure(W_Closure):
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id", "_super", "_fields[:]"]
+    _immutable_fields_ = ["_id", "_super", "_number_of_fields"]
     
     @staticmethod
     def make(args):
@@ -464,12 +464,11 @@ class W_StructType(W_Object):
         # self._auto_field_cnt = args[3]
 
         # args[4-10] are optional
-        # import pdb; pdb.set_trace()
         # self._auto_v = args[4] if len(args) > 4 else None
         # self._props = args[5] if len(args) > 5 else None
         self._inspector = args[6] if len(args) > 6 else None
         # self._proc_spec = args[7] if len(args) > 7 else None
-        self._fields = from_list(args[8]) if len(args) > 8 else []
+        self._number_of_fields = len(from_list(args[8]) if len(args) > 8 else [])
         # self._guard = args[9] if len(args) > 9 else None
         self._constr_name = args[10].tostring() if len(args) > 10 and isinstance(args[10], W_Symbol) else "make-" + self._id.tostring()
 
@@ -493,8 +492,11 @@ class W_StructType(W_Object):
     def super(self):
         return self._super
 
-    def fields(self):
-        return self._fields
+    def number_of_fields(self):
+        return self._number_of_fields
+
+    def can_access_field(self, num):
+        return num < self.number_of_fields()
 
     def make_constructor_procedure(self):
         return W_SimplePrim(self._constr_name, constr_proc, [self])
@@ -518,7 +520,7 @@ def constr_proc(args):
     # FIXME: ugly code
     super_instance = None
     if struct_type.super() is not None:
-        superargslength = len(struct_type.super().fields())
+        superargslength = struct_type.super().number_of_fields()
         superargs = [struct_type.super()] + fields[:superargslength]
         super_instance = constr_proc(superargs)
         fields = fields[superargslength:]
@@ -539,18 +541,19 @@ def pred_proc(args):
     return result
 
 def acc_proc(args):
-    struct_type = args[0]
-    struct = args[1]
-    field = args[2]
-    result = struct.get_value(struct_type, int(field.tostring()))
+    struct_type, struct, field = args
+    assert isinstance(field, W_Fixnum)
+    index = field.value
+    # assert struct_type.can_access_field(index)
+    result = struct.get_value(struct_type, index)
     return result
 
 def mut_proc(args):
-    struct_type = args[0]
-    struct = args[1]
-    field = args[2]
-    val = args[3]
-    struct.set_value(struct_type, int(field.tostring()), val)
+    struct_type, struct, field, val = args
+    assert isinstance(field, W_Fixnum)
+    index = field.value
+    # assert struct_type.can_access_field(index)
+    struct.set_value(struct_type, index, val)
 
 class W_Struct(W_Object):
     _immutable_fields_ = ["_type", "_super", "_fields"]
