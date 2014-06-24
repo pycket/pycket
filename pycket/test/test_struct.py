@@ -1,6 +1,9 @@
 from pycket.test.testhelper import *
 from pycket.values import *
+import pytest
+skip = pytest.mark.skipif("True")
 
+@skip
 def test_current_inspector(source):
     """
     (inspector? (current-inspector))

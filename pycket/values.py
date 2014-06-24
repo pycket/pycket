@@ -329,10 +329,10 @@ class W_Procedure(W_Object):
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code", "params"]
-    def __init__ (self, *args):
-        self.name = args[0]
-        self.code = args[1]
-        self.params = args[2] if len(args) > 2 else []
+    def __init__ (self, name, code, params = None):
+        self.name = name
+        self.code = code
+        self.params = params if params is not None else []
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
@@ -345,10 +345,10 @@ class W_SimplePrim(W_Procedure):
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "params"]
-    def __init__ (self, *args):
-        self.name = args[0]
-        self.code = args[1]
-        self.params = args[2] if len(args) > 2 else []
+    def __init__ (self, name, code, params = None):
+        self.name = name
+        self.code = code
+        self.params = params if params is not None else []
 
     def call(self, args, env, cont):
         jit.promote(self)
@@ -458,17 +458,22 @@ class W_StructType(W_Object):
             return w_false
     
     def __init__(self, args):
-        # struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, fields, guard, constr_name = args
-        # FIXME: arguments args[4] - args[10] are optional
         self._id = args[0]
         self._super = W_StructType.lookup_struct_type(args[1]) if args[1] != w_false else None
-        # import pdb; pdb.set_trace()
-        self._inspector = args[6]
-        self._fields = from_list(args[8])
-        self._constr_name = args[10].tostring() if isinstance(args[10], W_Symbol) else "make-" + self._id.tostring()
+        # self._init_field_cnt = args[2]
+        # self._auto_field_cnt = args[3]
 
-        # TODO:
-        # Structure types are opaque by default
+        # args[4-10] are optional
+        # import pdb; pdb.set_trace()
+        # self._auto_v = args[4] if len(args) > 4 else None
+        # self._props = args[5] if len(args) > 5 else None
+        self._inspector = args[6] if len(args) > 6 else None
+        # self._proc_spec = args[7] if len(args) > 7 else None
+        self._fields = from_list(args[8]) if len(args) > 8 else []
+        # self._guard = args[9] if len(args) > 9 else None
+        self._constr_name = args[10].tostring() if len(args) > 10 and isinstance(args[10], W_Symbol) else "make-" + self._id.tostring()
+
+        # FIXME: Structure types are opaque by default, but when not?
         self._opaque = True if self._inspector != w_false else False
 
         self.w_constr = self.make_constructor_procedure()
@@ -510,7 +515,7 @@ def constr_proc(args):
     _struct_type = args[0]
     _fields = args[1:]
 
-    # FIXME: super
+    # FIXME: ugly code
     _super = None
     if _struct_type.super() is not None:
         _superargslength = len(_struct_type.super().fields())
@@ -537,7 +542,7 @@ def acc_proc(args):
     _struct_type = args[0]
     _struct = args[1]
     _field = args[2]
-    # FIXME: int(_field.tostring())
+    # FIXME: is int(_field.tostring()) safe?
     result = _struct.get_value(_struct_type, int(_field.tostring()))
     return result
 
@@ -564,7 +569,7 @@ class W_Struct(W_Object):
         if struct.super() is not None: return self.__vals__(struct.super()) + result
         else: return result
 
-    # TODO: racket replaces superclass fields with dots
+    # FIXME: racket replaces superclass fields with dots, do same?
     def tostring(self):
         if self._type.isOpaque(): result =  "#<%s>" % self._type.id()
         else: result = "(%s %s)" % (self._type.id(), ' '.join(self.__vals__(self)))
