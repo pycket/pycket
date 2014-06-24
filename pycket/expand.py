@@ -220,10 +220,10 @@ def _to_module(json):
 def get_required_filename(json):
     if json.is_object:
         obj = json.value_object()
-        if "toplevel" in obj:
-            return json.value_object()['toplevel'].value_string()
-        return json.value_object()['string'].value_string()
-    if json.is_array:
+        for v in ["toplevel", "string"]:
+            if v in obj:
+                return obj[v].value_string()
+    elif json.is_array:
         return get_required_filename(json.value_array()[-1])
     raise Exception("Unable to extract filepath from #%require specification")
 
