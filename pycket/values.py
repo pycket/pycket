@@ -516,25 +516,20 @@ class W_StructType(W_Object):
 def constr_proc(args):
     struct_type = args[0]
     fields = args[1:]
-
-    # FIXME: ugly code
-    super_instance = None
+    super_inst = None
     if struct_type.super() is not None:
-        superargslength = struct_type.super().number_of_fields()
-        superargs = [struct_type.super()] + fields[:superargslength]
-        super_instance = constr_proc(superargs)
-        fields = fields[superargslength:]
-
-    return W_Struct(struct_type, super_instance, fields)
+        superargs_len = struct_type.super().number_of_fields()
+        super_inst = constr_proc([struct_type.super()] + fields[:superargs_len])
+        fields = fields[superargs_len:]
+    return W_Struct(struct_type, super_inst, fields)
 
 def pred_proc(args):
-    struct_type = args[0]
-    struct = args[1]
-    result = W_Bool.make(False)
+    struct_type, struct = args
+    result = w_false
     if (isinstance(struct, W_Struct)):
         while True:
             if struct.type() == struct_type:
-                result = W_Bool.make(True)
+                result = w_true
                 break
             if struct.super() is None: break
             else: struct = struct.super()
@@ -562,21 +557,21 @@ class W_Struct(W_Object):
         self._super = super
         self._fields = fields
 
-    def __lookup__(self, struct, struct_type, field):
+    def _lookup(self, struct, struct_type, field):
         if struct.type() == struct_type:
             return struct._fields[field]
         else:
-            return struct.__lookup__(struct.super(), struct_type, field)
+            return struct._lookup(struct.super(), struct_type, field)
 
-    def __save__(self, struct, struct_type, field, val):
+    def _save(self, struct, struct_type, field, val):
         if struct.type() == struct_type:
             struct._fields[field] = val
         else:
-            struct.__save__(struct.super(), struct_type, field, val)
+            struct._save(struct.super(), struct_type, field, val)
 
-    def __vals__(self, struct):
+    def _vals(self, struct):
         result = [field.tostring() for field in struct.fields()]
-        if struct.super() is not None: return self.__vals__(struct.super()) + result
+        if struct.super() is not None: return self._vals(struct.super()) + result
         else: return result
 
     # FIXME: racket replaces superclass fields with dots, do same?
@@ -590,7 +585,7 @@ class W_Struct(W_Object):
             result = False
         else:
             if self._type.isopaque(): result = self == other
-            else: result = self._type == other.type() and self.__vals__(self) == self.__vals__(other)
+            else: result = self._type == other.type() and self._vals(self) == self._vals(other)
         return result
 
     def type(self):
@@ -603,7 +598,7 @@ class W_Struct(W_Object):
         return self._fields
 
     def get_value(self, struct_type, field):
-        return self.__lookup__(self, struct_type, field)
+        return self._lookup(self, struct_type, field)
 
     def set_value(self, struct_type, field, val):
-        self.__save__(self, struct_type, field, val)
+        self._save(self, struct_type, field, val)
