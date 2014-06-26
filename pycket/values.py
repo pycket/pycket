@@ -328,17 +328,18 @@ class W_Procedure(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "params"]
-    def __init__ (self, name, code, params = None):
+    _immutable_fields_ = ["name", "code"]
+    def __init__ (self, name, code):
         self.name = name
         self.code = code
-        self.params = params if params is not None else []
+
+    def simplecall(self, args):
+        jit.promote(self)
+        return self.code(args)
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
-        jit.promote(self)
-        #print self.name
-        return return_value(self.code(self.params + args), env, cont)
+        return return_value(self.simplecall(args), env, cont)
 
     def tostring(self):
         return "SimplePrim<%s>" % self.name
@@ -434,14 +435,15 @@ class W_PromotableClosure(W_Closure):
         return W_Closure.call(self, args, env, cont)
 
 #
-# It's a very early support of structs
+# It's a very early support of structs.
+# Not all features are implemented.
 #
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id", "_super", "_number_of_fields"]
+    _immutable_fields_ = ["_id", "_super", "_init_field_cnt"]
     
-    @staticmethod
+    @staticmethod 
     def make(args):
         struct_id = args[0]
         if struct_id in W_StructType.all_structs:
@@ -459,96 +461,134 @@ class W_StructType(W_Object):
     
     def __init__(self, args):
         self._id = args[0]
-        self._super = W_StructType.lookup_struct_type(args[1]) if args[1] != w_false else None
-        # self._init_field_cnt = args[2]
-        # self._auto_field_cnt = args[3]
-
-        # args[4-10] are optional
+        super = args[1]
+        self._super = W_StructType.lookup_struct_type(super.id()) if super != w_false else None
+        init_field_cnt = args[2]
+        assert isinstance(init_field_cnt, W_Fixnum)
+        self._init_field_cnt = init_field_cnt.value
+        auto_field_cnt = args[3]
+        assert isinstance(auto_field_cnt, W_Fixnum)
+        self._auto_field_cnt = auto_field_cnt.value
+        # Next arguments are optional
         # self._auto_v = args[4] if len(args) > 4 else None
         # self._props = args[5] if len(args) > 5 else None
         self._inspector = args[6] if len(args) > 6 else None
         # self._proc_spec = args[7] if len(args) > 7 else None
-        self._number_of_fields = len(from_list(args[8]) if len(args) > 8 else [])
+        # self._fields = from_list(args[8] if len(args) > 8 else []
         # self._guard = args[9] if len(args) > 9 else None
-        self._constr_name = args[10].tostring() if len(args) > 10 and isinstance(args[10], W_Symbol) else "make-" + self._id.tostring()
+        if len(args) > 10:
+            constr_name = args[10]
+            assert isinstance(constr_name, W_Symbol)
+            self._constr_name = constr_name.value
+        else:
+            constr_name = self._id
+            assert isinstance(constr_name, W_Symbol)
+            self._constr_name = "make-" + constr_name.value
 
-        # FIXME: Structure types are opaque by default, but when not?
+        # TODO: Structure types are opaque by default, but when not?
         self._opaque = True if self._inspector != w_false else False
 
-        self.w_constr = self.make_constructor_procedure()
-        self.w_pred = self.make_predicate_procedure()
-        self.w_acc = self.make_accessor_procedure()
-        self.w_mut = self.make_mutator_procedure()
-
-    def tostring(self):
-        return "StructType<%s>" % self._id
+        self.w_desc = W_StructTypeDescriptor(self._id)
+        self.w_constr = W_StructConstructor(self, self._constr_name)
+        self.w_pred = W_StructPredicate(self)
+        self.w_acc = W_StructAccessor(self)
+        self.w_mut = W_StructMutator(self)
 
     def id(self):
         return self._id
-
-    def isopaque(self):
-        return self._opaque
-
     def super(self):
         return self._super
-
+    def init_field_cnt(self):
+        return self._init_field_cnt
+    def auto_field_cnt(self):
+        return self._auto_field_cnt
     def number_of_fields(self):
-        return self._number_of_fields
-
+        return self.init_field_cnt() + self.auto_field_cnt()
     def can_access_field(self, num):
         return num < self.number_of_fields()
-
-    def make_constructor_procedure(self):
-        return W_SimplePrim(self._constr_name, constr_proc, [self])
-
-    def make_predicate_procedure(self):
-        return W_SimplePrim(self._id.tostring() + "?", pred_proc, [self])
-
-    def make_accessor_procedure(self):
-        return W_SimplePrim(self._id.tostring() + "-ref", acc_proc, [self])
-
-    def make_mutator_procedure(self):
-        return W_SimplePrim(self._id.tostring() + "-set!", mut_proc, [self])
-
+    def isopaque(self):
+        return self._opaque
+    def constr(self):
+        return self.w_constr
     def make_struct_tuple(self):
-        return [self._id, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
+        return [self.w_desc, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
+    def tostring(self):
+        return "StructType<%s>" % self._id
 
-def constr_proc(args):
-    struct_type = args[0]
-    fields = args[1:]
-    super_inst = None
-    if struct_type.super() is not None:
-        superargs_len = struct_type.super().number_of_fields()
-        super_inst = constr_proc([struct_type.super()] + fields[:superargs_len])
-        fields = fields[superargs_len:]
-    return W_Struct(struct_type, super_inst, fields)
+class W_StructTypeDescriptor(W_Object):
+    _immutable_fields_ = ["_id"]
+    def __init__(self, id):
+        self._id = id
+    def id(self):
+        return self._id
+    def tostring(self):
+        return "#<struct-type:%s>" % self._id
 
-def pred_proc(args):
-    struct_type, struct = args
-    result = w_false
-    if (isinstance(struct, W_Struct)):
-        while True:
-            if struct.type() == struct_type:
-                result = w_true
-                break
-            if struct.super() is None: break
-            else: struct = struct.super()
-    return result
+class W_StructConstructor(W_SimplePrim):
+    _immutable_fields_ = ["struct_type"]
+    def __init__ (self, struct_type, name):
+        self.struct_type = struct_type
+        self.name = name
+    # TODO: auto-v is not yet implemented
+    def simplecall(self, args):
+        fields = args
+        super = None
+        if self.struct_type.super() is not None:
+            def split_list(list, num):
+                assert num >= 0
+                return list[:num], list[num:]
+            superfields, fields = split_list(fields, self.struct_type.super().number_of_fields())
+            super = self.struct_type.super().constr().simplecall(superfields)
+        return W_Struct(self.struct_type, super, fields)
+    def tostring(self):
+        return "#<procedure:%s>" % self.name
 
-def acc_proc(args):
-    struct_type, struct, field = args
-    assert isinstance(field, W_Fixnum)
-    index = field.value
-    # assert struct_type.can_access_field(index)
-    result = struct.get_value(struct_type, index)
-    return result
+class W_StructPredicate(W_SimplePrim):
+    _immutable_fields_ = ["struct_type"]
+    def __init__ (self, struct_type):
+        self.struct_type = struct_type
+    def simplecall(self, args):
+        struct = args[0]
+        result = w_false
+        if (isinstance(struct, W_Struct)):
+            while True:
+                if struct.type() == self.struct_type:
+                    result = w_true
+                    break
+                if struct.super() is None: break
+                else: struct = struct.super()
+        return result
+    def tostring(self):
+        return "#<procedure:%s?>" % self.struct_type.id()
 
-def mut_proc(args):
-    struct_type, struct, field, val = args
-    assert isinstance(field, W_Fixnum)
-    index = field.value
-    # assert struct_type.can_access_field(index)
-    struct.set_value(struct_type, index, val)
+class W_StructAccessor(W_SimplePrim):
+    _immutable_fields_ = ["struct_type"]
+    def __init__ (self, struct_type):
+        self.struct_type = struct_type
+    def simplecall(self, args):
+        struct, field = args
+        assert isinstance(field, W_Fixnum)
+        index = field.value
+        result = struct.get_value(self.struct_type, index)
+        return result
+    def tostring(self):
+        return "#<procedure:%s-ref>" % self.struct_type.id()
+
+class W_StructMutator(W_SimplePrim):
+    _immutable_fields_ = ["struct_type"]
+    def __init__ (self, struct_type):
+        self.struct_type = struct_type
+    def simplecall(self, args):
+        struct, field, val = args
+        assert isinstance(field, W_Fixnum)
+        index = field.value
+        struct.set_value(self.struct_type, index, val)
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_value
+        result = self.simplecall(args)
+        return return_value(result, env, cont)
+    def tostring(self):
+        return "#<procedure:%s-set!>" % self.struct_type.id()
 
 class W_Struct(W_Object):
     _immutable_fields_ = ["_type", "_super", "_fields"]
@@ -560,8 +600,10 @@ class W_Struct(W_Object):
     def _lookup(self, struct, struct_type, field):
         if struct.type() == struct_type:
             return struct._fields[field]
-        else:
+        elif struct.super() is not None:
             return struct._lookup(struct.super(), struct_type, field)
+        else:
+            raise SchemeException("invalid field index %s" % field)
 
     def _save(self, struct, struct_type, field, val):
         if struct.type() == struct_type:
@@ -577,7 +619,7 @@ class W_Struct(W_Object):
     # FIXME: racket replaces superclass fields with dots, do same?
     def tostring(self):
         if self._type.isopaque(): result =  "#<%s>" % self._type.id()
-        else: result = "(%s %s)" % (self._type.id(), ' '.join(self.__vals__(self)))
+        else: result = "(%s %s)" % (self._type.id(), ' '.join(self._vals(self)))
         return result
 
     def equal(self, other):

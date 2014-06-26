@@ -182,7 +182,11 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
-        ("struct-type?", values.W_StructType),
+        ("struct-type?", values.W_StructTypeDescriptor),
+        ("struct-constructor-procedure?", values.W_StructConstructor),
+        ("struct-predicate-procedure?", values.W_StructPredicate),
+        ("struct-accessor-procedure?", values.W_StructAccessor),
+        ("struct-mutator-procedure?", values.W_StructMutator),
         ]:
     make_pred(*args)
 
@@ -563,6 +567,7 @@ def field_accessor(args, env, cont):
 def do_make_struct_field_accessor(args):
     accessor = args[0]
     field = args[1]
+    # FIXME: probably replace W_Prim with my own class
     return values.W_Prim(accessor.tostring() + field.tostring(), field_accessor, args)
 
 def field_mutator(args, env, cont):
@@ -578,6 +583,7 @@ def do_make_struct_field_mutator(args):
     # It means that the structure or some structure fields are mutable
     accessor = args[0]
     field = args[1]
+    # FIXME: probably replace W_Prim with my own class
     return values.W_Prim(accessor.tostring() + field.tostring(), field_mutator, args)
 
 @expose("number->string", [values.W_Number])

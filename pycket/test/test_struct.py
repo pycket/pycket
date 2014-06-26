@@ -12,8 +12,6 @@ def test_current_inspector(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-#not yet.
-@skip
 def test_make_struct_type(source):
     """
     (define-values (struct:p0 make-p0 p0? p0-ref p0-set!) (make-struct-type 'p0 #f 3 0 #f null 'prefab #f '(0 1 2)))
