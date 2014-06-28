@@ -441,7 +441,7 @@ class W_PromotableClosure(W_Closure):
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id", "_super", "_init_field_cnt"]
+    _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", "_constr_name"]
     
     @staticmethod 
     def make(args):
@@ -531,18 +531,17 @@ class W_StructConstructor(W_SimplePrim):
         self._auto_v = auto_v
         self._isopaque = isopaque
         self._name = name
-    def simplecall(self, fields):
+    def simplecall(self, field_values):
         super = None
         if self._super_type is not None:
             def split_list(list, num):
                 assert num >= 0
                 return list[:num], list[num:]
-            split_position = len(fields) - self._init_field_cnt
-            superfields, fields = split_list(fields, split_position)
-            super = self._super_type.constr().simplecall(superfields)
-        for i in xrange(0, self._auto_field_cnt):
-            fields.append(self._auto_v)
-        return W_Struct(self._struct_id, super, self._isopaque, fields)
+            split_position = len(field_values) - self._init_field_cnt
+            super_field_values, field_values = split_list(field_values, split_position)
+            super = self._super_type.constr().simplecall(super_field_values)
+        auto_values = [self._auto_v] * self._auto_field_cnt
+        return W_Struct(self._struct_id, super, self._isopaque, field_values + auto_values)
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
@@ -562,7 +561,7 @@ class W_StructPredicate(W_SimplePrim):
                 else: struct = struct.super()
         return result
     def tostring(self):
-        return "#<procedure:%s?>" % self.struct_id
+        return "#<procedure:%s?>" % self._struct_id
 
 class W_StructAccessor(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
