@@ -102,3 +102,17 @@ def test_struct_mutation(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
+def test_struct_auto_values(source):
+    """
+    (struct p3 (x y [z #:auto]) #:transparent #:auto-value 0)
+    (struct p4 p3 (t))
+
+    (let* ([p (p3 1 2)]
+           [4dp (p4 1 2 4)]
+           [pz (p3-z p)]
+           [4pdt (p4-t 4dp)])
+    (and (= pz 0) (= 4pdt 4)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
