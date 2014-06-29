@@ -216,17 +216,6 @@ def _to_module(json):
     else:
         assert 0
 
-# FIXME: This is potentially rather fragile
-def get_required_filename(json):
-    if json.is_object:
-        obj = json.value_object()
-        for v in ["toplevel", "string"]:
-            if v in obj:
-                return obj[v].value_string()
-    elif json.is_array:
-        return get_required_filename(json.value_array()[-1])
-    raise Exception("Unable to extract filepath from #%require specification")
-
 # A global table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
