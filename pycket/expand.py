@@ -219,18 +219,17 @@ def _to_module(json):
 # A global table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
-# by the normalized path to their implementing files.
+# as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
     table = {"#%kernel" : None}
 
     @staticmethod
     def add_module(fname):
-        normed = os.path.normpath(fname)
-        ModTable.table[normed] = None
+        ModTable.table[fname] = None
 
     @staticmethod
     def has_module(fname):
-        return os.path.normpath(fname) in ModTable.table
+        return fname in ModTable.table
 
 def _to_require(fname):
     if ModTable.has_module(fname):

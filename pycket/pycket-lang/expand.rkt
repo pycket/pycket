@@ -23,9 +23,12 @@
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
+;; This ensures that all path names are normalized.
 (define (require-json v)
   (define (to-path v)
-    (path->string (resolve-module-path v #f)))
+    (path->string
+      (simplify-path
+        (resolve-module-path v #f))))
   (define (translate v)
     (if (eqv? v '#%kernel)
       "#%kernel"
@@ -36,7 +39,6 @@
     [(#%top . x)  (to-path (syntax-e #'x))]
     [(_ ...)      (require-json (last (syntax->list v)))]
     ))
-
 
 (define (to-json v)
   (define (proper l)
@@ -118,17 +120,21 @@
                                         #:exists 'replace)))
           (set! in source)]))
 
-   ;;(unless (input-port? in)
-   ;;  (raise-user-error "no input specified"))
-   (unless (input-port? in)
-     (current-directory (path-only in))
-     (set! in (open-input-file in)))
+  (define input (if (input-port? in) in (open-input-file in)))
 
-   (unless (output-port? out)
-     (raise-user-error "no output specified"))
+  (unless (output-port? out)
+    (raise-user-error "no output specified"))
+
+  (unless (input-port? input)
+    (raise-user-error "no input specified"))
+
+  ;; If the given input is a file name, then chdir to its containing
+  ;; directory so the expand function works properly
+  (unless (input-port? in)
+    (current-directory (path-only in)))
 
   (read-accept-reader #t)
-  (define mod (read-syntax (object-name in) in))
+  (define mod (read-syntax (object-name input) input))
   (define expanded (do-expand mod))
   ;(pretty-print (syntax->datum expanded) (current-error-port))
   (write-json (convert expanded) out)
