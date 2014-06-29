@@ -21,12 +21,29 @@
   (and v
        (resolved-module-path-name (module-path-index-resolve i))))
 
+;; Extract the information from a require statement that tells us how to find
+;; the desired file.
+(define (require-json v)
+  (define (to-path v)
+    (path->string (resolve-module-path v #f)))
+  (define (translate v)
+    (if (eqv? v '#%kernel)
+      "#%kernel"
+      (to-path v)))
+  (syntax-parse v #:literals (#%top quote)
+    [v:str        (to-path (syntax-e #'v))]
+    [s:identifier (translate (syntax-e #'s))]
+    [(#%top . x)  (to-path (syntax-e #'x))]
+    [(_ ...)      (require-json (last (syntax->list v)))]
+    ))
+
+
 (define (to-json v)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (#%plain-lambda #%top module* module #%plain-app quote)
+  (syntax-parse v #:literals (#%plain-lambda #%top module* module #%plain-app quote #%require)
     [v:str (hash 'string (syntax-e #'v))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
@@ -38,6 +55,7 @@
            'operands (map to-json (syntax->list #'(e ...))))]
     ;; [(quote e) (hash 'quote (to-json #'e))]
 
+    [(#%require . x) (hash 'require (require-json #'x))]
     [(_ ...) (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
@@ -98,10 +116,13 @@
           (when (not (output-port? out))
             (set! out (open-output-file (string-append source ".json")
                                         #:exists 'replace)))
-          (set! in (open-input-file source))]))
+          (set! in source)]))
 
+   ;;(unless (input-port? in)
+   ;;  (raise-user-error "no input specified"))
    (unless (input-port? in)
-     (raise-user-error "no input specified"))
+     (current-directory (path-only in))
+     (set! in (open-input-file in)))
 
    (unless (output-port? out)
      (raise-user-error "no output specified"))
