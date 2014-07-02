@@ -435,21 +435,24 @@ class W_PromotableClosure(W_Closure):
         return W_Closure.call(self, args, env, cont)
 
 #
-# It's a very early support of structs.
-# Not all features are implemented.
+# Structs are partially supported
+# 
+# Not yet implemented:
+# 1) inspector
+# 2) prefab -- '#s(sprout bean): bad syntax
+# 3) methods overriding (including equal) -- generic-interfaces.rkt
+# 4) guard -- how to run interpreter.Let?
+# 5) properties and super as an argument -- kw.rkt
 #
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
-    _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", "_constr_name"]
+    _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", "_constr_name", "_guard"]
     
     @staticmethod 
     def make(args):
-        struct_id = args[0]
-        if struct_id in W_StructType.all_structs:
-            # TODO: raise exception (module: duplicate definition for identifier in: struct:XXX) or not?
-            return W_StructType.lookup_struct_type(struct_id)
-        W_StructType.all_structs[struct_id] = w_result = W_StructType(args)
+        struct_id = W_StructTypeDescriptor(args[0])
+        W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, args)
         return w_result
 
     @staticmethod
@@ -459,10 +462,9 @@ class W_StructType(W_Object):
         else:
             return w_false
     
-    def __init__(self, args):
-        self._id = args[0]
+    def __init__(self, struct_id, args):
         super = args[1]
-        self._super = W_StructType.lookup_struct_type(super.id()) if super != w_false else None
+        self._super = W_StructType.lookup_struct_type(super) if super != w_false else None
         init_field_cnt = args[2]
         assert isinstance(init_field_cnt, W_Fixnum)
         self._init_field_cnt = init_field_cnt.value
@@ -474,29 +476,29 @@ class W_StructType(W_Object):
         # self._props = args[5] if len(args) > 5 else None
         self._inspector = args[6] if len(args) > 6 else None
         # self._proc_spec = args[7] if len(args) > 7 else None
-        # self._fields = from_list(args[8]) if len(args) > 8 else []
-        # self._guard = args[9] if len(args) > 9 else None
+        # self._immutables = from_list(args[8]) if len(args) > 8 else []
+        self._guard = args[9] if len(args) > 9 and args[9] != w_false else None
         if len(args) > 10:
             constr_name = args[10]
             assert isinstance(constr_name, W_Symbol)
             self._constr_name = constr_name.value
         else:
-            constr_name = self._id
+            constr_name = struct_id.id()
             assert isinstance(constr_name, W_Symbol)
             self._constr_name = "make-" + constr_name.value
 
-        # TODO: Structure types are opaque by default
+        # structure types are opaque by default
         self._isopaque = True if self._inspector != w_false else False
 
-        self.w_desc = W_StructTypeDescriptor(self._id)
-        self.w_constr = W_StructConstructor(self._id, self._super, self._init_field_cnt, self._auto_field_cnt, \
-                                            self._auto_v, self._isopaque, self._constr_name)
-        self.w_pred = W_StructPredicate(self._id)
-        self.w_acc = W_StructAccessor(self._id)
-        self.w_mut = W_StructMutator(self._id)
+        self._desc = struct_id
+        self._constr = W_StructConstructor(self._desc, self._super, self._init_field_cnt, self._auto_field_cnt, \
+                                            self._auto_v, self._isopaque, self._constr_name, self._guard)
+        self._pred = W_StructPredicate(self._desc)
+        self._acc = W_StructAccessor(self._desc)
+        self._mut = W_StructMutator(self._desc)
 
-    def id(self):
-        return self._id
+    def struct_id(self):
+        return self._desc
     def super(self):
         return self._super
     def init_field_cnt(self):
@@ -505,12 +507,15 @@ class W_StructType(W_Object):
         return self._auto_field_cnt
     def isopaque(self):
         return self._opaque
+    def setmutable(self, field):
+        print "DEBUG: %s mutable field: %s" % (self.tostring(), field.tostring())
+        # TODO: save the mutability of field
     def constr(self):
-        return self.w_constr
+        return self._constr
     def make_struct_tuple(self):
-        return [self.w_desc, self.w_constr, self.w_pred, self.w_acc, self.w_mut]
+        return [self._desc, self._constr, self._pred, self._acc, self._mut]
     def tostring(self):
-        return "StructType<%s>" % self._id
+        return "StructType<%s>" % self._desc.tostring()
 
 class W_StructTypeDescriptor(W_Object):
     _immutable_fields_ = ["_id"]
@@ -523,7 +528,7 @@ class W_StructTypeDescriptor(W_Object):
 
 class W_StructConstructor(W_SimplePrim):
     _immutable_fields_ = ["struct_type"]
-    def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, name):
+    def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, name, guard):
         self._struct_id = struct_id
         self._super_type = super_type
         self._init_field_cnt = init_field_cnt
@@ -531,6 +536,7 @@ class W_StructConstructor(W_SimplePrim):
         self._auto_v = auto_v
         self._isopaque = isopaque
         self._name = name
+        self._guard = guard
     def simplecall(self, field_values):
         super = None
         if self._super_type is not None:
@@ -542,6 +548,14 @@ class W_StructConstructor(W_SimplePrim):
             super = self._super_type.constr().simplecall(super_field_values)
         auto_values = [self._auto_v] * self._auto_field_cnt
         return W_Struct(self._struct_id, super, self._isopaque, field_values + auto_values)
+    def call(self, field_values, env, cont):
+        from pycket.interpreter import return_value
+        if self._guard is not None:
+            # TODO: prepare arguments
+            # self._guard is W_PromotableClosure
+            guard = self._guard.call([self._struct_id] + field_values, env, cont)
+            # TODO: result is the pycket.interpreter.Let, how to run it?
+        return return_value(self.simplecall(field_values), env, cont)
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
@@ -561,7 +575,7 @@ class W_StructPredicate(W_SimplePrim):
                 else: struct = struct.super()
         return result
     def tostring(self):
-        return "#<procedure:%s?>" % self._struct_id
+        return "#<procedure:%s?>" % self._struct_id.id()
 
 class W_StructAccessor(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
@@ -574,7 +588,7 @@ class W_StructAccessor(W_SimplePrim):
         result = struct.get_value(self._struct_id, index)
         return result
     def tostring(self):
-        return "#<procedure:%s-ref>" % self._struct_id
+        return "#<procedure:%s-ref>" % self._struct_id.id()
 
 class W_StructMutator(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
@@ -585,8 +599,11 @@ class W_StructMutator(W_SimplePrim):
         assert isinstance(field, W_Fixnum)
         index = field.value
         struct.set_value(self._struct_id, index, val)
+    def setmutable(self, field):
+        struct = W_StructType.lookup_struct_type(self._struct_id)
+        struct.setmutable(field)
     def tostring(self):
-        return "#<procedure:%s-set!>" % self._struct_id
+        return "#<procedure:%s-set!>" % self._struct_id.id()
 
 class W_Struct(W_Object):
     _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
@@ -599,10 +616,10 @@ class W_Struct(W_Object):
     def _lookup(self, struct, struct_id, field):
         if struct.type() == struct_id:
             return struct._fields[field]
+        elif struct.type().id() == struct_id.id():
+            raise SchemeException("given value instantiates a different structure type with the same name")
         elif struct.super() is not None:
             return struct._lookup(struct.super(), struct_id, field)
-        else:
-            raise SchemeException("invalid field index %s" % field)
 
     def _save(self, struct, struct_id, field, val):
         if struct.type() == struct_id:
@@ -610,15 +627,15 @@ class W_Struct(W_Object):
         else:
             struct._save(struct.super(), struct_id, field, val)
 
+    # FIXME: racket replaces superclass field values with dots
     def _vals(self, struct):
         result = [field.tostring() for field in struct.fields()]
         if struct.super() is not None: return self._vals(struct.super()) + result
         else: return result
 
-    # FIXME: racket replaces superclass fields with dots, do same?
     def tostring(self):
-        if self._isopaque: result =  "#<%s>" % self._type
-        else: result = "(%s %s)" % (self._type, ' '.join(self._vals(self)))
+        if self._isopaque: result =  "#<%s>" % self._type.id()
+        else: result = "(%s %s)" % (self._type.id(), ' '.join(self._vals(self)))
         return result
 
     def equal(self, other):

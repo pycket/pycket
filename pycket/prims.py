@@ -579,12 +579,11 @@ def field_mutator(args, env, cont):
 
 @expose("make-struct-field-mutator")
 def do_make_struct_field_mutator(args):
-    # TODO: mark call of this function.
-    # It means that the structure or some structure fields are mutable
-    accessor = args[0]
+    mutator = args[0]
     field = args[1]
+    mutator.setmutable(field)
     # FIXME: probably replace W_Prim with my own class
-    return values.W_Prim(accessor.tostring() + field.tostring(), field_mutator, args)
+    return values.W_Prim(mutator.tostring() + field.tostring(), field_mutator, args)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
