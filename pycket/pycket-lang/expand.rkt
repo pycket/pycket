@@ -80,6 +80,7 @@
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
+    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote (syntax-e v))]
     [_
      #:when (char? (syntax-e v))
      (hash 'char (~a (char->integer (syntax-e v))))]))
@@ -136,6 +137,5 @@
   (read-accept-reader #t)
   (define mod (read-syntax (object-name input) input))
   (define expanded (do-expand mod))
-  ;(pretty-print (syntax->datum expanded) (current-error-port))
   (write-json (convert expanded) out)
   (newline out))

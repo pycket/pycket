@@ -51,8 +51,7 @@ def expand_file(fname):
     from subprocess import Popen, PIPE
 
     cmd = "racket %s --stdout %s" % (fn, fname)
-    print cmd
-    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, cwd=os.path.dirname(fname))
+    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
         raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
@@ -60,10 +59,28 @@ def expand_file(fname):
         raise Exception("Racket produced an error")
     return data
 
+# Call the Racket expander and read its output from STDOUT rather than producing an
+# intermediate (possibly cached) file.
+def expand_file_rpython(rkt_file):
+    from rpython.rlib.rfile import create_popen_file
+    cmd = "racket %s --stdout %s 2>&1" % (fn, rkt_file)
+    if not os.access(rkt_file, os.R_OK):
+        raise ValueError("Cannot access file %s" % rkt_file)
+    pipe = create_popen_file(cmd, "r")
+    out = pipe.read()
+    err = os.WEXITSTATUS(pipe.close())
+    if err != 0:
+        raise Exception("Racket produced an error and said '%s'" % out)
+    return out
+
+# Expand and load the module without generating intermediate JSON files.
+def expand_to_ast(fname):
+    data = expand_file_rpython(fname)
+    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
+
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
     return pycket_json.loads(data)
-
 
 def expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
@@ -75,7 +92,7 @@ def expand_file_to_json(rkt_file, json_file):
         pass
     except OSError:
         pass
-    cmd = "racket %s --output %s %s" % (
+    cmd = "racket %s --output %s %s 2>&1" % (
         fn,
         json_file, rkt_file)
     # print cmd
@@ -235,7 +252,7 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
-    module = _expand_and_load(fname)
+    module = expand_to_ast(fname) # _expand_and_load(fname)
     return Require(fname, module)
 
 def _expand_and_load(fname):
