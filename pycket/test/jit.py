@@ -156,6 +156,8 @@ class TestLLtype(LLJitMixin):
 
     def test_bubble_imp(self):
         self.run_file("bubble-imp.rkt")
+    def test_bubble_imp_check(self):
+        self.run_file("bubble-imp-check.rkt")
 
     def test_bubble_unsafe(self):
         self.run_file("bubble-unsafe.sch")
