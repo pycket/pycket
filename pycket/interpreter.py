@@ -766,7 +766,7 @@ def free_vars_lambda(body, args):
     return x
 
 class Lambda(AST):
-    _immutable_fields_ = ["formals[*]", "rest", "args",
+    _immutable_fields_ = ["lambody", "formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure",
                           "w_closure_if_no_frees?",
                           "cached_closure?",
