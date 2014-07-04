@@ -98,6 +98,18 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+        
+    # needs to be fixed to use modules
+    def run_string(self, str):
+        ast = to_ast(expand(str))
+
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        interp_w() # check that it runs
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_imp_vec(self):
 
@@ -122,60 +134,34 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_bubble_safe(self):
-        fname = "bubble.rkt"
+    def run_file(self, fname):
         ast = parse_file(fname)
         def interp_w():
             val = interpret_module(ast)
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        
+
+
+    def test_bubble_safe(self):
+        self.run_file("bubble.rkt")
 
 
     def test_bubble_unsafe(self):
-        fname = "bubble-unsafe.rkt"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret_module(ast)
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-unsafe.rkt")
 
     def test_bubble_unsafe2(self):
-        fname = "bubble-unsafe2.rkt"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret_module(ast)
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-unsafe2.rkt")
 
     def test_bubble_imp(self):
-        fname = "bubble-imp.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-imp.rkt")
 
     def test_bubble_unsafe(self):
-        fname = "bubble-unsafe.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-unsafe.sch")
 
     def test_bubble_arg(self):
-        fname = "bubble-arg.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-arg.rkt")
 
     def test_pseudoknot(self):
         fname = "nucleic2.sch"
