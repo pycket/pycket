@@ -53,8 +53,6 @@ class ModuleEnv(object):
 
     @jit.elidable
     def lookup(self, modvar):
-        #print modvar.srcmod, modvar.srcsym
-        #print self.modules
         assert isinstance(modvar, ModuleVar)
         assert modvar.srcmod in self.modules
         module = self.modules[modvar.srcmod]

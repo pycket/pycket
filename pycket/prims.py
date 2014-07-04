@@ -410,14 +410,6 @@ def printf(args):
     ## this doesn't work for cycles
     #return values.W_Bool.make(a.equal(b))
 
-@continuation
-def do_elem_equal_get_a(v1, v2, i, cont):
-    pass
-
-@continuation
-def do_elem_equal_get_b(v1, v2, a, i, cont):
-    pass
-
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
     # this doesn't work for cycles
