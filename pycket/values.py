@@ -553,10 +553,13 @@ class W_Closure(W_Procedure):
             actuals = args
         # specialize on the fact that often we end up executing in the same
         # environment
-        if isinstance(env, ConsEnv) and env.prev is self.env:
-            prev = env.prev
-        else:
-            prev = self.env
+        prev = self.env
+        if isinstance(env, ConsEnv):
+            e = env.prev
+            if e is self.env:
+                prev = e
+            elif isinstance(e, ConsEnv) and e.prev is self.env:
+                prev = e.prev
         return lam.make_begin_cont(
                           ConsEnv.make(actuals, prev, self.env.toplevel_env),
                           cont)

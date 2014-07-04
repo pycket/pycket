@@ -122,7 +122,7 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_bubble(self):
+    def test_bubble_safe(self):
         fname = "bubble.rkt"
         ast = parse_file(fname)
         def interp_w():
