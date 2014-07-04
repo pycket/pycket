@@ -350,6 +350,7 @@ class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+    def mark_non_loop(self): pass
 
 def is_impersonator_of(a, b):
     if a is b:
@@ -538,6 +539,8 @@ class W_Closure(W_Procedure):
         vals = [env.lookup(i, lam.enclosing_env_structure)
                     for i in lam.frees.elems]
         self.env = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
+    def mark_non_loop(self):
+        self.lam.body[0].should_enter = False
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
         lam = jit.promote(self.lam)

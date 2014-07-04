@@ -626,6 +626,8 @@ def impersonate_procedure(proc, check):
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
+    refh.mark_non_loop()
+    seth.mark_non_loop()
     return values.W_ImpVector(v, refh, seth)
 
 @expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])

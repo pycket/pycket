@@ -228,7 +228,7 @@ class Done(Exception):
 
 class AST(object):
     _attrs_ = ["should_enter"]
-    _immutable_fields_ = ["should_enter"]
+    _immutable_fields_ = ["should_enter?"]
     _settled_ = True
 
     should_enter = False # default value
