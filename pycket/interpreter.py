@@ -141,6 +141,7 @@ class LetrecCont(Cont):
     def get_ast(self):
         return self.ast
 
+    @jit.unroll_safe
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
@@ -747,6 +748,7 @@ class RecLambda(AST):
     simple = True
     def __init__(self, name, lam, env_structure):
         assert isinstance(lam, Lambda)
+        #import pdb; pdb.set_trace()
         self.name = name
         self.lam  = lam
         self.env_structure = env_structure
@@ -953,6 +955,7 @@ class Letrec(SequencedBodyAST):
         self.total_counts = total_counts[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
+    @jit.unroll_safe
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
@@ -1003,13 +1006,13 @@ def make_let(varss, rhss, body):
         return Let(SymList(argsl), counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
-    if (1 == len(varss) and
-        1 == len(varss[0]) and
-        1 == len(body) and
-        isinstance(rhss[0], Lambda)):
-        b = body[0]
-        if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
-            return RecLambda(varss[0][0], rhss[0], SymList([varss[0][0]]))
+    if (1 == len(varss) and 1 == len(varss[0]) and 1 == len(body)):
+        v = rhss[0]
+        # FIXME: make this work for multi-case lambda
+        if isinstance(v, CaseLambda) and 1 == len(v.lams):
+            b = body[0]
+            if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
+                return RecLambda(varss[0][0], v.lams[0], SymList([varss[0][0]]))
     counts = []
     argsl = []
     for vars in varss:
@@ -1117,13 +1120,15 @@ class DefineValues(AST):
 def get_printable_location(green_ast, cont_ast):
     if green_ast is None:
         return 'Green_Ast is None'
+    if cont_ast is None:
+        return green_ast.tostring()
     return green_ast.tostring() + " Cont: " + cont_ast.tostring()
 driver = jit.JitDriver(reds=["env", "cont"],
                        greens=["ast", "cont_ast"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
-    import pdb
+    #import pdb
     #pdb.set_trace()
     cont = None
     cont_ast = None
@@ -1133,7 +1138,8 @@ def interpret_one(ast, env=None):
         while True:
             driver.jit_merge_point(ast=ast, env=env, cont=cont, cont_ast=cont_ast)
             ast, env, cont = ast.interpret(env, cont)
-            cont_ast = cont.get_ast()
+            if cont:
+                cont_ast = cont.get_ast()
             if ast.should_enter:
                 driver.can_enter_jit(ast=ast, env=env, cont=cont, cont_ast=cont_ast)
     except Done, e:
