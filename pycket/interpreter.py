@@ -138,6 +138,9 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
 
+    def get_ast(self):
+        return self.ast
+
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
@@ -162,6 +165,9 @@ class LetCont(Cont):
         self.env  = env
         self.prev = prev
         self.rhsindex = rhsindex
+
+    def get_ast(self):
+        return self.ast
 
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
@@ -189,6 +195,9 @@ class CellCont(Cont):
         self.env = env
         self.prev = prev
 
+    def get_ast(self):
+        return self.ast
+
     @jit.unroll_safe
     def plug_reduce(self, vals):
         ast = jit.promote(self.ast)
@@ -206,6 +215,9 @@ class SetBangCont(Cont):
         self.ast = ast
         self.env = env
         self.prev = prev
+    def get_ast(self):
+        return self.ast
+
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
@@ -218,6 +230,9 @@ class BeginCont(Cont):
         self.i = i
         self.env = env
         self.prev = prev
+
+    def get_ast(self):
+        return self.ast
 
     def plug_reduce(self, vals):
         return self.ast.make_begin_cont(self.env, self.prev, self.i)
@@ -1099,26 +1114,28 @@ class DefineValues(AST):
     def tostring(self):
         return "(define-values %s %s)"%(self.names, self.rhs.tostring())
 
-def get_printable_location(green_ast):
+def get_printable_location(green_ast, cont_ast):
     if green_ast is None:
         return 'Green_Ast is None'
-    return green_ast.tostring()
+    return green_ast.tostring() + " Cont: " + cont_ast.tostring()
 driver = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast"],
+                       greens=["ast", "cont_ast"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
     import pdb
     #pdb.set_trace()
     cont = None
+    cont_ast = None
     if not env:
         env = ToplevelEnv()
     try:
         while True:
-            driver.jit_merge_point(ast=ast, env=env, cont=cont)
+            driver.jit_merge_point(ast=ast, env=env, cont=cont, cont_ast=cont_ast)
             ast, env, cont = ast.interpret(env, cont)
+            cont_ast = cont.get_ast()
             if ast.should_enter:
-                driver.can_enter_jit(ast=ast, env=env, cont=cont)
+                driver.can_enter_jit(ast=ast, env=env, cont=cont, cont_ast=cont_ast)
     except Done, e:
         return e.values
 

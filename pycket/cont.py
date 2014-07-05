@@ -9,6 +9,10 @@ class Cont(object):
         else:
             return "%s()"%(self.__class__.__name__)
 
+    def get_ast(self):
+        raise NotImplementedError ("get_ast abstract base class")
+
+
 def continuation(func):
     """ workaround for the lack of closures in RPython. use to decorate a
     function that is supposed to be usable as a continuation. When the
@@ -30,6 +34,9 @@ def continuation(func):
         def __init__(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
+
+        def get_ast(self):
+            return None
 
         def plug_reduce(self, vals):
             args = ()
