@@ -761,7 +761,7 @@ class RecLambda(AST):
             vals = e.values
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
-        cl.envs[0].set(self.name, cl, self.lam.frees)
+        cl._get_list(0).set(self.name, cl, self.lam.frees)
         return cl
 
     def tostring(self):
@@ -814,7 +814,7 @@ class CaseLambda(AST):
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env)
                 self.w_closure_if_no_frees = w_closure
             else:
-                assert w_closure.envs[0].toplevel_env is env.toplevel_env
+                assert w_closure.closure._get_list(0).toplevel_env is env.toplevel_env
             return w_closure
         return values.W_Closure.make(self, env)
     def free_vars(self):

@@ -532,11 +532,10 @@ class W_Continuation(W_Procedure):
 
 class W_Closure(W_Procedure):
     # FIXME: specialize on length of envs
-    _immutable_fields_ = ["caselam", "envs[*]"]
+    _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
-    def __init__ (self, caselam, envs):
+    def __init__ (self, caselam):
         self.caselam = caselam
-        self.envs = envs
     @staticmethod
     @jit.unroll_safe
     def make(caselam, env):
@@ -549,7 +548,7 @@ class W_Closure(W_Procedure):
             vals = [env.lookup(var, lam.enclosing_env_structure)
                     for var in lam.frees.elems]
             envs[i] = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
-        return W_Closure(caselam, envs)
+        return W_Closure._make(envs, caselam)
         
     def mark_non_loop(self):
         for l in self.caselam.lams:
@@ -560,7 +559,7 @@ class W_Closure(W_Procedure):
         for (i, lam) in enumerate(self.caselam.lams):
             try:
                 actuals = lam.match_args(args)
-                new_env = self.envs[i]
+                new_env = self._get_list(i)
                 return (actuals, new_env, lam)
             except SchemeException:
                 if len(self.caselam.lams) == 1:
@@ -584,17 +583,20 @@ class W_Closure(W_Procedure):
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)
 
+inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 
 
-class W_PromotableClosure(W_Closure):
+class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
+    _immutable_fields_ = ["closure"]
+
     def __init__(self, caselam, toplevel_env):
         from pycket.interpreter import ConsEnv
-        W_Closure.__init__(self, caselam, [ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams))
+        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam)
 
     def call(self, args, env, cont):
         jit.promote(self)
-        return W_Closure.call(self, args, env, cont)
+        return self.closure.call(args, env, cont)
 
