@@ -2,7 +2,7 @@ import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol
 from pycket.expand import _to_ast, parse_module
-from pycket.interpreter import (LexicalVar, ModuleVar, Done,
+from pycket.interpreter import (LexicalVar, ModuleVar, Done, RecLambda,
                                 variable_set, variables_equal)
 from pycket.test.testhelper import format_pycket_mod
 
@@ -38,3 +38,9 @@ def test_cache_lambda_if_no_frees():
     w_cl2 = lamb.interpret_simple(toplevel)
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env is toplevel
+
+
+def test_reclambda():
+    # simple case:
+    p = expr_ast("(letrec ([a (lambda () a)]) a)")
+    assert isinstance(p, RecLambda)
