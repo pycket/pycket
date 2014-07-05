@@ -729,41 +729,36 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
-    _immutable_fields_ = ["name", "lam", "env_structure"]
+    _immutable_fields_ = ["name", "caselam", "env_structure"]
     simple = True
     def __init__(self, name, lam, env_structure):
-        assert isinstance(lam, Lambda)
-        #import pdb; pdb.set_trace()
+        assert isinstance(lam, CaseLambda)
         self.name = name
-        self.lam  = lam
+        self.caselam  = lam
         self.env_structure = env_structure
     def assign_convert(self, vars, env_structure):
         v = vars.copy()
         if LexicalVar(self.name) in v:
             del v[LexicalVar(self.name)]
         env_structure = SymList([self.name], env_structure)
-        return RecLambda(self.name, self.lam.assign_convert(v, env_structure), env_structure)
+        return RecLambda(self.name, self.caselam.assign_convert(v, env_structure), env_structure)
     def mutated_vars(self):
-        v = self.lam.mutated_vars()
+        v = self.caselam.mutated_vars()
         if LexicalVar(self.name) in v:
             del v[LexicalVar(self.name)]
         return v
     def free_vars(self):
-        v = self.lam.free_vars()
+        v = self.caselam.free_vars()
         if self.name in v:
             del v[self.name]
         return v
 
     def interpret_simple(self, env):
         e = ConsEnv.make([values.w_void], env, env.toplevel_env)
-        try:
-            Vcl, e, f = self.lam.interpret(e, None)
-            assert 0
-        except Done, e:
-            vals = e.values
-            cl = check_one_val(vals)
+        cl = self.caselam.interpret_simple(e)
         assert isinstance(cl, values.W_Closure)
-        cl._get_list(0).set(self.name, cl, self.lam.frees)
+        assert cl._get_size_list() == 1
+        cl._get_list(0).set(self.name, cl, self.caselam.lams[0].frees)
         return cl
 
     def tostring(self):
@@ -997,7 +992,7 @@ def make_letrec(varss, rhss, body):
         if isinstance(v, CaseLambda) and 1 == len(v.lams):
             b = body[0]
             if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
-                return RecLambda(varss[0][0], v.lams[0], SymList([varss[0][0]]))
+                return RecLambda(varss[0][0], v, SymList([varss[0][0]]))
     counts = []
     argsl = []
     for vars in varss:
