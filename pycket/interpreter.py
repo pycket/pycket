@@ -107,6 +107,7 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         jit.promote(env_structure)
+        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 v = self._get_list(i)
@@ -117,6 +118,7 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
         jit.promote(env_structure)
+        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 self._set_list(i, val)
@@ -170,19 +172,38 @@ class LetCont(Cont):
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + vals
-            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
-            return ast.make_begin_cont(env, self.prev)
+            return self.trampoline_down(vals)
+            #return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
                                  self.env, self.prev, rhsindex + 1))
+    def trampoline_down(self, vals):
+        lc = self
+        toplevel_env = self.env.toplevel_env
+        while True:
+            prev = lc.prev
+            app = lc.ast.body[0]
+            vals_w = self._get_full_list() + vals
+            env = ConsEnv.make(vals_w, lc.env, toplevel_env)
+            if not(len(lc.ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(prev.ast.rhss) - 1):
+                break
+            #
+            w_callable = app.rator.interpret_simple(env)
+            if isinstance(w_callable, values.W_SimplePrim):
+                args_w = [rand.interpret_simple(env) for rand in app.rands]
+                vals = [w_callable.code(args_w)]
+                lc = prev
+            else:
+                import pdb; pdb.set_trace()   
+                break
+        return lc.ast.make_begin_cont(env, lc.prev)
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 
 class CellCont(Cont):
-    _immutable_fields_ = ["env", "prev"]
+    _immutable_fields_ = ["ast", "env", "prev"]
 
     def __init__(self, ast, env, prev):
         self.ast = ast
@@ -201,14 +222,14 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
-    _immutable_fields_ = ["var", "env", "prev"]
-    def __init__(self, var, env, prev):
-        self.var = var
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
-        self.var._set(w_val, self.env)
+        self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
@@ -655,7 +676,7 @@ class SetBang(AST):
         self.var = var
         self.rhs = rhs
     def interpret(self, env, cont):
-        return self.rhs, env, SetBangCont(self.var, env, cont)
+        return self.rhs, env, SetBangCont(self, env, cont)
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
