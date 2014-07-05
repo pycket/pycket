@@ -170,7 +170,7 @@ class W_IBox(W_Box):
         return "'#&%s" % self.value.tostring()
 
 class W_ChpBox(W_Box):
-    _immutable_fields_ = ["unboxh", "seth"]
+    _immutable_fields_ = ["unbox", "set"]
 
     def __init__(self, box, unbox, set):
         assert isinstance(box, W_MBox)
@@ -407,6 +407,8 @@ def is_impersonator_of(a, b):
         return is_impersonator_of(a.vec, b)
     if isinstance(a, W_ImpProcedure):
         return is_impersonator_of(a.code, b)
+    if isinstance(a, W_ImpBox):
+        return is_impersonator_of(a.box, b)
     return is_chaperone_of(a, b)
 
 # Check that one value is a chaperone of the other
@@ -417,6 +419,8 @@ def is_chaperone_of(a, b):
         return is_chaperone_of(a.vec, b)
     if isinstance(a, W_ChpProcedure):
         return is_chaperone_of(a.code, b)
+    if isinstance(a, W_ChpBox):
+        return is_chaperone_of(a.box, b)
     return False
 
 # Continuation used when calling an impersonator of a procedure.
