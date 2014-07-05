@@ -761,7 +761,7 @@ class RecLambda(AST):
             vals = e.values
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
-        cl.env[0].set(self.name, cl, self.lam.frees)
+        cl.envs[0].set(self.name, cl, self.lam.frees)
         return cl
 
     def tostring(self):

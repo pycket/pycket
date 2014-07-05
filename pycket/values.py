@@ -563,7 +563,7 @@ class W_Closure(W_Procedure):
                 new_env = self.envs[i]
                 return (actuals, new_env, lam)
             except SchemeException:
-                if len(lams) == 1:
+                if len(self.caselam.lams) == 1:
                     raise
         raise SchemeException("No matching arity in case-lambda")
     def call(self, args, env, cont):
