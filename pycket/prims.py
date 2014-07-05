@@ -547,6 +547,14 @@ def box(v):
 def box_immutable(v):
     return values.W_IBox(v)
 
+@expose("chaperone-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def chaperone_box(b, unbox, set):
+    return values.W_ChpBox(b, unbox, set)
+
+@expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def impersonate_box(b, unbox, set):
+    return values.W_ImpBox(b, unbox, set)
+
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
     return do_unbox(b, env, cont)
@@ -598,7 +606,7 @@ def imp_box_set_cont(b, env, cont, vals):
     return do_set_box(b, check_one_val(vals), env, cont)
 
 @continuation
-def chp_box_set_cont(b, old, env, cont, vals):
+def chp_box_set_cont(b, orig, env, cont, vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(vals)
     if not values.is_chaperone_of(val, orig):
