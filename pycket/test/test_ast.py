@@ -37,4 +37,4 @@ def test_cache_lambda_if_no_frees():
     assert isinstance(w_cl1, W_PromotableClosure)
     w_cl2 = lamb.interpret_simple(toplevel)
     assert w_cl1 is w_cl2
-    assert w_cl1.env.toplevel_env is toplevel
+    assert w_cl1.envs[0].toplevel_env is toplevel

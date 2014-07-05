@@ -528,49 +528,71 @@ class W_Continuation(W_Procedure):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
 
+    
+
 class W_Closure(W_Procedure):
-    _immutable_fields_ = ["lam", "env"]
+    # FIXME: specialize on length of envs
+    _immutable_fields_ = ["caselam", "envs[*]"]
     @jit.unroll_safe
-    def __init__ (self, lam, env):
-        from pycket.interpreter import ConsEnv
-        self.lam = lam
-        for i in lam.frees.elems:
-            assert isinstance(i, W_Symbol)
-        vals = [env.lookup(i, lam.enclosing_env_structure)
-                    for i in lam.frees.elems]
-        self.env = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
+    def __init__ (self, caselam, envs):
+        self.caselam = caselam
+        self.envs = envs
+    @staticmethod
+    @jit.unroll_safe
+    def make(caselam, env):
+        from pycket.interpreter import ConsEnv, CaseLambda
+        assert isinstance(caselam, CaseLambda)
+        envs = [None] * len(caselam.lams)
+        for (i,lam) in enumerate(caselam.lams):
+            for s in lam.frees.elems:
+                assert isinstance(s, W_Symbol)
+            vals = [env.lookup(var, lam.enclosing_env_structure)
+                    for var in lam.frees.elems]
+            envs[i] = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
+        return W_Closure(caselam, envs)
+        
     def mark_non_loop(self):
-        self.lam.body[0].should_enter = False
+        for l in self.caselam.lams:
+            l.body[0].should_enter = False
+    @jit.unroll_safe
+    def _find_lam(self, args):
+        jit.promote(self.caselam)
+        for (i, lam) in enumerate(self.caselam.lams):
+            try:
+                actuals = lam.match_args(args)
+                new_env = self.envs[i]
+                return (actuals, new_env, lam)
+            except SchemeException:
+                if len(lams) == 1:
+                    raise
+        raise SchemeException("No matching arity in case-lambda")
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
-        lam = jit.promote(self.lam)
-        fmls_len = len(lam.formals)
-        args_len = len(args)
-        if fmls_len != args_len and not lam.rest:
-            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
-        if fmls_len > args_len:
-            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
-        if lam.rest:
-            actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
-        else:
-            actuals = args
-        # specialize on the fact that often we end up executing in the same
-        # environment
-        prev = self.env
+        jit.promote(self.caselam)
+        (actuals, new_env, lam) = self._find_lam(args)
+        # specialize on the fact that often we end up executing in the
+        # same environment. we try the current environment and its
+        # parent -- perhaps a more principled approach is needed
+        prev = new_env
         if isinstance(env, ConsEnv):
             e = env.prev
-            if e is self.env:
+            if e is new_env:
                 prev = e
-            elif isinstance(e, ConsEnv) and e.prev is self.env:
+            elif isinstance(e, ConsEnv) and e.prev is new_env:
                 prev = e.prev
         return lam.make_begin_cont(
-                          ConsEnv.make(actuals, prev, self.env.toplevel_env),
-                          cont)
+            ConsEnv.make(actuals, prev, new_env.toplevel_env),
+            cont)
+
 
 
 class W_PromotableClosure(W_Closure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
+
+    def __init__(self, caselam, toplevel_env):
+        from pycket.interpreter import ConsEnv
+        W_Closure.__init__(self, caselam, [ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams))
 
     def call(self, args, env, cont):
         jit.promote(self)

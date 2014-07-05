@@ -258,6 +258,10 @@ def _to_require(fname):
 def _expand_and_load(fname):
     return load_json_ast(ensure_json_ast_run(fname))
 
+def to_lambda(arr):
+    fmls, rest = to_formals(arr[0])
+    return make_lambda(fmls, rest, [_to_ast(x) for x in arr[1:]])
+
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
@@ -275,8 +279,7 @@ def _to_ast(json):
             if ast_elem == "quote":
                 return Quote(to_value(arr[1]))
             if ast_elem == "lambda":
-                fmls, rest = to_formals(arr[1])
-                return make_lambda(fmls, rest, [_to_ast(x) for x in arr[2:]])
+                return CaseLambda([to_lambda(arr[1:])])
             if ast_elem == "letrec-values":
                 body = [_to_ast(x) for x in arr[2:]]
                 if len(arr[1].value_array()) == 0:
@@ -330,7 +333,8 @@ def _to_ast(json):
             if ast_elem == "#%variable-reference":
                 raise Exception("#%variable-reference is unsupported")
             if ast_elem == "case-lambda":
-                raise Exception("case-lambda is unsupported")
+                lams = [to_lambda(v.value_array()) for v in arr[1:]]
+                return CaseLambda(lams)
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
             # The parser now ignores `#%require` AST nodes.

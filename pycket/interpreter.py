@@ -761,7 +761,7 @@ class RecLambda(AST):
             vals = e.values
             cl = check_one_val(vals)
         assert isinstance(cl, values.W_Closure)
-        cl.env.set(self.name, cl, self.lam.frees)
+        cl.env[0].set(self.name, cl, self.lam.frees)
         return cl
 
     def tostring(self):
@@ -790,6 +790,51 @@ def free_vars_lambda(body, args):
             del x[v]
     return x
 
+
+
+class CaseLambda(AST):
+    _immutable_fields_ = ["lams[*]", "any_frees", "w_closure_if_no_frees?"]
+    simple = True
+    def __init__(self, lams):
+        ## TODO: drop lams whose arity is redundant
+        ## (case-lambda [x 0] [(y) 1]) == (lambda x 0)
+        self.lams = lams
+        self.any_frees = False
+        for l in lams:
+            if l.frees.elems:
+                self.any_frees = True
+                break
+        self.w_closure_if_no_frees = None
+    def interpret_simple(self, env):
+        if not self.any_frees:
+            # cache closure if there are no free variables and the toplevel env
+            # is the same as last time
+            w_closure = self.w_closure_if_no_frees
+            if w_closure is None:
+                w_closure = values.W_PromotableClosure(self, env.toplevel_env)
+                self.w_closure_if_no_frees = w_closure
+            else:
+                assert w_closure.envs[0].toplevel_env is env.toplevel_env
+            return w_closure
+        return values.W_Closure.make(self, env)
+    def free_vars(self):
+        x = {}
+        for l in self.lams:
+            x.update(l.free_vars())
+        return x
+    def mutated_vars(self):
+        x = variable_set()
+        for l in self.lams:
+            x.update(l.mutated_vars())
+        return x
+    def assign_convert(self, vars, env_structure):
+        ls = [l.assign_convert(vars, env_structure) for l in self.lams]
+        return CaseLambda(ls)
+    def tostring(self):
+        if len(self.lams) == 1:
+            return self.lams[0].tostring()
+        return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure",
@@ -807,6 +852,7 @@ class Lambda(SequencedBodyAST):
         self.w_closure_if_no_frees = None
 
     def interpret_simple(self, env):
+        assert False # FIXME
         if not self.frees.elems:
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
@@ -815,7 +861,7 @@ class Lambda(SequencedBodyAST):
                 w_closure = values.W_PromotableClosure(self, env)
                 self.w_closure_if_no_frees = w_closure
             return w_closure
-        return values.W_Closure(self, env)
+        return values.W_Closure.make([self], env)
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
@@ -851,6 +897,20 @@ class Lambda(SequencedBodyAST):
         return x
     def free_vars(self):
         return free_vars_lambda(self.body, self.args)
+
+    def match_args(self, args):
+        fmls_len = len(self.formals)
+        args_len = len(args)
+        if fmls_len != args_len and not self.rest:
+            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
+        if fmls_len > args_len:
+            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
+        if self.rest:
+            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        else:
+            actuals = args
+        return actuals
+
 
     def tostring(self):
         if self.rest and (not self.formals):
