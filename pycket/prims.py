@@ -405,11 +405,6 @@ def printf(args):
             os.write(1,fmt[i])
             i += 1
 
-#@expose("equal?", [values.W_Object] * 2)
-#def equalp(a, b):
-    ## this doesn't work for cycles
-    #return values.W_Bool.make(a.equal(b))
-
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
     # this doesn't work for cycles
@@ -538,6 +533,96 @@ def str2num(w_s):
     except ParseStringError as e:
         return values.w_false
 
+# Boxes
+
+@expose("box?", [values.W_Object])
+def box_huh(v):
+    return values.W_Bool.make(isinstance(v, W_Box))
+
+@expose("box", [values.W_Object])
+def box(v):
+    return values.W_MBox(v)
+
+@expose("box-immutable", [values.W_Object])
+def box_immutable(v):
+    return values.W_IBox(v)
+
+@expose("unbox", [values.W_Box], simple=False)
+def unbox(b, env, cont):
+    return do_unbox(b, env, cont)
+
+@continuation
+def chp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
+
+@continuation
+def chp_unbox_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if values.is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        raise SchemeException("Expecting original value or chaperone of thereof")
+
+@continuation
+def imp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return f.call([box, check_one_val(vals)], env, cont)
+
+def do_unbox(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values.W_MBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_IBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_ChpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, chp_unbox_cont(f, b, env, cont))
+    elif isinstance(v, values.W_ImpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, imp_unbox_cont(f, b, env, cont))
+    else:
+        assert False
+
+@expose("set-box!", [values.W_Box, values.W_Object], simple=False)
+def set_box(box, v, env, cont):
+    return do_set_box(box, v, env, cont)
+
+@continuation
+def imp_box_set_cont(b, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return do_set_box(b, check_one_val(vals), env, cont)
+
+@continuation
+def chp_box_set_cont(b, old, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    if not values.is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
+    return do_set_box(b, val, env, cont)
+
+def do_set_box(box, v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(box, values.W_IBox):
+        raise SchemeException("Cannot set-box! immutable box")
+    elif isinstance(box, values.W_MBox):
+        box.value = v
+        return return_value(values.w_void, env, cont)
+    elif isinstance(box, values.W_ImpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, imp_box_set_cont(b, env, cont))
+    elif isinstance(box, values.W_ChpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
+    else:
+        assert False
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
@@ -563,7 +648,7 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     if values.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
-        raise SchemeException("Expecting original value or chaperone of ")
+        raise SchemeException("Expecting original value or chaperone of thereof")
 
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
@@ -636,6 +721,8 @@ def chaperone_procedure(proc, check):
 
 @expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def chaperone_vector(v, refh, seth):
+    refh.mark_non_loop()
+    seth.mark_non_loop()
     return values.W_ChpVector(v, refh, seth)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])

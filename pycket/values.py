@@ -147,6 +147,54 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+class W_Box(W_Object):
+    errorname = "box"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_MBox(W_Box):
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return "'#&%s" % self.value.tostring()
+
+class W_IBox(W_Box):
+    _immutable_fields_ = ["value"]
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return "'#&%s" % self.value.tostring()
+
+class W_ChpBox(W_Box):
+    _immutable_fields_ = ["unboxh", "seth"]
+
+    def __init__(self, box, unbox, set):
+        assert isinstance(box, W_MBox)
+        self.box = box
+        self.unbox = unbox
+        self.set = set
+
+class W_ChpBox(W_Box):
+    _immutable_fields_ = ["unboxh", "seth"]
+
+    def __init__(self, box, unbox, set):
+        assert isinstance(box, W_Box)
+        self.box = box
+        self.unbox = unbox
+        self.set = set
+
+class W_ImpBox(W_Box):
+    _immutable_fields_ = ["unbox", "set"]
+
+    def __init__(self, box, unbox, set):
+        assert isinstance(box, W_Box)
+        self.box = box
+        self.unbox = unbox
+        self.set = set
 
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
@@ -528,7 +576,7 @@ class W_Continuation(W_Procedure):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
 
-    
+
 
 class W_Closure(W_Procedure):
     # FIXME: specialize on length of envs
@@ -549,7 +597,7 @@ class W_Closure(W_Procedure):
                     for var in lam.frees.elems]
             envs[i] = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
         return W_Closure._make(envs, caselam)
-        
+
     def mark_non_loop(self):
         for l in self.caselam.lams:
             l.body[0].should_enter = False
