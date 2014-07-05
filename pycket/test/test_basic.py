@@ -326,3 +326,7 @@ def test_caselambda():
     run("(case-lambda [x 0])")
     run("((case-lambda [() #f]))", w_false) 
     run("((case-lambda [(x) #f]) 0)", w_false) 
+    run("((case-lambda [() 0] [(x) x]) #f)", w_false) 
+    run("((case-lambda [x #t] [(x) x]) #f)", w_true) 
+    run("((case-lambda [x (car x)] [(x) x]) #f #t 17)", w_false) 
+    run("((case-lambda [(x) x] [x (car x)]) #f #t 17)", w_false) 
