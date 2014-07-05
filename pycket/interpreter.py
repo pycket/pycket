@@ -762,14 +762,16 @@ class RecLambda(AST):
         return cl
 
     def tostring(self):
-        b = " ".join([b.tostring() for b in self.lam.body])
-        if self.lam.rest and (not self.lam.formals):
-            return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
-        formals_string = " ".join([variable_name(v) for v in self.lam.formals])
-        if self.lam.rest:
-            return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
-        else:
-            return "(rec %s (%s) %s)"%(self.name, formals_string, b)
+        return "(rec %s)"%self.caselam.tostring()
+        # FIXME: make this stuff work again
+        # b = " ".join([b.tostring() for b in self.caselam.body])
+        # if self.lam.rest and (not self.lam.formals):
+        #     return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
+        # formals_string = " ".join([variable_name(v) for v in self.lam.formals])
+        # if self.lam.rest:
+        #     return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
+        # else:
+        #     return "(rec %s (%s) %s)"%(self.name, formals_string, b)
 
 
 def make_lambda(formals, rest, body):
