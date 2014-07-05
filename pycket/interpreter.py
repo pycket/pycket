@@ -201,14 +201,14 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
-    _immutable_fields_ = ["var", "env", "prev"]
-    def __init__(self, var, env, prev):
-        self.var = var
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
-        self.var._set(w_val, self.env)
+        self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
@@ -655,7 +655,7 @@ class SetBang(AST):
         self.var = var
         self.rhs = rhs
     def interpret(self, env, cont):
-        return self.rhs, env, SetBangCont(self.var, env, cont)
+        return self.rhs, env, SetBangCont(self, env, cont)
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
