@@ -1118,6 +1118,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
             ast, env, cont = ast.interpret(env, cont)
             if ast.should_enter:
+#                print ast.tostring()
                 driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
         return e.values

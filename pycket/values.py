@@ -531,7 +531,6 @@ class W_Continuation(W_Procedure):
     
 
 class W_Closure(W_Procedure):
-    # FIXME: specialize on length of envs
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
     def __init__ (self, caselam):
@@ -595,6 +594,9 @@ class W_PromotableClosure(W_Procedure):
     def __init__(self, caselam, toplevel_env):
         from pycket.interpreter import ConsEnv
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam)
+
+    def mark_non_loop(self):
+        self.closure.mark_non_loop()
 
     def call(self, args, env, cont):
         jit.promote(self)
