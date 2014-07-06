@@ -534,7 +534,7 @@ def str2num(w_s):
     except ParseStringError as e:
         return values.w_false
 
-# Boxes
+### Boxes
 
 @expose("box?", [values.W_Object])
 def box_huh(v):
@@ -550,12 +550,16 @@ def box_immutable(v):
 
 @expose("chaperone-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
 def chaperone_box(b, unbox, set):
+    unbox.mark_non_loop()
+    set.mark_non_loop()
     return values.W_ChpBox(b, unbox, set)
 
 @expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
 def impersonate_box(b, unbox, set):
     if b.immutable():
         raise SchemeException("Cannot impersonate immutable box")
+    unbox.mark_non_loop()
+    set.mark_non_loop()
     return values.W_ImpBox(b, unbox, set)
 
 @expose("unbox", [values.W_Box], simple=False)
@@ -726,6 +730,7 @@ def do_vec_set(v, i, new, env, cont):
 
 @expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
 def impersonate_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ImpProcedure(proc, check)
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
@@ -738,6 +743,7 @@ def impersonate_vector(v, refh, seth):
 
 @expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
 def chaperone_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ChpProcedure(proc, check)
 
 @expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
