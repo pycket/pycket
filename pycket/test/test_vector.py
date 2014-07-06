@@ -69,9 +69,9 @@ def test_vec_strategies_dehomogenize():
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
 def run_unsafe(e,v):
-    run(e,v,extra="(require racket/unsafe/ops)")
+    run(e,v,extra="")
 def run_fix_unsafe(e,v):
-    run_fix(e,v,extra="(require racket/unsafe/ops)")
+    run_fix(e,v,extra="")
 
 def test_unsafe():
     run_unsafe("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)

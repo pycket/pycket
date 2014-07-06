@@ -49,9 +49,9 @@ class W_Vector(W_MVector):
 
     # unsafe versions
     def _ref(self, i):
-        return self.strategy._ref(self, i)
+        return self.strategy.ref(self, i, check=False)
     def _set(self, i, v):
-        self.strategy._set(self, i, v)
+        self.strategy.set(self, i, v, check=False)
 
     def length(self):
         return self.len
@@ -93,11 +93,13 @@ class VectorStrategy(object):
     def is_correct_type(self, w_obj):
         raise NotImplementedError("abstract base class")
 
-    def ref(self, w_vector, i):
-        self.indexcheck(w_vector, i)
+    def ref(self, w_vector, i, check=True):
+        if check:
+            self.indexcheck(w_vector, i)
         return self._ref(w_vector, i)
-    def set(self, w_vector, i, w_val):
-        self.indexcheck(w_vector, i)
+    def set(self, w_vector, i, w_val, check=True):
+        if check:
+            self.indexcheck(w_vector, i)
         if not (self.is_correct_type(w_val)):
             self.dehomogenize(w_vector)
             w_vector.set(i, w_val) # Now, try again.
