@@ -8,12 +8,12 @@ from pycket.option_helper import parse_args, ensure_json_ast
 from pycket.values import W_String
 
 from rpython.rlib import jit
-import sys
 
 # _____ Define and setup target ___
 
 def entry_point(argv):
-    sys.setrecursionlimit(10000)
+    #import sys
+    #sys.setrecursionlimit(10000)
     jit.set_param(None, "trace_limit", 20000)
 
     config, names, args, retval = parse_args(argv)
