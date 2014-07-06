@@ -30,8 +30,8 @@
       (simplify-path
         (resolve-module-path v #f))))
   (define (translate v)
-    (if (eqv? v '#%kernel)
-      "#%kernel"
+    (if (memv v '(#%kernel #%utils #%unsafe)) ;; (eqv? v '#%kernel)
+      "#%kernel" ;;(symbol->string v)
       (to-path v)))
   (syntax-parse v #:literals (#%top quote)
     [v:str        (to-path (syntax-e #'v))]
@@ -74,16 +74,20 @@
               'source-name (symbol->string src-id))]
        [v (error 'expand_racket "phase not zero: ~a" v)])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
-    [_
-     #:when (exact-integer? (syntax-e v))
-     (hash 'integer (~a (syntax-e v)))]
+    [_ #:when (box? (syntax-e v))
+       (hash 'box (to-json (unbox (syntax-e v))))]
+    [_ #:when (exact-integer? (syntax-e v))
+       (hash 'integer (~a (syntax-e v)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
-    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote (syntax-e v))]
-    [_
-     #:when (char? (syntax-e v))
-     (hash 'char (~a (char->integer (syntax-e v))))]))
+    [_ #:when (char? (syntax-e v))
+       (hash 'char (~a (char->integer (syntax-e v))))]
+    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote '())]
+    ;;[_ #:when (bytes? (syntax-e v)) (hash 'string (bytes->string/locale (syntax-e v)))]
+    ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
+    ;;[_ (hash 'string "unsupported type")]
+    ))
 
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)

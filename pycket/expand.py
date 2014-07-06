@@ -373,6 +373,8 @@ def to_value(json):
         obj = json.value_object()
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
+        if "box" in obj:
+            return values.W_IBox(to_value(obj["box"]))
         if "integer" in obj:
             val = rbigint.fromdecimalstr(obj["integer"].value_string())
             try:
