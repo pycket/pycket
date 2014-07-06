@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pycket.cont import continuation, call_cont
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
@@ -23,7 +24,6 @@ class Values(object):
         pass
 
 inline_small_list(Values, immutable=True, attrname="vals")
-
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -61,6 +61,7 @@ class W_MVector(W_Object):
 class W_ImpVector(W_MVector):
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
+        assert isinstance(v, W_MVector)
         self.vec = v
         self.refh = r
         self.seth = s
@@ -79,11 +80,33 @@ class W_ImpVector(W_MVector):
             return False
         for i in range(self.length()):
             # FIXME: we need to call user code here
-            # if not self.ref(i).equal(other.ref(i)):
-            #    return False
-            return False
+            if not self.vec.ref(i).equal(other.ref(i)):
+               return False
+            #return False
         return True
 
+class W_ChpVector(W_MVector):
+    _immutable_fields_ = ["vec", "refh", "seth"]
+    def __init__(self, v, r, s):
+        assert isinstance(v, W_MVector)
+        self.vec  = v
+        self.refh = r
+        self.seth = s
+
+    def length(self):
+        return self.vec.length()
+
+    def equal(self, other):
+        if not isinstance(other, W_MVector):
+            return False
+        if self is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            if not self.vec.ref(i).equal(other.ref(i)):
+                return False
+        return True
 
 class W_List(W_Object):
     errorname = "list"
@@ -327,6 +350,122 @@ class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+    def mark_non_loop(self): pass
+
+def is_impersonator_of(a, b):
+    if a is b:
+        return True
+    if isinstance(a, W_ImpVector):
+        return is_impersonator_of(a.vec, b)
+    if isinstance(a, W_ImpProcedure):
+        return is_impersonator_of(a.code, b)
+    return is_chaperone_of(a, b)
+
+# Check that one value is a chaperone of the other
+def is_chaperone_of(a, b):
+    if a is b:
+        return True
+    if isinstance(a, W_ChpVector):
+        return is_chaperone_of(a.vec, b)
+    if isinstance(a, W_ChpProcedure):
+        return is_chaperone_of(a.code, b)
+    return False
+
+# Continuation used when calling an impersonator of a procedure.
+@continuation
+def imp_proc_cont(arg_count, proc, env, cont, _vals):
+    vals = _vals._get_full_list()
+    if len(vals) == arg_count:
+        return proc.call(vals, env, cont)
+    elif len(vals) == arg_count + 1:
+        args, check = vals[:-1], vals[-1]
+        return proc.call(args, env, call_cont(check, env, cont))
+    else:
+        assert False
+
+#def chp_proc_cont(args, proc, env, cont, _vals):
+    #vals = _vals._get_full_list()
+
+class W_ImpProcedure(W_Procedure):
+    _immutable_fields_ = ["code", "check"]
+    def __init__(self, code, check):
+        assert isinstance(code, W_Procedure)
+        assert isinstance(check, W_Procedure)
+        self.code  = code
+        self.check = check
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return self.check.call(
+                args, env, imp_proc_cont(len(args), self.code, env, cont))
+
+    def equal(self, other):
+        if not isinstance(other, W_Procedure):
+            return False
+        # We are the same procedure if we have the same identity or
+        # our underlying procedure is equal to our partner.
+        return self is other or other.equal(self.code)
+
+    def tostring(self):
+        return "ImpProcedure<%s>" % self.code.tostring()
+
+# Check that the results of che call to check are all chaperones of
+# the original function outputs.
+@continuation
+def chp_proc_ret_cont(orig, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    vals = _vals._get_full_list()
+    assert len(vals) == len(orig)
+    for i in range(len(vals)):
+        if not is_chaperone_of(vals[i], orig[i]):
+            raise SchemeException("Expecting original value or chaperone")
+    return return_multi_vals(_vals, env, cont)
+
+# Capture the original output of the function to compare agains the result of
+# the check operation
+@continuation
+def chp_proc_call_check_cont(check, env, cont, _vals):
+    vals = _vals._get_full_list()
+    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
+
+# Continuation used when calling a chaperone of a procedure.
+@continuation
+def chp_proc_cont(args, proc, env, cont, _vals):
+    vals = _vals._get_full_list()
+    assert len(vals) >= len(args)
+    for i in range(len(args)):
+        if not is_chaperone_of(vals[i], args[i]):
+            raise SchemeException("Expecting original value or chaperone")
+    if len(vals) == len(args):
+        return proc.call(vals, env, cont)
+    elif len(vals) == len(args) + 1:
+        args, check = vals[:-1], vals[-1]
+        return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
+    else:
+        assert False
+
+class W_ChpProcedure(W_Procedure):
+    _immutable_fields_ = ["code", "check"]
+    def __init__(self, code, check):
+        assert isinstance(code, W_Procedure)
+        assert isinstance(check, W_Procedure)
+        self.code  = code
+        self.check = check
+
+    def call(self, args, env, cont):
+        jit.promote(self)
+        return self.check.call(
+                args, env, chp_proc_cont(args, self.code, env, cont))
+        #return self.code.call(args, env, cont)
+
+    def equal(self, other):
+        if not isinstance(other, W_Procedure):
+            return False
+
+        return self is other or other.equal(self.code)
+
+    def tostring(self):
+        return "ChpProcedure<%s>" % self.code.tostring()
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code"]
@@ -337,7 +476,6 @@ class W_SimplePrim(W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         jit.promote(self)
-        #print self.name
         return return_value(self.code(args), env, cont)
 
     def tostring(self):
@@ -390,54 +528,83 @@ class W_Continuation(W_Procedure):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
 
-class W_Closure(W_Procedure):
-    _immutable_fields_ = ["lam", "env"]
-    @jit.unroll_safe
-    def __init__ (self, lam, env):
-        from pycket.interpreter import ConsEnv
-        self.lam = lam
-        vals = []
-        for v in lam.frees.elems:
-            assert isinstance(v, W_Symbol)
-            if v is lam.recursive_sym:
-                vals.append(self)
-            else:
-                vals.append(env.lookup(v, lam.enclosing_env_structure))
-        self.env = ConsEnv.make(vals[:], env.toplevel_env, env.toplevel_env)
 
+
+class W_Closure(W_Procedure):
+    _immutable_fields_ = ["caselam"]
+    @jit.unroll_safe
+    def __init__ (self, caselam, env):
+        from pycket.interpreter import ConsEnv
+        self.caselam = caselam
+        for (i,lam) in enumerate(caselam.lams):
+            for s in lam.frees.elems:
+                assert isinstance(s, W_Symbol)
+            vals = [None] * len(lam.frees.elems)
+            for j, v in enumerate(lam.frees.elems):
+                if v is caselam.recursive_sym:
+                    vals[j] = self
+                else:
+                    vals[j] = env.lookup(v, lam.enclosing_env_structure)
+            self._set_list(i, ConsEnv.make(vals, env.toplevel_env, env.toplevel_env))
+
+    @staticmethod
+    @jit.unroll_safe
+    def make(caselam, env):
+        from pycket.interpreter import ConsEnv, CaseLambda
+        assert isinstance(caselam, CaseLambda)
+        envs = [None] * len(caselam.lams)
+        return W_Closure._make(envs, caselam, env)
+
+    def mark_non_loop(self):
+        for l in self.caselam.lams:
+            l.body[0].should_enter = False
+    @jit.unroll_safe
+    def _find_lam(self, args):
+        jit.promote(self.caselam)
+        for (i, lam) in enumerate(self.caselam.lams):
+            try:
+                actuals = lam.match_args(args)
+                new_env = self._get_list(i)
+                return (actuals, new_env, lam)
+            except SchemeException:
+                if len(self.caselam.lams) == 1:
+                    raise
+        raise SchemeException("No matching arity in case-lambda")
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
-        lam = jit.promote(self.lam)
-        if lam.cached_closure is not None and lam.cached_closure is self:
-            self = lam.cached_closure
-            assert isinstance(self, W_Closure)
-            prev = self.env
-        elif isinstance(env, ConsEnv) and env.prev is self.env:
-            # specialize on the fact that often we end up executing in the same
-            # environment
-            prev = env.prev
-        else:
-            prev = self.env
-        fmls_len = len(lam.formals)
-        args_len = len(args)
-        if fmls_len != args_len and not lam.rest:
-            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
-        if fmls_len > args_len:
-            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
-        if lam.rest:
-            actuals = args[0:fmls_len] + [to_list(args[fmls_len:])]
-        else:
-            actuals = args
-        return (lam.lambody,
-                ConsEnv.make(actuals, prev, prev.toplevel_env),
-                cont)
+        jit.promote(self.caselam)
+        (actuals, new_env, lam) = self._find_lam(args)
+        # specialize on the fact that often we end up executing in the
+        # same environment. we try the current environment and its
+        # parent -- perhaps a more principled approach is needed
+        prev = new_env
+        if isinstance(env, ConsEnv):
+            e = env.prev
+            if e is new_env:
+                prev = e
+            elif isinstance(e, ConsEnv) and e.prev is new_env:
+                prev = e.prev
+        return lam.lambody.make_begin_cont(
+            ConsEnv.make(actuals, prev, new_env.toplevel_env),
+            cont)
+
+inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 
 
-class W_PromotableClosure(W_Closure):
+class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
+    _immutable_fields_ = ["closure"]
+
+    def __init__(self, caselam, toplevel_env):
+        from pycket.interpreter import ConsEnv
+        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+
+    def mark_non_loop(self):
+        self.closure.mark_non_loop()
+
     def call(self, args, env, cont):
         jit.promote(self)
-        return W_Closure.call(self, args, env, cont)
+        return self.closure.call(args, env, cont)
 

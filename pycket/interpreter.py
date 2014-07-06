@@ -59,14 +59,14 @@ class ModuleEnv(object):
         return module.lookup(modvar.srcsym)
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env"]
+    _immutable_fields_ = ["toplevel_env", "module_env"]
     _attrs_ = ['toplevel_env']
 
 class Version(object):
     pass
 
 class ToplevelEnv(Env):
-    _immutable_fields_ = ["version?", "module_env"]
+    _immutable_fields_ = ["version?", "module_env", "toplevel_env"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
@@ -138,6 +138,7 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
 
+    @jit.unroll_safe
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
@@ -201,14 +202,14 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
-    _immutable_fields_ = ["var", "env", "prev"]
-    def __init__(self, var, env, prev):
-        self.var = var
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        self.ast = ast
         self.env = env
         self.prev = prev
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
-        self.var._set(w_val, self.env)
+        self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
@@ -228,7 +229,7 @@ class Done(Exception):
 
 class AST(object):
     _attrs_ = ["should_enter"]
-    _immutable_fields_ = ["should_enter"]
+    _immutable_fields_ = ["should_enter?"]
     _settled_ = True
 
     should_enter = False # default value
@@ -276,8 +277,8 @@ class Module(AST):
 
     @jit.elidable
     def lookup(self, sym):
-        assert (sym in defs)
-        v = defs[sym]
+        assert (sym in self.defs)
+        v = self.defs[sym]
         if not v:
             raise SchemeException("use of module variable before definition %s" % (sym))
         return v
@@ -321,6 +322,28 @@ class Module(AST):
                 vs = interpret_one(f, self.env)
                 continue
         env.module_env.current_module = None
+
+class Require(AST):
+    _immutable_fields_ = ["modname", "module"]
+    simple = True
+
+    def __init__(self, modname, module):
+        self.modname = modname
+        self.module  = module
+
+    def mutated_vars(self):
+        return variable_set()
+    def free_vars(self):
+        return {}
+
+    def assign_convert(self, vars, env_structure):
+        return self
+
+    # Interpret the module and add it to the module environment
+    def interpret_simple(self, env):
+        mod = interpret_module(self.module)
+        env.toplevel_env.module_env.add_module(self.modname, mod)
+        return values.w_void
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
@@ -421,6 +444,8 @@ class App(AST):
             x.update(r.free_vars())
         return x
 
+    # Let conversion ensures that all the participants in an application
+    # are simple.
     @jit.unroll_safe
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
@@ -630,7 +655,7 @@ class SetBang(AST):
         self.var = var
         self.rhs = rhs
     def interpret(self, env, cont):
-        return self.rhs, env, SetBangCont(self.var, env, cont)
+        return self.rhs, env, SetBangCont(self, env, cont)
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
@@ -703,51 +728,49 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 class RecLambda(AST):
-    _immutable_fields_ = ["name", "lam", "env_structure"]
+    _immutable_fields_ = ["name", "caselam", "env_structure"]
     simple = True
     def __init__(self, name, lam, env_structure):
-        assert isinstance(lam, Lambda)
+        assert isinstance(lam, CaseLambda)
         self.name = name
-        self.lam  = lam
+        self.caselam  = lam
         self.env_structure = env_structure
     def assign_convert(self, vars, env_structure):
         v = vars.copy()
         if LexicalVar(self.name) in v:
             del v[LexicalVar(self.name)]
         env_structure = SymList([self.name], env_structure)
-        return RecLambda(self.name, self.lam.assign_convert(v, env_structure), env_structure)
+        return RecLambda(self.name, self.caselam.assign_convert(v, env_structure), env_structure)
     def mutated_vars(self):
-        v = self.lam.mutated_vars()
+        v = self.caselam.mutated_vars()
         if LexicalVar(self.name) in v:
             del v[LexicalVar(self.name)]
         return v
     def free_vars(self):
-        v = self.lam.free_vars()
+        v = self.caselam.free_vars()
         if self.name in v:
             del v[self.name]
         return v
 
     def interpret_simple(self, env):
         e = ConsEnv.make([values.w_void], env, env.toplevel_env)
-        try:
-            Vcl, e, f = self.lam.interpret(e, None)
-            assert 0
-        except Done, e:
-            vals = e.values
-            cl = check_one_val(vals)
+        cl = self.caselam.interpret_simple(e)
         assert isinstance(cl, values.W_Closure)
-        cl.env.set(self.name, cl, self.lam.frees)
+        assert cl._get_size_list() == 1
+        cl._get_list(0).set(self.name, cl, self.caselam.lams[0].frees)
         return cl
 
     def tostring(self):
-        b = " ".join([b.tostring() for b in self.lam.body])
-        if self.lam.rest and (not self.lam.formals):
-            return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
-        formals_string = " ".join([variable_name(v) for v in self.lam.formals])
-        if self.lam.rest:
-            return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
-        else:
-            return "(rec %s (%s) %s)"%(self.name, formals_string, b)
+        return "(rec %s)"%self.caselam.tostring()
+        # FIXME: make this stuff work again
+        # b = " ".join([b.tostring() for b in self.caselam.body])
+        # if self.lam.rest and (not self.lam.formals):
+        #     return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
+        # formals_string = " ".join([variable_name(v) for v in self.lam.formals])
+        # if self.lam.rest:
+        #     return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
+        # else:
+        #     return "(rec %s (%s) %s)"%(self.name, formals_string, b)
 
 
 def make_lambda(formals, rest, body):
@@ -765,29 +788,77 @@ def free_vars_lambda(body, args):
             del x[v]
     return x
 
-class Lambda(AST):
+
+
+class CaseLambda(AST):
+    _immutable_fields_ = ["lams[*]", "any_frees", "w_closure_if_no_frees?"]
+    simple = True
+    def __init__(self, lams, recursive_sym=None):
+        ## TODO: drop lams whose arity is redundant
+        ## (case-lambda [x 0] [(y) 1]) == (lambda x 0)
+        self.lams = lams
+        self.any_frees = False
+        for l in lams:
+            if l.frees.elems:
+                self.any_frees = True
+                break
+        self.w_closure_if_no_frees = None
+        self.recursive_sym = recursive_sym
+
+    def make_recursive_copy(self, sym):
+        return CaseLambda(self.lams, sym)
+
+    def interpret_simple(self, env):
+        if not self.any_frees:
+            # cache closure if there are no free variables and the toplevel env
+            # is the same as last time
+            w_closure = self.w_closure_if_no_frees
+            if w_closure is None:
+                w_closure = values.W_PromotableClosure(self, env.toplevel_env)
+                self.w_closure_if_no_frees = w_closure
+            else:
+                assert w_closure.closure._get_list(0).toplevel_env is env.toplevel_env
+            return w_closure
+        return values.W_Closure.make(self, env)
+    def free_vars(self):
+        result = {}
+        for l in self.lams:
+            result.update(l.free_vars())
+        if self.recursive_sym in result:
+            del result[self.recursive_sym]
+        return result
+    def mutated_vars(self):
+        x = variable_set()
+        for l in self.lams:
+            x.update(l.mutated_vars())
+        return x
+    def assign_convert(self, vars, env_structure):
+        ls = [l.assign_convert(vars, env_structure) for l in self.lams]
+        return CaseLambda(ls, recursive_sym=self.recursive_sym)
+    def tostring(self):
+        if len(self.lams) == 1:
+            return self.lams[0].tostring()
+        return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
+
+class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["lambody", "formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure",
-                          "w_closure_if_no_frees?",
                           "cached_closure?",
                           ]
     simple = True
-    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, recursive_sym=None):
+    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         self.lambody = LambdaBody(body, self)
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
-        self.recursive_sym = recursive_sym
         self.enclosing_env_structure = enclosing_env_structure
         self.w_closure_if_no_frees = None
         self.cached_closure = None
 
-    def make_recursive_copy(self, sym):
-        return Lambda(self.formals, self.rest, self.args, self.frees,
-                      self.lambody.body, self.enclosing_env_structure, sym)
 
     def interpret_simple(self, env):
+        assert False # FIXME
         if not self.frees.elems:
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
@@ -844,7 +915,7 @@ class Lambda(AST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, recursive_sym=self.recursive_sym)
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
         x = variable_set()
         for b in self.lambody.body:
@@ -856,9 +927,21 @@ class Lambda(AST):
         return x
     def free_vars(self):
         result = free_vars_lambda(self.lambody.body, self.args)
-        if self.recursive_sym in result:
-            del result[self.recursive_sym]
         return result
+
+    def match_args(self, args):
+        fmls_len = len(self.formals)
+        args_len = len(args)
+        if fmls_len != args_len and not self.rest:
+            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
+        if fmls_len > args_len:
+            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
+        if self.rest:
+            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        else:
+            actuals = args
+        return actuals
+
 
     def tostring(self):
         if self.rest and (not self.formals):
@@ -992,7 +1075,7 @@ def make_letrec(varss, rhss, body):
     if 1 == len(varss) and 1 == len(varss[0]):
         rhs = rhss[0]
         sym = varss[0][0]
-        if isinstance(rhs, Lambda) and LexicalVar(sym) not in rhs.mutated_vars():
+        if isinstance(rhs, CaseLambda) and LexicalVar(sym) not in rhs.mutated_vars():
             reclambda = rhs.make_recursive_copy(sym)
             return make_let_singlevar(sym, reclambda, body)
 
@@ -1103,7 +1186,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
-    import pdb
+    #import pdb
     #pdb.set_trace()
     cont = None
     if not env:
@@ -1113,6 +1196,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
             ast, env, cont = ast.interpret(env, cont)
             if ast.should_enter:
+#                print ast.tostring()
                 driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
         return e.values

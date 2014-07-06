@@ -4,8 +4,8 @@
 (define SIZE 10000)
 
 (define vec (impersonate-vector (make-vector SIZE)
-                                (lambda (x y z) z)
-                                (lambda (x y z) z)))
+                                (lambda (x y z) (unless (number? z) (error 'fail)) z)
+                                (lambda (x y z) (unless (number? z) (error 'fail)) z)))
 
 (define (bubble-sort vec)
   (define SIZE-1 (- SIZE 1))
