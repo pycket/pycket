@@ -117,6 +117,7 @@
   (define wrap? #t)
   (define stdlib? #t)
   (define mpair? #f)
+  (define loop? #f)
 
   (command-line
    #:once-any
@@ -127,9 +128,13 @@
    #:once-each
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
+   [("--loop") "keep process alive" (set! loop? #t)]
+   
    #:args ([source #f])
    (cond [(and in source)
           (raise-user-error "can't supply --stdin with a source file")]
+         [(and loop? source)
+          (raise-user-error "can't loop on a file")]
          [source
           (when (not (output-port? out))
             (set! out (open-output-file (string-append source ".json")
@@ -148,9 +153,32 @@
   ;; directory so the expand function works properly
   (unless (input-port? in)
     (current-directory (path-only in)))
-
+  
   (read-accept-reader #t)
-  (define mod (read-syntax (object-name input) input))
-  (define expanded (do-expand mod))
-  (write-json (convert expanded) out)
-  (newline out))
+  (read-accept-lang #t)
+  
+  (let loop ()
+    (define mod 
+      ;; hack b/c I can't write EOF from Python
+      (cond [loop?
+             (let rd ([s null])
+               (define d (read-bytes-line input))
+               ;(write d (current-error-port)) (newline (current-error-port))
+               (cond
+                [(or (equal? d #"\0") (eof-object? d))
+                 ;(eprintf "done\n")
+                 (read-syntax (object-name input)
+                              (open-input-bytes
+                               (apply bytes-append
+                                      (add-between (reverse s) #"\n"))))]
+                [else
+                 (rd (cons d s))]))]
+            [else
+             ;(eprintf "starting read-syntax\n")
+             (read-syntax (object-name input) input)]))
+    (when (eof-object? mod) (exit 0))
+    (define expanded (do-expand mod))
+    (write-json (convert expanded) out)
+    (newline out) 
+    (flush-output out)
+    (when loop? (loop))))

@@ -32,17 +32,37 @@ def readfile_rpython(fname):
 
 fn = "-l pycket/expand --"
 
-def expand_string(s):
+
+current_racket_proc = None
+
+def expand_string(s, reuse=True):
     "NON_RPYTHON"
+    global current_racket_proc
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdin --stdout " % (fn)
-    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
-    (data, err) = process.communicate(s)
+    cmd = "racket %s --loop --stdin --stdout " % (fn)
+    if current_racket_proc and reuse:
+        process = current_racket_proc
+    else:
+        process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
+        if reuse:
+            current_racket_proc = process
+    if reuse:
+        process.stdin.write(s)
+        ## I would like to write something so that Racket sees EOF without
+        ## closing the file. But I can't figure out how to do that. It
+        ## must be possible, though, because bash manages it.
+        #process.stdin.write(chr(4))
+        process.stdin.write("\n\0\n")
+        process.stdin.flush()
+        #import pdb; pdb.set_trace()
+        data = process.stdout.readline()
+    else:
+        (data, err) = process.communicate(s)
     if len(data) == 0:
         raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
-    if err:
-        raise Exception("Racket produced an error")
+    # if err:
+    #     raise Exception("Racket produced an error")
     return data
 
 

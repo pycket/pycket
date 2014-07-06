@@ -8,14 +8,14 @@ from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_
 
 
 def test_constant():
-    ov = run("1")
+    ov = run("1", stdlib=False)
     assert isinstance(ov, W_Fixnum)
     assert ov.value == 1
 
 
 def test_read_err ():
     with pytest.raises(Exception):
-        expand ("(")
+        expand_string("(", result=False)
 
 def test_arithmetic():
     run_fix("(+ )", 0)
