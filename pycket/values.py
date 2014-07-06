@@ -62,6 +62,7 @@ class W_MVector(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_ImpVector(W_MVector):
+    errorname = "imp-vector"
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, W_MVector)
@@ -89,6 +90,7 @@ class W_ImpVector(W_MVector):
         return True
 
 class W_ChpVector(W_MVector):
+    errorname = "chp-procedure"
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, W_MVector)
@@ -159,6 +161,7 @@ class W_Box(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_MBox(W_Box):
+    errorname = "mbox"
 
     def __init__(self, value):
         self.value = value
@@ -167,6 +170,7 @@ class W_MBox(W_Box):
         return "'#&%s" % self.value.tostring()
 
 class W_IBox(W_Box):
+    errorname = "ibox"
     _immutable_fields_ = ["value"]
 
     def __init__(self, value):
@@ -179,6 +183,7 @@ class W_IBox(W_Box):
         return "'#&%s" % self.value.tostring()
 
 class W_ChpBox(W_Box):
+    errorname = "chp-box"
     _immutable_fields_ = ["box", "unbox", "set"]
 
     def __init__(self, box, unbox, set):
@@ -191,6 +196,7 @@ class W_ChpBox(W_Box):
         return self.box.immutable()
 
 class W_ImpBox(W_Box):
+    errorname = "imp-box"
     _immutable_fields_ = ["box", "unbox", "set"]
 
     def __init__(self, box, unbox, set):
@@ -441,6 +447,7 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
         assert False
 
 class W_ImpProcedure(W_Procedure):
+    errorname = "imp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
         assert isinstance(code, W_Procedure)
@@ -499,6 +506,7 @@ def chp_proc_cont(args, proc, env, cont, _vals):
         assert False
 
 class W_ChpProcedure(W_Procedure):
+    errorname = "chp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
         assert isinstance(code, W_Procedure)

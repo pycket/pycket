@@ -410,17 +410,18 @@ def eqvp(a, b):
     # this doesn't work for cycles
     return values.W_Bool.make(a.eqv(b))
 
+def eqp_logic(a, b):
+    if a is b:
+        return True
+    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+        return a.value == b.value
+    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
+        return a.value == b.value
+    return False
+
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
-    # this doesn't work for cycles
-    if a is b:
-        return values.w_true
-    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return values.W_Bool.make(a.value == b.value)
-    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
-        return values.W_Bool.make(a.value == b.value)
-    else:
-        return values.w_false
+    return values.W_Bool.make(eqp_logic(a, b))
 
 @expose("length", [values.W_List])
 def length(a):
@@ -632,6 +633,14 @@ def do_set_box(box, v, env, cont):
         return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
     else:
         assert False
+
+# This implementation makes no guarantees about atomicity
+@expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
+def box_cas(box, old, new):
+    if eqp_logic(box.value, old):
+        box.value = new
+        return values.w_true
+    return values.w_false
 
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
