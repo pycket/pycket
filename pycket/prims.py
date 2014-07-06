@@ -939,6 +939,9 @@ def string_to_symbol(v):
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
 
+@expose("immutable?", [values.W_Object])
+def immutable(v):
+    return values.W_Bool.make(v.immutable())
 
 # Loading
 
