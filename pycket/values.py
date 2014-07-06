@@ -36,6 +36,9 @@ class W_Object(object):
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
+    def immutable(self):
+        return False
+
     def equal(self, other):
         return self is other # default implementation
 
@@ -95,6 +98,9 @@ class W_ChpVector(W_MVector):
 
     def length(self):
         return self.vec.length()
+
+    def immutable(self):
+        return self.vec.immutable()
 
     def equal(self, other):
         if not isinstance(other, W_MVector):
@@ -166,11 +172,14 @@ class W_IBox(W_Box):
     def __init__(self, value):
         self.value = value
 
+    def immutable(self):
+        return True
+
     def tostring(self):
         return "'#&%s" % self.value.tostring()
 
 class W_ChpBox(W_Box):
-    _immutable_fields_ = ["unbox", "set"]
+    _immutable_fields_ = ["box", "unbox", "set"]
 
     def __init__(self, box, unbox, set):
         assert isinstance(box, W_MBox)
@@ -178,17 +187,11 @@ class W_ChpBox(W_Box):
         self.unbox = unbox
         self.set = set
 
-class W_ChpBox(W_Box):
-    _immutable_fields_ = ["unboxh", "seth"]
-
-    def __init__(self, box, unbox, set):
-        assert isinstance(box, W_Box)
-        self.box = box
-        self.unbox = unbox
-        self.set = set
+    def immutable(self):
+        return self.box.immutable()
 
 class W_ImpBox(W_Box):
-    _immutable_fields_ = ["unbox", "set"]
+    _immutable_fields_ = ["box", "unbox", "set"]
 
     def __init__(self, box, unbox, set):
         assert isinstance(box, W_Box)
@@ -351,6 +354,8 @@ class W_String(W_Object):
         if not isinstance(other, W_String):
             return False
         return self.value == other.value
+    def immutable(self):
+        return True
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
@@ -434,9 +439,6 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
         return proc.call(args, env, call_cont(check, env, cont))
     else:
         assert False
-
-#def chp_proc_cont(args, proc, env, cont, _vals):
-    #vals = _vals._get_full_list()
 
 class W_ImpProcedure(W_Procedure):
     _immutable_fields_ = ["code", "check"]

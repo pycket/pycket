@@ -537,7 +537,7 @@ def str2num(w_s):
 
 @expose("box?", [values.W_Object])
 def box_huh(v):
-    return values.W_Bool.make(isinstance(v, W_Box))
+    return values.W_Bool.make(isinstance(v, values.W_Box))
 
 @expose("box", [values.W_Object])
 def box(v):
@@ -553,6 +553,8 @@ def chaperone_box(b, unbox, set):
 
 @expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
 def impersonate_box(b, unbox, set):
+    if b.immutable():
+        raise SchemeException("Cannot impersonate immutable box")
     return values.W_ImpBox(b, unbox, set)
 
 @expose("unbox", [values.W_Box], simple=False)
@@ -719,6 +721,8 @@ def impersonate_procedure(proc, check):
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
+    if v.immutable():
+        raise SchemeException("Cannot impersonate immutable vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
     return values.W_ImpVector(v, refh, seth)
