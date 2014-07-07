@@ -81,7 +81,7 @@ class ToplevelEnv(Env):
         jit.promote(self)
         w_res = self._lookup(sym, jit.promote(self.version))
         if isinstance(w_res, values.W_Cell):
-            w_res = w_res.value
+            w_res = w_res.get_val()
         return w_res
 
     @jit.elidable
@@ -587,7 +587,7 @@ class CellRef(Var):
     def _lookup(self, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
 
 # Using this in rpython to have a mutable global variable
 class Counter(object):
@@ -677,10 +677,10 @@ class ModCellRef(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             assert isinstance(v, values.W_Cell)
-            return v.value
+            return v.get_val()
         v = modenv.lookup(self.modvar)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
     def to_modvar(self):
         return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
