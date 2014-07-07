@@ -101,4 +101,7 @@ def test_vec_equal_imp():
 def test_make_vector_imp():
     run_fix("(let ([v (impersonate-vector (vector) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 0)
     run_fix("(let ([v (impersonate-vector (make-vector 5) (lambda (x y z) z) (lambda (x y z) z))]) (vector-length v))", 5)
-    
+
+def test_bug_symbol_in_vector():
+    # FIXME somebody who knows expand
+    run("#('a)")

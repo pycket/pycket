@@ -6,6 +6,7 @@ import sys
 
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
+from rpython.rlib.objectmodel import specialize
 import pycket.json as pycket_json
 from pycket.interpreter import *
 from pycket import values
@@ -204,10 +205,17 @@ def to_ast(json):
 #### ========================== Implementation functions
 
 DO_DEBUG_PRINTS = False
+
+@specialize.argtype(1)
 def dbgprint(funcname, json):
     # This helped debugging segfaults
     if DO_DEBUG_PRINTS:
-        print "Entering %s with: %s" % (funcname, json.tostring())
+        if isinstance(json, pycket_json.JsonBase):
+            s = json.tostring()
+        else:
+            # a list
+            s = "[" + ", ".join([j.tostring() for j in json]) + "]"
+        print "Entering %s with: %s" % (funcname, s)
 
 def to_formals(json):
     dbgprint("to_formals", json)

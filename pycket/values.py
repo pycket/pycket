@@ -557,7 +557,7 @@ class W_Closure(W_Procedure):
 
     def mark_non_loop(self):
         for l in self.caselam.lams:
-            l.lambody.body[0].should_enter = False
+            l.body[0].should_enter = False
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
@@ -584,7 +584,7 @@ class W_Closure(W_Procedure):
                 prev = e
             elif isinstance(e, ConsEnv) and e.prev is new_env:
                 prev = e.prev
-        return lam.lambody.make_begin_cont(
+        return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)
 
