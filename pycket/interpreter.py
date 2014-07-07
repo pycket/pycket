@@ -727,51 +727,6 @@ class If(AST):
     def tostring(self):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-class RecLambda(AST):
-    _immutable_fields_ = ["name", "caselam", "env_structure"]
-    simple = True
-    def __init__(self, name, lam, env_structure):
-        assert isinstance(lam, CaseLambda)
-        self.name = name
-        self.caselam  = lam
-        self.env_structure = env_structure
-    def assign_convert(self, vars, env_structure):
-        v = vars.copy()
-        if LexicalVar(self.name) in v:
-            del v[LexicalVar(self.name)]
-        env_structure = SymList([self.name], env_structure)
-        return RecLambda(self.name, self.caselam.assign_convert(v, env_structure), env_structure)
-    def mutated_vars(self):
-        v = self.caselam.mutated_vars()
-        if LexicalVar(self.name) in v:
-            del v[LexicalVar(self.name)]
-        return v
-    def free_vars(self):
-        v = self.caselam.free_vars()
-        if self.name in v:
-            del v[self.name]
-        return v
-
-    def interpret_simple(self, env):
-        e = ConsEnv.make([values.w_void], env, env.toplevel_env)
-        cl = self.caselam.interpret_simple(e)
-        assert isinstance(cl, values.W_Closure)
-        assert cl._get_size_list() == 1
-        cl._get_list(0).set(self.name, cl, self.caselam.lams[0].frees)
-        return cl
-
-    def tostring(self):
-        return "(rec %s)"%self.caselam.tostring()
-        # FIXME: make this stuff work again
-        # b = " ".join([b.tostring() for b in self.caselam.body])
-        # if self.lam.rest and (not self.lam.formals):
-        #     return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
-        # formals_string = " ".join([variable_name(v) for v in self.lam.formals])
-        # if self.lam.rest:
-        #     return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
-        # else:
-        #     return "(rec %s (%s) %s)"%(self.name, formals_string, b)
-
 
 def make_lambda(formals, rest, body):
     args = SymList(formals + ([rest] if rest else []))
@@ -841,61 +796,24 @@ class CaseLambda(AST):
         return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
 
 class Lambda(SequencedBodyAST):
-    _immutable_fields_ = ["lambody", "formals[*]", "rest", "args",
+    _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure",
-                          "cached_closure?",
                           ]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
-        self.lambody = LambdaBody(body, self)
+        SequencedBodyAST.__init__(self, body)
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
-        self.w_closure_if_no_frees = None
-        self.cached_closure = None
-
 
     def interpret_simple(self, env):
-        assert False # FIXME
-        if not self.frees.elems:
-            # cache closure if there are no free variables and the toplevel env
-            # is the same as last time
-            w_closure = self.w_closure_if_no_frees
-            if w_closure is None or w_closure.env.toplevel_env is not env.toplevel_env:
-                w_closure = values.W_PromotableClosure(self, env)
-                self.w_closure_if_no_frees = w_closure
-            return w_closure
-        w_closure = self._make_or_retrieve_closure(env)
-        return w_closure
-
-    @jit.unroll_safe
-    def _make_or_retrieve_closure(self, env):
-        w_closure = values.W_Closure(self, env)
-        if self.cached_closure is values.w_null:
-            return w_closure
-        if self.cached_closure is None:
-            if not jit.we_are_jitted():
-                # only fill cache during interpretation, when JITting it should
-                # be filled anyway
-                self.cached_closure = w_closure
-            return w_closure
-        # check whether cached_closure can be used
-        cached_closure = self.cached_closure
-        assert isinstance(cached_closure, values.W_Closure)
-        cached_env = cached_closure.env
-        for i, v in enumerate(self.frees.elems):
-            if v is self.recursive_sym:
-                continue
-            elif w_closure.env._get_list(i) is not cached_env._get_list(i):
-                self.cached_closure = values.w_null
-                return w_closure
-        return cached_closure
+        assert False # unreachable
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
-        for b in self.lambody.body:
+        for b in self.body:
             local_muts.update(b.mutated_vars())
         new_lets = []
         new_vars = vars.copy()
@@ -911,14 +829,14 @@ class Lambda(SequencedBodyAST):
             sub_env_structure = SymList(new_lets, self.args)
         else:
             sub_env_structure = self.args
-        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.lambody.body]
+        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
     def mutated_vars(self):
         x = variable_set()
-        for b in self.lambody.body:
+        for b in self.body:
             x.update(b.mutated_vars())
         for v in self.args.elems:
             lv = LexicalVar(v)
@@ -926,7 +844,7 @@ class Lambda(SequencedBodyAST):
                 del x[lv]
         return x
     def free_vars(self):
-        result = free_vars_lambda(self.lambody.body, self.args)
+        result = free_vars_lambda(self.body, self.args)
         return result
 
     def match_args(self, args):
@@ -945,37 +863,14 @@ class Lambda(SequencedBodyAST):
 
     def tostring(self):
         if self.rest and (not self.formals):
-            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.lambody.body])
+            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
         if self.rest:
-            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.lambody.body])
+            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
         else:
             return "(lambda (%s) %s)"%(" ".join([variable_name(v) for v in self.formals]),
-                                       self.lambody.body[0].tostring() if len(self.lambody.body) == 1 else
-                                       " ".join([b.tostring() for b in self.lambody.body]))
+                                       self.body[0].tostring() if len(self.body) == 1 else
+                                       " ".join([b.tostring() for b in self.body]))
 
-class LambdaBody(SequencedBodyAST):
-    _immutable_fields_ = ["lam"]
-
-    should_enter = True
-
-    def __init__(self, body, lam):
-        SequencedBodyAST.__init__(self, body)
-        self.lam = lam
-
-    def interpret(self, env, cont):
-        # tracing starts *precisely* here, that's why there's some slightly
-        # weird code.
-        lam = self.lam
-        cached = lam.cached_closure
-        assert isinstance(env, ConsEnv)
-        if isinstance(cached, values.W_Closure) and cached.env is env.prev:
-            prev = cached.env
-            assert isinstance(prev, ConsEnv)
-            env = ConsEnv.make(env._get_full_list(), prev, prev.toplevel_env)
-        return self.make_begin_cont(env, cont)
-
-    def tostring(self):
-        return "<lambda body of %s>" % (self.lam.tostring(), )
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
