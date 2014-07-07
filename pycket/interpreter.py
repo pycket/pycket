@@ -339,6 +339,7 @@ class Module(AST):
                 else:
                     raise SchemeException("wrong number of values for define-values")
             else: # FIXME modules can have other things, assuming expression
+                print f.tostring()
                 vs = interpret_one(f, self.env)
                 continue
         env.module_env.current_module = None
@@ -1083,8 +1084,20 @@ class Let(SequencedBodyAST):
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]),
-                                " ".join([b.tostring() for b in self.body]))
+        result = ["let ("]
+        j = 0
+        for i, count in enumerate(self.counts):
+            result.append("[")
+            for _ in range(count):
+                result.append(variable_name(self.args.elems[j]))
+                j += 1
+            result.append(" ")
+            result.append(self.rhss[i].tostring())
+            result.append("]")
+        result.append(")")
+        for b in self.body:
+            result.append(b.tostring())
+        return "".join(result)
 
 
 class DefineValues(AST):
