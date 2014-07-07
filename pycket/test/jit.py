@@ -17,17 +17,36 @@ from pycket.test.testhelper import parse_file
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
+from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
+from pycket.expand import expand, to_ast, expand_string, parse_module
 
 
 class TestLLtype(LLJitMixin):
 
-    def test_countdown(self):
-        ast = to_ast(expand("""
+    def test_countdown_x(self):
+        ast = parse_module(expand_string("""
+#lang pycket
 (letrec ([countdown (lambda (n) (if (< n 0) 1 (countdown (- n 1))))])
  (countdown 1000))
 """))
 
 
+        def interp_w():
+            val = interpret_module(ast)
+            return val
+
+        assert interp_w()
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_countdown_nested(self):
+        ast = to_ast(expand("""
+(let ([sub 1])
+  (define (nested n)
+    (let countdown ([n n]) (if (< n 0) 1 (countdown (- n sub))))
+    (if (< n 0) 1 (nested (- n sub))))
+  (nested 10))
+"""))
         def interp_w():
             val = interpret_one(ast)
             ov = check_one_val(val)
@@ -38,9 +57,9 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-
     def test_countdown_loop(self):
         ast = to_ast(expand("""
+#lang pycket
 (let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
 """))
 
@@ -55,8 +74,9 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_side_exit(self):
-        ast = to_ast(expand("""
+    def test_bistable_loop(self):
+        ast = parse_module(expand_string("""
+#lang pycket
 (let ()
     (define (countdown n sub2?)
         (if (< n 0) 1
@@ -70,12 +90,14 @@ class TestLLtype(LLJitMixin):
 
 
         def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
+            val = interpret_module(ast)
+            return val
 
-        assert interp_w() == 1
+        #     val = interpret_one(ast)
+        #     ov = check_one_val(val)
+        #     assert isinstance(ov, W_Fixnum)
+        #     return ov.value
+        # assert interp_w() == 1
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -93,6 +115,42 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_side_exit(self):
+        ast = to_ast(expand("""
+(let ()
+    (define (count-positive l sum)
+        (if (null? l) sum
+            (if (> (car l) 0)
+                (count-positive (cdr l) (+ (car l) sum))
+                (count-positive (cdr l) sum)
+                )))
+    (count-positive (list -1 1 1 1 1 -1 2 3 -5 1 2 2 -5 6 4 3 -5) 0))
+
+"""))
+
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 27
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+        
+    # needs to be fixed to use modules
+    def run_string(self, str):
+        ast = to_ast(expand(str))
+
+        def interp_w():
+            val = interpret_one(ast)
+            return val
+
+        interp_w() # check that it runs
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_imp_vec(self):
 
@@ -117,41 +175,36 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_bubble(self):
-        fname = "bubble.sch"
+    def run_file(self, fname):
         ast = parse_file(fname)
         def interp_w():
-            val = interpret([ast])
+            val = interpret_module(ast)
             return val
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        
 
-    def test_bubble_imp(self):
-        fname = "bubble-imp.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+    def test_bubble_safe(self):
+        self.run_file("bubble.rkt")
+
 
     def test_bubble_unsafe(self):
-        fname = "bubble-unsafe.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
+        self.run_file("bubble-unsafe.rkt")
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+    def test_bubble_unsafe2(self):
+        self.run_file("bubble-unsafe2.rkt")
+
+    def test_bubble_imp(self):
+        self.run_file("bubble-imp.rkt")
+    def test_bubble_imp_check(self):
+        self.run_file("bubble-imp-check.rkt")
+
+    def test_bubble_unsafe(self):
+        self.run_file("bubble-unsafe.sch")
 
     def test_bubble_arg(self):
-        fname = "bubble-arg.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret([ast])
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("bubble-arg.rkt")
 
     def test_pseudoknot(self):
         fname = "nucleic2.sch"
@@ -276,7 +329,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             ov = check_one_val(val)
             assert isinstance(ov, W_Fixnum)
-            return val.value
+            return ov.value
 
         assert interp_w() == 1
 

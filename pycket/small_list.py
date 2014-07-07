@@ -1,6 +1,6 @@
 from rpython.rlib  import jit, debug
 
-def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list"):
+def inline_small_list(cls, sizemax=5, sizemin=0, immutable=False, attrname="list", factoryname="make"):
     """ This function is helpful if you have a class with a field storing a
 list and the list is often very small. Calling this function will inline
 the list into instances for the small sizes. This works by adding the
@@ -71,4 +71,4 @@ make(listcontent, *args): makes a new instance with the list's content set to li
         else:
             cls = cls_arbitrary
         return cls(elems, *args)
-    cls.make = make
+    setattr(cls, factoryname, make)

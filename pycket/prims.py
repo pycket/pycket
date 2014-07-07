@@ -5,7 +5,7 @@ import os
 import time
 import math
 from pycket import values
-from pycket.cont import Cont
+from pycket.cont import Cont, call_cont, continuation
 from pycket import struct as values_struct
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
@@ -69,44 +69,6 @@ def expose(name, argstypes=None, simple=True):
         prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func)
         return wrap_func
     return wrapper
-
-
-def continuation(func):
-    """ workaround for the lack of closures in RPython. use to decorate a
-    function that is supposed to be usable as a continuation. When the
-    continuation triggers, the original function is called with one extra
-    argument, the computed vals. """
-
-    import inspect
-    argspec = inspect.getargspec(func)
-    assert argspec.varargs is None
-    assert argspec.keywords is None
-    assert argspec.defaults is None
-    argnames = argspec.args[:-1]
-
-    unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
-
-    class PrimCont(Cont):
-        _immutable_fields_ = argnames
-
-        def __init__(self, *args):
-            for i, name in unroll_argnames:
-                setattr(self, name, args[i])
-
-        def plug_reduce(self, vals):
-            args = ()
-            for i, name in unroll_argnames:
-                args += (getattr(self, name), )
-            args += (vals, )
-            return func(*args)
-    PrimCont.__name__ = func.func_name + "PrimCont"
-
-    def make_continuation(*args):
-        return PrimCont(*args)
-
-    make_continuation.func_name = func.func_name + "_make_continuation"
-    return make_continuation
-
 
 def val(name, v):
     prim_env[values.W_Symbol.make(name)] = v
@@ -346,6 +308,28 @@ def substring(args):
             "substring: ending index is smaller than starting index")
     return values.W_String(string[start:end])
 
+@expose("string-ref", [values.W_String, values.W_Fixnum])
+def string_ref(s, n):
+    idx = n.value
+    st  = s.value
+    if idx < 0 or idx >= len(st):
+        raise SchemeException("string-ref: index out of range")
+    return values.W_Character(st[idx])
+
+@expose("string=?", [values.W_String, values.W_String])
+def string_equal(s1, s2):
+    v1 = s1.value
+    v2 = s2.value
+    if len(v1) != len(v2):
+        return values.w_false
+    for i in range(len(v1)):
+        if v1[i] != v2[i]:
+            return values.w_false
+    return values.w_true
+
+@expose("string->list", [values.W_String])
+def string_to_list(s):
+    return values.to_list([values.W_Character(i) for i in s.value])
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):
@@ -379,7 +363,6 @@ def time_apply(a, args, env, cont):
     initial = time.clock()
     return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
 
-
 @expose("apply", simple=False)
 def apply(args, env, cont):
     if not args:
@@ -395,7 +378,6 @@ def apply(args, env, cont):
     others = args[1:args_len]
     new_args = others + values.from_list(lst)
     return fn.call(new_args, env, cont)
-
 
 @expose("printf")
 def printf(args):
@@ -419,20 +401,20 @@ def printf(args):
                 if j >= len(vals):
                     raise SchemeException("not enough arguments for format string")
                 os.write(1,vals[j].tostring()),
-                i += 2
                 j += 1
             elif s == 'n':
                 os.write(1,"\n") # newline
             else:
                 raise SchemeException("unexpected format character")
+            i += 2
         else:
             os.write(1,fmt[i])
             i += 1
 
-@expose("equal?", [values.W_Object] * 2)
-def equalp(a, b):
-    # this doesn't work for cycles
-    return values.W_Bool.make(a.equal(b))
+#@expose("equal?", [values.W_Object] * 2)
+#def equalp(a, b):
+    ## this doesn't work for cycles
+    #return values.W_Bool.make(a.equal(b))
 
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
@@ -490,7 +472,6 @@ def assq(a, b):
             return do_car([b])
         else:
             return assq([a, do_cdr([b])])
-
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
@@ -604,17 +585,36 @@ def imp_vec_ref_cont(f, i, v, env, cont, vals):
     from pycket.interpreter import check_one_val
     return f.call([v, i, check_one_val(vals)], env, cont)
 
+@continuation
+def chp_vec_ref_cont(f, i, v, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
+
+@continuation
+def chp_vec_ref_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if values.is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        raise SchemeException("Expecting original value or chaperone of ")
+
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
-        return return_value(v.ref(i.value), env, cont)
+        # we can use _ref here because we already checked the precondition
+        return return_value(v._ref(i.value), env, cont)
     elif isinstance(v, values.W_ImpVector):
         uv = v.vec
         f = v.refh
         return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
+    elif isinstance(v, values.W_ChpVector):
+        uv = v.vec
+        f  = v.refh
+        return do_vec_ref(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
     else:
         assert False
-
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
@@ -628,21 +628,68 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return do_vec_set(v, i, check_one_val(vals), env, cont)
 
+# TODO check that the returned value is the same as the given value
+# up to intervening chaperones.
+@continuation
+def chp_vec_set_cont(orig, v, i, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    if not values.is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
+    return do_vec_set(v, i, val, env, cont)
+
 def do_vec_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
-        v.set(i.value, new)
+        # we can use _set here because we already checked the precondition
+        v._set(i.value, new)
         return return_value(values.w_void, env, cont)
     elif isinstance(v, values.W_ImpVector):
         uv = v.vec
         f = v.seth
         return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
+    elif isinstance(v, values.W_ChpVector):
+        uv = v.vec
+        f  = v.seth
+        return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
     else:
         assert False
 
+@expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
+def impersonate_procedure(proc, check):
+    return values.W_ImpProcedure(proc, check)
+
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
+    refh.mark_non_loop()
+    seth.mark_non_loop()
     return values.W_ImpVector(v, refh, seth)
+
+@expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
+def chaperone_procedure(proc, check):
+    return values.W_ChpProcedure(proc, check)
+
+@expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
+def chaperone_vector(v, refh, seth):
+    return values.W_ChpVector(v, refh, seth)
+
+@expose("chaperone-of?", [values.W_Object, values.W_Object])
+def chaperone_of(a, b):
+    return values.W_Bool.make(values.is_chaperone_of(a, b))
+
+@expose("impersonator-of?", [values.W_Object, values.W_Object])
+def impersonator_of(a, b):
+    return values.W_Bool.make(values.is_impersonator_of(a, b))
+
+@expose("impersonator?", [values.W_Object])
+def impersonator(x):
+    return values.W_Bool.make(isinstance(x, values.W_ImpVector) or
+                              isinstance(x, values.W_ImpProcedure))
+
+@expose("chaperone?", [values.W_Object])
+def impersonator(x):
+    return values.W_Bool.make(isinstance(x, values.W_ChpVector) or
+                              isinstance(x, values.W_ChpProcedure))
 
 @expose("vector")
 def vector(args):
@@ -680,7 +727,6 @@ def listp_loop(v):
 def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
-
 @expose("display", [values.W_Object])
 def display(s):
     os.write(1, s.tostring())
@@ -703,6 +749,7 @@ def error(name, msg):
 def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 
+# FIXME: make this work with chaperones/impersonators
 @expose("vector->list", [values_vector.W_Vector])
 def vector2list(v):
     es = []
@@ -780,30 +827,32 @@ def unsafe_fleq(a, b):
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector):
+    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.ref(i.value), env, cont)
+        val = i.value
+        assert val >= 0
+        return return_value(v._ref(val), env, cont)
 
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
 def unsafe_vector_star_ref(v, i):
-    return v.ref(i.value)
+    return v._ref(i.value)
 
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector):
+    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
         return do_vec_set(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.set(i.value, new), env, cont)
+        return return_value(v._set(i.value, new), env, cont)
 
 @expose("unsafe-vector*-set!",
         [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_vector_star_set(v, i, new):
-    return v.set(i.value, new)
+    return v._set(i.value, new)
 
 @expose("unsafe-vector-length", [values.W_MVector])
 def unsafe_vector_length(v):
@@ -840,3 +889,4 @@ def load(lib, env, cont):
             "can't gernerate load-file for %s "%(lib.tostring()))
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
+

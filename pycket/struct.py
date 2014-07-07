@@ -75,6 +75,7 @@ class W_StructType(W_Object):
         return self._opaque
     def setmutable(self, field):
         # TODO: save the mutability of field
+        pass
     def constr(self):
         return self._constr
     def make_struct_tuple(self):
