@@ -40,6 +40,8 @@
     [(_ ...)      (require-json (last (syntax->list v)))]
     ))
 
+(define quoted? (make-parameter #f))
+
 (define (to-json v)
   (define (proper l)
     (match l
@@ -47,6 +49,11 @@
       [_ null]))
   (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top module* module #%plain-app quote #%require)
     [v:str (hash 'string (syntax-e #'v))]
+    ;; special case when under quote to avoid the "interesting"
+    ;; behavior of various forms
+    [(_ ...) 
+     #:when (quoted?)
+     (map to-json (syntax->list v))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
@@ -70,7 +77,9 @@
                                        [e (syntax->list #'(es ...))])
                               (list (to-json x) (to-json e)))
            'letrec-body (map to-json (syntax->list #'(b ...))))]
-    [(quote e) (hash 'quote (to-json #'e))]
+    [(quote e) (hash 'quote 
+                     (parameterize ([quoted? #t])
+                       (to-json #'e)))]
 
     [(#%require . x) (hash 'require (require-json #'x))]
     [(_ ...) (map to-json (syntax->list v))]
