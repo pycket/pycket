@@ -1084,19 +1084,23 @@ class Let(SequencedBodyAST):
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        result = ["let ("]
+        result = ["(let ("]
         j = 0
         for i, count in enumerate(self.counts):
             result.append("[")
+            if count > 1:
+                result.append("(")
             for _ in range(count):
                 result.append(variable_name(self.args.elems[j]))
                 j += 1
+            if count > 1:
+                result.append(")")
             result.append(" ")
             result.append(self.rhss[i].tostring())
             result.append("]")
+        result.append(") ")
+        result.append(" ".join([b.tostring() for b in self.body]))
         result.append(")")
-        for b in self.body:
-            result.append(b.tostring())
         return "".join(result)
 
 
