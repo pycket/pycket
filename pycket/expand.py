@@ -359,9 +359,9 @@ def _to_ast(json):
                 assert isinstance(rhss[0], AST)
                 return make_let(list(vs), list(rhss), body)
         if "operator" in obj:
-            return App(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()]).let_convert()
+            return App.make_let_converted(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()])
         if "test" in obj:
-            return If(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"])).let_convert()
+            return If.make_let_converted(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"]))
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
         if "module" in obj:

@@ -265,8 +265,6 @@ class AST(object):
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
 
-    def let_convert(self):
-        return self
     def free_vars(self):
         return {}
     def assign_convert(self, vars, env_structure):
@@ -385,8 +383,6 @@ class Cell(AST):
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
 
-    def let_convert(self):
-        assert 0
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
     def mutated_vars(self):
@@ -417,25 +413,29 @@ class App(AST):
 
 
     def __init__ (self, rator, rands, remove_env=False):
+        assert rator.simple
+        for r in rands:
+            assert r.simple
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
         self.should_enter = isinstance(rator, ModuleVar)
 
-    def let_convert(self):
+    @staticmethod
+    def make_let_converted(rator, rands):
         fresh_vars = []
         fresh_rhss = []
-        new_rator = self.rator
+        new_rator = rator
         new_rands = []
 
-        if not self.rator.simple:
+        if not rator.simple:
             fresh_rator = LexicalVar.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
-            fresh_rhss.append(self.rator)
+            fresh_rhss.append(rator)
             fresh_vars.append(fresh_rator)
             new_rator = fresh_rator_var
 
-        for i, rand in enumerate(self.rands):
+        for i, rand in enumerate(rands):
             if rand.simple:
                 new_rands.append(rand)
             else:
@@ -449,7 +449,8 @@ class App(AST):
             fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
-            return self
+            return App(rator, rands)
+
     def assign_convert(self, vars, env_structure):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
@@ -729,24 +730,27 @@ class SetBang(AST):
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
     def __init__ (self, tst, thn, els, remove_env=False):
+        assert tst.simple
         self.tst = tst
         self.thn = thn
         self.els = els
         self.remove_env = remove_env
-    def let_convert(self):
-        if self.tst.simple:
-            return self
+
+    @staticmethod
+    def make_let_converted(tst, thn, els):
+        if tst.simple:
+            return If(tst, thn, els)
         else:
             fresh = LexicalVar.gensym("if_")
             return Let(SymList([fresh]),
                        [1],
-                       [self.tst],
-                       [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+                       [tst],
+                       [If(LexicalVar(fresh), thn, els, remove_env=True)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if self.remove_env:
-            # remove the env created by the let introduced by let_convert
+            # remove the env created by the let introduced by make_let_converted
             # it's no longer needed nor accessible
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
@@ -1006,7 +1010,8 @@ def make_let_singlevar(sym, rhs, body):
             if (isinstance(rator, LexicalVar) and
                     sym is rator.sym and
                     rator.sym not in x):
-                return App(rhs, b.rands, b.remove_env)
+                assert not b.remove_env
+                return App.make_let_converted(rhs, b.rands)
         elif isinstance(b, If):
             tst = b.tst
             if (isinstance(tst, LexicalVar) and tst.sym is sym and
