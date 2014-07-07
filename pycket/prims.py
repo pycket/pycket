@@ -6,6 +6,7 @@ import time
 import math
 from pycket import values
 from pycket.cont import Cont
+from pycket import struct as values_struct
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
@@ -182,11 +183,11 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
-        ("struct-type?", values.W_StructTypeDescriptor),
-        ("struct-constructor-procedure?", values.W_StructConstructor),
-        ("struct-predicate-procedure?", values.W_StructPredicate),
-        ("struct-accessor-procedure?", values.W_StructAccessor),
-        ("struct-mutator-procedure?", values.W_StructMutator),
+        ("struct-type?", values_struct.W_StructTypeDescriptor),
+        ("struct-constructor-procedure?", values_struct.W_StructConstructor),
+        ("struct-predicate-procedure?", values_struct.W_StructPredicate),
+        ("struct-accessor-procedure?", values_struct.W_StructAccessor),
+        ("struct-mutator-procedure?", values_struct.W_StructMutator),
         ]:
     make_pred(*args)
 
@@ -554,36 +555,20 @@ def do_current_instpector(args):
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
     from pycket.interpreter import return_multi_vals
-    struct_type = values.W_StructType.make(args)
+    struct_type = values_struct.W_StructType.make(args)
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
-
-def field_accessor(args, env, cont):
-    accessor = args[0]
-    field = args[1]
-    struct = args[3]
-    return accessor.call([struct, field], env, cont)
 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
     accessor = args[0]
     field = args[1]
-    # FIXME: probably replace W_Prim with my own class
-    return values.W_Prim(accessor.tostring() + field.tostring(), field_accessor, args)
-
-def field_mutator(args, env, cont):
-    mutator = args[0]
-    field = args[1]
-    struct = args[3]
-    val = args[4]
-    return mutator.call([struct, field, val], env, cont)
+    return values_struct.W_StructFieldAccessor(accessor, field)
 
 @expose("make-struct-field-mutator")
 def do_make_struct_field_mutator(args):
     mutator = args[0]
     field = args[1]
-    mutator.setmutable(field)
-    # FIXME: probably replace W_Prim with my own class
-    return values.W_Prim(mutator.tostring() + field.tostring(), field_mutator, args)
+    return values_struct.W_StructFieldMutator(mutator, field)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
