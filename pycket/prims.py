@@ -762,13 +762,11 @@ def impersonator_of(a, b):
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ImpVector) or
-                              isinstance(x, values.W_ImpProcedure))
+    return values.W_Bool.make(values.is_impersonator(x))
 
 @expose("chaperone?", [values.W_Object])
-def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ChpVector) or
-                              isinstance(x, values.W_ChpProcedure))
+def chaperone(x):
+    return values.W_Bool.make(values.is_chaperone(x))
 
 @expose("vector")
 def vector(args):

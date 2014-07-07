@@ -411,6 +411,17 @@ class W_Procedure(W_Object):
         raise NotImplementedError("abstract base class")
     def mark_non_loop(self): pass
 
+def is_chaperone(x):
+    return (isinstance(x, W_ChpVector) or
+            isinstance(x, W_ChpBox) or
+            isinstance(x, W_ChpProcedure))
+
+def is_impersonator(x):
+    return (isinstance(x, W_ImpVector) or
+            isinstance(x, W_ImpBox) or
+            isinstance(x, W_ImpProcedure) or
+            is_chaperone(x))
+
 def is_impersonator_of(a, b):
     if a is b:
         return True
