@@ -328,7 +328,7 @@ def _to_ast(json):
             if ast_elem == "begin0":
                 raise Exception("begin0 is unsupported")
             if ast_elem == "begin-for-syntax":
-                raise Exception("begin-for-syntax is unsupported")
+                return Quote(values.w_void)
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
