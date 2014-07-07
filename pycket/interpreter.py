@@ -337,7 +337,6 @@ class Module(AST):
                 else:
                     raise SchemeException("wrong number of values for define-values")
             else: # FIXME modules can have other things, assuming expression
-                print f.tostring()
                 vs = interpret_one(f, self.env)
                 continue
         env.module_env.current_module = None
