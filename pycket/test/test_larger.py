@@ -39,5 +39,11 @@ def test_earley():
 def test_triangle():
     run_file("triangle.rkt", ("1000000", "10"))
 
+def test_imp_predicates():
+    run_file("imp-predicates.rkt")
+
+def test_imp_procedures():
+    run_file("imp-proc.rkt")
+
 #def test_minikanren():
 #    run_file("minikanren.sch")
