@@ -324,6 +324,8 @@ def _to_ast(json):
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 return QuoteSyntax(to_value(arr[1]))
+            if ast_elem == "begin-for-syntax":
+                return Quote(values.w_void)
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
