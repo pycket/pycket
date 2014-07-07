@@ -4,18 +4,19 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
+from pycket.test.testhelper import (run, run_fix, run_flo, run_top, execute,
+        run_values, check_equal)
 
 
 def test_constant():
-    ov = run("1")
+    ov = run("1", stdlib=False)
     assert isinstance(ov, W_Fixnum)
     assert ov.value == 1
 
 
 def test_read_err ():
     with pytest.raises(Exception):
-        expand ("(")
+        expand_string("(", result=False)
 
 def test_arithmetic():
     run_fix("(+ )", 0)
@@ -266,30 +267,32 @@ def test_equal():
     run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket
 
 def test_eqv():
-    run("(eqv? 'yes 'yes)", w_true)
-    run("(eqv? 'yes 'no)", w_false)
-    run("(eqv? (expt 2 100) (expt 2 100))", w_true)
-    run("(eqv? 2 2.0)", w_false)
-    run("(eqv? (integer->char 955) (integer->char 955))", w_true)
-    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+    check_equal(
+        "(eqv? 'yes 'yes)", "#t",
+        "(eqv? 'yes 'no)", "#f",
+        "(eqv? (expt 2 100) (expt 2 100))", "#t",
+        "(eqv? 2 2.0)", "#f",
+        "(eqv? (integer->char 955) (integer->char 955))", "#t",
+    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", "#f", stdlib=True)
 
-    run("(eqv? 'a 'a)", w_true)
-    run("(eqv? 'a 'b)", w_false)
-    run("(eqv? 2 2)", w_true)
-    run("(eqv? '() '())", w_true)
-    run("(eqv? 100000000 100000000)", w_true)
-    run("(eqv? (cons 1 2) (cons 1 2))", w_false)
-    run("""(eqv? (lambda () 1)
-                 (lambda () 2))""", w_false)
-    run("(eqv? #f 'nil)", w_false)
-    run("""(let ((p (lambda (x) x)))
-           (eqv? p p))""", w_true)
-    # run('(eqv? "" "")', w_true) #racket
-    run("(eqv? '#() '#())", w_false) #racket
-    run("""(eqv? (lambda (x) x)
-                 (lambda (x) x))""", w_false) #racket
-    run("""(eqv? (lambda (x) x)
-                 (lambda (y) y))""", w_false) #racket
+        "(eqv? 'a 'a)", "#t",
+        "(eqv? 'a 'b)", "#f",
+        "(eqv? 2 2)", "#t",
+        "(eqv? '() '())", "#t",
+        "(eqv? 100000000 100000000)", "#t",
+        "(eqv? (cons 1 2) (cons 1 2))", "#f",
+        """(eqv? (lambda () 1)
+                 (lambda () 2))""", "#f",
+        "(eqv? #f 'nil)", "#f",
+        """(let ((p (lambda (x) x)))
+           (eqv? p p))""", "#t",
+    # run('(eqv? "" "")', "#t") #racket
+        "(eqv? '#() '#())", "#f", #racket
+        """(eqv? (lambda (x) x)
+                 (lambda (x) x))""", "#f", #racket
+        """(eqv? (lambda (x) x)
+                 (lambda (y) y))""", "#f", #racket
+    )
     run_top("""(define gen-counter
              (lambda ()
                (let ((n 0))
