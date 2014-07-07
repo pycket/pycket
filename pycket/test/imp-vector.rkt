@@ -2,8 +2,8 @@
 
 (provide check my-len max-val)
 
-(define my-len 10000)
-(define max-val 10000)
+(define my-len 100)
+(define max-val 100)
 
 (define check
   (lambda (v)
