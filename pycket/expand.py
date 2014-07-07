@@ -71,7 +71,7 @@ def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdout %s" % (fn, fname)
+    cmd = "racket %s --stdout \"%s\"" % (fn, fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
@@ -84,7 +84,7 @@ def expand_file(fname):
 # intermediate (possibly cached) file.
 def expand_file_rpython(rkt_file):
     from rpython.rlib.rfile import create_popen_file
-    cmd = "racket %s --stdout %s 2>&1" % (fn, rkt_file)
+    cmd = "racket %s --stdout \"%s\" 2>&1" % (fn, rkt_file)
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
     pipe = create_popen_file(cmd, "r")
