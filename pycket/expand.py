@@ -204,11 +204,11 @@ def to_formals(json):
         return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in json.value_array()], None
     assert 0
 
-def to_bindings(json):
-    dbgprint("to_bindings", json)
+def to_bindings(arr):
+    dbgprint("to_bindings", arr)
     varss = []
     rhss = []
-    for v in json.value_array():
+    for v in arr:
         arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
@@ -272,37 +272,8 @@ def _to_ast(json):
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
                 return _to_ast(arr[1])
-            if ast_elem == "#%app":
-                return App(_to_ast(arr[1]), [_to_ast(x) for x in arr[2:]]).let_convert()
-            if ast_elem == "if":
-                return If(_to_ast(arr[1]), _to_ast(arr[2]), _to_ast(arr[3])).let_convert()
-            if ast_elem == "quote":
-                return Quote(to_value(arr[1]))
             if ast_elem == "lambda":
                 return CaseLambda([to_lambda(arr[1:])])
-            if ast_elem == "letrec-values":
-                body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array()) == 0:
-                    return Begin.make(body)
-                else:
-                    vs, rhss = to_bindings(arr[1])
-                    for v in vs:
-                        for var in v:
-                            assert isinstance(var, values.W_Symbol)
-                    assert isinstance(rhss[0], AST)
-                    return make_letrec(list(vs), list(rhss), body).let_convert()
-            if ast_elem == "let-values":
-                body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array()) == 0:
-                    return Begin.make(body)
-                else:
-                    vs, rhss = to_bindings(arr[1])
-                    for v in vs:
-                        for var in v:
-                            assert isinstance(var, values.W_Symbol)
-                    for r in rhss:
-                        assert isinstance(r, AST)
-                    return make_let(list(vs), list(rhss), body).let_convert()
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
@@ -326,8 +297,6 @@ def _to_ast(json):
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
-            if ast_elem == "begin0":
-                raise Exception("begin0 is unsupported")
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
@@ -350,6 +319,43 @@ def _to_ast(json):
         if "require" in obj:
             path = obj["require"].value_string()
             return _to_require(path)
+        if "begin0" in obj:
+            fst = _to_ast(obj["begin0"])
+            rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
+            if len(rst) == 0:
+                return fst
+            else:
+                return Begin0.make(fst, rst)
+        if "letrec-bindings" in obj:
+            body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
+            bindings = obj["letrec-bindings"].value_array()
+            if len(bindings) == 0:
+                return Begin.make(body)
+            else:
+                vs, rhss = to_bindings(bindings)
+                for v in vs:
+                    for var in v:
+                        assert isinstance(var, values.W_Symbol)
+                assert isinstance(rhss[0], AST)
+                return make_letrec(list(vs), list(rhss), body)
+        if "let-bindings" in obj:
+            body = [_to_ast(x) for x in obj["let-body"].value_array()]
+            bindings = obj["let-bindings"].value_array()
+            if len(bindings) == 0:
+                return Begin.make(body)
+            else:
+                vs, rhss = to_bindings(bindings)
+                for v in vs:
+                    for var in v:
+                        assert isinstance(var, values.W_Symbol)
+                assert isinstance(rhss[0], AST)
+                return make_let(list(vs), list(rhss), body)
+        if "operator" in obj:
+            return App(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()]).let_convert()
+        if "test" in obj:
+            return If(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"])).let_convert()
+        if "quote" in obj:
+            return Quote(to_value(obj["quote"]))
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 

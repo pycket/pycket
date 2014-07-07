@@ -344,3 +344,12 @@ def test_caselambda():
     run("((case-lambda [x #t] [(x) x]) #f)", w_true) 
     run("((case-lambda [x (car x)] [(x) x]) #f #t 17)", w_false) 
     run("((case-lambda [(x) x] [x (car x)]) #f #t 17)", w_false) 
+
+def test_begin0():
+    run_fix("(begin0 1 2)", 1)
+    run_fix("(begin0 1)", 1)
+    run_fix("(begin0 1 2 3)", 1)
+    v = run_values("(begin0 (values #t #f) 2 3)")
+    assert v == [w_true, w_false]
+    run_fix("(let ([x 1]) (begin0 x (set! x 2)))", 1)
+    run_fix("(let ([x 10]) (begin0 (set! x 0) (set! x (+ x 1))) x)", 1)

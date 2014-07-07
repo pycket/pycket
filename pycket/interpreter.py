@@ -223,6 +223,26 @@ class BeginCont(Cont):
     def plug_reduce(self, vals):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
 
+# FIXME: it would be nice to not need two continuation types here
+class Begin0Cont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        self.ast = ast
+        self.env = env
+        self.prev = prev
+    def plug_reduce(self, vals):
+        return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
+
+class Begin0FinishCont(Cont):
+    _immutable_fields_ = ["ast", "vals", "env", "prev"]
+    def __init__(self, ast, vals, env, prev):
+        self.ast = ast
+        self.vals = vals
+        self.prev = prev
+        self.env = env
+    def plug_reduce(self, vals):
+        return return_multi_vals(self.vals, self.env, self.prev)
+
 class Done(Exception):
     def __init__(self, vals):
         self.values = vals
@@ -479,6 +499,36 @@ class SequencedBodyAST(AST):
             return self.body[i], env, prev
         else:
             return self.body[i], env, BeginCont(self, i + 1, env, prev)
+
+
+class Begin0(AST):
+    _immutable_fields_ = ["first", "body"]
+    @staticmethod
+    def make(fst, rst):
+        if rst:
+            return Begin0(fst, Begin.make(rst))
+        return fst
+    def __init__(self, fst, rst):
+        assert isinstance(rst, AST)
+        self.first = fst
+        self.body = rst
+    def assign_convert(self, vars, env_structure):
+        return Begin0(self.first.assign_convert(vars, env_structure), 
+                      self.body.assign_convert(vars, env_structure))
+    def free_vars(self):
+        x = {}
+        for r in [self.first, self.body]:
+            x.update(r.free_vars())
+        return x
+    def mutated_vars(self):
+        x = variable_set()
+        for r in [self.first, self.body]:
+            x.update(r.mutated_vars())
+        return x
+    def tostring(self):
+        return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+    def interpret(self, env, cont):
+        return self.first, env, Begin0Cont(self, env, cont)
 
 
 class Begin(SequencedBodyAST):

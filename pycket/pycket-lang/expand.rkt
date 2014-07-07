@@ -45,17 +45,32 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (#%plain-lambda #%top module* module #%plain-app quote #%require)
+  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top module* module #%plain-app quote #%require)
     [v:str (hash 'string (syntax-e #'v))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
-    ;; disabled to avoid changing the python code for now
-    #;
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
-    ;; [(quote e) (hash 'quote (to-json #'e))]
+    [(begin0 e0 e ...)
+     (hash 'begin0 (to-json #'e0)
+           'begin0-rest (map to-json (syntax->list #'(e ...))))]
+    [(if e0 e1 e2)
+     (hash 'test (to-json #'e0)
+           'then (to-json #'e1)
+           'else (to-json #'e2))]
+    [(let-values ([xs es] ...) b ...)
+     (hash 'let-bindings (for/list ([x (syntax->list #'(xs ...))]
+                                    [e (syntax->list #'(es ...))])
+                           (list (to-json x) (to-json e)))
+           'let-body (map to-json (syntax->list #'(b ...))))]
+    [(letrec-values ([xs es] ...) b ...)
+     (hash 'letrec-bindings (for/list ([x (syntax->list #'(xs ...))]
+                                       [e (syntax->list #'(es ...))])
+                              (list (to-json x) (to-json e)))
+           'letrec-body (map to-json (syntax->list #'(b ...))))]
+    [(quote e) (hash 'quote (to-json #'e))]
 
     [(#%require . x) (hash 'require (require-json #'x))]
     [(_ ...) (map to-json (syntax->list v))]
