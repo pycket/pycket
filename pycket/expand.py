@@ -322,12 +322,13 @@ def _to_ast(json):
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
-                assert len(fmls) == 1
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
             if ast_elem == "begin0":
                 raise Exception("begin0 is unsupported")
+            if ast_elem == "begin-for-syntax":
+                raise Exception("begin-for-syntax is unsupported")
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
