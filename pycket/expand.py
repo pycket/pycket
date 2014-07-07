@@ -193,6 +193,7 @@ def dbgprint(funcname, json):
         if isinstance(json, pycket_json.JsonBase):
             s = json.tostring()
         else:
+            # a list
             s = "[" + ", ".join([j.tostring() for j in json]) + "]"
         print "Entering %s with: %s" % (funcname, s)
 
