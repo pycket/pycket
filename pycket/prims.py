@@ -144,6 +144,7 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
+        ("box?", values.W_Box)
         ]:
     make_pred(*args)
 
@@ -535,10 +536,6 @@ def str2num(w_s):
         return values.w_false
 
 ### Boxes
-
-@expose("box?", [values.W_Object])
-def box_huh(v):
-    return values.W_Bool.make(isinstance(v, values.W_Box))
 
 @expose("box", [values.W_Object])
 def box(v):
