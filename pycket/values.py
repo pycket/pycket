@@ -45,10 +45,30 @@ class W_Object(object):
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
-        self.value = v
+        if isinstance(v, W_Fixnum):
+            v = W_CellIntegerStrategy(v.value)
+        self.w_value = v
+
+    def get_val(self):
+        w_value = self.w_value
+        if isinstance(w_value, W_CellIntegerStrategy):
+            return W_Fixnum(w_value.value)
+        return w_value
 
     def set_val(self, w_value):
-        self.value = w_value
+        if isinstance(w_value, W_Fixnum):
+            w_v = self.w_value
+            if isinstance(w_v, W_CellIntegerStrategy):
+                w_v.value = w_value.value
+            else:
+                self.w_value = W_CellIntegerStrategy(w_value.value)
+        else:
+            self.w_value = w_value
+
+class W_CellIntegerStrategy(W_Object):
+    # can be stored in cells only, is mutated when a W_Fixnum is stored
+    def __init__(self, value):
+        self.value = value
 
 class W_MVector(W_Object):
     errorname = "vector"

@@ -81,7 +81,7 @@ class ToplevelEnv(Env):
         jit.promote(self)
         w_res = self._lookup(sym, jit.promote(self.version))
         if isinstance(w_res, values.W_Cell):
-            w_res = w_res.value
+            w_res = w_res.get_val()
         return w_res
 
     @jit.elidable
@@ -107,6 +107,7 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         jit.promote(env_structure)
+        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 v = self._get_list(i)
@@ -117,6 +118,7 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
         jit.promote(env_structure)
+        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 self._set_list(i, val)
@@ -171,19 +173,37 @@ class LetCont(Cont):
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + vals
-            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
-            return ast.make_begin_cont(env, self.prev)
+            return self.trampoline_down(vals)
+            #return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
                                  self.env, self.prev, rhsindex + 1))
+    def trampoline_down(self, vals):
+        lc = self
+        toplevel_env = self.env.toplevel_env
+        while True:
+            prev = lc.prev
+            app = lc.ast.body[0]
+            vals_w = lc._get_full_list() + vals
+            # the let environment, also used after the loop
+            env = ConsEnv.make(vals_w, lc.env, toplevel_env)
+            if not(len(lc.ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(prev.ast.rhss) - 1):
+                break
+            w_callable = app.rator.interpret_simple(env)
+            if isinstance(w_callable, values.W_SimplePrim):
+                args_w = [rand.interpret_simple(env) for rand in app.rands]
+                vals = [w_callable.code(args_w)]
+                lc = prev
+            else:
+                break
+        return lc.ast.make_begin_cont(env, lc.prev)
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 
 class CellCont(Cont):
-    _immutable_fields_ = ["env", "prev"]
+    _immutable_fields_ = ["ast", "env", "prev"]
 
     def __init__(self, ast, env, prev):
         self.ast = ast
@@ -265,8 +285,6 @@ class AST(object):
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
 
-    def let_convert(self):
-        return self
     def free_vars(self):
         return {}
     def assign_convert(self, vars, env_structure):
@@ -339,7 +357,6 @@ class Module(AST):
                 else:
                     raise SchemeException("wrong number of values for define-values")
             else: # FIXME modules can have other things, assuming expression
-                print f.tostring()
                 vs = interpret_one(f, self.env)
                 continue
         env.module_env.current_module = None
@@ -385,8 +402,6 @@ class Cell(AST):
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
 
-    def let_convert(self):
-        assert 0
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
     def mutated_vars(self):
@@ -417,25 +432,29 @@ class App(AST):
 
 
     def __init__ (self, rator, rands, remove_env=False):
+        assert rator.simple
+        for r in rands:
+            assert r.simple
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
         self.should_enter = isinstance(rator, ModuleVar)
 
-    def let_convert(self):
+    @staticmethod
+    def make_let_converted(rator, rands):
         fresh_vars = []
         fresh_rhss = []
-        new_rator = self.rator
+        new_rator = rator
         new_rands = []
 
-        if not self.rator.simple:
+        if not rator.simple:
             fresh_rator = LexicalVar.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
-            fresh_rhss.append(self.rator)
+            fresh_rhss.append(rator)
             fresh_vars.append(fresh_rator)
             new_rator = fresh_rator_var
 
-        for i, rand in enumerate(self.rands):
+        for i, rand in enumerate(rands):
             if rand.simple:
                 new_rands.append(rand)
             else:
@@ -449,7 +468,8 @@ class App(AST):
             fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
-            return self
+            return App(rator, rands)
+
     def assign_convert(self, vars, env_structure):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
@@ -587,7 +607,7 @@ class CellRef(Var):
     def _lookup(self, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
 
 # Using this in rpython to have a mutable global variable
 class Counter(object):
@@ -677,10 +697,10 @@ class ModCellRef(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             assert isinstance(v, values.W_Cell)
-            return v.value
+            return v.get_val()
         v = modenv.lookup(self.modvar)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
     def to_modvar(self):
         return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
@@ -729,24 +749,27 @@ class SetBang(AST):
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
     def __init__ (self, tst, thn, els, remove_env=False):
+        assert tst.simple
         self.tst = tst
         self.thn = thn
         self.els = els
         self.remove_env = remove_env
-    def let_convert(self):
-        if self.tst.simple:
-            return self
+
+    @staticmethod
+    def make_let_converted(tst, thn, els):
+        if tst.simple:
+            return If(tst, thn, els)
         else:
             fresh = LexicalVar.gensym("if_")
             return Let(SymList([fresh]),
                        [1],
-                       [self.tst],
-                       [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+                       [tst],
+                       [If(LexicalVar(fresh), thn, els, remove_env=True)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if self.remove_env:
-            # remove the env created by the let introduced by let_convert
+            # remove the env created by the let introduced by make_let_converted
             # it's no longer needed nor accessible
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
@@ -1006,7 +1029,8 @@ def make_let_singlevar(sym, rhs, body):
             if (isinstance(rator, LexicalVar) and
                     sym is rator.sym and
                     rator.sym not in x):
-                return App(rhs, b.rands, b.remove_env)
+                assert not b.remove_env
+                return App.make_let_converted(rhs, b.rands)
         elif isinstance(b, If):
             tst = b.tst
             if (isinstance(tst, LexicalVar) and tst.sym is sym and
