@@ -157,6 +157,14 @@ class LetrecCont(Cont):
                     LetrecCont(ast, self.i + 1,
                                self.env, self.prev))
 
+def primitive_get_printable_location(w_callable, app):
+    return "primitive: %s %s" % (w_callable.tostring(), app.tostring())
+
+primitivedriver = jit.JitDriver(reds=["env", "toplevel_env", "prev"],
+                                greens=["w_callable", "app"],
+                                get_printable_location=primitive_get_printable_location,
+                                should_unroll_one_iteration=lambda *args: True)
+
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
 
@@ -179,22 +187,27 @@ class LetCont(Cont):
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
                                  self.env, self.prev, rhsindex + 1))
+
     def trampoline_down(self, vals):
         lc = self
+        ast = lc.ast
         toplevel_env = self.env.toplevel_env
         while True:
             prev = lc.prev
-            app = lc.ast.body[0]
+            app = ast.body[0]
             vals_w = lc._get_full_list() + vals
             # the let environment, also used after the loop
             env = ConsEnv.make(vals_w, lc.env, toplevel_env)
-            if not(len(lc.ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(prev.ast.rhss) - 1):
+            if not(len(ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(jit.promote(prev.ast).rhss) - 1):
                 break
             w_callable = app.rator.interpret_simple(env)
             if isinstance(w_callable, values.W_SimplePrim):
+                primitivedriver.jit_merge_point(prev=prev, toplevel_env=toplevel_env, env=env, w_callable=w_callable, app=app)
                 args_w = [rand.interpret_simple(env) for rand in app.rands]
                 vals = [w_callable.code(args_w)]
                 lc = prev
+                ast = lc.ast
+                jit.promote(ast)
             else:
                 break
         return lc.ast.make_begin_cont(env, lc.prev)
@@ -438,7 +451,6 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
-        self.should_enter = isinstance(rator, ModuleVar)
 
     @staticmethod
     def make_let_converted(rator, rands):
