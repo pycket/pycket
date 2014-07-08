@@ -185,18 +185,17 @@ class LetCont(Cont):
         while True:
             prev = lc.prev
             app = lc.ast.body[0]
-            vals_w = self._get_full_list() + vals
+            vals_w = lc._get_full_list() + vals
+            # the let environment, also used after the loop
             env = ConsEnv.make(vals_w, lc.env, toplevel_env)
             if not(len(lc.ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(prev.ast.rhss) - 1):
                 break
-            #
             w_callable = app.rator.interpret_simple(env)
             if isinstance(w_callable, values.W_SimplePrim):
                 args_w = [rand.interpret_simple(env) for rand in app.rands]
                 vals = [w_callable.code(args_w)]
                 lc = prev
             else:
-                import pdb; pdb.set_trace()   
                 break
         return lc.ast.make_begin_cont(env, lc.prev)
 
