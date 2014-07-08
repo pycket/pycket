@@ -1,15 +1,35 @@
-from pycket.values import w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol
+from pycket.error import SchemeException
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol
 from rpython.rlib import jit
 
 #
 # Structs are partially supported
 # 
-# Not yet implemented:
-# 1) inspector
-# 2) prefab -- '#s(sprout bean): update expand.rkt
-# 3) methods overriding (including equal) -- generic-interfaces.rkt
-# 4) guard
-# 5) properties and super as an argument -- kw.rkt
+# Not implemented:
+# 1) prefab -- '#s(sprout bean): need update in expand.rkt
+# 2) methods overriding (including equal) -- generic-interfaces.rkt
+# 3) guard
+# 4) properties and super as an argument -- kw.rkt
+#
+
+# TODO: inspector currently does nothing
+class W_StructInspector(W_Object):
+    _immutable_fields_ = ["_super"]
+
+    @staticmethod 
+    def make(inspector, issibling = False):
+        super = inspector
+        if issibling:
+            super = inspector.super() if inspector is not None else None
+        return W_StructInspector(super)
+
+    def __init__(self, super):
+        self._super = super
+    def super(self):
+        return self._super
+
+current_inspector = W_StructInspector(None)
+
 class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct"
@@ -42,7 +62,7 @@ class W_StructType(W_Object):
         # self._props = args[5] if len(args) > 5 else None
         self._inspector = args[6] if len(args) > 6 else None
         # self._proc_spec = args[7] if len(args) > 7 else None
-        # self._immutables = from_list(args[8]) if len(args) > 8 else []
+        self._immutables = args[8] if len(args) > 8 else None
         self._guard = args[9] if len(args) > 9 and args[9] != w_false else None
         if len(args) > 10:
             constr_name = args[10]
@@ -71,6 +91,8 @@ class W_StructType(W_Object):
         return self._init_field_cnt
     def auto_field_cnt(self):
         return self._auto_field_cnt
+    def immutables(self):
+        return self._immutables
     def isopaque(self):
         return self._opaque
     def setmutable(self, field):
@@ -78,6 +100,12 @@ class W_StructType(W_Object):
         pass
     def constr(self):
         return self._constr
+    def pred(self):
+        return self._pred
+    def acc(self):
+        return self._acc
+    def mut(self):
+        return self._mut
     def make_struct_tuple(self):
         return [self._desc, self._constr, self._pred, self._acc, self._mut]
     def tostring(self):
@@ -121,8 +149,7 @@ class W_StructConstructor(W_SimplePrim):
             pass
             # TODO: prepare arguments
             # import pdb; pdb.set_trace()
-            # LET  (result <- (apply guard old-value))
-            # make_let()
+            # LET (result <- (apply guard old-value))
         return return_value(self.simplecall(result), env, cont)
     def tostring(self):
         return "#<procedure:%s>" % self._name
