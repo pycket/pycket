@@ -14,6 +14,8 @@
     [(or (impersonator-of? l r) (impersonator-of? r l)) #t]
     [(and (pair? l) (pair? r))
      (and (equal? (car l) (car r)) (equal? (cdr l) (cdr r)))]
+    [(and (struct? l) (struct? r))
+     (or (eq? l r) (equal? (struct->vector l) (struct->vector r)))]
     [(and (vector? l) (vector? r))
      (if (= (vector-length l) (vector-length r))
        (or (eq? l r) (vec-loop l r 0 (vector-length l)))

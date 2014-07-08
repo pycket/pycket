@@ -32,7 +32,7 @@ current_inspector = W_StructInspector(None)
 
 class W_StructType(W_Object):
     all_structs = {}
-    errorname = "struct"
+    errorname = "structtype"
     _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", "_constr_name", "_guard"]
     
     @staticmethod 
@@ -221,6 +221,7 @@ class W_StructMutator(W_SimplePrim):
         return "#<procedure:%s-set!>" % self._struct_id.id()
 
 class W_Struct(W_Object):
+    errorname = "struct"
     _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
     def __init__(self, struct_id, super, isopaque, fields):
         self._type = struct_id
@@ -242,24 +243,10 @@ class W_Struct(W_Object):
         else:
             struct._save(struct.super(), struct_id, field, val)
 
-    # FIXME: racket replaces superclass field values with dots
     def _vals(self, struct):
-        result = [field.tostring() for field in struct.fields()]
+        result = struct.fields()
         if struct.super() is not None: return self._vals(struct.super()) + result
         else: return result
-
-    def tostring(self):
-        if self._isopaque: result =  "#<%s>" % self._type.id()
-        else: result = "(%s %s)" % (self._type.id(), ' '.join(self._vals(self)))
-        return result
-
-    def equal(self, other):
-        if not isinstance(other, W_Struct):
-            result = False
-        else:
-            if self._isopaque: result = self == other
-            else: result = self._type == other.type() and self._vals(self) == self._vals(other)
-        return result
 
     def type(self):
         return self._type
@@ -267,11 +254,22 @@ class W_Struct(W_Object):
     def super(self):
         return self._super
 
+    def isopaque(self):
+        return self._isopaque
+
     def fields(self):
         return self._fields
+
+    def allfields(self):
+        return self._vals(self)
 
     def get_value(self, struct_id, field):
         return self._lookup(self, struct_id, field)
 
     def set_value(self, struct_id, field, val):
         self._save(self, struct_id, field, val)
+
+    def tostring(self):
+        if self._isopaque: result =  "#<%s>" % self._type.id()
+        else: result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self._vals(self)]))
+        return result

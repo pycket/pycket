@@ -145,6 +145,7 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
+        ("inspector?", values_struct.W_StructInspector),
         ("struct-type?", values_struct.W_StructTypeDescriptor),
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
@@ -529,9 +530,64 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
+@expose("make-inspector")
+def do_make_instpector(args):
+    inspector = args[0]
+    return values_struct.W_StructInspector.make(inspector)
+
+@expose("make-sibling-inspector")
+def do_make_sibling_instpector(args):
+    inspector = args[0]
+    return values_struct.W_StructInspector.make(inspector, True)
+
 @expose("current-inspector")
 def do_current_instpector(args):
-    return values.w_void
+    return values_struct.current_inspector
+
+@expose("struct?")
+def do_is_struct(args):
+    struct = args[0]
+    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct.isopaque())
+
+@expose("struct-info", simple=False)
+def do_struct_info(args, env, cont):
+    from pycket.interpreter import return_multi_vals
+    struct = args[0]
+    # TODO: if the current inspector does not control any structure type for which the struct is an instance then return w_false
+    struct_type = struct.type() if True else values.w_false
+    skipped = values.w_false
+    return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
+
+@expose("struct-type-info", simple=False)
+def do_struct_type_info(args, env, cont):
+    from pycket.interpreter import return_multi_vals
+    struct_desc = args[0]
+    name = struct_desc.id()
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
+    auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
+    accessor = struct_type.acc()
+    mutator = struct_type.mut()
+    immutable_k_list = struct_type.immutables()
+    # TODO: if no ancestor is controlled by the current inspector return w_false
+    super = struct_type.super()
+    skipped = values.w_false
+    return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
+        accessor, mutator, immutable_k_list, super, skipped]), env, cont)
+
+@expose("struct-type-make-constructor")
+def do_struct_type_make_constructor(args):
+    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    struct_desc = args[0]
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    return struct_type.constr()
+
+@expose("struct-type-make-predicate")
+def do_struct_type_make_predicate(args):
+    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    struct_desc = args[0]
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    return struct_type.pred()
 
 @expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
@@ -541,15 +597,24 @@ def do_make_struct_type(args, env, cont):
 
 @expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
+    # the number of arguments may vary (2 or 3)
     accessor = args[0]
     field = args[1]
     return values_struct.W_StructFieldAccessor(accessor, field)
 
 @expose("make-struct-field-mutator")
 def do_make_struct_field_mutator(args):
+    # the number of arguments may vary (2 or 3)
     mutator = args[0]
     field = args[1]
     return values_struct.W_StructFieldMutator(mutator, field)
+
+@expose("struct->vector", [values_struct.W_Struct])
+def struct2vector(s):
+    struct_id = s.type().id()
+    assert isinstance(struct_id, values.W_Symbol)
+    first_el = values.W_Symbol.make("struct:" + struct_id.value)
+    return values_vector.W_Vector.fromelements([first_el] + s.allfields())
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
