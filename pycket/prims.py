@@ -544,10 +544,9 @@ def do_make_sibling_instpector(args):
 def do_current_instpector(args):
     return values_struct.current_inspector
 
-@expose("struct?")
-def do_is_struct(args):
-    struct = args[0]
-    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct.isopaque())
+@expose("struct?", [values.W_Object])
+def do_is_struct(s):
+    return values.W_Bool.make(isinstance(s, values_struct.W_Struct) and not s.isopaque())
 
 @expose("struct-info", simple=False)
 def do_struct_info(args, env, cont):
