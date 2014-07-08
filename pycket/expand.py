@@ -6,6 +6,7 @@ import sys
 
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
+from rpython.rlib.objectmodel import specialize
 import pycket.json as pycket_json
 from pycket.interpreter import *
 from pycket import values
@@ -32,17 +33,37 @@ def readfile_rpython(fname):
 
 fn = "-l pycket/expand --"
 
-def expand_string(s):
+
+current_racket_proc = None
+
+def expand_string(s, reuse=True):
     "NON_RPYTHON"
+    global current_racket_proc
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdin --stdout " % (fn)
-    process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
-    (data, err) = process.communicate(s)
+    cmd = "racket %s --loop --stdin --stdout " % (fn)
+    if current_racket_proc and reuse:
+        process = current_racket_proc
+    else:
+        process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
+        if reuse:
+            current_racket_proc = process
+    if reuse:
+        process.stdin.write(s)
+        ## I would like to write something so that Racket sees EOF without
+        ## closing the file. But I can't figure out how to do that. It
+        ## must be possible, though, because bash manages it.
+        #process.stdin.write(chr(4))
+        process.stdin.write("\n\0\n")
+        process.stdin.flush()
+        #import pdb; pdb.set_trace()
+        data = process.stdout.readline()
+    else:
+        (data, err) = process.communicate(s)
     if len(data) == 0:
         raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
-    if err:
-        raise Exception("Racket produced an error")
+    # if err:
+    #     raise Exception("Racket produced an error")
     return data
 
 
@@ -184,10 +205,17 @@ def to_ast(json):
 #### ========================== Implementation functions
 
 DO_DEBUG_PRINTS = False
+
+@specialize.argtype(1)
 def dbgprint(funcname, json):
     # This helped debugging segfaults
     if DO_DEBUG_PRINTS:
-        print "Entering %s with: %s" % (funcname, json.tostring())
+        if isinstance(json, pycket_json.JsonBase):
+            s = json.tostring()
+        else:
+            # a list
+            s = "[" + ", ".join([j.tostring() for j in json]) + "]"
+        print "Entering %s with: %s" % (funcname, s)
 
 def to_formals(json):
     dbgprint("to_formals", json)
@@ -204,11 +232,11 @@ def to_formals(json):
         return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in json.value_array()], None
     assert 0
 
-def to_bindings(json):
-    dbgprint("to_bindings", json)
+def to_bindings(arr):
+    dbgprint("to_bindings", arr)
     varss = []
     rhss = []
-    for v in json.value_array():
+    for v in arr:
         arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
@@ -272,37 +300,8 @@ def _to_ast(json):
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
                 return _to_ast(arr[1])
-            if ast_elem == "#%app":
-                return App(_to_ast(arr[1]), [_to_ast(x) for x in arr[2:]]).let_convert()
-            if ast_elem == "if":
-                return If(_to_ast(arr[1]), _to_ast(arr[2]), _to_ast(arr[3])).let_convert()
-            if ast_elem == "quote":
-                return Quote(to_value(arr[1]))
             if ast_elem == "lambda":
                 return CaseLambda([to_lambda(arr[1:])])
-            if ast_elem == "letrec-values":
-                body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array()) == 0:
-                    return Begin.make(body)
-                else:
-                    vs, rhss = to_bindings(arr[1])
-                    for v in vs:
-                        for var in v:
-                            assert isinstance(var, values.W_Symbol)
-                    assert isinstance(rhss[0], AST)
-                    return make_letrec(list(vs), list(rhss), body)
-            if ast_elem == "let-values":
-                body = [_to_ast(x) for x in arr[2:]]
-                if len(arr[1].value_array()) == 0:
-                    return Begin.make(body)
-                else:
-                    vs, rhss = to_bindings(arr[1])
-                    for v in vs:
-                        for var in v:
-                            assert isinstance(var, values.W_Symbol)
-                    for r in rhss:
-                        assert isinstance(r, AST)
-                    return make_let(list(vs), list(rhss), body)
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
@@ -326,8 +325,6 @@ def _to_ast(json):
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
-            if ast_elem == "begin0":
-                raise Exception("begin0 is unsupported")
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
@@ -350,6 +347,43 @@ def _to_ast(json):
         if "require" in obj:
             path = obj["require"].value_string()
             return _to_require(path)
+        if "begin0" in obj:
+            fst = _to_ast(obj["begin0"])
+            rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
+            if len(rst) == 0:
+                return fst
+            else:
+                return Begin0.make(fst, rst)
+        if "letrec-bindings" in obj:
+            body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
+            bindings = obj["letrec-bindings"].value_array()
+            if len(bindings) == 0:
+                return Begin.make(body)
+            else:
+                vs, rhss = to_bindings(bindings)
+                for v in vs:
+                    for var in v:
+                        assert isinstance(var, values.W_Symbol)
+                assert isinstance(rhss[0], AST)
+                return make_letrec(list(vs), list(rhss), body)
+        if "let-bindings" in obj:
+            body = [_to_ast(x) for x in obj["let-body"].value_array()]
+            bindings = obj["let-bindings"].value_array()
+            if len(bindings) == 0:
+                return Begin.make(body)
+            else:
+                vs, rhss = to_bindings(bindings)
+                for v in vs:
+                    for var in v:
+                        assert isinstance(var, values.W_Symbol)
+                assert isinstance(rhss[0], AST)
+                return make_let(list(vs), list(rhss), body)
+        if "operator" in obj:
+            return App.make_let_converted(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()])
+        if "test" in obj:
+            return If.make_let_converted(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"]))
+        if "quote" in obj:
+            return Quote(to_value(obj["quote"]))
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 

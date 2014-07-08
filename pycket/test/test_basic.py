@@ -4,18 +4,19 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
 
-from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
+from pycket.test.testhelper import (run, run_fix, run_flo, run_top, execute,
+        run_values, check_equal)
 
 
 def test_constant():
-    ov = run("1")
+    ov = run("1", stdlib=False)
     assert isinstance(ov, W_Fixnum)
     assert ov.value == 1
 
 
 def test_read_err ():
     with pytest.raises(Exception):
-        expand ("(")
+        expand_string("(", result=False)
 
 def test_arithmetic():
     run_fix("(+ )", 0)
@@ -73,6 +74,17 @@ def test_letrec():
     run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
     run_fix("(letrec ([x (lambda (z) x)]) 2)", 2)
 
+def test_reclambda():
+    run_fix("((letrec ([c (lambda (n) (if (< n 0) 1 (c (- n 1))))]) c) 10)", 1)
+    run_fix("""
+        ((letrec ([c (lambda (n) (let ([ind (lambda (n) (display n) (if (< n 0) 1 (c (- n 1))))]) (ind n)))]) c) 10)""", 1)
+    run_fix("""
+(let ()
+  (define (nested n)
+    (let countdown ([i n]) (if (< i 0) 1 (countdown (- i 1))))
+    (if (< n 0) 1 (nested (- n 1))))
+  (nested 10))""", 1)
+
 def test_let():
     run_fix("(let () 1)", 1)
     run_fix("(let ([x 1]) x)", 1)
@@ -126,6 +138,25 @@ def test_set_mcar_car():
     #     run_fix ("(letrec ([x (cons 1 2)]) (set-car! x 3) (car x))", 3)
     # with pytest.raises(SchemeException):
     #     run_fix ("(letrec ([x (cons 1 2)]) (set-cdr! x 3) (cdr x))", 3)
+
+def test_cell():
+    cell = W_Cell(W_Fixnum(9))
+    val1 = cell.w_value
+    assert cell.get_val().value == 9
+    cell.set_val(W_Fixnum(10))
+    assert val1 is cell.w_value
+    assert cell.get_val().value == 10
+    cell.set_val(W_Fixnum(12))
+    assert val1 is cell.w_value
+    assert cell.get_val().value == 12
+
+    cell = W_Cell(None)
+    cell.set_val(W_Fixnum(10))
+    val1 = cell.w_value
+    assert cell.get_val().value == 10
+    cell.set_val(W_Fixnum(12))
+    assert val1 is cell.w_value
+    assert cell.get_val().value == 12
 
 def test_set_bang():
     run("((lambda (x) (set! x #t) x) 1)", w_true)
@@ -213,6 +244,9 @@ def test_apply():
     run_fix("(apply + 1 2 (list 3))", 6)
     run_fix("(apply + 1 2 3 (list))", 6)
 
+def test_setbang_recursive_lambda():
+    run_fix("((letrec ([f (lambda (a) (set! f (lambda (a) 1)) (f a))]) f) 6)", 1)
+
 def test_keyword():
     run("'#:foo", W_Keyword.make("foo"))
 
@@ -252,30 +286,32 @@ def test_equal():
     run("(equal? (lambda (x) x) (lambda (y) y))", w_false) #racket
 
 def test_eqv():
-    run("(eqv? 'yes 'yes)", w_true)
-    run("(eqv? 'yes 'no)", w_false)
-    run("(eqv? (expt 2 100) (expt 2 100))", w_true)
-    run("(eqv? 2 2.0)", w_false)
-    run("(eqv? (integer->char 955) (integer->char 955))", w_true)
-    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", w_false, stdlib=True)
+    check_equal(
+        "(eqv? 'yes 'yes)", "#t",
+        "(eqv? 'yes 'no)", "#f",
+        "(eqv? (expt 2 100) (expt 2 100))", "#t",
+        "(eqv? 2 2.0)", "#f",
+        "(eqv? (integer->char 955) (integer->char 955))", "#t",
+    #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", "#f", stdlib=True)
 
-    run("(eqv? 'a 'a)", w_true)
-    run("(eqv? 'a 'b)", w_false)
-    run("(eqv? 2 2)", w_true)
-    run("(eqv? '() '())", w_true)
-    run("(eqv? 100000000 100000000)", w_true)
-    run("(eqv? (cons 1 2) (cons 1 2))", w_false)
-    run("""(eqv? (lambda () 1)
-                 (lambda () 2))""", w_false)
-    run("(eqv? #f 'nil)", w_false)
-    run("""(let ((p (lambda (x) x)))
-           (eqv? p p))""", w_true)
-    # run('(eqv? "" "")', w_true) #racket
-    run("(eqv? '#() '#())", w_false) #racket
-    run("""(eqv? (lambda (x) x)
-                 (lambda (x) x))""", w_false) #racket
-    run("""(eqv? (lambda (x) x)
-                 (lambda (y) y))""", w_false) #racket
+        "(eqv? 'a 'a)", "#t",
+        "(eqv? 'a 'b)", "#f",
+        "(eqv? 2 2)", "#t",
+        "(eqv? '() '())", "#t",
+        "(eqv? 100000000 100000000)", "#t",
+        "(eqv? (cons 1 2) (cons 1 2))", "#f",
+        """(eqv? (lambda () 1)
+                 (lambda () 2))""", "#f",
+        "(eqv? #f 'nil)", "#f",
+        """(let ((p (lambda (x) x)))
+           (eqv? p p))""", "#t",
+    # run('(eqv? "" "")', "#t") #racket
+        "(eqv? '#() '#())", "#f", #racket
+        """(eqv? (lambda (x) x)
+                 (lambda (x) x))""", "#f", #racket
+        """(eqv? (lambda (x) x)
+                 (lambda (y) y))""", "#f", #racket
+    )
     run_top("""(define gen-counter
              (lambda ()
                (let ((n 0))
@@ -330,3 +366,12 @@ def test_caselambda():
     run("((case-lambda [x #t] [(x) x]) #f)", w_true) 
     run("((case-lambda [x (car x)] [(x) x]) #f #t 17)", w_false) 
     run("((case-lambda [(x) x] [x (car x)]) #f #t 17)", w_false) 
+
+def test_begin0():
+    run_fix("(begin0 1 2)", 1)
+    run_fix("(begin0 1)", 1)
+    run_fix("(begin0 1 2 3)", 1)
+    v = run_values("(begin0 (values #t #f) 2 3)")
+    assert v == [w_true, w_false]
+    run_fix("(let ([x 1]) (begin0 x (set! x 2)))", 1)
+    run_fix("(let ([x 10]) (begin0 (set! x 0) (set! x (+ x 1))) x)", 1)

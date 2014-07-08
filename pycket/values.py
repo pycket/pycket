@@ -45,10 +45,30 @@ class W_Object(object):
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
         assert not isinstance(v, W_Cell)
-        self.value = v
+        if isinstance(v, W_Fixnum):
+            v = W_CellIntegerStrategy(v.value)
+        self.w_value = v
+
+    def get_val(self):
+        w_value = self.w_value
+        if isinstance(w_value, W_CellIntegerStrategy):
+            return W_Fixnum(w_value.value)
+        return w_value
 
     def set_val(self, w_value):
-        self.value = w_value
+        if isinstance(w_value, W_Fixnum):
+            w_v = self.w_value
+            if isinstance(w_v, W_CellIntegerStrategy):
+                w_v.value = w_value.value
+            else:
+                self.w_value = W_CellIntegerStrategy(w_value.value)
+        else:
+            self.w_value = w_value
+
+class W_CellIntegerStrategy(W_Object):
+    # can be stored in cells only, is mutated when a W_Fixnum is stored
+    def __init__(self, value):
+        self.value = value
 
 class W_MVector(W_Object):
     errorname = "vector"
@@ -528,28 +548,33 @@ class W_Continuation(W_Procedure):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
 
-    
+
 
 class W_Closure(W_Procedure):
-    # FIXME: specialize on length of envs
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
-    def __init__ (self, caselam):
+    def __init__ (self, caselam, env):
+        from pycket.interpreter import ConsEnv
         self.caselam = caselam
+        for (i,lam) in enumerate(caselam.lams):
+            for s in lam.frees.elems:
+                assert isinstance(s, W_Symbol)
+            vals = [None] * len(lam.frees.elems)
+            for j, v in enumerate(lam.frees.elems):
+                if v is caselam.recursive_sym:
+                    vals[j] = self
+                else:
+                    vals[j] = env.lookup(v, lam.enclosing_env_structure)
+            self._set_list(i, ConsEnv.make(vals, env.toplevel_env, env.toplevel_env))
+
     @staticmethod
     @jit.unroll_safe
     def make(caselam, env):
         from pycket.interpreter import ConsEnv, CaseLambda
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
-        for (i,lam) in enumerate(caselam.lams):
-            for s in lam.frees.elems:
-                assert isinstance(s, W_Symbol)
-            vals = [env.lookup(var, lam.enclosing_env_structure)
-                    for var in lam.frees.elems]
-            envs[i] = ConsEnv.make(vals, env.toplevel_env, env.toplevel_env)
-        return W_Closure._make(envs, caselam)
-        
+        return W_Closure._make(envs, caselam, env)
+
     def mark_non_loop(self):
         for l in self.caselam.lams:
             l.body[0].should_enter = False
@@ -594,7 +619,10 @@ class W_PromotableClosure(W_Procedure):
 
     def __init__(self, caselam, toplevel_env):
         from pycket.interpreter import ConsEnv
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam)
+        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+
+    def mark_non_loop(self):
+        self.closure.mark_non_loop()
 
     def call(self, args, env, cont):
         jit.promote(self)

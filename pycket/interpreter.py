@@ -3,7 +3,7 @@ from pycket                   import vector
 from pycket.prims             import prim_env
 from pycket.error             import SchemeException
 from pycket.cont              import Cont
-from rpython.rlib             import jit, debug
+from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
@@ -60,7 +60,7 @@ class ModuleEnv(object):
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env", "module_env"]
-    pass
+    _attrs_ = ['toplevel_env']
 
 class Version(object):
     pass
@@ -81,7 +81,7 @@ class ToplevelEnv(Env):
         jit.promote(self)
         w_res = self._lookup(sym, jit.promote(self.version))
         if isinstance(w_res, values.W_Cell):
-            w_res = w_res.value
+            w_res = w_res.get_val()
         return w_res
 
     @jit.elidable
@@ -140,6 +140,7 @@ class LetrecCont(Cont):
         self.env  = env
         self.prev = prev
 
+    @jit.unroll_safe
     def plug_reduce(self, _vals):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
@@ -241,7 +242,27 @@ class BeginCont(Cont):
         self.prev = prev
 
     def plug_reduce(self, vals):
-        return self.ast.make_begin_cont(self.env, self.prev, self.i)
+        return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
+
+# FIXME: it would be nice to not need two continuation types here
+class Begin0Cont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        self.ast = ast
+        self.env = env
+        self.prev = prev
+    def plug_reduce(self, vals):
+        return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
+
+class Begin0FinishCont(Cont):
+    _immutable_fields_ = ["ast", "vals", "env", "prev"]
+    def __init__(self, ast, vals, env, prev):
+        self.ast = ast
+        self.vals = vals
+        self.prev = prev
+        self.env = env
+    def plug_reduce(self, vals):
+        return return_multi_vals(self.vals, self.env, self.prev)
 
 class Done(Exception):
     def __init__(self, vals):
@@ -265,8 +286,6 @@ class AST(object):
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
 
-    def let_convert(self):
-        return self
     def free_vars(self):
         return {}
     def assign_convert(self, vars, env_structure):
@@ -384,8 +403,6 @@ class Cell(AST):
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
 
-    def let_convert(self):
-        assert 0
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
     def mutated_vars(self):
@@ -416,25 +433,29 @@ class App(AST):
 
 
     def __init__ (self, rator, rands, remove_env=False):
+        assert rator.simple
+        for r in rands:
+            assert r.simple
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
         self.should_enter = isinstance(rator, ModuleVar)
 
-    def let_convert(self):
+    @staticmethod
+    def make_let_converted(rator, rands):
         fresh_vars = []
         fresh_rhss = []
-        new_rator = self.rator
+        new_rator = rator
         new_rands = []
 
-        if not self.rator.simple:
+        if not rator.simple:
             fresh_rator = LexicalVar.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
-            fresh_rhss.append(self.rator)
+            fresh_rhss.append(rator)
             fresh_vars.append(fresh_rator)
             new_rator = fresh_rator_var
 
-        for i, rand in enumerate(self.rands):
+        for i, rand in enumerate(rands):
             if rand.simple:
                 new_rands.append(rand)
             else:
@@ -448,7 +469,8 @@ class App(AST):
             fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
-            return self
+            return App(rator, rands)
+
     def assign_convert(self, vars, env_structure):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
@@ -499,6 +521,36 @@ class SequencedBodyAST(AST):
             return self.body[i], env, prev
         else:
             return self.body[i], env, BeginCont(self, i + 1, env, prev)
+
+
+class Begin0(AST):
+    _immutable_fields_ = ["first", "body"]
+    @staticmethod
+    def make(fst, rst):
+        if rst:
+            return Begin0(fst, Begin.make(rst))
+        return fst
+    def __init__(self, fst, rst):
+        assert isinstance(rst, AST)
+        self.first = fst
+        self.body = rst
+    def assign_convert(self, vars, env_structure):
+        return Begin0(self.first.assign_convert(vars, env_structure), 
+                      self.body.assign_convert(vars, env_structure))
+    def free_vars(self):
+        x = {}
+        for r in [self.first, self.body]:
+            x.update(r.free_vars())
+        return x
+    def mutated_vars(self):
+        x = variable_set()
+        for r in [self.first, self.body]:
+            x.update(r.mutated_vars())
+        return x
+    def tostring(self):
+        return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+    def interpret(self, env, cont):
+        return self.first, env, Begin0Cont(self, env, cont)
 
 
 class Begin(SequencedBodyAST):
@@ -554,10 +606,9 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
     def _lookup(self, env):
-        #import pdb; pdb.set_trace()
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
 
 # Using this in rpython to have a mutable global variable
 class Counter(object):
@@ -647,10 +698,10 @@ class ModCellRef(Var):
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             assert isinstance(v, values.W_Cell)
-            return v.value
+            return v.get_val()
         v = modenv.lookup(self.modvar)
         assert isinstance(v, values.W_Cell)
-        return v.value
+        return v.get_val()
     def to_modvar(self):
         return ModuleVar(self.sym, self.srcmod, self.srcsym)
 
@@ -699,24 +750,27 @@ class SetBang(AST):
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
     def __init__ (self, tst, thn, els, remove_env=False):
+        assert tst.simple
         self.tst = tst
         self.thn = thn
         self.els = els
         self.remove_env = remove_env
-    def let_convert(self):
-        if self.tst.simple:
-            return self
+
+    @staticmethod
+    def make_let_converted(tst, thn, els):
+        if tst.simple:
+            return If(tst, thn, els)
         else:
             fresh = LexicalVar.gensym("if_")
             return Let(SymList([fresh]),
                        [1],
-                       [self.tst],
-                       [If(LexicalVar(fresh), self.thn, self.els, remove_env=True)])
+                       [tst],
+                       [If(LexicalVar(fresh), thn, els, remove_env=True)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if self.remove_env:
-            # remove the env created by the let introduced by let_convert
+            # remove the env created by the let introduced by make_let_converted
             # it's no longer needed nor accessible
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
@@ -748,53 +802,6 @@ class If(AST):
     def tostring(self):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-class RecLambda(AST):
-    _immutable_fields_ = ["name", "lam", "env_structure"]
-    simple = True
-    def __init__(self, name, lam, env_structure):
-        assert isinstance(lam, Lambda)
-        self.name = name
-        self.lam  = lam
-        self.env_structure = env_structure
-    def assign_convert(self, vars, env_structure):
-        v = vars.copy()
-        if LexicalVar(self.name) in v:
-            del v[LexicalVar(self.name)]
-        env_structure = SymList([self.name], env_structure)
-        return RecLambda(self.name, self.lam.assign_convert(v, env_structure), env_structure)
-    def mutated_vars(self):
-        v = self.lam.mutated_vars()
-        if LexicalVar(self.name) in v:
-            del v[LexicalVar(self.name)]
-        return v
-    def free_vars(self):
-        v = self.lam.free_vars()
-        if self.name in v:
-            del v[self.name]
-        return v
-
-    def interpret_simple(self, env):
-        e = ConsEnv.make([values.w_void], env, env.toplevel_env)
-        try:
-            Vcl, e, f = self.lam.interpret(e, None)
-            assert 0
-        except Done, e:
-            vals = e.values
-            cl = check_one_val(vals)
-        assert isinstance(cl, values.W_Closure)
-        cl._get_list(0).set(self.name, cl, self.lam.frees)
-        return cl
-
-    def tostring(self):
-        b = " ".join([b.tostring() for b in self.lam.body])
-        if self.lam.rest and (not self.lam.formals):
-            return "(rec %s %s %s)"%(self.name, self.lam.rest, b)
-        formals_string = " ".join([variable_name(v) for v in self.lam.formals])
-        if self.lam.rest:
-            return "(rec %s (%s . %s) %s)"%(self.name, formals_string, self.lam.rest, b)
-        else:
-            return "(rec %s (%s) %s)"%(self.name, formals_string, b)
-
 
 def make_lambda(formals, rest, body):
     args = SymList(formals + ([rest] if rest else []))
@@ -816,7 +823,7 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "w_closure_if_no_frees?"]
     simple = True
-    def __init__(self, lams):
+    def __init__(self, lams, recursive_sym=None):
         ## TODO: drop lams whose arity is redundant
         ## (case-lambda [x 0] [(y) 1]) == (lambda x 0)
         self.lams = lams
@@ -826,6 +833,11 @@ class CaseLambda(AST):
                 self.any_frees = True
                 break
         self.w_closure_if_no_frees = None
+        self.recursive_sym = recursive_sym
+
+    def make_recursive_copy(self, sym):
+        return CaseLambda(self.lams, sym)
+
     def interpret_simple(self, env):
         if not self.any_frees:
             # cache closure if there are no free variables and the toplevel env
@@ -839,10 +851,12 @@ class CaseLambda(AST):
             return w_closure
         return values.W_Closure.make(self, env)
     def free_vars(self):
-        x = {}
+        result = {}
         for l in self.lams:
-            x.update(l.free_vars())
-        return x
+            result.update(l.free_vars())
+        if self.recursive_sym in result:
+            del result[self.recursive_sym]
+        return result
     def mutated_vars(self):
         x = variable_set()
         for l in self.lams:
@@ -850,7 +864,7 @@ class CaseLambda(AST):
         return x
     def assign_convert(self, vars, env_structure):
         ls = [l.assign_convert(vars, env_structure) for l in self.lams]
-        return CaseLambda(ls)
+        return CaseLambda(ls, recursive_sym=self.recursive_sym)
     def tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
@@ -859,30 +873,18 @@ class CaseLambda(AST):
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure",
-                          "w_closure_if_no_frees?",
                           ]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
         SequencedBodyAST.__init__(self, body)
-        body[0].should_enter = True
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
-        self.w_closure_if_no_frees = None
 
     def interpret_simple(self, env):
-        assert False # FIXME
-        if not self.frees.elems:
-            # cache closure if there are no free variables and the toplevel env
-            # is the same as last time
-            w_closure = self.w_closure_if_no_frees
-            if w_closure is None or w_closure.env.toplevel_env is not env.toplevel_env:
-                w_closure = values.W_PromotableClosure(self, env)
-                self.w_closure_if_no_frees = w_closure
-            return w_closure
-        return values.W_Closure.make([self], env)
+        assert False # unreachable
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
@@ -917,7 +919,8 @@ class Lambda(SequencedBodyAST):
                 del x[lv]
         return x
     def free_vars(self):
-        return free_vars_lambda(self.body, self.args)
+        result = free_vars_lambda(self.body, self.args)
+        return result
 
     def match_args(self, args):
         fmls_len = len(self.formals)
@@ -959,6 +962,7 @@ class Letrec(SequencedBodyAST):
         self.total_counts = total_counts[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
+    @jit.unroll_safe
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
@@ -996,35 +1000,59 @@ class Letrec(SequencedBodyAST):
         return "(letrec (%s) %s)"%([(variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
-def make_let(varss, rhss, body):
-    if not varss:
-        return Begin.make(body)
-    else:
-        counts = []
-        argsl = []
-        for vars in varss:
-            counts.append(len(vars))
-            argsl += vars
-        argsl = argsl[:] # copy to make fixed-size
-        return Let(SymList(argsl), counts, rhss, body)
-
-def make_letrec(varss, rhss, body):
-    if (1 == len(varss) and
-        1 == len(varss[0]) and
-        1 == len(body) and
-        isinstance(rhss[0], Lambda)):
-        b = body[0]
-        if isinstance(b, LexicalVar) and varss[0][0] is b.sym:
-            return RecLambda(varss[0][0], rhss[0], SymList([varss[0][0]]))
+def _make_symlist_counts(varss):
     counts = []
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl = argsl + vars
+        argsl += vars
+    argsl = argsl[:] # copy to make fixed-size
+    return SymList(argsl), counts
+
+def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    else:
-        return Letrec(SymList(argsl), counts, rhss, body)
+    if 1 == len(varss) and 1 == len(varss[0]):
+        return make_let_singlevar(varss[0][0], rhss[0], body)
+    symlist, counts = _make_symlist_counts(varss)
+    return Let(symlist, counts, rhss, body)
+
+def make_let_singlevar(sym, rhs, body):
+    if 1 == len(body):
+        b, = body
+        if isinstance(b, LexicalVar) and sym is b.sym:
+            return rhs
+        elif isinstance(b, App):
+            rator = b.rator
+            x = {}
+            for rand in b.rands:
+                x.update(rand.free_vars())
+            if (isinstance(rator, LexicalVar) and
+                    sym is rator.sym and
+                    rator.sym not in x):
+                assert not b.remove_env
+                return App.make_let_converted(rhs, b.rands)
+        elif isinstance(b, If):
+            tst = b.tst
+            if (isinstance(tst, LexicalVar) and tst.sym is sym and
+                    sym not in b.thn.free_vars() and
+                    sym not in b.els.free_vars()):
+                return If(rhs, b.thn, b.els)
+    return Let(SymList([sym]), [1], [rhs], body)
+
+def make_letrec(varss, rhss, body):
+    if not varss:
+        return Begin.make(body)
+    if 1 == len(varss) and 1 == len(varss[0]):
+        rhs = rhss[0]
+        sym = varss[0][0]
+        if isinstance(rhs, CaseLambda) and LexicalVar(sym) not in rhs.mutated_vars():
+            reclambda = rhs.make_recursive_copy(sym)
+            return make_let_singlevar(sym, reclambda, body)
+
+    symlist, counts = _make_symlist_counts(varss)
+    return Letrec(symlist, counts, rhss, body)
+
 
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
@@ -1081,8 +1109,24 @@ class Let(SequencedBodyAST):
         return Let(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(let (%s) %s)"%(" ".join(["[%s %s]" % (variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)]),
-                                " ".join([b.tostring() for b in self.body]))
+        result = ["(let ("]
+        j = 0
+        for i, count in enumerate(self.counts):
+            result.append("[")
+            if count > 1:
+                result.append("(")
+            for _ in range(count):
+                result.append(variable_name(self.args.elems[j]))
+                j += 1
+            if count > 1:
+                result.append(")")
+            result.append(" ")
+            result.append(self.rhss[i].tostring())
+            result.append("]")
+        result.append(") ")
+        result.append(" ".join([b.tostring() for b in self.body]))
+        result.append(")")
+        return "".join(result)
 
 
 class DefineValues(AST):
@@ -1129,7 +1173,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
-    import pdb
+    #import pdb
     #pdb.set_trace()
     cont = None
     if not env:
@@ -1139,6 +1183,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
             ast, env, cont = ast.interpret(env, cont)
             if ast.should_enter:
+#                print ast.tostring()
                 driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
         return e.values

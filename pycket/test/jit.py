@@ -39,6 +39,23 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_countdown_nested(self):
+        ast = to_ast(expand("""
+(let ([sub 1])
+  (define (nested n)
+    (let countdown ([n n]) (if (< n 0) 1 (countdown (- n sub))))
+    (if (< n 0) 1 (nested (- n sub))))
+  (nested 10))
+"""))
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_countdown_loop(self):
         ast = to_ast(expand("""
@@ -57,7 +74,7 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-    def test_side_exit(self):
+    def test_bistable_loop(self):
         ast = parse_module(expand_string("""
 #lang pycket
 (let ()
@@ -95,6 +112,30 @@ class TestLLtype(LLJitMixin):
             return ov.value
 
         assert interp_w() == 1
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def test_side_exit(self):
+        ast = to_ast(expand("""
+(let ()
+    (define (count-positive l sum)
+        (if (null? l) sum
+            (if (> (car l) 0)
+                (count-positive (cdr l) (+ (car l) sum))
+                (count-positive (cdr l) sum)
+                )))
+    (count-positive (list -1 1 1 1 1 -1 2 3 -5 1 2 2 -5 6 4 3 -5) 0))
+
+"""))
+
+
+        def interp_w():
+            val = interpret_one(ast)
+            ov = check_one_val(val)
+            assert isinstance(ov, W_Fixnum)
+            return ov.value
+
+        assert interp_w() == 27
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -288,7 +329,7 @@ class TestLLtype(LLJitMixin):
             val = interpret_one(ast)
             ov = check_one_val(val)
             assert isinstance(ov, W_Fixnum)
-            return val.value
+            return ov.value
 
         assert interp_w() == 1
 
