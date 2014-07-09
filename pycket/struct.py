@@ -32,7 +32,7 @@ current_inspector = W_StructInspector(None)
 
 class W_StructType(W_Object):
     all_structs = {}
-    errorname = "structtype"
+    errorname = "struct-type"
     _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", "_constr_name", "_guard"]
     
     @staticmethod 
@@ -112,6 +112,7 @@ class W_StructType(W_Object):
         return "StructType<%s>" % self._desc.tostring()
 
 class W_StructTypeDescriptor(W_Object):
+    errorname = "struct-type-descriptor"
     _immutable_fields_ = ["_id"]
     def __init__(self, id):
         self._id = id
@@ -180,8 +181,7 @@ class W_StructFieldAccessor(W_SimplePrim):
         self._field = field
     def code(self, args):
         struct = args[0]
-        result = self._accessor.code([struct, self._field])
-        return result
+        return self._accessor.code([struct, self._field])
 
 class W_StructAccessor(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
@@ -204,8 +204,7 @@ class W_StructFieldMutator(W_SimplePrim):
     def code(self, args):
         struct = args[0]
         val = args[1]
-        result = self._mutator.code([struct, self._field, val])
-        return result
+        return self._mutator.code([struct, self._field, val])
 
 class W_StructMutator(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
