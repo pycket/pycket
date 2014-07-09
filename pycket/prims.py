@@ -6,6 +6,7 @@ import time
 import math
 from pycket import values
 from pycket.cont import Cont, call_cont, continuation
+from pycket import struct as values_struct
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
@@ -144,6 +145,12 @@ for args in [
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
+        ("inspector?", values_struct.W_StructInspector),
+        ("struct-type?", values_struct.W_StructTypeDescriptor),
+        ("struct-constructor-procedure?", values_struct.W_StructConstructor),
+        ("struct-predicate-procedure?", values_struct.W_StructPredicate),
+        ("struct-accessor-procedure?", values_struct.W_StructAccessor),
+        ("struct-mutator-procedure?", values_struct.W_StructMutator),
         ]:
     make_pred(*args)
 
@@ -427,6 +434,13 @@ def eqp(a, b):
     else:
         return values.w_false
 
+@expose("not", [values.W_Object])
+def notp(a):
+    if isinstance(a, values.W_Bool):
+        return values.W_Bool.make(not a.value)
+    else:
+        return values.w_false
+
 @expose("length", [values.W_List])
 def length(a):
     n = 0
@@ -515,6 +529,87 @@ def do_set_mcdr(a, b):
 
 @expose("void")
 def do_void(args): return values.w_void
+
+@expose("make-inspector")
+def do_make_instpector(args):
+    inspector = args[0]
+    return values_struct.W_StructInspector.make(inspector)
+
+@expose("make-sibling-inspector")
+def do_make_sibling_instpector(args):
+    inspector = args[0]
+    return values_struct.W_StructInspector.make(inspector, True)
+
+@expose("current-inspector")
+def do_current_instpector(args):
+    return values_struct.current_inspector
+
+@expose("struct?", [values.W_Object])
+def do_is_struct(struct):
+    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct.isopaque())
+
+@expose("struct-info", [values_struct.W_Struct], simple=False)
+def do_struct_info(struct, env, cont):
+    from pycket.interpreter import return_multi_vals
+    # TODO: if the current inspector does not control any structure type for which the struct is an instance then return w_false
+    struct_type = struct.type() if True else values.w_false
+    skipped = values.w_false
+    return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
+
+@expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
+def do_struct_type_info(struct_desc, env, cont):
+    from pycket.interpreter import return_multi_vals
+    name = struct_desc.id()
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
+    auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
+    accessor = struct_type.acc()
+    mutator = struct_type.mut()
+    immutable_k_list = struct_type.immutables()
+    # TODO: if no ancestor is controlled by the current inspector return w_false
+    super = struct_type.super()
+    skipped = values.w_false
+    return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
+        accessor, mutator, immutable_k_list, super, skipped]), env, cont)
+
+@expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
+def do_struct_type_make_constructor(struct_desc):
+    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    return struct_type.constr()
+
+@expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
+def do_struct_type_make_predicate(struct_desc):
+    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    return struct_type.pred()
+
+@expose("make-struct-type", simple=False)
+def do_make_struct_type(args, env, cont):
+    from pycket.interpreter import return_multi_vals
+    struct_type = values_struct.W_StructType.make(args)
+    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
+
+@expose("make-struct-field-accessor")
+def do_make_struct_field_accessor(args):
+    # the number of arguments may vary (2 or 3)
+    accessor = args[0]
+    field = args[1]
+    return values_struct.W_StructFieldAccessor(accessor, field)
+
+@expose("make-struct-field-mutator")
+def do_make_struct_field_mutator(args):
+    # the number of arguments may vary (2 or 3)
+    mutator = args[0]
+    field = args[1]
+    return values_struct.W_StructFieldMutator(mutator, field)
+
+@expose("struct->vector", [values_struct.W_Struct])
+def struct2vector(struct):
+    struct_id = struct.type().id()
+    assert isinstance(struct_id, values.W_Symbol)
+    first_el = values.W_Symbol.make("struct:" + struct_id.value)
+    return values_vector.W_Vector.fromelements([first_el] + struct.allfields())
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

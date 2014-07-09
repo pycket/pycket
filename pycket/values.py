@@ -488,10 +488,13 @@ class W_ChpProcedure(W_Procedure):
         return "ChpProcedure<%s>" % self.code.tostring()
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "code"]
-    def __init__ (self, name, code):
+    _immutable_fields_ = ["name", "proc"]
+    def __init__ (self, name, proc):
         self.name = name
-        self.code = code
+        self.proc = proc
+
+    def code(self, args):
+        return self.proc(args)
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
