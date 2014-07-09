@@ -529,7 +529,6 @@ class W_ChpProcedure(W_Procedure):
         jit.promote(self)
         return self.check.call(
                 args, env, chp_proc_cont(args, self.code, env, cont))
-        #return self.code.call(args, env, cont)
 
     def equal(self, other):
         if not isinstance(other, W_Procedure):
