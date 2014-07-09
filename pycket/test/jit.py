@@ -252,7 +252,8 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_append(self):
-        ast = to_ast(expand("""
+        ast = parse_module(expand_string("""
+#lang pycket #:stdlib
 (let () (define (append a b)
   (if (null? a) 
       b
@@ -262,9 +263,7 @@ class TestLLtype(LLJitMixin):
 ))
 
         def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Object)
+            val = interpret_module(ast)
             return 1
 
         assert interp_w() == 1
