@@ -266,7 +266,7 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {"#%kernel" : None}
+    table = {"#%kernel" : None, "#%unsafe" : None}
 
     @staticmethod
     def add_module(fname):

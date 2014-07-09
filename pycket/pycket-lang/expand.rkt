@@ -30,13 +30,16 @@
       (simplify-path
         (resolve-module-path v #f))))
   (define (translate v)
-    (if (eqv? v '#%kernel)
-      "#%kernel"
-      (to-path v)))
+    (case v
+      [(#%kernel #%unsafe) (symbol->string v)]
+      [else (to-path v)]))
+  ;(eprintf ">>> ~a\n" v)
   (syntax-parse v #:literals (#%top quote)
     [v:str        (to-path (syntax-e #'v))]
     [s:identifier (translate (syntax-e #'s))]
     [(#%top . x)  (to-path (syntax-e #'x))]
+    [((~datum rename) p _ ...) (require-json #'p)]
+    [((~datum only) p _ ...) (require-json #'p)]
     [(_ ...)      (require-json (last (syntax->list v)))]
     ))
 
