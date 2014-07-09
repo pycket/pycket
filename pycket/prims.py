@@ -21,26 +21,55 @@ class unsafe(object):
     def __init__(self, typ):
         self.typ = typ
 
+class default(object):
+    """ can be used in the argtypes part of an @expose call. If the argument is
+    missing, the default value is passed to the function. """
+
+    def __init__(self, typ, default=None):
+        self.typ = typ
+        self.default = default
+
 def expose(name, argstypes=None, simple=True):
     def wrapper(func):
         if argstypes is not None:
             argtype_tuples = []
+            min_arg = 0
+            isdefault = False
             for i, typ in enumerate(argstypes):
-                if isinstance(typ, unsafe):
-                    argtype_tuples.append((i, typ.typ, True))
+                isunsafe = False
+                default_value = None
+                if isinstance(typ, default):
+                    isdefault = True
+                    default_value = typ.default
+                    typ = typ.typ
                 else:
-                    argtype_tuples.append((i, typ, False))
+                    assert not isdefault, "non-default argument %s after default argument" % typ
+                    min_arg += 1
+                if isinstance(typ, unsafe):
+                    typ = typ.typ
+                    isunsafe = True
+                argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
             unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
             arity = len(argstypes)
-            errormsg_arity = "expected %s arguments to %s, got %%s" % (arity, name)
-            for _, typ, _ in argtype_tuples:
+            if min_arg == arity:
+                aritystring = arity
+            else:
+                aritystring = "%s to %s" % (min_arg, arity)
+            errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, name)
+            for _, typ, _, _, _ in argtype_tuples:
                 assert typ.__dict__.get("errorname"), str(typ)
             def wrap_func(args, *rest):
-                if len(args) != arity:
+                if not min_arg <= len(args) <= arity:
                     raise SchemeException(errormsg_arity % len(args))
                 typed_args = ()
-                for i, typ, unsafe in unroll_argtypes:
+                lenargs = len(args)
+                for i, typ, unsafe, default, default_value in unroll_argtypes:
+                    if i >= min_arg and i >= lenargs:
+                        assert default
+                        typed_args += (default_value, )
+                        continue
                     arg = args[i]
+
                     if not unsafe:
                         if typ is not values.W_Object and not isinstance(arg, typ):
                             raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
@@ -268,30 +297,19 @@ def string_append(args):
 def string_length(s1):
     return values.W_Fixnum(len(s1.value))
 
-@expose("substring")
-def substring(args):
+@expose("substring", [values.W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
+def substring(w_string, w_start, w_end):
     """
     (substring str start [end]) → string?
         str : string?
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (string-length str)
     """
-    if not (len(args) == 2 or len(args) == 3):
-        raise SchemeException("substring: expects 2 or 3 arguments")
-    w_string = args[0]
-    if not isinstance(w_string, values.W_String):
-        raise SchemeException("substring: expects a string, got something else")
     string = w_string.value
-    w_start = args[1]
-    if not isinstance(w_start, values.W_Fixnum):
-        raise SchemeException("substring: start index must be fixnum")
     start = w_start.value
     if start > len(string) or start < 0:
-            raise SchemeException("substring: end index out of bounds")
-    if len(args) == 3:
-        w_end = args[2]
-        if not isinstance(w_end, values.W_Fixnum):
-            raise SchemeException("substring: end index must be fixnum")
+        raise SchemeException("substring: end index out of bounds")
+    if w_end is not None:
         end = w_end.value
         if end > len(string) or end < 0:
             raise SchemeException("substring: end index out of bounds")
@@ -660,20 +678,12 @@ def impersonator(x):
 def vector(args):
     return values_vector.W_Vector.fromelements(args)
 
-@expose("make-vector")
-def make_vector(args):
-    if len(args) == 2:
-        n, val = args
-    elif len(args) == 1:
-        n, = args
-        val = values.W_Fixnum(0)
-    else:
-        raise SchemeException("make-vector: unexpected number of parameters")
-    if not isinstance(n, values.W_Fixnum):
-        raise SchemeException("make-vector: expected a fixnum")
-    if not (n.value >= 0):
+@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+def make_vector(w_size, w_val):
+    size = w_size.value
+    if not size >= 0:
         raise SchemeException("make-vector: expected a positive fixnum")
-    return values_vector.W_Vector.fromelement(val, n.value)
+    return values_vector.W_Vector.fromelement(w_val, size)
 
 @expose("vector-length", [values_vector.W_MVector])
 def vector_length(v):
