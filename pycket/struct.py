@@ -131,7 +131,7 @@ class W_StructConstructor(W_SimplePrim):
         self._isopaque = isopaque
         self._name = name
         self._guard = guard
-    def simplecall(self, field_values):
+    def code(self, field_values):
         super = None
         if self._super_type is not None:
             def split_list(list, num):
@@ -139,7 +139,7 @@ class W_StructConstructor(W_SimplePrim):
                 return list[:num], list[num:]
             split_position = len(field_values) - self._init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
-            super = self._super_type.constr().simplecall(super_field_values)
+            super = self._super_type.constr().code(super_field_values)
         auto_values = [self._auto_v] * self._auto_field_cnt
         return W_Struct(self._struct_id, super, self._isopaque, field_values + auto_values)
     def call(self, field_values, env, cont):
@@ -150,7 +150,7 @@ class W_StructConstructor(W_SimplePrim):
             # TODO: prepare arguments
             # import pdb; pdb.set_trace()
             # LET (result <- (apply guard old-value))
-        return return_value(self.simplecall(result), env, cont)
+        return return_value(self.code(result), env, cont)
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
@@ -158,7 +158,7 @@ class W_StructPredicate(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
-    def simplecall(self, args):
+    def code(self, args):
         struct = args[0]
         result = w_false
         if (isinstance(struct, W_Struct)):
@@ -175,45 +175,46 @@ class W_StructPredicate(W_SimplePrim):
 class W_StructFieldAccessor(W_SimplePrim):
     _immutable_fields_ = ["accessor", "field"]
     def __init__ (self, accessor, field):
+        assert isinstance(accessor, W_StructAccessor)
         self._accessor = accessor
         self._field = field
-    def simplecall(self, args):
+    def code(self, args):
         struct = args[0]
-        return self._accessor.simplecall([struct, self._field])
+        result = self._accessor.code([struct, self._field])
+        return result
 
 class W_StructAccessor(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
-    def simplecall(self, args):
+    def code(self, args):
         struct, field = args
         assert isinstance(field, W_Fixnum)
-        index = field.value
-        result = struct.get_value(self._struct_id, index)
-        return result
+        return struct.get_value(self._struct_id, field.value)
     def tostring(self):
         return "#<procedure:%s-ref>" % self._struct_id.id()
 
 class W_StructFieldMutator(W_SimplePrim):
     _immutable_fields_ = ["mutator", "field"]
     def __init__ (self, mutator, field):
+        assert isinstance(mutator, W_StructMutator)
         self._mutator = mutator
         self._field = field
         mutator.setmutable(field)
-    def simplecall(self, args):
+    def code(self, args):
         struct = args[0]
         val = args[1]
-        return self._mutator.simplecall([struct, self._field, val])
+        result = self._mutator.code([struct, self._field, val])
+        return result
 
 class W_StructMutator(W_SimplePrim):
     _immutable_fields_ = ["struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
-    def simplecall(self, args):
+    def code(self, args):
         struct, field, val = args
         assert isinstance(field, W_Fixnum)
-        index = field.value
-        struct.set_value(self._struct_id, index, val)
+        struct.set_value(self._struct_id, field.value, val)
     def setmutable(self, field):
         struct = W_StructType.lookup_struct_type(self._struct_id)
         struct.setmutable(field)
