@@ -548,7 +548,7 @@ def do_current_instpector(args):
 def do_is_struct(s):
     return values.W_Bool.make(isinstance(s, values_struct.W_Struct) and not s.isopaque())
 
-@expose("struct-info", simple=False)
+@expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(args, env, cont):
     from pycket.interpreter import return_multi_vals
     struct = args[0]
@@ -557,7 +557,7 @@ def do_struct_info(args, env, cont):
     skipped = values.w_false
     return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
 
-@expose("struct-type-info", simple=False)
+@expose("struct-type-info", [values_struct.W_StructType], simple=False)
 def do_struct_type_info(args, env, cont):
     from pycket.interpreter import return_multi_vals
     struct_desc = args[0]
@@ -574,14 +574,14 @@ def do_struct_type_info(args, env, cont):
     return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
         accessor, mutator, immutable_k_list, super, skipped]), env, cont)
 
-@expose("struct-type-make-constructor")
+@expose("struct-type-make-constructor", [values_struct.W_StructType])
 def do_struct_type_make_constructor(args):
     # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
     struct_desc = args[0]
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.constr()
 
-@expose("struct-type-make-predicate")
+@expose("struct-type-make-predicate", [values_struct.W_StructType])
 def do_struct_type_make_predicate(args):
     # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
     struct_desc = args[0]
