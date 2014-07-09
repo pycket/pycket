@@ -9,5 +9,5 @@ setup:
 	(cd pypy && hg pull && hg update)
 
 test:
-	py.test
+	(cd pycket && py.test)
 
