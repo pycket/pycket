@@ -161,7 +161,8 @@
   ;; If the given input is a file name, then chdir to its containing
   ;; directory so the expand function works properly
   (unless (input-port? in)
-    (current-directory (path-only in)))
+    (define in-dir (or (path-only in) "."))
+    (current-directory in-dir))
   
   (read-accept-reader #t)
   (read-accept-lang #t)
