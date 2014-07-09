@@ -48,8 +48,6 @@
 (define (not b) (if b #f #t))
 (define call-with-current-continuation call/cc)
 
-(define (newline) (write "\n"))
-
 (define (append a b)
   (if (null? a)
       b

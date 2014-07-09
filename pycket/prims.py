@@ -802,6 +802,11 @@ def display(s):
     os.write(1, s.tostring())
     return values.w_void
 
+@expose("newline")
+def display(s):
+    os.write(1, "\n")
+    return values.w_void
+
 @expose("write", [values.W_Object])
 def write(s):
     os.write(1, s.tostring())
