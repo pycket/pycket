@@ -75,7 +75,7 @@ class W_Syntax(W_Object):
     def __init__(self, o):
         self.val = o
     def tostring(self):
-        return "#'%s"%self.w_val.tostring()
+        return "#'%s"%self.val.tostring()
 
 class W_MVector(W_Object):
     errorname = "vector"
