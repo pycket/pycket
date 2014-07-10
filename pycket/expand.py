@@ -323,7 +323,7 @@ def _to_ast(json):
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
-                raise Exception("quote-syntax is unsupported")
+                return QuoteSyntax(to_value(arr[1]))
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":

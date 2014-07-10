@@ -407,6 +407,20 @@ class Quote(AST):
             return "%s"%self.w_val.tostring()
         return "'%s"%self.w_val.tostring()
 
+class QuoteSyntax(AST):
+    _immutable_fields_ = ["w_val"]
+    simple = True
+    def __init__ (self, w_val):
+        self.w_val = w_val
+    def interpret_simple(self, env):
+        return values.W_Syntax(self.w_val)
+    def assign_convert(self, vars, env_structure):
+        return self
+    def mutated_vars(self):
+        return variable_set()
+    def tostring(self):
+        return "#'%s"%self.w_val.tostring()
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
@@ -1015,7 +1029,8 @@ def make_let_singlevar(sym, rhs, body):
             tst = b.tst
             if (isinstance(tst, LexicalVar) and tst.sym is sym and
                     sym not in b.thn.free_vars() and
-                    sym not in b.els.free_vars()):
+                    sym not in b.els.free_vars() and
+                    rhs.simple):
                 return If(rhs, b.thn, b.els)
     return Let(SymList([sym]), [1], [rhs], body)
 

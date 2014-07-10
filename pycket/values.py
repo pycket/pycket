@@ -70,6 +70,13 @@ class W_CellIntegerStrategy(W_Object):
     def __init__(self, value):
         self.value = value
 
+# FIXME: not a real implementation
+class W_Syntax(W_Object):
+    def __init__(self, o):
+        self.val = o
+    def tostring(self):
+        return "#'%s"%self.w_val.tostring()
+
 class W_MVector(W_Object):
     errorname = "vector"
     def __init__(self):
