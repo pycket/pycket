@@ -560,14 +560,12 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
-@expose("make-inspector")
-def do_make_instpector(args):
-    inspector = args[0]
+@expose("make-inspector", [default(values_struct.W_StructInspector, None)])
+def do_make_instpector(inspector):
     return values_struct.W_StructInspector.make(inspector)
 
-@expose("make-sibling-inspector")
-def do_make_sibling_instpector(args):
-    inspector = args[0]
+@expose("make-sibling-inspector", [default(values_struct.W_StructInspector, None)])
+def do_make_sibling_instpector(inspector):
     return values_struct.W_StructInspector.make(inspector, True)
 
 @expose("current-inspector")
@@ -581,7 +579,8 @@ def do_is_struct(struct):
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
     from pycket.interpreter import return_multi_vals
-    # TODO: if the current inspector does not control any structure type for which the struct is an instance then return w_false
+    # TODO: if the current inspector does not control any 
+    # structure type for which the struct is an instance then return w_false
     struct_type = struct._type if True else values.w_false
     skipped = values.w_false
     return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
@@ -604,34 +603,37 @@ def do_struct_type_info(struct_desc, env, cont):
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_constructor(struct_desc):
-    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    # TODO: if the type for struct-type is not controlled by the current inspector, 
+    # the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.constr()
 
 @expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_predicate(struct_desc):
-    # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
+    # TODO: if the type for struct-type is not controlled by the current inspector, 
+    #the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.pred()
 
-@expose("make-struct-type", simple=False)
-def do_make_struct_type(args, env, cont):
+@expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
+    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
+    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
+    default(values.W_Object, values.w_false)], simple=False)
+def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt, \
+    auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
     from pycket.interpreter import return_multi_vals
-    struct_type = values_struct.W_StructType.make(args)
+    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type == values.w_false):
+        raise SchemeException("make-struct-type: expected a struct-type? or #f")
+    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt, \
+        auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
-@expose("make-struct-field-accessor")
-def do_make_struct_field_accessor(args):
-    # the number of arguments may vary (2 or 3)
-    accessor = args[0]
-    field = args[1]
+@expose("make-struct-field-accessor", [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
+def do_make_struct_field_accessor(accessor, field, field_name):
     return values_struct.W_StructFieldAccessor(accessor, field)
 
-@expose("make-struct-field-mutator")
-def do_make_struct_field_mutator(args):
-    # the number of arguments may vary (2 or 3)
-    mutator = args[0]
-    field = args[1]
+@expose("make-struct-field-mutator", [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
+def do_make_struct_field_mutator(mutator, field, field_name):
     return values_struct.W_StructFieldMutator(mutator, field)
 
 @expose("struct->vector", [values_struct.W_Struct])
