@@ -392,6 +392,17 @@ class W_Bool(W_Object):
 w_false = W_Bool(False)
 w_true = W_Bool(True)
 
+class W_AnyRegexp(W_Object):
+    _immutable_fields_ = ["str"]
+    errorname = "regexp"
+    def __init__(self, str):
+        self.str = str
+    
+class W_Regexp(W_AnyRegexp): pass
+class W_PRegexp(W_AnyRegexp): pass
+class W_ByteRegexp(W_AnyRegexp): pass
+class W_BytePRegexp(W_AnyRegexp): pass
+
 class W_String(W_Object):
     errorname = "string"
     def __init__(self, val):

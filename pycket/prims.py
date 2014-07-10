@@ -182,7 +182,13 @@ for args in [
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-accessor-procedure?", values_struct.W_StructAccessor),
         ("struct-mutator-procedure?", values_struct.W_StructMutator),
-        ("box?", values.W_Box)
+        ("box?", values.W_Box),
+        ("regexp?", values.W_Regexp),
+        ("pregexp?", values.W_PRegexp),
+        ("byte-regexp?", values.W_ByteRegexp),
+        ("byte-pregexp?", values.W_BytePRegexp),
+        ("variable-reference?", values.W_VariableReference),
+        ("syntax?", values.W_Syntax)
         ]:
     make_pred(*args)
 
@@ -204,6 +210,12 @@ def integerp(n):
 def exact_integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum))
+
+@expose("exact-nonnegative-integer?", [values.W_Object])
+def exact_nonneg_integerp(n):
+    return values.W_Bool.make((isinstance(n, values.W_Fixnum) or
+                               isinstance(n, values.W_Bignum))
+                              and n.value > 0)
 
 @expose("real?", [values.W_Object])
 def realp(n):
@@ -231,6 +243,11 @@ def inexactp(n):
 @expose("quotient", [values.W_Integer, values.W_Integer], simple=True)
 def quotient(a, b):
     return a.arith_quotient(b)
+
+@expose("quotient/remainder", [values.W_Integer, values.W_Integer], simple=False)
+def quotient_remainder(a, b, env, cont):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]), env, cont)
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -1089,6 +1106,10 @@ def integer_to_char(v):
 @expose("immutable?", [values.W_Object])
 def immutable(v):
     return values.W_Bool.make(v.immutable())
+
+@expose("eval-jit-enabled", [])
+def jit_enabled():
+    return values.w_true
 
 # Loading
 

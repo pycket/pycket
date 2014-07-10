@@ -317,6 +317,7 @@ class Module(AST):
 
     def interpret_mod(self, env):
         self.env = env
+        old = env.module_env.current_module
         env.module_env.current_module = self
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
@@ -332,7 +333,7 @@ class Module(AST):
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
-        env.module_env.current_module = None
+        env.module_env.current_module = old
 
 class Require(AST):
     _immutable_fields_ = ["modname", "module"]

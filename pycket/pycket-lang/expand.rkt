@@ -50,7 +50,9 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top module* module #%plain-app quote #%require)
+  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
+                              module* module #%plain-app quote #%require
+                              with-continuation-mark)
     [v:str (hash 'string (syntax-e #'v))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
@@ -63,6 +65,10 @@
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
+    [((~literal with-continuation-mark) e0 e1 e2)
+     (hash 'wcm-key (to-json #'e0)
+           'wcm-val (to-json #'e1)
+           'wcm-body (to-json #'e2))]
     [(begin0 e0 e ...)
      (hash 'begin0 (to-json #'e0)
            'begin0-rest (map to-json (syntax->list #'(e ...))))]
@@ -85,7 +91,8 @@
                        (to-json #'e)))]
 
     [(#%require . x) (hash 'require (require-json #'x))]
-    [(_ ...) (map to-json (syntax->list v))]
+    [(_ ...) 
+     (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
                                    (to-json (cdr (last-pair (syntax-e v))))))]
@@ -112,7 +119,14 @@
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
     [_ #:when (char? (syntax-e v))
        (hash 'char (~a (char->integer (syntax-e v))))]
-    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote '())]
+    [_ #:when (regexp? (syntax-e v))
+       (hash 'regexp (object-name (syntax-e v)))]
+    [_ #:when (pregexp? (syntax-e v))
+       (hash 'pregexp (object-name (syntax-e v)))]
+    [_ #:when (byte-regexp? (syntax-e v))
+       (hash 'byte-regexp (object-name (syntax-e v)))]
+    [_ #:when (byte-pregexp? (syntax-e v))
+       (hash 'byte-pregexp (object-name (syntax-e v)))]
     ;;[_ #:when (bytes? (syntax-e v)) (hash 'string (bytes->string/locale (syntax-e v)))]
     ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
     ;;[_ (hash 'string "unsupported type")]

@@ -326,8 +326,6 @@ def _to_ast(json):
                 return QuoteSyntax(to_value(arr[1]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
-            if ast_elem == "with-continuation-mark":
-                raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
                 if len(arr) == 1:
                     return VariableReference(None)
@@ -358,6 +356,12 @@ def _to_ast(json):
                 return fst
             else:
                 return Begin0.make(fst, rst)
+
+        if "wcm-key" in obj:
+            # FIXME: not actually with-continuation-mark
+            return Begin.make([_to_ast(obj["wcm-key"]),
+                               _to_ast(obj["wcm-val"]),
+                               _to_ast(obj["wcm-body"])])
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
@@ -434,6 +438,14 @@ def to_value(json):
             assert False
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
+        if "regexp" in obj:
+            return values.W_Regexp(obj["regexp"].value_string())
+        if "byte-regexp" in obj:
+            return values.W_ByteRegexp(obj["regexp"].value_string())
+        if "pregexp" in obj:
+            return values.W_PRegexp(obj["pregexp"].value_string())
+        if "byte-regexp" in obj:
+            return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "string" in obj:
             return values.W_String(str(obj["string"].value_string()))
         if "keyword" in obj:
