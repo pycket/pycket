@@ -113,6 +113,7 @@ def expand_file_to_json(rkt_file, json_file):
         pass
     except OSError:
         pass
+    print "Expanding %s"%rkt_file
     cmd = "racket %s --output %s %s 2>&1" % (
         fn,
         json_file, rkt_file)

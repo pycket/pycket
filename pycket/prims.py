@@ -213,9 +213,12 @@ def exact_integerp(n):
 
 @expose("exact-nonnegative-integer?", [values.W_Object])
 def exact_nonneg_integerp(n):
-    return values.W_Bool.make((isinstance(n, values.W_Fixnum) or
-                               isinstance(n, values.W_Bignum))
-                              and n.value > 0)
+    from rpython.rlib.rbigint import rbigint
+    if isinstance(n, values.W_Fixnum):
+        return values.W_Bool.make(n.value >= 0)
+    if isinstance(n, values.W_Bignum):
+        return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
+    return values.w_false
 
 @expose("real?", [values.W_Object])
 def realp(n):
