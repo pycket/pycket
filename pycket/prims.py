@@ -546,13 +546,13 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(struct):
-    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct.isopaque())
+    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct._isopaque)
 
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
     from pycket.interpreter import return_multi_vals
     # TODO: if the current inspector does not control any structure type for which the struct is an instance then return w_false
-    struct_type = struct.type() if True else values.w_false
+    struct_type = struct._type if True else values.w_false
     skipped = values.w_false
     return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
 
@@ -606,10 +606,10 @@ def do_make_struct_field_mutator(args):
 
 @expose("struct->vector", [values_struct.W_Struct])
 def struct2vector(struct):
-    struct_id = struct.type().id()
+    struct_id = struct._type.id()
     assert isinstance(struct_id, values.W_Symbol)
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
-    return values_vector.W_Vector.fromelements([first_el] + struct.allfields())
+    return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

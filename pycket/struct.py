@@ -122,7 +122,7 @@ class W_StructTypeDescriptor(W_Object):
         return "#<struct-type:%s>" % self._id
 
 class W_StructConstructor(W_SimplePrim):
-    _immutable_fields_ = ["struct_type"]
+    _immutable_fields_ = ["_struct_id", "_super_type", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_isopaque", "_name", "_guard"]
     def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, name, guard):
         self._struct_id = struct_id
         self._super_type = super_type
@@ -156,7 +156,7 @@ class W_StructConstructor(W_SimplePrim):
         return "#<procedure:%s>" % self._name
 
 class W_StructPredicate(W_SimplePrim):
-    _immutable_fields_ = ["struct_id"]
+    _immutable_fields_ = ["_struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
     def code(self, args):
@@ -164,17 +164,17 @@ class W_StructPredicate(W_SimplePrim):
         result = w_false
         if (isinstance(struct, W_Struct)):
             while True:
-                if struct.type() == self._struct_id:
+                if struct._type == self._struct_id:
                     result = w_true
                     break
-                if struct.super() is None: break
-                else: struct = struct.super()
+                if struct._super is None: break
+                else: struct = struct._super
         return result
     def tostring(self):
         return "#<procedure:%s?>" % self._struct_id.id()
 
 class W_StructFieldAccessor(W_SimplePrim):
-    _immutable_fields_ = ["accessor", "field"]
+    _immutable_fields_ = ["_accessor", "_field"]
     def __init__ (self, accessor, field):
         assert isinstance(accessor, W_StructAccessor)
         self._accessor = accessor
@@ -184,7 +184,7 @@ class W_StructFieldAccessor(W_SimplePrim):
         return self._accessor.code([struct, self._field])
 
 class W_StructAccessor(W_SimplePrim):
-    _immutable_fields_ = ["struct_id"]
+    _immutable_fields_ = ["_struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
     def code(self, args):
@@ -195,7 +195,7 @@ class W_StructAccessor(W_SimplePrim):
         return "#<procedure:%s-ref>" % self._struct_id.id()
 
 class W_StructFieldMutator(W_SimplePrim):
-    _immutable_fields_ = ["mutator", "field"]
+    _immutable_fields_ = ["_mutator", "_field"]
     def __init__ (self, mutator, field):
         assert isinstance(mutator, W_StructMutator)
         self._mutator = mutator
@@ -207,7 +207,7 @@ class W_StructFieldMutator(W_SimplePrim):
         return self._mutator.code([struct, self._field, val])
 
 class W_StructMutator(W_SimplePrim):
-    _immutable_fields_ = ["struct_id"]
+    _immutable_fields_ = ["_struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
     def code(self, args):
@@ -229,47 +229,31 @@ class W_Struct(W_Object):
         self._isopaque = isopaque
         self._fields = fields
 
-    def _lookup(self, struct, struct_id, field):
-        if struct.type() == struct_id:
-            return struct._fields[field]
-        elif struct.type().id() == struct_id.id():
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif struct.super() is not None:
-            return struct._lookup(struct.super(), struct_id, field)
-
-    def _save(self, struct, struct_id, field, val):
-        if struct.type() == struct_id:
-            struct._fields[field] = val
+    def vals(self):
+        result = self._fields
+        if self._super is not None: 
+            return self._super.vals() + result
         else:
-            struct._save(struct.super(), struct_id, field, val)
-
-    def _vals(self, struct):
-        result = struct.fields()
-        if struct.super() is not None: return self._vals(struct.super()) + result
-        else: return result
-
-    def type(self):
-        return self._type
-
-    def super(self):
-        return self._super
-
-    def isopaque(self):
-        return self._isopaque
-
-    def fields(self):
-        return self._fields
-
-    def allfields(self):
-        return self._vals(self)
+            return result
 
     def get_value(self, struct_id, field):
-        return self._lookup(self, struct_id, field)
+        if self._type == struct_id:
+            return self._fields[field]
+        elif self._type.id() == struct_id.id():
+            raise SchemeException("given value instantiates a different structure type with the same name")
+        elif self._super is not None:
+            return self._super.get_value(struct_id, field)
+        else:
+            assert False
 
     def set_value(self, struct_id, field, val):
-        self._save(self, struct_id, field, val)
+        type = jit.promote(self._type)
+        if type == struct_id:
+            self._fields[field] = val
+        else:
+            self._super.set_value(struct_id, field, val)
 
     def tostring(self):
         if self._isopaque: result =  "#<%s>" % self._type.id()
-        else: result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self._vals(self)]))
+        else: result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self.vals()]))
         return result
