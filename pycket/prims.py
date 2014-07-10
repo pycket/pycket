@@ -361,6 +361,10 @@ def string_to_list(s):
 def procedure_arity_includes(p, n):
     return values.w_true # FIXME: not the right answer
 
+@expose("variable-reference-constant?", [values.W_VariableReference])
+def varref_const(varref):
+    return values.W_Bool.make(not(varref.varref.is_mutated))
+
 @expose("values", simple=False)
 def do_values(vals, env, cont):
     from pycket.interpreter import return_multi_vals

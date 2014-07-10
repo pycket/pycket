@@ -329,7 +329,10 @@ def _to_ast(json):
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
-                raise Exception("#%variable-reference is unsupported")
+                if len(arr) == 1:
+                    return VariableReference(None)
+                else:
+                    return VariableReference(_to_ast(arr[1]))
             if ast_elem == "case-lambda":
                 lams = [to_lambda(v.value_array()) for v in arr[1:]]
                 return CaseLambda(lams)

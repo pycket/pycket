@@ -421,6 +421,24 @@ class QuoteSyntax(AST):
     def tostring(self):
         return "#'%s"%self.w_val.tostring()
 
+class VariableReference(AST):
+    _immutable_fields_ = ["var", "is_mutable"]
+    simple = True
+    def __init__ (self, var, is_mutable=False):
+        self.var = var
+        self.is_mutable = is_mutable
+    def interpret_simple(self, env):
+        return values.W_VariableReference(self)
+    def assign_convert(self, vars, env_structure):
+        if self.var in vars:
+            return VariableReference(self.var, True)
+        else:
+            return self
+    def mutated_vars(self):
+        return variable_set()
+    def tostring(self):
+        return "#<#%variable-reference>"
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 

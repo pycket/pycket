@@ -72,10 +72,18 @@ class W_CellIntegerStrategy(W_Object):
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
+    errorname = "syntax"
     def __init__(self, o):
         self.val = o
     def tostring(self):
         return "#'%s"%self.val.tostring()
+
+class W_VariableReference(W_Object):
+    errorname = "variable-reference"
+    def __init__(self, varref):
+        self.varref = varref
+    def tostring(self):
+        return "#<#%variable-reference>"
 
 class W_MVector(W_Object):
     errorname = "vector"
