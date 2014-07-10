@@ -703,9 +703,9 @@ class W_Closure(W_Procedure):
                 prev = e
             elif isinstance(e, ConsEnv) and e.prev is new_env:
                 prev = e.prev
-        return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev, new_env.toplevel_env),
-            cont)
+        assert cont is None
+        env = ConsEnv.make(actuals, prev, new_env.toplevel_env)
+        return lam._stackfull_interpret(env)
 
 inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 

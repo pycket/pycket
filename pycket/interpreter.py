@@ -261,10 +261,10 @@ class AST(object):
 
     def stackfull_interpret(self, env):
         # returns values
-        if self.simple:
-            return values.Values.make([self.interpret_simple(env)])
         ast = self
         while 1:
+            if ast.simple:
+                return values.Values.make([ast.interpret_simple(env)])
             try:
                 ast, env = ast._stackfull_interpret(env)
             except Done, e:
@@ -392,6 +392,16 @@ class Cell(AST):
 
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
+
+    def _stackfull_interpret(self, env):
+        vals = self.expr.stackfull_interpret(env)
+        vals_w = []
+        for i, needs_cell in enumerate(self.need_cell_flags):
+            w_val = vals._get_list(i)
+            if needs_cell:
+                w_val = values.W_Cell(w_val)
+            vals_w.append(w_val)
+        return return_multi_vals(values.Values.make(vals_w), env, None)
 
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
@@ -527,8 +537,7 @@ class App(AST):
         return w_callable.call(args_w, env, cont)
 
     def _stackfull_interpret(self, env):
-        ast, env, cont = self.interpret(env, None)
-        assert cont is None # not true for some primitives
+        ast, env = self.interpret(env, None)
         return ast, env
 
     def tostring(self):
@@ -755,11 +764,20 @@ class SymList(object):
 
 class SetBang(AST):
     _immutable_fields_ = ["sym", "rhs"]
+    quote_void = Quote(values.w_void)
+
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
     def interpret(self, env, cont):
         return self.rhs, env, SetBangCont(self, env, cont)
+
+    def _stackfull_interpret(self, env):
+        vals = self.rhs.stackfull_interpret(env)
+        w_val = check_one_val(vals)
+        self.var._set(w_val, env)
+        return self.quote_void, env
+
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
@@ -811,6 +829,10 @@ class If(AST):
             return self.els, env, cont
         else:
             return self.thn, env, cont
+
+    def _stackfull_interpret(self, env):
+        ast, env, cont = self.interpret(env, None)
+        return ast, env
 
     def assign_convert(self, vars, env_structure):
         if self.remove_env:
@@ -998,6 +1020,16 @@ class Letrec(SequencedBodyAST):
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
+    def _stackfull_interpret(self, env):
+        env = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
+        for i in range(len(self.rhss)):
+            vals = self.rhss[i].stackfull_interpret(env)
+            for j, w_val in enumerate(vals._get_full_list()): # XXX inefficient
+                v = env.lookup(self.args.elems[self.total_counts[i] + j], self.args)
+                assert isinstance(v, values.W_Cell)
+                v.set_val(w_val)
+        return SequencedBodyAST._stackfull_interpret(self, env)
+
     def mutated_vars(self):
         x = variable_set()
         for b in self.body + self.rhss:
@@ -1103,9 +1135,9 @@ class Let(SequencedBodyAST):
     def _stackfull_interpret(self, env):
         vals = []
         for i in range(len(self.rhss)):
-            res = self.rhss[i].stackfull_interpret(env, LetCont.make(vals, self, env, i))
+            res = self.rhss[i].stackfull_interpret(env)
             vals = vals + res._get_full_list()
-        env = ConsEnv.make(vals_w, env, env.toplevel_env)
+        env = ConsEnv.make(vals[:], env, env.toplevel_env)
         return SequencedBodyAST._stackfull_interpret(self, env)
 
     def mutated_vars(self):
