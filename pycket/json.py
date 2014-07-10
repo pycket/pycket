@@ -20,6 +20,14 @@ _json_grammar = """
 _regexs, _rules, _ToAST = parse_ebnf(_json_grammar)
 parse = make_parse_function(_regexs, _rules, eof=True)
 
+#
+# allow for deeply-nested structures in non-translated mode
+#
+import sys
+l = sys.getrecursionlimit()
+sys.setrecursionlimit(l * 10)
+
+
 # Union-Object to represent a json structure in a static way
 class JsonBase(object):
     __metaclass__ = extendabletype
