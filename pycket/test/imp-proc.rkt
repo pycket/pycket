@@ -1,20 +1,16 @@
 #lang pycket #:stdlib
 
+(define size 100)
+(define times 100)
+
 (define (fun a)
   (+ (* a a) a))
 
 (define example2
   (impersonate-vector
-    (make-vector 1000)
+    (make-vector size)
     (lambda (a b c) c)
     (lambda (a b c) c)))
-
-(define disp
-  (lambda (x)
-    (begin
-      (display x)
-      (display "\n")
-      x)))
 
 (define (ex f)
   (chaperone-procedure f
@@ -40,19 +36,19 @@
 ;; Time unwrapped function
 (time
   (for-each
-    (lambda (x) (repeat fun x 1000000))
+    (lambda (x) (repeat fun x times))
     (iota 100)))
 
 ;; One layer of impersonation
 (time
   (let ([f (ex fun)])
     (for-each
-      (lambda (x) (repeat f x 1000000))
+      (lambda (x) (repeat f x times))
       (iota 100))))
 
 ;; Two layers of impersonation
 (time
   (let ([f (ex (ex fun))])
     (for-each
-      (lambda (x) (repeat f x 1000000))
+      (lambda (x) (repeat f x times))
       (iota 100))))

@@ -180,6 +180,7 @@ for args in [
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-accessor-procedure?", values_struct.W_StructAccessor),
         ("struct-mutator-procedure?", values_struct.W_StructMutator),
+        ("box?", values.W_Box)
         ]:
     make_pred(*args)
 
@@ -430,27 +431,23 @@ def printf(args):
             os.write(1,fmt[i])
             i += 1
 
-#@expose("equal?", [values.W_Object] * 2)
-#def equalp(a, b):
-    ## this doesn't work for cycles
-    #return values.W_Bool.make(a.equal(b))
-
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
     # this doesn't work for cycles
     return values.W_Bool.make(a.eqv(b))
 
+def eqp_logic(a, b):
+    if a is b:
+        return True
+    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+        return a.value == b.value
+    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
+        return a.value == b.value
+    return False
+
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
-    # this doesn't work for cycles
-    if a is b:
-        return values.w_true
-    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return values.W_Bool.make(a.value == b.value)
-    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
-        return values.W_Bool.make(a.value == b.value)
-    else:
-        return values.w_false
+    return values.W_Bool.make(eqp_logic(a, b))
 
 @expose("not", [values.W_Object])
 def notp(a):
@@ -651,6 +648,114 @@ def str2num(w_s):
     except ParseStringError as e:
         return values.w_false
 
+### Boxes
+
+@expose("box", [values.W_Object])
+def box(v):
+    return values.W_MBox(v)
+
+@expose("box-immutable", [values.W_Object])
+def box_immutable(v):
+    return values.W_IBox(v)
+
+@expose("chaperone-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def chaperone_box(b, unbox, set):
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return values.W_ChpBox(b, unbox, set)
+
+@expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def impersonate_box(b, unbox, set):
+    if b.immutable():
+        raise SchemeException("Cannot impersonate immutable box")
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return values.W_ImpBox(b, unbox, set)
+
+@expose("unbox", [values.W_Box], simple=False)
+def unbox(b, env, cont):
+    return do_unbox(b, env, cont)
+
+@continuation
+def chp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
+
+@continuation
+def chp_unbox_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if values.is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        raise SchemeException("Expecting original value or chaperone of thereof")
+
+@continuation
+def imp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return f.call([box, check_one_val(vals)], env, cont)
+
+def do_unbox(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values.W_MBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_IBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_ChpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, chp_unbox_cont(f, b, env, cont))
+    elif isinstance(v, values.W_ImpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, imp_unbox_cont(f, b, env, cont))
+    else:
+        assert False
+
+@expose("set-box!", [values.W_Box, values.W_Object], simple=False)
+def set_box(box, v, env, cont):
+    return do_set_box(box, v, env, cont)
+
+@continuation
+def imp_box_set_cont(b, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return do_set_box(b, check_one_val(vals), env, cont)
+
+@continuation
+def chp_box_set_cont(b, orig, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    if not values.is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
+    return do_set_box(b, val, env, cont)
+
+def do_set_box(box, v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(box, values.W_IBox):
+        raise SchemeException("Cannot set-box! immutable box")
+    elif isinstance(box, values.W_MBox):
+        box.value = v
+        return return_value(values.w_void, env, cont)
+    elif isinstance(box, values.W_ImpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, imp_box_set_cont(b, env, cont))
+    elif isinstance(box, values.W_ChpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
+    else:
+        assert False
+
+# This implementation makes no guarantees about atomicity
+@expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
+def box_cas(box, old, new):
+    if eqp_logic(box.value, old):
+        box.value = new
+        return values.w_true
+    return values.w_false
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
@@ -676,7 +781,7 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     if values.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
-        raise SchemeException("Expecting original value or chaperone of ")
+        raise SchemeException("Expecting original value or chaperone of thereof")
 
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
@@ -735,20 +840,26 @@ def do_vec_set(v, i, new, env, cont):
 
 @expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
 def impersonate_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ImpProcedure(proc, check)
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
+    if v.immutable():
+        raise SchemeException("Cannot impersonate immutable vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
     return values.W_ImpVector(v, refh, seth)
 
 @expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
 def chaperone_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ChpProcedure(proc, check)
 
 @expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def chaperone_vector(v, refh, seth):
+    refh.mark_non_loop()
+    seth.mark_non_loop()
     return values.W_ChpVector(v, refh, seth)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
@@ -761,13 +872,11 @@ def impersonator_of(a, b):
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ImpVector) or
-                              isinstance(x, values.W_ImpProcedure))
+    return values.W_Bool.make(values.is_impersonator(x))
 
 @expose("chaperone?", [values.W_Object])
-def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ChpVector) or
-                              isinstance(x, values.W_ChpProcedure))
+def chaperone(x):
+    return values.W_Bool.make(values.is_chaperone(x))
 
 @expose("vector")
 def vector(args):
@@ -950,6 +1059,9 @@ def string_to_symbol(v):
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
 
+@expose("immutable?", [values.W_Object])
+def immutable(v):
+    return values.W_Bool.make(v.immutable())
 
 # Loading
 

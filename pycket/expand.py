@@ -324,6 +324,8 @@ def _to_ast(json):
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
                 raise Exception("quote-syntax is unsupported")
+            if ast_elem == "begin-for-syntax":
+                return Quote(values.w_void)
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
@@ -406,6 +408,8 @@ def to_value(json):
         obj = json.value_object()
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
+        if "box" in obj:
+            return values.W_IBox(to_value(obj["box"]))
         if "integer" in obj:
             val = rbigint.fromdecimalstr(obj["integer"].value_string())
             try:

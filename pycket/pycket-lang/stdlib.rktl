@@ -21,6 +21,7 @@
        (or (eq? l r) (vec-loop l r 0 (vector-length l)))
        #f)]
     [(and (string? l) (string? r)) (string=? l r)]
+    [(and (box? l) (box? r)) (equal? (unbox l) (unbox r))]
     [else (eqv? l r)]))
 
 (define (exists f l)
