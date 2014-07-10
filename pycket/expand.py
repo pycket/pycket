@@ -413,7 +413,18 @@ def to_value(json):
             except OverflowError:
                 return values.W_Bignum(val)
         if "real" in obj:
-            return values.W_Flonum(float(obj["real"].value_float()))
+            r = obj["real"]
+            if r.is_float:
+                return values.W_Flonum(float(r.value_float()))
+            if r.is_string:
+                rs = r.value_string()
+                if rs == "+inf.0":
+                    return values.W_Flonum(float("inf"))
+                if rs == "-inf.0":
+                    return values.W_Flonum(-float("inf"))
+                if rs == "nan.0":
+                    return values.W_Flonum(float("nan"))
+            assert False
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "string" in obj:
