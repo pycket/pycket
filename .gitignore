@@ -3,3 +3,6 @@
 \#*\#
 .\#*
 pycket-c*
+*.json
+*pypylog
+*.exe

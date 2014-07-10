@@ -277,7 +277,7 @@ def test_eq():
     run("(let ((p (lambda (x) x))) (eq? p p))", w_true)
 
 def test_equal():
-    #run("(equal? 'a 'a)", w_true)
+    run("(equal? 'a 'a)", w_true)
     run("(equal? '(a) '(a))", w_true)
     run("(equal? '(a (b) c) '(a (b) c))", w_true)
     run('(equal? "abc" "abc")', w_true)
@@ -375,3 +375,10 @@ def test_begin0():
     assert v == [w_true, w_false]
     run_fix("(let ([x 1]) (begin0 x (set! x 2)))", 1)
     run_fix("(let ([x 10]) (begin0 (set! x 0) (set! x (+ x 1))) x)", 1)
+
+def test_varref():
+    run("(#%variable-reference)")
+    run("(#%variable-reference add1)")
+    run("(let ([x 0]) (#%variable-reference x))")
+    run("(let ([x 0]) (variable-reference-constant? (#%variable-reference x)))", w_true)
+    run("(let ([x 0]) (set! x 1) (variable-reference-constant? (#%variable-reference x)))", w_false)

@@ -107,7 +107,6 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         jit.promote(env_structure)
-        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 v = self._get_list(i)
@@ -118,7 +117,6 @@ class ConsEnv(Env):
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
         jit.promote(env_structure)
-        assert len(env_structure.elems) == self._get_size_list()
         for i, s in enumerate(env_structure.elems):
             if s is sym:
                 self._set_list(i, val)
@@ -135,10 +133,9 @@ def check_one_val(vals):
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.i = i
-        self.env  = env
-        self.prev = prev
 
     @jit.unroll_safe
     def plug_reduce(self, _vals):
@@ -160,10 +157,9 @@ class LetrecCont(Cont):
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
 
-    def __init__(self, ast, env, prev, rhsindex):
+    def __init__(self, ast, rhsindex, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast  = ast
-        self.env  = env
-        self.prev = prev
         self.rhsindex = rhsindex
 
     def plug_reduce(self, _vals):
@@ -173,42 +169,23 @@ class LetCont(Cont):
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            return self.trampoline_down(vals)
-            #return ast.make_begin_cont(env, self.prev)
+            vals_w = self._get_full_list() + vals
+            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
+            return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
-                                 self.env, self.prev, rhsindex + 1))
-    def trampoline_down(self, vals):
-        lc = self
-        toplevel_env = self.env.toplevel_env
-        while True:
-            prev = lc.prev
-            app = lc.ast.body[0]
-            vals_w = lc._get_full_list() + vals
-            # the let environment, also used after the loop
-            env = ConsEnv.make(vals_w, lc.env, toplevel_env)
-            if not(len(lc.ast.body) == 1 and isinstance(app, App) and isinstance(prev, LetCont) and prev.rhsindex == len(prev.ast.rhss) - 1):
-                break
-            w_callable = app.rator.interpret_simple(env)
-            if isinstance(w_callable, values.W_SimplePrim):
-                args_w = [rand.interpret_simple(env) for rand in app.rands]
-                vals = [w_callable.code(args_w)]
-                lc = prev
-            else:
-                break
-        return lc.ast.make_begin_cont(env, lc.prev)
+                                 rhsindex + 1, self.env, self.prev))
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
 
 class CellCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
+    _immutable_fields_ = ["env", "prev"]
 
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
 
     @jit.unroll_safe
     def plug_reduce(self, vals):
@@ -224,9 +201,8 @@ class CellCont(Cont):
 class SetBangCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
@@ -235,10 +211,9 @@ class SetBangCont(Cont):
 class BeginCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.i = i
-        self.env = env
-        self.prev = prev
 
     def plug_reduce(self, vals):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
@@ -247,19 +222,17 @@ class BeginCont(Cont):
 class Begin0Cont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
     def plug_reduce(self, vals):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
     _immutable_fields_ = ["ast", "vals", "env", "prev"]
     def __init__(self, ast, vals, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.vals = vals
-        self.prev = prev
-        self.env = env
     def plug_reduce(self, vals):
         return return_multi_vals(self.vals, self.env, self.prev)
 
@@ -379,8 +352,9 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
-        mod = interpret_module(self.module)
-        env.toplevel_env.module_env.add_module(self.modname, mod)
+        top = env.toplevel_env
+        mod = self.module.interpret_mod(top)
+        top.module_env.add_module(self.modname, self.module)
         return values.w_void
 
 def return_value(w_val, env, cont):
@@ -426,6 +400,39 @@ class Quote(AST):
         if isinstance(self.w_val, values.W_Bool) or isinstance(self.w_val, values.W_Number) or isinstance(self.w_val, values.W_String) or isinstance(self.w_val, values.W_Symbol):
             return "%s"%self.w_val.tostring()
         return "'%s"%self.w_val.tostring()
+
+class QuoteSyntax(AST):
+    _immutable_fields_ = ["w_val"]
+    simple = True
+    def __init__ (self, w_val):
+        self.w_val = w_val
+    def interpret_simple(self, env):
+        return values.W_Syntax(self.w_val)
+    def assign_convert(self, vars, env_structure):
+        return self
+    def mutated_vars(self):
+        return variable_set()
+    def tostring(self):
+        return "#'%s"%self.w_val.tostring()
+
+class VariableReference(AST):
+    _immutable_fields_ = ["var", "is_mutable"]
+    simple = True
+    def __init__ (self, var, is_mutable=False):
+        self.var = var
+        self.is_mutable = is_mutable
+    def interpret_simple(self, env):
+        return values.W_VariableReference(self)
+    def assign_convert(self, vars, env_structure):
+        v = self.var
+        if v and v in vars:
+            return VariableReference(v, True)
+        else:
+            return self
+    def mutated_vars(self):
+        return variable_set()
+    def tostring(self):
+        return "#<#%variable-reference>"
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
@@ -1035,7 +1042,8 @@ def make_let_singlevar(sym, rhs, body):
             tst = b.tst
             if (isinstance(tst, LexicalVar) and tst.sym is sym and
                     sym not in b.thn.free_vars() and
-                    sym not in b.els.free_vars()):
+                    sym not in b.els.free_vars() and
+                    rhs.simple):
                 return If(rhs, b.thn, b.els)
     return Let(SymList([sym]), [1], [rhs], body)
 
@@ -1064,7 +1072,7 @@ class Let(SequencedBodyAST):
         self.args = args
 
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
+        return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
 
     def mutated_vars(self):
         x = variable_set()

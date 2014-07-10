@@ -2,21 +2,20 @@
 
 (provide check my-len max-val)
 
-(define my-len 10)
-(define max-val 10)
+(define my-len 100)
+(define max-val 100)
 
 (define check
   (lambda (v)
-    (impersonate-vector v
-      (lambda (vec i val) val)
-        ;(if (or (< val 0) (> val max-val))
-          ;(error 'check-ref "Check is out of bounds in ref")
-          ;val))
-      (lambda (vec i val) val)
-      )))
-        ;(if (or (< val 0) (> val max-val))
-          ;(error 'check-set "Check is out of bounds in set")
-          ;val)))))
+    (chaperone-vector v
+      (lambda (vec i val)
+        (unless (and (>= val 0) (<= val max-val))
+          (error 'check-ref "Check is out of bounds in ref"))
+        val)
+      (lambda (vec i val)
+        (unless (and (>= val 0) (<= val max-val))
+          (error 'check-set "Check is out of bounds in set"))
+        val))))
 
 (define my-vec (make-vector my-len))
 (define imp-vec (check (make-vector my-len)))
@@ -45,66 +44,42 @@
 (display "\nSlow ref/set benchmark\n")
 ; Timing for no chaperoning
 (time (inplace-map my-vec))
-;(time
-  ;(for-each
-    ;(lambda (n)
-      ;(repeat
-        ;(lambda () (vector-set! my-vec n (+ (vector-ref my-vec n) 1))) max-val))
-    ;(iota my-len)))
 
 ;; Timing for single chaperoning
 (time (inplace-map imp-vec))
-;(time
-  ;(for-each
-    ;(lambda (n)
-      ;(repeat
-        ;(lambda () (vector-set! imp-vec n (+ (vector-ref imp-vec n) 1))) max-val))
-    ;(iota my-len)))
 
 ;; Timing for double chaperoning
 (time (inplace-map imp-imp-vec))
-;(time
-  ;(for-each
-    ;(lambda (n)
-      ;(repeat
-        ;(lambda () (vector-set! imp-imp-vec n (+ (vector-ref imp-imp-vec n) 1))) max-val))
-    ;(iota my-len)))
 
 ;; Timing for triple chaperones
 (time (inplace-map imp-imp-imp-vec))
-;(time
-  ;(for-each
-    ;(lambda (n)
-      ;(repeat
-        ;(lambda () (vector-set! imp-imp-imp-vec n (+ (vector-ref imp-imp-imp-vec n) 1))) max-val))
-    ;(iota my-len)))
 
 (display "\nSam's Fast ref/set benchmark\n")
 
-(set! my-vec (make-vector my-len))
-(set! imp-vec (check (make-vector my-len)))
-(set! imp-imp-vec (check (check (make-vector my-len))))
-(set! imp-imp-imp-vec (check (check (check (make-vector my-len)))))
+(define my-vec2 (make-vector my-len))
+(define imp-vec2 (check (make-vector my-len)))
+(define imp-imp-vec2 (check (check (make-vector my-len))))
+(define imp-imp-imp-vec2 (check (check (check (make-vector my-len)))))
 
 (time
   (for ([n (in-range my-len)])
        (for ([_ (in-range max-val)])
-            (vector-set! my-vec n (+ (vector-ref my-vec n) 1)))))
+            (vector-set! my-vec2 n (+ (vector-ref my-vec2 n) 1)))))
 
 (time
   (for ([n (in-range my-len)])
        (for ([_ (in-range max-val)])
-            (vector-set! imp-vec n (+ (vector-ref my-vec n) 1)))))
+            (vector-set! imp-vec2 n (+ (vector-ref imp-vec2 n) 1)))))
 
 (time
   (for ([n (in-range my-len)])
        (for ([_ (in-range max-val)])
-            (vector-set! imp-imp-vec n (+ (vector-ref my-vec n) 1)))))
+            (vector-set! imp-imp-vec2 n (+ (vector-ref imp-imp-vec2 n) 1)))))
 
 (time
   (for ([n (in-range my-len)])
        (for ([_ (in-range max-val)])
-            (vector-set! imp-imp-imp-vec n (+ (vector-ref my-vec n) 1)))))
+            (vector-set! imp-imp-imp-vec2 n (+ (vector-ref imp-imp-imp-vec2 n) 1)))))
 
 (define summation1
   (lambda (vec)
@@ -133,3 +108,4 @@
 (time (summation2 imp-vec))
 (time (summation2 imp-imp-vec))
 (time (summation2 imp-imp-imp-vec))
+

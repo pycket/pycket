@@ -22,26 +22,55 @@ class unsafe(object):
     def __init__(self, typ):
         self.typ = typ
 
+class default(object):
+    """ can be used in the argtypes part of an @expose call. If the argument is
+    missing, the default value is passed to the function. """
+
+    def __init__(self, typ, default=None):
+        self.typ = typ
+        self.default = default
+
 def expose(name, argstypes=None, simple=True):
     def wrapper(func):
         if argstypes is not None:
             argtype_tuples = []
+            min_arg = 0
+            isdefault = False
             for i, typ in enumerate(argstypes):
-                if isinstance(typ, unsafe):
-                    argtype_tuples.append((i, typ.typ, True))
+                isunsafe = False
+                default_value = None
+                if isinstance(typ, default):
+                    isdefault = True
+                    default_value = typ.default
+                    typ = typ.typ
                 else:
-                    argtype_tuples.append((i, typ, False))
+                    assert not isdefault, "non-default argument %s after default argument" % typ
+                    min_arg += 1
+                if isinstance(typ, unsafe):
+                    typ = typ.typ
+                    isunsafe = True
+                argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
             unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
             arity = len(argstypes)
-            errormsg_arity = "expected %s arguments to %s, got %%s" % (arity, name)
-            for _, typ, _ in argtype_tuples:
+            if min_arg == arity:
+                aritystring = arity
+            else:
+                aritystring = "%s to %s" % (min_arg, arity)
+            errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, name)
+            for _, typ, _, _, _ in argtype_tuples:
                 assert typ.__dict__.get("errorname"), str(typ)
             def wrap_func(args, *rest):
-                if len(args) != arity:
+                if not min_arg <= len(args) <= arity:
                     raise SchemeException(errormsg_arity % len(args))
                 typed_args = ()
-                for i, typ, unsafe in unroll_argtypes:
+                lenargs = len(args)
+                for i, typ, unsafe, default, default_value in unroll_argtypes:
+                    if i >= min_arg and i >= lenargs:
+                        assert default
+                        typed_args += (default_value, )
+                        continue
                     arg = args[i]
+
                     if not unsafe:
                         if typ is not values.W_Object and not isinstance(arg, typ):
                             raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
@@ -151,6 +180,7 @@ for args in [
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-accessor-procedure?", values_struct.W_StructAccessor),
         ("struct-mutator-procedure?", values_struct.W_StructMutator),
+        ("box?", values.W_Box)
         ]:
     make_pred(*args)
 
@@ -244,6 +274,13 @@ def make_unary_arith(name, methname):
     def do(a):
         return getattr(a, methname)()
 
+@expose("sub1", [values.W_Number])
+def sub1(v):
+    return v.arith_add(values.W_Fixnum(-1))
+@expose("add1", [values.W_Number])
+def add1(v):
+    return v.arith_add(values.W_Fixnum(1))
+
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
@@ -275,30 +312,19 @@ def string_append(args):
 def string_length(s1):
     return values.W_Fixnum(len(s1.value))
 
-@expose("substring")
-def substring(args):
+@expose("substring", [values.W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
+def substring(w_string, w_start, w_end):
     """
     (substring str start [end]) → string?
         str : string?
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (string-length str)
     """
-    if not (len(args) == 2 or len(args) == 3):
-        raise SchemeException("substring: expects 2 or 3 arguments")
-    w_string = args[0]
-    if not isinstance(w_string, values.W_String):
-        raise SchemeException("substring: expects a string, got something else")
     string = w_string.value
-    w_start = args[1]
-    if not isinstance(w_start, values.W_Fixnum):
-        raise SchemeException("substring: start index must be fixnum")
     start = w_start.value
     if start > len(string) or start < 0:
-            raise SchemeException("substring: end index out of bounds")
-    if len(args) == 3:
-        w_end = args[2]
-        if not isinstance(w_end, values.W_Fixnum):
-            raise SchemeException("substring: end index must be fixnum")
+        raise SchemeException("substring: end index out of bounds")
+    if w_end is not None:
         end = w_end.value
         if end > len(string) or end < 0:
             raise SchemeException("substring: end index out of bounds")
@@ -331,6 +357,14 @@ def string_equal(s1, s2):
 @expose("string->list", [values.W_String])
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.value])
+
+@expose("procedure-arity-includes?", [values.W_Procedure, values.W_Number])
+def procedure_arity_includes(p, n):
+    return values.w_true # FIXME: not the right answer
+
+@expose("variable-reference-constant?", [values.W_VariableReference])
+def varref_const(varref):
+    return values.W_Bool.make(not(varref.varref.is_mutable))
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):
@@ -412,27 +446,23 @@ def printf(args):
             os.write(1,fmt[i])
             i += 1
 
-#@expose("equal?", [values.W_Object] * 2)
-#def equalp(a, b):
-    ## this doesn't work for cycles
-    #return values.W_Bool.make(a.equal(b))
-
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
     # this doesn't work for cycles
     return values.W_Bool.make(a.eqv(b))
 
+def eqp_logic(a, b):
+    if a is b:
+        return True
+    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
+        return a.value == b.value
+    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
+        return a.value == b.value
+    return False
+
 @expose("eq?", [values.W_Object] * 2)
 def eqp(a, b):
-    # this doesn't work for cycles
-    if a is b:
-        return values.w_true
-    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return values.W_Bool.make(a.value == b.value)
-    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
-        return values.W_Bool.make(a.value == b.value)
-    else:
-        return values.w_false
+    return values.W_Bool.make(eqp_logic(a, b))
 
 @expose("not", [values.W_Object])
 def notp(a):
@@ -633,6 +663,114 @@ def str2num(w_s):
     except ParseStringError as e:
         return values.w_false
 
+### Boxes
+
+@expose("box", [values.W_Object])
+def box(v):
+    return values.W_MBox(v)
+
+@expose("box-immutable", [values.W_Object])
+def box_immutable(v):
+    return values.W_IBox(v)
+
+@expose("chaperone-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def chaperone_box(b, unbox, set):
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return values.W_ChpBox(b, unbox, set)
+
+@expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+def impersonate_box(b, unbox, set):
+    if b.immutable():
+        raise SchemeException("Cannot impersonate immutable box")
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return values.W_ImpBox(b, unbox, set)
+
+@expose("unbox", [values.W_Box], simple=False)
+def unbox(b, env, cont):
+    return do_unbox(b, env, cont)
+
+@continuation
+def chp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
+
+@continuation
+def chp_unbox_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if values.is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        raise SchemeException("Expecting original value or chaperone of thereof")
+
+@continuation
+def imp_unbox_cont(f, box, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return f.call([box, check_one_val(vals)], env, cont)
+
+def do_unbox(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values.W_MBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_IBox):
+        return return_value(v.value, env, cont)
+    elif isinstance(v, values.W_ChpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, chp_unbox_cont(f, b, env, cont))
+    elif isinstance(v, values.W_ImpBox):
+        f = v.unbox
+        b = v.box
+        return do_unbox(b, env, imp_unbox_cont(f, b, env, cont))
+    else:
+        assert False
+
+@expose("set-box!", [values.W_Box, values.W_Object], simple=False)
+def set_box(box, v, env, cont):
+    return do_set_box(box, v, env, cont)
+
+@continuation
+def imp_box_set_cont(b, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return do_set_box(b, check_one_val(vals), env, cont)
+
+@continuation
+def chp_box_set_cont(b, orig, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    if not values.is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
+    return do_set_box(b, val, env, cont)
+
+def do_set_box(box, v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(box, values.W_IBox):
+        raise SchemeException("Cannot set-box! immutable box")
+    elif isinstance(box, values.W_MBox):
+        box.value = v
+        return return_value(values.w_void, env, cont)
+    elif isinstance(box, values.W_ImpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, imp_box_set_cont(b, env, cont))
+    elif isinstance(box, values.W_ChpBox):
+        f = box.set
+        b = box.box
+        return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
+    else:
+        assert False
+
+# This implementation makes no guarantees about atomicity
+@expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
+def box_cas(box, old, new):
+    if eqp_logic(box.value, old):
+        box.value = new
+        return values.w_true
+    return values.w_false
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
@@ -658,7 +796,7 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     if values.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
-        raise SchemeException("Expecting original value or chaperone of ")
+        raise SchemeException("Expecting original value or chaperone of thereof")
 
 def do_vec_ref(v, i, env, cont):
     from pycket.interpreter import return_value
@@ -717,20 +855,26 @@ def do_vec_set(v, i, new, env, cont):
 
 @expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
 def impersonate_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ImpProcedure(proc, check)
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
+    if v.immutable():
+        raise SchemeException("Cannot impersonate immutable vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
     return values.W_ImpVector(v, refh, seth)
 
 @expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
 def chaperone_procedure(proc, check):
+    check.mark_non_loop()
     return values.W_ChpProcedure(proc, check)
 
 @expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def chaperone_vector(v, refh, seth):
+    refh.mark_non_loop()
+    seth.mark_non_loop()
     return values.W_ChpVector(v, refh, seth)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
@@ -743,32 +887,22 @@ def impersonator_of(a, b):
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ImpVector) or
-                              isinstance(x, values.W_ImpProcedure))
+    return values.W_Bool.make(values.is_impersonator(x))
 
 @expose("chaperone?", [values.W_Object])
-def impersonator(x):
-    return values.W_Bool.make(isinstance(x, values.W_ChpVector) or
-                              isinstance(x, values.W_ChpProcedure))
+def chaperone(x):
+    return values.W_Bool.make(values.is_chaperone(x))
 
 @expose("vector")
 def vector(args):
     return values_vector.W_Vector.fromelements(args)
 
-@expose("make-vector")
-def make_vector(args):
-    if len(args) == 2:
-        n, val = args
-    elif len(args) == 1:
-        n, = args
-        val = values.W_Fixnum(0)
-    else:
-        raise SchemeException("make-vector: unexpected number of parameters")
-    if not isinstance(n, values.W_Fixnum):
-        raise SchemeException("make-vector: expected a fixnum")
-    if not (n.value >= 0):
+@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+def make_vector(w_size, w_val):
+    size = w_size.value
+    if not size >= 0:
         raise SchemeException("make-vector: expected a positive fixnum")
-    return values_vector.W_Vector.fromelement(val, n.value)
+    return values_vector.W_Vector.fromelement(w_val, size)
 
 @expose("vector-length", [values_vector.W_MVector])
 def vector_length(v):
@@ -790,6 +924,11 @@ def consp(v):
 @expose("display", [values.W_Object])
 def display(s):
     os.write(1, s.tostring())
+    return values.w_void
+
+@expose("newline")
+def display(s):
+    os.write(1, "\n")
     return values.w_void
 
 @expose("write", [values.W_Object])
@@ -935,6 +1074,9 @@ def string_to_symbol(v):
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
 
+@expose("immutable?", [values.W_Object])
+def immutable(v):
+    return values.W_Bool.make(v.immutable())
 
 # Loading
 

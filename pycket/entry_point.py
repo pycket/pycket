@@ -9,10 +9,11 @@ from pycket.values import W_String
 
 from rpython.rlib import jit
 
-
 # _____ Define and setup target ___
 
 def entry_point(argv):
+    #import sys
+    #sys.setrecursionlimit(10000)
     jit.set_param(None, "trace_limit", 20000)
 
     config, names, args, retval = parse_args(argv)

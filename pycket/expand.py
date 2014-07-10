@@ -71,7 +71,7 @@ def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdout %s" % (fn, fname)
+    cmd = "racket %s --stdout \"%s\"" % (fn, fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
@@ -84,7 +84,7 @@ def expand_file(fname):
 # intermediate (possibly cached) file.
 def expand_file_rpython(rkt_file):
     from rpython.rlib.rfile import create_popen_file
-    cmd = "racket %s --stdout %s 2>&1" % (fn, rkt_file)
+    cmd = "racket %s --stdout \"%s\" 2>&1" % (fn, rkt_file)
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
     pipe = create_popen_file(cmd, "r")
@@ -266,7 +266,7 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {"#%kernel" : None}
+    table = {"#%kernel" : None, "#%unsafe" : None}
 
     @staticmethod
     def add_module(fname):
@@ -321,14 +321,18 @@ def _to_ast(json):
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
-                # assert len(fmls) == 1
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
-                raise Exception("quote-syntax is unsupported")
+                return QuoteSyntax(to_value(arr[1]))
+            if ast_elem == "begin-for-syntax":
+                return Quote(values.w_void)
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
-                raise Exception("#%variable-reference is unsupported")
+                if len(arr) == 1:
+                    return VariableReference(None)
+                else:
+                    return VariableReference(_to_ast(arr[1]))
             if ast_elem == "case-lambda":
                 lams = [to_lambda(v.value_array()) for v in arr[1:]]
                 return CaseLambda(lams)
@@ -385,7 +389,6 @@ def _to_ast(json):
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
         if "module" in obj:
-            # FIXME: obj["source-module"].value_string() is /Applications/Racket/collects/racket/private/generic-interfaces.rkt
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 
                              if obj["source-module"].is_string else
@@ -408,6 +411,8 @@ def to_value(json):
         obj = json.value_object()
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
+        if "box" in obj:
+            return values.W_IBox(to_value(obj["box"]))
         if "integer" in obj:
             val = rbigint.fromdecimalstr(obj["integer"].value_string())
             try:
@@ -415,7 +420,18 @@ def to_value(json):
             except OverflowError:
                 return values.W_Bignum(val)
         if "real" in obj:
-            return values.W_Flonum(float(obj["real"].value_float()))
+            r = obj["real"]
+            if r.is_float:
+                return values.W_Flonum(float(r.value_float()))
+            if r.is_string:
+                rs = r.value_string()
+                if rs == "+inf.0":
+                    return values.W_Flonum(float("inf"))
+                if rs == "-inf.0":
+                    return values.W_Flonum(-float("inf"))
+                if rs == "nan.0":
+                    return values.W_Flonum(float("nan"))
+            assert False
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "string" in obj:

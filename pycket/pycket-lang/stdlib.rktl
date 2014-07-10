@@ -21,6 +21,7 @@
        (or (eq? l r) (vec-loop l r 0 (vector-length l)))
        #f)]
     [(and (string? l) (string? r)) (string=? l r)]
+    [(and (box? l) (box? r)) (equal? (unbox l) (unbox r))]
     [else (eqv? l r)]))
 
 (define (exists f l)
@@ -47,8 +48,6 @@
 (define (zero? z) (= z 0))
 (define (not b) (if b #f #t))
 (define call-with-current-continuation call/cc)
-
-(define (newline) (write "\n"))
 
 (define (append a b)
   (if (null? a)

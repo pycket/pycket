@@ -2,6 +2,11 @@
 from rpython.rlib import unroll
 
 class Cont(object):
+    _immutable_fields_ = ['env', 'prev']
+    def __init__(self, env, prev):
+        self.env = env
+        self.prev = prev
+
     def tostring(self):
         "NOT_RPYTHON"
         if self.prev:

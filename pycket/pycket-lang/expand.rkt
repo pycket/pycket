@@ -30,13 +30,16 @@
       (simplify-path
         (resolve-module-path v #f))))
   (define (translate v)
-    (if (eqv? v '#%kernel)
-      "#%kernel"
-      (to-path v)))
+    (case v
+      [(#%kernel #%unsafe #%utils) (symbol->string v)]
+      [else (to-path v)]))
+  ;(eprintf ">>> ~a\n" v)
   (syntax-parse v #:literals (#%top quote)
     [v:str        (to-path (syntax-e #'v))]
     [s:identifier (translate (syntax-e #'s))]
     [(#%top . x)  (to-path (syntax-e #'x))]
+    [((~datum rename) p _ ...) (require-json #'p)]
+    [((~datum only) p _ ...) (require-json #'p)]
     [(_ ...)      (require-json (last (syntax->list v)))]
     ))
 
@@ -98,16 +101,22 @@
               'source-name (symbol->string src-id))]
        [v (error 'expand_racket "phase not zero: ~a" v)])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
-    [_
-     #:when (exact-integer? (syntax-e v))
-     (hash 'integer (~a (syntax-e v)))]
+    [_ #:when (box? (syntax-e v))
+       (hash 'box (to-json (unbox (syntax-e v))))]
+    [_ #:when (exact-integer? (syntax-e v))
+       (hash 'integer (~a (syntax-e v)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
+    [(~or (~datum +inf.0) (~datum -inf.0) (~datum nan.0))
+     (hash 'real (number->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
-    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote (syntax-e v))]
-    [_
-     #:when (char? (syntax-e v))
-     (hash 'char (~a (char->integer (syntax-e v))))]))
+    [_ #:when (char? (syntax-e v))
+       (hash 'char (~a (char->integer (syntax-e v))))]
+    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote '())]
+    ;;[_ #:when (bytes? (syntax-e v)) (hash 'string (bytes->string/locale (syntax-e v)))]
+    ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
+    ;;[_ (hash 'string "unsupported type")]
+    ))
 
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)
@@ -161,7 +170,8 @@
   ;; If the given input is a file name, then chdir to its containing
   ;; directory so the expand function works properly
   (unless (input-port? in)
-    (current-directory (path-only in)))
+    (define in-dir (or (path-only in) "."))
+    (current-directory in-dir))
   
   (read-accept-reader #t)
   (read-accept-lang #t)

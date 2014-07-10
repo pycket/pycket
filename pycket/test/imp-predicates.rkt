@@ -79,7 +79,12 @@
 (printf "(equal? test-vector chp-vector)  => ~s~n" (equal? test-vector chp-vector))
 (printf "(equal? chp-vector test-vector)  => ~s~n" (equal? chp-vector test-vector))
 
-;;(displayln
-;;  (for ([n (in-range 100000)])
-;;    (equal? imp-vector chp-vector)))
+(printf "~nimpersonator?/chaperone?~n")
+(printf "(chaperone? test-vector)    => ~s = #f~n" (chaperone? test-vector))
+(printf "(chaperone? chp-vector)     => ~s = #t~n" (chaperone? chp-vector))
+(printf "(chaperone? chp-vector)     => ~s = #f~n" (chaperone? imp-vector))
+(printf "(impersonator? test-vector) => ~s = #f~n" (impersonator? test-vector))
+(printf "(impersonator? chp-vector)  => ~s = #t~n" (impersonator? chp-vector))
+(printf "(impersonator? chp-vector)  => ~s = #t~n" (impersonator? imp-vector))
+
 

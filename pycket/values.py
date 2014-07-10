@@ -36,6 +36,9 @@ class W_Object(object):
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
+    def immutable(self):
+        return False
+
     def equal(self, other):
         return self is other # default implementation
 
@@ -70,6 +73,21 @@ class W_CellIntegerStrategy(W_Object):
     def __init__(self, value):
         self.value = value
 
+# FIXME: not a real implementation
+class W_Syntax(W_Object):
+    errorname = "syntax"
+    def __init__(self, o):
+        self.val = o
+    def tostring(self):
+        return "#'%s"%self.val.tostring()
+
+class W_VariableReference(W_Object):
+    errorname = "variable-reference"
+    def __init__(self, varref):
+        self.varref = varref
+    def tostring(self):
+        return "#<#%variable-reference>"
+
 class W_MVector(W_Object):
     errorname = "vector"
     def __init__(self):
@@ -79,6 +97,7 @@ class W_MVector(W_Object):
         raise NotImplementedError("abstract base class")
 
 class W_ImpVector(W_MVector):
+    errorname = "imp-vector"
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, W_MVector)
@@ -106,6 +125,7 @@ class W_ImpVector(W_MVector):
         return True
 
 class W_ChpVector(W_MVector):
+    errorname = "chp-procedure"
     _immutable_fields_ = ["vec", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, W_MVector)
@@ -115,6 +135,9 @@ class W_ChpVector(W_MVector):
 
     def length(self):
         return self.vec.length()
+
+    def immutable(self):
+        return self.vec.immutable()
 
     def equal(self, other):
         if not isinstance(other, W_MVector):
@@ -151,7 +174,16 @@ class W_Cons(W_List):
     def cdr(self):
         raise NotImplementedError("abstract base class")
     def tostring(self):
-        return "(%s . %s)"%(self.car().tostring(), self.cdr().tostring())
+        cur = self
+        acc = []
+        while isinstance(cur, W_Cons):
+            acc.append(cur.car().tostring())
+            cur = cur.cdr()
+        # Are we a dealing with a proper list?
+        if isinstance(cur, W_Null):
+            return "(%s)" % " ".join(acc)
+        # Must be an improper list
+        return "(%s . %s)" % (" ".join(acc), cur.tostring())
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
@@ -167,6 +199,55 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+class W_Box(W_Object):
+    errorname = "box"
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+class W_MBox(W_Box):
+    errorname = "mbox"
+
+    def __init__(self, value):
+        self.value = value
+
+    def tostring(self):
+        return "'#&%s" % self.value.tostring()
+
+class W_IBox(W_Box):
+    errorname = "ibox"
+    _immutable_fields_ = ["value"]
+
+    def __init__(self, value):
+        self.value = value
+
+    def immutable(self):
+        return True
+
+    def tostring(self):
+        return "'#&%s" % self.value.tostring()
+
+class W_ChpBox(W_Box):
+    errorname = "chp-box"
+    _immutable_fields_ = ["box", "unbox", "set"]
+
+    def __init__(self, box, unbox, set):
+        assert isinstance(box, W_MBox)
+        self.box = box
+        self.unbox = unbox
+        self.set = set
+
+    def immutable(self):
+        return self.box.immutable()
+
+class W_ImpBox(W_Box):
+    errorname = "imp-box"
+    _immutable_fields_ = ["box", "unbox", "set"]
+
+    def __init__(self, box, unbox, set):
+        assert isinstance(box, W_Box)
+        self.box = box
+        self.unbox = unbox
+        self.set = set
 
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
@@ -323,6 +404,8 @@ class W_String(W_Object):
         if not isinstance(other, W_String):
             return False
         return self.value == other.value
+    def immutable(self):
+        return True
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value"]
@@ -372,6 +455,17 @@ class W_Procedure(W_Object):
         raise NotImplementedError("abstract base class")
     def mark_non_loop(self): pass
 
+def is_chaperone(x):
+    return (isinstance(x, W_ChpVector) or
+            isinstance(x, W_ChpBox) or
+            isinstance(x, W_ChpProcedure))
+
+def is_impersonator(x):
+    return (isinstance(x, W_ImpVector) or
+            isinstance(x, W_ImpBox) or
+            isinstance(x, W_ImpProcedure) or
+            is_chaperone(x))
+
 def is_impersonator_of(a, b):
     if a is b:
         return True
@@ -379,6 +473,8 @@ def is_impersonator_of(a, b):
         return is_impersonator_of(a.vec, b)
     if isinstance(a, W_ImpProcedure):
         return is_impersonator_of(a.code, b)
+    if isinstance(a, W_ImpBox):
+        return is_impersonator_of(a.box, b)
     return is_chaperone_of(a, b)
 
 # Check that one value is a chaperone of the other
@@ -389,6 +485,8 @@ def is_chaperone_of(a, b):
         return is_chaperone_of(a.vec, b)
     if isinstance(a, W_ChpProcedure):
         return is_chaperone_of(a.code, b)
+    if isinstance(a, W_ChpBox):
+        return is_chaperone_of(a.box, b)
     return False
 
 # Continuation used when calling an impersonator of a procedure.
@@ -403,10 +501,8 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     else:
         assert False
 
-#def chp_proc_cont(args, proc, env, cont, _vals):
-    #vals = _vals._get_full_list()
-
 class W_ImpProcedure(W_Procedure):
+    errorname = "imp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
         assert isinstance(code, W_Procedure)
@@ -465,6 +561,7 @@ def chp_proc_cont(args, proc, env, cont, _vals):
         assert False
 
 class W_ChpProcedure(W_Procedure):
+    errorname = "chp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
         assert isinstance(code, W_Procedure)
@@ -476,7 +573,6 @@ class W_ChpProcedure(W_Procedure):
         jit.promote(self)
         return self.check.call(
                 args, env, chp_proc_cont(args, self.code, env, cont))
-        #return self.code.call(args, env, cont)
 
     def equal(self, other):
         if not isinstance(other, W_Procedure):
