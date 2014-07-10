@@ -889,6 +889,14 @@ class Lambda(SequencedBodyAST):
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
 
+    # returns n for fixed arity, -(n+1) for arity-at-least n
+    # my kingdom for Either
+    def get_arity(self):
+        if self.rest:
+            return -(len(self.formals)+1)
+        else:
+            return len(self.formals)
+
     def interpret_simple(self, env):
         assert False # unreachable
 

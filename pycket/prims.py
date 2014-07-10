@@ -30,7 +30,7 @@ class default(object):
         self.typ = typ
         self.default = default
 
-def expose(name, argstypes=None, simple=True):
+def expose(name, argstypes=None, simple=True, arity=None):
     def wrapper(func):
         if argstypes is not None:
             argtype_tuples = []
@@ -51,16 +51,17 @@ def expose(name, argstypes=None, simple=True):
                     isunsafe = True
                 argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
             unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
-            arity = len(argstypes)
-            if min_arg == arity:
-                aritystring = arity
+            max_arity = len(argstypes)
+            if min_arg == max_arity:
+                aritystring = max_arity
             else:
-                aritystring = "%s to %s" % (min_arg, arity)
+                aritystring = "%s to %s" % (min_arg, max_arity)
             errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, name)
             for _, typ, _, _, _ in argtype_tuples:
                 assert typ.__dict__.get("errorname"), str(typ)
+            _arity = arity or (range(min_arg, max_arity+1), -1)
             def wrap_func(args, *rest):
-                if not min_arg <= len(args) <= arity:
+                if not min_arg <= len(args) <= max_arity:
                     raise SchemeException(errormsg_arity % len(args))
                 typed_args = ()
                 lenargs = len(args)
@@ -90,12 +91,13 @@ def expose(name, argstypes=None, simple=True):
                 if result is None:
                     return values.w_void
                 return result
+            _arity = arity or ([], 0)
         wrap_func.func_name = "wrap_%s" % (func.func_name, )
         if simple:
             cls = values.W_SimplePrim
         else:
             cls = values.W_Prim
-        prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func)
+        prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func, _arity)
         return wrap_func
     return wrapper
 
@@ -360,7 +362,15 @@ def string_to_list(s):
 
 @expose("procedure-arity-includes?", [values.W_Procedure, values.W_Number])
 def procedure_arity_includes(p, n):
-    return values.w_true # FIXME: not the right answer
+    if not(isinstance(n, values.W_Fixnum)):
+        return values.w_false # valid arities are always small integers
+    n_val = n.value
+    (ls, at_least) = p.get_arity()
+    for i in ls:
+        if n_val == i: return values.w_true
+    if at_least != -1 and n_val >= at_least:
+        return values.w_true
+    return values.w_false
 
 @expose("variable-reference-constant?", [values.W_VariableReference])
 def varref_const(varref):

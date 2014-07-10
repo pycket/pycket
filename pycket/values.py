@@ -449,11 +449,22 @@ class W_Keyword(W_Object):
     def tostring(self):
         return "'#:%s"%self.value
 
+
+# FIXME: this should really be a struct
+class W_ArityAtLeast(W_Object):
+    _immutable_fields_ = ["val"]
+    errorname = "arity-at-least"
+    def __init__(self, n):
+        self.val = n
+
 class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
     def mark_non_loop(self): pass
+    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
+    def get_arity(self):
+        return ([],0)
 
 def is_chaperone(x):
     return (isinstance(x, W_ChpVector) or
@@ -509,6 +520,9 @@ class W_ImpProcedure(W_Procedure):
         assert isinstance(check, W_Procedure)
         self.code  = code
         self.check = check
+
+    def get_arity(self):
+        return self.code.get_arity()
 
     def call(self, args, env, cont):
         jit.promote(self)
@@ -569,6 +583,9 @@ class W_ChpProcedure(W_Procedure):
         self.code  = code
         self.check = check
 
+    def get_arity(self):
+        return self.code.get_arity()
+
     def call(self, args, env, cont):
         jit.promote(self)
         return self.check.call(
@@ -584,10 +601,14 @@ class W_ChpProcedure(W_Procedure):
         return "ChpProcedure<%s>" % self.code.tostring()
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "proc"]
-    def __init__ (self, name, proc):
+    _immutable_fields_ = ["name", "proc", "arity"]
+    def __init__ (self, name, proc, arity=([],0)):
         self.name = name
         self.proc = proc
+        self.arity = arity
+
+    def get_arity(self):
+        return self.arity
 
     def code(self, args):
         return self.proc(args)
@@ -601,10 +622,14 @@ class W_SimplePrim(W_Procedure):
         return "SimplePrim<%s>" % self.name
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code"]
-    def __init__ (self, name, code):
+    _immutable_fields_ = ["name", "code", "arity"]
+    def __init__ (self, name, code, arity=([],0)):
         self.name = name
         self.code = code
+        self.arity = arity
+
+    def get_arity(self):
+        return self.arity
 
     def call(self, args, env, cont):
         jit.promote(self)
@@ -643,6 +668,9 @@ class W_Continuation(W_Procedure):
     _immutable_fields_ = ["cont"]
     def __init__ (self, cont):
         self.cont = cont
+    def get_arity(self):
+        # FIXME: see if Racket ever does better than this
+        return ([],0)
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
@@ -673,6 +701,21 @@ class W_Closure(W_Procedure):
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
         return W_Closure._make(envs, caselam, env)
+
+    def get_arity(self):
+        arities = []
+        rest = -1
+        for l in self.caselam.lams:
+            n = l.get_arity()
+            if n < 0:
+                r = (-n - 1)
+                if rest >= 0:
+                    rest = min(r, rest)
+                else:
+                    rest = r
+            else:
+                arities = arities + [n]
+        return (arities, rest)
 
     def mark_non_loop(self):
         for l in self.caselam.lams:
@@ -727,3 +770,5 @@ class W_PromotableClosure(W_Procedure):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 
+    def get_arity(self):
+        return self.closure.get_arity()
