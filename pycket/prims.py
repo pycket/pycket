@@ -274,6 +274,13 @@ def make_unary_arith(name, methname):
     def do(a):
         return getattr(a, methname)()
 
+@expose("sub1", [values.W_Number])
+def sub1(v):
+    return v.arith_add(values.W_Fixnum(-1))
+@expose("add1", [values.W_Number])
+def add1(v):
+    return v.arith_add(values.W_Fixnum(1))
+
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
@@ -350,6 +357,14 @@ def string_equal(s1, s2):
 @expose("string->list", [values.W_String])
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.value])
+
+@expose("procedure-arity-includes?", [values.W_Procedure, values.W_Number])
+def procedure_arity_includes(p, n):
+    return values.w_true # FIXME: not the right answer
+
+@expose("variable-reference-constant?", [values.W_VariableReference])
+def varref_const(varref):
+    return values.W_Bool.make(not(varref.varref.is_mutated))
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):

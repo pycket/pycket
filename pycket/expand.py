@@ -323,13 +323,16 @@ def _to_ast(json):
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "quote-syntax":
-                raise Exception("quote-syntax is unsupported")
+                return QuoteSyntax(to_value(arr[1]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
             if ast_elem == "with-continuation-mark":
                 raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
-                raise Exception("#%variable-reference is unsupported")
+                if len(arr) == 1:
+                    return VariableReference(None)
+                else:
+                    return VariableReference(_to_ast(arr[1]))
             if ast_elem == "case-lambda":
                 lams = [to_lambda(v.value_array()) for v in arr[1:]]
                 return CaseLambda(lams)
@@ -417,7 +420,18 @@ def to_value(json):
             except OverflowError:
                 return values.W_Bignum(val)
         if "real" in obj:
-            return values.W_Flonum(float(obj["real"].value_float()))
+            r = obj["real"]
+            if r.is_float:
+                return values.W_Flonum(float(r.value_float()))
+            if r.is_string:
+                rs = r.value_string()
+                if rs == "+inf.0":
+                    return values.W_Flonum(float("inf"))
+                if rs == "-inf.0":
+                    return values.W_Flonum(-float("inf"))
+                if rs == "nan.0":
+                    return values.W_Flonum(float("nan"))
+            assert False
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "string" in obj:

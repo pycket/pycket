@@ -107,6 +107,8 @@
        (hash 'integer (~a (syntax-e v)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
+    [(~or (~datum +inf.0) (~datum -inf.0) (~datum nan.0))
+     (hash 'real (number->string (syntax-e v)))]
     [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
     [_ #:when (char? (syntax-e v))
        (hash 'char (~a (char->integer (syntax-e v))))]
