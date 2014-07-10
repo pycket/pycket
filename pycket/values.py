@@ -174,7 +174,16 @@ class W_Cons(W_List):
     def cdr(self):
         raise NotImplementedError("abstract base class")
     def tostring(self):
-        return "(%s . %s)"%(self.car().tostring(), self.cdr().tostring())
+        cur = self
+        acc = []
+        while isinstance(cur, W_Cons):
+            acc.append(cur.car().tostring())
+            cur = cur.cdr()
+        # Are we a dealing with a proper list?
+        if isinstance(cur, W_Null):
+            return "(%s)" % " ".join(acc)
+        # Must be an improper list
+        return "(%s . %s)" % (" ".join(acc), cur.tostring())
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
