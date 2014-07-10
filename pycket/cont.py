@@ -2,6 +2,7 @@
 from rpython.rlib import unroll
 
 class Cont(object):
+    _immutable_fields_ = ['env', 'prev']
     def __init__(self, env, prev):
         self.env = env
         self.prev = prev
