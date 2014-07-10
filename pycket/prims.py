@@ -364,7 +364,7 @@ def procedure_arity_includes(p, n):
 
 @expose("variable-reference-constant?", [values.W_VariableReference])
 def varref_const(varref):
-    return values.W_Bool.make(not(varref.varref.is_mutated))
+    return values.W_Bool.make(not(varref.varref.is_mutable))
 
 @expose("values", simple=False)
 def do_values(vals, env, cont):

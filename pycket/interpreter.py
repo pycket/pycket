@@ -424,8 +424,9 @@ class VariableReference(AST):
     def interpret_simple(self, env):
         return values.W_VariableReference(self)
     def assign_convert(self, vars, env_structure):
-        if self.var in vars:
-            return VariableReference(self.var, True)
+        v = self.var
+        if v and v in vars:
+            return VariableReference(v, True)
         else:
             return self
     def mutated_vars(self):
