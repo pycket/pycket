@@ -133,10 +133,9 @@ def check_one_val(vals):
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.i = i
-        self.env  = env
-        self.prev = prev
 
     @jit.unroll_safe
     def plug_reduce(self, _vals):
@@ -158,10 +157,9 @@ class LetrecCont(Cont):
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
 
-    def __init__(self, ast, env, prev, rhsindex):
+    def __init__(self, ast, rhsindex, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast  = ast
-        self.env  = env
-        self.prev = prev
         self.rhsindex = rhsindex
 
     def plug_reduce(self, _vals):
@@ -177,7 +175,7 @@ class LetCont(Cont):
         else:
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(self._get_full_list() + vals, ast,
-                                 self.env, self.prev, rhsindex + 1))
+                                 rhsindex + 1, self.env, self.prev))
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
 
@@ -186,9 +184,8 @@ class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
 
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
 
     @jit.unroll_safe
     def plug_reduce(self, vals):
@@ -204,9 +201,8 @@ class CellCont(Cont):
 class SetBangCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
     def plug_reduce(self, vals):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
@@ -215,10 +211,9 @@ class SetBangCont(Cont):
 class BeginCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.i = i
-        self.env = env
-        self.prev = prev
 
     def plug_reduce(self, vals):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
@@ -227,19 +222,17 @@ class BeginCont(Cont):
 class Begin0Cont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
     def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
-        self.env = env
-        self.prev = prev
     def plug_reduce(self, vals):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
     _immutable_fields_ = ["ast", "vals", "env", "prev"]
     def __init__(self, ast, vals, env, prev):
+        Cont.__init__(self, env, prev)
         self.ast = ast
         self.vals = vals
-        self.prev = prev
-        self.env = env
     def plug_reduce(self, vals):
         return return_multi_vals(self.vals, self.env, self.prev)
 
@@ -1078,7 +1071,7 @@ class Let(SequencedBodyAST):
         self.args = args
 
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, env, cont, 0)
+        return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
 
     def mutated_vars(self):
         x = variable_set()

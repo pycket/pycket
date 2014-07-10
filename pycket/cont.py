@@ -2,6 +2,10 @@
 from rpython.rlib import unroll
 
 class Cont(object):
+    def __init__(self, env, prev):
+        self.env = env
+        self.prev = prev
+
     def tostring(self):
         "NOT_RPYTHON"
         if self.prev:
