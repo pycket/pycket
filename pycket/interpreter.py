@@ -258,6 +258,23 @@ class AST(object):
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
 
+
+    def stackfull_interpret(self, env):
+        # returns values
+        if self.simple:
+            return values.Values.make([self.interpret_simple(env)])
+        ast = self
+        while 1:
+            try:
+                ast, env = ast._stackfull_interpret(env)
+            except Done, e:
+                return e.values
+
+    def _stackfull_interpret(self, env):
+        # returns ast, env
+        # may call .stackfull_interpret of sub-asts
+        import pdb; pdb.set_trace()
+
     def free_vars(self):
         return {}
     def assign_convert(self, vars, env_structure):
@@ -509,6 +526,11 @@ class App(AST):
             env = env.prev
         return w_callable.call(args_w, env, cont)
 
+    def _stackfull_interpret(self, env):
+        ast, env, cont = self.interpret(env, None)
+        assert cont is None # not true for some primitives
+        return ast, env
+
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
@@ -518,6 +540,11 @@ class SequencedBodyAST(AST):
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+
+    def _stackfull_interpret(self, env):
+        for i in range(len(self.body) - 1):
+            self.body[i].stackfull_interpret(env)
+        return self.body[-1], env
 
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
@@ -1073,6 +1100,14 @@ class Let(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
 
+    def _stackfull_interpret(self, env):
+        vals = []
+        for i in range(len(self.rhss)):
+            res = self.rhss[i].stackfull_interpret(env, LetCont.make(vals, self, env, i))
+            vals = vals + res._get_full_list()
+        env = ConsEnv.make(vals_w, env, env.toplevel_env)
+        return SequencedBodyAST._stackfull_interpret(self, env)
+
     def mutated_vars(self):
         x = variable_set()
         for b in self.body:
@@ -1184,6 +1219,7 @@ def interpret_one(ast, env=None):
     cont = None
     if not env:
         env = ToplevelEnv()
+    return ast.stackfull_interpret(env)
     try:
         while True:
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
