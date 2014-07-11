@@ -35,3 +35,6 @@ def test_escaped_string():
 def test_tostring_string_escaping():
     json = loads('"\\n"')
     assert json.tostring() == '"\\n"'
+
+def test_bug():
+    _compare(r'{"string" : "\\\\"}', {"string": "\\\\"})
