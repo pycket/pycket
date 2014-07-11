@@ -32,6 +32,8 @@ class default(object):
 
 def expose(name, argstypes=None, simple=True):
     def wrapper(func):
+        if not simple:
+            return
         if argstypes is not None:
             argtype_tuples = []
             min_arg = 0
@@ -175,11 +177,11 @@ for args in [
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
         ("inspector?", values_struct.W_StructInspector),
-        ("struct-type?", values_struct.W_StructTypeDescriptor),
-        ("struct-constructor-procedure?", values_struct.W_StructConstructor),
-        ("struct-predicate-procedure?", values_struct.W_StructPredicate),
-        ("struct-accessor-procedure?", values_struct.W_StructAccessor),
-        ("struct-mutator-procedure?", values_struct.W_StructMutator),
+        #("struct-type?", values_struct.W_StructTypeDescriptor),
+        #("struct-constructor-procedure?", values_struct.W_StructConstructor),
+        #("struct-predicate-procedure?", values_struct.W_StructPredicate),
+        #("struct-accessor-procedure?", values_struct.W_StructAccessor),
+        #("struct-mutator-procedure?", values_struct.W_StructMutator),
         ("box?", values.W_Box)
         ]:
     make_pred(*args)
@@ -362,7 +364,7 @@ def string_to_list(s):
 def procedure_arity_includes(p, n):
     return values.w_true # FIXME: not the right answer
 
-@expose("variable-reference-constant?", [values.W_VariableReference])
+#@expose("variable-reference-constant?", [values.W_VariableReference])
 def varref_const(varref):
     return values.W_Bool.make(not(varref.varref.is_mutated))
 
@@ -560,25 +562,25 @@ def do_set_mcdr(a, b):
 @expose("void")
 def do_void(args): return values.w_void
 
-@expose("make-inspector")
+#@expose("make-inspector")
 def do_make_instpector(args):
     inspector = args[0]
     return values_struct.W_StructInspector.make(inspector)
 
-@expose("make-sibling-inspector")
+#@expose("make-sibling-inspector")
 def do_make_sibling_instpector(args):
     inspector = args[0]
     return values_struct.W_StructInspector.make(inspector, True)
 
-@expose("current-inspector")
+#@expose("current-inspector")
 def do_current_instpector(args):
     return values_struct.current_inspector
 
-@expose("struct?", [values.W_Object])
+#@expose("struct?", [values.W_Object])
 def do_is_struct(struct):
     return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct.isopaque())
 
-@expose("struct-info", [values_struct.W_Struct], simple=False)
+#@expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
     from pycket.interpreter import return_multi_vals
     # TODO: if the current inspector does not control any structure type for which the struct is an instance then return w_false
@@ -586,7 +588,7 @@ def do_struct_info(struct, env, cont):
     skipped = values.w_false
     return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
 
-@expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
+#@expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
 def do_struct_type_info(struct_desc, env, cont):
     from pycket.interpreter import return_multi_vals
     name = struct_desc.id()
@@ -602,39 +604,39 @@ def do_struct_type_info(struct_desc, env, cont):
     return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
         accessor, mutator, immutable_k_list, super, skipped]), env, cont)
 
-@expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
+#@expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_constructor(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.constr()
 
-@expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
+#@expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_predicate(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector, the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.pred()
 
-@expose("make-struct-type", simple=False)
+#@expose("make-struct-type", simple=False)
 def do_make_struct_type(args, env, cont):
     from pycket.interpreter import return_multi_vals
     struct_type = values_struct.W_StructType.make(args)
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
-@expose("make-struct-field-accessor")
+#@expose("make-struct-field-accessor")
 def do_make_struct_field_accessor(args):
     # the number of arguments may vary (2 or 3)
     accessor = args[0]
     field = args[1]
     return values_struct.W_StructFieldAccessor(accessor, field)
 
-@expose("make-struct-field-mutator")
+#@expose("make-struct-field-mutator")
 def do_make_struct_field_mutator(args):
     # the number of arguments may vary (2 or 3)
     mutator = args[0]
     field = args[1]
     return values_struct.W_StructFieldMutator(mutator, field)
 
-@expose("struct->vector", [values_struct.W_Struct])
+#@expose("struct->vector", [values_struct.W_Struct])
 def struct2vector(struct):
     struct_id = struct.type().id()
     assert isinstance(struct_id, values.W_Symbol)
@@ -771,12 +773,15 @@ def box_cas(box, old, new):
         return values.w_true
     return values.w_false
 
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
-def vector_ref(v, i, env, cont):
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum])
+def vector_ref(v, i):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return do_vec_ref(v, i, env, cont)
+    if isinstance(v, values_vector.W_Vector):
+        # we can use _ref here because we already checked the precondition
+        return v._ref(i.value)
+    assert 0
 
 @continuation
 def imp_vec_ref_cont(f, i, v, env, cont, vals):
@@ -814,12 +819,17 @@ def do_vec_ref(v, i, env, cont):
     else:
         assert False
 
-@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
-def vector_set(v, i, new, env, cont):
+@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object])
+def vector_set(v, i, new):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return do_vec_set(v, i, new, env, cont)
+    if isinstance(v, values_vector.W_Vector):
+        # we can use _set here because we already checked the precondition
+        v._set(idx, new)
+        return values.w_void
+    assert 0
+
 
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):

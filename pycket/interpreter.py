@@ -240,6 +240,16 @@ class Done(Exception):
     def __init__(self, vals):
         self.values = vals
 
+def get_printable_location(green_ast):
+    if green_ast is None:
+        return 'Green_Ast is None'
+    return green_ast.tostring()
+new_driver = jit.JitDriver(reds=["env"],
+                       greens=["ast"],
+                       get_printable_location=get_printable_location,
+                       should_unroll_one_iteration=lambda ast: True)
+
+
 class AST(object):
     _attrs_ = ["should_enter"]
     _immutable_fields_ = ["should_enter?"]
@@ -263,6 +273,7 @@ class AST(object):
         # returns values
         ast = self
         while 1:
+            new_driver.jit_merge_point(ast=ast, env=env)
             if ast.simple:
                 return values.Values.make([ast.interpret_simple(env)])
             try:
@@ -273,7 +284,7 @@ class AST(object):
     def _stackfull_interpret(self, env):
         # returns ast, env
         # may call .stackfull_interpret of sub-asts
-        import pdb; pdb.set_trace()
+        assert 0
 
     def free_vars(self):
         return {}
@@ -393,6 +404,7 @@ class Cell(AST):
     def interpret(self, env, cont):
         return self.expr, env, CellCont(self, env, cont)
 
+    @jit.unroll_safe
     def _stackfull_interpret(self, env):
         vals = self.expr.stackfull_interpret(env)
         vals_w = []
@@ -461,6 +473,7 @@ class VariableReference(AST):
         return "#<#%variable-reference>"
 
 class App(AST):
+    should_enter = True
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
 
@@ -550,6 +563,7 @@ class SequencedBodyAST(AST):
         assert len(body) > 0
         self.body = body
 
+    @jit.unroll_safe
     def _stackfull_interpret(self, env):
         for i in range(len(self.body) - 1):
             self.body[i].stackfull_interpret(env)
@@ -1020,6 +1034,8 @@ class Letrec(SequencedBodyAST):
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
+
+    @jit.unroll_safe
     def _stackfull_interpret(self, env):
         env = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         for i in range(len(self.rhss)):
@@ -1132,6 +1148,7 @@ class Let(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
 
+    @jit.unroll_safe
     def _stackfull_interpret(self, env):
         vals = []
         for i in range(len(self.rhss)):

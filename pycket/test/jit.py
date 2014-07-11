@@ -37,7 +37,7 @@ class TestLLtype(LLJitMixin):
 
         assert interp_w()
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_countdown_nested(self):
         ast = to_ast(expand("""
@@ -97,9 +97,9 @@ class TestLLtype(LLJitMixin):
         #     ov = check_one_val(val)
         #     assert isinstance(ov, W_Fixnum)
         #     return ov.value
-        # assert interp_w() == 1
+        assert interp_w()
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_setbang(self):
 
@@ -181,7 +181,8 @@ class TestLLtype(LLJitMixin):
             val = interpret_module(ast)
             return val
 
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        #interp_w()
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
         
 
 
