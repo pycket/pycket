@@ -396,3 +396,9 @@ def test_arity():
     run("(procedure-arity-includes? (lambda (x . y) 0) 200000)", w_true)
     run("(procedure-arity-includes? (lambda x 1) 1)", w_true)
     run("(procedure-arity-includes? (lambda x 1) 0)", w_true)
+
+def test_tostring_of_list():
+    l = to_list([W_Fixnum(0), W_Fixnum(1), W_Fixnum(5)])
+    assert l.tostring() == "(0 1 5)"
+    l = to_improper([W_Fixnum(0), W_Fixnum(1)], W_Fixnum(5))
+    assert l.tostring() == "(0 1 . 5)"
