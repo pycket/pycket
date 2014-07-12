@@ -267,15 +267,16 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {"#%kernel" : None, "#%unsafe" : None}
+    table = {}
 
     @staticmethod
     def add_module(fname):
+        print "Adding module '%s'" % fname
         ModTable.table[fname] = None
 
     @staticmethod
     def has_module(fname):
-        return fname in ModTable.table
+        return fname.startswith("#%") or fname in ModTable.table
 
 def _to_require(fname):
     if ModTable.has_module(fname):
@@ -348,8 +349,8 @@ def _to_ast(json):
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
-            path = obj["require"].value_string()
-            return _to_require(path)
+            paths = obj["require"].value_array()
+            return Begin([_to_require(path.value_string()) for path in paths])
         if "begin0" in obj:
             fst = _to_ast(obj["begin0"])
             rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
@@ -442,7 +443,7 @@ def to_value(json):
         if "regexp" in obj:
             return values.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
-            return values.W_ByteRegexp(obj["regexp"].value_string())
+            return values.W_ByteRegexp(obj["byte-regexp"].value_string())
         if "pregexp" in obj:
             return values.W_PRegexp(obj["pregexp"].value_string())
         if "byte-regexp" in obj:

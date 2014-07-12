@@ -30,17 +30,26 @@
       (simplify-path
         (resolve-module-path v #f))))
   (define (translate v)
-    (case v
-      [(#%kernel #%unsafe #%utils) (symbol->string v)]
-      [else (to-path v)]))
-  ;(eprintf ">>> ~a\n" v)
+    (let* ([str (symbol->string v)]
+           [pre (substring str 0 (min 2 (string-length str)))])
+      (if (string=? pre "#%")
+        str
+        (to-path v))))
+    ;;(case v
+    ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
+    ;;  [else (to-path v)]))
   (syntax-parse v #:literals (#%top quote)
-    [v:str        (to-path (syntax-e #'v))]
-    [s:identifier (translate (syntax-e #'s))]
-    [(#%top . x)  (to-path (syntax-e #'x))]
+    [v:str        (list (to-path (syntax-e #'v)))]
+    [s:identifier (list (translate (syntax-e #'s)))]
+    [(#%top . x)  (list (to-path (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
-    [(_ ...)      (require-json (last (syntax->list v)))]
+    [((~datum all-except) p _ ...) (require-json #'p)]
+    [((~datum prefix) _ p) (require-json #'p)]
+    [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
+    [((~datum for-syntax) p ...)
+     (flatten (map require-json (syntax->list #'(p ...))))]
+    [(_ ...) (require-json (last (syntax->list v)))]
     ))
 
 (define quoted? (make-parameter #f))
@@ -56,7 +65,7 @@
     [v:str (hash 'string (syntax-e #'v))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
-    [(_ ...) 
+    [(_ ...)
      #:when (quoted?)
      (map to-json (syntax->list v))]
     [(module _ ...) #f] ;; ignore these
@@ -86,12 +95,13 @@
                                        [e (syntax->list #'(es ...))])
                               (list (to-json x) (to-json e)))
            'letrec-body (map to-json (syntax->list #'(b ...))))]
-    [(quote e) (hash 'quote 
+    [(quote e) (hash 'quote
                      (parameterize ([quoted? #t])
                        (to-json #'e)))]
 
-    [(#%require . x) (hash 'require (require-json #'x))]
-    [(_ ...) 
+    [(#%require . x)
+     (hash 'require (foldr append '() (map require-json (syntax->list #'x))))]
+    [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
@@ -124,10 +134,11 @@
     [_ #:when (pregexp? (syntax-e v))
        (hash 'pregexp (object-name (syntax-e v)))]
     [_ #:when (byte-regexp? (syntax-e v))
-       (hash 'byte-regexp (object-name (syntax-e v)))]
+       (hash 'byte-regexp (bytes->string/locale (object-name (syntax-e v))))]
     [_ #:when (byte-pregexp? (syntax-e v))
-       (hash 'byte-pregexp (object-name (syntax-e v)))]
-    ;;[_ #:when (bytes? (syntax-e v)) (hash 'string (bytes->string/locale (syntax-e v)))]
+       (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
+    [_ #:when (bytes? (syntax-e v))
+       (hash 'string (bytes->string/locale (syntax-e v)))]
     ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
     ;;[_ (hash 'string "unsupported type")]
     ))
@@ -135,8 +146,10 @@
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)
     [(module name:id lang:expr (#%plain-module-begin forms ...))
-     (hash 'module-name (symbol->string (syntax-e #'name))
-           'body-forms (filter-map to-json (syntax->list #'(forms ...))))]
+     (let ([lang-req (hash 'require (require-json #'lang))])
+       (hash 'module-name (symbol->string (syntax-e #'name))
+             'body-forms
+             (filter-map to-json (syntax->list #'(forms ...)))))]
     [_ (error 'convert)]))
 
 
@@ -161,7 +174,7 @@
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    [("--loop") "keep process alive" (set! loop? #t)]
-   
+
    #:args ([source #f])
    (cond [(and in source)
           (raise-user-error "can't supply --stdin with a source file")]
@@ -186,12 +199,12 @@
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
     (current-directory in-dir))
-  
+
   (read-accept-reader #t)
   (read-accept-lang #t)
-  
+
   (let loop ()
-    (define mod 
+    (define mod
       ;; hack b/c I can't write EOF from Python
       (cond [loop?
              (let rd ([s null])
@@ -212,6 +225,6 @@
     (when (eof-object? mod) (exit 0))
     (define expanded (do-expand mod))
     (write-json (convert expanded) out)
-    (newline out) 
+    (newline out)
     (flush-output out)
     (when loop? (loop))))
