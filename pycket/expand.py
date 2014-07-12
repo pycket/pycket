@@ -435,7 +435,7 @@ def to_value(json):
                     return values.W_Flonum(float("inf"))
                 if rs == "-inf.0":
                     return values.W_Flonum(-float("inf"))
-                if rs == "nan.0":
+                if rs == "+nan.0":
                     return values.W_Flonum(float("nan"))
             assert False
         if "char" in obj:
