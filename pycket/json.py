@@ -1,4 +1,4 @@
-from rpython.rlib.rstring import StringBuilder
+from rpython.rlib.rstring import StringBuilder, UnicodeBuilder
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
@@ -21,11 +21,12 @@ _regexs, _rules, _ToAST = parse_ebnf(_json_grammar)
 parse = make_parse_function(_regexs, _rules, eof=True)
 
 #
-# allow for deeply-nested structures in non-translated mode
+# Allow for deeply-nested structures in non-translated mode
+# Just pick a large number, as `sys.getrecursionlimit` is not
+# consistent between CPython and Pypy, appearantly.
 #
 import sys
-l = sys.getrecursionlimit()
-sys.setrecursionlimit(l * 10)
+sys.setrecursionlimit(10000)
 
 
 # Union-Object to represent a json structure in a static way
@@ -240,7 +241,10 @@ def decode_escape_sequence(i, chars, builder):
     elif ch == 'r': put('\r')
     elif ch == 't': put('\t')
     elif ch == 'u':
-        raise ValueError("unicode escape sequence not supported yet") # XXX
+        # TODO: make this work with actual unicode characters
+        val = int(chars[i:i+4], 16)
+        put(chr(val))
+        i += 4
     else:
         raise ValueError("Invalid \\escape: %s" % (ch, ))
     return i
