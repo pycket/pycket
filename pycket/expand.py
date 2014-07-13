@@ -350,7 +350,9 @@ def _to_ast(json):
         obj = json.value_object()
         if "require" in obj:
             paths = obj["require"].value_array()
-            return Begin([_to_require(path.value_string()) for path in paths])
+            if not paths:
+                return Quote(values.w_void)
+            return Begin.make([_to_require(path.value_string()) for path in paths])
         if "begin0" in obj:
             fst = _to_ast(obj["begin0"])
             rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
