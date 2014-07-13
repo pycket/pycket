@@ -1,4 +1,4 @@
-from rpython.rlib.rstring import StringBuilder, UnicodeBuilder
+from rpython.rlib.rstring import StringBuilder
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
