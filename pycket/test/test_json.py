@@ -37,4 +37,10 @@ def test_tostring_string_escaping():
     assert json.tostring() == '"\\n"'
 
 def test_bug():
+    # Lexer was having issues with single backslashes which would allow the string
+    # production rule to continue consuming past the end of a string
+    _compare(r'{"string" : "\\"}', {"string": "\\"})
+    _compare(r'[{ "quote": { "string": "\\" } },{ "quote": { "string": "Hi" } }]',
+            [{"quote" : { "string": "\\" }},{"quote" : { "string": "Hi" }}])
+
     _compare(r'{"string" : "\\\\"}', {"string": "\\\\"})

@@ -4,7 +4,7 @@ from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
 
 _json_grammar = """
-    STRING: "\\"([^\\"]|\\\\.)*\\"";
+    STRING: "\\"([^\\"\\\\]|\\\\.)*\\"";
     NUMBER: "\-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?";
     TRUE: "true";
     FALSE: "false";
