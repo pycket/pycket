@@ -4,6 +4,7 @@ import operator
 import os
 import time
 import math
+import pycket.impersonators as imp
 from pycket import values
 from pycket.cont import Cont, call_cont, continuation
 from pycket import struct as values_struct
@@ -709,7 +710,7 @@ def box_immutable(v):
 def chaperone_box(b, unbox, set):
     unbox.mark_non_loop()
     set.mark_non_loop()
-    return values.W_ChpBox(b, unbox, set)
+    return imp.W_ChpBox(b, unbox, set)
 
 @expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
 def impersonate_box(b, unbox, set):
@@ -717,7 +718,7 @@ def impersonate_box(b, unbox, set):
         raise SchemeException("Cannot impersonate immutable box")
     unbox.mark_non_loop()
     set.mark_non_loop()
-    return values.W_ImpBox(b, unbox, set)
+    return imp.W_ImpBox(b, unbox, set)
 
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
@@ -733,7 +734,7 @@ def chp_unbox_cont(f, box, env, cont, vals):
 def chp_unbox_cont_ret(old, env, cont, vals):
     from pycket.interpreter import check_one_val, return_multi_vals
     new = check_one_val(vals)
-    if values.is_chaperone_of(new, old):
+    if imp.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
@@ -749,11 +750,11 @@ def do_unbox(v, env, cont):
         return return_value(v.value, env, cont)
     elif isinstance(v, values.W_IBox):
         return return_value(v.value, env, cont)
-    elif isinstance(v, values.W_ChpBox):
+    elif isinstance(v, imp.W_ChpBox):
         f = v.unbox
         b = v.box
         return do_unbox(b, env, chp_unbox_cont(f, b, env, cont))
-    elif isinstance(v, values.W_ImpBox):
+    elif isinstance(v, imp.W_ImpBox):
         f = v.unbox
         b = v.box
         return do_unbox(b, env, imp_unbox_cont(f, b, env, cont))
@@ -773,7 +774,7 @@ def imp_box_set_cont(b, env, cont, vals):
 def chp_box_set_cont(b, orig, env, cont, vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(vals)
-    if not values.is_chaperone_of(val, orig):
+    if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
     return do_set_box(b, val, env, cont)
 
@@ -784,11 +785,11 @@ def do_set_box(box, v, env, cont):
     elif isinstance(box, values.W_MBox):
         box.value = v
         return return_value(values.w_void, env, cont)
-    elif isinstance(box, values.W_ImpBox):
+    elif isinstance(box, imp.W_ImpBox):
         f = box.set
         b = box.box
         return f.call([b, v], env, imp_box_set_cont(b, env, cont))
-    elif isinstance(box, values.W_ChpBox):
+    elif isinstance(box, imp.W_ChpBox):
         f = box.set
         b = box.box
         return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
@@ -825,7 +826,7 @@ def chp_vec_ref_cont(f, i, v, env, cont, vals):
 def chp_vec_ref_cont_ret(old, env, cont, vals):
     from pycket.interpreter import check_one_val, return_multi_vals
     new = check_one_val(vals)
-    if values.is_chaperone_of(new, old):
+    if imp.is_chaperone_of(new, old):
         return return_multi_vals(vals, env, cont)
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
@@ -835,11 +836,11 @@ def do_vec_ref(v, i, env, cont):
     if isinstance(v, values_vector.W_Vector):
         # we can use _ref here because we already checked the precondition
         return return_value(v._ref(i.value), env, cont)
-    elif isinstance(v, values.W_ImpVector):
+    elif isinstance(v, imp.W_ImpVector):
         uv = v.vec
         f = v.refh
         return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
-    elif isinstance(v, values.W_ChpVector):
+    elif isinstance(v, imp.W_ChpVector):
         uv = v.vec
         f  = v.refh
         return do_vec_ref(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
@@ -864,7 +865,7 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(vals)
-    if not values.is_chaperone_of(val, orig):
+    if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
     return do_vec_set(v, i, val, env, cont)
 
@@ -874,11 +875,11 @@ def do_vec_set(v, i, new, env, cont):
         # we can use _set here because we already checked the precondition
         v._set(i.value, new)
         return return_value(values.w_void, env, cont)
-    elif isinstance(v, values.W_ImpVector):
+    elif isinstance(v, imp.W_ImpVector):
         uv = v.vec
         f = v.seth
         return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
-    elif isinstance(v, values.W_ChpVector):
+    elif isinstance(v, imp.W_ChpVector):
         uv = v.vec
         f  = v.seth
         return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
@@ -888,7 +889,7 @@ def do_vec_set(v, i, new, env, cont):
 @expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
 def impersonate_procedure(proc, check):
     check.mark_non_loop()
-    return values.W_ImpProcedure(proc, check)
+    return imp.W_ImpProcedure(proc, check)
 
 @expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def impersonate_vector(v, refh, seth):
@@ -896,34 +897,34 @@ def impersonate_vector(v, refh, seth):
         raise SchemeException("Cannot impersonate immutable vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
-    return values.W_ImpVector(v, refh, seth)
+    return imp.W_ImpVector(v, refh, seth)
 
 @expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
 def chaperone_procedure(proc, check):
     check.mark_non_loop()
-    return values.W_ChpProcedure(proc, check)
+    return imp.W_ChpProcedure(proc, check)
 
 @expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
 def chaperone_vector(v, refh, seth):
     refh.mark_non_loop()
     seth.mark_non_loop()
-    return values.W_ChpVector(v, refh, seth)
+    return imp.W_ChpVector(v, refh, seth)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
-    return values.W_Bool.make(values.is_chaperone_of(a, b))
+    return values.W_Bool.make(imp.is_chaperone_of(a, b))
 
 @expose("impersonator-of?", [values.W_Object, values.W_Object])
 def impersonator_of(a, b):
-    return values.W_Bool.make(values.is_impersonator_of(a, b))
+    return values.W_Bool.make(imp.is_impersonator_of(a, b))
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
-    return values.W_Bool.make(values.is_impersonator(x))
+    return values.W_Bool.make(imp.is_impersonator(x))
 
 @expose("chaperone?", [values.W_Object])
 def chaperone(x):
-    return values.W_Bool.make(values.is_chaperone(x))
+    return values.W_Bool.make(imp.is_chaperone(x))
 
 @expose("vector")
 def vector(args):
@@ -1058,7 +1059,7 @@ def unsafe_fleq(a, b):
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
+    if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
         return do_vec_ref(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
@@ -1074,7 +1075,7 @@ def unsafe_vector_star_ref(v, i):
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, values.W_ImpVector) or isinstance(v, values.W_ChpVector):
+    if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
         return do_vec_set(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
