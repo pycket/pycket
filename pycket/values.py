@@ -314,12 +314,24 @@ class W_Bool(W_Object):
 w_false = W_Bool(False)
 w_true = W_Bool(True)
 
+class W_HashTable(W_Object):
+    def __init__(self, keys, vals):
+        assert len(keys) == len(vals)
+        self.keys = keys
+        self.vals = vals
+    def tostring(self):
+        #lst = [W_Cons.make(k, v).tostring() for k, v in zip(self.keys, self.vals)]
+        lst = []
+        for i in range(len(self.keys)):
+            lst.append(W_Cons.make(self.keys[i], self.vals[i]).tostring())
+        return "#hash(%s)" % " ".join(lst)
+
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
     errorname = "regexp"
     def __init__(self, str):
         self.str = str
-    
+
 class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass

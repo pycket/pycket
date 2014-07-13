@@ -100,7 +100,7 @@
                        (to-json #'e)))]
 
     [(#%require x ...)
-     (hash 'require (foldr append '() (map require-json (syntax->list #'(x ...)))))]
+     (hash 'require (append-map require-json (syntax->list #'(x ...))))]
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
@@ -139,8 +139,11 @@
        (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
        (hash 'string (bytes->string/locale (syntax-e v)))]
-    [_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
-    ;;[_ (hash 'string "unsupported type")]
+    [_ #:when (hash? (syntax-e v))
+       (let ([ht (syntax-e v)])
+         (parameterize ([quoted? #t])
+           (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht)))
+                 'hash-vals (to-json (datum->syntax #'lex (hash-values ht))))))]
     ))
 
 (define (convert mod)

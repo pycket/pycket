@@ -442,6 +442,10 @@ def to_value(json):
             assert False
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
+        if "hash-keys" in obj and "hash-vals" in obj:
+            return values.W_HashTable(
+                    [to_value(i) for i in obj["hash-keys"].value_array()],
+                    [to_value(i) for i in obj["hash-vals"].value_array()])
         if "regexp" in obj:
             return values.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
