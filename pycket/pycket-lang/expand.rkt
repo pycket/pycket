@@ -47,8 +47,8 @@
     [((~datum all-except) p _ ...) (require-json #'p)]
     [((~datum prefix) _ p) (require-json #'p)]
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
-    [((~datum for-syntax) p ...)
-     (flatten (map require-json (syntax->list #'(p ...))))]
+    [((~datum for-syntax) p ...) '()]
+     ;;(flatten (map require-json (syntax->list #'(p ...))))]
     [(_ ...) (require-json (last (syntax->list v)))]
     ))
 
@@ -99,8 +99,8 @@
                      (parameterize ([quoted? #t])
                        (to-json #'e)))]
 
-    [(#%require . x)
-     (hash 'require (foldr append '() (map require-json (syntax->list #'x))))]
+    [(#%require x ...)
+     (hash 'require (foldr append '() (map require-json (syntax->list #'(x ...)))))]
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
@@ -139,7 +139,7 @@
        (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
        (hash 'string (bytes->string/locale (syntax-e v)))]
-    ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
+    [_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
     ;;[_ (hash 'string "unsupported type")]
     ))
 
