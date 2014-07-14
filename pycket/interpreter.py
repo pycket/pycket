@@ -236,6 +236,29 @@ class Begin0FinishCont(Cont):
     def plug_reduce(self, vals):
         return return_multi_vals(self.vals, self.env, self.prev)
 
+class WCMKeyCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.ast = ast
+    def plug_reduce(self, vals):
+        key = check_one_val(vals)
+        return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
+
+class WCMValCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev", "key"]
+    def __init__(self, ast, key, env, prev):
+        Cont.__init__(self, env, prev)
+        self.ast = ast
+        self.key = key
+    def plug_reduce(self, vals):
+        val = check_one_val(vals)
+        # FIXME: can prev be null?
+        assert self.prev
+        self.prev.update_cm(self.key, val)
+        return self.ast.body, self.env, self.prev
+
+
 class Done(Exception):
     def __init__(self, vals):
         self.values = vals
@@ -434,6 +457,31 @@ class VariableReference(AST):
         return variable_set()
     def tostring(self):
         return "#<#%variable-reference>"
+
+class WithContinuationMark(AST):
+    _immutable_fields_ = ["key", "value", "body"]
+
+    def __init__(self, key, value, body):
+        self.key = key
+        self.value = value
+        self.body = body
+
+    def assign_convert(self, vars, env_structure):
+        return WithContinuationMark(self.key.assign_convert(vars, env_structure),
+                                    self.value.assign_convert(vars, env_structure),
+                                    self.body.assign_convert(vars, env_structure))
+    def mutated_vars(self):
+        x = self.key.mutated_vars()
+        for r in [self.value, self.body]:
+            x.update(r.mutated_vars())
+        return x
+    def free_vars(self):
+        x = self.key.free_vars()
+        for r in [self.value, self.body]:
+            x.update(r.free_vars())
+        return x
+    def interpret(self, env, cont):
+        return self.key, env, WCMKeyCont(self, env, cont)
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]

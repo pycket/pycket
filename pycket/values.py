@@ -76,11 +76,20 @@ class W_CellIntegerStrategy(W_Object):
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
+    _immutable_fields_ = ["o"]
     errorname = "syntax"
     def __init__(self, o):
         self.val = o
     def tostring(self):
         return "#'%s"%self.val.tostring()
+
+class W_ContinuationMarkSet(W_Object):
+    errorname = "continuation-mark-set"
+    _immutable_fields_ = ["cont"]
+    def __init__(self, cont):
+        self.cont = cont
+    def tostring(self):
+        return "#<continuation-mark-set>"
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"

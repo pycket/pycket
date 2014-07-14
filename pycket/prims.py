@@ -7,6 +7,7 @@ import math
 import pycket.impersonators as imp
 from pycket import values
 from pycket.cont import Cont, call_cont, continuation
+from pycket import cont
 from pycket import struct as values_struct
 from pycket import vector as values_vector
 from pycket import arithmetic # imported for side effect
@@ -1141,6 +1142,24 @@ def current_preserved_thread_cell_values(v):
         assert cell.preserved
         cell.value = val
     return values.w_void
+
+@expose("current-continuation-marks", [], simple=False)
+def current_cont_marks(env, cont):
+    from pycket.interpreter import return_value
+    return return_value(values.W_ContinuationMarkSet(cont), env, cont)
+
+@expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
+def cms_list(cms, mark):
+    return cont.get_marks(cms.cont, mark)
+
+@expose("continuation-mark-set-first", [values.W_ContinuationMarkSet, values.W_Object, default(values.W_Object, values.w_false)])
+def cms_list(cms, mark, missing):
+    v = cont.get_mark_first(cms.cont, mark)
+    if v:
+        return v
+    else:
+        return missing
+
 
 # Loading
 

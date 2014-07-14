@@ -362,10 +362,9 @@ def _to_ast(json):
                 return Begin0.make(fst, rst)
 
         if "wcm-key" in obj:
-            # FIXME: not actually with-continuation-mark
-            return Begin.make([_to_ast(obj["wcm-key"]),
-                               _to_ast(obj["wcm-val"]),
-                               _to_ast(obj["wcm-body"])])
+            return WithContinuationMark(_to_ast(obj["wcm-key"]),
+                                        _to_ast(obj["wcm-val"]),
+                                        _to_ast(obj["wcm-body"]))
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
