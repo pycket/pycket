@@ -349,29 +349,30 @@ def display(s):
     os.write(1, s.tostring())
     return values.w_void
 
-@expose("newline")
-def newline(s):
+@expose("newline", [])
+def newline():
     os.write(1, "\n")
-    return values.w_void
 
 @expose("write", [values.W_Object])
 def write(s):
     os.write(1, s.tostring())
-    return values.w_void
 
 @expose("print", [values.W_Object])
 def do_print(o):
     os.write(1, o.tostring())
-    return values.w_void
 
-print_prim = prim_env[values.W_Symbol.make("print")]
+def cur_print_proc(args):
+    v, = args
+    if v is values.w_void:
+        return
+    else:
+        os.write(1, v.tostring())
+        os.write(1, "\n")
 
 # FIXME: this is a parameter
 @expose("current-print", [])
 def current_print():
-    assert isinstance(print_prim, values.W_Procedure)
-    return print_prim
-
+    return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
