@@ -150,6 +150,33 @@ class W_StructConstructor(W_SimplePrim):
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
+class W_StructProperty(W_Object):
+    errorname = "struct-type-property"
+    _immutable_fields_ = ["name", "guard"]
+    def __init__(self, name, guard):
+        self.name = name
+        self.guard = guard
+    def tostring(self):
+        return "#<struct-type-property:%s>"%self.name
+
+class W_StructPropertyPredicate(W_SimplePrim):
+    errorname = "struct-property-predicate"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyPredicate NYI")
+
+class W_StructPropertyAccessor(W_SimplePrim):
+    errorname = "struct-property-accessor"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyAccessor NYI")
+
+prop_evt = W_StructProperty(W_Symbol.make("prop:evt"), w_false) # FIXME: need stronger guard
+
 class W_StructPredicate(W_SimplePrim):
     errorname = "struct-predicate"
     _immutable_fields_ = ["_struct_id"]

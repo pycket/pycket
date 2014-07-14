@@ -184,6 +184,8 @@ for args in [
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-accessor-procedure?", values_struct.W_StructAccessor),
         ("struct-mutator-procedure?", values_struct.W_StructMutator),
+        ("struct-type-property?", values_struct.W_StructProperty),
+        ("struct-type-property-accessor-procedure?", values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
         ("regexp?", values.W_Regexp),
         ("pregexp?", values.W_PRegexp),
@@ -321,6 +323,8 @@ for args in [
 val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
+
+val("prop:evt", values_struct.prop_evt)
 
 # FIXME: this implementation sucks
 @expose("string-append")
@@ -676,6 +680,15 @@ def struct2vector(struct):
     assert isinstance(struct_id, values.W_Symbol)
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
+
+@expose("make-struct-type-property", [values.W_Symbol, default(values.W_Object, values.w_false)], simple=False)
+def mk_stp(sym, guard, env, cont):
+    from pycket.interpreter import return_multi_vals
+    prop = values_struct.W_StructProperty(sym, guard)
+    return return_multi_vals(values.Values.make([prop, 
+                                                 values_struct.W_StructPropertyPredicate(prop),
+                                                 values_struct.W_StructPropertyAccessor(prop)]),
+                             env, cont)
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
