@@ -135,9 +135,7 @@
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
-                                 (if src
-                                     (symbol->string src)
-                                     (error 'expand_racket "unexpected identifier info: ~a" (identifier-binding #'i))))
+                                 (and src (symbol->string src)))
               'source-name (symbol->string src-id))]
        [(list (app index->path src) src-id _ _ src-phase import-phase nominal-export-phase)
         (hash 'module (symbol->string (syntax-e v))
