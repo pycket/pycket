@@ -328,7 +328,15 @@ val("null", values.w_null)
 val("true", values.w_true)
 val("false", values.w_false)
 
-val("prop:evt", values_struct.prop_evt)
+# FIXME: need stronger guards for all of these
+for name in ["prop:evt",
+             "prop:checked-procedure",
+             "prop:impersonator-of",
+             "prop:method-arity-error",
+             "prop:arity-string",
+             "prop:procedure"]:
+    val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
+
 
 # FIXME: this implementation sucks
 @expose("string-append")
@@ -717,10 +725,10 @@ def struct2vector(struct):
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
-@expose("make-struct-type-property", [values.W_Symbol, default(values.W_Object, values.w_false)], simple=False)
-def mk_stp(sym, guard, env, cont):
+@expose("make-struct-type-property", [values.W_Symbol, default(values.W_Object, values.w_false), default(values.W_List, values.w_null)], simple=False)
+def mk_stp(sym, guard, supers, env, cont):
     from pycket.interpreter import return_multi_vals
-    prop = values_struct.W_StructProperty(sym, guard)
+    prop = values_struct.W_StructProperty(sym, guard, supers)
     return return_multi_vals(values.Values.make([prop, 
                                                  values_struct.W_StructPropertyPredicate(prop),
                                                  values_struct.W_StructPropertyAccessor(prop)]),

@@ -1,5 +1,5 @@
 from pycket.error import SchemeException
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null
 from rpython.rlib import jit
 
 #
@@ -152,10 +152,11 @@ class W_StructConstructor(W_SimplePrim):
 
 class W_StructProperty(W_Object):
     errorname = "struct-type-property"
-    _immutable_fields_ = ["name", "guard"]
-    def __init__(self, name, guard):
+    _immutable_fields_ = ["name", "guard", "supers"]
+    def __init__(self, name, guard, supers=w_null):
         self.name = name
         self.guard = guard
+        self.supers = supers
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
@@ -174,8 +175,6 @@ class W_StructPropertyAccessor(W_SimplePrim):
         self.property = prop
     def code(self, args):
         raise SchemeException("StructPropertyAccessor NYI")
-
-prop_evt = W_StructProperty(W_Symbol.make("prop:evt"), w_false) # FIXME: need stronger guard
 
 class W_StructPredicate(W_SimplePrim):
     errorname = "struct-predicate"
