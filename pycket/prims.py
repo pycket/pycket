@@ -32,7 +32,7 @@ class default(object):
         self.typ = typ
         self.default = default
 
-def expose(name, argstypes=None, simple=True, arity=None):
+def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
     def wrapper(func):
         if argstypes is not None:
             argtype_tuples = []
@@ -83,12 +83,16 @@ def expose(name, argstypes=None, simple=True, arity=None):
                         jit.record_known_class(arg, typ)
                     typed_args += (arg, )
                 typed_args += rest
+                if nyi:
+                    raise SchemeException("primitive %s is not yet implemented"%name) 
                 result = func(*typed_args)
                 if result is None:
                     return values.w_void
                 return result
         else:
             def wrap_func(*args):
+                if nyi:
+                    raise SchemeException("primitive %s is not yet implemented"%name) 
                 result = func(*args)
                 if result is None:
                     return values.w_void
@@ -383,6 +387,17 @@ def string_equal(s1, s2):
         if v1[i] != v2[i]:
             return values.w_false
     return values.w_true
+
+def define_nyi(name, args=None):
+    @expose(name, args, nyi=True)
+    def do(args): pass
+
+for args in [
+        ("string-ci<?", [values.W_String, values.W_String]),
+        ("keyword<?", [values.W_Keyword, values.W_Keyword]),
+        ("string-ci<=?", [values.W_String, values.W_String])
+]:
+    define_nyi(*args)
 
 @expose("string->list", [values.W_String])
 def string_to_list(s):
