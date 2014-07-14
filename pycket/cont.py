@@ -1,11 +1,13 @@
 
 from rpython.rlib import unroll
 
+# these aren't methods so that can handle empty conts
 def get_mark_first(cont, key):
     p = cont
     while p:
-        if key in p.marks:
-            return p.marks[key]
+        v = p.find_cm(key)
+        if v:
+            return v
         elif p.prev:
             p = p.prev
         else:
@@ -16,27 +18,50 @@ def get_marks(cont, key):
     if not(cont):
         return values.w_null
     # FIXME: don't use recursion
-    if key in cont.marks:
-        return values.W_Cons(cont.marks[key], get_marks(cont.prev, key))
+    # it would be much more convenient to write this with mutable pairs
+    v = cont.find_cm(key)
+    if v:
+        return values.W_Cons(v, get_marks(cont.prev, key))
     else:
         return get_marks(cont.prev, key)
     
-        
+class Link(object):
+    def __init__(self, k, v, next):
+        from pycket.values import W_Object
+        assert isinstance(k, W_Object)
+        assert isinstance(v, W_Object)
+        assert (d is None) or isinstance(d, Link)
+        self.key = k
+        self.val = v
+        self.next = next
 
 class Cont(object):
+    # Racket also keeps a separate stack for continuation marks
+    # so that they can be saved without saving the whole continuation.
     _immutable_fields_ = ['env', 'prev', 'marks']
     def __init__(self, env, prev):
         self.env = env
         self.prev = prev
-        # FIXME
-        # Note: Racket uses a list for this for speed in 
-        # cases where there are few marks (which is basically always).
-        self.marks = {}
-        # Racket also keeps a separate stack for continuation marks
-        # so that they can be saved without saving the whole continuation.
+        self.marks = None
 
-    def update_cm(self, key, val):
-        self.marks[key] = val
+    def find_cm(self, k):
+        l = self.marks
+        from pycket.prims import eqp_logic
+        while l:
+            if eqp_logic(l.key, k):
+                return l.val
+            else:
+                l = l.rest
+        return None
+
+    def update_cm(self, k, v):
+        from pycket.prims import eqp_logic
+        l = self.marks
+        while l:
+            if eqp_logic(l.key, k):
+                l.val = v
+            else:
+                l = l.rest
 
     def tostring(self):
         "NOT_RPYTHON"

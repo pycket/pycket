@@ -253,6 +253,8 @@ class WCMValCont(Cont):
         self.key = key
     def plug_reduce(self, vals):
         val = check_one_val(vals)
+        # FIXME: can prev be null?
+        assert self.prev
         self.prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
 

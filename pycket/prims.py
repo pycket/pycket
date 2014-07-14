@@ -1119,7 +1119,8 @@ def jit_enabled():
 
 @expose("current-continuation-marks", [], simple=False)
 def current_cont_marks(env, cont):
-    return values.W_ContinuationMarkSet(cont), env, cont
+    from pycket.interpreter import return_value
+    return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
 def cms_list(cms, mark):
