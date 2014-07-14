@@ -134,7 +134,13 @@
                                  (path->string src)
                                  (and src (symbol->string src)))
               'source-name (symbol->string src-id))]
-       [v (error 'expand_racket "phase not zero: ~a" v)])]
+       [(list (app index->path src) src-id _ _ src-phase import-phase nominal-export-phase)
+        (hash 'module (symbol->string (syntax-e v))
+              'source-module (if (path? src)
+                                 (path->string src)
+                                 (and src (symbol->string src)))
+              'source-name (symbol->string src-id)
+              'phases (list src-phase import-phase nominal-export-phase))])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
        (hash 'box (to-json (unbox (syntax-e v))))]
