@@ -198,7 +198,11 @@ for args in [
         ("variable-reference?", values.W_VariableReference),
         ("syntax?", values.W_Syntax),
         ("thread-cell?", values.W_ThreadCell),
-        ("thread-cell-values?", values.W_ThreadCellValues)
+        ("thread-cell-values?", values.W_ThreadCellValues),
+        ("semaphore?", values.W_Semaphore),
+        ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
+        ("path?", values.W_Path),
+        ("bytes?", values.W_Bytes)
         ]:
     make_pred(*args)
 
@@ -337,6 +341,37 @@ for name in ["prop:evt",
              "prop:custom-write",
              "prop:procedure"]:
     val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
+
+
+
+@expose("display", [values.W_Object])
+def display(s):
+    os.write(1, s.tostring())
+    return values.w_void
+
+@expose("newline")
+def newline(s):
+    os.write(1, "\n")
+    return values.w_void
+
+@expose("write", [values.W_Object])
+def write(s):
+    os.write(1, s.tostring())
+    return values.w_void
+
+@expose("print", [values.W_Object])
+def do_print(o):
+    os.write(1, o.tostring())
+    return values.w_void
+
+print_prim = prim_env[values.W_Symbol.make("print")]
+
+# FIXME: this is a parameter
+@expose("current-print", [])
+def current_print():
+    assert isinstance(print_prim, values.W_Procedure)
+    return print_prim
+
 
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
@@ -501,6 +536,14 @@ def apply(args, env, cont):
     new_args = others + values.from_list(lst)
     return fn.call(new_args, env, cont)
 
+@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
+def make_semaphore(n):
+    return values.W_Semaphore(n.value)
+
+@expose("semaphore-peek-evt", [values.W_Semaphore])
+def sem_peek_evt(s):
+    return values.W_SemaphorePeekEvt(s)
+
 @expose("printf")
 def printf(args):
     if not args:
@@ -535,8 +578,12 @@ def printf(args):
 
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
-    # this doesn't work for cycles
     return values.W_Bool.make(a.eqv(b))
+
+@expose("equal?", [values.W_Object] * 2)
+def equalp(a, b):
+    # FIXME: broken for chaperones, cycles, excessive recursion, etc
+    return values.W_Bool.make(a.equal(b))
 
 def eqp_logic(a, b):
     if a is b:
@@ -643,6 +690,19 @@ def do_set_mcar(a, b):
 @expose("set-mcdr!", [values.W_MCons, values.W_Object])
 def do_set_mcdr(a, b):
     a.set_cdr(b)
+
+@expose("for-each", [values.W_Procedure, values.W_List], simple=False)
+def for_each(f, l, env, cont):
+    from pycket.interpreter import return_value
+    return return_value(values.w_void, env, for_each_cont(f, l, env, cont, None))
+
+@continuation
+def for_each_cont(f, l, env, cont, vals):
+    from pycket.interpreter import return_value
+    if l is values.w_null:
+        return return_value(values.w_void, env, cont)
+    return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+    
 
 @expose("void")
 def do_void(args): return values.w_void
@@ -1029,21 +1089,6 @@ def listp_loop(v):
 def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
-@expose("display", [values.W_Object])
-def display(s):
-    os.write(1, s.tostring())
-    return values.w_void
-
-@expose("newline")
-def display(s):
-    os.write(1, "\n")
-    return values.w_void
-
-@expose("write", [values.W_Object])
-def write(s):
-    os.write(1, s.tostring())
-    return values.w_void
-
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
@@ -1200,6 +1245,10 @@ def hash_set_bang(ht, k, default, env, cont):
     else:
         raise SchemeException("key not found")
 
+@expose("path->bytes", [values.W_Path])
+def path2bytes(p):
+    return values.W_Bytes(p.path)
+    
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):

@@ -320,6 +320,25 @@ class W_Character(W_Object):
         return self.value == other.value
     eqv = equal
 
+class W_Semaphore(W_Object):
+    errorname = "semaphore"
+    def __init__(self, n):
+        self.n = n
+    def tostring(self):
+        return "#<semaphore>"
+
+class W_Evt(W_Object):
+    errorname = "evt"
+
+class W_SemaphorePeekEvt(W_Evt):
+    errorname = "semaphore-peek-evt"
+    _immutable_fields_ = ["sema"]
+    def __init__(self, sema):
+        self.sema = sema
+    def tostring(self):
+        return "#<semaphore-peek-evt>"
+        
+
 class W_Path(W_Object):
     _immutable_fields_ = ["path"]
     errorname = "path"
@@ -424,6 +443,20 @@ class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass
 class W_BytePRegexp(W_AnyRegexp): pass
+
+class W_Bytes(W_Object):
+    errorname = "bytes"
+    def __init__(self, val):
+        self.value = val
+    def tostring(self):
+        return "#%s"%self.value
+    def equal(self, other):
+        if not isinstance(other, W_Bytes):
+            return False
+        return self.value == other.value
+    def immutable(self):
+        return True
+
 
 class W_String(W_Object):
     errorname = "string"
