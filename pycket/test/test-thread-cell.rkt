@@ -6,6 +6,10 @@
 
 (define save (current-preserved-thread-cell-values))
 
+(printf "~s~n" (thread-cell-ref a))
+(printf "~s~n" (thread-cell-ref b))
+(printf "~s~n" (thread-cell-ref c))
+
 (thread-cell-set! a 'a2)
 (thread-cell-set! b 'b2)
 (thread-cell-set! c 'c2)
@@ -18,7 +22,15 @@
     (eqv? (thread-cell-ref c) 'c2))
   (error 'thread-cell "Thread cell values are wrong"))
 
+(printf "~s~n" (thread-cell-ref a))
+(printf "~s~n" (thread-cell-ref b))
+(printf "~s~n" (thread-cell-ref c))
+
 (current-preserved-thread-cell-values save)
+
+(printf "~s~n" (thread-cell-ref a))
+(printf "~s~n" (thread-cell-ref b))
+(printf "~s~n" (thread-cell-ref c))
 
 (unless
   (and

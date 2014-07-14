@@ -331,7 +331,7 @@ class W_ThreadCellValues(W_Object):
     def __init__(self):
         self.assoc = {}
         for c in W_ThreadCell._table:
-            if c.preserved:
+            if c.preserved.value:
                 self.assoc[c] = c.value
 
 class W_ThreadCell(W_Object):
