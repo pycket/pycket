@@ -1155,6 +1155,26 @@ def unsafe_car(p):
 def unsafe_cdr(p):
     return p.cdr()
 
+@expose("make-hasheq")
+def make_hasheq(args):
+    return values.W_HashTable([], [])
+
+@expose("hash-set!", [values.W_HashTable, values.W_Object, values.W_Object])
+def hash_set_bang(ht, k, v):
+    ht.set(k, v)
+    return values.w_void
+
+@expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
+def hash_set_bang(ht, k, default, env, cont):
+    val = ht.ref(k)
+    if val:
+        return return_value(val, env, cont)
+    elif isinstance(default, W_Procedure):
+        return val.call([], env, cont)
+    elif default:
+        return return_value(default, env, cont)
+    else:
+        raise SchemeException("key not found")
 
 
 @expose("symbol->string", [values.W_Symbol])

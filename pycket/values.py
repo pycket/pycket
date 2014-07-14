@@ -6,6 +6,7 @@ from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
+from rpython.rlib.objectmodel import r_dict, compute_hash
 
 UNROLLING_CUTOFF = 5
 
@@ -355,17 +356,38 @@ class W_ThreadCell(W_Object):
 
         W_ThreadCell._table.append(self)
 
+
+def eq_hash(k):
+    if isinstance(k, W_Fixnum):
+        return compute_hash(k.value)
+    else:
+        return compute_hash(k)
+
 class W_HashTable(W_Object):
-    def __init__(self, keys, vals):
+    errorname = "hash"
+    def __init__(self, keys, vals, cmp=None, hash=eq_hash):
+        from pycket import prims
+        if not cmp:
+            cmp = prims.eqp_logic
         assert len(keys) == len(vals)
-        self.keys = keys
-        self.vals = vals
+        self.data = r_dict(cmp, hash, force_non_null=True)
+        for (i, k) in enumerate(keys):
+            self.data[k] = vals[i]
 
     def tostring(self):
         k, v = self.keys, self.vals
         idx = range(len(k))
         lst = [W_Cons.make(k[i], v[i]).tostring() for i in idx]
         return "#hash(%s)" % " ".join(lst)
+
+    def set(self, k, v):
+        self.data[k] = v
+
+    def ref(self, k):
+        if k in self.data:
+            return self.data[k]
+        else:
+            return None
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
