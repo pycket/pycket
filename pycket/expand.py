@@ -324,8 +324,6 @@ def _to_ast(json):
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 return DefineValues(fmls, _to_ast(arr[2]))
-            if ast_elem == "quote-syntax":
-                return QuoteSyntax(to_value(arr[1]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
             if ast_elem == "#%variable-reference":
@@ -395,6 +393,8 @@ def _to_ast(json):
             return If.make_let_converted(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"]))
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
+        if "quote-syntax" in obj:
+            return QuoteSyntax(to_value(obj["quote-syntax"]))
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 

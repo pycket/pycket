@@ -60,7 +60,7 @@
       [(cons a b) (cons a (proper b))]
       [_ null]))
   (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
-                              module* module #%plain-app quote #%require
+                              module* module #%plain-app quote #%require quote-syntax
                               with-continuation-mark)
     [v:str (hash 'string (syntax-e #'v))]
     ;; special case when under quote to avoid the "interesting"
@@ -98,6 +98,9 @@
     [(quote e) (hash 'quote
                      (parameterize ([quoted? #t])
                        (to-json #'e)))]
+    [(quote-syntax e) (hash 'quote-syntax
+                            (parameterize ([quoted? #t])
+                              (to-json #'e)))]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
