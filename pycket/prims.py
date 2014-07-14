@@ -339,6 +339,10 @@ for name in ["prop:evt",
     val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 
+@expose("system-library-subpath", [default(values.W_Object, values.w_false)])
+def sys_lib_subpath(mode):
+    return values.W_Path("x86_64-linux") # FIXME
+
 # FIXME: this implementation sucks
 @expose("string-append")
 def string_append(args):
@@ -1185,10 +1189,11 @@ def hash_set_bang(ht, k, v):
 
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_set_bang(ht, k, default, env, cont):
+    from pycket.interpreter import return_value
     val = ht.ref(k)
     if val:
         return return_value(val, env, cont)
-    elif isinstance(default, W_Procedure):
+    elif isinstance(default, values.W_Procedure):
         return val.call([], env, cont)
     elif default:
         return return_value(default, env, cont)

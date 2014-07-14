@@ -320,6 +320,14 @@ class W_Character(W_Object):
         return self.value == other.value
     eqv = equal
 
+class W_Path(W_Object):
+    _immutable_fields_ = ["path"]
+    errorname = "path"
+    def __init__(self, p):
+        self.path = p
+    def tostring(self):
+        return "#<path:%s>"%self.path
+
 class W_Void(W_Object):
     def __init__(self): pass
     def tostring(self):
@@ -394,9 +402,7 @@ class W_HashTable(W_Object):
             self.data[k] = vals[i]
 
     def tostring(self):
-        k, v = self.keys, self.vals
-        idx = range(len(k))
-        lst = [W_Cons.make(k[i], v[i]).tostring() for i in idx]
+        lst = [W_Cons.make(k, v).tostring() for (k,v) in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
     def set(self, k, v):
