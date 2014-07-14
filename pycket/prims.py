@@ -388,6 +388,15 @@ def string_equal(s1, s2):
             return values.w_false
     return values.w_true
 
+@expose("string<?", [values.W_String, values.W_String])
+def string_lt(s1, s2):
+    v1 = s1.value
+    v2 = s2.value
+    for i in range(len(v1)):
+        if v1[i] < v2[i]:
+            return values.w_false
+    return values.w_true
+
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def do(args): pass
@@ -398,6 +407,18 @@ for args in [
         ("string-ci<=?", [values.W_String, values.W_String])
 ]:
     define_nyi(*args)
+
+
+
+@expose("string<=?", [values.W_String, values.W_String])
+def string_le(s1, s2):
+    v1 = s1.value
+    v2 = s2.value
+    for i in range(len(v1)):
+        if v1[i] <= v2[i]:
+            return values.w_false
+    return values.w_true
+    
 
 @expose("string->list", [values.W_String])
 def string_to_list(s):
@@ -1126,13 +1147,14 @@ def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
 # Unsafe pair ops
-@expose("unsafe-car", [unsafe(values.W_Cons)])
+@expose("unsafe-car", [values.W_Cons])
 def unsafe_car(p):
-    return p.car
+    return p.car()
 
-@expose("unsafe-cdr", [unsafe(values.W_Cons)])
+@expose("unsafe-cdr", [values.W_Cons])
 def unsafe_cdr(p):
-    return p.cdr
+    return p.cdr()
+
 
 
 @expose("symbol->string", [values.W_Symbol])
