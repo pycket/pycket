@@ -1110,6 +1110,15 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
+# Unsafe pair ops
+@expose("unsafe-car", [unsafe(values.W_Cons)])
+def unsafe_car(p):
+    return p.car
+
+@expose("unsafe-cdr", [unsafe(values.W_Cons)])
+def unsafe_cdr(p):
+    return p.cdr
+
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
