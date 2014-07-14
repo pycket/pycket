@@ -446,6 +446,7 @@ class W_BytePRegexp(W_AnyRegexp): pass
 
 class W_Bytes(W_Object):
     errorname = "bytes"
+    _immutable_fields_ = ["val"]
     def __init__(self, val):
         self.value = val
     def tostring(self):
@@ -704,3 +705,22 @@ class W_PromotableClosure(W_Procedure):
 
     def get_arity(self):
         return self.closure.get_arity()
+
+class W_Parameter(W_Procedure):
+    errorname = "parameter"
+    _immutable_fields_ = ["guard"]
+    def __init__(self, val, guard):
+        self.val = val
+        self.guard = guard
+    def tostring(self):
+        return "#<parameter>"
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_value
+        if len(args) == 0:
+            return return_value(self.val, env, cont)
+        elif len(args) == 1:
+            self.val = args[0]
+            return return_value(w_void, env, cont)
+        else:
+            raise SchemeException("wrong number of arguments to parameter")

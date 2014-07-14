@@ -374,6 +374,9 @@ def cur_print_proc(args):
 def current_print():
     return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
+@expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
+def make_parameter(init, guard):
+    return values.W_Parameter(init, guard)
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
