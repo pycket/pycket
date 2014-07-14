@@ -16,10 +16,13 @@
     (namespace-syntax-introduce stx)
     (expand stx)))
 
+(define current-module (make-parameter #f))
+
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))
-  (and v
-       (resolved-module-path-name (module-path-index-resolve i))))
+  (if v
+      (resolved-module-path-name (module-path-index-resolve i))
+      (current-module)))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -132,7 +135,9 @@
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
-                                 (and src (symbol->string src)))
+                                 (if src
+                                     (symbol->string src)
+                                     (error 'expand_racket "unexpected identifier info: ~a" (identifier-binding #'i))))
               'source-name (symbol->string src-id))]
        [(list (app index->path src) src-id _ _ src-phase import-phase nominal-export-phase)
         (hash 'module (symbol->string (syntax-e v))
@@ -222,6 +227,7 @@
   ;; directory so the expand function works properly
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
+    (current-module (object-name input))
     (current-directory in-dir))
 
   (read-accept-reader #t)
