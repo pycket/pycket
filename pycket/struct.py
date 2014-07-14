@@ -1,3 +1,4 @@
+from pycket.cont import continuation, call_cont
 from pycket.error import SchemeException
 from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol
 from rpython.rlib import jit
@@ -8,16 +9,14 @@ from rpython.rlib import jit
 # Not implemented:
 # 1) prefab -- '#s(sprout bean): need update in expand.rkt
 # 2) methods overriding (including equal) -- generic-interfaces.rkt
-# 3) guard
-# 4) properties and super as an argument -- kw.rkt
-#
+# 3) properties and super as an argument -- kw.rkt
 
 # TODO: inspector currently does nothing
 class W_StructInspector(W_Object):
     errorname = "struct-inspector"
     _immutable_fields_ = ["_super"]
 
-    @staticmethod 
+    @staticmethod
     def make(inspector, issibling = False):
         super = inspector
         if issibling:
@@ -36,7 +35,7 @@ class W_StructType(W_Object):
     errorname = "struct-type"
     _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", \
                           "_immutables", "_constr_name", "_guard"]
-    @staticmethod 
+    @staticmethod
     def make(name, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         struct_id = W_StructTypeDescriptor(name)
         W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, init_field_cnt, auto_field_cnt, \
@@ -52,7 +51,7 @@ class W_StructType(W_Object):
     
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, \
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-        self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else None
+        self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else w_false
         self._init_field_cnt = init_field_cnt.value
         self._auto_field_cnt = auto_field_cnt.value
         # Next arguments are optional
@@ -74,7 +73,7 @@ class W_StructType(W_Object):
 
         self._desc = struct_id
         self._constr = W_StructConstructor(self._desc, self._super, self._init_field_cnt, self._auto_field_cnt, \
-                                            self._auto_v, self._isopaque, self._constr_name, self._guard)
+                                            self._auto_v, self._isopaque, self._guard, self._constr_name)
         self._pred = W_StructPredicate(self._desc)
         self._acc = W_StructAccessor(self._desc)
         self._mut = W_StructMutator(self._desc)
@@ -118,37 +117,42 @@ class W_StructTypeDescriptor(W_Object):
         return "#<struct-type:%s>" % self._id
 
 class W_StructConstructor(W_SimplePrim):
-    _immutable_fields_ = ["_struct_id", "_super_type", "_init_field_cnt", "_auto_field_cnt", "_auto_v", \
-                          "_isopaque", "_name", "_guard"]
-    def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, name, guard):
+    _immutable_fields_ = ["_struct_id", "_super_type", "_init_field_cnt", "_auto_values", "_isopaque", "_guard", "_name"]
+    def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, guard, name):
         self._struct_id = struct_id
         self._super_type = super_type
         self._init_field_cnt = init_field_cnt
-        self._auto_field_cnt = auto_field_cnt
-        self._auto_v = auto_v
+        self._auto_values = [auto_v] * auto_field_cnt
         self._isopaque = isopaque
-        self._name = name
         self._guard = guard
-    def code(self, field_values):
+        self._name = name
+    def extcode(self, field_values, env, cont):
+        if self._guard != w_false:
+            cont = guard_check(self._guard, field_values, env, cont)
         super = None
-        if self._super_type is not None:
+        if self._super_type != w_false:
             def split_list(list, num):
                 assert num >= 0
                 return list[:num], list[num:]
             split_position = len(field_values) - self._init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
-            super = self._super_type.constr().code(super_field_values)
-        auto_values = [self._auto_v] * self._auto_field_cnt
-        return W_Struct(self._struct_id, super, self._isopaque, field_values + auto_values)
+            super, env, cont = self._super_type.constr().extcode(super_field_values, env, cont)
+        result = W_Struct(self._struct_id, super, self._isopaque, field_values + self._auto_values)
+        return result, env, cont
     def call(self, field_values, env, cont):
         from pycket.interpreter import return_value
-        result = field_values
-        if self._guard is not None:
-            pass
-            # TODO: call guard here
-        return return_value(self.code(result), env, cont)
+        args, env, cont = self.extcode(field_values, env, cont)
+        return return_value(args, env, cont)
     def tostring(self):
         return "#<procedure:%s>" % self._name
+
+@continuation
+def guard_check(proc, field_values, env, cont, _vals):
+    vals = _vals._get_full_list()
+    struct = vals[0]
+    assert isinstance(struct, W_Struct)
+    args = [struct._type] + field_values
+    return proc.call(args, env, cont)
 
 class W_StructPredicate(W_SimplePrim):
     errorname = "struct-predicate"

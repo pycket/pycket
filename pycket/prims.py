@@ -574,7 +574,10 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(struct):
-    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct._isopaque)
+    if (not isinstance(struct, values_struct.W_Struct)):
+        return values.w_false
+    else:
+        return values.W_Bool.make(not struct._isopaque)
 
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
@@ -590,6 +593,7 @@ def do_struct_type_info(struct_desc, env, cont):
     from pycket.interpreter import return_multi_vals
     name = struct_desc.id()
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    assert isinstance(struct_type, values_struct.W_StructType)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
     accessor = struct_type.acc()
