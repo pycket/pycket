@@ -12,7 +12,7 @@
 (require racket/cmdline)
 
 ;; FIXME: bug
-(require racket/private/reverse racket/private/for)
+(require racket/private/reverse racket/private/for racket/private/map racket/private/kw racket/private/list)
 
 (define width 5)
 (define height 10)
