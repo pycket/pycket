@@ -334,6 +334,7 @@ for name in ["prop:evt",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:arity-string",
+             "prop:custom-write",
              "prop:procedure"]:
     val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
@@ -725,10 +726,20 @@ def struct2vector(struct):
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
-@expose("make-struct-type-property", [values.W_Symbol, default(values.W_Object, values.w_false), default(values.W_List, values.w_null)], simple=False)
-def mk_stp(sym, guard, supers, env, cont):
+@expose("make-struct-type-property", [values.W_Symbol,
+                                      default(values.W_Object, values.w_false), 
+                                      default(values.W_List, values.w_null),
+                                      default(values.W_Object, values.w_false)],
+        simple=False)
+def mk_stp(sym, guard, supers, _can_imp, env, cont):
     from pycket.interpreter import return_multi_vals
-    prop = values_struct.W_StructProperty(sym, guard, supers)
+    can_imp = False
+    if guard is values.W_Symbol.make("can-impersonate"):
+        guard = values.w_false
+        can_imp = True
+    if not (_can_imp is values.w_false):
+        can_imp = True
+    prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
     return return_multi_vals(values.Values.make([prop, 
                                                  values_struct.W_StructPropertyPredicate(prop),
                                                  values_struct.W_StructPropertyAccessor(prop)]),

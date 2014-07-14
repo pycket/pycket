@@ -152,11 +152,12 @@ class W_StructConstructor(W_SimplePrim):
 
 class W_StructProperty(W_Object):
     errorname = "struct-type-property"
-    _immutable_fields_ = ["name", "guard", "supers"]
-    def __init__(self, name, guard, supers=w_null):
+    _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
+    def __init__(self, name, guard, supers=w_null, can_imp=False):
         self.name = name
         self.guard = guard
         self.supers = supers
+        self.can_imp = can_imp
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
