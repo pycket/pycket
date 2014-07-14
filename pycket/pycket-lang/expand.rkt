@@ -54,6 +54,21 @@
 
 (define quoted? (make-parameter #f))
 
+(define (num n)
+  (match n
+    [(or +inf.0 -inf.0 +nan.0)
+     (hash 'extended-real (number->string n))]
+    [(? exact-integer?)
+     (hash 'integer (~a n))]
+    [(and (? real?) (? rational?) (? exact?) (not (? integer?)))
+     (hash 'numerator (num (numerator n))
+           'denominator (num (denominator n)))]
+    [(? real?)
+     (hash 'real n)]
+    [(and (not (? real?)) (? complex?))
+       (hash 'real-part (num (real-part n))
+             'imag-part (num (imag-part n)))]))
+
 (define (to-json v)
   (define (proper l)
     (match l
@@ -123,13 +138,10 @@
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
        (hash 'box (to-json (unbox (syntax-e v))))]
-    [_ #:when (exact-integer? (syntax-e v))
-       (hash 'integer (~a (syntax-e v)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
-    [(~or (~datum +inf.0) (~datum -inf.0) (~datum +nan.0))
-     (hash 'real (number->string (syntax-e v)))]
-    [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
+    [_ #:when (number? (syntax-e v))
+       (hash 'number (num (syntax-e v)))]
     [_ #:when (char? (syntax-e v))
        (hash 'char (~a (char->integer (syntax-e v))))]
     [_ #:when (regexp? (syntax-e v))

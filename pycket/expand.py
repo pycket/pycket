@@ -407,6 +407,37 @@ def _to_ast(json):
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
     assert 0, "Unexpected json object: %s" % json.tostring()
 
+def _to_num(json):
+    assert json.is_object
+    obj = json.value_object()
+    if "real" in obj:
+        r = obj["real"]
+        return values.W_Flonum(float(r.value_float()))
+    if "real-part" in obj:
+        r = obj["real-part"]
+        i = obj["imag-part"]
+        return values.W_Complex(_to_num(r), _to_num(i))
+    if "numerator" in obj:
+        n = obj["numerator"]
+        d = obj["denominator"]
+        return values.W_Rational(_to_num(n), _to_num(d))
+    if "extended-real" in obj:
+        rs = obj["extended-real"].value_string()
+        if rs == "+inf.0":
+            return values.W_Flonum(float("inf"))
+        if rs == "-inf.0":
+            return values.W_Flonum(-float("inf"))
+        if rs == "+nan.0":
+            return values.W_Flonum(float("nan"))
+    if "integer" in obj:
+        rs = obj["integer"].value_string()
+        val = rbigint.fromdecimalstr(rs)
+        try:
+            return values.W_Fixnum(int(val.toint()))
+        except OverflowError:
+            return values.W_Bignum(val)
+    assert False
+
 def to_value(json):
     dbgprint("to_value", json)
     if json is pycket_json.json_false:
@@ -420,25 +451,8 @@ def to_value(json):
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
         if "box" in obj:
             return values.W_IBox(to_value(obj["box"]))
-        if "integer" in obj:
-            val = rbigint.fromdecimalstr(obj["integer"].value_string())
-            try:
-                return values.W_Fixnum(int(val.toint()))
-            except OverflowError:
-                return values.W_Bignum(val)
-        if "real" in obj:
-            r = obj["real"]
-            if r.is_float:
-                return values.W_Flonum(float(r.value_float()))
-            if r.is_string:
-                rs = r.value_string()
-                if rs == "+inf.0":
-                    return values.W_Flonum(float("inf"))
-                if rs == "-inf.0":
-                    return values.W_Flonum(-float("inf"))
-                if rs == "+nan.0":
-                    return values.W_Flonum(float("nan"))
-            assert False
+        if "number" in obj:
+            return _to_num(obj["number"])
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
