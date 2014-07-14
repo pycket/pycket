@@ -1160,6 +1160,14 @@ def cms_list(cms, mark, missing):
     else:
         return missing
 
+@expose("make-continuation-prompt-tag", [])
+def mcpt():
+    return values.W_ContinuationPromptTag()
+
+@expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
+def gensym(init):
+    from pycket.interpreter import Gensym
+    return Gensym.gensym(init.value)
 
 # Loading
 

@@ -83,6 +83,13 @@ class W_Syntax(W_Object):
     def tostring(self):
         return "#'%s"%self.val.tostring()
 
+class W_ContinuationPromptTag(W_Object):
+    errorname = "continuation-prompt-tag"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<continuation-prompt-tag>"
+
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
     _immutable_fields_ = ["cont"]

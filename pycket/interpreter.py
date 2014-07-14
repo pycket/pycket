@@ -504,7 +504,7 @@ class App(AST):
         new_rands = []
 
         if not rator.simple:
-            fresh_rator = LexicalVar.gensym("AppRator_")
+            fresh_rator = Gensym.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
             fresh_rhss.append(rator)
             fresh_vars.append(fresh_rator)
@@ -514,7 +514,7 @@ class App(AST):
             if rand.simple:
                 new_rands.append(rand)
             else:
-                fresh_rand = LexicalVar.gensym("AppRand%s_"%i)
+                fresh_rand = Gensym.gensym("AppRand%s_"%i)
                 fresh_rand_var = LexicalVar(fresh_rand)
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
@@ -665,18 +665,17 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
 
-# Using this in rpython to have a mutable global variable
-class Counter(object):
-    value = 0
+class Gensym(object):
+    _counter = 0
+
+    @staticmethod
+    def gensym(hint="g"):
+        Gensym._counter += 1
+        # not using `make` so that it's really gensym
+        return values.W_Symbol(hint + str(Gensym._counter))
 
 
 class LexicalVar(Var):
-    _counter = Counter()
-    @staticmethod
-    def gensym(hint=""):
-        LexicalVar._counter.value += 1
-        # not using `make` so that it's really gensym
-        return values.W_Symbol(hint + "fresh_" + str(LexicalVar._counter.value))
     def _lookup(self, env):
         return env.lookup(self.sym, self.env_structure)
     def _set(self, w_val, env):
@@ -816,7 +815,7 @@ class If(AST):
         if tst.simple:
             return If(tst, thn, els)
         else:
-            fresh = LexicalVar.gensym("if_")
+            fresh = Gensym.gensym("if_")
             return Let(SymList([fresh]),
                        [1],
                        [tst],
