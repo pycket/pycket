@@ -449,6 +449,11 @@ def string_lt(s1, s2):
             return values.w_false
     return values.w_true
 
+@expose("char->integer", [values.W_Character])
+def char2int(c):
+    return values.W_Fixnum(ord(c.value))
+
+
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def do(args): pass
