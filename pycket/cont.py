@@ -1,11 +1,42 @@
 
 from rpython.rlib import unroll
 
+def get_mark_first(cont, key):
+    p = cont
+    while p:
+        if key in p.marks:
+            return p.marks[key]
+        elif p.prev:
+            p = p.prev
+        else:
+            return None
+
+def get_marks(cont, key):
+    from pycket import values
+    if not(cont):
+        return values.w_null
+    # FIXME: don't use recursion
+    if key in cont.marks:
+        return values.W_Cons(cont.marks[key], get_marks(cont.prev, key))
+    else:
+        return get_marks(cont.prev, key)
+    
+        
+
 class Cont(object):
-    _immutable_fields_ = ['env', 'prev']
+    _immutable_fields_ = ['env', 'prev', 'marks']
     def __init__(self, env, prev):
         self.env = env
         self.prev = prev
+        # FIXME
+        # Note: Racket uses a list for this for speed in 
+        # cases where there are few marks (which is basically always).
+        self.marks = {}
+        # Racket also keeps a separate stack for continuation marks
+        # so that they can be saved without saving the whole continuation.
+
+    def update_cm(self, key, val):
+        self.marks[key] = val
 
     def tostring(self):
         "NOT_RPYTHON"
