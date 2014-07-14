@@ -182,7 +182,7 @@ class W_ImpVector(values.W_MVector):
         return self.vec.length()
 
     def equal(self, other):
-        if not isinstance(other, W_MVector):
+        if not isinstance(other, values.W_MVector):
             return False
         if self is other:
             return True
@@ -213,7 +213,7 @@ class W_ChpVector(values.W_MVector):
         return self.vec.immutable()
 
     def equal(self, other):
-        if not isinstance(other, W_MVector):
+        if not isinstance(other, values.W_MVector):
             return False
         if self is other:
             return True
