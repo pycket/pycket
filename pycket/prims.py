@@ -1160,6 +1160,9 @@ def cms_list(cms, mark, missing):
     else:
         return missing
 
+@expose("make-continuation-prompt-tag", [])
+def mcpt():
+    return values.W_ContinuationPromptTag()
 
 # Loading
 
