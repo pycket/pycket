@@ -377,8 +377,8 @@ class Require(AST):
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
         top = env.toplevel_env
-        mod = self.module.interpret_mod(top)
         top.module_env.add_module(self.modname, self.module)
+        mod = self.module.interpret_mod(top)
         return values.w_void
 
 def return_value(w_val, env, cont):
