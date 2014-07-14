@@ -31,6 +31,7 @@ class W_Object(object):
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
     def tostring(self):
         return str(self)
     def call(self, args, env, cont):
@@ -297,6 +298,7 @@ w_null = W_Null()
 
 class W_Bool(W_Object):
     _immutable_fields_ = ["value"]
+    errorname = "boolean"
     @staticmethod
     def make(b):
         if b: return w_true
@@ -314,16 +316,39 @@ class W_Bool(W_Object):
 w_false = W_Bool(False)
 w_true = W_Bool(True)
 
+class W_ThreadCellValues(W_Object):
+    _immutable_fields_ = ["assoc"]
+    errorname = "thread-cell-values"
+    def __init__(self):
+        self.assoc = {}
+        for c in W_ThreadCell._table:
+            if c.preserved:
+                self.assoc[c] = c.value
+
+class W_ThreadCell(W_Object):
+    _immutable_fields_ = ["initial", "preserved"]
+    errorname = "thread-cell"
+    # All the thread cells in the system
+    _table = []
+
+    def __init__(self, val, preserved):
+        # TODO: This should eventually be a mapping from thread ids to values
+        self.value = val
+        self.initial = val
+        self.preserved = preserved
+
+        W_ThreadCell._table.append(self)
+
 class W_HashTable(W_Object):
     def __init__(self, keys, vals):
         assert len(keys) == len(vals)
         self.keys = keys
         self.vals = vals
+
     def tostring(self):
-        #lst = [W_Cons.make(k, v).tostring() for k, v in zip(self.keys, self.vals)]
-        lst = []
-        for i in range(len(self.keys)):
-            lst.append(W_Cons.make(self.keys[i], self.vals[i]).tostring())
+        k, v = self.keys, self.vals
+        idx = range(len(k))
+        lst = [W_Cons.make(k[i], v[i]).tostring() for i in idx]
         return "#hash(%s)" % " ".join(lst)
 
 class W_AnyRegexp(W_Object):

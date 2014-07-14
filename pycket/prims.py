@@ -189,7 +189,9 @@ for args in [
         ("byte-regexp?", values.W_ByteRegexp),
         ("byte-pregexp?", values.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
-        ("syntax?", values.W_Syntax)
+        ("syntax?", values.W_Syntax),
+        ("thread-cell?", values.W_ThreadCell),
+        ("thread-cell-values?", values.W_ThreadCellValues)
         ]:
     make_pred(*args)
 
@@ -1114,6 +1116,31 @@ def immutable(v):
 @expose("eval-jit-enabled", [])
 def jit_enabled():
     return values.w_true
+
+@expose("make-thread-cell", [values.W_Object, default(values.W_Bool, values.w_false)])
+def make_thread_cell(v, pres):
+    return values.W_ThreadCell(v, pres)
+
+@expose("thread-cell-ref", [values.W_ThreadCell])
+def thread_cell_ref(cell):
+    return cell.value
+
+@expose("thread-cell-set!", [values.W_ThreadCell, values.W_Object])
+def thread_cell_set(cell, v):
+    cell.value = v
+    return values.w_void
+
+@expose("current-preserved-thread-cell-values", [default(values.W_ThreadCellValues, None)])
+def current_preserved_thread_cell_values(v):
+    # Generate a new thread-cell-values object
+    if v is None:
+        return values.W_ThreadCellValues()
+
+    # Otherwise, we restore the values
+    for cell, val in v.assoc.items():
+        assert cell.preserved
+        cell.value = val
+    return values.w_void
 
 # Loading
 
