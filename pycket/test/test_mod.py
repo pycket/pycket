@@ -50,7 +50,7 @@ def test_use_before_definition():
         (define x 1)
     """)
 
-    if 1:
+    with pytest.raises(SchemeException):
         m = run_mod("""
         #lang pycket
         x
