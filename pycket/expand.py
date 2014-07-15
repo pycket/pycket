@@ -7,6 +7,8 @@ import sys
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize
+from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+from rpython.rlib.rarithmetic import string_to_int
 import pycket.json as pycket_json
 from pycket.interpreter import *
 from pycket import values
@@ -416,6 +418,10 @@ def _to_ast(json):
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
     assert 0, "Unexpected json object: %s" % json.tostring()
 
+INF = values.W_Flonum(float("inf"))
+NEGINF = values.W_Flonum(-float("inf"))
+NAN = values.W_Flonum(float("nan"))
+
 def _to_num(json):
     assert json.is_object
     obj = json.value_object()
@@ -433,17 +439,17 @@ def _to_num(json):
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
-            return values.W_Flonum(float("inf"))
+            return INF
         if rs == "-inf.0":
-            return values.W_Flonum(-float("inf"))
+            return NEGINF
         if rs == "+nan.0":
-            return values.W_Flonum(float("nan"))
+            return NAN
     if "integer" in obj:
         rs = obj["integer"].value_string()
-        val = rbigint.fromdecimalstr(rs)
         try:
-            return values.W_Fixnum(int(val.toint()))
-        except OverflowError:
+            return values.W_Fixnum(string_to_int(rs))
+        except ParseStringOverflowError:
+            val = rbigint.fromdecimalstr(rs)
             return values.W_Bignum(val)
     assert False
 
