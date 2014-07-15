@@ -309,7 +309,7 @@ class AST(object):
     def mutated_vars(self):
         raise NotImplementedError("abstract base class")
     def tostring(self):
-        raise NotImplementedError("abstract base class")
+        return "UNKNOWN AST: "
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
@@ -394,6 +394,8 @@ class Require(AST):
         top.module_env.add_module(self.modname, self.module)
         mod = self.module.interpret_mod(top)
         return values.w_void
+    def tostring(self):
+        return "(require %s)"%self.modname
 
 class Trampoline(AST):
     _immutable_fields_ = ["values"]
@@ -401,6 +403,8 @@ class Trampoline(AST):
         self.values = vals
     def interpret(self, env, cont):
         return cont.plug_reduce(self.values)
+    def tostring(self):
+        return "TRAMPOLINE"
 
 def jump(env, cont):
     return return_multi_vals(values.empty_vals, env, cont)
@@ -493,6 +497,11 @@ class WithContinuationMark(AST):
         self.key = key
         self.value = value
         self.body = body
+
+    def tostring(self):
+        return "(with-continuation-mark %s %s %s)"%(self.key.tostring(),
+                                                    self.value.tostring(),
+                                                    self.body.tostring())
 
     def assign_convert(self, vars, env_structure):
         return WithContinuationMark(self.key.assign_convert(vars, env_structure),
