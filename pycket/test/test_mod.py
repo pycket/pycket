@@ -25,4 +25,20 @@ def test_constant_mod_val():
 # look ma, no modules!
 def test_constant():
     run_fix("1", v=1)
-    
+
+def test_set_modvar():
+    m = run_mod("""
+#lang pycket
+
+(define sum 0)
+
+(define (tail-rec-aux i n)
+  (if (< i n)
+      (begin (set! sum (+ sum 1)) (tail-rec-aux (+ i 1) n))
+      sum))
+
+(tail-rec-aux 0 100)
+""")
+    ov = m.defs[W_Symbol.make("sum")].get_val()
+    assert ov.value == 100
+
