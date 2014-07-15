@@ -10,7 +10,7 @@ def test_empty_mod():
     run_mod_defs("")
 
 def test_racket_mod():
-    m = run_mod("#lang racket\n (define x 1)")
+    m = run_mod("#lang racket/base\n (define x 1)")
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
