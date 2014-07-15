@@ -776,23 +776,13 @@ class ModCellRef(Var):
     def tostring(self):
         return "ModCellRef(%s)"%variable_name(self.sym)
     def _set(self, w_val, env):
-        # must be local because it's mutated
-        v = env.toplevel_env.module_env.current_module.defs[self.sym]
-        assert isinstance(v, values.W_Cell)
-        v.set_val(w_val)
+        w_res = self.modvar._lookup(env)
+        assert isinstance(w_res, values.W_Cell)
+        w_res.set_val(w_val)
     def _lookup(self, env):
-        modenv = env.toplevel_env.module_env
-        curmod = modenv.current_module
-        # if we're in the current module, we might have a use-before-def
-        if curmod is modenv.modules[self.srcmod]:
-            v = curmod.defs[self.sym]
-            if v is None:
-                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
-            assert isinstance(v, values.W_Cell)
-            return v.get_val()
-        v = modenv.lookup(self.modvar)
-        assert isinstance(v, values.W_Cell)
-        return v.get_val()
+        w_res = self.modvar._lookup(env)
+        assert isinstance(w_res, values.W_Cell)
+        return w_res.get_val()
     def to_modvar(self):
         # we use None here for hashing because we don't have the module name in the
         # define-values when we need to look this up.
