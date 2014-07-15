@@ -113,6 +113,7 @@ def expand_file_to_json(rkt_file, json_file):
         pass
     except OSError:
         pass
+    print "Expanding %s"%rkt_file
     cmd = "racket %s --output %s %s 2>&1" % (
         fn,
         json_file, rkt_file)
@@ -256,8 +257,13 @@ def mksym(json):
 def _to_module(json):
     v = json.value_object()
     if "body-forms" in v:
+        config = {}
+        if "config" in v:
+            for (k, _v) in v["config"].value_object().iteritems():
+                config[k] = _v.value_string()
         return Module(v["module-name"].value_string(), 
-                      [_to_ast(x) for x in v["body-forms"].value_array()])
+                      [_to_ast(x) for x in v["body-forms"].value_array()],
+                      config)
     else:
         assert 0
 
@@ -266,21 +272,22 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {"#%kernel" : None, "#%unsafe" : None}
+    table = {}
 
     @staticmethod
     def add_module(fname):
+        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
         ModTable.table[fname] = None
 
     @staticmethod
     def has_module(fname):
-        return fname in ModTable.table
+        return fname.startswith("#%") or fname in ModTable.table
 
 def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
-    module = expand_to_ast(fname) # _expand_and_load(fname)
+    module = expand_to_ast(fname)
     return Require(fname, module)
 
 def _expand_and_load(fname):
@@ -322,12 +329,8 @@ def _to_ast(json):
             if ast_elem == "define-values":
                 fmls = [mksym(x) for x in arr[1].value_array()]
                 return DefineValues(fmls, _to_ast(arr[2]))
-            if ast_elem == "quote-syntax":
-                return QuoteSyntax(to_value(arr[1]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
-            if ast_elem == "with-continuation-mark":
-                raise Exception("with-continuation-mark is unsupported")
             if ast_elem == "#%variable-reference":
                 if len(arr) == 1:
                     return VariableReference(None)
@@ -349,8 +352,10 @@ def _to_ast(json):
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
-            path = obj["require"].value_string()
-            return _to_require(path)
+            paths = obj["require"].value_array()
+            if not paths:
+                return Quote(values.w_void)
+            return Begin.make([_to_require(path.value_string()) for path in paths])
         if "begin0" in obj:
             fst = _to_ast(obj["begin0"])
             rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
@@ -358,6 +363,11 @@ def _to_ast(json):
                 return fst
             else:
                 return Begin0.make(fst, rst)
+
+        if "wcm-key" in obj:
+            return WithContinuationMark(_to_ast(obj["wcm-key"]),
+                                        _to_ast(obj["wcm-val"]),
+                                        _to_ast(obj["wcm-body"]))
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
@@ -388,6 +398,8 @@ def _to_ast(json):
             return If.make_let_converted(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"]))
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
+        if "quote-syntax" in obj:
+            return QuoteSyntax(to_value(obj["quote-syntax"]))
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
                              obj["source-module"].value_string() 
@@ -399,6 +411,37 @@ def _to_ast(json):
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
     assert 0, "Unexpected json object: %s" % json.tostring()
+
+def _to_num(json):
+    assert json.is_object
+    obj = json.value_object()
+    if "real" in obj:
+        r = obj["real"]
+        return values.W_Flonum(float(r.value_float()))
+    if "real-part" in obj:
+        r = obj["real-part"]
+        i = obj["imag-part"]
+        return values.W_Complex(_to_num(r), _to_num(i))
+    if "numerator" in obj:
+        n = obj["numerator"]
+        d = obj["denominator"]
+        return values.W_Rational(_to_num(n), _to_num(d))
+    if "extended-real" in obj:
+        rs = obj["extended-real"].value_string()
+        if rs == "+inf.0":
+            return values.W_Flonum(float("inf"))
+        if rs == "-inf.0":
+            return values.W_Flonum(-float("inf"))
+        if rs == "+nan.0":
+            return values.W_Flonum(float("nan"))
+    if "integer" in obj:
+        rs = obj["integer"].value_string()
+        val = rbigint.fromdecimalstr(rs)
+        try:
+            return values.W_Fixnum(int(val.toint()))
+        except OverflowError:
+            return values.W_Bignum(val)
+    assert False
 
 def to_value(json):
     dbgprint("to_value", json)
@@ -413,27 +456,22 @@ def to_value(json):
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
         if "box" in obj:
             return values.W_IBox(to_value(obj["box"]))
-        if "integer" in obj:
-            val = rbigint.fromdecimalstr(obj["integer"].value_string())
-            try:
-                return values.W_Fixnum(int(val.toint()))
-            except OverflowError:
-                return values.W_Bignum(val)
-        if "real" in obj:
-            r = obj["real"]
-            if r.is_float:
-                return values.W_Flonum(float(r.value_float()))
-            if r.is_string:
-                rs = r.value_string()
-                if rs == "+inf.0":
-                    return values.W_Flonum(float("inf"))
-                if rs == "-inf.0":
-                    return values.W_Flonum(-float("inf"))
-                if rs == "nan.0":
-                    return values.W_Flonum(float("nan"))
-            assert False
+        if "number" in obj:
+            return _to_num(obj["number"])
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
+        if "hash-keys" in obj and "hash-vals" in obj:
+            return values.W_HashTable(
+                    [to_value(i) for i in obj["hash-keys"].value_array()],
+                    [to_value(i) for i in obj["hash-vals"].value_array()])
+        if "regexp" in obj:
+            return values.W_Regexp(obj["regexp"].value_string())
+        if "byte-regexp" in obj:
+            return values.W_ByteRegexp(obj["byte-regexp"].value_string())
+        if "pregexp" in obj:
+            return values.W_PRegexp(obj["pregexp"].value_string())
+        if "byte-regexp" in obj:
+            return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "string" in obj:
             return values.W_String(str(obj["string"].value_string()))
         if "keyword" in obj:

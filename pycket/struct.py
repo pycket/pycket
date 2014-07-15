@@ -1,6 +1,6 @@
-from pycket.cont import continuation, call_cont
+from pycket.cont import continuation
 from pycket.error import SchemeException
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null
 from rpython.rlib import jit
 
 #
@@ -34,7 +34,7 @@ class W_StructType(W_Object):
     all_structs = {}
     errorname = "struct-type"
     _immutable_fields_ = ["_id", "_super", "_init_field_cnt", "_auto_field_cnt", "_auto_v", "_inspector", \
-                          "_immutables", "_constr_name", "_guard"]
+                          "_immutables", "_guard", "_constr_name"]
     @staticmethod
     def make(name, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         struct_id = W_StructTypeDescriptor(name)
@@ -139,10 +139,10 @@ class W_StructConstructor(W_SimplePrim):
             super, env, cont = self._super_type.constr().extcode(super_field_values, env, cont)
         result = W_Struct(self._struct_id, super, self._isopaque, field_values + self._auto_values)
         return result, env, cont
-    def call(self, field_values, env, cont):
+    def call(self, args, env, cont):
         from pycket.interpreter import return_value
-        args, env, cont = self.extcode(field_values, env, cont)
-        return return_value(args, env, cont)
+        result, env, cont = self.extcode(args, env, cont)
+        return return_value(result, env, cont)
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
@@ -153,6 +153,33 @@ def guard_check(proc, field_values, env, cont, _vals):
     assert isinstance(struct, W_Struct)
     args = [struct._type] + field_values
     return proc.call(args, env, cont)
+
+class W_StructProperty(W_Object):
+    errorname = "struct-type-property"
+    _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
+    def __init__(self, name, guard, supers=w_null, can_imp=False):
+        self.name = name
+        self.guard = guard
+        self.supers = supers
+        self.can_imp = can_imp
+    def tostring(self):
+        return "#<struct-type-property:%s>"%self.name
+
+class W_StructPropertyPredicate(W_SimplePrim):
+    errorname = "struct-property-predicate"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyPredicate NYI")
+
+class W_StructPropertyAccessor(W_SimplePrim):
+    errorname = "struct-property-accessor"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyAccessor NYI")
 
 class W_StructPredicate(W_SimplePrim):
     errorname = "struct-predicate"

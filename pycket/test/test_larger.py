@@ -45,5 +45,8 @@ def test_imp_predicates():
 def test_imp_procedures():
     run_file("imp-proc.rkt")
 
+def test_thread_cells():
+    run_file("test-thread-cell.rkt")
+
 #def test_minikanren():
 #    run_file("minikanren.sch")

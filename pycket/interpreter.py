@@ -8,6 +8,24 @@ from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
 
+class GlobalConfig(object):
+    config = {}
+    loaded = False
+
+    @staticmethod
+    def lookup(s):
+        if s in GlobalConfig.config:
+            return GlobalConfig.config[s]
+        else:
+            return None
+    @staticmethod
+    def load(ast):
+        if GlobalConfig.loaded: return
+        GlobalConfig.loaded = True
+        assert isinstance(ast, Module)
+        for (k, v) in ast.config.iteritems():
+            GlobalConfig.config[k] = v
+
 def variable_set():
     " new set-like structure for variables "
     def var_eq(a, b):
@@ -236,6 +254,29 @@ class Begin0FinishCont(Cont):
     def plug_reduce(self, vals):
         return return_multi_vals(self.vals, self.env, self.prev)
 
+class WCMKeyCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev"]
+    def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.ast = ast
+    def plug_reduce(self, vals):
+        key = check_one_val(vals)
+        return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
+
+class WCMValCont(Cont):
+    _immutable_fields_ = ["ast", "env", "prev", "key"]
+    def __init__(self, ast, key, env, prev):
+        Cont.__init__(self, env, prev)
+        self.ast = ast
+        self.key = key
+    def plug_reduce(self, vals):
+        val = check_one_val(vals)
+        # FIXME: can prev be null?
+        assert self.prev
+        self.prev.update_cm(self.key, val)
+        return self.ast.body, self.env, self.prev
+
+
 class Done(Exception):
     def __init__(self, vals):
         self.values = vals
@@ -277,10 +318,11 @@ class AST(object):
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
-    def __init__(self, name, body):
+    def __init__(self, name, body, config):
         self.name = name
         self.body = body
         self.env = None
+        self.config = config
         defs = {}
         for b in body:
             defs.update(b.defined_vars())
@@ -311,12 +353,13 @@ class Module(AST):
         for k, v in local_muts.iteritems():
             new_vars[k] = v
         new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
-        return Module(self.name, new_body)
+        return Module(self.name, new_body, self.config)
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
     def interpret_mod(self, env):
         self.env = env
+        old = env.module_env.current_module
         env.module_env.current_module = self
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
@@ -332,7 +375,7 @@ class Module(AST):
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
-        env.module_env.current_module = None
+        env.module_env.current_module = old
 
 class Require(AST):
     _immutable_fields_ = ["modname", "module"]
@@ -353,9 +396,12 @@ class Require(AST):
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
         top = env.toplevel_env
-        mod = self.module.interpret_mod(top)
         top.module_env.add_module(self.modname, self.module)
+        mod = self.module.interpret_mod(top)
         return values.w_void
+
+def jump(env, cont):
+    return return_multi_vals(values.empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
@@ -434,6 +480,31 @@ class VariableReference(AST):
     def tostring(self):
         return "#<#%variable-reference>"
 
+class WithContinuationMark(AST):
+    _immutable_fields_ = ["key", "value", "body"]
+
+    def __init__(self, key, value, body):
+        self.key = key
+        self.value = value
+        self.body = body
+
+    def assign_convert(self, vars, env_structure):
+        return WithContinuationMark(self.key.assign_convert(vars, env_structure),
+                                    self.value.assign_convert(vars, env_structure),
+                                    self.body.assign_convert(vars, env_structure))
+    def mutated_vars(self):
+        x = self.key.mutated_vars()
+        for r in [self.value, self.body]:
+            x.update(r.mutated_vars())
+        return x
+    def free_vars(self):
+        x = self.key.free_vars()
+        for r in [self.value, self.body]:
+            x.update(r.free_vars())
+        return x
+    def interpret(self, env, cont):
+        return self.key, env, WCMKeyCont(self, env, cont)
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
@@ -455,7 +526,7 @@ class App(AST):
         new_rands = []
 
         if not rator.simple:
-            fresh_rator = LexicalVar.gensym("AppRator_")
+            fresh_rator = Gensym.gensym("AppRator_")
             fresh_rator_var = LexicalVar(fresh_rator)
             fresh_rhss.append(rator)
             fresh_vars.append(fresh_rator)
@@ -465,7 +536,7 @@ class App(AST):
             if rand.simple:
                 new_rands.append(rand)
             else:
-                fresh_rand = LexicalVar.gensym("AppRand%s_"%i)
+                fresh_rand = Gensym.gensym("AppRand%s_"%i)
                 fresh_rand_var = LexicalVar(fresh_rand)
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
@@ -616,18 +687,21 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
 
-# Using this in rpython to have a mutable global variable
-class Counter(object):
-    value = 0
+class Gensym(object):
+
+    class Counter(object):
+        value = 0
+
+    _counter = Counter()
+
+    @staticmethod
+    def gensym(hint="g"):
+        Gensym._counter.value += 1
+        # not using `make` so that it's really gensym
+        return values.W_Symbol(hint + str(Gensym._counter.value))
 
 
 class LexicalVar(Var):
-    _counter = Counter()
-    @staticmethod
-    def gensym(hint=""):
-        LexicalVar._counter.value += 1
-        # not using `make` so that it's really gensym
-        return values.W_Symbol(hint + "fresh_" + str(LexicalVar._counter.value))
     def _lookup(self, env):
         return env.lookup(self.sym, self.env_structure)
     def _set(self, w_val, env):
@@ -767,7 +841,7 @@ class If(AST):
         if tst.simple:
             return If(tst, thn, els)
         else:
-            fresh = LexicalVar.gensym("if_")
+            fresh = Gensym.gensym("if_")
             return Let(SymList([fresh]),
                        [1],
                        [tst],
@@ -888,6 +962,14 @@ class Lambda(SequencedBodyAST):
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
+
+    # returns n for fixed arity, -(n+1) for arity-at-least n
+    # my kingdom for Either
+    def get_arity(self):
+        if self.rest:
+            return -(len(self.formals)+1)
+        else:
+            return len(self.formals)
 
     def interpret_simple(self, env):
         assert False # unreachable

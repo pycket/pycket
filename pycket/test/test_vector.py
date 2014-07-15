@@ -2,6 +2,7 @@ import pytest
 from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
+from pycket.impersonators import *
 from pycket.vector import *
 from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, execute

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 from pycket.expand import load_json_ast_rpython
-from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
+from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module, GlobalConfig
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
 from pycket.values import W_String
@@ -20,14 +20,16 @@ def entry_point(argv):
     if retval != 0 or config is None:
         return retval
     args_w = [W_String(arg) for arg in args]
-    json_ast = ensure_json_ast(config, names)
+    module_name, json_ast = ensure_json_ast(config, names)
     if json_ast is None:
         raise RuntimeError("can't generate json ast file %s "%(json_ast))
 
     ast = load_json_ast_rpython(json_ast)
     try:
+        GlobalConfig.load(ast)
         env = ToplevelEnv()
         env.commandline_arguments = args_w
+        env.module_env.add_module(module_name, ast)
         val = interpret_module(ast, env)
     except SchemeException, e:
         print "ERROR:", e.msg

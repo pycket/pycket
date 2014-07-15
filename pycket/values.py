@@ -6,6 +6,7 @@ from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit
+from rpython.rlib.objectmodel import r_dict, compute_hash
 
 UNROLLING_CUTOFF = 5
 
@@ -25,12 +26,15 @@ class Values(object):
 
 inline_small_list(Values, immutable=True, attrname="vals")
 
+empty_vals = Values.make([])
+
 class W_Object(object):
     __metaclass__ = extendabletype
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
     def tostring(self):
         return str(self)
     def call(self, args, env, cont):
@@ -75,11 +79,27 @@ class W_CellIntegerStrategy(W_Object):
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
+    _immutable_fields_ = ["o"]
     errorname = "syntax"
     def __init__(self, o):
         self.val = o
     def tostring(self):
         return "#'%s"%self.val.tostring()
+
+class W_ContinuationPromptTag(W_Object):
+    errorname = "continuation-prompt-tag"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<continuation-prompt-tag>"
+
+class W_ContinuationMarkSet(W_Object):
+    errorname = "continuation-mark-set"
+    _immutable_fields_ = ["cont"]
+    def __init__(self, cont):
+        self.cont = cont
+    def tostring(self):
+        return "#<continuation-mark-set>"
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
@@ -95,61 +115,6 @@ class W_MVector(W_Object):
 
     def length(self):
         raise NotImplementedError("abstract base class")
-
-class W_ImpVector(W_MVector):
-    errorname = "imp-vector"
-    _immutable_fields_ = ["vec", "refh", "seth"]
-    def __init__(self, v, r, s):
-        assert isinstance(v, W_MVector)
-        self.vec = v
-        self.refh = r
-        self.seth = s
-
-    def length(self):
-        return self.vec.length()
-
-    def equal(self, other):
-        if not isinstance(other, W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.vec is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            # FIXME: we need to call user code here
-            if not self.vec.ref(i).equal(other.ref(i)):
-               return False
-            #return False
-        return True
-
-class W_ChpVector(W_MVector):
-    errorname = "chp-procedure"
-    _immutable_fields_ = ["vec", "refh", "seth"]
-    def __init__(self, v, r, s):
-        assert isinstance(v, W_MVector)
-        self.vec  = v
-        self.refh = r
-        self.seth = s
-
-    def length(self):
-        return self.vec.length()
-
-    def immutable(self):
-        return self.vec.immutable()
-
-    def equal(self, other):
-        if not isinstance(other, W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            if not self.vec.ref(i).equal(other.ref(i)):
-                return False
-        return True
 
 class W_List(W_Object):
     errorname = "list"
@@ -226,29 +191,6 @@ class W_IBox(W_Box):
     def tostring(self):
         return "'#&%s" % self.value.tostring()
 
-class W_ChpBox(W_Box):
-    errorname = "chp-box"
-    _immutable_fields_ = ["box", "unbox", "set"]
-
-    def __init__(self, box, unbox, set):
-        assert isinstance(box, W_MBox)
-        self.box = box
-        self.unbox = unbox
-        self.set = set
-
-    def immutable(self):
-        return self.box.immutable()
-
-class W_ImpBox(W_Box):
-    errorname = "imp-box"
-    _immutable_fields_ = ["box", "unbox", "set"]
-
-    def __init__(self, box, unbox, set):
-        assert isinstance(box, W_Box)
-        self.box = box
-        self.unbox = unbox
-        self.set = set
-
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -305,6 +247,25 @@ class W_Number(W_Object):
     def eqv(self, other):
         return self.equal(other)
 
+class W_Complex(W_Number):
+    _immutable_fields_ = ["real", "imag"]
+    errorname = "complex"
+    def __init__(self, r, i):
+        self.real = r
+        self.imag = i
+    def tostring(self):
+        return "%s+%si"%(self.real.tostring(), self.imag.tostring())
+
+class W_Rational(W_Number):
+    _immutable_fields_ = ["num", "den"]
+    errorname = "rational"
+    def __init__(self, n, d):
+        assert isinstance(n, W_Integer)
+        assert isinstance(d, W_Integer)
+        self.num = n
+        self.den = d
+    def tostring(self):
+        return "%s/%s"%(self.num.tostring(), self.den.tostring())
 
 class W_Integer(W_Number):
     errorname = "integer"
@@ -361,6 +322,33 @@ class W_Character(W_Object):
         return self.value == other.value
     eqv = equal
 
+class W_Semaphore(W_Object):
+    errorname = "semaphore"
+    def __init__(self, n):
+        self.n = n
+    def tostring(self):
+        return "#<semaphore>"
+
+class W_Evt(W_Object):
+    errorname = "evt"
+
+class W_SemaphorePeekEvt(W_Evt):
+    errorname = "semaphore-peek-evt"
+    _immutable_fields_ = ["sema"]
+    def __init__(self, sema):
+        self.sema = sema
+    def tostring(self):
+        return "#<semaphore-peek-evt>"
+        
+
+class W_Path(W_Object):
+    _immutable_fields_ = ["path"]
+    errorname = "path"
+    def __init__(self, p):
+        self.path = p
+    def tostring(self):
+        return "#<path:%s>"%self.path
+
 class W_Void(W_Object):
     def __init__(self): pass
     def tostring(self):
@@ -375,6 +363,7 @@ w_null = W_Null()
 
 class W_Bool(W_Object):
     _immutable_fields_ = ["value"]
+    errorname = "boolean"
     @staticmethod
     def make(b):
         if b: return w_true
@@ -391,6 +380,86 @@ class W_Bool(W_Object):
 
 w_false = W_Bool(False)
 w_true = W_Bool(True)
+
+class W_ThreadCellValues(W_Object):
+    _immutable_fields_ = ["assoc"]
+    errorname = "thread-cell-values"
+    def __init__(self):
+        self.assoc = {}
+        for c in W_ThreadCell._table:
+            if c.preserved.value:
+                self.assoc[c] = c.value
+
+class W_ThreadCell(W_Object):
+    _immutable_fields_ = ["initial", "preserved"]
+    errorname = "thread-cell"
+    # All the thread cells in the system
+    _table = []
+
+    def __init__(self, val, preserved):
+        # TODO: This should eventually be a mapping from thread ids to values
+        self.value = val
+        self.initial = val
+        self.preserved = preserved
+
+        W_ThreadCell._table.append(self)
+
+
+def eq_hash(k):
+    if isinstance(k, W_Fixnum):
+        return compute_hash(k.value)
+    else:
+        return compute_hash(k)
+
+class W_HashTable(W_Object):
+    errorname = "hash"
+    def __init__(self, keys, vals, cmp=None, hash=eq_hash):
+        from pycket import prims
+        if not cmp:
+            cmp = prims.eqp_logic
+        assert len(keys) == len(vals)
+        self.data = r_dict(cmp, hash, force_non_null=True)
+        for (i, k) in enumerate(keys):
+            self.data[k] = vals[i]
+
+    def tostring(self):
+        lst = [W_Cons.make(k, v).tostring() for (k,v) in self.data.iteritems()]
+        return "#hash(%s)" % " ".join(lst)
+
+    def set(self, k, v):
+        self.data[k] = v
+
+    def ref(self, k):
+        if k in self.data:
+            return self.data[k]
+        else:
+            return None
+
+class W_AnyRegexp(W_Object):
+    _immutable_fields_ = ["str"]
+    errorname = "regexp"
+    def __init__(self, str):
+        self.str = str
+
+class W_Regexp(W_AnyRegexp): pass
+class W_PRegexp(W_AnyRegexp): pass
+class W_ByteRegexp(W_AnyRegexp): pass
+class W_BytePRegexp(W_AnyRegexp): pass
+
+class W_Bytes(W_Object):
+    errorname = "bytes"
+    _immutable_fields_ = ["val"]
+    def __init__(self, val):
+        self.value = val
+    def tostring(self):
+        return "#%s"%self.value
+    def equal(self, other):
+        if not isinstance(other, W_Bytes):
+            return False
+        return self.value == other.value
+    def immutable(self):
+        return True
+
 
 class W_String(W_Object):
     errorname = "string"
@@ -449,145 +518,32 @@ class W_Keyword(W_Object):
     def tostring(self):
         return "'#:%s"%self.value
 
+
+# FIXME: this should really be a struct
+class W_ArityAtLeast(W_Object):
+    _immutable_fields_ = ["val"]
+    errorname = "arity-at-least"
+    def __init__(self, n):
+        self.val = n
+
 class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
     def mark_non_loop(self): pass
-
-def is_chaperone(x):
-    return (isinstance(x, W_ChpVector) or
-            isinstance(x, W_ChpBox) or
-            isinstance(x, W_ChpProcedure))
-
-def is_impersonator(x):
-    return (isinstance(x, W_ImpVector) or
-            isinstance(x, W_ImpBox) or
-            isinstance(x, W_ImpProcedure) or
-            is_chaperone(x))
-
-def is_impersonator_of(a, b):
-    if a is b:
-        return True
-    if isinstance(a, W_ImpVector):
-        return is_impersonator_of(a.vec, b)
-    if isinstance(a, W_ImpProcedure):
-        return is_impersonator_of(a.code, b)
-    if isinstance(a, W_ImpBox):
-        return is_impersonator_of(a.box, b)
-    return is_chaperone_of(a, b)
-
-# Check that one value is a chaperone of the other
-def is_chaperone_of(a, b):
-    if a is b:
-        return True
-    if isinstance(a, W_ChpVector):
-        return is_chaperone_of(a.vec, b)
-    if isinstance(a, W_ChpProcedure):
-        return is_chaperone_of(a.code, b)
-    if isinstance(a, W_ChpBox):
-        return is_chaperone_of(a.box, b)
-    return False
-
-# Continuation used when calling an impersonator of a procedure.
-@continuation
-def imp_proc_cont(arg_count, proc, env, cont, _vals):
-    vals = _vals._get_full_list()
-    if len(vals) == arg_count:
-        return proc.call(vals, env, cont)
-    elif len(vals) == arg_count + 1:
-        args, check = vals[:-1], vals[-1]
-        return proc.call(args, env, call_cont(check, env, cont))
-    else:
-        assert False
-
-class W_ImpProcedure(W_Procedure):
-    errorname = "imp-procedure"
-    _immutable_fields_ = ["code", "check"]
-    def __init__(self, code, check):
-        assert isinstance(code, W_Procedure)
-        assert isinstance(check, W_Procedure)
-        self.code  = code
-        self.check = check
-
-    def call(self, args, env, cont):
-        jit.promote(self)
-        return self.check.call(
-                args, env, imp_proc_cont(len(args), self.code, env, cont))
-
-    def equal(self, other):
-        if not isinstance(other, W_Procedure):
-            return False
-        # We are the same procedure if we have the same identity or
-        # our underlying procedure is equal to our partner.
-        return self is other or other.equal(self.code)
-
-    def tostring(self):
-        return "ImpProcedure<%s>" % self.code.tostring()
-
-# Check that the results of che call to check are all chaperones of
-# the original function outputs.
-@continuation
-def chp_proc_ret_cont(orig, env, cont, _vals):
-    from pycket.interpreter import return_multi_vals
-    vals = _vals._get_full_list()
-    assert len(vals) == len(orig)
-    for i in range(len(vals)):
-        if not is_chaperone_of(vals[i], orig[i]):
-            raise SchemeException("Expecting original value or chaperone")
-    return return_multi_vals(_vals, env, cont)
-
-# Capture the original output of the function to compare agains the result of
-# the check operation
-@continuation
-def chp_proc_call_check_cont(check, env, cont, _vals):
-    vals = _vals._get_full_list()
-    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
-
-# Continuation used when calling a chaperone of a procedure.
-@continuation
-def chp_proc_cont(args, proc, env, cont, _vals):
-    vals = _vals._get_full_list()
-    assert len(vals) >= len(args)
-    for i in range(len(args)):
-        if not is_chaperone_of(vals[i], args[i]):
-            raise SchemeException("Expecting original value or chaperone")
-    if len(vals) == len(args):
-        return proc.call(vals, env, cont)
-    elif len(vals) == len(args) + 1:
-        args, check = vals[:-1], vals[-1]
-        return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
-    else:
-        assert False
-
-class W_ChpProcedure(W_Procedure):
-    errorname = "chp-procedure"
-    _immutable_fields_ = ["code", "check"]
-    def __init__(self, code, check):
-        assert isinstance(code, W_Procedure)
-        assert isinstance(check, W_Procedure)
-        self.code  = code
-        self.check = check
-
-    def call(self, args, env, cont):
-        jit.promote(self)
-        return self.check.call(
-                args, env, chp_proc_cont(args, self.code, env, cont))
-
-    def equal(self, other):
-        if not isinstance(other, W_Procedure):
-            return False
-
-        return self is other or other.equal(self.code)
-
-    def tostring(self):
-        return "ChpProcedure<%s>" % self.code.tostring()
+    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
+    def get_arity(self):
+        return ([],0)
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "proc"]
-    def __init__ (self, name, proc):
+    _immutable_fields_ = ["name", "proc", "arity"]
+    def __init__ (self, name, proc, arity=([],0)):
         self.name = name
         self.proc = proc
+        self.arity = arity
+
+    def get_arity(self):
+        return self.arity
 
     def code(self, args):
         return self.proc(args)
@@ -601,10 +557,14 @@ class W_SimplePrim(W_Procedure):
         return "SimplePrim<%s>" % self.name
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code"]
-    def __init__ (self, name, code):
+    _immutable_fields_ = ["name", "code", "arity"]
+    def __init__ (self, name, code, arity=([],0)):
         self.name = name
         self.code = code
+        self.arity = arity
+
+    def get_arity(self):
+        return self.arity
 
     def call(self, args, env, cont):
         jit.promote(self)
@@ -643,6 +603,9 @@ class W_Continuation(W_Procedure):
     _immutable_fields_ = ["cont"]
     def __init__ (self, cont):
         self.cont = cont
+    def get_arity(self):
+        # FIXME: see if Racket ever does better than this
+        return ([],0)
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
@@ -673,6 +636,21 @@ class W_Closure(W_Procedure):
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
         return W_Closure._make(envs, caselam, env)
+
+    def get_arity(self):
+        arities = []
+        rest = -1
+        for l in self.caselam.lams:
+            n = l.get_arity()
+            if n < 0:
+                r = (-n - 1)
+                if rest >= 0:
+                    rest = min(r, rest)
+                else:
+                    rest = r
+            else:
+                arities = arities + [n]
+        return (arities, rest)
 
     def mark_non_loop(self):
         for l in self.caselam.lams:
@@ -727,3 +705,24 @@ class W_PromotableClosure(W_Procedure):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 
+    def get_arity(self):
+        return self.closure.get_arity()
+
+class W_Parameter(W_Procedure):
+    errorname = "parameter"
+    _immutable_fields_ = ["guard"]
+    def __init__(self, val, guard):
+        self.val = val
+        self.guard = guard
+    def tostring(self):
+        return "#<parameter>"
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_value
+        if len(args) == 0:
+            return return_value(self.val, env, cont)
+        elif len(args) == 1:
+            self.val = args[0]
+            return return_value(w_void, env, cont)
+        else:
+            raise SchemeException("wrong number of arguments to parameter")
