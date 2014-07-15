@@ -599,7 +599,7 @@ def equalp(a, b, env, cont):
 def equal_car_cont(a, b, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value, jump
     eq = check_one_val(_vals)
-    if not eq.value:
+    if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     return jump(env, equal_cont(a, b, env, cont))
 
@@ -648,7 +648,7 @@ def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
 def equal_vec_done_cont(a, b, idx, env, cont, _vals):
     from pycket.interpreter import jump, check_one_val, return_value
     eq = check_one_val(_vals)
-    if not eq.value:
+    if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     inc = values.W_Fixnum(idx.value + 1)
     return jump(env, equal_vec_cont(a, b, inc, env, cont))
