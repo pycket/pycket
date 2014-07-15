@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 from pycket.expand import load_json_ast_rpython
-from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
+from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module, GlobalConfig
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
 from pycket.values import W_String
@@ -26,6 +26,7 @@ def entry_point(argv):
 
     ast = load_json_ast_rpython(json_ast)
     try:
+        GlobalConfig.load(ast)
         env = ToplevelEnv()
         env.commandline_arguments = args_w
         env.module_env.add_module(module_name, ast)

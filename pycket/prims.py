@@ -1425,6 +1425,19 @@ def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
 
+@expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
+def regexp_match(r, o):
+    return values.w_false # ha
+
+@expose("find-system-path", [values.W_Symbol])
+def find_sys_path(sym):
+    from pycket import interpreter
+    v = interpreter.GlobalConfig.lookup(sym.value)
+    if v:
+        return values.W_Path(v)
+    else:
+        raise SchemeException("unknown system path %s"%sym.value)
+
 # Loading
 
 # FIXME: Proper semantics.

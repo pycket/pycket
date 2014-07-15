@@ -57,6 +57,15 @@
 
 (define quoted? (make-parameter #f))
 
+(define global-config
+  (let ()
+    (define sysconfig
+      (for/hash ([k '(collects-dir temp-dir init-dir pref-dir home-dir
+                                   pref-file init-file config-dir addon-dir
+                                   exec-file run-file sys-dir doc-dir orig-dir)])
+        (values k (path->string (find-system-path k)))))
+    sysconfig))
+    
 (define (num n)
   (match n
     [(or +inf.0 -inf.0 +nan.0)
@@ -175,8 +184,8 @@
     [(module name:id lang:expr (#%plain-module-begin forms ...))
      (let ([lang-req (hash 'require (require-json #'lang))])
        (hash 'module-name (symbol->string (syntax-e #'name))
-             'body-forms
-             (filter-map to-json (syntax->list #'(forms ...)))))]
+             'body-forms (filter-map to-json (syntax->list #'(forms ...)))
+             'config global-config))]
     [_ (error 'convert)]))
 
 

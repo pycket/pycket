@@ -8,6 +8,24 @@ from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
 
+class GlobalConfig(object):
+    config = {}
+    loaded = False
+
+    @staticmethod
+    def lookup(s):
+        if s in GlobalConfig.config:
+            return GlobalConfig.config[s]
+        else:
+            return None
+    @staticmethod
+    def load(ast):
+        if GlobalConfig.loaded: return
+        GlobalConfig.loaded = True
+        assert isinstance(ast, Module)
+        for (k, v) in ast.config.iteritems():
+            GlobalConfig.config[k] = v
+
 def variable_set():
     " new set-like structure for variables "
     def var_eq(a, b):
@@ -300,10 +318,11 @@ class AST(object):
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
-    def __init__(self, name, body):
+    def __init__(self, name, body, config):
         self.name = name
         self.body = body
         self.env = None
+        self.config = config
         defs = {}
         for b in body:
             defs.update(b.defined_vars())
@@ -334,7 +353,7 @@ class Module(AST):
         for k, v in local_muts.iteritems():
             new_vars[k] = v
         new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
-        return Module(self.name, new_body)
+        return Module(self.name, new_body, self.config)
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
