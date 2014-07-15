@@ -42,3 +42,18 @@ def test_set_modvar():
     ov = m.defs[W_Symbol.make("sum")].get_val()
     assert ov.value == 100
 
+def test_use_before_definition():
+    with pytest.raises(SchemeException):
+        m = run_mod("""
+        #lang pycket
+        x
+        (define x 1)
+    """)
+
+    if 1:
+        m = run_mod("""
+        #lang pycket
+        x
+        (define x 1)
+        (set! x 2)
+    """)
