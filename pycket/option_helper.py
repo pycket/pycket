@@ -166,6 +166,6 @@ def ensure_json_ast(config, names):
             json_file = ensure_json_ast_run(file_name)
     else:
         return None
-    return json_file
+    return os.path.abspath(file_name), json_file
 
 # EOF

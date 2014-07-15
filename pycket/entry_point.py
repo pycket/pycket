@@ -20,7 +20,7 @@ def entry_point(argv):
     if retval != 0 or config is None:
         return retval
     args_w = [W_String(arg) for arg in args]
-    json_ast = ensure_json_ast(config, names)
+    module_name, json_ast = ensure_json_ast(config, names)
     if json_ast is None:
         raise RuntimeError("can't generate json ast file %s "%(json_ast))
 
@@ -28,6 +28,7 @@ def entry_point(argv):
     try:
         env = ToplevelEnv()
         env.commandline_arguments = args_w
+        env.module_env.add_module(module_name, ast)
         val = interpret_module(ast, env)
     except SchemeException, e:
         print "ERROR:", e.msg
