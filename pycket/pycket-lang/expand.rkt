@@ -128,6 +128,9 @@
     [(quote-syntax e) (hash 'quote-syntax
                             (parameterize ([quoted? #t])
                               (to-json #'e)))]
+    [((~literal define-values) (i ...) b)
+     (hash 'define-values (map (compose symbol->string syntax-e) (syntax->list #'(i ...)))
+           'define-values-body (to-json #'b))]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]

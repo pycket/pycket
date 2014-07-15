@@ -326,9 +326,6 @@ def _to_ast(json):
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
-            if ast_elem == "define-values":
-                fmls = [mksym(x) for x in arr[1].value_array()]
-                return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
             if ast_elem == "#%variable-reference":
@@ -368,6 +365,9 @@ def _to_ast(json):
             return WithContinuationMark(_to_ast(obj["wcm-key"]),
                                         _to_ast(obj["wcm-val"]),
                                         _to_ast(obj["wcm-body"]))
+        if "define-values" in obj:
+                fmls = [values.W_Symbol.make(x.value_string()) for x in obj["define-values"].value_array()]
+                return DefineValues(fmls, _to_ast(obj["define-values-body"]))
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
