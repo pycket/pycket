@@ -589,7 +589,7 @@ def printf(args):
 def eqvp(a, b):
     return values.W_Bool.make(a.eqv(b))
 
-#@expose("equal?", [values.W_Object] * 2, simple=False)
+@expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     from pycket.interpreter import jump
     # FIXME: broken for chaperones, cycles, excessive recursion, etc
@@ -657,8 +657,6 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 # as direct recursive calls to equal will blow out the stack.
 # This lets us 'return' before invoking equal on the next pair of
 # items.
-# XXX Functions like do_unbox will need to be changed to avoid stack allocation,
-# because they recursively call themselves.
 @continuation
 def equal_cont(a, b, env, cont, _vals):
     from pycket.interpreter import return_value, jump
@@ -676,6 +674,12 @@ def equal_cont(a, b, env, cont, _vals):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
+    if (isinstance(a, values_struct.W_Struct) and not a._isopaque and
+        isinstance(b, values_struct.W_Struct) and not b._isopaque):
+        l = struct2vector(a)
+        r = struct2vector(b)
+        return jump(env, equal_cont(l, r, env, cont))
+
     return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
 
 def eqp_logic(a, b):
@@ -813,8 +817,8 @@ def do_current_instpector(args):
     return values_struct.current_inspector
 
 @expose("struct?", [values.W_Object])
-def do_is_struct(struct):
-    return values.W_Bool.make(isinstance(struct, values_struct.W_Struct) and not struct._isopaque)
+def do_is_struct(v):
+    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v._isopaque)
 
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
@@ -877,6 +881,9 @@ def do_make_struct_field_mutator(mutator, field, field_name):
     return values_struct.W_StructFieldMutator(mutator, field)
 
 @expose("struct->vector", [values_struct.W_Struct])
+def expose_struct2vector(struct):
+    return struct2vector(struct)
+
 def struct2vector(struct):
     struct_id = struct._type.id()
     assert isinstance(struct_id, values.W_Symbol)
@@ -1088,27 +1095,29 @@ def do_vec_ref_cont(v, i, env, cont, _vals):
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
+    from pycket.interpreter import jump
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return do_vec_set(v, i, new, env, cont)
+    return jump(env, do_vec_set_cont(v, i, new, env, cont))
 
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return do_vec_set(v, i, check_one_val(vals), env, cont)
+    from pycket.interpreter import check_one_val, jump
+    return jump(env, do_vec_set_cont(v, i, check_one_val(vals), env, cont))
 
 # TODO check that the returned value is the same as the given value
 # up to intervening chaperones.
 @continuation
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
+    from pycket.interpreter import check_one_val, jump
     val = check_one_val(vals)
     if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
-    return do_vec_set(v, i, val, env, cont)
+    return jump(env, do_vec_set_cont(v, i, val, env, cont))
 
-def do_vec_set(v, i, new, env, cont):
+@continuation
+def do_vec_set_cont(v, i, new, env, cont, _vals):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         # we can use _set here because we already checked the precondition
@@ -1298,9 +1307,9 @@ def unsafe_vector_star_ref(v, i):
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
-    from pycket.interpreter import return_value
+    from pycket.interpreter import return_value, jump
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_set(v, i, new, env, cont)
+        return jump(env, do_vec_set_cont(v, i, new, env, cont))
     else:
         assert type(v) is values_vector.W_Vector
         return return_value(v._set(i.value, new), env, cont)
