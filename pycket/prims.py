@@ -84,7 +84,7 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
                     typed_args += (arg, )
                 typed_args += rest
                 if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name) 
+                    raise SchemeException("primitive %s is not yet implemented"%name)
                 result = func(*typed_args)
                 if result is None:
                     return values.w_void
@@ -92,7 +92,7 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
         else:
             def wrap_func(*args):
                 if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name) 
+                    raise SchemeException("primitive %s is not yet implemented"%name)
                 result = func(*args)
                 if result is None:
                     return values.w_void
@@ -475,7 +475,7 @@ def string_le(s1, s2):
         if v1[i] <= v2[i]:
             return values.w_false
     return values.w_true
-    
+
 
 @expose("string->list", [values.W_String])
 def string_to_list(s):
@@ -589,10 +589,94 @@ def printf(args):
 def eqvp(a, b):
     return values.W_Bool.make(a.eqv(b))
 
-@expose("equal?", [values.W_Object] * 2)
-def equalp(a, b):
+@expose("equal?", [values.W_Object] * 2, simple=False)
+def equalp(a, b, env, cont):
+    from pycket.interpreter import jump
     # FIXME: broken for chaperones, cycles, excessive recursion, etc
-    return values.W_Bool.make(a.equal(b))
+    return jump(env, equal_cont(a, b, env, cont))
+
+@continuation
+def equal_car_cont(a, b, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value, jump
+    eq = check_one_val(_vals)
+    if not eq.value:
+        return return_value(values.w_false, env, cont)
+    return jump(env, equal_cont(a, b, env, cont))
+
+@continuation
+def equal_unbox_right_cont(r, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    l = check_one_val(_vals)
+    return jump(env, do_unbox_cont(r, env, equal_unbox_done_cont(l, env, cont)))
+
+@continuation
+def equal_unbox_done_cont(l, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    r = check_one_val(_vals)
+    return jump(env, equal_cont(l, r, env, cont))
+
+# This function assumes that a and b have the same length
+@continuation
+def equal_vec_cont(a, b, idx, env, cont, _vals):
+    from pycket.interpreter import return_value, jump
+    if idx.value >= a.length():
+        return return_value(values.w_true, env, cont)
+    return jump(env,
+            do_vec_ref_cont(a, idx, env,
+                equal_vec_left_cont(a, b, idx, env, cont)))
+
+# Receive the first value for a given index
+@continuation
+def equal_vec_left_cont(a, b, idx, env, cont, _vals):
+    from pycket.interpreter import jump, check_one_val
+    l = check_one_val(_vals)
+    return jump(env,
+            do_vec_ref_cont(b, idx, env,
+                equal_vec_right_cont(a, b, idx, l, env, cont)))
+
+# Receive the second value for a given index
+@continuation
+def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
+    from pycket.interpreter import jump, check_one_val
+    r = check_one_val(_vals)
+    return jump(env,
+            equal_cont(l, r, env,
+                equal_vec_done_cont(a, b, idx, env, cont)))
+
+# Receive the comparison of the two elements and decide what to do
+@continuation
+def equal_vec_done_cont(a, b, idx, env, cont, _vals):
+    from pycket.interpreter import jump, check_one_val, return_value
+    eq = check_one_val(_vals)
+    if not eq.value:
+        return return_value(values.w_false, env, cont)
+    inc = values.W_Fixnum(idx.value + 1)
+    return jump(env, equal_vec_cont(a, b, inc, env, cont))
+
+# This is needed to be able to drop out of the current stack frame,
+# as direct recursive calls to equal will blow out the stack.
+# This lets us 'return' before invoking equal on the next pair of
+# items.
+# XXX Functions like do_unbox will need to be changed to avoid stack allocation,
+# because they recursively call themselves.
+@continuation
+def equal_cont(a, b, env, cont, _vals):
+    from pycket.interpreter import return_value, jump
+    if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
+        return return_value(values.w_true, env, cont)
+    if isinstance(a, values.W_String) and isinstance(b, values.W_String):
+        return return_value(values.W_Bool.make(a.value == b.value))
+    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
+        return jump(env,
+                equal_cont(a.car(), b.car(), env,
+                    equal_car_cont(a.cdr(), b.cdr(), env, cont)))
+    if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
+        return jump(env, do_unbox_cont(a, env, equal_unbox_right_cont(b, env, cont)))
+    if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
+        if a.length() != b.length():
+            return return_value(values.w_false, env, cont)
+        return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
+    return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
 
 def eqp_logic(a, b):
     if a is b:
@@ -711,7 +795,7 @@ def for_each_cont(f, l, env, cont, vals):
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
-    
+
 
 @expose("void")
 def do_void(args): return values.w_void
@@ -735,7 +819,7 @@ def do_is_struct(struct):
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
     from pycket.interpreter import return_multi_vals
-    # TODO: if the current inspector does not control any 
+    # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
     struct_type = struct._type if True else values.w_false
     skipped = values.w_false
@@ -759,14 +843,14 @@ def do_struct_type_info(struct_desc, env, cont):
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_constructor(struct_desc):
-    # TODO: if the type for struct-type is not controlled by the current inspector, 
+    # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.constr()
 
 @expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_predicate(struct_desc):
-    # TODO: if the type for struct-type is not controlled by the current inspector, 
+    # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.pred()
@@ -800,7 +884,7 @@ def struct2vector(struct):
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
 @expose("make-struct-type-property", [values.W_Symbol,
-                                      default(values.W_Object, values.w_false), 
+                                      default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
                                       default(values.W_Object, values.w_false)],
         simple=False)
@@ -813,7 +897,7 @@ def mk_stp(sym, guard, supers, _can_imp, env, cont):
     if not (_can_imp is values.w_false):
         can_imp = True
     prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
-    return return_multi_vals(values.Values.make([prop, 
+    return return_multi_vals(values.Values.make([prop,
                                                  values_struct.W_StructPropertyPredicate(prop),
                                                  values_struct.W_StructPropertyAccessor(prop)]),
                              env, cont)
@@ -866,7 +950,8 @@ def impersonate_box(b, unbox, set):
 
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
-    return do_unbox(b, env, cont)
+    from pycket.interpreter import jump
+    return jump(env, do_unbox_cont(b, env, cont))
 
 @continuation
 def chp_unbox_cont(f, box, env, cont, vals):
@@ -888,8 +973,9 @@ def imp_unbox_cont(f, box, env, cont, vals):
     from pycket.interpreter import check_one_val
     return f.call([box, check_one_val(vals)], env, cont)
 
-def do_unbox(v, env, cont):
-    from pycket.interpreter import return_value
+@continuation
+def do_unbox_cont(v, env, cont, _vals):
+    from pycket.interpreter import jump, return_value
     if isinstance(v, values.W_MBox):
         return return_value(v.value, env, cont)
     elif isinstance(v, values.W_IBox):
@@ -897,32 +983,35 @@ def do_unbox(v, env, cont):
     elif isinstance(v, imp.W_ChpBox):
         f = v.unbox
         b = v.box
-        return do_unbox(b, env, chp_unbox_cont(f, b, env, cont))
+        return jump(env, do_unbox_cont(b, env, chp_unbox_cont(f, b, env, cont)))
     elif isinstance(v, imp.W_ImpBox):
         f = v.unbox
         b = v.box
-        return do_unbox(b, env, imp_unbox_cont(f, b, env, cont))
+        return jump(env, do_unbox_cont(b, env, imp_unbox_cont(f, b, env, cont)))
     else:
         assert False
 
 @expose("set-box!", [values.W_Box, values.W_Object], simple=False)
 def set_box(box, v, env, cont):
-    return do_set_box(box, v, env, cont)
+    from pycket.interpreter import jump
+    return jump(env, do_set_box_cont(box, v, env, cont))
 
 @continuation
 def imp_box_set_cont(b, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return do_set_box(b, check_one_val(vals), env, cont)
+    from pycket.interpreter import check_one_val, jump
+    return jump(env, do_set_box_cont(b, check_one_val(vals), env, cont))
+    #return do_set_box(b, check_one_val(vals), env, cont)
 
 @continuation
 def chp_box_set_cont(b, orig, env, cont, vals):
-    from pycket.interpreter import check_one_val
+    from pycket.interpreter import check_one_val, jump
     val = check_one_val(vals)
     if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
-    return do_set_box(b, val, env, cont)
+    return jump(env, do_set_box_cont(b, val, env, cont))
 
-def do_set_box(box, v, env, cont):
+@continuation
+def do_set_box_cont(box, v, env, cont, _vals):
     from pycket.interpreter import return_value
     if isinstance(box, values.W_IBox):
         raise SchemeException("Cannot set-box! immutable box")
@@ -950,10 +1039,11 @@ def box_cas(box, old, new):
 
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
+    from pycket.interpreter import jump
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return do_vec_ref(v, i, env, cont)
+    return jump(env, do_vec_ref_cont(v, i, env, cont))
 
 @continuation
 def imp_vec_ref_cont(f, i, v, env, cont, vals):
@@ -975,19 +1065,24 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
 
-def do_vec_ref(v, i, env, cont):
-    from pycket.interpreter import return_value
+@continuation
+def do_vec_ref_cont(v, i, env, cont, _vals):
+    from pycket.interpreter import return_value, jump
     if isinstance(v, values_vector.W_Vector):
         # we can use _ref here because we already checked the precondition
         return return_value(v._ref(i.value), env, cont)
     elif isinstance(v, imp.W_ImpVector):
         uv = v.vec
         f = v.refh
-        return do_vec_ref(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
+        return jump(env,
+                do_vec_ref_cont(uv, i, env,
+                    imp_vec_ref_cont(f, i, uv, env, cont)))
     elif isinstance(v, imp.W_ChpVector):
         uv = v.vec
         f  = v.refh
-        return do_vec_ref(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
+        return jump(env,
+                do_vec_ref_cont(uv, i, env,
+                    chp_vec_ref_cont(f, i, uv, env, cont)))
     else:
         assert False
 
@@ -1187,9 +1282,9 @@ def unsafe_fleq(a, b):
 # FIXME: Chaperones
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
-    from pycket.interpreter import return_value
+    from pycket.interpreter import return_value, jump
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_ref(v, i, env, cont)
+        return jump(env, do_vec_ref_cont(v, i, env, cont))
     else:
         assert type(v) is values_vector.W_Vector
         val = i.value
@@ -1257,7 +1352,7 @@ def hash_set_bang(ht, k, default, env, cont):
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
     return values.W_Bytes(p.path)
-    
+
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):

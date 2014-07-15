@@ -381,6 +381,9 @@ class Require(AST):
         mod = self.module.interpret_mod(top)
         return values.w_void
 
+def jump(env, cont):
+    return return_multi_vals(values.empty_vals, env, cont)
+
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
