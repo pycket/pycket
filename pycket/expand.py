@@ -262,6 +262,7 @@ def _to_module(json):
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
         return Module(v["module-name"].value_string(), 
+                      [_to_require(v["language"].value_string())] +
                       [_to_ast(x) for x in v["body-forms"].value_array()],
                       config)
     else:

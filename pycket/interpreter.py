@@ -68,11 +68,8 @@ class ModuleEnv(object):
         self.modules[name] = module
 
     @jit.elidable
-    def lookup(self, modvar):
-        assert isinstance(modvar, ModuleVar)
-        assert modvar.srcmod in self.modules
-        module = self.modules[modvar.srcmod]
-        return module.lookup(modvar.srcsym)
+    def _find_module(self, name):
+        return self.modules.get(name, None)
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env", "module_env"]
@@ -743,11 +740,7 @@ class ModuleVar(Var):
         modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
-            v = mod.defs[self.sym]
-            if v is None:
-                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
-            return v
-        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
             # we don't separate these the way racket does
             # but maybe we should
             try:
@@ -755,7 +748,9 @@ class ModuleVar(Var):
             except KeyError:
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
-            return modenv.lookup(self)
+            mod = modenv._find_module(self.srcmod)
+        return mod.lookup(self.srcsym)
+
     def assign_convert(self, vars, env_structure):
         # we use None here for hashing because we don't have the module name in the
         # define-values when we need to look this up.
@@ -766,6 +761,8 @@ class ModuleVar(Var):
     def _set(self, w_val, env): assert 0
 
 class ModCellRef(Var):
+    _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
+
     def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
@@ -805,7 +802,7 @@ class SymList(object):
         self.prev = prev
 
 class SetBang(AST):
-    _immutable_fields_ = ["sym", "rhs"]
+    _immutable_fields_ = ["var", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs

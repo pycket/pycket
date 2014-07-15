@@ -185,9 +185,12 @@
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)
     [(module name:id lang:expr (#%plain-module-begin forms ...))
-     (let ([lang-req (hash 'require (require-json #'lang))])
+     (let ([lang-req (if (eq? (syntax-e #'lang) 'pycket) ;; cheat in this case
+                         (require-json #'#%kernel)
+                         (require-json #'lang))])
        (hash 'module-name (symbol->string (syntax-e #'name))
              'body-forms (filter-map to-json (syntax->list #'(forms ...)))
+             'language (first lang-req)
              'config global-config))]
     [_ (error 'convert)]))
 
