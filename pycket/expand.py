@@ -241,7 +241,7 @@ def to_bindings(arr):
         arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
-        rhs = _to_ast(arr[1]) 
+        rhs = _to_ast(arr[1])
         varss.append(fmls)
         rhss.append(rhs)
     return varss, rhss
@@ -261,8 +261,11 @@ def _to_module(json):
         if "config" in v:
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
-        return Module(v["module-name"].value_string(), 
-                      [_to_require(v["language"].value_string())] +
+
+        lang = v["language"].value_string() if "language" in v else ""
+        lang_require = [_to_require(lang)] if lang != "" else []
+        return Module(v["module-name"].value_string(),
+                      lang_require +
                       [_to_ast(x) for x in v["body-forms"].value_array()],
                       config)
     else:
@@ -314,8 +317,8 @@ def _to_ast(json):
                 target = arr[1].value_object()
                 var = None
                 if "module" in target:
-                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()), 
-                                     target["source-module"].value_string() 
+                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()),
+                                     target["source-module"].value_string()
                                      if target["source-module"].is_string else
                                      None,
                                      values.W_Symbol.make(target["source-name"].value_string()))
@@ -402,8 +405,8 @@ def _to_ast(json):
         if "quote-syntax" in obj:
             return QuoteSyntax(to_value(obj["quote-syntax"]))
         if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
-                             obj["source-module"].value_string() 
+            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()),
+                             obj["source-module"].value_string()
                              if obj["source-module"].is_string else
                              None,
                              values.W_Symbol.make(obj["source-name"].value_string()))
