@@ -589,7 +589,7 @@ def printf(args):
 def eqvp(a, b):
     return values.W_Bool.make(a.eqv(b))
 
-@expose("equal?", [values.W_Object] * 2, simple=False)
+#@expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     from pycket.interpreter import jump
     # FIXME: broken for chaperones, cycles, excessive recursion, etc
@@ -665,7 +665,7 @@ def equal_cont(a, b, env, cont, _vals):
     if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
         return return_value(values.w_true, env, cont)
     if isinstance(a, values.W_String) and isinstance(b, values.W_String):
-        return return_value(values.W_Bool.make(a.value == b.value))
+        return return_value(values.W_Bool.make(a.value == b.value), env, cont)
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         return jump(env,
                 equal_cont(a.car(), b.car(), env,
