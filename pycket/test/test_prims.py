@@ -19,6 +19,7 @@ def test_equal():
         "(equal? #() #())",
         "(equal? #(1) #(1))",
         "(equal? #(1 2) #(1 2))",
+        '(equal? "abc" "abc")',
     )
     check_none(
         "(equal? 1 2)",
@@ -33,6 +34,7 @@ def test_equal():
         "(equal? #(1) #())",
         "(equal? #(1 2 3 4 5) #(1 2 3 4 6))",
         "(equal? #(1 2 3 4 5) #(1 2 3 4 'a))",
+        '(equal? "abc" "def")',
     )
 
 def test_list_vector_conversion():

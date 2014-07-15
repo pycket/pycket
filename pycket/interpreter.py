@@ -14,17 +14,15 @@ class GlobalConfig(object):
 
     @staticmethod
     def lookup(s):
-        if s in GlobalConfig.config:
-            return GlobalConfig.config[s]
-        else:
-            return None
+        return GlobalConfig.instance.config.get(s, None)
+
     @staticmethod
     def load(ast):
-        if GlobalConfig.loaded: return
-        GlobalConfig.loaded = True
+        if GlobalConfig.instance.loaded: return
+        GlobalConfig.instance.loaded = True
         assert isinstance(ast, Module)
-        for (k, v) in ast.config.iteritems():
-            GlobalConfig.config[k] = v
+        GlobalConfig.instance.config.update(ast.config)
+GlobalConfig.instance = GlobalConfig()
 
 def variable_set():
     " new set-like structure for variables "
