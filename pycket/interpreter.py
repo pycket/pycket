@@ -746,7 +746,9 @@ class ModuleVar(Var):
         else:
             return modenv.lookup(self)
     def assign_convert(self, vars, env_structure):
-        if self in vars:
+        # we use None here for hashing because we don't have the module name in the
+        # define-values when we need to look this up.
+        if ModuleVar(self.sym, None, self.srcsym) in vars:
             return ModCellRef(self.sym, self.srcmod, self.srcsym)
         else:
             return self
@@ -764,15 +766,15 @@ class ModCellRef(Var):
         return "ModCellRef(%s)"%variable_name(self.sym)
     def _set(self, w_val, env):
         # must be local because it's mutated
-        assert (self.srcmod is None)
         v = env.toplevel_env.module_env.current_module.defs[self.sym]
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
     def _lookup(self, env):
         modenv = env.toplevel_env.module_env
-        if self.srcmod is None:
-            mod = modenv.current_module
-            v = mod.defs[self.sym]
+        curmod = modenv.current_module
+        # if we're in the current module, we might have a use-before-def
+        if curmod is modenv.modules[self.srcmod]:
+            v = curmod.defs[self.sym]
             if v is None:
                 raise SchemeException("use of %s before definition " % (self.sym.tostring()))
             assert isinstance(v, values.W_Cell)
@@ -781,7 +783,9 @@ class ModCellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
     def to_modvar(self):
-        return ModuleVar(self.sym, self.srcmod, self.srcsym)
+        # we use None here for hashing because we don't have the module name in the
+        # define-values when we need to look this up.
+        return ModuleVar(self.sym, None, self.srcsym)
 
 
 class ToplevelVar(Var):
