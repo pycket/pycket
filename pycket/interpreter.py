@@ -78,6 +78,11 @@ class Env(object):
 class Version(object):
     pass
 
+class TrampolineEnv(Env):
+    _immutable_fields_ = ["toplevel_env", "module_env", "values"]
+    def __init__(self, vals):
+        self.values = vals
+
 class ToplevelEnv(Env):
     _immutable_fields_ = ["version?", "module_env", "toplevel_env"]
     def __init__(self):
@@ -397,8 +402,18 @@ class Require(AST):
     def tostring(self):
         return "(require %s)"%self.modname
 
+class Trampoline(AST):
+    _immutable_fields_ = []
+    def __init__(self):
+        pass
+    def interpret(self, env, cont):
+        assert isinstance(env, TrampolineEnv)
+        return cont.plug_reduce(env.values)
     def tostring(self):
         return "TRAMPOLINE"
+
+the_trampoline = Trampoline()
+
 def jump(env, cont):
     return return_multi_vals(values.empty_vals, env, cont)
 
@@ -408,7 +423,8 @@ def return_value(w_val, env, cont):
 def return_multi_vals(vals, env, cont):
     if cont is None:
         raise Done(vals)
-    return cont.plug_reduce(vals)
+    return the_trampoline, TrampolineEnv(vals), cont
+    #return cont.plug_reduce(vals)
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
