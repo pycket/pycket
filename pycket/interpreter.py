@@ -398,16 +398,27 @@ class Require(AST):
         mod = self.module.interpret_mod(top)
         return values.w_void
 
+class Trampoline(AST):
+    _immutable_fields_ = ["values"]
+    def __init__(self, vals):
+        self.values = vals
+    def interpret(self, env, cont):
+        return cont.plug_reduce(self.values)
+
 def jump(env, cont):
     return return_multi_vals(values.empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
+# This function should return the result to the main
+# interpreter loop for dispatch before calling any
+# continuations, otherwise it could consume all the Python stack.
 def return_multi_vals(vals, env, cont):
     if cont is None:
         raise Done(vals)
-    return cont.plug_reduce(vals)
+    return Trampoline(vals), env, cont
+    #return cont.plug_reduce(vals)
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
