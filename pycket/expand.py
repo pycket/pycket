@@ -269,11 +269,9 @@ def _to_module(json):
 class ModTable(object):
     table = {}
 
-    current_module = None
-
     @staticmethod
     def add_module(fname):
-        print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
+        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
         ModTable.table[fname] = None
 
     @staticmethod
@@ -284,10 +282,7 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
-    old = ModTable.current_module
-    ModTable.current_module = fname
-    module = expand_to_ast(fname) # _expand_and_load(fname)
-    ModTable.current_module = old
+    module = expand_to_ast(fname)
     return Require(fname, module)
 
 def _expand_and_load(fname):
