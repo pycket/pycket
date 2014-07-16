@@ -353,10 +353,10 @@ class Module(AST):
     @jit.elidable
     def lookup(self, sym):
         if not (sym in self.defs):
-            raise SchemeException("unknown module variable %s" % sym)
+            raise SchemeException("unknown module variable %s" % (sym.tostring()))
         v = self.defs[sym]
         if not v:
-            raise SchemeException("use of module variable before definition %s" % (sym))
+            raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
     # these are both empty and irrelevant for modules
