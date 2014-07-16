@@ -78,11 +78,6 @@ class Env(object):
 class Version(object):
     pass
 
-class TrampolineEnv(Env):
-    _immutable_fields_ = ["toplevel_env", "module_env", "values"]
-    def __init__(self, vals):
-        self.values = vals
-
 class ToplevelEnv(Env):
     _immutable_fields_ = ["version?", "module_env", "toplevel_env"]
     def __init__(self):
@@ -147,6 +142,16 @@ def check_one_val(vals):
         raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
     w_val = vals._get_list(0)
     return w_val
+
+class TrampolineCont(Cont):
+    _immutable_fields_ = ["values"]
+    def __init__(self, vals, prev):
+        Cont.__init__(self, None, prev)
+        self.values = vals
+
+    def plug_reduce(self, _vals):
+        raise NotImplementedError("unreachable")
+
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
@@ -407,8 +412,8 @@ class Trampoline(AST):
     def __init__(self):
         pass
     def interpret(self, env, cont):
-        assert isinstance(env, TrampolineEnv)
-        return cont.plug_reduce(env.values)
+        assert isinstance(cont, TrampolineCont)
+        return cont.prev.plug_reduce(cont.values)
     def tostring(self):
         return "TRAMPOLINE"
 
@@ -423,7 +428,7 @@ def return_value(w_val, env, cont):
 def return_multi_vals(vals, env, cont):
     if cont is None:
         raise Done(vals)
-    return the_trampoline, TrampolineEnv(vals), cont
+    return the_trampoline, env, TrampolineCont(vals, cont)
     #return cont.plug_reduce(vals)
 
 class Cell(AST):
