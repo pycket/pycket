@@ -108,6 +108,9 @@
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
+    [_
+     #:when (prefab-struct-key (syntax-e v))
+     (hash 'string "PREFAB")]
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
