@@ -278,7 +278,7 @@ class W_Struct(W_Object):
             self._super.set_value(struct_id, field, val)
     def tostring(self):
         if self._isopaque:
-            result =  "#<%s>" % self._type.id()
+            result =  "#<%s>" % self._type.id().value
         else:
-            result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self.vals()]))
+            result = "(%s %s)" % (self._type.id().value, ' '.join([val.tostring() for val in self.vals()]))
         return result
