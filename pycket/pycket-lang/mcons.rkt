@@ -38,7 +38,7 @@
 
 (#%require (just-meta 0 r5rs))
 (provide (except-out (all-from-out r5rs) #%module-begin))
-(provide let-values time-apply null printf when call-with-output-file/truncate error ...
+(provide let-values time-apply null printf when error ...
          bitwise-not bitwise-and)
 (provide (for-meta 1 (rename-out [r:syntax-rules syntax-rules]) ...) define-syntax-rule)
 
