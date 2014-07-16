@@ -99,6 +99,10 @@ def expand_file_rpython(rkt_file):
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
 
+def expand_file_cached(rkt_file):
+    json_file = ensure_json_ast_run(rkt_file)
+    return load_json_ast_rpython(json_file)
+
 # Expand and load the module without generating intermediate JSON files.
 def expand_to_ast(fname):
     data = expand_file_rpython(fname)
@@ -297,7 +301,7 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
-    module = expand_to_ast(fname)
+    module = expand_file_cached(fname)
     return Require(fname, module)
 
 def _expand_and_load(fname):
