@@ -92,7 +92,7 @@ def continuation(func):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
 
-        def plug_reduce(self, vals):
+        def plug_reduce(self, vals, env):
             args = ()
             for i, name in unroll_argnames:
                 args += (getattr(self, name), )

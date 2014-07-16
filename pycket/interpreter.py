@@ -149,7 +149,7 @@ class TrampolineCont(Cont):
         Cont.__init__(self, None, prev)
         self.values = vals
 
-    def plug_reduce(self, _vals):
+    def plug_reduce(self, _vals, env):
         raise NotImplementedError("unreachable")
 
 
@@ -161,7 +161,7 @@ class LetrecCont(Cont):
         self.i = i
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals):
+    def plug_reduce(self, _vals, env):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
         if ast.counts[self.i] != _vals._get_size_list():
@@ -185,7 +185,7 @@ class LetCont(Cont):
         self.ast  = ast
         self.rhsindex = rhsindex
 
-    def plug_reduce(self, _vals):
+    def plug_reduce(self, _vals, _env):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
         rhsindex = jit.promote(self.rhsindex)
@@ -211,7 +211,7 @@ class CellCont(Cont):
         self.ast = ast
 
     @jit.unroll_safe
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         ast = jit.promote(self.ast)
         vals_w = []
         for i, needs_cell in enumerate(ast.need_cell_flags):
@@ -226,7 +226,7 @@ class SetBangCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
@@ -238,7 +238,7 @@ class BeginCont(Cont):
         self.ast = ast
         self.i = i
 
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
 
 # FIXME: it would be nice to not need two continuation types here
@@ -247,7 +247,7 @@ class Begin0Cont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
@@ -256,7 +256,7 @@ class Begin0FinishCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.vals = vals
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return return_multi_vals(self.vals, self.env, self.prev)
 
 class WCMKeyCont(Cont):
@@ -264,7 +264,7 @@ class WCMKeyCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
@@ -274,7 +274,7 @@ class WCMValCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.key = key
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         # FIXME: can prev be null?
         assert self.prev
@@ -413,7 +413,7 @@ class Trampoline(AST):
         pass
     def interpret(self, env, cont):
         assert isinstance(cont, TrampolineCont)
-        return cont.prev.plug_reduce(cont.values)
+        return cont.prev.plug_reduce(cont.values, env)
     def tostring(self):
         return "TRAMPOLINE"
 
