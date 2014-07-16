@@ -193,7 +193,12 @@ class LetCont(Cont):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + vals
-            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
+            # speculate moar!
+            if _env is self.env:
+                prev = _env
+            else:
+                prev = self.env
+            env = ConsEnv.make(vals_w, prev, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
