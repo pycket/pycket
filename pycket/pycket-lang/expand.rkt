@@ -13,8 +13,7 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (parameterize ([current-namespace (make-base-namespace)])
-    (namespace-syntax-introduce stx)
-    (expand stx)))
+    (namespace-syntax-introduce (expand stx))))
 
 (define current-module (make-parameter #f))
 
