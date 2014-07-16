@@ -417,7 +417,6 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
-        print ">>> Requiring " + self.modname
         if GlobalConfig.lazy_loading:
             if not (self.modname in ModuleCache.modules):
                 ModuleCache.modules[self.modname] = self.module
