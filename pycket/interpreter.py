@@ -662,7 +662,7 @@ class Begin0(AST):
         self.first = fst
         self.body = rst
     def assign_convert(self, vars, env_structure):
-        return Begin0(self.first.assign_convert(vars, env_structure), 
+        return Begin0(self.first.assign_convert(vars, env_structure),
                       self.body.assign_convert(vars, env_structure))
     def free_vars(self):
         x = {}

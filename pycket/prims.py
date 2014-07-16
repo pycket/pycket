@@ -500,11 +500,11 @@ for args in [
 
 @expose("arity-at-least", [values.W_Fixnum])
 def arity_at_least(n):
-    return values.W_ArityAtLeast(n)
+    return values.W_ArityAtLeast(n.value)
 
 @expose("arity-at-least-value", [values.W_ArityAtLeast])
 def arity_at_least(a):
-    return a.val
+    return values.W_Fixnum(a.val)
 
 @expose("make-hash", [])
 def make_hash():
