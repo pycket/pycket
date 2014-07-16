@@ -10,10 +10,13 @@ from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
 import pycket.json as pycket_json
+from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values
 from pycket import vector
 
+class ExpandException(SchemeException):
+    pass
 
 #### ========================== Utility functions
 
@@ -63,9 +66,9 @@ def expand_string(s, reuse=True):
     else:
         (data, err) = process.communicate(s)
     if len(data) == 0:
-        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+        raise ExpandException("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
     # if err:
-    #     raise Exception("Racket produced an error")
+    #     raise ExpandException("Racket produced an error")
     return data
 
 
@@ -77,9 +80,9 @@ def expand_file(fname):
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
-        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+        raise ExpandException("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
     if err:
-        raise Exception("Racket produced an error")
+        raise ExpandException("Racket produced an error")
     return data
 
 # Call the Racket expander and read its output from STDOUT rather than producing an
@@ -93,7 +96,7 @@ def expand_file_rpython(rkt_file):
     out = pipe.read()
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error and said '%s'" % out)
+        raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
 
 # Expand and load the module without generating intermediate JSON files.
@@ -124,7 +127,7 @@ def expand_file_to_json(rkt_file, json_file):
     out = pipe.read()
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error and said '%s'" % out)
+        raise ExpandException("Racket produced an error and said '%s'" % out)
     return json_file
 
 
@@ -145,7 +148,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error we failed to record")
+        raise ExpandException("Racket produced an error we failed to record")
     return json_file
 
 
