@@ -1,24 +1,10 @@
-#lang racket
-(provide (except-out (all-from-out racket) #%module-begin))
-(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path syntax/parse)
-         racket/include (prefix-in k: '#%kernel)
-         racket/mpair compatibility/mlist)
-(require (prefix-in r5: r5rs))
-(provide (all-from-out racket/unsafe/ops racket/mpair compatibility/mlist))
+#lang racket/base
+(provide (except-out (all-from-out racket/base) #%module-begin))
+(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path)
+         racket/include (prefix-in k: '#%kernel))
+(provide (all-from-out racket/unsafe/ops))
 ;; for now, white-listed for benchmarks.
-(provide k:call-with-output-file
-         r5:lambda
-         r5:define
-         r5:lambda
-         r5:apply
-         r5:string->list
-         r5:list->string
-         r5:vector->list
-         r5:list->vector
-         r5:list
-         r5:quote
-         r5:quasiquote
-         r5:unquote)
+(provide k:call-with-output-file)
 (provide (rename-out [modbeg #%module-begin]))
 
 (provide include time if)
@@ -36,11 +22,7 @@
 ;------------------------------------------------------------------------------
 
 (begin-for-syntax
- (define-runtime-path stdlib.sch "./stdlib.rktl")
- (define-splicing-syntax-class stdlib
-   [pattern (~seq (~and form #:stdlib))
-            #:with e (datum->syntax #'form `(include (file ,(path->string stdlib.sch))))]
-   [pattern (~seq) #:with e #'(begin)]))
+ (define-runtime-path stdlib.sch "./stdlib.rktl"))
 
 ;------------------------------------------------------------------------------
 ; customized timer
@@ -52,9 +34,14 @@
     (apply values v)))
 
 (define-syntax (modbeg stx)
-  (syntax-parse stx
-    [(_ lib:stdlib forms ...)
-     #`(#%plain-module-begin lib.e forms ...)]))
+  (syntax-case stx ()
+    [(_ stdlib forms ...)
+     (eq? (syntax-e #'stdlib) 'stdlib)
+     #`(#%plain-module-begin
+        #,(datum->syntax #'form `(include (file ,(path->string stdlib.sch))))
+        forms ...)]
+    [(_ forms ...)
+     #`(#%plain-module-begin forms ...)]))
 
 (module reader syntax/module-reader
   pycket)

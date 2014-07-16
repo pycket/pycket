@@ -1,23 +1,10 @@
-#lang racket
-(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path syntax/parse 
-                                       (prefix-in r: racket/base))
-         racket/include (only-in racket/base syntax-rules)
-         racket/mpair compatibility/mlist)
+#lang racket/base
+(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path)
+         racket/include
+         compatibility/mlist)
 (require (prefix-in r5: r5rs) (prefix-in k: '#%kernel))
 ;; for now, white-listed for benchmarks.
-(provide k:call-with-output-file
-         r5:lambda
-         r5:define
-         r5:lambda
-         r5:apply
-         r5:string->list
-         r5:list->string
-         r5:vector->list
-         r5:list->vector
-         r5:list
-         r5:quote
-         r5:quasiquote
-         r5:unquote)
+(provide k:call-with-output-file)
 (provide (rename-out [modbeg #%module-begin]))
 
 (provide include time)
@@ -31,26 +18,27 @@
             cpu gc user)
     (apply values (list->mlist v))))
 
+;------------------------------------------------------------------------------
 
 (begin-for-syntax
- (define-runtime-path stdlib.sch "./stdlib.rktl")
- (define-splicing-syntax-class stdlib
-   [pattern (~seq (~and form #:stdlib))
-            #:with e (datum->syntax #'form `(include (file ,(path->string stdlib.sch))))]
-   [pattern (~seq) #:with e #'(begin)]))
+ (define-runtime-path stdlib.sch "./stdlib.rktl"))
 
 (define-syntax (modbeg stx)
-  (syntax-parse stx
-    [(_ lib:stdlib forms ...)
-     #`(#%plain-module-begin (require (only-in r5rs)) lib.e forms ...)]))
-
+  (syntax-case stx ()
+    [(_ stdlib forms ...)
+     (eq? (syntax-e #'stdlib) 'stdlib)
+     #`(#%plain-module-begin
+        (require r5rs)
+        #,(datum->syntax #'form `(include (file ,(path->string stdlib.sch))))
+        forms ...)]
+    [(_ forms ...)
+     #`(#%plain-module-begin (require r5rs) forms ...)]))
 
 
 (#%require (just-meta 0 r5rs))
 (provide (except-out (all-from-out r5rs) #%module-begin))
-(provide let-values time-apply null printf when error ...
+(provide let-values time-apply null printf when error (for-syntax ... syntax-rules)
          bitwise-not bitwise-and)
-(provide (for-meta 1 (rename-out [r:syntax-rules syntax-rules]) ...) define-syntax-rule)
 
 (module reader syntax/module-reader
   pycket/mcons)
