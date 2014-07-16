@@ -3,9 +3,9 @@
                                        (prefix-in r: racket/base))
          racket/include (only-in racket/base syntax-rules)
          racket/mpair compatibility/mlist)
-(require (prefix-in r5: r5rs) (prefix-in mz: mzscheme))
+(require (prefix-in r5: r5rs) (prefix-in k: '#%kernel))
 ;; for now, white-listed for benchmarks.
-(provide mz:call-with-output-file
+(provide k:call-with-output-file
          r5:lambda
          r5:define
          r5:lambda
@@ -42,7 +42,7 @@
 (define-syntax (modbeg stx)
   (syntax-parse stx
     [(_ lib:stdlib forms ...)
-     #`(#%plain-module-begin lib.e forms ...)]))
+     #`(#%plain-module-begin (require (only-in r5rs)) lib.e forms ...)]))
 
 
 

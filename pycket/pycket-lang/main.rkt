@@ -1,12 +1,12 @@
 #lang racket
 (provide (except-out (all-from-out racket) #%module-begin))
 (require racket/unsafe/ops (for-syntax racket/base racket/runtime-path syntax/parse)
-         racket/include
+         racket/include (prefix-in k: '#%kernel)
          racket/mpair compatibility/mlist)
-(require (prefix-in r5: r5rs) (prefix-in mz: mzscheme))
+(require (prefix-in r5: r5rs))
 (provide (all-from-out racket/unsafe/ops racket/mpair compatibility/mlist))
 ;; for now, white-listed for benchmarks.
-(provide mz:call-with-output-file
+(provide k:call-with-output-file
          r5:lambda
          r5:define
          r5:lambda
