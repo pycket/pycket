@@ -773,6 +773,8 @@ class ModuleVar(Var):
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
             mod = modenv._find_module(self.srcmod)
+            if mod is None:
+                raise SchemeException("can't find module %s" % (self.srcmod, ))
         return mod.lookup(self.srcsym)
 
     def assign_convert(self, vars, env_structure):
