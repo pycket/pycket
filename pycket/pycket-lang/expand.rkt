@@ -41,18 +41,25 @@
     ;;(case v
     ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
     ;;  [else (to-path v)]))
-  (syntax-parse v #:literals (#%top quote)
+  (syntax-parse v
     [v:str        (list (to-path (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
-    [(#%top . x)  (list (to-path (syntax-e #'x)))]
+    [((~datum #%top) . x)
+     (error 'never-happens)
+     (list (to-path (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
     [((~datum prefix) _ p) (require-json #'p)]
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
     [((~datum for-syntax) p ...) '()]
-     ;;(flatten (map require-json (syntax->list #'(p ...))))]
-    [(_ ...) (require-json (last (syntax->list v)))]
+    [((~datum for-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum for-meta) _ p ...) '()]
+    [((~datum just-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum just-meta) _ p ...) '()]
+    [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     ))
 
 (define quoted? (make-parameter #f))
@@ -65,7 +72,7 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (path->string (find-system-path k)))))
     sysconfig))
-    
+
 (define (num n)
   (match n
     [(or +inf.0 -inf.0 +nan.0)
@@ -95,6 +102,10 @@
     [(_ ...)
      #:when (quoted?)
      (map to-json (syntax->list v))]
+    [(_ . _)
+     #:when (quoted?)
+     (hash 'improper (list (map to-json (proper (syntax-e v)))
+                           (to-json (cdr (last-pair (syntax-e v))))))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
@@ -206,6 +217,8 @@
   (define mpair? #f)
   (define loop? #f)
 
+  (define logging? #f)
+
   (command-line
    #:once-any
    [("--output") file "write output to output <file>"
@@ -226,6 +239,9 @@
           (when (not (output-port? out))
             (set! out (open-output-file (string-append source ".json")
                                         #:exists 'replace)))
+          (when logging?
+            (fprintf (open-output-file #:exists 'append "/tmp/expand.log")
+                     ">>> expanding ~a\n" source ))
           (set! in source)]))
 
   (define input (if (input-port? in) in (open-input-file in)))

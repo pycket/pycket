@@ -1,6 +1,7 @@
 #lang racket
 (provide (except-out (all-from-out racket) #%module-begin))
-(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path syntax/parse))
+(require racket/unsafe/ops (for-syntax racket/base racket/runtime-path syntax/parse)
+         racket/include)
 (require (prefix-in r5: r5rs) (prefix-in mz: mzscheme))
 (provide (all-from-out racket/unsafe/ops))
 ;; for now, white-listed for benchmarks.
@@ -18,6 +19,8 @@
          r5:quasiquote
          r5:unquote)
 (provide (rename-out [modbeg #%module-begin]))
+
+(provide include)
 
 (begin-for-syntax
  (define-runtime-path stdlib.sch "./stdlib.rktl")
