@@ -35,13 +35,11 @@
      #`(#%plain-module-begin lib.e forms ...)]))
 
 
-(define (call-with-output-file/truncate filename proc)
-  (call-with-output-file filename proc #:mode 'binary #:exists 'truncate))
-
 
 (#%require (just-meta 0 r5rs))
 (provide (except-out (all-from-out r5rs) #%module-begin))
-(provide let-values time-apply null printf when call-with-output-file/truncate error ...)
+(provide let-values time-apply null printf when call-with-output-file/truncate error ...
+         bitwise-not bitwise-and)
 (provide (for-meta 1 (rename-out [r:syntax-rules syntax-rules]) ...) define-syntax-rule)
 
 (module reader syntax/module-reader
