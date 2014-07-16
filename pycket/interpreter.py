@@ -768,7 +768,7 @@ class ModuleVar(Var):
             # we don't separate these the way racket does
             # but maybe we should
             try:
-                return prim_env[self.sym]
+                return prim_env[self.srcsym]
             except KeyError:
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
