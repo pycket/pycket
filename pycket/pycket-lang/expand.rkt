@@ -20,8 +20,8 @@
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))
   (if v
-      (resolved-module-path-name (module-path-index-resolve i))
-      (current-module)))
+      (list (resolved-module-path-name (module-path-index-resolve i)) #f)
+      (list (current-module) #t)))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -71,6 +71,24 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (path->string (find-system-path k)))))
     sysconfig))
+
+(require syntax/id-table)
+(define table (make-hasheq))
+
+(define (table-ref! sym)
+  (if (dict-has-key? table sym)
+      (dict-ref table sym)
+      (let ([x (gensym sym)])
+        (dict-set! table sym x)
+        x)))
+
+(define (id->sym id [self? #t])
+  (define sym (identifier-binding-symbol id))
+  (when (and (symbol-unreadable? sym) (not self?))
+    (error 'id->sym "unexpected symbol ~a ~a" (syntax-e id) sym)) 
+  (cond [(and self? (symbol-unreadable? sym))
+         (symbol->string (table-ref! sym))]
+        [else (symbol->string sym)]))
 
 (define (num n)
   (match n
@@ -142,7 +160,7 @@
                             (parameterize ([quoted? #t])
                               (to-json #'e)))]
     [((~literal define-values) (i ...) b)
-     (hash 'define-values (map (compose symbol->string syntax-e) (syntax->list #'(i ...)))
+     (hash 'define-values (map id->sym (syntax->list #'(i ...)))
            'define-values-body (to-json #'b))]
 
     [(#%require x ...)
@@ -156,18 +174,15 @@
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
-       [(list (app index->path src) src-id _ _ 0 0 0)
+       [(list (app index->path (list src self?)) src-id _ nom-src-id
+                   src-phase import-phase nominal-export-phase)
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
                                  (and src (symbol->string src)))
-              'source-name (symbol->string src-id))]
-       [(list (app index->path src) src-id _ _ src-phase import-phase nominal-export-phase)
-        (hash 'module (symbol->string (syntax-e v))
-              'source-module (if (path? src)
-                                 (path->string src)
-                                 (and src (symbol->string src)))
-              'source-name (symbol->string src-id)
+              'source-name (id->sym #'i self?)
+              ;; currently ignored
+              #;#;
               'phases (list src-phase import-phase nominal-export-phase))])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
