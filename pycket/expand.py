@@ -262,13 +262,14 @@ def mksym(json):
 def _to_module(json):
     v = json.value_object()
     if "body-forms" in v:
+        from interpreter import GlobalConfig
         config = {}
         if "config" in v:
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
 
         lang = v["language"].value_string() if "language" in v else ""
-        lang_require = [_to_require(lang)] if lang != "" else []
+        lang_require = [_to_require(lang)] if (lang != "") else []
         return Module(v["module-name"].value_string(),
                       lang_require +
                       [_to_ast(x) for x in v["body-forms"].value_array()],

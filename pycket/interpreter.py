@@ -7,14 +7,18 @@ from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
-
 class GlobalConfig(object):
     config = {}
     loaded = False
+    lazy_loading = False
 
     @staticmethod
     def lookup(s):
         return GlobalConfig.instance.config.get(s, None)
+
+    @staticmethod
+    def enable_lazy():
+        GlobalConfig.instance.lazy_loading = True
 
     @staticmethod
     def load(ast):
@@ -23,6 +27,13 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         GlobalConfig.instance.config.update(ast.config)
 GlobalConfig.instance = GlobalConfig()
+
+class ModuleCache(object):
+    modules = {}
+
+ModuleCache.instance = ModuleCache()
+
+
 
 def variable_set():
     " new set-like structure for variables "
@@ -53,10 +64,11 @@ def variable_name(v):
     return v.value
 
 class ModuleEnv(object):
-    _immutable_fields_ = ["modules"]
-    def __init__(self):
+    _immutable_fields_ = ["modules", "toplevel_env"]
+    def __init__(self, toplevel_env):
         self.modules = {}
         self.current_module = None
+        self.toplevel_env = toplevel_env
 
     def require(self, module_name):
         assert 0
@@ -84,7 +96,7 @@ class ToplevelEnv(Env):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
-        self.module_env = ModuleEnv()
+        self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
@@ -405,6 +417,11 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
+        print ">>> Requiring " + self.modname
+        if GlobalConfig.lazy_loading:
+            if not (self.modname in ModuleCache.modules):
+                ModuleCache.modules[self.modname] = self.module
+            return values.w_void
         top = env.toplevel_env
         top.module_env.add_module(self.modname, self.module)
         mod = self.module.interpret_mod(top)
@@ -756,6 +773,15 @@ class ModuleVar(Var):
     def _lookup(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env.module_env
+            if self.srcmod != "#%kernel" and self.srcmod != "#%unsafe":
+                modenv = self.modenv
+                mod = modenv._find_module(self.srcmod)
+                if mod is None and GlobalConfig.lazy_loading:
+                    top = modenv.toplevel_env
+                    m_ast = ModuleCache.modules[self.srcmod]
+                    assert isinstance(m_ast, Module)
+                    modenv.add_module(self.srcmod, m_ast)
+                    mod = m_ast.interpret_mod(top)
         return self._elidable_lookup()
 
     @jit.elidable
