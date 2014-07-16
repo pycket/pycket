@@ -21,7 +21,19 @@
          r5:unquote)
 (provide (rename-out [modbeg #%module-begin]))
 
-(provide include)
+(provide include time if)
+
+;------------------------------------------------------------------------------
+;one-armed if.
+(define-syntax if
+  (syntax-rules ()
+    ((if expr true-branch)
+     (when expr true-branch))
+    ((if expr true-branch false-branch)
+     (cond
+       (expr true-branch)
+       (else false-branch)))))
+;------------------------------------------------------------------------------
 
 (begin-for-syntax
  (define-runtime-path stdlib.sch "./stdlib.rktl")
@@ -29,6 +41,15 @@
    [pattern (~seq (~and form #:stdlib))
             #:with e (datum->syntax #'form `(include (file ,(path->string stdlib.sch))))]
    [pattern (~seq) #:with e #'(begin)]))
+
+;------------------------------------------------------------------------------
+; customized timer
+; in ReBench TestVMPerformance format
+(define-syntax-rule (time expr1 expr ...)
+  (let-values ([(v cpu user gc) (time-apply (lambda () expr1 expr ...) null)])
+    (printf "RESULT-cpu: ~a.0\nRESULT-gc: ~a.0\nRESULT-total: ~a.0\n"
+            cpu gc user)
+    (apply values v)))
 
 (define-syntax (modbeg stx)
   (syntax-parse stx

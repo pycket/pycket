@@ -20,7 +20,17 @@
          r5:unquote)
 (provide (rename-out [modbeg #%module-begin]))
 
-(provide include)
+(provide include time)
+
+;------------------------------------------------------------------------------
+; customized timer
+; in ReBench TestVMPerformance format
+(define-syntax-rule (time expr1 expr ...)
+  (let-values ([(v cpu user gc) (time-apply (lambda () expr1 expr ...) null)])
+    (printf "RESULT-cpu: ~a.0\nRESULT-gc: ~a.0\nRESULT-total: ~a.0\n"
+            cpu gc user)
+    (apply values (list->mlist v))))
+
 
 (begin-for-syntax
  (define-runtime-path stdlib.sch "./stdlib.rktl")
