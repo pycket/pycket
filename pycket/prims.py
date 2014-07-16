@@ -202,6 +202,7 @@ for args in [
         ("semaphore?", values.W_Semaphore),
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
         ("path?", values.W_Path),
+        ("arity-at-least?", values.W_ArityAtLeast),
         ("bytes?", values.W_Bytes)
         ]:
     make_pred(*args)
@@ -339,6 +340,7 @@ for name in ["prop:evt",
              "prop:method-arity-error",
              "prop:arity-string",
              "prop:custom-write",
+             "prop:equal+hash",
              "prop:procedure"]:
     val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
@@ -486,7 +488,6 @@ for args in [
         ("exn:break",),
         ("exn:break:hang-up",),
         ("exn:break:terminate",),
-        ("arity-at-least",),
         ("date",),
         ("date*",),
         ("srcloc",),
@@ -497,6 +498,22 @@ for args in [
     define_nyi(*args)
 
 
+@expose("arity-at-least", [values.W_Fixnum])
+def arity_at_least(n):
+    return values.W_ArityAtLeast(n)
+
+@expose("arity-at-least-value", [values.W_ArityAtLeast])
+def arity_at_least(a):
+    return a.val
+
+@expose("make-hash", [])
+def make_hash():
+    return values.W_HashTable([], [])
+
+@expose("procedure-arity", [values.W_Procedure])
+def arity_at_least(n):
+    # FIXME
+    return values.W_ArityAtLeast(0)
 
 @expose("string<=?", [values.W_String, values.W_String])
 def string_le(s1, s2):
