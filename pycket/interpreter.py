@@ -513,7 +513,10 @@ class VariableReference(AST):
         return values.W_VariableReference(self)
     def assign_convert(self, vars, env_structure):
         v = self.var
-        if v and v in vars:
+        if v and (isinstance(v, ModuleVar) or isinstance(v, LexicalVar)) and v in vars:
+            return VariableReference(v, True)
+        # top-level variables are always mutable
+        if v and isinstance(v, ToplevelVar):
             return VariableReference(v, True)
         else:
             return self
