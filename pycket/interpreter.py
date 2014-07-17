@@ -1281,7 +1281,7 @@ class DefineValues(AST):
     def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
-        sefl.display_names = display_names
+        self.display_names = display_names
 
     def defined_vars(self):
         defs = {} # a dictionary, contains symbols
