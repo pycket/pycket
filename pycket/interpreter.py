@@ -1274,13 +1274,14 @@ class Let(SequencedBodyAST):
 
 
 class DefineValues(AST):
-    _immutable_fields_ = ["names", "rhs"]
+    _immutable_fields_ = ["names", "rhs", "display_names"]
     names = []
     rhs = Quote(values.w_null)
 
-    def __init__(self, ns, r):
+    def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
+        sefl.display_names = display_names
 
     def defined_vars(self):
         defs = {} # a dictionary, contains symbols
@@ -1295,10 +1296,14 @@ class DefineValues(AST):
         mut = False
         need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in self.names]
         if (True in need_cell_flags):
-            return DefineValues(self.names, Cell(self.rhs.assign_convert(vars, env_structure),
-                                                 need_cell_flags))
+            return DefineValues(self.names,
+                                Cell(self.rhs.assign_convert(vars, env_structure),
+                                     need_cell_flags),
+                                self.display_names)
         else:
-            return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
+            return DefineValues(self.names, 
+                                self.rhs.assign_convert(vars, env_structure),
+                                self.display_names)
     def mutated_vars(self):
         return self.rhs.mutated_vars()
     def free_vars(self):
@@ -1306,7 +1311,7 @@ class DefineValues(AST):
         # which is the only thing defined by define-values
         return self.rhs.free_vars()
     def tostring(self):
-        return "(define-values %s %s)"%(self.names, self.rhs.tostring())
+        return "(define-values %s %s)"%(self.display_names, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:

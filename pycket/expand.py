@@ -380,8 +380,12 @@ def _to_ast(json):
                                         _to_ast(obj["wcm-val"]),
                                         _to_ast(obj["wcm-body"]))
         if "define-values" in obj:
-                fmls = [values.W_Symbol.make(x.value_string()) for x in obj["define-values"].value_array()]
-                return DefineValues(fmls, _to_ast(obj["define-values-body"]))
+            binders = obj["define-values"].value_array()
+            display_names = obj["define-values-names"]
+            fmls = [values.W_Symbol.make(x.value_string()) for x in binders]
+            disp_syms = [values.W_Symbol.make(x.value_string()) for x in display_names]
+            body = _to_ast(obj["define-values-body"])
+            return DefineValues(fmls, body, disp_syms)
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()

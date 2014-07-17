@@ -72,23 +72,12 @@
         (values k (path->string (find-system-path k)))))
     sysconfig))
 
-(require syntax/id-table)
-(define table (make-hasheq))
-
-(define (table-ref! sym)
-  (if (dict-has-key? table sym)
-      (dict-ref table sym)
-      (let ([x (gensym sym)])
-        (dict-set! table sym x)
-        x)))
-
-(define (id->sym id [self? #t])
+(define (id->sym id)
   (define sym (identifier-binding-symbol id))
-  (when (and (symbol-unreadable? sym) (not self?))
-    (error 'id->sym "unexpected symbol ~a ~a" (syntax-e id) sym)) 
-  (cond [(and self? (symbol-unreadable? sym))
-         (symbol->string (table-ref! sym))]
-        [else (symbol->string sym)]))
+  (symbol->string 
+   (if (quoted?)
+       (syntax-e id)
+       sym)))
 
 (define (num n)
   (match n
@@ -161,7 +150,11 @@
                               (to-json #'e)))]
     [((~literal define-values) (i ...) b)
      (hash 'define-values (map id->sym (syntax->list #'(i ...)))
-           'define-values-body (to-json #'b))]
+           'define-values-body (to-json #'b)
+           ;; keep these separately because the real symbols
+           ;; may be unreadable extra symbols
+           'define-values-names (map (compose symbol->string syntax-e)
+                                     (syntax->list #'(i ...))))]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
@@ -180,7 +173,7 @@
               'source-module (if (path? src)
                                  (path->string src)
                                  (and src (symbol->string src)))
-              'source-name (id->sym #'i self?)
+              'source-name (id->sym #'i)
               ;; currently ignored
               #;#;
               'phases (list src-phase import-phase nominal-export-phase))])]
