@@ -722,8 +722,8 @@ def equal_cont(a, b, env, cont, _vals):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_Struct) and not a._isopaque and
-        isinstance(b, values_struct.W_Struct) and not b._isopaque):
+    if (isinstance(a, values_struct.W_Struct) and not a.isopaque and
+        isinstance(b, values_struct.W_Struct) and not b.isopaque):
         l = struct2vector(a)
         r = struct2vector(b)
         return jump(env, equal_cont(l, r, env, cont))
@@ -866,46 +866,49 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v._isopaque)
+    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v.isopaque)
 
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
     from pycket.interpreter import return_multi_vals
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
-    struct_type = struct._type if True else values.w_false
+    struct_id = struct.type if True else values.w_false
     skipped = values.w_false
-    return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
+    return return_multi_vals(values.Values.make([struct_id, skipped]), env, cont)
 
 @expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
-def do_struct_type_info(struct_desc, env, cont):
+def do_struct_type_info(struct_id, env, cont):
     from pycket.interpreter import return_multi_vals
-    name = struct_desc.id()
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
-    init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
-    auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
-    accessor = struct_type.acc()
-    mutator = struct_type.mut()
-    immutable_k_list = struct_type.immutables()
+    name = values.W_Symbol.make(struct_id.value)
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+    assert isinstance(struct_type, values_struct.W_StructType)
+    init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
+    auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
+    accessor = struct_type.acc
+    mutator = struct_type.mut
+    immutable_k_list = struct_type.immutables
     # TODO: if no ancestor is controlled by the current inspector return w_false
-    super = struct_type.super()
+    super = struct_type.super
     skipped = values.w_false
     return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
         accessor, mutator, immutable_k_list, super, skipped]), env, cont)
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_constructor(struct_desc):
+def do_struct_type_make_constructor(struct_id):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
-    return struct_type.constr()
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+    assert isinstance(struct_type, values_struct.W_StructType)
+    return struct_type.constr
 
 @expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_predicate(struct_desc):
+def do_struct_type_make_predicate(struct_id):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
-    return struct_type.pred()
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+    assert isinstance(struct_type, values_struct.W_StructType)
+    return struct_type.pred
 
 @expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
     default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
@@ -933,9 +936,8 @@ def expose_struct2vector(struct):
     return struct2vector(struct)
 
 def struct2vector(struct):
-    struct_id = struct._type.id()
-    assert isinstance(struct_id, values.W_Symbol)
-    first_el = values.W_Symbol.make("struct:" + struct_id.value)
+    struct_id = struct.type.value
+    first_el = values.W_Symbol.make("struct:" + struct_id)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
 @expose("make-struct-type-property", [values.W_Symbol,
