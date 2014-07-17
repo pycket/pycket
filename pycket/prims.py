@@ -885,7 +885,7 @@ def struct2vector(struct):
     struct_id = struct._type.id()
     assert isinstance(struct_id, values.W_Symbol)
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
-    return values_vector.W_Vector.fromelements([first_el] + struct.vals())
+    return values_vector.W_Vector.fromelements([first_el] + struct._vals())
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),

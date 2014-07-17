@@ -218,8 +218,9 @@ class W_StructAccessor(W_SimplePrim):
         self._struct_id = struct_id
     def code(self, args):
         struct, field = args
+        assert isinstance(struct, W_Struct)
         assert isinstance(field, W_Fixnum)
-        return struct.get_value(self._struct_id, field.value)
+        return struct.ref(self._struct_id, field.value)
     def tostring(self):
         return "#<procedure:%s-ref>" % self._struct_id.id()
 
@@ -243,8 +244,9 @@ class W_StructMutator(W_SimplePrim):
         self._struct_id = struct_id
     def code(self, args):
         struct, field, val = args
+        assert isinstance(struct, W_Struct)
         assert isinstance(field, W_Fixnum)
-        struct.set_value(self._struct_id, field.value, val)
+        struct.set(self._struct_id, field.value, val)
     def setmutable(self, field):
         struct = W_StructType.lookup_struct_type(self._struct_id)
         struct.setmutable(field)
@@ -259,30 +261,30 @@ class W_Struct(W_Object):
         self._super = super
         self._isopaque = isopaque
         self._fields = fields
-    def vals(self):
+    def _vals(self):
         result = self._fields
         if self._super is not None: 
-            return self._super.vals() + result
+            return self._super._vals() + result
         else:
             return result
-    def get_value(self, struct_id, field):
+    def ref(self, struct_id, field):
         if self._type == struct_id:
             return self._fields[field]
         elif self._type.id() == struct_id.id():
             raise SchemeException("given value instantiates a different structure type with the same name")
         elif self._super is not None:
-            return self._super.get_value(struct_id, field)
+            return self._super.ref(struct_id, field)
         else:
             assert False
-    def set_value(self, struct_id, field, val):
+    def set(self, struct_id, field, val):
         type = jit.promote(self._type)
         if type == struct_id:
             self._fields[field] = val
         else:
-            self._super.set_value(struct_id, field, val)
+            self._super.set(struct_id, field, val)
     def tostring(self):
         if self._isopaque:
             result =  "#<%s>" % self._type.id()
         else:
-            result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self.vals()]))
+            result = "(%s %s)" % (self._type.id(), ' '.join([val.tostring() for val in self._vals()]))
         return result
