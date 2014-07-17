@@ -197,14 +197,25 @@ class LetCont(Cont):
         self.ast  = ast
         self.rhsindex = rhsindex
 
+    @jit.unroll_safe
     def plug_reduce(self, _vals, _env):
         vals = _vals._get_full_list()
+        jit.promote(len(vals))
+        previous_vals = self._get_full_list()
+        jit.promote(len(previous_vals))
+        vals_w = [None] * (len(previous_vals) + len(vals))
+        i = 0
+        for w_val in previous_vals:
+            vals_w[i] = w_val
+            i += 1
+        for w_val in vals:
+            vals_w[i] = w_val
+            i += 1
         ast = jit.promote(self.ast)
         rhsindex = jit.promote(self.rhsindex)
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + vals
             # speculate moar!
             if _env is self.env:
                 prev = _env
@@ -214,7 +225,7 @@ class LetCont(Cont):
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
-                    LetCont.make(self._get_full_list() + vals, ast,
+                    LetCont.make(vals_w, ast,
                                  rhsindex + 1, self.env, self.prev))
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
