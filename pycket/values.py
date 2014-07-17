@@ -679,8 +679,13 @@ class W_Closure(W_Procedure):
             e = env.prev
             if e is new_env:
                 prev = e
-            elif isinstance(e, ConsEnv) and e.prev is new_env:
-                prev = e.prev
+            elif isinstance(e, ConsEnv):
+                e_prev = e.prev
+                if e_prev is new_env:
+                    prev = e_prev
+                # Uncomment to speculate more; doesn't help sumloop
+                # elif isinstance(e_prev, ConsEnv) and e_prev.prev is new_env:
+                #     prev = e_prev.prev
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)

@@ -13,16 +13,15 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (parameterize ([current-namespace (make-base-namespace)])
-    (namespace-syntax-introduce stx)
-    (expand stx)))
+    (namespace-syntax-introduce (expand stx))))
 
 (define current-module (make-parameter #f))
 
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))
   (if v
-      (resolved-module-path-name (module-path-index-resolve i))
-      (current-module)))
+      (list (resolved-module-path-name (module-path-index-resolve i)) #f)
+      (list (current-module) #t)))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -41,18 +40,25 @@
     ;;(case v
     ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
     ;;  [else (to-path v)]))
-  (syntax-parse v #:literals (#%top quote)
+  (syntax-parse v
     [v:str        (list (to-path (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
-    [(#%top . x)  (list (to-path (syntax-e #'x)))]
+    [((~datum #%top) . x)
+     (error 'never-happens)
+     (list (to-path (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
     [((~datum prefix) _ p) (require-json #'p)]
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
     [((~datum for-syntax) p ...) '()]
-     ;;(flatten (map require-json (syntax->list #'(p ...))))]
-    [(_ ...) (require-json (last (syntax->list v)))]
+    [((~datum for-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum for-meta) _ p ...) '()]
+    [((~datum just-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum just-meta) _ p ...) '()]
+    [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     ))
 
 (define quoted? (make-parameter #f))
@@ -65,7 +71,25 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (path->string (find-system-path k)))))
     sysconfig))
-    
+
+(require syntax/id-table)
+(define table (make-hasheq))
+
+(define (table-ref! sym)
+  (if (dict-has-key? table sym)
+      (dict-ref table sym)
+      (let ([x (gensym sym)])
+        (dict-set! table sym x)
+        x)))
+
+(define (id->sym id [self? #t])
+  (define sym (identifier-binding-symbol id))
+  (when (and (symbol-unreadable? sym) (not self?))
+    (error 'id->sym "unexpected symbol ~a ~a" (syntax-e id) sym)) 
+  (cond [(and self? (symbol-unreadable? sym))
+         (symbol->string (table-ref! sym))]
+        [else (symbol->string sym)]))
+
 (define (num n)
   (match n
     [(or +inf.0 -inf.0 +nan.0)
@@ -95,9 +119,16 @@
     [(_ ...)
      #:when (quoted?)
      (map to-json (syntax->list v))]
+    [(_ . _)
+     #:when (quoted?)
+     (hash 'improper (list (map to-json (proper (syntax-e v)))
+                           (to-json (cdr (last-pair (syntax-e v))))))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
+    [_
+     #:when (prefab-struct-key (syntax-e v))
+     (hash 'string "PREFAB")]
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
@@ -128,6 +159,9 @@
     [(quote-syntax e) (hash 'quote-syntax
                             (parameterize ([quoted? #t])
                               (to-json #'e)))]
+    [((~literal define-values) (i ...) b)
+     (hash 'define-values (map id->sym (syntax->list #'(i ...)))
+           'define-values-body (to-json #'b))]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
@@ -140,18 +174,15 @@
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
-       [(list (app index->path src) src-id _ _ 0 0 0)
+       [(list (app index->path (list src self?)) src-id _ nom-src-id
+                   src-phase import-phase nominal-export-phase)
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
                                  (and src (symbol->string src)))
-              'source-name (symbol->string src-id))]
-       [(list (app index->path src) src-id _ _ src-phase import-phase nominal-export-phase)
-        (hash 'module (symbol->string (syntax-e v))
-              'source-module (if (path? src)
-                                 (path->string src)
-                                 (and src (symbol->string src)))
-              'source-name (symbol->string src-id)
+              'source-name (id->sym #'i self?)
+              ;; currently ignored
+              #;#;
               'phases (list src-phase import-phase nominal-export-phase))])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
@@ -182,9 +213,13 @@
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)
     [(module name:id lang:expr (#%plain-module-begin forms ...))
-     (let ([lang-req (hash 'require (require-json #'lang))])
+     (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
+                             (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
+                         (require-json #'#%kernel)
+                         (require-json #'lang))])
        (hash 'module-name (symbol->string (syntax-e #'name))
              'body-forms (filter-map to-json (syntax->list #'(forms ...)))
+             'language (first lang-req)
              'config global-config))]
     [_ (error 'convert)]))
 
@@ -199,6 +234,8 @@
   (define stdlib? #t)
   (define mpair? #f)
   (define loop? #f)
+
+  (define logging? #f)
 
   (command-line
    #:once-any
@@ -220,6 +257,9 @@
           (when (not (output-port? out))
             (set! out (open-output-file (string-append source ".json")
                                         #:exists 'replace)))
+          (when logging?
+            (fprintf (open-output-file #:exists 'append "/tmp/expand.log")
+                     ">>> expanding ~a\n" source ))
           (set! in source)]))
 
   (define input (if (input-port? in) in (open-input-file in)))

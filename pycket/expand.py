@@ -7,11 +7,16 @@ import sys
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize
+from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+from rpython.rlib.rarithmetic import string_to_int
 import pycket.json as pycket_json
+from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values
 from pycket import vector
 
+class ExpandException(SchemeException):
+    pass
 
 #### ========================== Utility functions
 
@@ -61,9 +66,9 @@ def expand_string(s, reuse=True):
     else:
         (data, err) = process.communicate(s)
     if len(data) == 0:
-        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+        raise ExpandException("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
     # if err:
-    #     raise Exception("Racket produced an error")
+    #     raise ExpandException("Racket produced an error")
     return data
 
 
@@ -75,9 +80,9 @@ def expand_file(fname):
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     (data, err) = process.communicate()
     if len(data) == 0:
-        raise Exception("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
+        raise ExpandException("Racket did not produce output. Probably racket is not installed, or it could not parse the input.")
     if err:
-        raise Exception("Racket produced an error")
+        raise ExpandException("Racket produced an error")
     return data
 
 # Call the Racket expander and read its output from STDOUT rather than producing an
@@ -91,8 +96,12 @@ def expand_file_rpython(rkt_file):
     out = pipe.read()
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error and said '%s'" % out)
+        raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
+
+def expand_file_cached(rkt_file):
+    json_file = ensure_json_ast_run(rkt_file)
+    return load_json_ast_rpython(json_file)
 
 # Expand and load the module without generating intermediate JSON files.
 def expand_to_ast(fname):
@@ -122,7 +131,7 @@ def expand_file_to_json(rkt_file, json_file):
     out = pipe.read()
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error and said '%s'" % out)
+        raise ExpandException("Racket produced an error and said '%s'" % out)
     return json_file
 
 
@@ -143,7 +152,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
-        raise Exception("Racket produced an error we failed to record")
+        raise ExpandException("Racket produced an error we failed to record")
     return json_file
 
 
@@ -241,7 +250,7 @@ def to_bindings(arr):
         arr = v.value_array()
         fmls, rest = to_formals(arr[0])
         assert not rest
-        rhs = _to_ast(arr[1]) 
+        rhs = _to_ast(arr[1])
         varss.append(fmls)
         rhss.append(rhs)
     return varss, rhss
@@ -257,11 +266,16 @@ def mksym(json):
 def _to_module(json):
     v = json.value_object()
     if "body-forms" in v:
+        from interpreter import GlobalConfig
         config = {}
         if "config" in v:
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
-        return Module(v["module-name"].value_string(), 
+
+        lang = v["language"].value_string() if "language" in v else ""
+        lang_require = [_to_require(lang)] if (lang != "") else []
+        return Module(v["module-name"].value_string(),
+                      lang_require +
                       [_to_ast(x) for x in v["body-forms"].value_array()],
                       config)
     else:
@@ -287,7 +301,7 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
-    module = expand_to_ast(fname)
+    module = expand_file_cached(fname)
     return Require(fname, module)
 
 def _expand_and_load(fname):
@@ -313,8 +327,8 @@ def _to_ast(json):
                 target = arr[1].value_object()
                 var = None
                 if "module" in target:
-                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()), 
-                                     target["source-module"].value_string() 
+                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()),
+                                     target["source-module"].value_string()
                                      if target["source-module"].is_string else
                                      None,
                                      values.W_Symbol.make(target["source-name"].value_string()))
@@ -326,9 +340,6 @@ def _to_ast(json):
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
-            if ast_elem == "define-values":
-                fmls = [mksym(x) for x in arr[1].value_array()]
-                return DefineValues(fmls, _to_ast(arr[2]))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
             if ast_elem == "#%variable-reference":
@@ -368,6 +379,9 @@ def _to_ast(json):
             return WithContinuationMark(_to_ast(obj["wcm-key"]),
                                         _to_ast(obj["wcm-val"]),
                                         _to_ast(obj["wcm-body"]))
+        if "define-values" in obj:
+                fmls = [values.W_Symbol.make(x.value_string()) for x in obj["define-values"].value_array()]
+                return DefineValues(fmls, _to_ast(obj["define-values-body"]))
         if "letrec-bindings" in obj:
             body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
@@ -401,8 +415,8 @@ def _to_ast(json):
         if "quote-syntax" in obj:
             return QuoteSyntax(to_value(obj["quote-syntax"]))
         if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()), 
-                             obj["source-module"].value_string() 
+            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()),
+                             obj["source-module"].value_string()
                              if obj["source-module"].is_string else
                              None,
                              values.W_Symbol.make(obj["source-name"].value_string()))
@@ -411,6 +425,10 @@ def _to_ast(json):
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
     assert 0, "Unexpected json object: %s" % json.tostring()
+
+INF = values.W_Flonum(float("inf"))
+NEGINF = values.W_Flonum(-float("inf"))
+NAN = values.W_Flonum(float("nan"))
 
 def _to_num(json):
     assert json.is_object
@@ -429,17 +447,17 @@ def _to_num(json):
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
-            return values.W_Flonum(float("inf"))
+            return INF
         if rs == "-inf.0":
-            return values.W_Flonum(-float("inf"))
+            return NEGINF
         if rs == "+nan.0":
-            return values.W_Flonum(float("nan"))
+            return NAN
     if "integer" in obj:
         rs = obj["integer"].value_string()
-        val = rbigint.fromdecimalstr(rs)
         try:
-            return values.W_Fixnum(int(val.toint()))
-        except OverflowError:
+            return values.W_Fixnum(string_to_int(rs))
+        except ParseStringOverflowError:
+            val = rbigint.fromdecimalstr(rs)
             return values.W_Bignum(val)
     assert False
 

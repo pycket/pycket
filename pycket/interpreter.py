@@ -7,14 +7,18 @@ from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
-
 class GlobalConfig(object):
     config = {}
     loaded = False
+    lazy_loading = False
 
     @staticmethod
     def lookup(s):
         return GlobalConfig.instance.config.get(s, None)
+
+    @staticmethod
+    def enable_lazy():
+        GlobalConfig.instance.lazy_loading = True
 
     @staticmethod
     def load(ast):
@@ -23,6 +27,13 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         GlobalConfig.instance.config.update(ast.config)
 GlobalConfig.instance = GlobalConfig()
+
+class ModuleCache(object):
+    modules = {}
+
+ModuleCache.instance = ModuleCache()
+
+
 
 def variable_set():
     " new set-like structure for variables "
@@ -53,10 +64,11 @@ def variable_name(v):
     return v.value
 
 class ModuleEnv(object):
-    _immutable_fields_ = ["modules"]
-    def __init__(self):
+    _immutable_fields_ = ["modules", "toplevel_env"]
+    def __init__(self, toplevel_env):
         self.modules = {}
         self.current_module = None
+        self.toplevel_env = toplevel_env
 
     def require(self, module_name):
         assert 0
@@ -68,11 +80,8 @@ class ModuleEnv(object):
         self.modules[name] = module
 
     @jit.elidable
-    def lookup(self, modvar):
-        assert isinstance(modvar, ModuleVar)
-        assert modvar.srcmod in self.modules
-        module = self.modules[modvar.srcmod]
-        return module.lookup(modvar.srcsym)
+    def _find_module(self, name):
+        return self.modules.get(name, None)
 
 class Env(object):
     _immutable_fields_ = ["toplevel_env", "module_env"]
@@ -87,7 +96,7 @@ class ToplevelEnv(Env):
         self.bindings = {}
         self.version = Version()
         self.toplevel_env = self # bit silly
-        self.module_env = ModuleEnv()
+        self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
@@ -146,6 +155,16 @@ def check_one_val(vals):
     w_val = vals._get_list(0)
     return w_val
 
+class TrampolineCont(Cont):
+    _immutable_fields_ = ["values"]
+    def __init__(self, vals, prev):
+        Cont.__init__(self, None, prev)
+        self.values = vals
+
+    def plug_reduce(self, _vals, env):
+        raise NotImplementedError("unreachable")
+
+
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
     def __init__(self, ast, i, env, prev):
@@ -154,7 +173,7 @@ class LetrecCont(Cont):
         self.i = i
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals):
+    def plug_reduce(self, _vals, env):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
         if ast.counts[self.i] != _vals._get_size_list():
@@ -178,7 +197,7 @@ class LetCont(Cont):
         self.ast  = ast
         self.rhsindex = rhsindex
 
-    def plug_reduce(self, _vals):
+    def plug_reduce(self, _vals, _env):
         vals = _vals._get_full_list()
         ast = jit.promote(self.ast)
         rhsindex = jit.promote(self.rhsindex)
@@ -186,7 +205,12 @@ class LetCont(Cont):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             vals_w = self._get_full_list() + vals
-            env = ConsEnv.make(vals_w, self.env, self.env.toplevel_env)
+            # speculate moar!
+            if _env is self.env:
+                prev = _env
+            else:
+                prev = self.env
+            env = ConsEnv.make(vals_w, prev, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
@@ -204,7 +228,7 @@ class CellCont(Cont):
         self.ast = ast
 
     @jit.unroll_safe
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         ast = jit.promote(self.ast)
         vals_w = []
         for i, needs_cell in enumerate(ast.need_cell_flags):
@@ -219,7 +243,7 @@ class SetBangCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
@@ -231,7 +255,7 @@ class BeginCont(Cont):
         self.ast = ast
         self.i = i
 
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
 
 # FIXME: it would be nice to not need two continuation types here
@@ -240,7 +264,7 @@ class Begin0Cont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
@@ -249,7 +273,7 @@ class Begin0FinishCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.vals = vals
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         return return_multi_vals(self.vals, self.env, self.prev)
 
 class WCMKeyCont(Cont):
@@ -257,7 +281,7 @@ class WCMKeyCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
@@ -267,7 +291,7 @@ class WCMValCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.key = key
-    def plug_reduce(self, vals):
+    def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         # FIXME: can prev be null?
         assert self.prev
@@ -312,7 +336,7 @@ class AST(object):
     def mutated_vars(self):
         raise NotImplementedError("abstract base class")
     def tostring(self):
-        raise NotImplementedError("abstract base class")
+        return "UNKNOWN AST: "
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
@@ -328,10 +352,11 @@ class Module(AST):
 
     @jit.elidable
     def lookup(self, sym):
-        assert (sym in self.defs)
+        if not (sym in self.defs):
+            raise SchemeException("unknown module variable %s" % (sym.tostring()))
         v = self.defs[sym]
         if not v:
-            raise SchemeException("use of module variable before definition %s" % (sym))
+            raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
     # these are both empty and irrelevant for modules
@@ -393,10 +418,28 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
+        if GlobalConfig.lazy_loading:
+            if not (self.modname in ModuleCache.modules):
+                ModuleCache.modules[self.modname] = self.module
+            return values.w_void
         top = env.toplevel_env
         top.module_env.add_module(self.modname, self.module)
         mod = self.module.interpret_mod(top)
         return values.w_void
+    def tostring(self):
+        return "(require %s)"%self.modname
+
+class Trampoline(AST):
+    _immutable_fields_ = []
+    def __init__(self):
+        pass
+    def interpret(self, env, cont):
+        assert isinstance(cont, TrampolineCont)
+        return cont.prev.plug_reduce(cont.values, env)
+    def tostring(self):
+        return "TRAMPOLINE"
+
+the_trampoline = Trampoline()
 
 def jump(env, cont):
     return return_multi_vals(values.empty_vals, env, cont)
@@ -407,7 +450,8 @@ def return_value(w_val, env, cont):
 def return_multi_vals(vals, env, cont):
     if cont is None:
         raise Done(vals)
-    return cont.plug_reduce(vals)
+    return the_trampoline, env, TrampolineCont(vals, cont)
+    #return cont.plug_reduce(vals)
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
@@ -469,7 +513,10 @@ class VariableReference(AST):
         return values.W_VariableReference(self)
     def assign_convert(self, vars, env_structure):
         v = self.var
-        if v and v in vars:
+        if v and (isinstance(v, ModuleVar) or isinstance(v, LexicalVar)) and v in vars:
+            return VariableReference(v, True)
+        # top-level variables are always mutable
+        if v and isinstance(v, ToplevelVar):
             return VariableReference(v, True)
         else:
             return self
@@ -485,6 +532,11 @@ class WithContinuationMark(AST):
         self.key = key
         self.value = value
         self.body = body
+
+    def tostring(self):
+        return "(with-continuation-mark %s %s %s)"%(self.key.tostring(),
+                                                    self.value.tostring(),
+                                                    self.body.tostring())
 
     def assign_convert(self, vars, env_structure):
         return WithContinuationMark(self.key.assign_convert(vars, env_structure),
@@ -610,7 +662,7 @@ class Begin0(AST):
         self.first = fst
         self.body = rst
     def assign_convert(self, vars, env_structure):
-        return Begin0(self.first.assign_convert(vars, env_structure), 
+        return Begin0(self.first.assign_convert(vars, env_structure),
                       self.body.assign_convert(vars, env_structure))
     def free_vars(self):
         x = {}
@@ -724,6 +776,15 @@ class ModuleVar(Var):
     def _lookup(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env.module_env
+            if self.srcmod != "#%kernel" and self.srcmod != "#%unsafe":
+                modenv = self.modenv
+                mod = modenv._find_module(self.srcmod)
+                if mod is None and GlobalConfig.lazy_loading:
+                    top = modenv.toplevel_env
+                    m_ast = ModuleCache.modules[self.srcmod]
+                    assert isinstance(m_ast, Module)
+                    modenv.add_module(self.srcmod, m_ast)
+                    mod = m_ast.interpret_mod(top)
         return self._elidable_lookup()
 
     @jit.elidable
@@ -732,27 +793,31 @@ class ModuleVar(Var):
         modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
-            v = mod.defs[self.sym]
-            if v is None:
-                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
-            return v
-        if self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
             # we don't separate these the way racket does
             # but maybe we should
             try:
-                return prim_env[self.sym]
+                return prim_env[self.srcsym]
             except KeyError:
                 raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
         else:
-            return modenv.lookup(self)
+            mod = modenv._find_module(self.srcmod)
+            if mod is None:
+                raise SchemeException("can't find module %s" % (self.srcmod, ))
+        return mod.lookup(self.srcsym)
+
     def assign_convert(self, vars, env_structure):
-        if self in vars:
+        # we use None here for hashing because we don't have the module name in the
+        # define-values when we need to look this up.
+        if ModuleVar(self.sym, None, self.srcsym) in vars:
             return ModCellRef(self.sym, self.srcmod, self.srcsym)
         else:
             return self
     def _set(self, w_val, env): assert 0
 
 class ModCellRef(Var):
+    _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
+
     def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
@@ -763,25 +828,17 @@ class ModCellRef(Var):
     def tostring(self):
         return "ModCellRef(%s)"%variable_name(self.sym)
     def _set(self, w_val, env):
-        # must be local because it's mutated
-        assert (self.srcmod is None)
-        v = env.toplevel_env.module_env.current_module.defs[self.sym]
-        assert isinstance(v, values.W_Cell)
-        v.set_val(w_val)
+        w_res = self.modvar._lookup(env)
+        assert isinstance(w_res, values.W_Cell)
+        w_res.set_val(w_val)
     def _lookup(self, env):
-        modenv = env.toplevel_env.module_env
-        if self.srcmod is None:
-            mod = modenv.current_module
-            v = mod.defs[self.sym]
-            if v is None:
-                raise SchemeException("use of %s before definition " % (self.sym.tostring()))
-            assert isinstance(v, values.W_Cell)
-            return v.get_val()
-        v = modenv.lookup(self.modvar)
-        assert isinstance(v, values.W_Cell)
-        return v.get_val()
+        w_res = self.modvar._lookup(env)
+        assert isinstance(w_res, values.W_Cell)
+        return w_res.get_val()
     def to_modvar(self):
-        return ModuleVar(self.sym, self.srcmod, self.srcsym)
+        # we use None here for hashing because we don't have the module name in the
+        # define-values when we need to look this up.
+        return ModuleVar(self.sym, None, self.srcsym)
 
 
 class ToplevelVar(Var):
@@ -800,7 +857,7 @@ class SymList(object):
         self.prev = prev
 
 class SetBang(AST):
-    _immutable_fields_ = ["sym", "rhs"]
+    _immutable_fields_ = ["var", "rhs"]
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs

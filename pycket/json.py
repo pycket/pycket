@@ -1,7 +1,8 @@
-from rpython.rlib.rstring import StringBuilder
+from rpython.rlib.rstring import StringBuilder, ParseStringError
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
+from rpython.rlib.rarithmetic import string_to_int
 
 _json_grammar = """
     STRING: "\\"([^\\"\\\\]|\\\\.)*\\"";
@@ -189,8 +190,8 @@ class Visitor(RPythonVisitor):
 
     def visit_NUMBER(self, node):
         try:
-            return JsonInt(int(node.token.source))
-        except ValueError:
+            return JsonInt(string_to_int(node.token.source))
+        except ParseStringError:
             return JsonFloat(float(node.token.source))
 
     def visit_NULL(self, node):

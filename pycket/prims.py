@@ -202,6 +202,7 @@ for args in [
         ("semaphore?", values.W_Semaphore),
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
         ("path?", values.W_Path),
+        ("arity-at-least?", values.W_ArityAtLeast),
         ("bytes?", values.W_Bytes)
         ]:
     make_pred(*args)
@@ -339,6 +340,7 @@ for name in ["prop:evt",
              "prop:method-arity-error",
              "prop:arity-string",
              "prop:custom-write",
+             "prop:equal+hash",
              "prop:procedure"]:
     val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
@@ -459,6 +461,36 @@ def define_nyi(name, args=None):
     def do(args): pass
 
 for args in [
+        ("exn",),
+        ("exn:fail",),
+        ("exn:fail:contract",),
+        ("exn:fail:contract:arity",),
+        ("exn:fail:contract:divide-by-zero",),
+        ("exn:fail:contract:non-fixnum-result",),
+        ("exn:fail:contract:continuation",),
+        ("exn:fail:contract:variable",),
+        ("exn:fail:syntax",),
+        ("exn:fail:syntax:unbound",),
+        ("exn:fail:syntax:missing-module",),
+        ("exn:fail:read",),
+        ("exn:fail:read:eof",),
+        ("exn:fail:read:non-char",),
+        ("exn:fail:filesystem",),
+        ("exn:fail:filesystem:exists",),
+        ("exn:fail:filesystem:version",),
+        ("exn:fail:filesystem:errno",),
+        ("exn:fail:filesystem:missing-module",),
+        ("exn:fail:network",),
+        ("exn:fail:network:errno",),
+        ("exn:fail:out-of-memory",),
+        ("exn:fail:unsupported",),
+        ("exn:fail:user",),
+        ("exn:break",),
+        ("exn:break:hang-up",),
+        ("exn:break:terminate",),
+        ("date",),
+        ("date*",),
+        ("srcloc",),
         ("string-ci<?", [values.W_String, values.W_String]),
         ("keyword<?", [values.W_Keyword, values.W_Keyword]),
         ("string-ci<=?", [values.W_String, values.W_String])
@@ -466,6 +498,22 @@ for args in [
     define_nyi(*args)
 
 
+@expose("arity-at-least", [values.W_Fixnum])
+def arity_at_least(n):
+    return values.W_ArityAtLeast(n.value)
+
+@expose("arity-at-least-value", [values.W_ArityAtLeast])
+def arity_at_least(a):
+    return values.W_Fixnum(a.val)
+
+@expose("make-hash", [])
+def make_hash():
+    return values.W_HashTable([], [])
+
+@expose("procedure-arity", [values.W_Procedure])
+def arity_at_least(n):
+    # FIXME
+    return values.W_ArityAtLeast(0)
 
 @expose("string<=?", [values.W_String, values.W_String])
 def string_le(s1, s2):
@@ -589,7 +637,7 @@ def printf(args):
 def eqvp(a, b):
     return values.W_Bool.make(a.eqv(b))
 
-#@expose("equal?", [values.W_Object] * 2, simple=False)
+@expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     from pycket.interpreter import jump
     # FIXME: broken for chaperones, cycles, excessive recursion, etc
@@ -599,7 +647,7 @@ def equalp(a, b, env, cont):
 def equal_car_cont(a, b, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value, jump
     eq = check_one_val(_vals)
-    if not eq.value:
+    if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     return jump(env, equal_cont(a, b, env, cont))
 
@@ -648,7 +696,7 @@ def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
 def equal_vec_done_cont(a, b, idx, env, cont, _vals):
     from pycket.interpreter import jump, check_one_val, return_value
     eq = check_one_val(_vals)
-    if not eq.value:
+    if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     inc = values.W_Fixnum(idx.value + 1)
     return jump(env, equal_vec_cont(a, b, inc, env, cont))
@@ -657,8 +705,6 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 # as direct recursive calls to equal will blow out the stack.
 # This lets us 'return' before invoking equal on the next pair of
 # items.
-# XXX Functions like do_unbox will need to be changed to avoid stack allocation,
-# because they recursively call themselves.
 @continuation
 def equal_cont(a, b, env, cont, _vals):
     from pycket.interpreter import return_value, jump
@@ -676,6 +722,12 @@ def equal_cont(a, b, env, cont, _vals):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
+    if (isinstance(a, values_struct.W_Struct) and not a._isopaque and
+        isinstance(b, values_struct.W_Struct) and not b._isopaque):
+        l = struct2vector(a)
+        r = struct2vector(b)
+        return jump(env, equal_cont(l, r, env, cont))
+
     return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
 
 def eqp_logic(a, b):
@@ -813,11 +865,8 @@ def do_current_instpector(args):
     return values_struct.current_inspector
 
 @expose("struct?", [values.W_Object])
-def do_is_struct(struct):
-    if (not isinstance(struct, values_struct.W_Struct)):
-        return values.w_false
-    else:
-        return values.W_Bool.make(not struct._isopaque)
+def do_is_struct(v):
+    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v._isopaque)
 
 @expose("struct-info", [values_struct.W_Struct], simple=False)
 def do_struct_info(struct, env, cont):
@@ -833,7 +882,6 @@ def do_struct_type_info(struct_desc, env, cont):
     from pycket.interpreter import return_multi_vals
     name = struct_desc.id()
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
-    assert isinstance(struct_type, values_struct.W_StructType)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
     accessor = struct_type.acc()
@@ -881,11 +929,14 @@ def do_make_struct_field_mutator(mutator, field, field_name):
     return values_struct.W_StructFieldMutator(mutator, field)
 
 @expose("struct->vector", [values_struct.W_Struct])
+def expose_struct2vector(struct):
+    return struct2vector(struct)
+
 def struct2vector(struct):
     struct_id = struct._type.id()
     assert isinstance(struct_id, values.W_Symbol)
     first_el = values.W_Symbol.make("struct:" + struct_id.value)
-    return values_vector.W_Vector.fromelements([first_el] + struct._vals())
+    return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
@@ -1092,27 +1143,29 @@ def do_vec_ref_cont(v, i, env, cont, _vals):
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
+    from pycket.interpreter import jump
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return do_vec_set(v, i, new, env, cont)
+    return jump(env, do_vec_set_cont(v, i, new, env, cont))
 
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return do_vec_set(v, i, check_one_val(vals), env, cont)
+    from pycket.interpreter import check_one_val, jump
+    return jump(env, do_vec_set_cont(v, i, check_one_val(vals), env, cont))
 
 # TODO check that the returned value is the same as the given value
 # up to intervening chaperones.
 @continuation
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
+    from pycket.interpreter import check_one_val, jump
     val = check_one_val(vals)
     if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
-    return do_vec_set(v, i, val, env, cont)
+    return jump(env, do_vec_set_cont(v, i, val, env, cont))
 
-def do_vec_set(v, i, new, env, cont):
+@continuation
+def do_vec_set_cont(v, i, new, env, cont, _vals):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         # we can use _set here because we already checked the precondition
@@ -1302,9 +1355,9 @@ def unsafe_vector_star_ref(v, i):
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
-    from pycket.interpreter import return_value
+    from pycket.interpreter import return_value, jump
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_set(v, i, new, env, cont)
+        return jump(env, do_vec_set_cont(v, i, new, env, cont))
     else:
         assert type(v) is values_vector.W_Vector
         return return_value(v._set(i.value, new), env, cont)
