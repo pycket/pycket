@@ -147,6 +147,9 @@ class UnwrappedVectorStrategyMixin(object):
     # def length(self, w_vector):
     #     return len(self._storage(w_vector))
 
+    @jit.look_inside_iff(
+        lambda strategy, w_vector: jit.isconstant(w_vector.length()) and
+               w_vector.length() < UNROLLING_CUTOFF)
     def ref_all(self, w_vector):
         unwrapped = self._storage(w_vector)
         return [self.wrap(i) for i in unwrapped]
