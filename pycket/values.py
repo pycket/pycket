@@ -312,10 +312,12 @@ class W_Bignum(W_Integer):
 class W_Character(W_Object):
     _immutable_fields_ = ["value"]
     errorname = "char"
-    def tostring(self):
-        return "#\\%s" % self.value.encode("utf-8")
     def __init__(self, val):
         self.value = val
+
+    def tostring(self):
+        return "#SOME CHARACTER" # \\%s" % self.value.encode("utf-8")
+
     def equal(self, other):
         if not isinstance(other, W_Character):
             return False
@@ -575,7 +577,8 @@ class W_Prim(W_Procedure):
 
 def to_list(l): return to_improper(l, w_null)
 
-@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+@jit.look_inside_iff(
+    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
 def to_improper(l, curr):
     for i in range(len(l) - 1, -1, -1):
         curr = W_Cons.make(l[i], curr)
@@ -583,7 +586,8 @@ def to_improper(l, curr):
 
 def to_mlist(l): return to_mimproper(l, w_null)
 
-@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+@jit.look_inside_iff(
+    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
 def to_mimproper(l, curr):
     for i in range(len(l) - 1, -1, -1):
         curr = W_MCons(l[i], curr)
