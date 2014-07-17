@@ -5,7 +5,7 @@ from pycket.cont import continuation, call_cont
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
-from rpython.rlib  import jit
+from rpython.rlib  import jit, runicode
 from rpython.rlib.objectmodel import r_dict, compute_hash
 
 UNROLLING_CUTOFF = 5
@@ -316,7 +316,8 @@ class W_Character(W_Object):
         self.value = val
 
     def tostring(self):
-        return "#SOME CHARACTER" # \\%s" % self.value.encode("utf-8")
+        return "#\\%s" % runicode.unicode_encode_utf_8(
+                self.value, len(self.value), "strict")
 
     def equal(self, other):
         if not isinstance(other, W_Character):
