@@ -112,7 +112,11 @@ class W_StructConstructor(W_SimplePrim):
             super_field_values, field_values = split_list(field_values, split_position)
             super, env, cont = self.super_type.constructor().extcode(super_field_values, env, cont)
         vals = field_values + self.auto_values
-        result = W_Struct.make(vals, self.mutable_fields, vals, self.struct_id, super, self.isopaque)
+        immutable_vals, mutable_vals = [], []
+        for idx, val in enumerate(vals):
+            if idx in self.mutable_fields: mutable_vals.append(val)
+            else: immutable_vals.append(val)
+        result = W_Struct.make(immutable_vals, self.mutable_fields, mutable_vals, self.struct_id, super, self.isopaque)
         return result, env, cont
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
@@ -233,11 +237,21 @@ class W_Struct(W_Object):
     _immutable_fields_ = ["mutable_fields", "mutable_vals", "type", "super", "isopaque"]
     def __init__(self, mutable_fields, mutable_vals, struct_id, super, isopaque):
         self.mutable_fields = mutable_fields
-        # FIXME: duplicated data
         self.mutable_vals = mutable_vals
         self.type = struct_id
         self.super = super
         self.isopaque = isopaque
+    @jit.elidable
+    def map(self, field):
+        if field in self.mutable_fields:
+            for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
+                if immutable_field < field: field -= 1
+                else: break
+        else:
+            for mutable_field in self.mutable_fields:
+                if mutable_field < field: field -= 1
+                else: break
+        return field
     def vals(self):
         result = self._get_full_list()
         if self.super is not None: 
@@ -246,7 +260,7 @@ class W_Struct(W_Object):
             return result
     def ref(self, struct_id, field):
         if self.type == struct_id:
-            return self._get_list(field) if field not in self.mutable_fields else self.mutable_vals[field]
+            return self._get_list(self.map(field)) if field not in self.mutable_fields else self.mutable_vals[self.map(field)]
         elif self.type.value == struct_id.value:
             raise SchemeException("given value instantiates a different structure type with the same name")
         elif self.super is not None:
@@ -256,7 +270,7 @@ class W_Struct(W_Object):
     def set(self, struct_id, field, val):
         type = jit.promote(self.type)
         if type == struct_id:
-            self.mutable_vals[field] = val
+            self.mutable_vals[self.map(field)] = val
         else:
             assert isinstance(self.super, W_Struct)
             self.super.set(struct_id, field, val)
