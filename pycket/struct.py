@@ -241,12 +241,24 @@ class W_Struct(W_Object):
         self.type = struct_id
         self.super = super
         self.isopaque = isopaque
+    # FIXME: make me more beautiful
     @jit.elidable
     def map(self, field):
+        # Example:
+        # original struct values: (a: mutable, b: mutable, c: immutable)
+        # stored data:
+        #   immutable_vals: (0: c) -- saved inline
+        #   mutable_vals: (0: a, 1: b)
+        #   mutable_fields: (0, 1)
+        #
+        # 1. field (int) is a mutable field (self.mutable_fields is an array of integers)
+        # strategy: find all immutable fields before and subtract this number from field index
         if field in self.mutable_fields:
             for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
                 if immutable_field < field: field -= 1
                 else: break
+        # 2. field is an immutable field.
+        # stratege: do the same, but subtract the number of all mutable fields before
         else:
             for mutable_field in self.mutable_fields:
                 if mutable_field < field: field -= 1
