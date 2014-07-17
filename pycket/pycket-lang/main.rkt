@@ -35,10 +35,10 @@
 
 (define-syntax (modbeg stx)
   (syntax-case stx ()
-    [(_ stdlib forms ...)
-     (eq? (syntax-e #'stdlib) 'stdlib)
+    [(_ stdlib-kw forms ...)
+     (eq? (syntax-e #'stdlib-kw) '#:stdlib)
      #`(#%plain-module-begin
-        #,(datum->syntax #'form `(include (file ,(path->string stdlib.sch))))
+        #,(datum->syntax #'stdlib-kw `(include (file ,(path->string stdlib.sch))))
         forms ...)]
     [(_ forms ...)
      #`(#%plain-module-begin forms ...)]))

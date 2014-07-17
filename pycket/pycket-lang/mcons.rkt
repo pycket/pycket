@@ -25,14 +25,14 @@
 
 (define-syntax (modbeg stx)
   (syntax-case stx ()
-    [(_ stdlib forms ...)
-     (eq? (syntax-e #'stdlib) 'stdlib)
+    [(_ stdlib-kw forms ...)
+     (eq? (syntax-e #'stdlib-kw) '#:stdlib)
      #`(#%plain-module-begin
         (require r5rs)
-        #,(datum->syntax #'form `(include (file ,(path->string stdlib.sch))))
+        #,(datum->syntax #'stdlib-kw `(include (file ,(path->string stdlib.sch))))
         forms ...)]
     [(_ forms ...)
-     #`(#%plain-module-begin (require r5rs) forms ...)]))
+     #`(#%plain-module-begin (require (only-in r5rs)) forms ...)]))
 
 
 (#%require (just-meta 0 r5rs))
