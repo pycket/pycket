@@ -254,15 +254,13 @@ class W_Struct(W_Object):
         
         1. field (int) is a mutable field (self.mutable_fields is an array of integers)
         strategy: find all immutable fields before and subtract this number from field index
+        2. field is an immutable field.
+        stratege: do the same, but subtract the number of all mutable fields before
         """
         if field in self.mutable_fields:
             for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
                 if immutable_field < field: field -= 1
                 else: break
-        """
-        2. field is an immutable field.
-        stratege: do the same, but subtract the number of all mutable fields before
-        """
         else:
             for mutable_field in self.mutable_fields:
                 if mutable_field < field: field -= 1
