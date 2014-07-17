@@ -775,7 +775,7 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv"]
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "env_structure"]
     def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
