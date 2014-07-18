@@ -165,6 +165,42 @@ class W_StructProperty(W_Object):
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
+class W_Struct(W_Object):
+    errorname = "struct"
+    _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
+    def __init__(self, struct_id, super, isopaque, fields):
+        self._type = struct_id
+        self._super = super
+        self._isopaque = isopaque
+        self._fields = fields
+    def vals(self):
+        result = self._fields
+        if self._super is not None: 
+            return self._super.vals() + result
+        else:
+            return result
+    def ref(self, struct_id, field):
+        if self._type == struct_id:
+            return self._fields[field]
+        elif self._type.id() == struct_id.id():
+            raise SchemeException("given value instantiates a different structure type with the same name")
+        elif self._super is not None:
+            return self._super.ref(struct_id, field)
+        else:
+            assert False
+    def set(self, struct_id, field, val):
+        type = jit.promote(self._type)
+        if type == struct_id:
+            self._fields[field] = val
+        else:
+            self._super.set(struct_id, field, val)
+    def tostring(self):
+        if self._isopaque:
+            result =  "#<%s>" % self._type.id().value
+        else:
+            result = "(%s %s)" % (self._type.id().value, ' '.join([val.tostring() for val in self.vals()]))
+        return result
+
 class W_StructPropertyPredicate(W_SimplePrim):
     errorname = "struct-property-predicate"
     _immutable_fields_ = ["property"]
@@ -254,38 +290,3 @@ class W_StructMutator(W_SimplePrim):
     def tostring(self):
         return "#<procedure:%s-set!>" % self._struct_id.id()
 
-class W_Struct(W_Object):
-    errorname = "struct"
-    _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
-    def __init__(self, struct_id, super, isopaque, fields):
-        self._type = struct_id
-        self._super = super
-        self._isopaque = isopaque
-        self._fields = fields
-    def vals(self):
-        result = self._fields
-        if self._super is not None: 
-            return self._super.vals() + result
-        else:
-            return result
-    def ref(self, struct_id, field):
-        if self._type == struct_id:
-            return self._fields[field]
-        elif self._type.id() == struct_id.id():
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif self._super is not None:
-            return self._super.ref(struct_id, field)
-        else:
-            assert False
-    def set(self, struct_id, field, val):
-        type = jit.promote(self._type)
-        if type == struct_id:
-            self._fields[field] = val
-        else:
-            self._super.set(struct_id, field, val)
-    def tostring(self):
-        if self._isopaque:
-            result =  "#<%s>" % self._type.id().value
-        else:
-            result = "(%s %s)" % (self._type.id().value, ' '.join([val.tostring() for val in self.vals()]))
-        return result
