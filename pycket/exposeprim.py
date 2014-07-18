@@ -71,35 +71,39 @@ def _make_arg_unwrapper(func, argstypes, funcname):
     func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
     return func_arg_unwrap, _arity
 
+def _make_result_handling_func(func_arg_unwrap, simple):
+    if simple:
+        def func_result_handling(*args):
+            from pycket.interpreter import return_multi_vals, return_value
+            env = args[-2]
+            cont = args[-1]
+            args = args[:-2]
+            result = func_arg_unwrap(*args)
+            if result is None:
+                result = values.w_void
+            if isinstance(result, values.Values):
+                return return_multi_vals(result, env, cont)
+            else:
+                return return_value(result, env, cont)
+        return func_result_handling
+    else:
+        return func_arg_unwrap
+
 def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
     from pycket.prims import prim_env
     def wrapper(func):
-        if argstypes is not None:
-            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
-            if arity is not None:
-                _arity = arity
-        elif nyi:
+        if nyi:
             def func_arg_unwrap(*args):
                 raise SchemeException("primitive %s is not yet implemented"%name)
             _arity = arity or ([], 0)
+        elif argstypes is not None:
+            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
+            if arity is not None:
+                _arity = arity
         else:
             func_arg_unwrap = func
             _arity = arity or ([], 0)
-        if simple:
-            def func_result_handling(*args):
-                from pycket.interpreter import return_multi_vals, return_value
-                env = args[-2]
-                cont = args[-1]
-                args = args[:-2]
-                result = func_arg_unwrap(*args)
-                if result is None:
-                    result = values.w_void
-                if isinstance(result, values.Values):
-                    return return_multi_vals(result, env, cont)
-                else:
-                    return return_value(result, env, cont)
-        else:
-            func_result_handling = func_arg_unwrap
+        func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         cls = values.W_Prim
         prim_env[values.W_Symbol.make(name)] = cls(name, func_result_handling, _arity)
         return func_arg_unwrap
