@@ -1,6 +1,7 @@
 from pycket.cont import continuation
 from pycket.error import SchemeException
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure
+from pycket.exposeprim import make_call_method
 from rpython.rlib import jit
 
 #
@@ -116,7 +117,7 @@ class W_StructTypeDescriptor(W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self._id
 
-class W_StructConstructor(W_SimplePrim):
+class W_StructConstructor(W_Procedure):
     _immutable_fields_ = ["_struct_id", "_super_type", "_init_field_cnt", "_auto_values", "_isopaque", "_guard", "_name"]
     def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, isopaque, guard, name):
         self._struct_id = struct_id
@@ -126,6 +127,7 @@ class W_StructConstructor(W_SimplePrim):
         self._isopaque = isopaque
         self._guard = guard
         self._name = name
+
     def extcode(self, field_values, env, cont):
         if self._guard != w_false:
             cont = guard_check(self._guard, field_values, env, cont)
@@ -139,10 +141,12 @@ class W_StructConstructor(W_SimplePrim):
             super, env, cont = self._super_type.constr().extcode(super_field_values, env, cont)
         result = W_Struct(self._struct_id, super, self._isopaque, field_values + self._auto_values)
         return result, env, cont
+
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         result, env, cont = self.extcode(args, env, cont)
         return return_value(result, env, cont)
+
     def tostring(self):
         return "#<procedure:%s>" % self._name
 
@@ -164,94 +168,6 @@ class W_StructProperty(W_Object):
         self.can_imp = can_imp
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
-
-class W_StructPropertyPredicate(W_SimplePrim):
-    errorname = "struct-property-predicate"
-    _immutable_fields_ = ["property"]
-    def __init__(self, prop):
-        self.property = prop
-    def code(self, args):
-        raise SchemeException("StructPropertyPredicate NYI")
-
-class W_StructPropertyAccessor(W_SimplePrim):
-    errorname = "struct-property-accessor"
-    _immutable_fields_ = ["property"]
-    def __init__(self, prop):
-        self.property = prop
-    def code(self, args):
-        raise SchemeException("StructPropertyAccessor NYI")
-
-class W_StructPredicate(W_SimplePrim):
-    errorname = "struct-predicate"
-    _immutable_fields_ = ["_struct_id"]
-    def __init__ (self, struct_id):
-        self._struct_id = struct_id
-    def code(self, args):
-        struct = args[0]
-        result = w_false
-        if (isinstance(struct, W_Struct)):
-            while True:
-                if struct._type == self._struct_id:
-                    result = w_true
-                    break
-                if struct._super is None: break
-                else: struct = struct._super
-        return result
-    def tostring(self):
-        return "#<procedure:%s?>" % self._struct_id.id()
-
-class W_StructFieldAccessor(W_SimplePrim):
-    errorname = "struct-field-accessor"
-    _immutable_fields_ = ["_accessor", "_field"]
-    def __init__ (self, accessor, field):
-        assert isinstance(accessor, W_StructAccessor)
-        self._accessor = accessor
-        self._field = field
-    def code(self, args):
-        struct = args[0]
-        return self._accessor.code([struct, self._field])
-
-class W_StructAccessor(W_SimplePrim):
-    errorname = "struct-accessor"
-    _immutable_fields_ = ["_struct_id"]
-    def __init__ (self, struct_id):
-        self._struct_id = struct_id
-    def code(self, args):
-        struct, field = args
-        assert isinstance(struct, W_Struct)
-        assert isinstance(field, W_Fixnum)
-        return struct.ref(self._struct_id, field.value)
-    def tostring(self):
-        return "#<procedure:%s-ref>" % self._struct_id.id()
-
-class W_StructFieldMutator(W_SimplePrim):
-    errorname = "struct-field-mutator"
-    _immutable_fields_ = ["_mutator", "_field"]
-    def __init__ (self, mutator, field):
-        assert isinstance(mutator, W_StructMutator)
-        self._mutator = mutator
-        self._field = field
-        mutator.setmutable(field)
-    def code(self, args):
-        struct = args[0]
-        val = args[1]
-        return self._mutator.code([struct, self._field, val])
-
-class W_StructMutator(W_SimplePrim):
-    errorname = "struct-mutator"
-    _immutable_fields_ = ["_struct_id"]
-    def __init__ (self, struct_id):
-        self._struct_id = struct_id
-    def code(self, args):
-        struct, field, val = args
-        assert isinstance(struct, W_Struct)
-        assert isinstance(field, W_Fixnum)
-        struct.set(self._struct_id, field.value, val)
-    def setmutable(self, field):
-        struct = W_StructType.lookup_struct_type(self._struct_id)
-        struct.setmutable(field)
-    def tostring(self):
-        return "#<procedure:%s-set!>" % self._struct_id.id()
 
 class W_Struct(W_Object):
     errorname = "struct"
@@ -288,3 +204,96 @@ class W_Struct(W_Object):
         else:
             result = "(%s %s)" % (self._type.id().value, ' '.join([val.tostring() for val in self.vals()]))
         return result
+
+class W_StructPropertyPredicate(W_SimplePrim):
+    errorname = "struct-property-predicate"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyPredicate NYI")
+
+class W_StructPropertyAccessor(W_SimplePrim):
+    errorname = "struct-property-accessor"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyAccessor NYI")
+
+class W_StructPredicate(W_Procedure):
+    errorname = "struct-predicate"
+    _immutable_fields_ = ["_struct_id"]
+    def __init__ (self, struct_id):
+        self._struct_id = struct_id
+
+    @make_call_method([W_Struct])
+    def call(self, struct):
+        result = w_false
+        if (isinstance(struct, W_Struct)):
+            while True:
+                if struct._type == self._struct_id:
+                    result = w_true
+                    break
+                if struct._super is None: break
+                else: struct = struct._super
+        return result
+    def tostring(self):
+        return "#<procedure:%s?>" % self._struct_id.id()
+
+class W_StructFieldAccessor(W_Procedure):
+    errorname = "struct-field-accessor"
+    _immutable_fields_ = ["_accessor", "_field"]
+    def __init__ (self, accessor, field):
+        assert isinstance(accessor, W_StructAccessor)
+        self._accessor = accessor
+        self._field = field
+
+    @make_call_method([W_Struct])
+    def call(self, struct):
+        return self._accessor.access(struct, self._field)
+
+class W_StructAccessor(W_Procedure):
+    errorname = "struct-accessor"
+    _immutable_fields_ = ["_struct_id"]
+    def __init__ (self, struct_id):
+        self._struct_id = struct_id
+
+    def access(self, struct, field):
+        return struct.ref(self._struct_id, field.value)
+
+    call = make_call_method([W_Struct, W_Fixnum])(access)
+
+    def tostring(self):
+        return "#<procedure:%s-ref>" % self._struct_id.id()
+
+class W_StructFieldMutator(W_Procedure):
+    errorname = "struct-field-mutator"
+    _immutable_fields_ = ["_mutator", "_field"]
+    def __init__ (self, mutator, field):
+        assert isinstance(mutator, W_StructMutator)
+        self._mutator = mutator
+        self._field = field
+        mutator.setmutable(field)
+
+    @make_call_method([W_Struct, W_Object])
+    def call(self, struct, val):
+        return self._mutator.mutate(struct, self._field, val)
+
+class W_StructMutator(W_Procedure):
+    errorname = "struct-mutator"
+    _immutable_fields_ = ["_struct_id"]
+    def __init__ (self, struct_id):
+        self._struct_id = struct_id
+
+    def mutate(self, struct, field, val):
+        struct.set(self._struct_id, field.value, val)
+
+    call = make_call_method([W_Struct, W_Fixnum, W_Object])(mutate)
+
+    def setmutable(self, field):
+        struct = W_StructType.lookup_struct_type(self._struct_id)
+        struct.setmutable(field)
+    def tostring(self):
+        return "#<procedure:%s-set!>" % self._struct_id.id()
+
