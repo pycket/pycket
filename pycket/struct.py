@@ -290,3 +290,17 @@ class W_StructMutator(W_Procedure):
     def tostring(self):
         return "#<procedure:%s-set!>" % self.struct_id.value
 
+    # FIXME: make me more beautiful
+        """
+        Example:
+        original struct values: (a: mutable, b: mutable, c: immutable)
+        stored data:
+          immutable_vals: (0: c) -- saved inline
+          mutable_vals: (0: a, 1: b)
+          mutable_fields: (0, 1)
+        
+        1. field (int) is a mutable field (self.mutable_fields is an array of integers)
+        strategy: find all immutable fields before and subtract this number from field index
+        2. field is an immutable field.
+        stratege: do the same, but subtract the number of all mutable fields before
+        """
