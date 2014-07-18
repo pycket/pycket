@@ -533,10 +533,16 @@ class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
     def mark_non_loop(self): pass
+
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self):
         return ([],0)
+
+    def call(self, args, env, cont):
+        raise NotImplementedError("abstract base class")
+
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "proc", "arity"]

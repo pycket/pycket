@@ -186,6 +186,7 @@ class W_StructPredicate(W_SimplePrim):
     _immutable_fields_ = ["_struct_id"]
     def __init__ (self, struct_id):
         self._struct_id = struct_id
+
     def code(self, args):
         struct = args[0]
         result = w_false
