@@ -7,7 +7,9 @@ from rpython.rlib import debug, jit
 # Setting this to True will break the tests. Used to compare performance.
 _always_use_object_strategy = False
 
-@jit.look_inside_iff(lambda elements: jit.isconstant(len(elements)) and len(elements) < UNROLLING_CUTOFF)
+@jit.look_inside_iff(lambda elements:
+        jit.loop_unrolling_heuristic(
+                elements, len(elements), UNROLLING_CUTOFF))
 def _find_strategy_class(elements):
     if _always_use_object_strategy or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
@@ -147,6 +149,9 @@ class UnwrappedVectorStrategyMixin(object):
     # def length(self, w_vector):
     #     return len(self._storage(w_vector))
 
+    @jit.look_inside_iff(
+        lambda strategy, w_vector: jit.isconstant(w_vector.length()) and
+               w_vector.length() < UNROLLING_CUTOFF)
     def ref_all(self, w_vector):
         unwrapped = self._storage(w_vector)
         return [self.wrap(i) for i in unwrapped]
@@ -156,14 +161,15 @@ class UnwrappedVectorStrategyMixin(object):
         return self.erase([e] * times)
 
     @jit.look_inside_iff(
-        lambda self, elements: jit.isconstant(len(elements)) and
-               len(elements) < UNROLLING_CUTOFF)
-    def create_storage_for_elements(self, elements):
-        if not elements:
+        lambda self, elements_w:
+            jit.loop_unrolling_heuristic(
+                    elements_w, len(elements_w), UNROLLING_CUTOFF))
+    def create_storage_for_elements(self, elements_w):
+        if not elements_w:
             return self.erase([])
-        l = [self.unwrap(elements[0])] * len(elements)
-        for i in range(1, len(elements)):
-            l[i] = self.unwrap(elements[i])
+        l = [self.unwrap(elements_w[0])] * len(elements_w)
+        for i in range(1, len(elements_w)):
+            l[i] = self.unwrap(elements_w[i])
         return self.erase(l)
 
 
@@ -183,6 +189,9 @@ class ObjectVectorStrategy(VectorStrategy):
 
     def is_correct_type(self, w_obj):
         return True
+
+    def create_storage_for_elements(self, elements_w):
+        return self.erase(elements_w)
 
     def dehomogenize(self, w_vector):
         assert 0 # should be unreachable because is_correct_type is always True

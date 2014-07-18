@@ -375,3 +375,30 @@ def test_begin0():
     assert v == [w_true, w_false]
     run_fix("(let ([x 1]) (begin0 x (set! x 2)))", 1)
     run_fix("(let ([x 10]) (begin0 (set! x 0) (set! x (+ x 1))) x)", 1)
+
+def test_varref():
+    run("(#%variable-reference)")
+    run("(#%variable-reference add1)")
+    run("(let ([x 0]) (#%variable-reference x))")
+    run("(let ([x 0]) (variable-reference-constant? (#%variable-reference x)))", w_true)
+    run("(let ([x 0]) (set! x 1) (variable-reference-constant? (#%variable-reference x)))", w_false)
+
+def test_arity():
+    run("(procedure-arity-includes? add1 1)", w_true)
+    run("(procedure-arity-includes? add1 2)", w_false)
+    run("(procedure-arity-includes? make-vector 1)", w_true)
+    run("(procedure-arity-includes? make-vector 2)", w_true)
+    run("(procedure-arity-includes? (lambda (x) 0) 1)", w_true)
+    run("(procedure-arity-includes? (lambda (x) 0) 2)", w_false)
+    run("(procedure-arity-includes? (lambda (x y) 0) 2)", w_true)
+    run("(procedure-arity-includes? (lambda (x . y) 0) 1)", w_true)
+    run("(procedure-arity-includes? (lambda (x . y) 0) 2)", w_true)
+    run("(procedure-arity-includes? (lambda (x . y) 0) 200000)", w_true)
+    run("(procedure-arity-includes? (lambda x 1) 1)", w_true)
+    run("(procedure-arity-includes? (lambda x 1) 0)", w_true)
+
+def test_tostring_of_list():
+    l = to_list([W_Fixnum(0), W_Fixnum(1), W_Fixnum(5)])
+    assert l.tostring() == "(0 1 5)"
+    l = to_improper([W_Fixnum(0), W_Fixnum(1)], W_Fixnum(5))
+    assert l.tostring() == "(0 1 . 5)"

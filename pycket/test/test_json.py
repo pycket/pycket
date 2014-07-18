@@ -1,10 +1,13 @@
 
 import pytest
 from pycket.json import loads
+import json as pyjson
 
 def _compare(string, expected):
     json = loads(string)
-    assert json._unpack_deep() == expected
+    val = json._unpack_deep()
+    assert val == expected
+    #assert val == pyjson.loads(string)
 
 def test_simple():
     _compare("1", 1)
@@ -25,8 +28,19 @@ def test_escaped_string():
     _compare('"\\n"', "\n")
     _compare('"\\n\\t\\b\\f\\r\\\\"', "\n\t\b\f\r\\")
     _compare('"\\n\\t\\b\\f\\r\\\\"', "\n\t\b\f\r\\")
+    _compare('["\\\\"]', ["\\"])
+    _compare('["\\\\\\\\"]', ["\\\\"])
     _compare('"\\""', '"')
 
 def test_tostring_string_escaping():
     json = loads('"\\n"')
     assert json.tostring() == '"\\n"'
+
+def test_bug():
+    # Lexer was having issues with single backslashes which would allow the string
+    # production rule to continue consuming past the end of a string
+    _compare(r'{"string" : "\\"}', {"string": "\\"})
+    _compare(r'[{ "quote": { "string": "\\" } },{ "quote": { "string": "Hi" } }]',
+            [{"quote" : { "string": "\\" }},{"quote" : { "string": "Hi" }}])
+
+    _compare(r'{"string" : "\\\\"}', {"string": "\\\\"})

@@ -13,13 +13,15 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (parameterize ([current-namespace (make-base-namespace)])
-    (namespace-syntax-introduce stx)
-    (expand stx)))
+    (namespace-syntax-introduce (expand stx))))
+
+(define current-module (make-parameter #f))
 
 (define (index->path i)
   (define-values (v _) (module-path-index-split i))
-  (and v
-       (resolved-module-path-name (module-path-index-resolve i))))
+  (if v
+      (list (resolved-module-path-name (module-path-index-resolve i)) #f)
+      (list (current-module) #t)))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -30,39 +32,99 @@
       (simplify-path
         (resolve-module-path v #f))))
   (define (translate v)
-    (case v
-      [(#%kernel #%unsafe #%utils) (symbol->string v)]
-      [else (to-path v)]))
-  ;(eprintf ">>> ~a\n" v)
-  (syntax-parse v #:literals (#%top quote)
-    [v:str        (to-path (syntax-e #'v))]
-    [s:identifier (translate (syntax-e #'s))]
-    [(#%top . x)  (to-path (syntax-e #'x))]
+    (let* ([str (symbol->string v)]
+           [pre (substring str 0 (min 2 (string-length str)))])
+      (if (string=? pre "#%")
+        str
+        (to-path v))))
+    ;;(case v
+    ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
+    ;;  [else (to-path v)]))
+  (syntax-parse v
+    [v:str        (list (to-path (syntax-e #'v)))]
+    [s:identifier (list (translate (syntax-e #'s)))]
+    [((~datum #%top) . x)
+     (error 'never-happens)
+     (list (to-path (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
-    [(_ ...)      (require-json (last (syntax->list v)))]
+    [((~datum all-except) p _ ...) (require-json #'p)]
+    [((~datum prefix) _ p) (require-json #'p)]
+    [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
+    [((~datum for-syntax) p ...) '()]
+    [((~datum for-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum for-meta) _ p ...) '()]
+    [((~datum just-meta) 0 p ...)
+     (append-map require-json (syntax->list #'(p ...)))]
+    [((~datum just-meta) _ p ...) '()]
+    [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     ))
 
 (define quoted? (make-parameter #f))
+
+(define global-config
+  (let ()
+    (define sysconfig
+      (for/hash ([k '(collects-dir temp-dir init-dir pref-dir home-dir
+                                   pref-file init-file config-dir addon-dir
+                                   exec-file run-file sys-dir doc-dir orig-dir)])
+        (values k (path->string (find-system-path k)))))
+    sysconfig))
+
+(define (id->sym id)
+  (define sym (identifier-binding-symbol id))
+  (symbol->string 
+   (if (quoted?)
+       (syntax-e id)
+       sym)))
+
+(define (num n)
+  (match n
+    [(or +inf.0 -inf.0 +nan.0)
+     (hash 'extended-real (number->string n))]
+    [(? exact-integer?)
+     (hash 'integer (~a n))]
+    [(and (? real?) (? rational?) (? exact?) (not (? integer?)))
+     (hash 'numerator (num (numerator n))
+           'denominator (num (denominator n)))]
+    [(? real?)
+     (hash 'real n)]
+    [(and (not (? real?)) (? complex?))
+       (hash 'real-part (num (real-part n))
+             'imag-part (num (imag-part n)))]))
 
 (define (to-json v)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top module* module #%plain-app quote #%require)
+  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
+                              module* module #%plain-app quote #%require quote-syntax
+                              with-continuation-mark)
     [v:str (hash 'string (syntax-e #'v))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
-    [(_ ...) 
+    [(_ ...)
      #:when (quoted?)
      (map to-json (syntax->list v))]
+    [(_ . _)
+     #:when (quoted?)
+     (hash 'improper (list (map to-json (proper (syntax-e v)))
+                           (to-json (cdr (last-pair (syntax-e v))))))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
     ;; this is a simplification of the json output
+    [_
+     #:when (prefab-struct-key (syntax-e v))
+     (hash 'string "PREFAB")]
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]
+    [((~literal with-continuation-mark) e0 e1 e2)
+     (hash 'wcm-key (to-json #'e0)
+           'wcm-val (to-json #'e1)
+           'wcm-body (to-json #'e2))]
     [(begin0 e0 e ...)
      (hash 'begin0 (to-json #'e0)
            'begin0-rest (map to-json (syntax->list #'(e ...))))]
@@ -80,12 +142,24 @@
                                        [e (syntax->list #'(es ...))])
                               (list (to-json x) (to-json e)))
            'letrec-body (map to-json (syntax->list #'(b ...))))]
-    [(quote e) (hash 'quote 
+    [(quote e) (hash 'quote
                      (parameterize ([quoted? #t])
                        (to-json #'e)))]
+    [(quote-syntax e) (hash 'quote-syntax
+                            (parameterize ([quoted? #t])
+                              (to-json #'e)))]
+    [((~literal define-values) (i ...) b)
+     (hash 'define-values (map id->sym (syntax->list #'(i ...)))
+           'define-values-body (to-json #'b)
+           ;; keep these separately because the real symbols
+           ;; may be unreadable extra symbols
+           'define-values-names (map (compose symbol->string syntax-e)
+                                     (syntax->list #'(i ...))))]
 
-    [(#%require . x) (hash 'require (require-json #'x))]
-    [(_ ...) (map to-json (syntax->list v))]
+    [(#%require x ...)
+     (hash 'require (append-map require-json (syntax->list #'(x ...))))]
+    [(_ ...)
+     (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
     [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
                                    (to-json (cdr (last-pair (syntax-e v))))))]
@@ -93,36 +167,53 @@
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
-       [(list (app index->path src) src-id _ _ 0 0 0)
+       [(list (app index->path (list src self?)) src-id _ nom-src-id
+                   src-phase import-phase nominal-export-phase)
         (hash 'module (symbol->string (syntax-e v))
               'source-module (if (path? src)
                                  (path->string src)
                                  (and src (symbol->string src)))
-              'source-name (symbol->string src-id))]
-       [v (error 'expand_racket "phase not zero: ~a" v)])]
+              'source-name (id->sym #'i)
+              ;; currently ignored
+              #;#;
+              'phases (list src-phase import-phase nominal-export-phase))])]
     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
        (hash 'box (to-json (unbox (syntax-e v))))]
-    [_ #:when (exact-integer? (syntax-e v))
-       (hash 'integer (~a (syntax-e v)))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
-    [(~or (~datum +inf.0) (~datum -inf.0) (~datum nan.0))
-     (hash 'real (number->string (syntax-e v)))]
-    [_ #:when (real? (syntax-e v)) (hash 'real (syntax-e v))]
+    [_ #:when (number? (syntax-e v))
+       (hash 'number (num (syntax-e v)))]
     [_ #:when (char? (syntax-e v))
        (hash 'char (~a (char->integer (syntax-e v))))]
-    ;;[_ #:when (regexp? (syntax-e v)) (hash 'quote '())]
-    ;;[_ #:when (bytes? (syntax-e v)) (hash 'string (bytes->string/locale (syntax-e v)))]
-    ;;[_ #:when (hash? (syntax-e v)) (to-json "hash-table-stub")]
-    ;;[_ (hash 'string "unsupported type")]
+    [_ #:when (regexp? (syntax-e v))
+       (hash 'regexp (object-name (syntax-e v)))]
+    [_ #:when (pregexp? (syntax-e v))
+       (hash 'pregexp (object-name (syntax-e v)))]
+    [_ #:when (byte-regexp? (syntax-e v))
+       (hash 'byte-regexp (bytes->string/locale (object-name (syntax-e v))))]
+    [_ #:when (byte-pregexp? (syntax-e v))
+       (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
+    [_ #:when (bytes? (syntax-e v))
+       (hash 'string (bytes->string/locale (syntax-e v)))]
+    [_ #:when (hash? (syntax-e v))
+       (let ([ht (syntax-e v)])
+         (parameterize ([quoted? #t])
+           (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht)))
+                 'hash-vals (to-json (datum->syntax #'lex (hash-values ht))))))]
     ))
 
 (define (convert mod)
   (syntax-parse mod #:literals (module #%plain-module-begin)
     [(module name:id lang:expr (#%plain-module-begin forms ...))
-     (hash 'module-name (symbol->string (syntax-e #'name))
-           'body-forms (filter-map to-json (syntax->list #'(forms ...))))]
+     (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
+                             (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
+                         (require-json #'#%kernel)
+                         (require-json #'lang))])
+       (hash 'module-name (symbol->string (syntax-e #'name))
+             'body-forms (filter-map to-json (syntax->list #'(forms ...)))
+             'language (first lang-req)
+             'config global-config))]
     [_ (error 'convert)]))
 
 
@@ -137,6 +228,8 @@
   (define mpair? #f)
   (define loop? #f)
 
+  (define logging? #f)
+
   (command-line
    #:once-any
    [("--output") file "write output to output <file>"
@@ -147,7 +240,7 @@
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    [("--loop") "keep process alive" (set! loop? #t)]
-   
+
    #:args ([source #f])
    (cond [(and in source)
           (raise-user-error "can't supply --stdin with a source file")]
@@ -157,6 +250,9 @@
           (when (not (output-port? out))
             (set! out (open-output-file (string-append source ".json")
                                         #:exists 'replace)))
+          (when logging?
+            (fprintf (open-output-file #:exists 'append "/tmp/expand.log")
+                     ">>> expanding ~a\n" source ))
           (set! in source)]))
 
   (define input (if (input-port? in) in (open-input-file in)))
@@ -171,13 +267,14 @@
   ;; directory so the expand function works properly
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
+    (current-module (object-name input))
     (current-directory in-dir))
-  
+
   (read-accept-reader #t)
   (read-accept-lang #t)
-  
+
   (let loop ()
-    (define mod 
+    (define mod
       ;; hack b/c I can't write EOF from Python
       (cond [loop?
              (let rd ([s null])
@@ -198,6 +295,6 @@
     (when (eof-object? mod) (exit 0))
     (define expanded (do-expand mod))
     (write-json (convert expanded) out)
-    (newline out) 
+    (newline out)
     (flush-output out)
     (when loop? (loop))))
