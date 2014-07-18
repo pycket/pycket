@@ -18,7 +18,7 @@ class default(object):
         self.typ = typ
         self.default = default
 
-def _make_arg_unwrapper(func, argstypes, funcname):
+def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
     argtype_tuples = []
     min_arg = 0
     isdefault = False
@@ -46,10 +46,18 @@ def _make_arg_unwrapper(func, argstypes, funcname):
     for _, typ, _, _, _ in argtype_tuples:
         assert typ.__dict__.get("errorname"), str(typ)
     _arity = range(min_arg, max_arity+1), -1
-    def func_arg_unwrap(args, *rest):
+    def func_arg_unwrap(*allargs):
+        if has_self:
+            self = allargs[0]
+            args = allargs[1]
+            rest = allargs[2:]
+            typed_args = (self, )
+        else:
+            args = allargs[0]
+            rest = allargs[1:]
+            typed_args = ()
         if not min_arg <= len(args) <= max_arity:
             raise SchemeException(errormsg_arity % len(args))
-        typed_args = ()
         lenargs = len(args)
         for i, typ, unsafe, default, default_value in unroll_argtypes:
             if i >= min_arg and i >= lenargs:
@@ -107,6 +115,13 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
         cls = values.W_Prim
         prim_env[values.W_Symbol.make(name)] = cls(name, func_result_handling, _arity)
         return func_arg_unwrap
+    return wrapper
+
+def make_call_method(argstypes, arity=None, simple=True, name="<method>"):
+    def wrapper(func):
+        func_arg_unwrap, _ = _make_arg_unwrapper(
+            func, argstypes, name, has_self=True)
+        return _make_result_handling_func(func_arg_unwrap, simple)
     return wrapper
 
 def expose_val(name, w_v):
