@@ -56,6 +56,7 @@ def make_cmp(name, op, con):
 
         raise SchemeException("unsupported operation %s on %s %s" % (
             name, w_a.tostring(), w_b.tostring()))
+    do.__name__ = op
 
 for args in [
         ("=", "eq", values.W_Bool.make),
@@ -69,13 +70,14 @@ for args in [
 
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
-    def do(a):
+    def predicate_(a):
         return values.W_Bool.make(isinstance(a, cls))
+    predicate_.__name__ +=  cls.__name__
 
 def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
-    def do(a):
+    def pred_eq(a):
         return values.W_Bool.make(isinstance(a, typ) and a is val)
 
 
@@ -178,6 +180,7 @@ def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
     def do(a, b):
         return getattr(a, methname)(b)
+    do.__name__ = name
 
 for args in [
         ("modulo",   "arith_mod"),
@@ -201,6 +204,7 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
             for i in range(1, jit.promote(len(args))):
                 init = getattr(init, methname)(args[i])
             return init
+    do.__name__ = name
 
 for args in [
         ("+", values.W_Fixnum(0), "arith_add", True),
@@ -217,6 +221,7 @@ def make_unary_arith(name, methname):
     @expose(name, [values.W_Number], simple=True)
     def do(a):
         return getattr(a, methname)()
+    do.__name__ = name
 
 @expose("sub1", [values.W_Number])
 def sub1(v):
@@ -365,7 +370,7 @@ def char2int(c):
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
-    def do(args): pass
+    def nyi(args): pass
 
 for args in [
         ("exn",),
