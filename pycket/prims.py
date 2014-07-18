@@ -1411,7 +1411,7 @@ def build_path(args):
     r = ""
     for a in args:
         if isinstance(a, values.W_Bytes):
-            r = r + a.val
+            r = r + a.value
         elif isinstance(a, values.W_String):
             r = r + a.value
         elif isinstance(a, values.W_Path):

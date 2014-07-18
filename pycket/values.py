@@ -451,7 +451,7 @@ class W_BytePRegexp(W_AnyRegexp): pass
 
 class W_Bytes(W_Object):
     errorname = "bytes"
-    _immutable_fields_ = ["val"]
+    _immutable_fields_ = ["value"]
     def __init__(self, val):
         self.value = val
     def tostring(self):
