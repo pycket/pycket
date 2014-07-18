@@ -62,7 +62,7 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
             for _, typ, _, _, _ in argtype_tuples:
                 assert typ.__dict__.get("errorname"), str(typ)
             _arity = arity or (range(min_arg, max_arity+1), -1)
-            def wrap_func(args, *rest):
+            def func_arg_unwrap(args, *rest):
                 if not min_arg <= len(args) <= max_arity:
                     raise SchemeException(errormsg_arity % len(args))
                 typed_args = ()
@@ -85,26 +85,33 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
                 typed_args += rest
                 if nyi:
                     raise SchemeException("primitive %s is not yet implemented"%name)
-                result = func(*typed_args)
-                if result is None:
-                    return values.w_void
-                return result
-        else:
-            def wrap_func(*args):
-                if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name)
-                result = func(*args)
-                if result is None:
-                    return values.w_void
-                return result
+                return func(*typed_args)
+            func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
+        elif nyi:
+            def func_arg_unwrap(*args):
+                raise SchemeException("primitive %s is not yet implemented"%name)
             _arity = arity or ([], 0)
-        wrap_func.func_name = "wrap_%s" % (func.func_name, )
-        if simple:
-            cls = values.W_SimplePrim
         else:
-            cls = values.W_Prim
-        prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func, _arity)
-        return wrap_func
+            func_arg_unwrap = func
+            _arity = arity or ([], 0)
+        if simple:
+            def func_result_handling(*args):
+                from pycket.interpreter import return_multi_vals, return_value
+                env = args[-2]
+                cont = args[-1]
+                args = args[:-2]
+                result = func_arg_unwrap(*args)
+                if result is None:
+                    result = values.w_void
+                if isinstance(result, values.Values):
+                    return return_multi_vals(result, env, cont)
+                else:
+                    return return_value(result, env, cont)
+        else:
+            func_result_handling = func_arg_unwrap
+        cls = values.W_Prim
+        prim_env[values.W_Symbol.make(name)] = cls(name, func_result_handling, _arity)
+        return func_arg_unwrap
     return wrapper
 
 def val(name, v):
@@ -262,10 +269,9 @@ def inexactp(n):
 def quotient(a, b):
     return a.arith_quotient(b)
 
-@expose("quotient/remainder", [values.W_Integer, values.W_Integer], simple=False)
-def quotient_remainder(a, b, env, cont):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]), env, cont)
+@expose("quotient/remainder", [values.W_Integer, values.W_Integer])
+def quotient_remainder(a, b):
+    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -545,10 +551,9 @@ def procedure_arity_includes(p, n):
 def varref_const(varref):
     return values.W_Bool.make(not(varref.varref.is_mutable))
 
-@expose("values", simple=False)
-def do_values(vals, env, cont):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make(vals), env, cont)
+@expose("values")
+def do_values(args_w):
+    return values.Values.make(args_w)
 
 @continuation
 def call_consumer(consumer, env, cont, vals):
@@ -868,18 +873,16 @@ def do_current_instpector(args):
 def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v._isopaque)
 
-@expose("struct-info", [values_struct.W_Struct], simple=False)
-def do_struct_info(struct, env, cont):
-    from pycket.interpreter import return_multi_vals
+@expose("struct-info", [values_struct.W_Struct])
+def do_struct_info(struct):
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
     struct_type = struct._type if True else values.w_false
     skipped = values.w_false
-    return return_multi_vals(values.Values.make([struct_type, skipped]), env, cont)
+    return values.Values.make([struct_type, skipped])
 
-@expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
-def do_struct_type_info(struct_desc, env, cont):
-    from pycket.interpreter import return_multi_vals
+@expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
+def do_struct_type_info(struct_desc):
     name = struct_desc.id()
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt())
@@ -890,8 +893,8 @@ def do_struct_type_info(struct_desc, env, cont):
     # TODO: if no ancestor is controlled by the current inspector return w_false
     super = struct_type.super()
     skipped = values.w_false
-    return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
-        accessor, mutator, immutable_k_list, super, skipped]), env, cont)
+    return values.Values.make([name, init_field_cnt, auto_field_cnt,
+        accessor, mutator, immutable_k_list, super, skipped])
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_constructor(struct_desc):
@@ -910,15 +913,15 @@ def do_struct_type_make_predicate(struct_desc):
 @expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
     default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
     default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
-    default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt, \
-    auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    from pycket.interpreter import return_multi_vals
+    default(values.W_Object, values.w_false)])
+def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
+        auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type == values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt, \
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
-    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
+    struct_type = values_struct.W_StructType.make(
+            name, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+    return values.Values.make(struct_type.make_struct_tuple())
 
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_accessor(accessor, field, field_name):
@@ -941,10 +944,8 @@ def struct2vector(struct):
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
-                                      default(values.W_Object, values.w_false)],
-        simple=False)
-def mk_stp(sym, guard, supers, _can_imp, env, cont):
-    from pycket.interpreter import return_multi_vals
+                                      default(values.W_Object, values.w_false)])
+def mk_stp(sym, guard, supers, _can_imp):
     can_imp = False
     if guard is values.W_Symbol.make("can-impersonate"):
         guard = values.w_false
@@ -952,10 +953,9 @@ def mk_stp(sym, guard, supers, _can_imp, env, cont):
     if not (_can_imp is values.w_false):
         can_imp = True
     prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
-    return return_multi_vals(values.Values.make([prop,
-                                                 values_struct.W_StructPropertyPredicate(prop),
-                                                 values_struct.W_StructPropertyAccessor(prop)]),
-                             env, cont)
+    return values.Values.make([prop,
+                               values_struct.W_StructPropertyPredicate(prop),
+                               values_struct.W_StructPropertyAccessor(prop)])
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
