@@ -18,62 +18,66 @@ class default(object):
         self.typ = typ
         self.default = default
 
+def _make_arg_unwrapper(func, argstypes, funcname):
+    argtype_tuples = []
+    min_arg = 0
+    isdefault = False
+    for i, typ in enumerate(argstypes):
+        isunsafe = False
+        default_value = None
+        if isinstance(typ, default):
+            isdefault = True
+            default_value = typ.default
+            typ = typ.typ
+        else:
+            assert not isdefault, "non-default argument %s after default argument" % typ
+            min_arg += 1
+        if isinstance(typ, unsafe):
+            typ = typ.typ
+            isunsafe = True
+        argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
+    unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
+    max_arity = len(argstypes)
+    if min_arg == max_arity:
+        aritystring = max_arity
+    else:
+        aritystring = "%s to %s" % (min_arg, max_arity)
+    errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, funcname)
+    for _, typ, _, _, _ in argtype_tuples:
+        assert typ.__dict__.get("errorname"), str(typ)
+    _arity = range(min_arg, max_arity+1), -1
+    def func_arg_unwrap(args, *rest):
+        if not min_arg <= len(args) <= max_arity:
+            raise SchemeException(errormsg_arity % len(args))
+        typed_args = ()
+        lenargs = len(args)
+        for i, typ, unsafe, default, default_value in unroll_argtypes:
+            if i >= min_arg and i >= lenargs:
+                assert default
+                typed_args += (default_value, )
+                continue
+            arg = args[i]
+
+            if not unsafe:
+                if typ is not values.W_Object and not isinstance(arg, typ):
+                    raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, args[i].tostring()))
+            else:
+                assert arg is not None
+                assert type(arg) is typ
+                jit.record_known_class(arg, typ)
+            typed_args += (arg, )
+        typed_args += rest
+        return func(*typed_args)
+    func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
+    return func_arg_unwrap, _arity
+
 def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
     from pycket.prims import prim_env
     def wrapper(func):
         if argstypes is not None:
-            argtype_tuples = []
-            min_arg = 0
-            isdefault = False
-            for i, typ in enumerate(argstypes):
-                isunsafe = False
-                default_value = None
-                if isinstance(typ, default):
-                    isdefault = True
-                    default_value = typ.default
-                    typ = typ.typ
-                else:
-                    assert not isdefault, "non-default argument %s after default argument" % typ
-                    min_arg += 1
-                if isinstance(typ, unsafe):
-                    typ = typ.typ
-                    isunsafe = True
-                argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
-            unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
-            max_arity = len(argstypes)
-            if min_arg == max_arity:
-                aritystring = max_arity
-            else:
-                aritystring = "%s to %s" % (min_arg, max_arity)
-            errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, name)
-            for _, typ, _, _, _ in argtype_tuples:
-                assert typ.__dict__.get("errorname"), str(typ)
-            _arity = arity or (range(min_arg, max_arity+1), -1)
-            def func_arg_unwrap(args, *rest):
-                if not min_arg <= len(args) <= max_arity:
-                    raise SchemeException(errormsg_arity % len(args))
-                typed_args = ()
-                lenargs = len(args)
-                for i, typ, unsafe, default, default_value in unroll_argtypes:
-                    if i >= min_arg and i >= lenargs:
-                        assert default
-                        typed_args += (default_value, )
-                        continue
-                    arg = args[i]
-
-                    if not unsafe:
-                        if typ is not values.W_Object and not isinstance(arg, typ):
-                            raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
-                    else:
-                        assert arg is not None
-                        assert type(arg) is typ
-                        jit.record_known_class(arg, typ)
-                    typed_args += (arg, )
-                typed_args += rest
-                if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name)
-                return func(*typed_args)
-            func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
+            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
+            if arity is not None:
+                _arity = arity
         elif nyi:
             def func_arg_unwrap(*args):
                 raise SchemeException("primitive %s is not yet implemented"%name)
