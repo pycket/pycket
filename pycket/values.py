@@ -742,3 +742,9 @@ class W_Parameter(W_Procedure):
             return return_value(w_void, env, cont)
         else:
             raise SchemeException("wrong number of arguments to parameter")
+
+class W_EnvVarSet(W_Object):
+    errorname = "environment-variable-set"
+    def __init__(self): pass
+
+

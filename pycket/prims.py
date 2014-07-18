@@ -1325,6 +1325,14 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
+@expose("string->bytes/locale", [values.W_String, 
+                                 default(values.W_Object, values.w_false),
+                                 default(values.W_Integer, values.W_Fixnum(0)),
+                                 default(values.W_Integer, None)])
+def string_to_bytes_locale(str, errbyte, start, end):
+    # FIXME: This ignores the locale
+    return values.W_Bytes(str.value)
+
 @expose("integer->char", [values.W_Fixnum])
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
@@ -1390,7 +1398,39 @@ def gensym(init):
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
-    return values.w_false # ha
+    return values.w_false # Back to one problem
+
+@expose("regexp-match?", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
+def regexp_matchp(r, o):
+    # ack, this is wrong
+    return values.w_true # Back to one problem
+
+@expose("build-path")
+def build_path(args):
+    # this is terrible
+    r = ""
+    for a in args:
+        if isinstance(a, values.W_Bytes):
+            r = r + a.val
+        elif isinstance(a, values.W_String):
+            r = r + a.value
+        elif isinstance(a, values.W_Path):
+            r = r + a.path
+        else:
+            raise SchemeException("bad input to build-path: %s"%a)
+    return values.W_Path(r)
+
+@expose("current-environment-variables", [])
+def cur_env_vars():
+    return values.W_EnvVarSet()
+
+@expose("environment-variables-ref", [values.W_EnvVarSet, values.W_Bytes])
+def env_var_ref(set, name):
+    return values.w_false
+
+@expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
+def raise_arg_err(sym, str, val):
+    raise SchemeException("%s: expected %s but got %s"%(sym.value, str.value, val.tostring()))
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
@@ -1400,6 +1440,13 @@ def find_sys_path(sym):
         return values.W_Path(v)
     else:
         raise SchemeException("unknown system path %s"%sym.value)
+
+@expose("system-type", [default(values.W_Symbol, values.W_Symbol.make("os"))])
+def system_type(sym):
+    if sym is values.W_Symbol.make("os"):
+        # FIXME: make this work on macs
+        return values.W_Symbol.make("unix")
+    raise SchemeException("unexpected system-type symbol %s"%sym.value)
 
 # Loading
 
