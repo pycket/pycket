@@ -10,105 +10,13 @@ from pycket.cont import Cont, call_cont, continuation
 from pycket import cont
 from pycket import struct as values_struct
 from pycket import vector as values_vector
+from pycket.exposeprim import unsafe, default, expose, expose_val
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
-from rpython.rlib  import jit, unroll
+from rpython.rlib  import jit
 
 prim_env = {}
 
-class unsafe(object):
-    """ can be used in the argtypes part of an @expose call. The corresponding
-    argument will be assumed to have the precise corresponding type (no
-    subtypes!)."""
-
-    def __init__(self, typ):
-        self.typ = typ
-
-class default(object):
-    """ can be used in the argtypes part of an @expose call. If the argument is
-    missing, the default value is passed to the function. """
-
-    def __init__(self, typ, default=None):
-        self.typ = typ
-        self.default = default
-
-def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
-    def wrapper(func):
-        if argstypes is not None:
-            argtype_tuples = []
-            min_arg = 0
-            isdefault = False
-            for i, typ in enumerate(argstypes):
-                isunsafe = False
-                default_value = None
-                if isinstance(typ, default):
-                    isdefault = True
-                    default_value = typ.default
-                    typ = typ.typ
-                else:
-                    assert not isdefault, "non-default argument %s after default argument" % typ
-                    min_arg += 1
-                if isinstance(typ, unsafe):
-                    typ = typ.typ
-                    isunsafe = True
-                argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
-            unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
-            max_arity = len(argstypes)
-            if min_arg == max_arity:
-                aritystring = max_arity
-            else:
-                aritystring = "%s to %s" % (min_arg, max_arity)
-            errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, name)
-            for _, typ, _, _, _ in argtype_tuples:
-                assert typ.__dict__.get("errorname"), str(typ)
-            _arity = arity or (range(min_arg, max_arity+1), -1)
-            def wrap_func(args, *rest):
-                if not min_arg <= len(args) <= max_arity:
-                    raise SchemeException(errormsg_arity % len(args))
-                typed_args = ()
-                lenargs = len(args)
-                for i, typ, unsafe, default, default_value in unroll_argtypes:
-                    if i >= min_arg and i >= lenargs:
-                        assert default
-                        typed_args += (default_value, )
-                        continue
-                    arg = args[i]
-
-                    if not unsafe:
-                        if typ is not values.W_Object and not isinstance(arg, typ):
-                            raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, name, args[i].tostring()))
-                    else:
-                        assert arg is not None
-                        assert type(arg) is typ
-                        jit.record_known_class(arg, typ)
-                    typed_args += (arg, )
-                typed_args += rest
-                if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name)
-                result = func(*typed_args)
-                if result is None:
-                    return values.w_void
-                return result
-        else:
-            def wrap_func(*args):
-                if nyi:
-                    raise SchemeException("primitive %s is not yet implemented"%name)
-                result = func(*args)
-                if result is None:
-                    return values.w_void
-                return result
-            _arity = arity or ([], 0)
-        wrap_func.func_name = "wrap_%s" % (func.func_name, )
-        if simple:
-            cls = values.W_SimplePrim
-        else:
-            cls = values.W_Prim
-        prim_env[values.W_Symbol.make(name)] = cls(name, wrap_func, _arity)
-        return wrap_func
-    return wrapper
-
-def val(name, v):
-    prim_env[values.W_Symbol.make(name)] = v
 
 def make_cmp(name, op, con):
     from values import W_Number, W_Fixnum, W_Flonum, W_Bignum
@@ -148,6 +56,7 @@ def make_cmp(name, op, con):
 
         raise SchemeException("unsupported operation %s on %s %s" % (
             name, w_a.tostring(), w_b.tostring()))
+    do.__name__ = op
 
 for args in [
         ("=", "eq", values.W_Bool.make),
@@ -161,13 +70,14 @@ for args in [
 
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
-    def do(a):
+    def predicate_(a):
         return values.W_Bool.make(isinstance(a, cls))
+    predicate_.__name__ +=  cls.__name__
 
 def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
-    def do(a):
+    def pred_eq(a):
         return values.W_Bool.make(isinstance(a, typ) and a is val)
 
 
@@ -262,15 +172,15 @@ def inexactp(n):
 def quotient(a, b):
     return a.arith_quotient(b)
 
-@expose("quotient/remainder", [values.W_Integer, values.W_Integer], simple=False)
-def quotient_remainder(a, b, env, cont):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]), env, cont)
+@expose("quotient/remainder", [values.W_Integer, values.W_Integer])
+def quotient_remainder(a, b):
+    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
     def do(a, b):
         return getattr(a, methname)(b)
+    do.__name__ = name
 
 for args in [
         ("modulo",   "arith_mod"),
@@ -294,6 +204,7 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
             for i in range(1, jit.promote(len(args))):
                 init = getattr(init, methname)(args[i])
             return init
+    do.__name__ = name
 
 for args in [
         ("+", values.W_Fixnum(0), "arith_add", True),
@@ -310,6 +221,7 @@ def make_unary_arith(name, methname):
     @expose(name, [values.W_Number], simple=True)
     def do(a):
         return getattr(a, methname)()
+    do.__name__ = name
 
 @expose("sub1", [values.W_Number])
 def sub1(v):
@@ -329,9 +241,9 @@ for args in [
     make_unary_arith(*args)
 
 
-val("null", values.w_null)
-val("true", values.w_true)
-val("false", values.w_false)
+expose_val("null", values.w_null)
+expose_val("true", values.w_true)
+expose_val("false", values.w_false)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -342,7 +254,7 @@ for name in ["prop:evt",
              "prop:custom-write",
              "prop:equal+hash",
              "prop:procedure"]:
-    val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
+    expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 
 
@@ -458,7 +370,7 @@ def char2int(c):
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
-    def do(args): pass
+    def nyi(args): pass
 
 for args in [
         ("exn",),
@@ -545,10 +457,9 @@ def procedure_arity_includes(p, n):
 def varref_const(varref):
     return values.W_Bool.make(not(varref.varref.is_mutable))
 
-@expose("values", simple=False)
-def do_values(vals, env, cont):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make(vals), env, cont)
+@expose("values")
+def do_values(args_w):
+    return values.Values.make(args_w)
 
 @continuation
 def call_consumer(consumer, env, cont, vals):
@@ -868,18 +779,16 @@ def do_current_instpector(args):
 def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v.isopaque)
 
-@expose("struct-info", [values_struct.W_Struct], simple=False)
-def do_struct_info(struct, env, cont):
-    from pycket.interpreter import return_multi_vals
+@expose("struct-info", [values_struct.W_Struct])
+def do_struct_info(struct):
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
     struct_id = struct.type if True else values.w_false
     skipped = values.w_false
-    return return_multi_vals(values.Values.make([struct_id, skipped]), env, cont)
+    return values.Values.make([struct_id, skipped])
 
-@expose("struct-type-info", [values_struct.W_StructTypeDescriptor], simple=False)
-def do_struct_type_info(struct_id, env, cont):
-    from pycket.interpreter import return_multi_vals
+@expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
+def do_struct_type_info(struct_id):
     name = values.W_Symbol.make(struct_id.value)
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
     assert isinstance(struct_type, values_struct.W_StructType)
@@ -891,8 +800,8 @@ def do_struct_type_info(struct_id, env, cont):
     # TODO: if no ancestor is controlled by the current inspector return w_false
     super = struct_type.super
     skipped = values.w_false
-    return return_multi_vals(values.Values.make([name, init_field_cnt, auto_field_cnt, \
-        accessor, mutator, immutable_k_list, super, skipped]), env, cont)
+    return values.Values.make([name, init_field_cnt, auto_field_cnt,
+        accessor, mutator, immutable_k_list, super, skipped])
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_make_constructor(struct_id):
@@ -913,15 +822,15 @@ def do_struct_type_make_predicate(struct_id):
 @expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
     default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
     default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
-    default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt, \
-    auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    from pycket.interpreter import return_multi_vals
+    default(values.W_Object, values.w_false)])
+def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
+        auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type == values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt, \
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
-    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
+    struct_type = values_struct.W_StructType.make(
+            name, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+    return values.Values.make(struct_type.make_struct_tuple())
 
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_accessor(accessor, field, field_name):
@@ -943,10 +852,8 @@ def struct2vector(struct):
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
-                                      default(values.W_Object, values.w_false)],
-        simple=False)
-def mk_stp(sym, guard, supers, _can_imp, env, cont):
-    from pycket.interpreter import return_multi_vals
+                                      default(values.W_Object, values.w_false)])
+def mk_stp(sym, guard, supers, _can_imp):
     can_imp = False
     if guard is values.W_Symbol.make("can-impersonate"):
         guard = values.w_false
@@ -954,10 +861,9 @@ def mk_stp(sym, guard, supers, _can_imp, env, cont):
     if not (_can_imp is values.w_false):
         can_imp = True
     prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
-    return return_multi_vals(values.Values.make([prop,
-                                                 values_struct.W_StructPropertyPredicate(prop),
-                                                 values_struct.W_StructPropertyAccessor(prop)]),
-                             env, cont)
+    return values.Values.make([prop,
+                               values_struct.W_StructPropertyPredicate(prop),
+                               values_struct.W_StructPropertyAccessor(prop)])
 
 @expose("number->string", [values.W_Number])
 def num2str(a):

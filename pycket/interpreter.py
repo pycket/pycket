@@ -197,14 +197,25 @@ class LetCont(Cont):
         self.ast  = ast
         self.rhsindex = rhsindex
 
+    @jit.unroll_safe
     def plug_reduce(self, _vals, _env):
         vals = _vals._get_full_list()
+        jit.promote(len(vals))
+        previous_vals = self._get_full_list()
+        jit.promote(len(previous_vals))
+        vals_w = [None] * (len(previous_vals) + len(vals))
+        i = 0
+        for w_val in previous_vals:
+            vals_w[i] = w_val
+            i += 1
+        for w_val in vals:
+            vals_w[i] = w_val
+            i += 1
         ast = jit.promote(self.ast)
         rhsindex = jit.promote(self.rhsindex)
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            vals_w = self._get_full_list() + vals
             # speculate moar!
             if _env is self.env:
                 prev = _env
@@ -214,7 +225,7 @@ class LetCont(Cont):
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
-                    LetCont.make(self._get_full_list() + vals, ast,
+                    LetCont.make(vals_w, ast,
                                  rhsindex + 1, self.env, self.prev))
 
 inline_small_list(LetCont, attrname="vals_w", immutable=True)
@@ -764,7 +775,7 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv"]
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "env_structure"]
     def __init__(self, sym, srcmod, srcsym, env_structure=None):
         self.sym = sym
         self.srcmod = srcmod
@@ -1274,13 +1285,14 @@ class Let(SequencedBodyAST):
 
 
 class DefineValues(AST):
-    _immutable_fields_ = ["names", "rhs"]
+    _immutable_fields_ = ["names", "rhs", "display_names"]
     names = []
     rhs = Quote(values.w_null)
 
-    def __init__(self, ns, r):
+    def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
+        self.display_names = display_names
 
     def defined_vars(self):
         defs = {} # a dictionary, contains symbols
@@ -1295,10 +1307,14 @@ class DefineValues(AST):
         mut = False
         need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in self.names]
         if (True in need_cell_flags):
-            return DefineValues(self.names, Cell(self.rhs.assign_convert(vars, env_structure),
-                                                 need_cell_flags))
+            return DefineValues(self.names,
+                                Cell(self.rhs.assign_convert(vars, env_structure),
+                                     need_cell_flags),
+                                self.display_names)
         else:
-            return DefineValues(self.names, self.rhs.assign_convert(vars, env_structure))
+            return DefineValues(self.names, 
+                                self.rhs.assign_convert(vars, env_structure),
+                                self.display_names)
     def mutated_vars(self):
         return self.rhs.mutated_vars()
     def free_vars(self):
@@ -1306,7 +1322,7 @@ class DefineValues(AST):
         # which is the only thing defined by define-values
         return self.rhs.free_vars()
     def tostring(self):
-        return "(define-values %s %s)"%(self.names, self.rhs.tostring())
+        return "(define-values %s %s)"%(self.display_names, self.rhs.tostring())
 
 def get_printable_location(green_ast):
     if green_ast is None:

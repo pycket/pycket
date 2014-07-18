@@ -5,7 +5,7 @@ from pycket.cont import continuation, call_cont
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
-from rpython.rlib  import jit
+from rpython.rlib  import jit, runicode
 from rpython.rlib.objectmodel import r_dict, compute_hash
 
 UNROLLING_CUTOFF = 5
@@ -312,10 +312,13 @@ class W_Bignum(W_Integer):
 class W_Character(W_Object):
     _immutable_fields_ = ["value"]
     errorname = "char"
-    def tostring(self):
-        return "#\\%s" % self.value.encode("utf-8")
     def __init__(self, val):
         self.value = val
+
+    def tostring(self):
+        return "#\\%s" % runicode.unicode_encode_utf_8(
+                self.value, len(self.value), "strict")
+
     def equal(self, other):
         if not isinstance(other, W_Character):
             return False
@@ -530,10 +533,16 @@ class W_Procedure(W_Object):
     errorname = "procedure"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
     def mark_non_loop(self): pass
+
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self):
         return ([],0)
+
+    def call(self, args, env, cont):
+        raise NotImplementedError("abstract base class")
+
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "proc", "arity"]
@@ -575,7 +584,8 @@ class W_Prim(W_Procedure):
 
 def to_list(l): return to_improper(l, w_null)
 
-@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+@jit.look_inside_iff(
+    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
 def to_improper(l, curr):
     for i in range(len(l) - 1, -1, -1):
         curr = W_Cons.make(l[i], curr)
@@ -583,7 +593,8 @@ def to_improper(l, curr):
 
 def to_mlist(l): return to_mimproper(l, w_null)
 
-@jit.look_inside_iff(lambda l, curr: jit.isconstant(len(l)) and len(l) < UNROLLING_CUTOFF)
+@jit.look_inside_iff(
+    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
 def to_mimproper(l, curr):
     for i in range(len(l) - 1, -1, -1):
         curr = W_MCons(l[i], curr)

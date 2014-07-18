@@ -209,6 +209,10 @@ class TestLLtype(LLJitMixin):
     def test_sumloop(self):
         self.run_file("sumloop.rkt")
 
+    def test_treerec(self):
+        self.run_file("treerec.rkt")
+
+
     def test_pseudoknot(self):
         fname = "nucleic2.sch"
         ast = parse_file(fname)
