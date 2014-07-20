@@ -1,6 +1,6 @@
 from pycket.cont import continuation
 from pycket.error import SchemeException
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure, w_void
 from pycket.exposeprim import make_call_method
 from rpython.rlib import jit
 
@@ -177,27 +177,34 @@ class W_Struct(W_Object):
         self._super = super
         self._isopaque = isopaque
         self._fields = fields
+
     def vals(self):
         result = self._fields
         if self._super is not None: 
             return self._super.vals() + result
         else:
             return result
-    def ref(self, struct_id, field):
+
+    def ref(self, struct_id, field, env, cont):
+        from pycket.interpreter import return_value
         if self._type == struct_id:
-            return self._fields[field]
+            return return_value(self._fields[field], env, cont)
         elif self._type.id() == struct_id.id():
             raise SchemeException("given value instantiates a different structure type with the same name")
         elif self._super is not None:
-            return self._super.ref(struct_id, field)
+            return return_value(self._super.ref(struct_id, field), env, cont)
         else:
             assert False
-    def set(self, struct_id, field, val):
+
+    def set(self, struct_id, field, val, env, cont):
+        from pycket.interpreter import return_value
         type = jit.promote(self._type)
         if type == struct_id:
             self._fields[field] = val
         else:
             self._super.set(struct_id, field, val)
+        return return_value(w_void, env, cont)
+
     def tostring(self):
         if self._isopaque:
             result =  "#<%s>" % self._type.id().value
@@ -249,9 +256,9 @@ class W_StructFieldAccessor(W_Procedure):
         self._accessor = accessor
         self._field = field
 
-    @make_call_method([W_Struct])
-    def call(self, struct):
-        return self._accessor.access(struct, self._field)
+    @make_call_method([W_Struct], simple=False)
+    def call(self, struct, env, cont):
+        return self._accessor.access(struct, self._field, env, cont)
 
 class W_StructAccessor(W_Procedure):
     errorname = "struct-accessor"
@@ -259,10 +266,10 @@ class W_StructAccessor(W_Procedure):
     def __init__ (self, struct_id):
         self._struct_id = struct_id
 
-    def access(self, struct, field):
-        return struct.ref(self._struct_id, field.value)
+    def access(self, struct, field, env, cont):
+        return struct.ref(self._struct_id, field.value, env, cont)
 
-    call = make_call_method([W_Struct, W_Fixnum])(access)
+    call = make_call_method([W_Struct, W_Fixnum], simple=False)(access)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self._struct_id.id()
@@ -276,9 +283,9 @@ class W_StructFieldMutator(W_Procedure):
         self._field = field
         mutator.setmutable(field)
 
-    @make_call_method([W_Struct, W_Object])
-    def call(self, struct, val):
-        return self._mutator.mutate(struct, self._field, val)
+    @make_call_method([W_Struct, W_Object], simple=False)
+    def call(self, struct, val, env, cont):
+        return self._mutator.mutate(struct, self._field, val, env, cont)
 
 class W_StructMutator(W_Procedure):
     errorname = "struct-mutator"
@@ -286,10 +293,10 @@ class W_StructMutator(W_Procedure):
     def __init__ (self, struct_id):
         self._struct_id = struct_id
 
-    def mutate(self, struct, field, val):
-        struct.set(self._struct_id, field.value, val)
+    def mutate(self, struct, field, val, env, cont):
+        struct.set(self._struct_id, field.value, val, env, cont)
 
-    call = make_call_method([W_Struct, W_Fixnum, W_Object])(mutate)
+    call = make_call_method([W_Struct, W_Fixnum, W_Object], simple=False)(mutate)
 
     def setmutable(self, field):
         struct = W_StructType.lookup_struct_type(self._struct_id)
