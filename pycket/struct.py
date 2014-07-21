@@ -45,10 +45,7 @@ class W_StructType(W_Object):
 
     @staticmethod
     def lookup_struct_type(struct_id):
-        if struct_id in W_StructType.all_structs:
-            return W_StructType.all_structs[struct_id]
-        else:
-            return w_false
+        return W_StructType.all_structs.get(struct_id, w_false)
 
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, \
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
