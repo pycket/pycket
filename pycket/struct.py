@@ -6,7 +6,7 @@ from rpython.rlib import jit
 
 #
 # Structs are partially supported
-# 
+#
 # Not implemented:
 # 1) prefab -- '#s(sprout bean): need update in expand.rkt
 # 2) methods overriding (including equal) -- generic-interfaces.rkt
@@ -17,7 +17,7 @@ class W_StructInspector(W_Object):
     errorname = "struct-inspector"
     _immutable_fields_ = ["_super"]
 
-    @staticmethod 
+    @staticmethod
     def make(inspector, issibling = False):
         super = inspector
         if issibling:
@@ -49,7 +49,7 @@ class W_StructType(W_Object):
             return W_StructType.all_structs[struct_id]
         else:
             return w_false
-    
+
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, \
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else None
@@ -180,30 +180,34 @@ class W_Struct(W_Object):
 
     def vals(self):
         result = self._fields
-        if self._super is not None: 
+        if self._super is not None:
             return self._super.vals() + result
         else:
             return result
 
-    def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import return_value
+    # Rather than reference functions, we store the continuations. This is
+    # necessarray to get constant stack usage without adding extra preamble
+    # continuations.
+    @continuation
+    def ref(self, struct_id, field, env, cont, _vals):
+        from pycket.interpreter import return_value, jump
         if self._type == struct_id:
             return return_value(self._fields[field], env, cont)
         elif self._type.id() == struct_id.id():
             raise SchemeException("given value instantiates a different structure type with the same name")
         elif self._super is not None:
-            return return_value(self._super.ref(struct_id, field), env, cont)
+            return jump(env, self._super.ref(struct_id, field, env, cont))
         else:
             assert False
 
-    def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import return_value
+    @continuation
+    def set(self, struct_id, field, val, env, cont, _vals):
+        from pycket.interpreter import return_value, jump
         type = jit.promote(self._type)
         if type == struct_id:
             self._fields[field] = val
-        else:
-            self._super.set(struct_id, field, val)
-        return return_value(w_void, env, cont)
+            return return_value(w_void, env, cont)
+        return jump(env, self._super.set(struct_id, field, val, env, cont))
 
     def tostring(self):
         if self._isopaque:
@@ -267,7 +271,8 @@ class W_StructAccessor(W_Procedure):
         self._struct_id = struct_id
 
     def access(self, struct, field, env, cont):
-        return struct.ref(self._struct_id, field.value, env, cont)
+        from pycket.interpreter import jump
+        return jump(env, struct.ref(self._struct_id, field.value, env, cont))
 
     call = make_call_method([W_Struct, W_Fixnum], simple=False)(access)
 
@@ -294,7 +299,8 @@ class W_StructMutator(W_Procedure):
         self._struct_id = struct_id
 
     def mutate(self, struct, field, val, env, cont):
-        struct.set(self._struct_id, field.value, val, env, cont)
+        from pycket.interpreter import jump
+        return jump(env, struct.set(self._struct_id, field.value, val, env, cont))
 
     call = make_call_method([W_Struct, W_Fixnum, W_Object], simple=False)(mutate)
 
