@@ -77,13 +77,6 @@ class W_ImpProcedure(values.W_Procedure):
                 jump_call(self.check, args, env,
                     imp_proc_cont(len(args), self.code, env, cont)))
 
-    def equal(self, other):
-        if not isinstance(other, values.W_Procedure):
-            return False
-        # We are the same procedure if we have the same identity or
-        # our underlying procedure is equal to our partner.
-        return self is other or other.equal(self.code)
-
     def tostring(self):
         return "ImpProcedure<%s>" % self.code.tostring()
 
@@ -145,12 +138,6 @@ class W_ChpProcedure(values.W_Procedure):
                 jump_call(self.check, args, env,
                     chp_proc_cont(args, self.code, env, cont)))
 
-    def equal(self, other):
-        if not isinstance(other, values.W_Procedure):
-            return False
-
-        return self is other or other.equal(self.code)
-
     def tostring(self):
         return "ChpProcedure<%s>" % self.code.tostring()
 
@@ -180,7 +167,6 @@ class W_ImpBox(values.W_Box):
         self.set = set
 
 # Vectors
-
 class W_ImpVector(values.W_MVector):
     errorname = "imp-vector"
     _immutable_fields_ = ["vec", "refh", "seth"]
@@ -192,21 +178,6 @@ class W_ImpVector(values.W_MVector):
 
     def length(self):
         return self.vec.length()
-
-    def equal(self, other):
-        if not isinstance(other, values.W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.vec is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            # FIXME: we need to call user code here
-            if not self.vec.ref(i).equal(other.ref(i)):
-                return False
-        return True
 
 class W_ChpVector(values.W_MVector):
     errorname = "chp-procedure"
@@ -222,18 +193,6 @@ class W_ChpVector(values.W_MVector):
 
     def immutable(self):
         return self.vec.immutable()
-
-    def equal(self, other):
-        if not isinstance(other, values.W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            if not self.vec.ref(i).equal(other.ref(i)):
-                return False
-        return True
 
 def valid_struct_proc(x):
     return (isinstance(x, struct.W_StructFieldAccessor) or
