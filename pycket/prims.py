@@ -6,7 +6,7 @@ import time
 import math
 import pycket.impersonators as imp
 from pycket import values
-from pycket.cont import Cont, call_cont, continuation
+from pycket.cont import Cont, continuation
 from pycket import cont
 from pycket import struct as values_struct
 from pycket import vector as values_vector
