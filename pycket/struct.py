@@ -169,13 +169,34 @@ class W_StructProperty(W_Object):
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
-class W_Struct(W_Object):
-    errorname = "struct"
-    _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
-    def __init__(self, struct_id, super, isopaque, fields):
+class W_RootStruct(W_Object):
+    errorname = "root-struct"
+    _immutable_fields_ = ["_type", "_super", "_isopaque"]
+
+    def __init__(self, struct_id, super, isopaque):
         self._type = struct_id
         self._super = super
         self._isopaque = isopaque
+
+    @continuation
+    def ref(self, struct_id, field, env, cont, _vals):
+        raise NotImplementedError("base class")
+
+    @continuation
+    def set(self, struct_id, field, val, env, cont, _vals):
+        raise NotImplementedError("base class")
+
+    def vals(self):
+        raise NotImplementedError("base class")
+
+class W_Struct(W_RootStruct):
+    errorname = "struct"
+    _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
+    def __init__(self, struct_id, super, isopaque, fields):
+        W_RootStruct.__init__(self, struct_id, super, isopaque)
+        #self._type = struct_id
+        #self._super = super
+        #self._isopaque = isopaque
         self._fields = fields
 
     def vals(self):
