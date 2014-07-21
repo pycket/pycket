@@ -819,7 +819,7 @@ def do_struct_type_make_predicate(struct_desc):
          default(values.W_Object, None),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false),
-         default(values.W_Object, None),
+         default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
@@ -1064,8 +1064,6 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val, jump
     return jump(env, do_vec_set_cont(v, i, check_one_val(vals), env, cont))
 
-# TODO check that the returned value is the same as the given value
-# up to intervening chaperones.
 @continuation
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
     from pycket.interpreter import check_one_val, jump
@@ -1116,6 +1114,7 @@ def chaperone_vector(v, refh, seth):
     seth.mark_non_loop()
     return imp.W_ChpVector(v, refh, seth)
 
+# Need to check that fields are mutable
 @expose("impersonate-struct")
 def impersonate_struct(args):
     if len(args) < 1 or len(args) % 2 != 1:
@@ -1124,29 +1123,56 @@ def impersonate_struct(args):
         return args[0]
 
     struct, args = args[0], args[1:]
-    overrides = []
-    handlers = []
 
-    overrides = [] #[args[i] for i in range(0, len(args), 2)]
-    handlers  = [] #[args[i] for i in range(1, len(args), 2)]
+    if not isinstance(struct, values_struct.W_Struct):
+        raise SchemeException("impersonate-struct: not given struct")
 
-    #for i in args[0::2]:
-        #if not imp.valid_struct_proc(i):
-            #raise SchemeException("impersonate-struct: not given valid field accessor")
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct._type)
+    assert isinstance(struct_type, values_struct.W_StructType)
 
-    while args:
-        a0 = args[0]
-        a1 = args[1]
-        if not imp.valid_struct_proc(a0):
+    immutables = [i.value for i in values.from_list(struct_type.immutables())]
+
+    # Slicing would be nicer
+    overrides = [args[i] for i in range(0, len(args), 2)]
+    handlers  = [args[i] for i in range(1, len(args), 2)]
+
+    for i in overrides:
+        if not imp.valid_struct_proc(i):
             raise SchemeException("impersonate-struct: not given valid field accessor")
-        if not isinstance(a1, values.W_Procedure):
-            raise SchemeException("impersonate-struct: supplied handler is not a procedure")
-        overrides.append(a0)
-        handlers.append(a1)
-        args = args[2:]
+        if i._field.value in immutables:
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+
+    for i in handlers:
+        if not isinstance(i, values.W_Procedure):
+            raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
     return imp.W_ImpStruct(struct, overrides, handlers)
 
+@expose("chaperone-struct")
+def chaperone_struct(args):
+    if len(args) < 1 or len(args) % 2 != 1:
+        raise SchemeException("chaperone-struct: arity mismatch")
+    if len(args) == 1:
+        return args[0]
+
+    struct, args = args[0], args[1:]
+
+    if not isinstance(struct, values_struct.W_Struct):
+        raise SchemeException("chaperone-struct: not given struct")
+
+    # Slicing would be nicer
+    overrides = [args[i] for i in range(0, len(args), 2)]
+    handlers  = [args[i] for i in range(1, len(args), 2)]
+
+    for i in overrides:
+        if not imp.valid_struct_proc(i):
+            raise SchemeException("chaperone-struct: not given valid field accessor")
+
+    for i in handlers:
+        if not isinstance(i, values.W_Procedure):
+            raise SchemeException("chaperone-struct: supplied hander is not a procedure")
+
+    return imp.W_ChpStruct(struct, overrides, handlers)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):

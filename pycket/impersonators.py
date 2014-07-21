@@ -247,10 +247,9 @@ def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
     return jump(env, jump_call(interp, [orig_struct, field_v], env, cont))
 
 @continuation
-def imp_struct_set_cont(orig_struct, struct_id, field, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, sid, field, env, cont, _vals):
     from pycket.interpreter import check_one_val, jump
-    return jump(env,
-            orig_struct.set(struct_id, field, check_one_val(_vals), env, cont))
+    return jump(env, orig_struct.set(sid, field, check_one_val(_vals), env, cont))
 
 # Need to add checks that we are only impersonating mutable fields
 class W_ImpStruct(struct.W_RootStruct):
@@ -263,7 +262,7 @@ class W_ImpStruct(struct.W_RootStruct):
         self.struct = inner
         self.accessors = {}
         self.mutators = {}
-        # Does not deal with properties
+        # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             if isinstance(op, struct.W_StructFieldAccessor):
                 self.accessors[op._field.value] = handlers[i]
@@ -293,38 +292,68 @@ class W_ImpStruct(struct.W_RootStruct):
     def vals(self):
         return self.struct.vals()
 
-#class W_ChpStruct(struct.W_Struct):
-    #_immutable_fields = ["struct", "accessors", "mutators", "handlers"]
+@continuation
+def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    field_v = check_one_val(_vals)
+    return jump(env,
+            jump_call(interp, [orig_struct, field_v], env,
+                chp_struct_ref_post_cont(field_v, env, cont)))
 
-    #def __init__(self, struct, overrides, handlers):
-        #assert isinstance(struct, struct.W_Struct)
-        #assert all([valid_struct_proc(i) for i in overrides])
-        #assert all([isinstance(i, values.W_Procedure) for i in handlers])
-        #assert len(overrides) == len(handlers)
-        #self.struct = struct
-        #self.accessors = {}
-        #self.mutators = {}
-        #for i, op in enumerate(overrides):
-            #if isinstance(op, struct.W_StructFieldAccessor):
-                #self.accessors[op._field] = handlers[i]
-            #elif isinstance(op, struct.W_StructFieldMutator):
-                #self.mutators[op._field] = handlers[i]
-            #else:
-                #assert False
+@continuation
+def chp_struct_ref_post_cont(field_v, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    val = check_one_val(_vals)
+    if not is_chaperone_of(val, field_v):
+        raise SchemeException("chaperone handlers must produce chaperone of original value")
+    return return_multi_vals(_vals, env, cont)
 
-    #@continuation
-    #def ref(self, struct_id, field, env, cont, _vals):
-        #from pycket.interpreter import jump
-        #interp = self.accessors.get(field)
-        #after = cont if inter is None else imp_struct_ref_cont(interp, self.struct, env, cont)
-        #return jump(env, self.struct.ref(struct_id, field, env, after))
+# called after interp function
+@continuation
+def chp_struct_set_cont(orig_struct, struct_id, field, orig_val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    val = check_one_val(_vals)
+    if not is_chaperone_of(val, orig_val):
+        raise SchemeException("chaperone handlers must produce chaperone of original value")
+    return jump(env, orig_struct.set(struct_id, field, val, env, cont))
 
-    #@continuation
-    #def set(self, struct_id, field, val, env, cont, _vals):
-        #from pycket.interpreter import jump
-        #interp = self.mutators.get(field)
-        #if interp is not None:
-            #return jump(env,
-                    #jump_call(interp, [self.struct, val], env,
-                        #imp_struct_set_cont(self.struct, struct_id, field, env, cont)))
-        #return jump(env, self.struct.set(struct_id, field, val, env, cont))
+class W_ChpStruct(struct.W_RootStruct):
+    _immutable_fields = ["struct", "accessors", "mutators", "handlers"]
+
+    def __init__(self, inner, overrides, handlers):
+        assert isinstance(inner, struct.W_RootStruct)
+        assert len(overrides) == len(handlers)
+        struct.W_RootStruct.__init__(self, inner._type, inner._super, inner._isopaque)
+        self.struct = inner
+        self.accessors = {}
+        self.mutators = {}
+        # Does not deal with properties as of yet
+        for i, op in enumerate(overrides):
+            if isinstance(op, struct.W_StructFieldAccessor):
+                self.accessors[op._field.value] = handlers[i]
+            elif isinstance(op, struct.W_StructFieldMutator):
+                self.mutators[op._field.value] = handlers[i]
+            else:
+                assert False
+
+    @continuation
+    def ref(self, struct_id, field, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.accessors.get(field, None)
+        after = cont if interp is None else chp_struct_ref_cont(interp, self.struct, env, cont)
+        return jump(env, self.struct.ref(struct_id, field, env, after))
+
+    @continuation
+    def set(self, struct_id, field, val, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.mutators.get(field, None)
+        if interp is not None:
+            return jump(env,
+                    jump_call(interp, [self.struct, val], env,
+                        chp_struct_set_cont(self.struct, struct_id, field, val, env, cont)))
+        return jump(env, self.struct.set(struct_id, field, val, env, cont))
+
+    # This is trivially incorrect.
+    def vals(self):
+        return self.struct.vals()
+
