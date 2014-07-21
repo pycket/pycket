@@ -113,3 +113,7 @@ def continuation(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
+@continuation
+def jump_call(proc, args, env, cont, vals):
+    return proc.call(args, env, cont)
+
