@@ -39,9 +39,10 @@ def test_struct_main_functions(source):
 
     (let* ([p (posn 1 2)]
            [p? (posn? p)]
+           [notp? (posn? 0)]
            [x (posn-x p)]
            [y (posn-y p)])
-    (and p? (= x 1) (= y 2)))
+    (and p? (not notp?) (= x 1) (= y 2)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true

@@ -1,8 +1,8 @@
 from pycket.cont import continuation
 from pycket.error import SchemeException
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure
-from pycket.small_list import inline_small_list
 from pycket.exposeprim import make_call_method
+from pycket.small_list import inline_small_list
+from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure
 from rpython.rlib import jit
 
 #
@@ -90,6 +90,71 @@ class W_StructTypeDescriptor(W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.value
 
+class W_Struct(W_Object):
+    errorname = "struct"
+    _immutable_fields_ = ["mutable_fields", "mutable_vals", "type", "super", "isopaque"]
+    def __init__(self, mutable_fields, mutable_vals, struct_id, super, isopaque):
+        self.mutable_fields = mutable_fields
+        self.mutable_vals = mutable_vals
+        self.type = struct_id
+        self.super = super
+        self.isopaque = isopaque
+    # FIXME: make me more beautiful
+    """
+    Example:
+    original struct values: (a: mutable, b: mutable, c: immutable)
+    stored data:
+      immutable_vals: (0: c) -- saved inline
+      mutable_vals: (0: a, 1: b)
+      mutable_fields: (0, 1)
+    
+    1. field (int) is a mutable field (self.mutable_fields is an array of integers)
+    strategy: find all immutable fields before and subtract this number from field index
+    2. field is an immutable field.
+    stratege: do the same, but subtract the number of all mutable fields before
+    """
+    @jit.elidable
+    def map(self, field):
+        if field in self.mutable_fields:
+            for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
+                if immutable_field < field: field -= 1
+                else: break
+        else:
+            for mutable_field in self.mutable_fields:
+                if mutable_field < field: field -= 1
+                else: break
+        return field
+    def vals(self):
+        result = self._get_full_list()
+        if self.super is not None: 
+            return self.super.vals() + result
+        else:
+            return result
+    def ref(self, struct_id, field):
+        if self.type == struct_id:
+            return self._get_list(self.map(field)) if field not in self.mutable_fields else self.mutable_vals[self.map(field)]
+        elif self.type.value == struct_id.value:
+            raise SchemeException("given value instantiates a different structure type with the same name")
+        elif self.super is not None:
+            return self.super.ref(struct_id, field)
+        else:
+            assert False
+    def set(self, struct_id, field, val):
+        type = jit.promote(self.type)
+        if type == struct_id:
+            self.mutable_vals[self.map(field)] = val
+        else:
+            assert isinstance(self.super, W_Struct)
+            self.super.set(struct_id, field, val)
+    def tostring(self):
+        if self.isopaque:
+            result =  "#<%s>" % self.type.value
+        else:
+            result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
+        return result
+
+inline_small_list(W_Struct, immutable=True, attrname="immutable_vals")
+
 class W_StructConstructor(W_Procedure):
     _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "isopaque", "guard", "name"]
     def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, mutable_fields, isopaque, guard, name):
@@ -137,90 +202,13 @@ def guard_check(proc, field_values, env, cont, _vals):
     args = [struct.type] + field_values
     return proc.call(args, env, cont)
 
-class W_StructProperty(W_Object):
-    errorname = "struct-type-property"
-    _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
-    def __init__(self, name, guard, supers=w_null, can_imp=False):
-        self.name = name
-        self.guard = guard
-        self.supers = supers
-        self.can_imp = can_imp
-    def tostring(self):
-        return "#<struct-type-property:%s>"%self.name
-
-class W_Struct(W_Object):
-    errorname = "struct"
-    _immutable_fields_ = ["mutable_fields", "mutable_vals", "type", "super", "isopaque"]
-    def __init__(self, mutable_fields, mutable_vals, struct_id, super, isopaque):
-        self.mutable_fields = mutable_fields
-        self.mutable_vals = mutable_vals
-        self.type = struct_id
-        self.super = super
-        self.isopaque = isopaque
-    @jit.elidable
-    def map(self, field):
-        if field in self.mutable_fields:
-            for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
-                if immutable_field < field: field -= 1
-                else: break
-        else:
-            for mutable_field in self.mutable_fields:
-                if mutable_field < field: field -= 1
-                else: break
-        return field
-    def vals(self):
-        result = self._get_full_list()
-        if self.super is not None: 
-            return self.super.vals() + result
-        else:
-            return result
-    def ref(self, struct_id, field):
-        if self.type == struct_id:
-            return self._get_list(self.map(field)) if field not in self.mutable_fields else self.mutable_vals[self.map(field)]
-        elif self.type.value == struct_id.value:
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif self.super is not None:
-            return self.super.ref(struct_id, field)
-        else:
-            assert False
-    def set(self, struct_id, field, val):
-        type = jit.promote(self.type)
-        if type == struct_id:
-            self.mutable_vals[self.map(field)] = val
-        else:
-            assert isinstance(self.super, W_Struct)
-            self.super.set(struct_id, field, val)
-    def tostring(self):
-        if self.isopaque:
-            result =  "#<%s>" % self.type.value
-        else:
-            result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
-        return result
-inline_small_list(W_Struct, immutable=True, attrname="immutable_vals")
-
-class W_StructPropertyPredicate(W_SimplePrim):
-    errorname = "struct-property-predicate"
-    _immutable_fields_ = ["property"]
-    def __init__(self, prop):
-        self.property = prop
-    def code(self, args):
-        raise SchemeException("StructPropertyPredicate NYI")
-
-class W_StructPropertyAccessor(W_SimplePrim):
-    errorname = "struct-property-accessor"
-    _immutable_fields_ = ["property"]
-    def __init__(self, prop):
-        self.property = prop
-    def code(self, args):
-        raise SchemeException("StructPropertyAccessor NYI")
-
 class W_StructPredicate(W_Procedure):
     errorname = "struct-predicate"
     _immutable_fields_ = ["struct_id"]
     def __init__ (self, struct_id):
         self.struct_id = struct_id
 
-    @make_call_method([W_Struct])
+    @make_call_method([W_Object])
     def call(self, struct):
         result = w_false
         if (isinstance(struct, W_Struct)):
@@ -290,17 +278,29 @@ class W_StructMutator(W_Procedure):
     def tostring(self):
         return "#<procedure:%s-set!>" % self.struct_id.value
 
-    # FIXME: make me more beautiful
-        """
-        Example:
-        original struct values: (a: mutable, b: mutable, c: immutable)
-        stored data:
-          immutable_vals: (0: c) -- saved inline
-          mutable_vals: (0: a, 1: b)
-          mutable_fields: (0, 1)
-        
-        1. field (int) is a mutable field (self.mutable_fields is an array of integers)
-        strategy: find all immutable fields before and subtract this number from field index
-        2. field is an immutable field.
-        stratege: do the same, but subtract the number of all mutable fields before
-        """
+class W_StructProperty(W_Object):
+    errorname = "struct-type-property"
+    _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
+    def __init__(self, name, guard, supers=w_null, can_imp=False):
+        self.name = name
+        self.guard = guard
+        self.supers = supers
+        self.can_imp = can_imp
+    def tostring(self):
+        return "#<struct-type-property:%s>"%self.name
+
+class W_StructPropertyPredicate(W_SimplePrim):
+    errorname = "struct-property-predicate"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyPredicate NYI")
+
+class W_StructPropertyAccessor(W_SimplePrim):
+    errorname = "struct-property-accessor"
+    _immutable_fields_ = ["property"]
+    def __init__(self, prop):
+        self.property = prop
+    def code(self, args):
+        raise SchemeException("StructPropertyAccessor NYI")
