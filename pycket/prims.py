@@ -633,8 +633,8 @@ def equal_cont(a, b, env, cont, _vals):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_Struct) and not a._isopaque and
-        isinstance(b, values_struct.W_Struct) and not b._isopaque):
+    if (isinstance(a, values_struct.W_RootStruct) and not a._isopaque and
+        isinstance(b, values_struct.W_RootStruct) and not b._isopaque):
         l = struct2vector(a)
         r = struct2vector(b)
         return jump(env, equal_cont(l, r, env, cont))
@@ -656,10 +656,7 @@ def eqp(a, b):
 
 @expose("not", [values.W_Object])
 def notp(a):
-    if isinstance(a, values.W_Bool):
-        return values.W_Bool.make(not a.value)
-    else:
-        return values.w_false
+    return values.W_Bool.make(a is not values.w_false)
 
 @expose("length", [values.W_List])
 def length(a):
@@ -777,9 +774,9 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v._isopaque)
+    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and not v._isopaque)
 
-@expose("struct-info", [values_struct.W_Struct])
+@expose("struct-info", [values_struct.W_RootStruct])
 def do_struct_info(struct):
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
@@ -816,28 +813,35 @@ def do_struct_type_make_predicate(struct_desc):
     struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     return struct_type.pred()
 
-@expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
-    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
-    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
-    default(values.W_Object, values.w_false)])
+@expose("make-struct-type",
+        [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, None),
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, None),
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type == values.w_false):
+    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
     struct_type = values_struct.W_StructType.make(
             name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
-@expose("make-struct-field-accessor", [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
+@expose("make-struct-field-accessor",
+        [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_accessor(accessor, field, field_name):
     return values_struct.W_StructFieldAccessor(accessor, field)
 
-@expose("make-struct-field-mutator", [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
+@expose("make-struct-field-mutator",
+        [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_mutator(mutator, field, field_name):
     return values_struct.W_StructFieldMutator(mutator, field)
 
-@expose("struct->vector", [values_struct.W_Struct])
+@expose("struct->vector", [values_struct.W_RootStruct])
 def expose_struct2vector(struct):
     return struct2vector(struct)
 
@@ -856,7 +860,7 @@ def mk_stp(sym, guard, supers, _can_imp):
     if guard is values.W_Symbol.make("can-impersonate"):
         guard = values.w_false
         can_imp = True
-    if not (_can_imp is values.w_false):
+    if _can_imp is not values.w_false:
         can_imp = True
     prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
     return values.Values.make([prop,
@@ -1111,6 +1115,38 @@ def chaperone_vector(v, refh, seth):
     refh.mark_non_loop()
     seth.mark_non_loop()
     return imp.W_ChpVector(v, refh, seth)
+
+@expose("impersonate-struct")
+def impersonate_struct(args):
+    if len(args) < 1 or len(args) % 2 != 1:
+        raise SchemeException("impersonate-struct: arity mismatch")
+    if len(args) == 1:
+        return args[0]
+
+    struct, args = args[0], args[1:]
+    overrides = []
+    handlers = []
+
+    overrides = [] #[args[i] for i in range(0, len(args), 2)]
+    handlers  = [] #[args[i] for i in range(1, len(args), 2)]
+
+    #for i in args[0::2]:
+        #if not imp.valid_struct_proc(i):
+            #raise SchemeException("impersonate-struct: not given valid field accessor")
+
+    while args:
+        a0 = args[0]
+        a1 = args[1]
+        if not imp.valid_struct_proc(a0):
+            raise SchemeException("impersonate-struct: not given valid field accessor")
+        if not isinstance(a1, values.W_Procedure):
+            raise SchemeException("impersonate-struct: supplied handler is not a procedure")
+        overrides.append(a0)
+        handlers.append(a1)
+        args = args[2:]
+
+    return imp.W_ImpStruct(struct, overrides, handlers)
+
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
