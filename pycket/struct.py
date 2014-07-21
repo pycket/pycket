@@ -3,6 +3,7 @@ from pycket.error import SchemeException
 from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure, w_void
 from pycket.exposeprim import make_call_method
 from rpython.rlib import jit
+from pycket import values
 
 #
 # Structs are partially supported
@@ -57,7 +58,11 @@ class W_StructType(W_Object):
         # self._props = props
         self._inspector = inspector
         # self._proc_spec = proc_spec
-        self._immutables = immutables
+        self._immutables = []
+        for i in values.from_list(immutables):
+            assert isinstance(i, values.W_Fixnum)
+            self._immutables.append(i.value)
+
         self._guard = guard
         if isinstance(constr_name, W_Symbol):
             self._constr_name = constr_name.value
@@ -191,9 +196,6 @@ class W_Struct(W_RootStruct):
     _immutable_fields_ = ["_type", "_super", "_isopaque", "_fields"]
     def __init__(self, struct_id, super, isopaque, fields):
         W_RootStruct.__init__(self, struct_id, super, isopaque)
-        #self._type = struct_id
-        #self._super = super
-        #self._isopaque = isopaque
         self._fields = fields
 
     def vals(self):
