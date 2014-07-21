@@ -258,7 +258,7 @@ class W_StructPredicate(W_Procedure):
     def __init__ (self, struct_id):
         self._struct_id = struct_id
 
-    @make_call_method([W_Struct])
+    @make_call_method([W_RootStruct])
     def call(self, struct):
         result = w_false
         if (isinstance(struct, W_Struct)):
@@ -280,7 +280,7 @@ class W_StructFieldAccessor(W_Procedure):
         self._accessor = accessor
         self._field = field
 
-    @make_call_method([W_Struct], simple=False)
+    @make_call_method([W_RootStruct], simple=False)
     def call(self, struct, env, cont):
         return self._accessor.access(struct, self._field, env, cont)
 
@@ -308,7 +308,7 @@ class W_StructFieldMutator(W_Procedure):
         self._field = field
         mutator.setmutable(field)
 
-    @make_call_method([W_Struct, W_Object], simple=False)
+    @make_call_method([W_RootStruct, W_Object], simple=False)
     def call(self, struct, val, env, cont):
         return self._mutator.mutate(struct, self._field, val, env, cont)
 
@@ -322,7 +322,7 @@ class W_StructMutator(W_Procedure):
         from pycket.interpreter import jump
         return jump(env, struct.set(self._struct_id, field.value, val, env, cont))
 
-    call = make_call_method([W_Struct, W_Fixnum, W_Object], simple=False)(mutate)
+    call = make_call_method([W_RootStruct, W_Fixnum, W_Object], simple=False)(mutate)
 
     def setmutable(self, field):
         struct = W_StructType.lookup_struct_type(self._struct_id)
