@@ -545,17 +545,14 @@ class W_Procedure(W_Object):
 
 
 class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "proc", "arity"]
-    def __init__ (self, name, proc, arity=([],0)):
+    _immutable_fields_ = ["name", "code", "arity"]
+    def __init__ (self, name, code, arity=([],0)):
         self.name = name
-        self.proc = proc
+        self.code = code
         self.arity = arity
 
     def get_arity(self):
         return self.arity
-
-    def code(self, args):
-        return self.proc(args)
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
