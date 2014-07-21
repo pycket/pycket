@@ -792,7 +792,7 @@ def do_struct_type_info(struct_desc):
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt())
     accessor = struct_type.acc()
     mutator = struct_type.mut()
-    immutable_k_list = struct_type.immutables()
+    immutable_k_list = values.to_list([values.W_Fixnum(i) for i in struct_type.immutables()])
     # TODO: if no ancestor is controlled by the current inspector return w_false
     super = struct_type.super()
     skipped = values.w_false
@@ -1130,7 +1130,8 @@ def impersonate_struct(args):
     struct_type = values_struct.W_StructType.lookup_struct_type(struct._type)
     assert isinstance(struct_type, values_struct.W_StructType)
 
-    immutables = [i.value for i in values.from_list(struct_type.immutables())]
+    # Consider storing immutables in an easier form in the structs implementation
+    immutables = struct_type.immutables()
 
     # Slicing would be nicer
     overrides = [args[i] for i in range(0, len(args), 2)]
@@ -1139,8 +1140,13 @@ def impersonate_struct(args):
     for i in overrides:
         if not imp.valid_struct_proc(i):
             raise SchemeException("impersonate-struct: not given valid field accessor")
-        if i._field.value in immutables:
+        elif (isinstance(i, values_struct.W_StructFieldMutator) and
+                i._field.value in immutables):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+        elif (isinstance(i, values_struct.W_StructFieldAccessor) and
+                i._field.value in immutables):
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+        # Need to handle properties as well
 
     for i in handlers:
         if not isinstance(i, values.W_Procedure):
