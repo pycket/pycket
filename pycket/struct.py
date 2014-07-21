@@ -47,9 +47,9 @@ class W_StructType(W_Object):
     def lookup_struct_type(struct_id):
         return W_StructType.all_structs.get(struct_id, w_false)
 
-    def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, \
+    def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-        self._super = W_StructType.lookup_struct_type(super_type) if super_type != w_false else None
+        self._super = W_StructType.lookup_struct_type(super_type) if super_type is not w_false else None
         self._init_field_cnt = init_field_cnt.value
         self._auto_field_cnt = auto_field_cnt.value
         # Next arguments are optional
@@ -67,10 +67,10 @@ class W_StructType(W_Object):
             self._constr_name = "make-" + constr_name.value
 
         # structure types are opaque by default
-        self._isopaque = True if self._inspector != w_false else False
+        self._isopaque = self._inspector is not w_false
 
         self._desc = struct_id
-        self._constr = W_StructConstructor(self._desc, self._super, self._init_field_cnt, self._auto_field_cnt, \
+        self._constr = W_StructConstructor(self._desc, self._super, self._init_field_cnt, self._auto_field_cnt,
                                             self._auto_v, self._isopaque, self._guard, self._constr_name)
         self._pred = W_StructPredicate(self._desc)
         self._acc = W_StructAccessor(self._desc)
