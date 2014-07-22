@@ -1,9 +1,9 @@
 from pycket import values
-from pycket.cont import continuation
+from pycket.cont import continuation, jump_call
 from pycket.error import SchemeException
 from pycket.exposeprim import make_call_method
 from pycket.small_list import inline_small_list
-from pycket.values import from_list, w_false, w_true, W_Object, W_Fixnum, W_SimplePrim, W_Symbol, w_null, W_Procedure, w_void
+from pycket.values import from_list, w_void, w_null, w_false, w_true, W_Object, W_Fixnum, W_Symbol, W_Procedure, W_Prim
 from rpython.rlib import jit
 
 #
@@ -125,7 +125,7 @@ class W_Struct(W_RootStruct):
     @jit.elidable
     def map(self, field):
         if field in self.mutable_fields:
-            for immutable_field in [item for item in xrange(field) if item not in self.mutable_fields]:
+            for immutable_field in [item for item in range(field) if item not in self.mutable_fields]:
                 if immutable_field < field: field -= 1
                 else: break
         else:
@@ -176,6 +176,27 @@ class W_StructTypeDescriptor(W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.value
 
+@continuation
+def constr_proc_cont(args, env, cont, _vals):
+    from pycket.interpreter import return_value
+    struct_id, super_type, init_field_cnt, auto_values, mutable_fields, isopaque, field_values = args
+    super = None
+    if isinstance(super_type, W_StructType):
+        def split_list(list, num):
+            assert num >= 0
+            return list[:num], list[num:]
+        split_position = len(field_values) - init_field_cnt
+        super_field_values, field_values = split_list(field_values, split_position)
+        something, env, cont = super_type.constructor().call(super_field_values, env, cont)
+        # TODO: how to create a super instance using continuations?
+    vals = field_values + auto_values
+    immutable_vals, mutable_vals = [], []
+    for idx, val in enumerate(vals):
+        if idx in mutable_fields: mutable_vals.append(val)
+        else: immutable_vals.append(val)
+    result = W_Struct.make(immutable_vals, mutable_fields, mutable_vals, struct_id, super, isopaque)
+    return return_value(result, env, cont)
+
 class W_StructConstructor(W_Procedure):
     _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "mutable_fields[:]", "isopaque", "guard", "name"]
     def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, mutable_fields, isopaque, guard, name):
@@ -188,40 +209,18 @@ class W_StructConstructor(W_Procedure):
         self.guard = guard
         self.name = name
 
-    def extcode(self, field_values, env, cont):
-        if self.guard != w_false:
-            cont = guard_check(self.guard, field_values, env, cont)
-        super = None
-        if isinstance(self.super_type, W_StructType):
-            def split_list(list, num):
-                assert num >= 0
-                return list[:num], list[num:]
-            split_position = len(field_values) - self.init_field_cnt
-            super_field_values, field_values = split_list(field_values, split_position)
-            super, env, cont = self.super_type.constructor().extcode(super_field_values, env, cont)
-        vals = field_values + self.auto_values
-        immutable_vals, mutable_vals = [], []
-        for idx, val in enumerate(vals):
-            if idx in self.mutable_fields: mutable_vals.append(val)
-            else: immutable_vals.append(val)
-        result = W_Struct.make(immutable_vals, self.mutable_fields, mutable_vals, self.struct_id, super, self.isopaque)
-        return result, env, cont
-
     def call(self, args, env, cont):
-        from pycket.interpreter import return_value
-        result, env, cont = self.extcode(args, env, cont)
-        return return_value(result, env, cont)
+        from pycket.interpreter import jump
+        constr_args = [self.struct_id, self.super_type, self.init_field_cnt, self.auto_values, self.mutable_fields, self.isopaque, args]
+        if self.guard is w_false:
+            return jump(env, constr_proc_cont(constr_args, env, cont))
+        else:
+            # TODO: here args have to be splitted
+            guard_args = [self.struct_id] + args
+            return jump(env, jump_call(self.guard, guard_args, env, constr_proc_cont(constr_args, env, cont)))
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
-
-@continuation
-def guard_check(proc, field_values, env, cont, _vals):
-    vals = _vals._get_full_list()
-    struct = vals[0]
-    assert isinstance(struct, W_Struct)
-    args = [struct.type] + field_values
-    return proc.call(args, env, cont)
 
 class W_StructPredicate(W_Procedure):
     errorname = "struct-predicate"
