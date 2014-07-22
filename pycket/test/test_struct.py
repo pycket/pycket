@@ -61,8 +61,6 @@ def test_struct_copying_and_update(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-# Temporaly skipped because of rewriting struct's constructor
-@skip
 def test_struct_subtypes(source):
     """
     (struct posn (x y))
@@ -105,8 +103,6 @@ def test_struct_mutation(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-# Temporaly skipped because of rewriting struct's constructor
-@skip
 def test_struct_auto_values(source):
     """
     (struct p3 (x y [z #:auto]) #:transparent #:auto-value 0)

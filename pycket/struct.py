@@ -203,32 +203,38 @@ class W_StructConstructor(W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
+        vals = _vals._get_full_list()
         super = None
+        if len(vals) == 1: super = vals[0]
+        immutable_vals, mutable_vals = [], []
+        if not self.fields_map: self.fields_map = self.make_mapping()
+        for idx, val in enumerate(field_values + self.auto_values):
+            if self.fields_map[idx][0]: immutable_vals.append(val)
+            else: mutable_vals.append(val)
+        result = W_Struct.make(immutable_vals, mutable_vals, self.fields_map, self.struct_id, super, self.isopaque)
+        return return_value(result, env, cont)
+
+    @continuation
+    def constr_proc_wrapper_cont(self, field_values, env, cont, _vals):
+        from pycket.interpreter import jump
         if isinstance(self.super_type, W_StructType):
             def split_list(list, num):
                 assert num >= 0
                 return list[:num], list[num:]
             split_position = len(field_values) - self.init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
-            something, env, cont = self.super_type.constructor().call(super_field_values, env, cont)
-            # TODO: how to create a super instance using continuations?
-        vals = field_values + self.auto_values
-        immutable_vals, mutable_vals = [], []
-        for idx, val in enumerate(vals):
-            if self.fields_map[idx][0]: immutable_vals.append(val)
-            else: mutable_vals.append(val)
-        result = W_Struct.make(immutable_vals, mutable_vals, self.fields_map, self.struct_id, super, self.isopaque)
-        return return_value(result, env, cont)
+            super_constr = self.super_type.constructor()
+            return jump(env, self.constr_proc_cont(field_values, env, super_constr.constr_proc_cont(super_field_values, env, cont)))
+        else:
+            return jump(env, self.constr_proc_cont(field_values, env, cont))
 
     def call(self, args, env, cont):
         from pycket.interpreter import jump
-        if not self.fields_map: self.fields_map = self.make_mapping()
         if self.guard is w_false:
-            return jump(env, self.constr_proc_cont(args, env, cont))
+            return jump(env, self.constr_proc_wrapper_cont(args, env, cont))
         else:
-            # TODO: here args have to be splitted
             guard_args = [self.struct_id] + args
-            return jump(env, jump_call(self.guard, guard_args, env, self.constr_proc_cont(args, env, cont)))
+            return jump(env, jump_call(self.guard, guard_args, env, self.constr_proc_wrapper_cont(args, env, cont)))
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
