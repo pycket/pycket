@@ -656,7 +656,7 @@ def eqp(a, b):
 
 @expose("not", [values.W_Object])
 def notp(a):
-    return values.W_Bool.make(a is not values.w_false)
+    return values.W_Bool.make(a is values.w_false)
 
 @expose("length", [values.W_List])
 def length(a):

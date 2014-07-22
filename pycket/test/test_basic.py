@@ -169,6 +169,9 @@ def test_bools():
     run ("#f", w_false)
     run ("#false", w_false)
     run ("#F", w_false)
+    run ("(not #t)", w_false)
+    run ("(not #f)", w_true)
+    run ("(not 5)", w_false)
     run ("true", w_true, stdlib=True)
     run ("false", w_false, stdlib=True)
 
