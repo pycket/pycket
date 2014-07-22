@@ -118,16 +118,17 @@ def test_struct_auto_values(source):
     assert result == w_true
 
 # Not implemented yet
-@skip
+@pytest.mark.xfail
 def test_struct_guard():
     run("""((lambda (name) (struct thing (name) #:transparent #:guard 
       (lambda (name type-name) (cond 
         [(string? name) name] 
         [else (error type-name \"bad name: ~e\" name)])))
     (thing? (thing name))) \"apple\")""", w_true)
-    with pytest.raises(SchemeException):
-        run("""((lambda (name) (struct thing (name) #:transparent #:guard 
+    e = pytest.raises(SchemeException, run,
+        """((lambda (name) (struct thing (name) #:transparent #:guard 
       (lambda (name type-name) (cond 
         [(string? name) name] 
-        [else (error type-name \"bad name: ~e\" name)])))
+        [else (error type-name "bad name")])))
     (thing? (thing name))) 1)""")
+    
