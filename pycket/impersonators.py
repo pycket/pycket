@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, call_cont
+from pycket.cont import continuation, call_cont, jump_call
 from pycket.error import SchemeException
 from pycket import values
+from pycket import struct
 from rpython.rlib import jit
 
 def is_impersonator_of(a, b):
@@ -45,12 +46,15 @@ def is_impersonator(x):
 # Continuation used when calling an impersonator of a procedure.
 @continuation
 def imp_proc_cont(arg_count, proc, env, cont, _vals):
+    from pycket.interpreter import jump
     vals = _vals._get_full_list()
     if len(vals) == arg_count:
-        return proc.call(vals, env, cont)
+        return jump(env, jump_call(proc, vals, env, cont))
     elif len(vals) == arg_count + 1:
         args, check = vals[:-1], vals[-1]
-        return proc.call(args, env, call_cont(check, env, cont))
+        return jump(env,
+                jump_call(proc, vals, env,
+                    call_cont(check, env, cont)))
     else:
         assert False
 
@@ -67,16 +71,11 @@ class W_ImpProcedure(values.W_Procedure):
         return self.code.get_arity()
 
     def call(self, args, env, cont):
+        from pycket.interpreter import jump
         jit.promote(self)
-        return self.check.call(
-                args, env, imp_proc_cont(len(args), self.code, env, cont))
-
-    def equal(self, other):
-        if not isinstance(other, values.W_Procedure):
-            return False
-        # We are the same procedure if we have the same identity or
-        # our underlying procedure is equal to our partner.
-        return self is other or other.equal(self.code)
+        return jump(env,
+                jump_call(self.check, args, env,
+                    imp_proc_cont(len(args), self.code, env, cont)))
 
     def tostring(self):
         return "ImpProcedure<%s>" % self.code.tostring()
@@ -97,12 +96,14 @@ def chp_proc_ret_cont(orig, env, cont, _vals):
 # the check operation
 @continuation
 def chp_proc_call_check_cont(check, env, cont, _vals):
+    from pycket.interpreter import jump
     vals = _vals._get_full_list()
-    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
+    return jump(env, jump_call(check, vals, env, chp_proc_ret_cont(vals, env, cont)))
 
 # Continuation used when calling a chaperone of a procedure.
 @continuation
 def chp_proc_cont(args, proc, env, cont, _vals):
+    from pycket.interpreter import jump
     vals = _vals._get_full_list()
     assert len(vals) >= len(args)
     for i in range(len(args)):
@@ -112,7 +113,9 @@ def chp_proc_cont(args, proc, env, cont, _vals):
         return proc.call(vals, env, cont)
     elif len(vals) == len(args) + 1:
         args, check = vals[:-1], vals[-1]
-        return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
+        return jump(env,
+                jump_call(proc, args, env,
+                    chp_proc_call_check_cont(check, env, cont)))
     else:
         assert False
 
@@ -129,15 +132,11 @@ class W_ChpProcedure(values.W_Procedure):
         return self.code.get_arity()
 
     def call(self, args, env, cont):
+        from pycket.interpreter import jump
         jit.promote(self)
-        return self.check.call(
-                args, env, chp_proc_cont(args, self.code, env, cont))
-
-    def equal(self, other):
-        if not isinstance(other, values.W_Procedure):
-            return False
-
-        return self is other or other.equal(self.code)
+        return jump(env,
+                jump_call(self.check, args, env,
+                    chp_proc_cont(args, self.code, env, cont)))
 
     def tostring(self):
         return "ChpProcedure<%s>" % self.code.tostring()
@@ -168,7 +167,6 @@ class W_ImpBox(values.W_Box):
         self.set = set
 
 # Vectors
-
 class W_ImpVector(values.W_MVector):
     errorname = "imp-vector"
     _immutable_fields_ = ["vec", "refh", "seth"]
@@ -180,22 +178,6 @@ class W_ImpVector(values.W_MVector):
 
     def length(self):
         return self.vec.length()
-
-    def equal(self, other):
-        if not isinstance(other, values.W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.vec is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            # FIXME: we need to call user code here
-            if not self.vec.ref(i).equal(other.ref(i)):
-               return False
-            #return False
-        return True
 
 class W_ChpVector(values.W_MVector):
     errorname = "chp-procedure"
@@ -212,16 +194,125 @@ class W_ChpVector(values.W_MVector):
     def immutable(self):
         return self.vec.immutable()
 
-    def equal(self, other):
-        if not isinstance(other, values.W_MVector):
-            return False
-        if self is other:
-            return True
-        if self.length() != other.length():
-            return False
-        for i in range(self.length()):
-            if not self.vec.ref(i).equal(other.ref(i)):
-                return False
-        return True
+def valid_struct_proc(x):
+    return (isinstance(x, struct.W_StructFieldAccessor) or
+            isinstance(x, struct.W_StructFieldMutator) or
+            isinstance(x, struct.W_StructPropertyAccessor))
 
+@continuation
+def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    field_v = check_one_val(_vals)
+    return jump(env, jump_call(interp, [orig_struct, field_v], env, cont))
+
+@continuation
+def imp_struct_set_cont(orig_struct, sid, field, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    return jump(env, orig_struct.set(sid, field, check_one_val(_vals), env, cont))
+
+# Need to add checks that we are only impersonating mutable fields
+class W_ImpStruct(struct.W_RootStruct):
+    _immutable_fields = ["struct", "accessors", "mutators", "handlers"]
+
+    def __init__(self, inner, overrides, handlers):
+        assert isinstance(inner, struct.W_RootStruct)
+        assert len(overrides) == len(handlers)
+        struct.W_RootStruct.__init__(self, inner.type, inner.super, inner.isopaque)
+        self.struct = inner
+        self.accessors = {}
+        self.mutators = {}
+        # Does not deal with properties as of yet
+        for i, op in enumerate(overrides):
+            if isinstance(op, struct.W_StructFieldAccessor):
+                self.accessors[op.field.value] = handlers[i]
+            elif isinstance(op, struct.W_StructFieldMutator):
+                self.mutators[op.field.value] = handlers[i]
+            else:
+                assert False
+
+    @continuation
+    def ref(self, struct_id, field, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.accessors.get(field, None)
+        after = cont if interp is None else imp_struct_ref_cont(interp, self.struct, env, cont)
+        return jump(env, self.struct.ref(struct_id, field, env, after))
+
+    @continuation
+    def set(self, struct_id, field, val, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.mutators.get(field, None)
+        if interp is not None:
+            return jump(env,
+                    jump_call(interp, [self.struct, val], env,
+                        imp_struct_set_cont(self.struct, struct_id, field, env, cont)))
+        return jump(env, self.struct.set(struct_id, field, val, env, cont))
+
+    # This is trivially incorrect.
+    def vals(self):
+        return self.struct.vals()
+
+@continuation
+def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    field_v = check_one_val(_vals)
+    return jump(env,
+            jump_call(interp, [orig_struct, field_v], env,
+                chp_struct_ref_post_cont(field_v, env, cont)))
+
+@continuation
+def chp_struct_ref_post_cont(field_v, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    val = check_one_val(_vals)
+    if not is_chaperone_of(val, field_v):
+        raise SchemeException("chaperone handlers must produce chaperone of original value")
+    return return_multi_vals(_vals, env, cont)
+
+# called after interp function
+@continuation
+def chp_struct_set_cont(orig_struct, struct_id, field, orig_val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    val = check_one_val(_vals)
+    if not is_chaperone_of(val, orig_val):
+        raise SchemeException("chaperone handlers must produce chaperone of original value")
+    return jump(env, orig_struct.set(struct_id, field, val, env, cont))
+
+class W_ChpStruct(struct.W_RootStruct):
+    _immutable_fields = ["struct", "accessors", "mutators", "handlers"]
+
+    def __init__(self, inner, overrides, handlers):
+        assert isinstance(inner, struct.W_RootStruct)
+        assert len(overrides) == len(handlers)
+        struct.W_RootStruct.__init__(self, inner.type, inner.super, inner.isopaque)
+        self.struct = inner
+        self.accessors = {}
+        self.mutators = {}
+        # Does not deal with properties as of yet
+        for i, op in enumerate(overrides):
+            if isinstance(op, struct.W_StructFieldAccessor):
+                self.accessors[op.field.value] = handlers[i]
+            elif isinstance(op, struct.W_StructFieldMutator):
+                self.mutators[op.field.value] = handlers[i]
+            else:
+                assert False
+
+    @continuation
+    def ref(self, struct_id, field, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.accessors.get(field, None)
+        after = cont if interp is None else chp_struct_ref_cont(interp, self.struct, env, cont)
+        return jump(env, self.struct.ref(struct_id, field, env, after))
+
+    @continuation
+    def set(self, struct_id, field, val, env, cont, _vals):
+        from pycket.interpreter import jump
+        interp = self.mutators.get(field, None)
+        if interp is not None:
+            return jump(env,
+                    jump_call(interp, [self.struct, val], env,
+                        chp_struct_set_cont(self.struct, struct_id, field, val, env, cont)))
+        return jump(env, self.struct.set(struct_id, field, val, env, cont))
+
+    # This is trivially incorrect.
+    def vals(self):
+        return self.struct.vals()
 

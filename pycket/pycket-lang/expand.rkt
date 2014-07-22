@@ -52,6 +52,7 @@
     [((~datum prefix) _ p) (require-json #'p)]
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
     [((~datum for-syntax) p ...) '()]
+    [((~datum for-template) p ...) '()]
     [((~datum for-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum for-meta) _ p ...) '()]

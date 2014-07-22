@@ -451,7 +451,7 @@ class W_BytePRegexp(W_AnyRegexp): pass
 
 class W_Bytes(W_Object):
     errorname = "bytes"
-    _immutable_fields_ = ["val"]
+    _immutable_fields_ = ["value"]
     def __init__(self, val):
         self.value = val
     def tostring(self):
@@ -739,3 +739,9 @@ class W_Parameter(W_Procedure):
             return return_value(w_void, env, cont)
         else:
             raise SchemeException("wrong number of arguments to parameter")
+
+class W_EnvVarSet(W_Object):
+    errorname = "environment-variable-set"
+    def __init__(self): pass
+
+

@@ -6,7 +6,7 @@ import time
 import math
 import pycket.impersonators as imp
 from pycket import values
-from pycket.cont import Cont, call_cont, continuation
+from pycket.cont import Cont, continuation
 from pycket import cont
 from pycket import struct as values_struct
 from pycket import vector as values_vector
@@ -633,8 +633,8 @@ def equal_cont(a, b, env, cont, _vals):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_Struct) and not a.isopaque and
-        isinstance(b, values_struct.W_Struct) and not b.isopaque):
+    if (isinstance(a, values_struct.W_RootStruct) and not a.isopaque and
+        isinstance(b, values_struct.W_RootStruct) and not b.isopaque):
         l = struct2vector(a)
         r = struct2vector(b)
         return jump(env, equal_cont(l, r, env, cont))
@@ -656,10 +656,7 @@ def eqp(a, b):
 
 @expose("not", [values.W_Object])
 def notp(a):
-    if isinstance(a, values.W_Bool):
-        return values.W_Bool.make(not a.value)
-    else:
-        return values.w_false
+    return values.W_Bool.make(a is not values.w_false)
 
 @expose("length", [values.W_List])
 def length(a):
@@ -777,26 +774,26 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_Struct) and not v.isopaque)
+    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and not v.isopaque)
 
-@expose("struct-info", [values_struct.W_Struct])
+@expose("struct-info", [values_struct.W_RootStruct])
 def do_struct_info(struct):
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
-    struct_id = struct.type if True else values.w_false
+    struct_type = struct.type if True else values.w_false
     skipped = values.w_false
-    return values.Values.make([struct_id, skipped])
+    return values.Values.make([struct_type, skipped])
 
 @expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_info(struct_id):
-    name = values.W_Symbol.make(struct_id.value)
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+def do_struct_type_info(struct_desc):
+    name = values.W_Symbol.make(struct_desc.value)
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     assert isinstance(struct_type, values_struct.W_StructType)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
     accessor = struct_type.acc
     mutator = struct_type.mut
-    immutable_k_list = struct_type.immutables
+    immutable_k_list = values.to_list([values.W_Fixnum(i) for i in struct_type.immutables])
     # TODO: if no ancestor is controlled by the current inspector return w_false
     super = struct_type.super
     skipped = values.w_false
@@ -804,43 +801,50 @@ def do_struct_type_info(struct_id):
         accessor, mutator, immutable_k_list, super, skipped])
 
 @expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_constructor(struct_id):
+def do_struct_type_make_constructor(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.constr
 
 @expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_predicate(struct_id):
+def do_struct_type_make_predicate(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_id)
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.pred
 
-@expose("make-struct-type", [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum, \
-    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
-    default(values.W_Object, values.w_false), default(values.W_Object, None), default(values.W_Object, values.w_false), \
+@expose("make-struct-type",
+        [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, None),
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_null),
+         default(values.W_Object, values.w_false),
     default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type == values.w_false):
+    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
     struct_type = values_struct.W_StructType.make(
             name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
-@expose("make-struct-field-accessor", [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
+@expose("make-struct-field-accessor",
+        [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_accessor(accessor, field, field_name):
     return values_struct.W_StructFieldAccessor(accessor, field)
 
-@expose("make-struct-field-mutator", [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
+@expose("make-struct-field-mutator",
+        [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_mutator(mutator, field, field_name):
     return values_struct.W_StructFieldMutator(mutator, field)
 
-@expose("struct->vector", [values_struct.W_Struct])
+@expose("struct->vector", [values_struct.W_RootStruct])
 def expose_struct2vector(struct):
     return struct2vector(struct)
 
@@ -858,7 +862,7 @@ def mk_stp(sym, guard, supers, _can_imp):
     if guard is values.W_Symbol.make("can-impersonate"):
         guard = values.w_false
         can_imp = True
-    if not (_can_imp is values.w_false):
+    if _can_imp is not values.w_false:
         can_imp = True
     prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
     return values.Values.make([prop,
@@ -1062,8 +1066,6 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val, jump
     return jump(env, do_vec_set_cont(v, i, check_one_val(vals), env, cont))
 
-# TODO check that the returned value is the same as the given value
-# up to intervening chaperones.
 @continuation
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
     from pycket.interpreter import check_one_val, jump
@@ -1113,6 +1115,72 @@ def chaperone_vector(v, refh, seth):
     refh.mark_non_loop()
     seth.mark_non_loop()
     return imp.W_ChpVector(v, refh, seth)
+
+# Need to check that fields are mutable
+@expose("impersonate-struct")
+def impersonate_struct(args):
+    if len(args) < 1 or len(args) % 2 != 1:
+        raise SchemeException("impersonate-struct: arity mismatch")
+    if len(args) == 1:
+        return args[0]
+
+    struct, args = args[0], args[1:]
+
+    if not isinstance(struct, values_struct.W_Struct):
+        raise SchemeException("impersonate-struct: not given struct")
+
+    struct_type = values_struct.W_StructType.lookup_struct_type(struct.type)
+    assert isinstance(struct_type, values_struct.W_StructType)
+
+    # Consider storing immutables in an easier form in the structs implementation
+    immutables = struct_type.immutables
+
+    # Slicing would be nicer
+    overrides = [args[i] for i in range(0, len(args), 2)]
+    handlers  = [args[i] for i in range(1, len(args), 2)]
+
+    for i in overrides:
+        if not imp.valid_struct_proc(i):
+            raise SchemeException("impersonate-struct: not given valid field accessor")
+        elif (isinstance(i, values_struct.W_StructFieldMutator) and
+                i.field.value in immutables):
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+        elif (isinstance(i, values_struct.W_StructFieldAccessor) and
+                i.field.value in immutables):
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+        # Need to handle properties as well
+
+    for i in handlers:
+        if not isinstance(i, values.W_Procedure):
+            raise SchemeException("impersonate-struct: supplied hander is not a procedure")
+
+    return imp.W_ImpStruct(struct, overrides, handlers)
+
+@expose("chaperone-struct")
+def chaperone_struct(args):
+    if len(args) < 1 or len(args) % 2 != 1:
+        raise SchemeException("chaperone-struct: arity mismatch")
+    if len(args) == 1:
+        return args[0]
+
+    struct, args = args[0], args[1:]
+
+    if not isinstance(struct, values_struct.W_Struct):
+        raise SchemeException("chaperone-struct: not given struct")
+
+    # Slicing would be nicer
+    overrides = [args[i] for i in range(0, len(args), 2)]
+    handlers  = [args[i] for i in range(1, len(args), 2)]
+
+    for i in overrides:
+        if not imp.valid_struct_proc(i):
+            raise SchemeException("chaperone-struct: not given valid field accessor")
+
+    for i in handlers:
+        if not isinstance(i, values.W_Procedure):
+            raise SchemeException("chaperone-struct: supplied hander is not a procedure")
+
+    return imp.W_ChpStruct(struct, overrides, handlers)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
@@ -1327,6 +1395,14 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
+@expose("string->bytes/locale", [values.W_String, 
+                                 default(values.W_Object, values.w_false),
+                                 default(values.W_Integer, values.W_Fixnum(0)),
+                                 default(values.W_Integer, None)])
+def string_to_bytes_locale(str, errbyte, start, end):
+    # FIXME: This ignores the locale
+    return values.W_Bytes(str.value)
+
 @expose("integer->char", [values.W_Fixnum])
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
@@ -1392,7 +1468,39 @@ def gensym(init):
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
-    return values.w_false # ha
+    return values.w_false # Back to one problem
+
+@expose("regexp-match?", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
+def regexp_matchp(r, o):
+    # ack, this is wrong
+    return values.w_true # Back to one problem
+
+@expose("build-path")
+def build_path(args):
+    # this is terrible
+    r = ""
+    for a in args:
+        if isinstance(a, values.W_Bytes):
+            r = r + a.value
+        elif isinstance(a, values.W_String):
+            r = r + a.value
+        elif isinstance(a, values.W_Path):
+            r = r + a.path
+        else:
+            raise SchemeException("bad input to build-path: %s"%a)
+    return values.W_Path(r)
+
+@expose("current-environment-variables", [])
+def cur_env_vars():
+    return values.W_EnvVarSet()
+
+@expose("environment-variables-ref", [values.W_EnvVarSet, values.W_Bytes])
+def env_var_ref(set, name):
+    return values.w_false
+
+@expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
+def raise_arg_err(sym, str, val):
+    raise SchemeException("%s: expected %s but got %s"%(sym.value, str.value, val.tostring()))
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
@@ -1402,6 +1510,13 @@ def find_sys_path(sym):
         return values.W_Path(v)
     else:
         raise SchemeException("unknown system path %s"%sym.value)
+
+@expose("system-type", [default(values.W_Symbol, values.W_Symbol.make("os"))])
+def system_type(sym):
+    if sym is values.W_Symbol.make("os"):
+        # FIXME: make this work on macs
+        return values.W_Symbol.make("unix")
+    raise SchemeException("unexpected system-type symbol %s"%sym.value)
 
 # Loading
 
