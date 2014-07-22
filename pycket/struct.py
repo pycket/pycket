@@ -67,12 +67,13 @@ class W_StructType(W_Object):
         else:
             self.constr_name = "make-" + struct_id.value
 
+        self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.isopaque = self.inspector is not w_false
         self.mutable_fields = []
 
         self.desc = struct_id
-        self.constr = W_StructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_field_cnt,
-                                          self.auto_v, self.mutable_fields, self.isopaque, self.guard, self.constr_name)
+        self.constr = W_StructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_values,
+                                          self.make_mapping, self.isopaque, self.guard, self.constr_name)
         self.pred = W_StructPredicate(self.desc)
         self.acc = W_StructAccessor(self.desc)
         self.mut = W_StructMutator(self.desc)
@@ -82,6 +83,20 @@ class W_StructType(W_Object):
     def set_mutable(self, field):
         assert isinstance(field, W_Fixnum)
         self.mutable_fields.append(field.value)
+
+    """
+    This method has to be called after initialization, otherwise self.mutable_fields will be empty
+    """
+    def make_mapping(self):
+        result = {}
+        immutable_cnt = 0
+        for field in range(self.init_field_cnt + self.auto_field_cnt):
+            if field in self.mutable_fields:
+                result[field] = (False, self.mutable_fields.index(field))
+            else:
+                result[field] = (True, immutable_cnt)
+                immutable_cnt += 1
+        return result
     def make_struct_tuple(self):
         return [self.desc, self.constr, self.pred, self.acc, self.mut]
 
@@ -108,31 +123,21 @@ class W_RootStruct(W_Object):
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["type", "super", "isopaque", "fields"]
-    def __init__(self, mutable_fields, mutable_vals, struct_id, super, isopaque):
+    def __init__(self, mutable_vals, fields_map, struct_id, super, isopaque):
         W_RootStruct.__init__(self, struct_id, super, isopaque)
-        self.mutable_fields = mutable_fields
         self.mutable_vals = mutable_vals
+        self.fields_map = fields_map
 
-    # FIXME:
     def vals(self):
-        result = self._get_full_list()
+        immutable_vals = self._get_full_list()
+        result = []
+        for item in self.fields_map:
+            isImmutable, pos = self.fields_map[item]
+            result.append(immutable_vals[pos] if isImmutable else self.mutable_vals[pos])
         if self.super is not None: 
             return self.super.vals() + result
         else:
             return result
-
-    # FIXME: will be replaced by static mapping
-    @jit.elidable
-    def map(self, field):
-        if field in self.mutable_fields:
-            for immutable_field in [item for item in range(field) if item not in self.mutable_fields]:
-                if immutable_field < field: field -= 1
-                else: break
-        else:
-            for mutable_field in self.mutable_fields:
-                if mutable_field < field: field -= 1
-                else: break
-        return field
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -141,7 +146,8 @@ class W_Struct(W_RootStruct):
     def ref(self, struct_id, field, env, cont, _vals):
         from pycket.interpreter import return_value, jump
         if self.type == struct_id:
-            result = self._get_list(self.map(field)) if field not in self.mutable_fields else self.mutable_vals[self.map(field)]
+            isImmutable, pos = self.fields_map[field]
+            result = self._get_list(pos) if isImmutable else self.mutable_vals[pos]
             return return_value(result, env, cont)
         elif self.type.value == struct_id.value:
             raise SchemeException("given value instantiates a different structure type with the same name")
@@ -155,9 +161,14 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_value, jump
         type = jit.promote(self.type)
         if type == struct_id:
-            self.mutable_vals[self.map(field)] = val
+            self.mutable_vals[self.fields_map[field][1]] = val
             return return_value(w_void, env, cont)
-        return jump(env, self.super.set(struct_id, field, val, env, cont))
+        elif type.value == struct_id.value:
+            raise SchemeException("given value instantiates a different structure type with the same name")
+        elif self.super is not None:
+            return jump(env, self.super.set(struct_id, field, val, env, cont))
+        else:
+            assert False
 
     def tostring(self):
         if self.isopaque:
@@ -176,48 +187,48 @@ class W_StructTypeDescriptor(W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.value
 
-@continuation
-def constr_proc_cont(args, env, cont, _vals):
-    from pycket.interpreter import return_value
-    struct_id, super_type, init_field_cnt, auto_values, mutable_fields, isopaque, field_values = args
-    super = None
-    if isinstance(super_type, W_StructType):
-        def split_list(list, num):
-            assert num >= 0
-            return list[:num], list[num:]
-        split_position = len(field_values) - init_field_cnt
-        super_field_values, field_values = split_list(field_values, split_position)
-        something, env, cont = super_type.constructor().call(super_field_values, env, cont)
-        # TODO: how to create a super instance using continuations?
-    vals = field_values + auto_values
-    immutable_vals, mutable_vals = [], []
-    for idx, val in enumerate(vals):
-        if idx in mutable_fields: mutable_vals.append(val)
-        else: immutable_vals.append(val)
-    result = W_Struct.make(immutable_vals, mutable_fields, mutable_vals, struct_id, super, isopaque)
-    return return_value(result, env, cont)
-
 class W_StructConstructor(W_Procedure):
-    _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "mutable_fields[:]", "isopaque", "guard", "name"]
-    def __init__ (self, struct_id, super_type, init_field_cnt, auto_field_cnt, auto_v, mutable_fields, isopaque, guard, name):
+    _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "isopaque", "guard", "name"]
+    def __init__ (self, struct_id, super_type, init_field_cnt, auto_values, make_mapping, isopaque, guard, name):
         self.struct_id = struct_id
         self.super_type = super_type
         self.init_field_cnt = init_field_cnt
-        self.auto_values = [auto_v] * auto_field_cnt
-        self.mutable_fields = mutable_fields
+        self.auto_values = auto_values
+        self.make_mapping = make_mapping
+        self.fields_map = None
         self.isopaque = isopaque
         self.guard = guard
         self.name = name
 
+    @continuation
+    def constr_proc_cont(self, field_values, env, cont, _vals):
+        from pycket.interpreter import return_value
+        super = None
+        if isinstance(self.super_type, W_StructType):
+            def split_list(list, num):
+                assert num >= 0
+                return list[:num], list[num:]
+            split_position = len(field_values) - self.init_field_cnt
+            super_field_values, field_values = split_list(field_values, split_position)
+            something, env, cont = self.super_type.constructor().call(super_field_values, env, cont)
+            # TODO: how to create a super instance using continuations?
+        vals = field_values + self.auto_values
+        immutable_vals, mutable_vals = [], []
+        for idx, val in enumerate(vals):
+            if self.fields_map[idx][0]: immutable_vals.append(val)
+            else: mutable_vals.append(val)
+        result = W_Struct.make(immutable_vals, mutable_vals, self.fields_map, self.struct_id, super, self.isopaque)
+        return return_value(result, env, cont)
+
     def call(self, args, env, cont):
         from pycket.interpreter import jump
-        constr_args = [self.struct_id, self.super_type, self.init_field_cnt, self.auto_values, self.mutable_fields, self.isopaque, args]
+        if not self.fields_map: self.fields_map = self.make_mapping()
         if self.guard is w_false:
-            return jump(env, constr_proc_cont(constr_args, env, cont))
+            return jump(env, self.constr_proc_cont(args, env, cont))
         else:
             # TODO: here args have to be splitted
             guard_args = [self.struct_id] + args
-            return jump(env, jump_call(self.guard, guard_args, env, constr_proc_cont(constr_args, env, cont)))
+            return jump(env, jump_call(self.guard, guard_args, env, self.constr_proc_cont(args, env, cont)))
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
