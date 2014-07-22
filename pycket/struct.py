@@ -233,7 +233,8 @@ class W_StructConstructor(W_Procedure):
         if self.guard is w_false:
             return jump(env, self.constr_proc_wrapper_cont(args, env, cont))
         else:
-            guard_args = [self.struct_id] + args
+            assert isinstance(self.struct_id, W_StructTypeDescriptor)
+            guard_args = args + [self.struct_id.value]
             return jump(env, jump_call(self.guard, guard_args, env, self.constr_proc_wrapper_cont(args, env, cont)))
 
     def tostring(self):
