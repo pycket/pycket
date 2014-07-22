@@ -145,28 +145,30 @@ class W_Struct(W_RootStruct):
     @continuation
     def ref(self, struct_id, field, env, cont, _vals):
         from pycket.interpreter import return_value, jump
+        super = self.super
         if self.type == struct_id:
             isImmutable, pos = self.fields_map[field]
             result = self._get_list(pos) if isImmutable else self.mutable_vals[pos]
             return return_value(result, env, cont)
         elif self.type.value == struct_id.value:
             raise SchemeException("given value instantiates a different structure type with the same name")
-        elif self.super is not None:
-            return jump(env, self.super.ref(struct_id, field, env, cont))
+        elif isinstance(super, W_Struct):
+            return jump(env, super.ref(struct_id, field, env, cont))
         else:
             assert False
 
     @continuation
     def set(self, struct_id, field, val, env, cont, _vals):
         from pycket.interpreter import return_value, jump
+        super = self.super
         type = jit.promote(self.type)
         if type == struct_id:
             self.mutable_vals[self.fields_map[field][1]] = val
             return return_value(w_void, env, cont)
         elif type.value == struct_id.value:
             raise SchemeException("given value instantiates a different structure type with the same name")
-        elif self.super is not None:
-            return jump(env, self.super.set(struct_id, field, val, env, cont))
+        elif isinstance(super, W_Struct):
+            return jump(env, super.set(struct_id, field, val, env, cont))
         else:
             assert False
 
@@ -251,6 +253,7 @@ class W_StructPredicate(W_Procedure):
         result = w_false
         if (isinstance(struct, W_Struct)):
             while True:
+                assert isinstance(struct, W_Struct)
                 if struct.type == self.struct_id:
                     result = w_true
                     break

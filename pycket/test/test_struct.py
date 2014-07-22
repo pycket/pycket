@@ -117,8 +117,6 @@ def test_struct_auto_values(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-# Not implemented yet
-@pytest.mark.xfail
 def test_struct_guard():
     run("""((lambda (name) (struct thing (name) #:transparent #:guard 
       (lambda (name type-name) (cond 
