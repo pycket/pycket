@@ -131,4 +131,4 @@ def test_struct_guard():
         [(string? name) name] 
         [else (error type-name "bad name")])))
     (thing? (thing name))) 1)""")
-    
+    assert "bad name" in e.value.msg
