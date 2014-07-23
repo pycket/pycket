@@ -915,12 +915,13 @@ class SetBang(AST):
                        self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
-        if isinstance(self.var, CellRef):
+        var = self.var
+        if isinstance(var, CellRef):
             x[LexicalVar(self.var.sym)] = None
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
-        elif isinstance(self.var, ModuleVar):
-            x[to_modvar(self.var)] = None
+        elif isinstance(var, ModuleVar):
+            x[to_modvar(var)] = None
         # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
