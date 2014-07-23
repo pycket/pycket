@@ -45,6 +45,18 @@
             (error 'imp-proc "Result less than zero"))
           res)))))
 
+(define test-box (box 5))
+
+(define chp-box
+  (chaperone-box test-box
+    (lambda (a b) b)
+    (lambda (a b) b)))
+
+(define imp-box
+  (impersonate-box test-box
+    (lambda (a b) b)
+    (lambda (a b) b)))
+
 (printf "~nchaperone-of? procedure examples~n")
 (printf "test-proc ? imp-proc  => ~s = #f ~n" (chaperone-of? test-proc imp-proc))
 (printf "imp-proc  ? test-proc => ~s = #f ~n" (chaperone-of? imp-proc test-proc))
@@ -87,4 +99,16 @@
 (printf "(impersonator? chp-vector)  => ~s = #t~n" (impersonator? chp-vector))
 (printf "(impersonator? chp-vector)  => ~s = #t~n" (impersonator? imp-vector))
 
+(printf "~nchaperone-of? box examples~n")
+(printf "test-box ? imp-box  => ~s = #f ~n" (chaperone-of? test-box imp-box))
+(printf "imp-box  ? test-box => ~s = #f ~n" (chaperone-of? imp-box test-box))
+(printf "chp-box  ? test-box => ~s = #t ~n" (chaperone-of? chp-box test-box))
+(printf "test-box ? chp-box  => ~s = #f ~n" (chaperone-of? test-box chp-box))
 
+(printf "~nimpersonator-of? box examples~n")
+(printf "test-box ? chp-box  => ~s = #f ~n" (impersonator-of? test-box chp-box))
+(printf "test-box ? imp-box  => ~s = #f ~n" (impersonator-of? test-box imp-box))
+(printf "chp-box  ? test-box => ~s = #t ~n" (impersonator-of? chp-box test-box))
+(printf "imp-box  ? test-box => ~s = #t ~n" (impersonator-of? imp-box test-box))
+(printf "imp-box  ? sub1      => ~s = #f ~n" (impersonator-of? imp-box sub1))
+(printf "sub1      ? imp-box  => ~s = #f ~n" (impersonator-of? sub1 imp-box))
