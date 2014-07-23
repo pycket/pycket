@@ -525,10 +525,9 @@ class VariableReference(AST):
     def is_mutable(self, env):
         if self.is_mut:
             return True
-        elif isinstance(self.var, ModuleVar):
-            v = env.toplevel_env.module_env.lookup(self.var)
-            assert v
-            return (type(v) is values.W_Cell)
+        var = self.var
+        if isinstance(var, ModuleVar):
+            return var.is_mutable(env)
         else:
             return False
     def interpret_simple(self, env):
@@ -818,6 +817,11 @@ class ModuleVar(Var):
                     mod = m_ast.interpret_mod(top)
         return
 
+    @jit.elidable
+    def is_mutable(self, env):
+        self._init_cache(env)
+        v = self._elidable_lookup
+        return isinstance(v, values.W_Cell)
 
     @jit.elidable
     def _elidable_lookup(self):
@@ -849,7 +853,7 @@ class ModuleVar(Var):
         #     return self
     def _set(self, w_val, env): 
         self._init_cache(env)
-        v = self._elidable_lookup(env)
+        v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
         
@@ -909,8 +913,10 @@ class SetBang(AST):
         x = self.rhs.mutated_vars()
         if isinstance(self.var, CellRef):
             x[LexicalVar(self.var.sym)] = None
-        # elif isinstance(self.var, ModCellRef):
-        #     x[self.var.to_modvar()] = None
+        # even though we don't change these to cell refs, we still
+        # have to convert the definitions
+        elif isinstance(self.var, ModuleVar):
+            x[self.var] = None
         # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
