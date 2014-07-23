@@ -479,6 +479,16 @@ def varref_rmp(varref):
 def rmp_name(rmp):
     return rmp.name
 
+@expose("module-path?", [values.W_Object])
+def module_pathp(v):
+    if isinstance(v, values.W_Symbol):
+        # FIXME: not always right
+        return values.w_true
+    if isinstance(v, values.W_Path):
+        return values.w_true
+    # FIXME
+    return values.w_false
+
 @expose("values")
 def do_values(args_w):
     return values.Values.make(args_w)
