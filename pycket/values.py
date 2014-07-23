@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, call_cont
+from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
 from rpython.tool.pairtype import extendabletype
@@ -169,11 +169,30 @@ class W_Box(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    @label
+    def unbox(self, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    @label
+    def set_box(self, val, env, cont):
+        raise NotImplementedError("abstract base class")
+
 class W_MBox(W_Box):
     errorname = "mbox"
 
     def __init__(self, value):
         self.value = value
+
+    @label
+    def unbox(self, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.value, env, cont)
+
+    @label
+    def set_box(self, val, env, cont):
+        from pycket.interpreter import return_value
+        self.value = val
+        return return_value(w_void, env, cont)
 
     def tostring(self):
         return "'#&%s" % self.value.tostring()
@@ -187,6 +206,15 @@ class W_IBox(W_Box):
 
     def immutable(self):
         return True
+
+    @label
+    def unbox(self, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.value, env, cont)
+
+    @label
+    def set_box(self, val, env, cont):
+        raise SchemeException("set-box!: not supported on immutable boxes")
 
     def tostring(self):
         return "'#&%s" % self.value.tostring()

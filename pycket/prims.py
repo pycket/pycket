@@ -566,7 +566,7 @@ def equal_car_cont(a, b, env, cont, _vals):
 def equal_unbox_right_cont(r, env, cont, _vals):
     from pycket.interpreter import check_one_val, jump
     l = check_one_val(_vals)
-    return jump(env, do_unbox_cont(r, env, equal_unbox_done_cont(l, env, cont)))
+    return jump(env, r.unbox(env, equal_unbox_done_cont(l, env, cont)))
 
 @continuation
 def equal_unbox_done_cont(l, env, cont, _vals):
@@ -628,7 +628,7 @@ def equal_cont(a, b, env, cont, _vals):
                 equal_cont(a.car(), b.car(), env,
                     equal_car_cont(a.cdr(), b.cdr(), env, cont)))
     if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        return jump(env, do_unbox_cont(a, env, equal_unbox_right_cont(b, env, cont)))
+        return jump(env, a.unbox(env, equal_unbox_right_cont(b, env, cont)))
     if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
@@ -918,83 +918,13 @@ def impersonate_box(b, unbox, set):
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
     from pycket.interpreter import jump
-    return jump(env, do_unbox_cont(b, env, cont))
-
-@continuation
-def chp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    old = check_one_val(vals)
-    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
-
-@continuation
-def chp_unbox_cont_ret(old, env, cont, vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    new = check_one_val(vals)
-    if imp.is_chaperone_of(new, old):
-        return return_multi_vals(vals, env, cont)
-    else:
-        raise SchemeException("Expecting original value or chaperone of thereof")
-
-@continuation
-def imp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return f.call([box, check_one_val(vals)], env, cont)
-
-@continuation
-def do_unbox_cont(v, env, cont, _vals):
-    from pycket.interpreter import jump, return_value
-    if isinstance(v, values.W_MBox):
-        return return_value(v.value, env, cont)
-    elif isinstance(v, values.W_IBox):
-        return return_value(v.value, env, cont)
-    elif isinstance(v, imp.W_ChpBox):
-        f = v.unbox
-        b = v.box
-        return jump(env, do_unbox_cont(b, env, chp_unbox_cont(f, b, env, cont)))
-    elif isinstance(v, imp.W_ImpBox):
-        f = v.unbox
-        b = v.box
-        return jump(env, do_unbox_cont(b, env, imp_unbox_cont(f, b, env, cont)))
-    else:
-        assert False
+    return jump(env, b.unbox(env, cont))
+    #return jump(env, do_unbox_cont(b, env, cont))
 
 @expose("set-box!", [values.W_Box, values.W_Object], simple=False)
 def set_box(box, v, env, cont):
     from pycket.interpreter import jump
-    return jump(env, do_set_box_cont(box, v, env, cont))
-
-@continuation
-def imp_box_set_cont(b, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
-    return jump(env, do_set_box_cont(b, check_one_val(vals), env, cont))
-    #return do_set_box(b, check_one_val(vals), env, cont)
-
-@continuation
-def chp_box_set_cont(b, orig, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
-    val = check_one_val(vals)
-    if not imp.is_chaperone_of(val, orig):
-        raise SchemeException("Expecting original value or chaperone")
-    return jump(env, do_set_box_cont(b, val, env, cont))
-
-@continuation
-def do_set_box_cont(box, v, env, cont, _vals):
-    from pycket.interpreter import return_value
-    if isinstance(box, values.W_IBox):
-        raise SchemeException("Cannot set-box! immutable box")
-    elif isinstance(box, values.W_MBox):
-        box.value = v
-        return return_value(values.w_void, env, cont)
-    elif isinstance(box, imp.W_ImpBox):
-        f = box.set
-        b = box.box
-        return f.call([b, v], env, imp_box_set_cont(b, env, cont))
-    elif isinstance(box, imp.W_ChpBox):
-        f = box.set
-        b = box.box
-        return f.call([b, v], env, chp_box_set_cont(b, v, env, cont))
-    else:
-        assert False
+    return jump(env, box.set_box(v, env, cont))
 
 # This implementation makes no guarantees about atomicity
 @expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])

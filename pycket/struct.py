@@ -1,5 +1,5 @@
 from pycket import values
-from pycket.cont import continuation, jump_call
+from pycket.cont import continuation
 from pycket.error import SchemeException
 from pycket.exposeprim import make_call_method
 from pycket.small_list import inline_small_list
@@ -237,7 +237,7 @@ class W_StructConstructor(W_Procedure):
         else:
             assert isinstance(self.struct_id, W_StructTypeDescriptor)
             guard_args = args + [W_Symbol.make(self.struct_id.value)]
-            return jump(env, jump_call(self.guard, guard_args, env, self.constr_proc_wrapper_cont(args, env, cont)))
+            return self.guard.call(guard_args, env, self.constr_proc_wrapper_cont(args, env, cont))
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
