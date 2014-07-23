@@ -31,8 +31,6 @@ def actual_entry(argv):
 
     ast = load_json_ast_rpython(json_ast)
     GlobalConfig.load(ast)
-    if config['lazy']:
-        GlobalConfig.enable_lazy()
     env = ToplevelEnv()
     env.commandline_arguments = args_w
     env.module_env.add_module(module_name, ast)
