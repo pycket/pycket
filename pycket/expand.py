@@ -341,11 +341,11 @@ def _to_ast(json):
                 target = arr[1].value_object()
                 var = None
                 if "module" in target:
-                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()),
-                                     target["source-module"].value_string()
-                                     if target["source-module"].is_string else
-                                     None,
-                                     values.W_Symbol.make(target["source-name"].value_string()))
+                    var = ModuleVar(values.W_Symbol.make(target["module"].value_string()),
+                                    target["source-module"].value_string()
+                                    if target["source-module"].is_string else
+                                    None,
+                                    values.W_Symbol.make(target["source-name"].value_string()))
                 if "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 if "toplevel" in target:
