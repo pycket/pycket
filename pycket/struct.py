@@ -1,3 +1,4 @@
+from collections import namedtuple
 from pycket import values
 from pycket.cont import continuation
 from pycket.error import SchemeException
@@ -92,9 +93,9 @@ class W_StructType(W_Object):
         immutable_cnt = 0
         for field in range(self.init_field_cnt + self.auto_field_cnt):
             if field in self.mutable_fields:
-                result[field] = (False, self.mutable_fields.index(field))
+                result[(self.desc, field)] = (False, self.mutable_fields.index(field))
             else:
-                result[field] = (True, immutable_cnt)
+                result[(self.desc, field)] = (True, immutable_cnt)
                 immutable_cnt += 1
         return result
     def make_struct_tuple(self):
@@ -122,7 +123,7 @@ class W_RootStruct(W_Object):
 
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["type", "super", "isopaque", "fields"]
+    _immutable_fields_ = ["immutable_vals", "mutable_vals", "type", "super", "isopaque"]
     def __init__(self, mutable_vals, fields_map, struct_id, super, isopaque):
         W_RootStruct.__init__(self, struct_id, super, isopaque)
         self.mutable_vals = mutable_vals
@@ -134,10 +135,7 @@ class W_Struct(W_RootStruct):
         for item in self.fields_map:
             isImmutable, pos = self.fields_map[item]
             result.append(immutable_vals[pos] if isImmutable else self.mutable_vals[pos])
-        if self.super is not None: 
-            return self.super.vals() + result
-        else:
-            return result
+        return result
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -145,32 +143,15 @@ class W_Struct(W_RootStruct):
     @continuation
     def ref(self, struct_id, field, env, cont, _vals):
         from pycket.interpreter import return_value, jump
-        super = self.super
-        if self.type == struct_id:
-            isImmutable, pos = self.fields_map[field]
-            result = self._get_list(pos) if isImmutable else self.mutable_vals[pos]
-            return return_value(result, env, cont)
-        elif self.type.value == struct_id.value:
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif isinstance(super, W_Struct):
-            return jump(env, super.ref(struct_id, field, env, cont))
-        else:
-            assert False
+        isImmutable, pos = self.fields_map[(struct_id, field)]
+        result = self._get_list(pos) if isImmutable else self.mutable_vals[pos]
+        return return_value(result, env, cont)
 
     @continuation
     def set(self, struct_id, field, val, env, cont, _vals):
         from pycket.interpreter import return_value, jump
-        super = self.super
-        type = jit.promote(self.type)
-        if type == struct_id:
-            self.mutable_vals[self.fields_map[field][1]] = val
-            return return_value(w_void, env, cont)
-        elif type.value == struct_id.value:
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif isinstance(super, W_Struct):
-            return jump(env, super.set(struct_id, field, val, env, cont))
-        else:
-            assert False
+        self.mutable_vals[self.fields_map[(struct_id, field)][1]] = val
+        return return_value(w_void, env, cont)
 
     def tostring(self):
         if self.isopaque:
@@ -205,14 +186,22 @@ class W_StructConstructor(W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        vals = _vals._get_full_list()
         super = None
+        vals = _vals._get_full_list()
         if len(vals) == 1: super = vals[0]
         immutable_vals, mutable_vals = [], []
         if not self.fields_map: self.fields_map = self.make_mapping()
         for idx, val in enumerate(field_values + self.auto_values):
-            if self.fields_map[idx][0]: immutable_vals.append(val)
+            if self.fields_map[(self.struct_id, idx)][0]: immutable_vals.append(val)
             else: mutable_vals.append(val)
+        if isinstance(super, W_Struct):
+            immutable_vals_offset = len(immutable_vals)
+            mutable_vals_offset = len(mutable_vals)
+            for index in super.fields_map:
+                isImmutable, idx = super.fields_map[index]
+                self.fields_map[index] = (True, immutable_vals_offset + idx) if isImmutable else (False, mutable_vals_offset + idx)
+            immutable_vals = immutable_vals + super._get_full_list()
+            mutable_vals = mutable_vals + super.mutable_vals
         result = W_Struct.make(immutable_vals, mutable_vals, self.fields_map, self.struct_id, super, self.isopaque)
         return return_value(result, env, cont)
 
@@ -226,7 +215,7 @@ class W_StructConstructor(W_Procedure):
             split_position = len(field_values) - self.init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
             super_constr = self.super_type.constructor()
-            return jump(env, self.constr_proc_cont(field_values, env, super_constr.constr_proc_cont(super_field_values, env, cont)))
+            return super_constr.call(super_field_values, env, self.constr_proc_cont(field_values, env, cont))
         else:
             return jump(env, self.constr_proc_cont(field_values, env, cont))
 
@@ -237,6 +226,7 @@ class W_StructConstructor(W_Procedure):
         else:
             assert isinstance(self.struct_id, W_StructTypeDescriptor)
             guard_args = args + [W_Symbol.make(self.struct_id.value)]
+            jit.promote(self)
             return self.guard.call(guard_args, env, self.constr_proc_wrapper_cont(args, env, cont))
 
     def tostring(self):
