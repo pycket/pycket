@@ -43,6 +43,16 @@ def test_set_modvar():
     ov = m.defs[W_Symbol.make("sum")].get_val()
     assert ov.value == 100
 
+def test_set_mod2():
+    m = run_mod("""
+#lang pycket
+(provide table)
+(define table #f)
+(set! table #f)
+""")
+    ov = m.defs[W_Symbol.make("table")]
+    assert isinstance(ov, W_Cell)
+
 def test_use_before_definition():
     with pytest.raises(SchemeException):
         m = run_mod("""
