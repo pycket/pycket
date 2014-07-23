@@ -180,7 +180,7 @@ def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
     def do(a, b):
         return getattr(a, methname)(b)
-    do.__name__ = name
+    do.__name__ = methname
 
 for args in [
         ("modulo",   "arith_mod"),
@@ -204,7 +204,7 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
             for i in range(1, jit.promote(len(args))):
                 init = getattr(init, methname)(args[i])
             return init
-    do.__name__ = name
+    do.__name__ = methname
 
 for args in [
         ("+", values.W_Fixnum(0), "arith_add", True),
@@ -221,7 +221,7 @@ def make_unary_arith(name, methname):
     @expose(name, [values.W_Number], simple=True)
     def do(a):
         return getattr(a, methname)()
-    do.__name__ = name
+    do.__name__ = methname
 
 @expose("sub1", [values.W_Number])
 def sub1(v):
