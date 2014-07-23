@@ -515,20 +515,20 @@ class QuoteSyntax(AST):
         return "#'%s"%self.w_val.tostring()
 
 class VariableReference(AST):
-    _immutable_fields_ = ["var", "is_mutable", "path"]
+    _immutable_fields_ = ["var", "is_mut", "path"]
     simple = True
-    def __init__ (self, var, path, is_mutable=False):
+    def __init__ (self, var, path, is_mut=False):
         self.var = var
         self.path = path
-        self.is_mutable = is_mutable
+        self.is_mut = is_mut
 
     def is_mutable(self, env):
-        if self.is_mutable:
+        if self.is_mut:
             return True
         elif isinstance(self.var, ModuleVar):
             v = env.toplevel_env.module_env.lookup(self.var)
             assert v
-            return (type(v) is W_Cell)
+            return (type(v) is values.W_Cell)
         else:
             return False
     def interpret_simple(self, env):
@@ -850,7 +850,7 @@ class ModuleVar(Var):
     def _set(self, w_val, env): 
         self._init_cache(env)
         v = self._elidable_lookup(env)
-        assert isinstance(v, W_Cell)
+        assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
         
 
