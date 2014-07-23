@@ -515,10 +515,11 @@ class QuoteSyntax(AST):
         return "#'%s"%self.w_val.tostring()
 
 class VariableReference(AST):
-    _immutable_fields_ = ["var", "is_mutable"]
+    _immutable_fields_ = ["var", "is_mutable", "path"]
     simple = True
-    def __init__ (self, var, is_mutable=False):
+    def __init__ (self, var, path, is_mutable=False):
         self.var = var
+        self.path = path
         self.is_mutable = is_mutable
     def interpret_simple(self, env):
         return values.W_VariableReference(self)

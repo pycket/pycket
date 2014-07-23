@@ -287,11 +287,26 @@ def _to_module(json):
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
     table = {}
+    current_modules = []
 
     @staticmethod
     def add_module(fname):
         #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
         ModTable.table[fname] = None
+
+    @staticmethod
+    def push(fname):
+        ModTable.current_modules = [fname] + ModTable.current_modules
+
+    @staticmethod
+    def pop():
+        ModTable.current_modules = ModTable.current_modules[1:]
+
+    @staticmethod
+    def current_mod():
+        if len(ModTable.current_modules) == 0:
+            return None
+        return ModTable.current_modules[0]
 
     @staticmethod
     def has_module(fname):
@@ -301,11 +316,10 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
+    ModTable.push(fname)
     module = expand_file_cached(fname)
+    ModTable.pop()
     return Require(fname, module)
-
-def _expand_and_load(fname):
-    return load_json_ast(ensure_json_ast_run(fname))
 
 def to_lambda(arr):
     fmls, rest = to_formals(arr[0])
@@ -344,9 +358,9 @@ def _to_ast(json):
                 return Quote(values.w_void)
             if ast_elem == "#%variable-reference":
                 if len(arr) == 1:
-                    return VariableReference(None)
+                    return VariableReference(None, ModTable.current_mod())
                 else:
-                    return VariableReference(_to_ast(arr[1]))
+                    return VariableReference(_to_ast(arr[1]), ModTable.current_mod())
             if ast_elem == "case-lambda":
                 lams = [to_lambda(v.value_array()) for v in arr[1:]]
                 return CaseLambda(lams)
