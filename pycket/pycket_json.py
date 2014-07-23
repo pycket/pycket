@@ -1,34 +1,9 @@
-from rpython.rlib.rstring import StringBuilder, ParseStringError
+from rpython.rlib.rstring import StringBuilder
+from rpython.rlib.runicode import unicode_encode_utf_8
+from rpython.rlib.objectmodel import specialize
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
 from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
-from rpython.rlib.rarithmetic import string_to_int
-
-_json_grammar = """
-    STRING: "\\"([^\\"\\\\]|\\\\.)*\\"";
-    NUMBER: "\-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][\+\-]?[0-9]+)?";
-    TRUE: "true";
-    FALSE: "false";
-    NULL: "null";
-    IGNORE: " |\n";
-    value: <STRING> | <NUMBER> | <object> | <array> | <NULL> |
-           <TRUE> | <FALSE>;
-    object: ["{"] ["}"] | ["{"] (entry [","])* entry ["}"];
-    array: ["["] ["]"] | ["["] (value [","])* value ["]"];
-    entry: STRING [":"] value;
-"""
-
-_regexs, _rules, _ToAST = parse_ebnf(_json_grammar)
-parse = make_parse_function(_regexs, _rules, eof=True)
-
-#
-# Allow for deeply-nested structures in non-translated mode
-# Just pick a large number, as `sys.getrecursionlimit` is not
-# consistent between CPython and Pypy, appearantly.
-#
-import sys
-sys.setrecursionlimit(10000)
-
 
 # Union-Object to represent a json structure in a static way
 class JsonBase(object):
@@ -178,79 +153,118 @@ json_true = JsonTrue()
 
 json_false = JsonFalse()
 
-class Visitor(RPythonVisitor):
-    def visit_STRING(self, node):
-        s = node.token.source
-        l = len(s) - 1
-        # Strip the " characters
-        if l < 0:
-            return JsonString("")
-        else:
-            return JsonString(unescape(s)) # XXX escaping
 
-    def visit_NUMBER(self, node):
-        try:
-            return JsonInt(string_to_int(node.token.source))
-        except ParseStringError:
-            return JsonFloat(float(node.token.source))
+class FakeSpace(object):
 
-    def visit_NULL(self, node):
-        return json_null
+    w_None = json_null
+    w_True = json_true
+    w_False = json_false
+    w_ValueError = ValueError
+    w_UnicodeDecodeError = UnicodeDecodeError
+    w_UnicodeEncodeError = UnicodeEncodeError
+    w_int = JsonInt
+    w_float = JsonFloat
 
-    def visit_TRUE(self, node):
-        return json_true
+    def newtuple(self, items):
+        return None
 
-    def visit_FALSE(self, node):
-        return json_false
+    def newdict(self):
+        return JsonObject({})
 
-    def visit_object(self, node):
-        d = {}
-        for entry in node.children:
-            key = self.dispatch(entry.children[0])
-            if not key.is_string:
-                assert 0, "Only strings allowed as object keys"
-            d[key.value_string()] = self.dispatch(entry.children[1])
-        return JsonObject(d)
+    def newlist(self, items):
+        return JsonArray([])
 
-    def visit_array(self, node):
-        return JsonArray([self.dispatch(c) for c in node.children])
+    def call_method(self, obj, name, arg):
+        assert name == 'append'
+        assert isinstance(obj, JsonArray)
+        obj.value.append(arg)
+    call_method._dont_inline_ = True
 
-def unescape(chars):
-    builder = StringBuilder(len(chars)*2) # just an estimate
-    assert chars[0] == '"'
-    i = 1
-    while True:
-        ch = chars[i]
-        i += 1
-        if ch == '"':
-            return builder.build()
-        elif ch == '\\':
-            i = decode_escape_sequence(i, chars, builder)
-        else:
-            builder.append(ch)
+    def call_function(self, w_func, *args_w):
+        assert 0
 
-def decode_escape_sequence(i, chars, builder):
-    ch = chars[i]
-    i += 1
-    put = builder.append
-    if ch == '\\':  put('\\')
-    elif ch == '"': put('"' )
-    elif ch == '/': put('/' )
-    elif ch == 'b': put('\b')
-    elif ch == 'f': put('\f')
-    elif ch == 'n': put('\n')
-    elif ch == 'r': put('\r')
-    elif ch == 't': put('\t')
-    elif ch == 'u':
-        # TODO: make this work with actual unicode characters
-        val = int(chars[i:i+4], 16)
-        put(chr(val))
-        i += 4
-    else:
-        raise ValueError("Invalid \\escape: %s" % (ch, ))
-    return i
+    def setitem(self, d, key, value):
+        assert isinstance(d, JsonObject)
+        assert isinstance(key, JsonString)
+        d.value[key.value_string()] = value
 
-def loads(string):
-    ast = parse(string)
-    transformed = _ToAST().transform(ast)
-    return Visitor().dispatch(transformed)
+    def wrapunicode(self, x):
+        return JsonString(unicode_encode_utf_8(x, len(x), "strict"))
+
+    def wrapint(self, x):
+        return JsonInt(x)
+
+    def wrapfloat(self, x):
+        return JsonFloat(x)
+
+    def wrap(self, x):
+        if isinstance(x, int):
+            return JsonInt(x)
+        elif isinstance(x, float):
+            return JsonFloat(x)
+        return self.wrapunicode(unicode(x))
+    wrap._annspecialcase_ = "specialize:argtype(1)"
+
+fakespace = FakeSpace()
+
+from pypy.module._pypyjson.interp_decoder import JSONDecoder
+
+class OwnJSONDecoder(JSONDecoder):
+    def __init__(self, s):
+        self.space = fakespace
+        self.s = s
+        # we put our string in a raw buffer so:
+        # 1) we automatically get the '\0' sentinel at the end of the string,
+        #    which means that we never have to check for the "end of string"
+        self.ll_chars = s + chr(0)
+        self.pos = 0
+        self.last_type = 0
+
+    def close(self):
+        pass
+
+    @specialize.arg(1)
+    def _raise(self, msg, *args):
+        raise ValueError(msg % args)
+
+    def decode_float(self, i):
+        start = i
+        while self.ll_chars[i] in "+-0123456789.eE":
+            i += 1
+        self.pos = i
+        return self.space.wrap(float(self.getslice(start, i)))
+
+    def decode_string(self, i):
+        start = i
+        while True:
+            # this loop is a fast path for strings which do not contain escape
+            # characters
+            ch = self.ll_chars[i]
+            i += 1
+            if ch == '"':
+                content_utf8 = self.getslice(start, i-1)
+                self.last_type = 1
+                self.pos = i
+                return JsonString(content_utf8)
+            elif ch == '\\':
+                content_so_far = self.getslice(start, i-1)
+                self.pos = i-1
+                return self.decode_string_escaped(start, content_so_far)
+            elif ch < '\x20':
+                self._raise("Invalid control character at char %d", self.pos-1)
+
+
+
+def loads(s):
+    decoder = OwnJSONDecoder(s)
+    try:
+        w_res = decoder.decode_any(0)
+        i = decoder.skip_whitespace(decoder.pos)
+        if i < len(s):
+            start = i
+            end = len(s) - 1
+            raise ValueError("Extra data: char %d - %d" % (start, end))
+        return w_res
+    finally:
+        decoder.close()
+
