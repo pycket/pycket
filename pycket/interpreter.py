@@ -898,6 +898,10 @@ class SymList(object):
         assert isinstance(elems, list)
         self.elems = elems
         self.prev = prev
+        
+# rewritten version for caching
+def to_modvar(m):
+    return ModuleVar(m.sym, None, m.srcsym)
 
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
@@ -916,7 +920,7 @@ class SetBang(AST):
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
         elif isinstance(self.var, ModuleVar):
-            x[self.var] = None
+            x[to_modvar(self.var)] = None
         # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
