@@ -288,6 +288,18 @@ def cur_print_proc(args):
 def current_print():
     return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
+@expose("current-logger", [])
+def current_logger():
+    return values.current_logger
+
+@expose("make-logger", [values.W_Symbol, values.W_Logger])
+def make_logger(name, parent):
+    return values.W_Logger()
+
+@expose("make-weak-hasheq", [])
+def make_weak_hasheq():
+    return values.W_HashTable([], [])
+
 @expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
 def make_parameter(init, guard):
     return values.W_Parameter(init, guard)

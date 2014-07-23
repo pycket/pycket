@@ -86,6 +86,15 @@ class W_Syntax(W_Object):
     def tostring(self):
         return "#'%s"%self.val.tostring()
 
+class W_Logger(W_Object):
+    errorname = "logger"
+    def __init__(self):
+        pass
+    def tostring(self):
+        "#<logger>"
+
+current_logger = W_Logger()
+
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
     def __init__(self):
