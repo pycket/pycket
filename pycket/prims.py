@@ -468,8 +468,8 @@ def procedure_arity_includes(p, n):
 
 @expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
 def varref_const(varref, env, cont):
-    from interpreter import return_one_value
-    return return_one_value(values.W_Bool.make(not(varref.varref.is_mutable(env))))
+    from interpreter import return_value
+    return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))))
 
 @expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
 def varref_rmp(varref):

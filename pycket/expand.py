@@ -296,17 +296,18 @@ class ModTable(object):
 
     @staticmethod
     def push(fname):
-        ModTable.current_modules = [fname] + ModTable.current_modules
+        ModTable.current_modules.append(fname)
 
     @staticmethod
     def pop():
-        ModTable.current_modules = ModTable.current_modules[1:]
+        assert len(ModTable.current_modules) > 0
+        ModTable.current_modules.pop()
 
     @staticmethod
     def current_mod():
         if len(ModTable.current_modules) == 0:
             return None
-        return ModTable.current_modules[0]
+        return ModTable.current_modules[-1]
 
     @staticmethod
     def has_module(fname):

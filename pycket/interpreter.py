@@ -536,10 +536,10 @@ class VariableReference(AST):
     def assign_convert(self, vars, env_structure):
         v = self.var
         if v and isinstance(v, LexicalVar) and v in vars:
-            return VariableReference(v, True)
+            return VariableReference(v, self.path, True)
         # top-level variables are always mutable
         if v and isinstance(v, ToplevelVar):
-            return VariableReference(v, True)
+            return VariableReference(v, self.path, True)
         else:
             return self
     def mutated_vars(self):

@@ -92,7 +92,7 @@ class W_ResolvedModulePath(W_Object):
     def __init__(self, name):
         self.name = name
     def tostring(self):
-        return "#<resolved-module-path:%s>"%self.name
+        return ("#<resolved-module-path:%s>"%self.name)
 
 class W_Logger(W_Object):
     errorname = "logger"
