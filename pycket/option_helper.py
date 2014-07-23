@@ -39,7 +39,6 @@ def print_help(argv):
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
-  --lazy: Load libraries lazily
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -54,7 +53,6 @@ _eval = False
 def parse_args(argv):
     config = {
         'stdlib': False,
-        'lazy': False,
 #        'mcons': False,
         'mode': _run,
     }
@@ -82,9 +80,6 @@ def parse_args(argv):
         elif argv[i] == "--":
             i += 1
             break
-        elif argv[i] == "--lazy":
-            config['lazy'] = True
-            i += 1
         elif argv[i] == "--stdlib":
             config['stdlib'] = True
             i += 1

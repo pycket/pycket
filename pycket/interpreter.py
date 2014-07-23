@@ -10,15 +10,10 @@ from small_list               import inline_small_list
 class GlobalConfig(object):
     config = {}
     loaded = False
-    lazy_loading = False
 
     @staticmethod
     def lookup(s):
         return GlobalConfig.instance.config.get(s, None)
-
-    @staticmethod
-    def enable_lazy():
-        GlobalConfig.instance.lazy_loading = True
 
     @staticmethod
     def load(ast):
@@ -429,10 +424,6 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
-        if GlobalConfig.lazy_loading:
-            if not (self.modname in ModuleCache.modules):
-                ModuleCache.modules[self.modname] = self.module
-            return values.w_void
         top = env.toplevel_env
         top.module_env.add_module(self.modname, self.module)
         mod = self.module.interpret_mod(top)
@@ -795,7 +786,8 @@ class ModuleVar(Var):
     def free_vars(self): return {}
 
     def _lookup(self, env):
-        self._init_cache(env)
+        if self.modenv is None:
+            self.modenv = env.toplevel_env.module_env
         w_res = self._elidable_lookup()
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
@@ -803,24 +795,10 @@ class ModuleVar(Var):
             return w_res
 
     @jit.elidable
-    def _init_cache(self, env):
+    def is_mutable(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env.module_env
-            if self.srcmod != "#%kernel" and self.srcmod != "#%unsafe":
-                modenv = self.modenv
-                mod = modenv._find_module(self.srcmod)
-                if mod is None and GlobalConfig.lazy_loading:
-                    top = modenv.toplevel_env
-                    m_ast = ModuleCache.modules[self.srcmod]
-                    assert isinstance(m_ast, Module)
-                    modenv.add_module(self.srcmod, m_ast)
-                    mod = m_ast.interpret_mod(top)
-        return
-
-    @jit.elidable
-    def is_mutable(self, env):
-        self._init_cache(env)
-        v = self._elidable_lookup
+        v = self._elidable_lookup()
         return isinstance(v, values.W_Cell)
 
     @jit.elidable
@@ -852,7 +830,8 @@ class ModuleVar(Var):
         # else:
         #     return self
     def _set(self, w_val, env):
-        self._init_cache(env)
+        if self.modenv is None:
+            self.modenv = env.toplevel_env.module_env
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
