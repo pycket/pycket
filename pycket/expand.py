@@ -9,7 +9,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
-import pycket.json as pycket_json
+from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values
