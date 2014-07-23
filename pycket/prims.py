@@ -1480,6 +1480,14 @@ def system_type(sym):
         return values.W_Symbol.make("unix")
     raise SchemeException("unexpected system-type symbol %s"%sym.value)
 
+@expose("find-main-collects", [])
+def find_main_collects():
+    return values.w_false
+
+@expose("module-path-index-join", [values.W_Object, values.W_Object])
+def mpi_join(a, b):
+    return values.W_ModulePathIndex()
+
 # Loading
 
 # FIXME: Proper semantics.

@@ -807,7 +807,7 @@ class ModuleVar(Var):
         modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
-        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe" or self.srcmod == "#%utils":
             # we don't separate these the way racket does
             # but maybe we should
             try:
