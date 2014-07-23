@@ -99,7 +99,7 @@ class W_Logger(W_Object):
     def __init__(self):
         pass
     def tostring(self):
-        "#<logger>"
+        return "#<logger>"
 
 current_logger = W_Logger()
 
