@@ -260,7 +260,7 @@ for name in ["prop:evt",
 
 @expose("display", [values.W_Object])
 def display(s):
-    os.write(1, s._tostring())
+    os.write(1, s.tostring())
     return values.w_void
 
 @expose("newline", [])
@@ -269,18 +269,18 @@ def newline():
 
 @expose("write", [values.W_Object])
 def write(s):
-    os.write(1, s._tostring())
+    os.write(1, s.tostring())
 
 @expose("print", [values.W_Object])
 def do_print(o):
-    os.write(1, o._tostring())
+    os.write(1, o.tostring())
 
 def cur_print_proc(args):
     v, = args
     if v is values.w_void:
         return
     else:
-        os.write(1, v._tostring())
+        os.write(1, v.tostring())
         os.write(1, "\n")
 
 # FIXME: this is a parameter
@@ -555,7 +555,7 @@ def printf(args):
                 # FIXME: different format chars
                 if j >= len(vals):
                     raise SchemeException("not enough arguments for format string")
-                os.write(1,vals[j]._tostring()),
+                os.write(1,vals[j].tostring()),
                 j += 1
             elif s == 'n':
                 os.write(1,"\n") # newline

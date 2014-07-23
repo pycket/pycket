@@ -37,13 +37,6 @@ class W_Object(object):
 
     def tostring(self):
         return str(self)
-
-    # FIXME: using this to fix a bizarre translation error
-    def _tostring(self):
-        v = self.tostring()
-        assert v
-        return v
-
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
