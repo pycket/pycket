@@ -1,6 +1,6 @@
 
 import pytest
-from pycket.json import loads
+from pycket.pycket_json import loads
 import json as pyjson
 
 def _compare(string, expected):

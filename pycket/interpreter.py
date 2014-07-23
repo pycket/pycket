@@ -515,20 +515,30 @@ class QuoteSyntax(AST):
         return "#'%s"%self.w_val.tostring()
 
 class VariableReference(AST):
-    _immutable_fields_ = ["var", "is_mutable"]
+    _immutable_fields_ = ["var", "is_mut", "path"]
     simple = True
-    def __init__ (self, var, is_mutable=False):
+    def __init__ (self, var, path, is_mut=False):
         self.var = var
-        self.is_mutable = is_mutable
+        self.path = path
+        self.is_mut = is_mut
+
+    def is_mutable(self, env):
+        if self.is_mut:
+            return True
+        var = self.var
+        if isinstance(var, ModuleVar):
+            return var.is_mutable(env)
+        else:
+            return False
     def interpret_simple(self, env):
         return values.W_VariableReference(self)
     def assign_convert(self, vars, env_structure):
         v = self.var
-        if v and (isinstance(v, ModuleVar) or isinstance(v, LexicalVar)) and v in vars:
-            return VariableReference(v, True)
+        if v and isinstance(v, LexicalVar) and v in vars:
+            return VariableReference(v, self.path, True)
         # top-level variables are always mutable
         if v and isinstance(v, ToplevelVar):
-            return VariableReference(v, True)
+            return VariableReference(v, self.path, True)
         else:
             return self
     def mutated_vars(self):
@@ -785,6 +795,15 @@ class ModuleVar(Var):
     def free_vars(self): return {}
 
     def _lookup(self, env):
+        self._init_cache(env)
+        w_res = self._elidable_lookup()
+        if type(w_res) is values.W_Cell:
+            return w_res.get_val()
+        else:
+            return w_res
+
+    @jit.elidable
+    def _init_cache(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env.module_env
             if self.srcmod != "#%kernel" and self.srcmod != "#%unsafe":
@@ -796,7 +815,13 @@ class ModuleVar(Var):
                     assert isinstance(m_ast, Module)
                     modenv.add_module(self.srcmod, m_ast)
                     mod = m_ast.interpret_mod(top)
-        return self._elidable_lookup()
+        return
+
+    @jit.elidable
+    def is_mutable(self, env):
+        self._init_cache(env)
+        v = self._elidable_lookup
+        return isinstance(v, values.W_Cell)
 
     @jit.elidable
     def _elidable_lookup(self):
@@ -817,39 +842,46 @@ class ModuleVar(Var):
                 raise SchemeException("can't find module %s" % (self.srcmod, ))
         return mod.lookup(self.srcsym)
 
-    def assign_convert(self, vars, env_structure):
-        # we use None here for hashing because we don't have the module name in the
-        # define-values when we need to look this up.
-        if ModuleVar(self.sym, None, self.srcsym) in vars:
-            return ModCellRef(self.sym, self.srcmod, self.srcsym)
-        else:
-            return self
-    def _set(self, w_val, env): assert 0
 
-class ModCellRef(Var):
-    _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
-
-    def __init__(self, sym, srcmod, srcsym, env_structure=None):
-        self.sym = sym
-        self.srcmod = srcmod
-        self.srcsym = srcsym
-        self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
     def assign_convert(self, vars, env_structure):
-        return ModCellRef(self.sym, self.srcmod, self.srcsym)
-    def tostring(self):
-        return "ModCellRef(%s)"%variable_name(self.sym)
+        return self
+        # # we use None here for hashing because we don't have the module name in the
+        # # define-values when we need to look this up.
+        # if ModuleVar(self.sym, None, self.srcsym) in vars:
+        #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
+        # else:
+        #     return self
     def _set(self, w_val, env):
-        w_res = self.modvar._lookup(env)
-        assert isinstance(w_res, values.W_Cell)
-        w_res.set_val(w_val)
-    def _lookup(self, env):
-        w_res = self.modvar._lookup(env)
-        assert isinstance(w_res, values.W_Cell)
-        return w_res.get_val()
-    def to_modvar(self):
-        # we use None here for hashing because we don't have the module name in the
-        # define-values when we need to look this up.
-        return ModuleVar(self.sym, None, self.srcsym)
+        self._init_cache(env)
+        v = self._elidable_lookup()
+        assert isinstance(v, values.W_Cell)
+        v.set_val(w_val)
+
+
+# class ModCellRef(Var):
+#     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
+
+#     def __init__(self, sym, srcmod, srcsym, env_structure=None):
+#         self.sym = sym
+#         self.srcmod = srcmod
+#         self.srcsym = srcsym
+#         self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
+#     def assign_convert(self, vars, env_structure):
+#         return ModCellRef(self.sym, self.srcmod, self.srcsym)
+#     def tostring(self):
+#         return "ModCellRef(%s)"%variable_name(self.sym)
+#     def _set(self, w_val, env):
+#         w_res = self.modvar._lookup(env)
+#         assert isinstance(w_res, values.W_Cell)
+#         w_res.set_val(w_val)
+#     def _lookup(self, env):
+#         w_res = self.modvar._lookup(env)
+#         assert isinstance(w_res, values.W_Cell)
+#         return w_res.get_val()
+#     def to_modvar(self):
+#         # we use None here for hashing because we don't have the module name in the
+#         # define-values when we need to look this up.
+#         return ModuleVar(self.sym, None, self.srcsym)
 
 
 class ToplevelVar(Var):
@@ -867,6 +899,10 @@ class SymList(object):
         self.elems = elems
         self.prev = prev
 
+# rewritten version for caching
+def to_modvar(m):
+    return ModuleVar(m.sym, None, m.srcsym)
+
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
     def __init__(self, var, rhs):
@@ -879,10 +915,13 @@ class SetBang(AST):
                        self.rhs.assign_convert(vars, env_structure))
     def mutated_vars(self):
         x = self.rhs.mutated_vars()
-        if isinstance(self.var, CellRef):
+        var = self.var
+        if isinstance(var, CellRef):
             x[LexicalVar(self.var.sym)] = None
-        elif isinstance(self.var, ModCellRef):
-            x[self.var.to_modvar()] = None
+        # even though we don't change these to cell refs, we still
+        # have to convert the definitions
+        elif isinstance(var, ModuleVar):
+            x[to_modvar(var)] = None
         # do nothing for top-level vars, they're all mutated
         return x
     def free_vars(self):
@@ -1312,7 +1351,7 @@ class DefineValues(AST):
                                      need_cell_flags),
                                 self.display_names)
         else:
-            return DefineValues(self.names, 
+            return DefineValues(self.names,
                                 self.rhs.assign_convert(vars, env_structure),
                                 self.display_names)
     def mutated_vars(self):

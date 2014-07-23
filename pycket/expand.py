@@ -9,7 +9,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
-import pycket.json as pycket_json
+from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values
@@ -287,11 +287,27 @@ def _to_module(json):
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
     table = {}
+    current_modules = []
 
     @staticmethod
     def add_module(fname):
         #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
         ModTable.table[fname] = None
+
+    @staticmethod
+    def push(fname):
+        ModTable.current_modules.append(fname)
+
+    @staticmethod
+    def pop():
+        assert len(ModTable.current_modules) > 0
+        ModTable.current_modules.pop()
+
+    @staticmethod
+    def current_mod():
+        if len(ModTable.current_modules) == 0:
+            return None
+        return ModTable.current_modules[-1]
 
     @staticmethod
     def has_module(fname):
@@ -301,11 +317,10 @@ def _to_require(fname):
     if ModTable.has_module(fname):
         return Quote(values.w_void)
     ModTable.add_module(fname)
+    ModTable.push(fname)
     module = expand_file_cached(fname)
+    ModTable.pop()
     return Require(fname, module)
-
-def _expand_and_load(fname):
-    return load_json_ast(ensure_json_ast_run(fname))
 
 def to_lambda(arr):
     fmls, rest = to_formals(arr[0])
@@ -327,11 +342,11 @@ def _to_ast(json):
                 target = arr[1].value_object()
                 var = None
                 if "module" in target:
-                    var = ModCellRef(values.W_Symbol.make(target["module"].value_string()),
-                                     target["source-module"].value_string()
-                                     if target["source-module"].is_string else
-                                     None,
-                                     values.W_Symbol.make(target["source-name"].value_string()))
+                    var = ModuleVar(values.W_Symbol.make(target["module"].value_string()),
+                                    target["source-module"].value_string()
+                                    if target["source-module"].is_string else
+                                    None,
+                                    values.W_Symbol.make(target["source-name"].value_string()))
                 if "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 if "toplevel" in target:
@@ -344,9 +359,9 @@ def _to_ast(json):
                 return Quote(values.w_void)
             if ast_elem == "#%variable-reference":
                 if len(arr) == 1:
-                    return VariableReference(None)
+                    return VariableReference(None, ModTable.current_mod())
                 else:
-                    return VariableReference(_to_ast(arr[1]))
+                    return VariableReference(_to_ast(arr[1]), ModTable.current_mod())
             if ast_elem == "case-lambda":
                 lams = [to_lambda(v.value_array()) for v in arr[1:]]
                 return CaseLambda(lams)

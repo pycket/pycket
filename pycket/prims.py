@@ -288,6 +288,19 @@ def cur_print_proc(args):
 def current_print():
     return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
+@expose("current-logger", [])
+def current_logger():
+    return values.current_logger
+
+@expose("make-logger", [values.W_Symbol, values.W_Logger])
+def make_logger(name, parent):
+    return values.W_Logger()
+
+@expose("make-weak-hasheq", [])
+def make_weak_hasheq():
+    # FIXME: not actually weak
+    return values.W_HashTable([], [])
+
 @expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
 def make_parameter(init, guard):
     return values.W_Parameter(init, guard)
@@ -453,9 +466,28 @@ def procedure_arity_includes(p, n):
         return values.w_true
     return values.w_false
 
-@expose("variable-reference-constant?", [values.W_VariableReference])
-def varref_const(varref):
-    return values.W_Bool.make(not(varref.varref.is_mutable))
+@expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
+def varref_const(varref, env, cont):
+    from interpreter import return_value
+    return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))), env, cont)
+
+@expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
+def varref_rmp(varref):
+    return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
+
+@expose("resolved-module-path-name", [values.W_ResolvedModulePath])
+def rmp_name(rmp):
+    return rmp.name
+
+@expose("module-path?", [values.W_Object])
+def module_pathp(v):
+    if isinstance(v, values.W_Symbol):
+        # FIXME: not always right
+        return values.w_true
+    if isinstance(v, values.W_Path):
+        return values.w_true
+    # FIXME
+    return values.w_false
 
 @expose("values")
 def do_values(args_w):
