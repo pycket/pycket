@@ -180,6 +180,11 @@ def test_lists():
     run ("(list)", w_null)
     run ("(list #t)", to_list([w_true]))
 
+def test_box():
+    run("(unbox (box #t))", w_true)
+    run("(unbox (box-immutable #f))", w_false)
+    run("(let ([b (box 5)]) (begin (set-box! b #f) (unbox b)))", w_false)
+
 def test_fib():
     Y = """
   (lambda (f)
