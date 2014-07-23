@@ -851,12 +851,12 @@ class ModuleVar(Var):
         #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
         # else:
         #     return self
-    def _set(self, w_val, env): 
+    def _set(self, w_val, env):
         self._init_cache(env)
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
-        
+
 
 # class ModCellRef(Var):
 #     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
@@ -898,7 +898,7 @@ class SymList(object):
         assert isinstance(elems, list)
         self.elems = elems
         self.prev = prev
-        
+
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
@@ -1350,7 +1350,7 @@ class DefineValues(AST):
                                      need_cell_flags),
                                 self.display_names)
         else:
-            return DefineValues(self.names, 
+            return DefineValues(self.names,
                                 self.rhs.assign_convert(vars, env_structure),
                                 self.display_names)
     def mutated_vars(self):
