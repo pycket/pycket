@@ -7,7 +7,7 @@
 import os
 
 from pycket.expand import expand, to_ast, expand_string, parse_module
-from pycket.json import loads
+from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket import values
 
