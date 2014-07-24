@@ -70,7 +70,7 @@ class W_StructType(W_Object):
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.isopaque = self.inspector is not w_false
-        self.mutable_fields = []
+        # self.mutable_fields = []
 
         self.desc = struct_id
         self.constr = W_StructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_values,
@@ -82,22 +82,28 @@ class W_StructType(W_Object):
     def constructor(self):
         return self.constr
     def set_mutable(self, field):
-        assert isinstance(field, W_Fixnum)
-        self.mutable_fields.append(field.value)
+        pass
+        # assert isinstance(field, W_Fixnum)
+        # self.mutable_fields.append(field.value)
 
     """
     This method has to be called after initialization, otherwise self.mutable_fields will be empty
     """
     def make_mapping(self):
-        result = {}
-        immutable_cnt = 0
-        for field in range(self.init_field_cnt + self.auto_field_cnt):
-            if field in self.mutable_fields:
-                result[(self.desc, field)] = (False, self.mutable_fields.index(field))
-            else:
-                result[(self.desc, field)] = (True, immutable_cnt)
-                immutable_cnt += 1
-        return result
+        pass
+    #     result = {}
+    #     struct_type = self
+    #     vals_offset = 0
+    #     while True:
+    #         for field in range(struct_type.init_field_cnt + struct_type.auto_field_cnt):
+    #             result[(struct_type.desc, field)] = field + vals_offset
+    #         if struct_type.super is None:
+    #             break
+    #         else:
+    #             struct_type = struct_type.super
+    #             assert isinstance(struct_type, W_StructType)
+    #             vals_offset += struct_type.init_field_cnt + struct_type.auto_field_cnt - 1
+    #     return result
     def make_struct_tuple(self):
         return [self.desc, self.constr, self.pred, self.acc, self.mut]
 
@@ -123,19 +129,15 @@ class W_RootStruct(W_Object):
 
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["immutable_vals", "mutable_vals", "type", "super", "isopaque"]
-    def __init__(self, mutable_vals, fields_map, struct_id, super, isopaque):
+    _immutable_fields_ = ["vals", "type", "super", "isopaque"]
+    def __init__(self, vals, fields_map, struct_id, super, isopaque):
         W_RootStruct.__init__(self, struct_id, super, isopaque)
-        self.mutable_vals = mutable_vals
+        self.values = vals
         self.fields_map = fields_map
 
     def vals(self):
-        immutable_vals = self._get_full_list()
-        result = []
-        for item in self.fields_map:
-            isImmutable, pos = self.fields_map[item]
-            result.append(immutable_vals[pos] if isImmutable else self.mutable_vals[pos])
-        return result
+        # return self._get_full_list()
+        return self.values
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -143,15 +145,36 @@ class W_Struct(W_RootStruct):
     @continuation
     def ref(self, struct_id, field, env, cont, _vals):
         from pycket.interpreter import return_value, jump
-        isImmutable, pos = self.fields_map[(struct_id, field)]
-        result = self._get_list(pos) if isImmutable else self.mutable_vals[pos]
-        return return_value(result, env, cont)
+        # pos = self.fields_map[(struct_id, field)]
+        # result = self._get_list(pos)
+        # return return_value(result, env, cont)
+
+        if self.type == struct_id:
+            # result = self._get_list(field)
+            result = self.values[field]
+            return return_value(result, env, cont)
+        elif self.type.value == struct_id.value:
+            raise SchemeException("given value instantiates a different structure type with the same name")
+        elif self.super is not None:
+            super = self.super
+            assert isinstance(super, W_Struct)
+            return jump(env, super.ref(struct_id, field, env, cont))
+        else:
+            assert False
 
     @continuation
     def set(self, struct_id, field, val, env, cont, _vals):
         from pycket.interpreter import return_value, jump
-        self.mutable_vals[self.fields_map[(struct_id, field)][1]] = val
-        return return_value(w_void, env, cont)
+        # self._set_list(self.fields_map[(struct_id, field)], val)
+        # return return_value(w_void, env, cont)
+        type = jit.promote(self.type)
+        if type == struct_id:
+            # self._set_list(field, val)
+            self.values[field] = val
+            return return_value(w_void, env, cont)
+        super = self.super
+        assert isinstance(super, W_Struct)
+        return jump(env, super.set(struct_id, field, val, env, cont))
 
     def tostring(self):
         if self.isopaque:
@@ -160,7 +183,7 @@ class W_Struct(W_RootStruct):
             result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-inline_small_list(W_Struct, immutable=True, attrname="immutable_vals")
+# inline_small_list(W_Struct, attrname="vals")
 
 class W_StructTypeDescriptor(W_Object):
     errorname = "struct-type-descriptor"
@@ -189,20 +212,12 @@ class W_StructConstructor(W_Procedure):
         super = None
         vals = _vals._get_full_list()
         if len(vals) == 1: super = vals[0]
-        immutable_vals, mutable_vals = [], []
-        if not self.fields_map: self.fields_map = self.make_mapping()
-        for idx, val in enumerate(field_values + self.auto_values):
-            if self.fields_map[(self.struct_id, idx)][0]: immutable_vals.append(val)
-            else: mutable_vals.append(val)
-        if isinstance(super, W_Struct):
-            immutable_vals_offset = len(immutable_vals)
-            mutable_vals_offset = len(mutable_vals)
-            for index in super.fields_map:
-                isImmutable, idx = super.fields_map[index]
-                self.fields_map[index] = (True, immutable_vals_offset + idx) if isImmutable else (False, mutable_vals_offset + idx)
-            immutable_vals = immutable_vals + super._get_full_list()
-            mutable_vals = mutable_vals + super.mutable_vals
-        result = W_Struct.make(immutable_vals, mutable_vals, self.fields_map, self.struct_id, super, self.isopaque)
+        # if not self.fields_map: self.fields_map = self.make_mapping()
+        field_values = field_values + self.auto_values
+        # if isinstance(super, W_Struct):
+        #     field_values = field_values + super._get_full_list()
+        # result = W_Struct.make(field_values, self.fields_map, self.struct_id, super, self.isopaque)
+        result = W_Struct(field_values, self.fields_map, self.struct_id, super, self.isopaque)
         return return_value(result, env, cont)
 
     @continuation
