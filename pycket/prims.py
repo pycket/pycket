@@ -180,7 +180,7 @@ def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
     def do(a, b):
         return getattr(a, methname)(b)
-    do.__name__ = name
+    do.__name__ = methname
 
 for args in [
         ("modulo",   "arith_mod"),
@@ -204,7 +204,7 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
             for i in range(1, jit.promote(len(args))):
                 init = getattr(init, methname)(args[i])
             return init
-    do.__name__ = name
+    do.__name__ = methname
 
 for args in [
         ("+", values.W_Fixnum(0), "arith_add", True),
@@ -221,7 +221,7 @@ def make_unary_arith(name, methname):
     @expose(name, [values.W_Number], simple=True)
     def do(a):
         return getattr(a, methname)()
-    do.__name__ = name
+    do.__name__ = methname
 
 @expose("sub1", [values.W_Number])
 def sub1(v):
@@ -478,6 +478,16 @@ def varref_rmp(varref):
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
     return rmp.name
+
+@expose("module-path?", [values.W_Object])
+def module_pathp(v):
+    if isinstance(v, values.W_Symbol):
+        # FIXME: not always right
+        return values.w_true
+    if isinstance(v, values.W_Path):
+        return values.w_true
+    # FIXME
+    return values.w_false
 
 @expose("values")
 def do_values(args_w):
@@ -1469,6 +1479,14 @@ def system_type(sym):
         # FIXME: make this work on macs
         return values.W_Symbol.make("unix")
     raise SchemeException("unexpected system-type symbol %s"%sym.value)
+
+@expose("find-main-collects", [])
+def find_main_collects():
+    return values.w_false
+
+@expose("module-path-index-join", [values.W_Object, values.W_Object])
+def mpi_join(a, b):
+    return values.W_ModulePathIndex()
 
 # Loading
 

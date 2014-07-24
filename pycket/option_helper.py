@@ -4,7 +4,8 @@
 import os
 
 from .expand import (expand_file_to_json, expand_code_to_json,
-                     ensure_json_ast_eval, ensure_json_ast_run)
+                     ensure_json_ast_eval, ensure_json_ast_run, 
+                     PermException, SchemeException)
 
 from rpython.rlib import jit
 
@@ -39,7 +40,6 @@ def print_help(argv):
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
-  --lazy: Load libraries lazily
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -54,7 +54,6 @@ _eval = False
 def parse_args(argv):
     config = {
         'stdlib': False,
-        'lazy': False,
 #        'mcons': False,
         'mode': _run,
     }
@@ -82,9 +81,6 @@ def parse_args(argv):
         elif argv[i] == "--":
             i += 1
             break
-        elif argv[i] == "--lazy":
-            config['lazy'] = True
-            i += 1
         elif argv[i] == "--stdlib":
             config['stdlib'] = True
             i += 1
@@ -168,9 +164,12 @@ def ensure_json_ast(config, names):
         if file_name.endswith('.json'):
             json_file = file_name
         else:
-            json_file = ensure_json_ast_run(file_name)
+            try:
+                json_file = ensure_json_ast_run(file_name)
+            except PermException:
+                json_file = None
     else:
-        return None, None
+        raise SchemeException("unknown mode %s"%config["mode"])
     return os.path.abspath(file_name), json_file
 
 # EOF

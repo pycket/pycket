@@ -53,6 +53,15 @@ def test_set_mod2():
     ov = m.defs[W_Symbol.make("table")]
     assert isinstance(ov, W_Cell)
 
+
+def test_set_mod_other():
+    m = run_mod("""
+#lang pycket
+(require racket/private/runtime-path-table)
+(define y (not table))
+""")
+    assert m.defs[W_Symbol.make("y")]
+
 def test_use_before_definition():
     with pytest.raises(SchemeException):
         m = run_mod("""

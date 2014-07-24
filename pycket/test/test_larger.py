@@ -48,6 +48,12 @@ def test_imp_procedures():
 def test_imp_box():
     run_file("imp-box.rkt")
 
+def test_imp_vector():
+    run_file("imp-vector.rkt")
+
+def test_imp_struct():
+    run_file("imp-struct.rkt")
+
 def test_thread_cells():
     run_file("test-thread-cell.rkt")
 

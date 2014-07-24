@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-from pycket.expand import load_json_ast_rpython
+from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException
 from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module, GlobalConfig
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
@@ -27,12 +27,10 @@ def actual_entry(argv):
     args_w = [W_String(arg) for arg in args]
     module_name, json_ast = ensure_json_ast(config, names)
     if json_ast is None:
-        raise RuntimeError("can't generate json ast file %s "%(json_ast))
-
-    ast = load_json_ast_rpython(json_ast)
+        ast = expand_to_ast(module_name) 
+    else:
+        ast = load_json_ast_rpython(json_ast)
     GlobalConfig.load(ast)
-    if config['lazy']:
-        GlobalConfig.enable_lazy()
     env = ToplevelEnv()
     env.commandline_arguments = args_w
     env.module_env.add_module(module_name, ast)
