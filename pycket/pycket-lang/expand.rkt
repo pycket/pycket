@@ -74,12 +74,28 @@
         (values k (path->string (find-system-path k)))))
     sysconfig))
 
+(require syntax/id-table)
+(define table (make-free-id-table))
+(define sym-table (make-hash))
+
+(define (gen-name id)
+  ;; use strings to make sure unreadablility isn't an issue
+  (if (hash-ref sym-table (symbol->string (syntax-e id)) #f)
+      (gensym (syntax-e id))
+      (begin (hash-set! sym-table (symbol->string (syntax-e id)) #t)
+             (syntax-e id))))
+
+
 (define (id->sym id)
   (define sym (identifier-binding-symbol id))
+  (define sym*
+    (if (eq? 'lexical (identifier-binding id))
+        (dict-ref! table id (λ _ (gen-name id)))
+        sym))
   (symbol->string 
    (if (quoted?)
        (syntax-e id)
-       sym)))
+       sym*)))
 
 (define (num n)
   (match n
@@ -167,7 +183,7 @@
                                    (to-json (cdr (last-pair (syntax-e v))))))]
     [i:identifier
      (match (identifier-binding #'i)
-       ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
+       ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id _ nom-src-id
                    src-phase import-phase nominal-export-phase)

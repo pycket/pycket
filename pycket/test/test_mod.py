@@ -77,3 +77,17 @@ def test_use_before_definition():
         (define x 1)
         (set! x 2)
     """)
+
+def test_shadowing_macro():
+    m = run_mod("""
+#lang pycket
+
+(define-syntax bind+
+  (syntax-rules ()
+    [(bind+ v e) (let ([x v]) (+ x e))]
+    [(bind+ v0 v ... e) (let ([x v0]) (bind+ v ... (+ x e)))]))
+
+(define x (bind+ 1 2 3))
+""")
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 6
