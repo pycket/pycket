@@ -18,6 +18,9 @@ from pycket import vector
 class ExpandException(SchemeException):
     pass
 
+class PermException(SchemeException):
+    pass
+
 #### ========================== Utility functions
 
 def readfile(fname):
@@ -100,7 +103,10 @@ def expand_file_rpython(rkt_file):
     return out
 
 def expand_file_cached(rkt_file):
-    json_file = ensure_json_ast_run(rkt_file)
+    try:
+        json_file = ensure_json_ast_run(rkt_file)
+    except PermException:
+        return expand_to_ast(rkt_file)
     return load_json_ast_rpython(json_file)
 
 # Expand and load the module without generating intermediate JSON files.
@@ -116,6 +122,9 @@ def expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
+    if not os.access(json_file, os.W_OK):
+        # no permission to write the json file
+        raise PermException("")
     try:
         os.remove(json_file)
     except IOError:
