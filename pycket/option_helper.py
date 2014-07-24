@@ -5,7 +5,7 @@ import os
 
 from .expand import (expand_file_to_json, expand_code_to_json,
                      ensure_json_ast_eval, ensure_json_ast_run, 
-                     PermException)
+                     PermException, SchemeException)
 
 from rpython.rlib import jit
 
@@ -169,7 +169,7 @@ def ensure_json_ast(config, names):
             except PermException:
                 json_file = None
     else:
-        return None, None
+        raise SchemeException("unknown mode %s"%config["mode"])
     return os.path.abspath(file_name), json_file
 
 # EOF
