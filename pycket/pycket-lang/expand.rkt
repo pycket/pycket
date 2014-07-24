@@ -173,6 +173,8 @@
            ;; may be unreadable extra symbols
            'define-values-names (map (compose symbol->string syntax-e)
                                      (syntax->list #'(i ...))))]
+    [((~literal define-syntaxes) (i ...) b) #f]
+    [((~literal begin-for-syntax) b ...) #f]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
