@@ -129,15 +129,13 @@ class W_RootStruct(W_Object):
 
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["vals", "type", "super", "isopaque"]
-    def __init__(self, vals, fields_map, struct_id, super, isopaque):
+    _immutable_fields_ = ["values", "type", "super", "isopaque"]
+    def __init__(self, fields_map, struct_id, super, isopaque):
         W_RootStruct.__init__(self, struct_id, super, isopaque)
-        self.values = vals
         self.fields_map = fields_map
 
     def vals(self):
-        # return self._get_full_list()
-        return self.values
+        return self._get_full_list()
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -150,8 +148,7 @@ class W_Struct(W_RootStruct):
         # return return_value(result, env, cont)
 
         if self.type == struct_id:
-            # result = self._get_list(field)
-            result = self.values[field]
+            result = self._get_list(field)
             return return_value(result, env, cont)
         elif self.type.value == struct_id.value:
             raise SchemeException("given value instantiates a different structure type with the same name")
@@ -167,10 +164,10 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_value, jump
         # self._set_list(self.fields_map[(struct_id, field)], val)
         # return return_value(w_void, env, cont)
+
         type = jit.promote(self.type)
         if type == struct_id:
-            # self._set_list(field, val)
-            self.values[field] = val
+            self._set_list(field, val)
             return return_value(w_void, env, cont)
         super = self.super
         assert isinstance(super, W_Struct)
@@ -183,7 +180,7 @@ class W_Struct(W_RootStruct):
             result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-# inline_small_list(W_Struct, attrname="vals")
+inline_small_list(W_Struct, immutable=False, attrname="values")
 
 class W_StructTypeDescriptor(W_Object):
     errorname = "struct-type-descriptor"
@@ -216,8 +213,7 @@ class W_StructConstructor(W_Procedure):
         field_values = field_values + self.auto_values
         # if isinstance(super, W_Struct):
         #     field_values = field_values + super._get_full_list()
-        # result = W_Struct.make(field_values, self.fields_map, self.struct_id, super, self.isopaque)
-        result = W_Struct(field_values, self.fields_map, self.struct_id, super, self.isopaque)
+        result = W_Struct.make(field_values, self.fields_map, self.struct_id, super, self.isopaque)
         return return_value(result, env, cont)
 
     @continuation
