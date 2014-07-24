@@ -122,7 +122,7 @@ def expand_file_to_json(rkt_file, json_file):
         pass
     except OSError:
         pass
-    print "Expanding %s"%rkt_file
+    print "Expanding %s to %s" % (rkt_file, json_file)
     cmd = "racket %s --output %s %s 2>&1" % (
         fn,
         json_file, rkt_file)
@@ -230,16 +230,18 @@ def dbgprint(funcname, json):
 def to_formals(json):
     dbgprint("to_formals", json)
     if json.is_object:
-        if "improper" in json.value_object():
-            improper_arr = json.value_object()["improper"]
+        obj = json.value_object()
+        if "improper" in obj:
+            improper_arr = obj["improper"]
             regular, last = improper_arr.value_array()
             regular_symbols = [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in regular.value_array()]
             last_symbol = values.W_Symbol.make(last.value_object()["lexical"].value_string())
             return regular_symbols, last_symbol
-        elif "lexical" in json.value_object():
-            return [], values.W_Symbol.make(json.value_object()["lexical"].value_string())
+        elif "lexical" in obj:
+            return [], values.W_Symbol.make(obj["lexical"].value_string())
     elif json.is_array:
-        return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in json.value_array()], None
+        arr = json.value_array()
+        return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in arr], None
     assert 0
 
 def to_bindings(arr):
@@ -247,10 +249,10 @@ def to_bindings(arr):
     varss = []
     rhss = []
     for v in arr:
-        arr = v.value_array()
-        fmls, rest = to_formals(arr[0])
+        varr = v.value_array()
+        fmls, rest = to_formals(varr[0])
         assert not rest
-        rhs = _to_ast(arr[1])
+        rhs = _to_ast(varr[1])
         varss.append(fmls)
         rhss.append(rhs)
     return varss, rhss
@@ -272,11 +274,9 @@ def _to_module(json):
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
 
-        lang = v["language"].value_string() if "language" in v else ""
-        lang_require = [_to_require(lang)] if (lang != "") else []
+        lang = [_to_require(l) for l in [v["language"].value_string()] if l != ""]
         return Module(v["module-name"].value_string(),
-                      lang_require +
-                      [_to_ast(x) for x in v["body-forms"].value_array()],
+                      lang + [_to_ast(x) for x in v["body-forms"].value_array()],
                       config)
     else:
         assert 0
@@ -330,8 +330,9 @@ def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array()
-        if "module" in arr[0].value_object() and arr[0].value_object()["source-module"].value_string() == "#%kernel":
-            ast_elem = arr[0].value_object()["source-name"].value_string()
+        rator = arr[0].value_object()
+        if "module" in rator and rator["source-module"].value_string() == "#%kernel":
+            ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
@@ -347,9 +348,9 @@ def _to_ast(json):
                                     if target["source-module"].is_string else
                                     None,
                                     values.W_Symbol.make(target["source-name"].value_string()))
-                if "lexical" in target:
+                elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
-                if "toplevel" in target:
+                elif "toplevel" in target:
                     var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
                 return SetBang(var, _to_ast(arr[2]))
             if ast_elem == "#%top":
@@ -374,7 +375,7 @@ def _to_ast(json):
                 return Quote(values.w_void)
             if ast_elem == "#%provide":
                 return Quote(values.w_void)
-        assert 0, "Unexpected ast-element element: %s" % arr[0].tostring()
+        assert 0, "Unexpected ast-element element: %s" % rator.tostring()
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
