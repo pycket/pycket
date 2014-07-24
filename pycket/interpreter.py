@@ -310,11 +310,12 @@ class Done(Exception):
         self.values = vals
 
 class AST(object):
-    _attrs_ = ["should_enter"]
+    _attrs_ = ["should_enter", "mvars"]
     _immutable_fields_ = ["should_enter?"]
     _settled_ = True
 
     should_enter = False # default value
+    mvars = None
 
     simple = False
 
@@ -340,6 +341,11 @@ class AST(object):
         """
         raise NotImplementedError("abstract base class")
     def mutated_vars(self):
+        if self.mvars:
+            return self.mvars
+        self.mvars = self._mutated_vars()
+        return self.mvars
+    def _mutated_vars(self):
         raise NotImplementedError("abstract base class")
     def tostring(self):
         return "UNKNOWN AST: "
@@ -366,18 +372,19 @@ class Module(AST):
         return v
 
     # these are both empty and irrelevant for modules
-    def mutated_vars(self): return variable_set()
+    # this will change when we handle submodules
+    def _mutated_vars(self): return variable_set()
     def free_vars(self): return {}
 
     # all the module-bound variables that are mutated
-    def _mutated_vars(self):
+    def mod_mutated_vars(self):
         x = variable_set()
         for r in self.body:
             x.update(r.mutated_vars())
         return x
 
     def assign_convert(self, vars, env_structure):
-        local_muts = self._mutated_vars()
+        local_muts = self.mod_mutated_vars()
         new_vars = vars.copy()
         for k, v in local_muts.iteritems():
             new_vars[k] = v
@@ -414,7 +421,7 @@ class Require(AST):
         self.modname = modname
         self.module  = module
 
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return variable_set()
     def free_vars(self):
         return {}
@@ -468,7 +475,7 @@ class Cell(AST):
 
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return self.expr.mutated_vars()
     def free_vars(self):
         return self.expr.free_vars()
@@ -484,7 +491,7 @@ class Quote(AST):
         return self.w_val
     def assign_convert(self, vars, env_structure):
         return self
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return variable_set()
     def tostring(self):
         if isinstance(self.w_val, values.W_Bool) or isinstance(self.w_val, values.W_Number) or isinstance(self.w_val, values.W_String) or isinstance(self.w_val, values.W_Symbol):
@@ -500,7 +507,7 @@ class QuoteSyntax(AST):
         return values.W_Syntax(self.w_val)
     def assign_convert(self, vars, env_structure):
         return self
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return variable_set()
     def tostring(self):
         return "#'%s"%self.w_val.tostring()
@@ -532,7 +539,7 @@ class VariableReference(AST):
             return VariableReference(v, self.path, True)
         else:
             return self
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return variable_set()
     def tostring(self):
         return "#<#%variable-reference>"
@@ -554,7 +561,7 @@ class WithContinuationMark(AST):
         return WithContinuationMark(self.key.assign_convert(vars, env_structure),
                                     self.value.assign_convert(vars, env_structure),
                                     self.body.assign_convert(vars, env_structure))
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = self.key.mutated_vars()
         for r in [self.value, self.body]:
             x.update(r.mutated_vars())
@@ -614,7 +621,7 @@ class App(AST):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
                    remove_env=self.remove_env)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = self.rator.mutated_vars()
         for r in self.rands:
             x.update(r.mutated_vars())
@@ -681,7 +688,7 @@ class Begin0(AST):
         for r in [self.first, self.body]:
             x.update(r.free_vars())
         return x
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for r in [self.first, self.body]:
             x.update(r.mutated_vars())
@@ -701,7 +708,7 @@ class Begin(SequencedBodyAST):
             return Begin(body)
     def assign_convert(self, vars, env_structure):
         return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for r in self.body:
             x.update(r.mutated_vars())
@@ -725,7 +732,7 @@ class Var(AST):
         self.env_structure = env_structure
     def interpret_simple(self, env):
         return self._lookup(env)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return variable_set()
     def free_vars(self):
         x = {}
@@ -807,7 +814,7 @@ class ModuleVar(Var):
         modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
-        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe":
+        elif self.srcmod == "#%kernel" or self.srcmod == "#%unsafe" or self.srcmod == "#%utils":
             # we don't separate these the way racket does
             # but maybe we should
             try:
@@ -892,7 +899,7 @@ class SetBang(AST):
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = self.rhs.mutated_vars()
         var = self.var
         if isinstance(var, CellRef):
@@ -953,7 +960,7 @@ class If(AST):
                   self.thn.assign_convert(vars, sub_env_structure),
                   self.els.assign_convert(vars, sub_env_structure),
                   remove_env=self.remove_env)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for b in [self.tst, self.els, self.thn]:
             x.update(b.mutated_vars())
@@ -1021,7 +1028,7 @@ class CaseLambda(AST):
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for l in self.lams:
             x.update(l.mutated_vars())
@@ -1081,7 +1088,7 @@ class Lambda(SequencedBodyAST):
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
             x.update(b.mutated_vars())
@@ -1138,7 +1145,7 @@ class Letrec(SequencedBodyAST):
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for b in self.body + self.rhss:
             x.update(b.mutated_vars())
@@ -1240,7 +1247,7 @@ class Let(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
 
-    def mutated_vars(self):
+    def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
             x.update(b.mutated_vars())
@@ -1333,7 +1340,7 @@ class DefineValues(AST):
             return DefineValues(self.names,
                                 self.rhs.assign_convert(vars, env_structure),
                                 self.display_names)
-    def mutated_vars(self):
+    def _mutated_vars(self):
         return self.rhs.mutated_vars()
     def free_vars(self):
         # free_vars doesn't contain module-bound variables

@@ -60,6 +60,7 @@
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
+    [((~datum file) s:str) (list (syntax-e #'s))]
     ))
 
 (define quoted? (make-parameter #f))

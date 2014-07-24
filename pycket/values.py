@@ -86,6 +86,13 @@ class W_Syntax(W_Object):
     def tostring(self):
         return "#'%s"%self.val.tostring()
 
+class W_ModulePathIndex(W_Object):
+    errorname = "module-path-index"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<module-path-index>"
+
 class W_ResolvedModulePath(W_Object):
     _immutable_fields_ = ["name"]
     errorname = "resolved-module-path"
