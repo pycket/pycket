@@ -43,6 +43,8 @@
   (syntax-parse v
     [v:str        (list (to-path (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
+    [p #:when (path? (syntax-e #'p))
+       (list (to-path (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
      (list (to-path (syntax-e #'x)))]
@@ -53,6 +55,7 @@
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
     [((~datum for-syntax) p ...) '()]
     [((~datum for-template) p ...) '()]
+    [((~datum for-label) p ...) '()]
     [((~datum for-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum for-meta) _ p ...) '()]
@@ -60,7 +63,11 @@
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (list (syntax-e #'s))]
+    [((~datum file) s:str) (list (to-path (syntax-e #'s)))]
+    [((~datum lib) _ ...)
+     (error 'expand "`lib` require forms are not supported yet")]
+    [((~datum planet) _ ...)
+     (error 'expand "`planet` require forms are not supported")]
     ))
 
 (define quoted? (make-parameter #f))
@@ -74,12 +81,28 @@
         (values k (path->string (find-system-path k)))))
     sysconfig))
 
+(require syntax/id-table)
+(define table (make-free-id-table))
+(define sym-table (make-hash))
+
+(define (gen-name id)
+  ;; use strings to make sure unreadablility isn't an issue
+  (if (hash-ref sym-table (symbol->string (syntax-e id)) #f)
+      (gensym (syntax-e id))
+      (begin (hash-set! sym-table (symbol->string (syntax-e id)) #t)
+             (syntax-e id))))
+
+
 (define (id->sym id)
   (define sym (identifier-binding-symbol id))
+  (define sym*
+    (if (eq? 'lexical (identifier-binding id))
+        (dict-ref! table id (λ _ (gen-name id)))
+        sym))
   (symbol->string 
    (if (quoted?)
        (syntax-e id)
-       sym)))
+       sym*)))
 
 (define (num n)
   (match n
@@ -157,6 +180,8 @@
            ;; may be unreadable extra symbols
            'define-values-names (map (compose symbol->string syntax-e)
                                      (syntax->list #'(i ...))))]
+    [((~literal define-syntaxes) (i ...) b) #f]
+    [((~literal begin-for-syntax) b ...) #f]
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
@@ -167,7 +192,7 @@
                                    (to-json (cdr (last-pair (syntax-e v))))))]
     [i:identifier
      (match (identifier-binding #'i)
-       ['lexical (hash 'lexical  (symbol->string (syntax-e v)))]
+       ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id _ nom-src-id
                    src-phase import-phase nominal-export-phase)
