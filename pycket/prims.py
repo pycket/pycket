@@ -901,6 +901,10 @@ def mk_stp(sym, guard, supers, _can_imp):
                                values_struct.W_StructPropertyPredicate(prop),
                                values_struct.W_StructPropertyAccessor(prop)])
 
+@expose("new-prop:procedure")
+def do_new_prop_procedure(args):
+    return values.w_void
+
 @expose("number->string", [values.W_Number])
 def num2str(a):
     return values.W_String(a.tostring())
