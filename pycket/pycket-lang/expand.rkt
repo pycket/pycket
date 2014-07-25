@@ -43,6 +43,8 @@
   (syntax-parse v
     [v:str        (list (to-path (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
+    [p #:when (path? (syntax-e #'p))
+       (list (to-path (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
      (list (to-path (syntax-e #'x)))]
@@ -53,6 +55,7 @@
     [((~datum prefix-all-except) _ p _ ...) (require-json #'p)]
     [((~datum for-syntax) p ...) '()]
     [((~datum for-template) p ...) '()]
+    [((~datum for-label) p ...) '()]
     [((~datum for-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum for-meta) _ p ...) '()]
@@ -60,7 +63,11 @@
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (list (syntax-e #'s))]
+    [((~datum file) s:str) (list (to-path (syntax-e #'s)))]
+    [((~datum lib) _ ...)
+     (error 'expand "`lib` require forms are not supported yet")]
+    [((~datum planet) _ ...)
+     (error 'expand "`planet` require forms are not supported")]
     ))
 
 (define quoted? (make-parameter #f))
