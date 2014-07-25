@@ -108,7 +108,7 @@ class W_StructType(W_Object):
     def make_struct_tuple(self):
         return [self.desc, self.constr, self.pred, self.acc, self.mut]
 
-class W_RootStruct(W_Procedure):
+class W_RootStruct(W_Object):
     errorname = "root-struct"
     _immutable_fields_ = ["type", "super", "isopaque"]
 
@@ -179,10 +179,6 @@ class W_Struct(W_RootStruct):
         # super = self.super
         # assert isinstance(super, W_Struct)
         # return jump(env, super.set(struct_id, field, val, env, cont))
-
-    def call(self, args, env, cont):
-        args = [self] + args
-        return self.props[0].cdr().call(args, env, cont)
 
     def tostring(self):
         if self.isopaque:
