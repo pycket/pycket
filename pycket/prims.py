@@ -436,6 +436,10 @@ def arity_at_least(a):
 def make_hash():
     return values.W_HashTable([], [])
 
+@expose("procedure-rename", [values.W_Procedure, values.W_Object])
+def procedure_rename(p, n):
+    return p
+
 @expose("procedure-arity", [values.W_Procedure])
 def arity_at_least(n):
     # FIXME
@@ -1355,6 +1359,10 @@ def symbol_to_string(v):
     return values.W_String(v.value)
 
 @expose("string->symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol.make(v.value)
+
+@expose("string->uninterned-symbol", [values.W_String])
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
