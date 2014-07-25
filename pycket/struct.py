@@ -339,7 +339,7 @@ class W_StructPropertyPredicate(W_Procedure):
         self.property = prop
     @make_call_method([W_Object])
     def call(self, args):
-        raise SchemeException("StructPropertyPredicate NYI")
+        raise SchemeException("StructPropertyPredicate %s NYI"%self.property.name)
 
 class W_StructPropertyAccessor(W_Procedure):
     errorname = "struct-property-accessor"
@@ -348,4 +348,4 @@ class W_StructPropertyAccessor(W_Procedure):
         self.property = prop
     @make_call_method([W_Object])
     def call(self, args):
-        raise SchemeException("StructPropertyAccessor NYI")
+        raise SchemeException("StructPropertyAccessor %s NYI"%self.property.name)

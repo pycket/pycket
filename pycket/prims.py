@@ -416,6 +416,7 @@ for args in [
         ("date",),
         ("date*",),
         ("srcloc",),
+
         ("string-ci<?", [values.W_String, values.W_String]),
         ("keyword<?", [values.W_Keyword, values.W_Keyword]),
         ("string-ci<=?", [values.W_String, values.W_String])
