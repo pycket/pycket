@@ -130,3 +130,43 @@ def test_struct_guard():
         [else (error type-name "bad name")])))
     (thing? (thing name))) 1)""")
     assert "bad name" in e.value.msg
+
+def test_struct_property(source):
+    """
+    (struct greeter (name)
+          #:property prop:procedure
+                     (lambda (self other)
+                       (string-append
+                        "Hi " other
+                        ", I'm " (greeter-name self))))
+    (let* ([joe (greeter "Joe")]
+           [name (greeter-name joe)]
+           [greeting (joe "Mary")])
+    (and (equal? "Joe" name) (equal? "Hi Mary, I'm Joe" greeting)))
+    """
+    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
+    assert result == w_true
+
+def test_struct_super(source):
+    """
+    (struct posn (x y))
+    (define (raven-constructor super-type)
+    (struct raven ()
+            #:super super-type
+            #:transparent
+            #:property prop:procedure (lambda (self) 'nevermore)) raven)
+    (let* ([r ((raven-constructor struct:posn) 1 2)]
+           [x (posn-x r)])
+    (= 1 x))
+    """
+    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
+    assert result == w_true
+
+def test_procedure(source):
+    """
+    (define ((f x) #:k [y 0])
+      (+ x y))
+    (procedure? (procedure-rename (f 1) 'x))
+    """
+    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
+    assert result == w_true

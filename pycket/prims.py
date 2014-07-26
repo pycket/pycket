@@ -856,7 +856,7 @@ def do_struct_type_make_predicate(struct_desc):
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
-         default(values.W_Object, None),
+         default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
@@ -905,10 +905,6 @@ def mk_stp(sym, guard, supers, _can_imp):
     return values.Values.make([prop,
                                values_struct.W_StructPropertyPredicate(prop),
                                values_struct.W_StructPropertyAccessor(prop)])
-
-@expose("new-prop:procedure")
-def do_new_prop_procedure(args):
-    return values.w_void
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
