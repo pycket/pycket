@@ -304,6 +304,10 @@ class ModTable(object):
         ModTable.table[fname] = None
 
     @staticmethod
+    def reset():
+        ModTable.table = {}
+
+    @staticmethod
     def push(fname):
         ModTable.current_modules.append(fname)
 
