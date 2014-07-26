@@ -168,9 +168,10 @@ class W_Struct(W_RootStruct):
             self._set_list(field + self.offset[struct_id], val)
             return return_value(w_void, env, cont)
 
-    @make_call_method([W_Object], simple=False)
+    @make_call_method(simple=False)
     def call(self, args, env, cont):
         # FIXME: more than one property is possible
+        # FIXME: what if self arg is used in property
         for prop in self.props:
             p = prop.cdr()
             property = self._get_list(p.value) if isinstance(p, W_Fixnum) else p

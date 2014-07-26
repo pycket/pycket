@@ -131,42 +131,65 @@ def test_struct_guard():
     (thing? (thing name))) 1)""")
     assert "bad name" in e.value.msg
 
-def test_struct_property(source):
-    """
-    (struct greeter (name)
+def test_struct_property():
+    m = run_mod("""
+#lang pycket
+(require racket/private/kw)
+
+(struct annotated-proc (base note)
+    #:property prop:procedure
+               (struct-field-index base))
+(define plus1 (annotated-proc
+                  (lambda (x) (+ x 1))
+                  "adds 1 to its argument"))
+(define x (plus1 10))
+""")
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 11
+
+@skip
+def test_struct_property_with_self_argument():
+    m = run_mod("""
+#lang pycket
+(require racket/private/kw)
+
+(struct greeter (name)
           #:property prop:procedure
                      (lambda (self other)
                        (string-append
                         "Hi " other
                         ", I'm " (greeter-name self))))
-    (let* ([joe (greeter "Joe")]
-           [name (greeter-name joe)]
-           [greeting (joe "Mary")])
-    (and (equal? "Joe" name) (equal? "Hi Mary, I'm Joe" greeting)))
-    """
-    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
-    assert result == w_true
+(define joe-greet (greeter "Joe"))
+(define greeting (joe-greet "Mary"))
+""")
+    ov = m.defs[W_Symbol.make("greeting")]
+    assert ov.value == "Hi Mary, I'm Joe"
 
-def test_struct_super(source):
-    """
-    (struct posn (x y))
+def test_struct_super():
+    m = run_mod("""
+#lang pycket
+(require racket/private/kw)
+
+(struct posn (x y))
     (define (raven-constructor super-type)
     (struct raven ()
             #:super super-type
             #:transparent
             #:property prop:procedure (lambda (self) 'nevermore)) raven)
-    (let* ([r ((raven-constructor struct:posn) 1 2)]
-           [x (posn-x r)])
-    (= 1 x))
-    """
-    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
-    assert result == w_true
+(define r ((raven-constructor struct:posn) 1 2))
+(define x (posn-x r))
+""")
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 1
 
-def test_procedure(source):
-    """
-    (define ((f x) #:k [y 0])
-      (+ x y))
-    (procedure? (procedure-rename (f 1) 'x))
-    """
-    result = run_mod_expr(source, wrap=True, extra="(require racket/private/kw)")
-    assert result == w_true
+def test_procedure():
+    m = run_mod("""
+#lang pycket
+(require racket/private/kw)
+
+(define ((f x) #:k [y 0])
+  (+ x y))
+(define proc (procedure-rename (f 1) 'x))
+""")
+    ov = m.defs[W_Symbol.make("proc")]
+    assert isinstance(ov, W_Procedure)

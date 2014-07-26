@@ -117,10 +117,13 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
         return func_arg_unwrap
     return wrapper
 
-def make_call_method(argstypes, arity=None, simple=True, name="<method>"):
+def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
     def wrapper(func):
-        func_arg_unwrap, _ = _make_arg_unwrapper(
-            func, argstypes, name, has_self=True)
+        if argstypes is not None:
+            func_arg_unwrap, _ = _make_arg_unwrapper(
+                func, argstypes, name, has_self=True)
+        else:
+            func_arg_unwrap = func
         return _make_result_handling_func(func_arg_unwrap, simple)
     return wrapper
 
