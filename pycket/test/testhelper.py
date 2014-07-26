@@ -6,7 +6,7 @@
 
 import os
 
-from pycket.expand import expand, to_ast, expand_string, parse_module
+from pycket.expand import expand, to_ast, expand_string, parse_module, ModTable
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket import values
@@ -19,6 +19,7 @@ from pycket import values
 
 def run_mod(m, stdlib=False):
     assert (not stdlib)
+    ModTable.reset()
     mod = interpret_module(parse_module(expand_string(m)))
     return mod
 
