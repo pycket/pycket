@@ -122,9 +122,9 @@ def expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
-    if not os.access(json_file, os.W_OK):
-        # no permission to write the json file
-        raise PermException("")
+    if not os.access(rkt_file, os.W_OK):
+        # we guess that this means no permission to write the json file
+        raise PermException(rkt_file)
     try:
         os.remove(json_file)
     except IOError:
@@ -304,12 +304,17 @@ class ModTable(object):
         ModTable.table[fname] = None
 
     @staticmethod
+    def reset():
+        ModTable.table = {}
+
+    @staticmethod
     def push(fname):
         ModTable.current_modules.append(fname)
 
     @staticmethod
     def pop():
-        assert len(ModTable.current_modules) > 0
+        if not(len(ModTable.current_modules) > 0):
+            raise SchemeException("No current module")
         ModTable.current_modules.pop()
 
     @staticmethod

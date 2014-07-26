@@ -416,6 +416,7 @@ for args in [
         ("date",),
         ("date*",),
         ("srcloc",),
+
         ("string-ci<?", [values.W_String, values.W_String]),
         ("keyword<?", [values.W_Keyword, values.W_Keyword]),
         ("string-ci<=?", [values.W_String, values.W_String])
@@ -434,6 +435,10 @@ def arity_at_least(a):
 @expose("make-hash", [])
 def make_hash():
     return values.W_HashTable([], [])
+
+@expose("procedure-rename", [values.W_Procedure, values.W_Object])
+def procedure_rename(p, n):
+    return p
 
 @expose("procedure-arity", [values.W_Procedure])
 def arity_at_least(n):
@@ -901,6 +906,10 @@ def mk_stp(sym, guard, supers, _can_imp):
                                values_struct.W_StructPropertyPredicate(prop),
                                values_struct.W_StructPropertyAccessor(prop)])
 
+@expose("new-prop:procedure")
+def do_new_prop_procedure(args):
+    return values.w_void
+
 @expose("number->string", [values.W_Number])
 def num2str(a):
     return values.W_String(a.tostring())
@@ -1354,6 +1363,10 @@ def symbol_to_string(v):
     return values.W_String(v.value)
 
 @expose("string->symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol.make(v.value)
+
+@expose("string->uninterned-symbol", [values.W_String])
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
