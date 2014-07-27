@@ -190,6 +190,7 @@ class W_Cons(W_List):
 
 class W_Box(W_Object):
     errorname = "box"
+    _immutable_fields_ = ["unbox", "set_box"]
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
