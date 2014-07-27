@@ -55,8 +55,9 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     if len(vals) == arg_count:
         return proc.call(vals, env, cont)
     elif len(vals) == arg_count + 1:
-        args, check = vals[:-1], vals[-1]
-        return proc.call(vals, env, call_cont(check, env, cont))
+        #args, check = vals[:-1], vals[-1]
+        args, check = vals[1:], vals[0]
+        return proc.call(args, env, call_cont(check, env, cont))
     else:
         assert False
 
@@ -113,7 +114,7 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     if len(vals) == len(args):
         return proc.call(vals, env, cont)
     elif len(vals) == len(args) + 1:
-        args, check = vals[:-1], vals[-1]
+        args, check = vals[1:], vals[0]
         return proc.call(args, env, chp_proc_call_check_cont(check, env, cont))
     else:
         assert False
