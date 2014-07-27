@@ -389,7 +389,7 @@ def _to_ast(json):
                 return Quote(values.w_void)
             if ast_elem == "#%provide":
                 return Quote(values.w_void)
-        assert 0, "Unexpected ast-element element: %s" % rator.tostring()
+        assert 0, "Unexpected ast-element element: %s" % json.tostring()
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
