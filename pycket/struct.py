@@ -131,17 +131,16 @@ class W_CallableStruct(W_Procedure):
     errorname = "callable-struct"
     _immutable_fields_ = ["struct"]
     def __init__(self, struct):
+        assert isinstance(struct, W_Struct)
         self.struct = struct
 
     @make_call_method(simple=False)
     def call(self, args, env, cont):
-        # FIXME: more than one property is possible
         # FIXME: what if self arg is used in property
-        for prop in self.struct.props:
-            p = prop.cdr()
-            property = self.struct._get_list(p.value) if isinstance(p, W_Fixnum) else p
-            assert (property, W_Procedure)
-            return property.call(args, env, cont)
+        p = self.struct.props[0].cdr()
+        property = self.struct._get_list(p.value) if isinstance(p, W_Fixnum) else p
+        assert (property, W_Procedure)
+        return property.call(args, env, cont)
 
 class W_RootStruct(W_Object):
     errorname = "root-struct"
@@ -328,7 +327,7 @@ class W_StructFieldAccessor(W_Procedure):
     def call(self, struct, env, cont):
         if isinstance(struct, W_CallableStruct):
             struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
+        assert isinstance(struct, W_Struct)
         return self.accessor.access(struct, self.field, env, cont)
 
 class W_StructAccessor(W_Procedure):
@@ -359,7 +358,7 @@ class W_StructFieldMutator(W_Procedure):
     def call(self, struct, val, env, cont):
         if isinstance(struct, W_CallableStruct):
             struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
+        assert isinstance(struct, W_Struct)
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
 class W_StructMutator(W_Procedure):
