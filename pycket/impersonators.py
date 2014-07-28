@@ -37,14 +37,14 @@ def is_chaperone_of(a, b):
 def is_chaperone(x):
     return (isinstance(x, W_ChpVector) or
             isinstance(x, W_ChpBox) or
-            isinstance(x, W_ChpProcedure)
+            isinstance(x, W_ChpProcedure) or
             isinstance(x, W_ChpStruct))
 
 def is_impersonator(x):
     return (isinstance(x, W_ImpVector) or
             isinstance(x, W_ImpBox) or
             isinstance(x, W_ImpProcedure) or
-            isinstance(x, W_ImpStruct)
+            isinstance(x, W_ImpStruct) or
             is_chaperone(x))
 
 # Procedures
