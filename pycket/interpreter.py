@@ -28,23 +28,23 @@ class ModuleCache(object):
 
 ModuleCache.instance = ModuleCache()
 
+def var_eq(a, b):
+    if isinstance(a, LexicalVar) and isinstance(b, LexicalVar):
+        return a.sym is b.sym
+    elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
+        # two renamed variables can be the same
+        return (a.srcmod == b.srcmod and a.srcsym is b.srcsym)
+    return False
 
+def var_hash(a):
+    if isinstance(a, LexicalVar):
+        return compute_hash(a.sym)
+    elif isinstance(a, ModuleVar):
+        return compute_hash( (a.srcsym, a.srcmod) )
+    assert False
 
 def variable_set():
     " new set-like structure for variables "
-    def var_eq(a, b):
-        if isinstance(a, LexicalVar) and isinstance(b, LexicalVar):
-            return a.sym is b.sym
-        elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
-            # two renamed variables can be the same
-            return (a.srcmod == b.srcmod and a.srcsym is b.srcsym)
-        return False
-    def var_hash(a):
-        if isinstance(a, LexicalVar):
-            return compute_hash(a.sym)
-        elif isinstance(a, ModuleVar):
-            return compute_hash( (a.srcsym, a.srcmod) )
-        assert False
     return r_dict(var_eq, var_hash, force_non_null=True)
 
 def variables_equal(a, b):
