@@ -238,19 +238,21 @@ def dbgprint(funcname, json):
 
 def to_formals(json):
     dbgprint("to_formals", json)
+    make = values.W_Symbol.make
+    lex  = lambda x : x.value_object()["lexical"].value_string()
     if json.is_object:
         obj = json.value_object()
         if "improper" in obj:
             improper_arr = obj["improper"]
             regular, last = improper_arr.value_array()
-            regular_symbols = [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in regular.value_array()]
-            last_symbol = values.W_Symbol.make(last.value_object()["lexical"].value_string())
+            regular_symbols = [make(lex(x)) for x in regular.value_array()]
+            last_symbol = make(lex(last))
             return regular_symbols, last_symbol
         elif "lexical" in obj:
-            return [], values.W_Symbol.make(obj["lexical"].value_string())
+            return [], make(obj["lexical"].value_string())
     elif json.is_array:
         arr = json.value_array()
-        return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in arr], None
+        return [make(lex(x)) for x in arr], None
     assert 0
 
 def to_bindings(arr):
