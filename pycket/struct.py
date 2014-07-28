@@ -31,15 +31,22 @@ class W_StructInspector(W_Object):
 
 current_inspector = W_StructInspector(None)
 
-class W_StructType(W_Object):
+class W_RootStructType(W_Object):
     all_structs = {}
-    errorname = "struct-type"
+    errorname = "root-struct-type"
     _immutable_fields_ = ["id", "super", "init_field_cnt", "auto_field_cnt", "auto_v", "inspector", \
                           "immutables", "guard", "constr_name"]
     @staticmethod
     def make(name, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         struct_id = W_StructTypeDescriptor(name.value)
         W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, init_field_cnt, auto_field_cnt, \
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+        return w_result
+
+    @staticmethod
+    def make_callable(name, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+        struct_id = W_StructTypeDescriptor(name.value)
+        W_StructType.all_structs[struct_id] = w_result = W_CallableStructType(struct_id, super_type, init_field_cnt, auto_field_cnt, \
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
         return w_result
 
@@ -53,10 +60,7 @@ class W_StructType(W_Object):
         self.init_field_cnt = init_field_cnt.value
         self.auto_field_cnt = auto_field_cnt.value
         self.auto_v = auto_v
-        self.props = []
-        for i in values.from_list(props):
-            assert isinstance(i, values.W_Cons)
-            self.props.append(i)
+        self.props = values.from_list(props) if not props is values.w_null else []
         self.inspector = inspector
         self.proc_spec = proc_spec
         self.immutables = []
@@ -77,14 +81,10 @@ class W_StructType(W_Object):
         # self.mutable_fields = []
 
         self.desc = struct_id
-        self.constr = W_StructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_values, self.props, self.proc_spec, 
-                                          self.calculate_offset, self.isopaque, self.guard, self.constr_name)
         self.pred = W_StructPredicate(self.desc)
         self.acc = W_StructAccessor(self.desc)
         self.mut = W_StructMutator(self.desc)
 
-    def constructor(self):
-        return self.constr
     def set_mutable(self, field):
         pass
         # assert isinstance(field, W_Fixnum)
@@ -105,10 +105,45 @@ class W_StructType(W_Object):
             else:
                 break
         return result
+
     def make_struct_tuple(self):
         return [self.desc, self.constr, self.pred, self.acc, self.mut]
 
-class W_RootStruct(W_Procedure):
+class W_StructType(W_RootStructType):
+    errorname = "struct-type"
+    def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+        W_RootStructType.__init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+        self.constr = W_StructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_values, self.props, 
+            self.proc_spec, self.calculate_offset, self.isopaque, self.guard, self.constr_name)
+
+class W_CallableStructType(W_RootStructType):
+    errorname = "callable-struct-type"
+    def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+        W_RootStructType.__init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+        self.constr = W_CallableStructConstructor(self.desc, self.super, self.init_field_cnt, self.auto_values, self.props, 
+            self.proc_spec, self.calculate_offset, self.isopaque, self.guard, self.constr_name)
+
+class W_CallableStruct(W_Procedure):
+    errorname = "callable-struct"
+    _immutable_fields_ = ["struct"]
+    def __init__(self, struct):
+        self.struct = struct
+
+    @make_call_method(simple=False)
+    def call(self, args, env, cont):
+        # FIXME: more than one property is possible
+        # FIXME: what if self arg is used in property
+        for prop in self.struct.props:
+            p = prop.cdr()
+            property = self.struct._get_list(p.value) if isinstance(p, W_Fixnum) else p
+            assert (property, W_Procedure)
+            return property.call(args, env, cont)
+
+class W_RootStruct(W_Object):
     errorname = "root-struct"
     _immutable_fields_ = ["type", "super", "isopaque", "ref", "set"]
 
@@ -168,15 +203,6 @@ class W_Struct(W_RootStruct):
             self._set_list(field + self.offset[struct_id], val)
             return return_value(w_void, env, cont)
 
-    @make_call_method(simple=False)
-    def call(self, args, env, cont):
-        # FIXME: more than one property is possible
-        # FIXME: what if self arg is used in property
-        for prop in self.props:
-            p = prop.cdr()
-            property = self._get_list(p.value) if isinstance(p, W_Fixnum) else p
-            return property.call(args, env, cont)
-
     def tostring(self):
         if self.isopaque:
             result =  "#<%s>" % self.type.value
@@ -194,7 +220,7 @@ class W_StructTypeDescriptor(W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.value
 
-class W_StructConstructor(W_Procedure):
+class W_StructRootConstructor(W_Procedure):
     _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "props", "proc_spec",  "isopaque", "guard", "name"]
     def __init__ (self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, calculate_offset, isopaque, guard, name):
         self.struct_id = struct_id
@@ -209,30 +235,35 @@ class W_StructConstructor(W_Procedure):
         self.guard = guard
         self.name = name
 
+    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
+        raise NotImplementedError("abstract base class")
+
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         super = None
         vals = _vals._get_full_list()
-        if len(vals) == 1: super = vals[0]
-        if not self.offset: self.offset = self.calculate_offset()
+        if len(vals) == 1:
+            super = vals[0]
+        if not self.offset:
+            self.offset = self.calculate_offset()
         field_values = field_values + self.auto_values
         if isinstance(super, W_Struct):
             field_values = field_values + super._get_full_list()
-        result = W_Struct.make(field_values, self.offset, self.struct_id, super, self.props, self.proc_spec, self.isopaque)
+        result = self.make_struct(field_values, self.offset, self.struct_id, super, self.props, self.proc_spec, self.isopaque)
         return return_value(result, env, cont)
 
     @continuation
     def constr_proc_wrapper_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import jump
-        if isinstance(self.super_type, W_StructType):
+        super_type = self.super_type
+        if isinstance(super_type, W_StructType):
             def split_list(list, num):
                 assert num >= 0
                 return list[:num], list[num:]
             split_position = len(field_values) - self.init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
-            super_constr = self.super_type.constructor()
-            return super_constr.call(super_field_values, env, self.constr_proc_cont(field_values, env, cont))
+            return super_type.constr.call(super_field_values, env, self.constr_proc_cont(field_values, env, cont))
         else:
             return jump(env, self.constr_proc_cont(field_values, env, cont))
 
@@ -248,6 +279,21 @@ class W_StructConstructor(W_Procedure):
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
+
+class W_StructConstructor(W_StructRootConstructor):
+    def __init__ (self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, calculate_offset, isopaque, guard, name):
+        W_StructRootConstructor.__init__(self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, 
+            calculate_offset, isopaque, guard, name)
+    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
+        return W_Struct.make(field_values, offset, struct_id, super, props, proc_spec, isopaque)
+
+class W_CallableStructConstructor(W_StructRootConstructor):
+    def __init__ (self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, calculate_offset, isopaque, guard, name):
+        W_StructRootConstructor.__init__(self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, 
+            calculate_offset, isopaque, guard, name)
+    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
+        struct = W_Struct.make(field_values, offset, struct_id, super, props, proc_spec, isopaque)
+        return W_CallableStruct(struct)
 
 class W_StructPredicate(W_Procedure):
     errorname = "struct-predicate"
@@ -278,8 +324,11 @@ class W_StructFieldAccessor(W_Procedure):
         self.accessor = accessor
         self.field = field
 
-    @make_call_method([W_RootStruct], simple=False)
+    @make_call_method([W_Object], simple=False)
     def call(self, struct, env, cont):
+        if isinstance(struct, W_CallableStruct):
+            struct = struct.struct
+        assert isinstance(struct, W_RootStruct)
         return self.accessor.access(struct, self.field, env, cont)
 
 class W_StructAccessor(W_Procedure):
@@ -306,8 +355,11 @@ class W_StructFieldMutator(W_Procedure):
         self.field = field
         mutator.set_mutable(field)
 
-    @make_call_method([W_RootStruct, W_Object], simple=False)
+    @make_call_method([W_Object, W_Object], simple=False)
     def call(self, struct, val, env, cont):
+        if isinstance(struct, W_CallableStruct):
+            struct = struct.struct
+        assert isinstance(struct, W_RootStruct)
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
 class W_StructMutator(W_Procedure):
