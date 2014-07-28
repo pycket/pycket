@@ -341,7 +341,7 @@ class AST(object):
         """
         raise NotImplementedError("abstract base class")
     def mutated_vars(self):
-        if self.mvars:
+        if self.mvars is not None:
             return self.mvars
         self.mvars = self._mutated_vars()
         return self.mvars
