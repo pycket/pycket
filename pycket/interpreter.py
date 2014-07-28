@@ -2,7 +2,7 @@ from pycket                   import values
 from pycket                   import vector
 from pycket.prims             import prim_env
 from pycket.error             import SchemeException
-from pycket.cont              import Cont
+from pycket.cont              import Cont, jump_call
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
@@ -449,6 +449,9 @@ class Trampoline(AST):
         return "TRAMPOLINE"
 
 the_trampoline = Trampoline()
+
+def tailcall(f, args, env, cont):
+    return jump(env, jump_call(f, args, env, cont))
 
 def jump(env, cont):
     return return_multi_vals(values.empty_vals, env, cont)

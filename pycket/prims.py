@@ -6,7 +6,7 @@ import time
 import math
 import pycket.impersonators as imp
 from pycket import values
-from pycket.cont import Cont, continuation
+from pycket.cont import Cont, continuation, label
 from pycket import cont
 from pycket import struct as values_struct
 from pycket import vector as values_vector
@@ -653,8 +653,8 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 # as direct recursive calls to equal will blow out the stack.
 # This lets us 'return' before invoking equal on the next pair of
 # items.
-@continuation
-def equal_cont(a, b, env, cont, _vals):
+@label
+def equal_cont(a, b, env, cont):
     from pycket.interpreter import return_value, jump
     if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
         return return_value(values.w_true, env, cont)

@@ -123,3 +123,6 @@ def label(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
+@label
+def jump_call(proc, vals, env, cont):
+    return proc.call(vals, env, cont)

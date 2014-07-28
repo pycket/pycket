@@ -1,6 +1,6 @@
 from collections import namedtuple
 from pycket import values
-from pycket.cont import continuation
+from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.exposeprim import make_call_method
 from pycket.small_list import inline_small_list
@@ -110,19 +110,19 @@ class W_StructType(W_Object):
 
 class W_RootStruct(W_Procedure):
     errorname = "root-struct"
-    _immutable_fields_ = ["type", "super", "isopaque"]
+    _immutable_fields_ = ["type", "super", "isopaque", "ref", "set"]
 
     def __init__(self, struct_id, super, isopaque):
         self.type = struct_id
         self.super = super
         self.isopaque = isopaque
 
-    @continuation
-    def ref(self, struct_id, field, env, cont, _vals):
+    @label
+    def ref(self, struct_id, field, env, cont):
         raise NotImplementedError("base class")
 
-    @continuation
-    def set(self, struct_id, field, val, env, cont, _vals):
+    @label
+    def set(self, struct_id, field, val, env, cont):
         raise NotImplementedError("base class")
 
     def vals(self):
@@ -143,8 +143,8 @@ class W_Struct(W_RootStruct):
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
     # continuations.
-    @continuation
-    def ref(self, struct_id, field, env, cont, _vals):
+    @label
+    def ref(self, struct_id, field, env, cont):
         from pycket.interpreter import return_value, jump
         if self.type == struct_id:
             result = self._get_list(field)
@@ -157,8 +157,8 @@ class W_Struct(W_RootStruct):
         else:
             assert False
 
-    @continuation
-    def set(self, struct_id, field, val, env, cont, _vals):
+    @label
+    def set(self, struct_id, field, val, env, cont):
         from pycket.interpreter import return_value, jump
         type = jit.promote(self.type)
         if type == struct_id:
