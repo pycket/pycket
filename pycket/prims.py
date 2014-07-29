@@ -866,8 +866,7 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type_factory = values_struct.W_StructType.make if props is values.w_null else values_struct.W_StructType.make_callable
-    struct_type = struct_type_factory(name, super_type, init_field_cnt, auto_field_cnt,
+    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
