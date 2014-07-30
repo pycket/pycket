@@ -104,6 +104,19 @@
        (syntax-e id)
        sym*)))
 
+(define (flatten s)
+  (let loop ([s s])
+    (cond 
+      [(and (syntax? s) (pair? (syntax-e s)))
+       (loop (syntax-e s))]
+      [(pair? s)
+       (define-values (s* r*) (loop (cdr s)))
+       (values (cons (car s) s*) r*)]
+      [(null? s)
+       (values null #f)]
+      [else
+       (values null s)])))
+
 (define (num n)
   (match n
     [(or +inf.0 -inf.0 +nan.0)
@@ -113,8 +126,11 @@
     [(and (? real?) (? rational?) (? exact?) (not (? integer?)))
      (hash 'numerator (num (numerator n))
            'denominator (num (denominator n)))]
-    [(? real?)
+    [(? flonum?)
      (hash 'real n)]
+    ;; FIXME
+    [(? single-flonum?)
+     (num (real->double-flonum n))]
     [(and (not (? real?)) (? complex?))
        (hash 'real-part (num (real-part n))
              'imag-part (num (imag-part n)))]))
@@ -126,8 +142,11 @@
       [_ null]))
   (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
                               module* module #%plain-app quote #%require quote-syntax
-                              with-continuation-mark)
+                              with-continuation-mark #%declare #%provide)
     [v:str (hash 'string (syntax-e #'v))]
+    [v 
+     #:when (path? (syntax-e #'v))
+     (hash 'path (path->string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
     [(_ ...)
@@ -139,6 +158,7 @@
                            (to-json (cdr (last-pair (syntax-e v))))))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
+    [(#%declare _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
      #:when (prefab-struct-key (syntax-e v))
@@ -188,8 +208,11 @@
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
-    [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
-                                   (to-json (cdr (last-pair (syntax-e v))))))]
+    [(a . b) 
+     (let-values ([(s r) (flatten v)])
+       (if r
+           (hash 'improper (list (map to-json s) (to-json r)))
+           (map to-json s)))]
     [i:identifier
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (id->sym v))]

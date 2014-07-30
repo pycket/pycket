@@ -516,6 +516,8 @@ def to_value(json):
             return values.W_IBox(to_value(obj["box"]))
         if "number" in obj:
             return _to_num(obj["number"])
+        if "path" in obj:
+            return values.W_Path(obj["path"].value_string())
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
