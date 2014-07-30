@@ -297,37 +297,41 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {}
-    current_modules = []
+
+    class TableState(object):
+        table = {}
+        current_modules = []
+
+    _state = TableState()
 
     @staticmethod
     def add_module(fname):
         #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
-        ModTable.table[fname] = None
+        ModTable._state.table[fname] = None
 
     @staticmethod
     def reset():
-        ModTable.table = {}
+        ModTable._state.table = {}
 
     @staticmethod
     def push(fname):
-        ModTable.current_modules.append(fname)
+        ModTable._state.current_modules.append(fname)
 
     @staticmethod
     def pop():
-        if not ModTable.current_modules:
+        if not ModTable._state.current_modules:
             raise SchemeException("No current module")
-        ModTable.current_modules.pop()
+        ModTable._state.current_modules.pop()
 
     @staticmethod
     def current_mod():
-        if not ModTable.current_modules:
+        if not ModTable._state.current_modules:
             return None
-        return ModTable.current_modules[-1]
+        return ModTable._state.current_modules[-1]
 
     @staticmethod
     def has_module(fname):
-        return fname.startswith("#%") or fname in ModTable.table
+        return fname.startswith("#%") or fname in ModTable._state.table
 
 def _to_require(fname):
     if ModTable.has_module(fname):
