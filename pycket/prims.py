@@ -8,7 +8,7 @@ import pycket.impersonators as imp
 from pycket import values
 from pycket.cont import Cont, continuation, label
 from pycket import cont
-from pycket import struct as values_struct
+from pycket import values_struct
 from pycket import vector as values_vector
 from pycket.exposeprim import unsafe, default, expose, expose_val
 from pycket import arithmetic # imported for side effect

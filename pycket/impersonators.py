@@ -4,7 +4,7 @@
 from pycket.cont import continuation, label, call_cont
 from pycket.error import SchemeException
 from pycket import values
-from pycket import struct
+from pycket import values_struct
 from rpython.rlib import jit
 
 def is_impersonator_of(a, b):
@@ -270,13 +270,13 @@ def valid_struct_proc(x):
         return valid_struct_proc(x.code)
     if isinstance(x, W_ImpProcedure):
         return valid_struct_proc(x.code)
-    return (isinstance(x, struct.W_StructFieldAccessor) or
-            isinstance(x, struct.W_StructFieldMutator) or
-            isinstance(x, struct.W_StructPropertyAccessor))
+    return (isinstance(x, values_struct.W_StructFieldAccessor) or
+            isinstance(x, values_struct.W_StructFieldMutator) or
+            isinstance(x, values_struct.W_StructPropertyAccessor))
 
 def get_base_field_accessor(x):
-    if (isinstance(x, struct.W_StructFieldAccessor) or
-        isinstance(x, struct.W_StructFieldMutator) or
+    if (isinstance(x, values_struct.W_StructFieldAccessor) or
+        isinstance(x, values_struct.W_StructFieldMutator) or
         isinstance(x, struct.W_StructPropertyAccessor)):
         return x
     if isinstance(x, W_ChpProcedure):
@@ -299,13 +299,13 @@ def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
-class W_InterposeStructBase(struct.W_RootStruct):
+class W_InterposeStructBase(values_struct.W_RootStruct):
     _immutable_fields = ["struct", "accessors", "mutators", "handlers"]
 
     def __init__(self, inner, overrides, handlers):
-        assert isinstance(inner, struct.W_RootStruct)
+        assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        struct.W_RootStruct.__init__(self, inner.type, inner.super, inner.isopaque)
+        values_struct.W_RootStruct.__init__(self, inner.type, inner.super, inner.isopaque)
         self.struct = inner
         self.accessors = {}
         self.mutators = {}
@@ -313,9 +313,9 @@ class W_InterposeStructBase(struct.W_RootStruct):
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_field_accessor(op)
-            if isinstance(base, struct.W_StructFieldAccessor):
+            if isinstance(base, values_struct.W_StructFieldAccessor):
                 self.accessors[base.field.value] = (op, handlers[i])
-            elif isinstance(base, struct.W_StructFieldMutator):
+            elif isinstance(base, values_struct.W_StructFieldMutator):
                 self.mutators[base.field.value] = (op, handlers[i])
             else:
                 assert False
