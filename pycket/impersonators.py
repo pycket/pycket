@@ -277,7 +277,7 @@ def valid_struct_proc(x):
 def get_base_field_accessor(x):
     if (isinstance(x, values_struct.W_StructFieldAccessor) or
         isinstance(x, values_struct.W_StructFieldMutator) or
-        isinstance(x, struct.W_StructPropertyAccessor)):
+        isinstance(x, values_struct.W_StructPropertyAccessor)):
         return x
     if isinstance(x, W_ChpProcedure):
         return get_base_field_accessor(x.code)
