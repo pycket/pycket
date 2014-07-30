@@ -104,6 +104,19 @@
        (syntax-e id)
        sym*)))
 
+(define (flatten s)
+  (let loop ([s s])
+    (cond 
+      [(and (syntax? s) (pair? (syntax-e s)))
+       (loop (syntax-e s))]
+      [(pair? s)
+       (define-values (s* r*) (loop (cdr s)))
+       (values (cons (car s) s*) r*)]
+      [(null? s)
+       (values null #f)]
+      [else
+       (values null s)])))
+
 (define (num n)
   (match n
     [(or +inf.0 -inf.0 +nan.0)
@@ -191,8 +204,11 @@
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
-    [(a . b) (hash 'improper (list (map to-json (proper (syntax-e v)))
-                                   (to-json (cdr (last-pair (syntax-e v))))))]
+    [(a . b) 
+     (let-values ([(s r) (flatten v)])
+       (if r
+           (hash 'improper (list (map to-json s) (to-json r)))
+           (map to-json s)))]
     [i:identifier
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (id->sym v))]
