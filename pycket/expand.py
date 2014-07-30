@@ -315,13 +315,13 @@ class ModTable(object):
 
     @staticmethod
     def pop():
-        if not(len(ModTable.current_modules) > 0):
+        if not ModTable.current_modules:
             raise SchemeException("No current module")
         ModTable.current_modules.pop()
 
     @staticmethod
     def current_mod():
-        if len(ModTable.current_modules) == 0:
+        if not ModTable.current_modules:
             return None
         return ModTable.current_modules[-1]
 
