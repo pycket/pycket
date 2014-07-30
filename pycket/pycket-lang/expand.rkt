@@ -128,6 +128,9 @@
                               module* module #%plain-app quote #%require quote-syntax
                               with-continuation-mark)
     [v:str (hash 'string (syntax-e #'v))]
+    [v 
+     #:when (path? (syntax-e #'v))
+     (hash 'path (path->string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
     [(_ ...)
