@@ -132,7 +132,7 @@ def expand_file_to_json(rkt_file, json_file):
     except OSError:
         pass
     print "Expanding %s to %s" % (rkt_file, json_file)
-    cmd = "racket %s --output %s %s 2>&1" % (
+    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (
         fn,
         json_file, rkt_file)
     # print cmd
@@ -152,7 +152,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s --output %s --stdin" % (
+    cmd = "racket %s --output \"%s\" --stdin" % (
         fn,
         json_file)
     # print cmd
