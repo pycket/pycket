@@ -132,7 +132,7 @@ def expand_file_to_json(rkt_file, json_file):
     except OSError:
         pass
     print "Expanding %s to %s" % (rkt_file, json_file)
-    cmd = "racket %s --output %s %s 2>&1" % (
+    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (
         fn,
         json_file, rkt_file)
     # print cmd
@@ -152,7 +152,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s --output %s --stdin" % (
+    cmd = "racket %s --output \"%s\" --stdin" % (
         fn,
         json_file)
     # print cmd
@@ -238,19 +238,21 @@ def dbgprint(funcname, json):
 
 def to_formals(json):
     dbgprint("to_formals", json)
+    make = values.W_Symbol.make
+    lex  = lambda x : x.value_object()["lexical"].value_string()
     if json.is_object:
         obj = json.value_object()
         if "improper" in obj:
             improper_arr = obj["improper"]
             regular, last = improper_arr.value_array()
-            regular_symbols = [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in regular.value_array()]
-            last_symbol = values.W_Symbol.make(last.value_object()["lexical"].value_string())
+            regular_symbols = [make(lex(x)) for x in regular.value_array()]
+            last_symbol = make(lex(last))
             return regular_symbols, last_symbol
         elif "lexical" in obj:
-            return [], values.W_Symbol.make(obj["lexical"].value_string())
+            return [], make(obj["lexical"].value_string())
     elif json.is_array:
         arr = json.value_array()
-        return [values.W_Symbol.make(x.value_object()["lexical"].value_string()) for x in arr], None
+        return [make(lex(x)) for x in arr], None
     assert 0
 
 def to_bindings(arr):
@@ -295,37 +297,41 @@ def _to_module(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    table = {}
-    current_modules = []
+
+    class TableState(object):
+        table = {}
+        current_modules = []
+
+    _state = TableState()
 
     @staticmethod
     def add_module(fname):
         #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
-        ModTable.table[fname] = None
+        ModTable._state.table[fname] = None
 
     @staticmethod
     def reset():
-        ModTable.table = {}
+        ModTable._state.table = {}
 
     @staticmethod
     def push(fname):
-        ModTable.current_modules.append(fname)
+        ModTable._state.current_modules.append(fname)
 
     @staticmethod
     def pop():
-        if not(len(ModTable.current_modules) > 0):
+        if not ModTable._state.current_modules:
             raise SchemeException("No current module")
-        ModTable.current_modules.pop()
+        ModTable._state.current_modules.pop()
 
     @staticmethod
     def current_mod():
-        if len(ModTable.current_modules) == 0:
+        if not ModTable._state.current_modules:
             return None
-        return ModTable.current_modules[-1]
+        return ModTable._state.current_modules[-1]
 
     @staticmethod
     def has_module(fname):
-        return fname.startswith("#%") or fname in ModTable.table
+        return fname.startswith("#%") or fname in ModTable._state.table
 
 def _to_require(fname):
     if ModTable.has_module(fname):
@@ -510,6 +516,8 @@ def to_value(json):
             return values.W_IBox(to_value(obj["box"]))
         if "number" in obj:
             return _to_num(obj["number"])
+        if "path" in obj:
+            return values.W_Path(obj["path"].value_string())
         if "char" in obj:
             return values.W_Character(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:

@@ -28,8 +28,12 @@
     [(_ stdlib-kw forms ...)
      (eq? (syntax-e #'stdlib-kw) '#:stdlib)
      #`(#%plain-module-begin
+        (#%require (only '#%kernel
+                         chaperone-procedure
+                         impersonate-procedure
+                         void))
         (require r5rs)
-        #,(datum->syntax #'stdlib-kw `(include (file ,(path->string stdlib.sch))))
+        #,(datum->syntax #'here `(include (,#'file ,(path->string stdlib.sch))))
         forms ...)]
     [(_ forms ...)
      #`(#%plain-module-begin (require (only-in r5rs)) forms ...)]))

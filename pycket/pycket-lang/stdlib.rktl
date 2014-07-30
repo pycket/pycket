@@ -1,7 +1,4 @@
 
-(require (only-in '#%kernel chaperone-procedure))
-(require (only-in '#%kernel impersonate-procedure))
-
 ;; This function is easier to write out here than in the interpreter
 ;; where it must be in CPSed Python form.
 ;;(define (equal? l r)
@@ -116,8 +113,8 @@
 (define (memq s l)
   (cond [(null? l) #f]
         [(pair? l)
-         (define x (car l))
-         (if (eq? x s) l (memq s (cdr l)))]
+         (let ([x (car l)])
+           (if (eq? x s) l (memq s (cdr l))))]
         [else (error 'memq)]))
 
 (define (exact-nonnegative-integer? n)
