@@ -861,7 +861,7 @@ def do_struct_type_make_predicate(struct_desc):
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
-    default(values.W_Object, values.w_false)])
+         default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):

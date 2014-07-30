@@ -305,7 +305,7 @@ class W_InterposeStructBase(struct.W_RootStruct):
     def __init__(self, inner, overrides, handlers):
         assert isinstance(inner, struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        struct.W_RootStruct.__init__(self, inner.type, inner.super, inner.isopaque)
+        struct.W_RootStruct.__init__(self, inner.type, inner.isopaque)
         self.struct = inner
         self.accessors = {}
         self.mutators = {}

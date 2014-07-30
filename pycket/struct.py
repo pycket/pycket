@@ -11,8 +11,8 @@ from rpython.rlib import jit
 # Structs are partially supported
 # 
 # Not implemented:
-# 1) prefab -- '#s(sprout bean): need update in expand.rkt
-# 2) methods overriding (including equal) -- generic-interfaces.rkt
+# 1) prefab: need update in expand.rkt
+# 2) methods overriding (including equal)
 
 # TODO: inspector currently does nothing
 class W_StructInspector(W_Object):
@@ -39,6 +39,7 @@ class W_StructType(W_Object):
     @staticmethod
     def make(name, super_type, init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         struct_id = W_StructTypeDescriptor(name.value)
+        super_type = W_StructType.lookup_struct_type(super_type) if super_type is not w_false else None
         W_StructType.all_structs[struct_id] = w_result = W_StructType(struct_id, super_type, init_field_cnt, auto_field_cnt, \
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
         return w_result
@@ -49,17 +50,24 @@ class W_StructType(W_Object):
     
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-        self.super = W_StructType.lookup_struct_type(super_type) if super_type is not w_false else None
+        self.super = super_type
         self.init_field_cnt = init_field_cnt.value
         self.auto_field_cnt = auto_field_cnt.value
+        self.total_field_cnt = self.init_field_cnt + self.auto_field_cnt + \
+            (super_type.total_field_cnt if isinstance(super_type, W_StructType) else 0)
         self.auto_v = auto_v
-        self.props = values.from_list(props) if not props is values.w_null else []
+        self.props = values.from_list(props)
+        # self.prop_procedure = None
+        # FIXME: that is wrong
+        self.prop_procedure = self.props[0].cdr() if self.props else None
         self.inspector = inspector
         self.proc_spec = proc_spec
         self.immutables = []
-        if isinstance(proc_spec, W_Fixnum):
-            # TODO: Providing a non-#f value for proc-spec is the same as pairing the value with prop:procedure at the end of props
-            self.immutables.append(proc_spec.value)
+        if proc_spec is not w_false:
+            # FIXME: that is wrong, even it is written in documentation
+            self.prop_procedure = self.props[-1]
+            if isinstance(proc_spec, W_Fixnum):
+                self.immutables.append(proc_spec.value)
         for i in values.from_list(immutables):
             assert isinstance(i, values.W_Fixnum)
             self.immutables.append(i.value)
@@ -75,8 +83,8 @@ class W_StructType(W_Object):
 
         self.desc = struct_id
         constr_class = W_StructConstructor if props is w_null else W_CallableStructConstructor
-        self.constr = constr_class(self.desc, self.super, self.init_field_cnt, self.auto_values, self.props, 
-            self.proc_spec, self.calculate_offset, self.isopaque, self.guard, self.constr_name)
+        self.constr = constr_class(self.desc, self.super, self.init_field_cnt, self.auto_values, self.prop_procedure, self.props, 
+            self.proc_spec, self.calculate_offset(), self.isopaque, self.guard, self.constr_name)
         self.pred = W_StructPredicate(self.desc)
         self.acc = W_StructAccessor(self.desc)
         self.mut = W_StructMutator(self.desc)
@@ -86,20 +94,12 @@ class W_StructType(W_Object):
         # assert isinstance(field, W_Fixnum)
         # self.mutable_fields.append(field.value)
 
-    # """
-    # This method has to be called after initialization, otherwise self.mutable_fields will be empty
-    # """
     def calculate_offset(self):
         result = {}
         struct_type = self
-        vals_offset = 0
-        while True:
-            vals_offset += struct_type.init_field_cnt + struct_type.auto_field_cnt
+        while isinstance(struct_type, W_StructType):
+            result[struct_type.desc] = struct_type.total_field_cnt - struct_type.init_field_cnt - struct_type.auto_field_cnt
             struct_type = struct_type.super
-            if isinstance(struct_type, W_StructType):
-                result[struct_type.desc] = vals_offset
-            else:
-                break
         return result
 
     def make_struct_tuple(self):
@@ -114,19 +114,17 @@ class W_CallableStruct(W_Procedure):
 
     @make_call_method(simple=False)
     def call(self, args, env, cont):
-        # FIXME: what if self arg is used in property
-        p = self.struct.props[0].cdr()
+        # FIXME: what if self arg is used
+        p = self.struct.prop_procedure
         property = self.struct._get_list(p.value) if isinstance(p, W_Fixnum) else p
-        assert (property, W_Procedure)
         return property.call(args, env, cont)
 
 class W_RootStruct(W_Object):
     errorname = "root-struct"
-    _immutable_fields_ = ["type", "super", "isopaque", "ref", "set"]
+    _immutable_fields_ = ["type", "isopaque", "ref", "set"]
 
-    def __init__(self, struct_id, super, isopaque):
+    def __init__(self, struct_id, isopaque):
         self.type = struct_id
-        self.super = super
         self.isopaque = isopaque
 
     @label
@@ -142,10 +140,11 @@ class W_RootStruct(W_Object):
 
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["values", "type", "super", "props", "proc_spec", "isopaque"]
-    def __init__(self, offset, struct_id, super, props, proc_spec, isopaque):
-        W_RootStruct.__init__(self, struct_id, super, isopaque)
+    _immutable_fields_ = ["values", "type", "offset[:]", "prop_procedure", "props", "proc_spec", "isopaque"]
+    def __init__(self, struct_id, offset, prop_procedure, props, proc_spec, isopaque):
+        W_RootStruct.__init__(self, struct_id, isopaque)
         self.offset = offset
+        self.prop_procedure = prop_procedure
         self.props = props
         self.proc_spec = proc_spec
 
@@ -157,28 +156,15 @@ class W_Struct(W_RootStruct):
     # continuations.
     @label
     def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import return_value, jump
-        if self.type == struct_id:
-            result = self._get_list(field)
-            return return_value(result, env, cont)
-        elif self.type.value == struct_id.value:
-            raise SchemeException("given value instantiates a different structure type with the same name")
-        elif self.super is not None:
-            result = self._get_list(field + self.offset[struct_id])
-            return return_value(result, env, cont)
-        else:
-            assert False
+        from pycket.interpreter import return_value
+        result = self._get_list(field + self.offset[struct_id])
+        return return_value(result, env, cont)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import return_value, jump
-        type = jit.promote(self.type)
-        if type == struct_id:
-            self._set_list(field, val)
-            return return_value(w_void, env, cont)
-        else:
-            self._set_list(field + self.offset[struct_id], val)
-            return return_value(w_void, env, cont)
+        from pycket.interpreter import return_value
+        self._set_list(field + self.offset[struct_id], val)
+        return return_value(w_void, env, cont)
 
     def tostring(self):
         if self.isopaque:
@@ -198,41 +184,37 @@ class W_StructTypeDescriptor(W_Object):
         return "#<struct-type:%s>" % self.value
 
 class W_StructRootConstructor(W_Procedure):
-    _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "props", "proc_spec",  "isopaque", "guard", "name"]
-    def __init__(self, struct_id, super_type, init_field_cnt, auto_values, props, proc_spec, calculate_offset, isopaque, guard, name):
+    _immutable_fields_ = ["struct_id", "super_type", "init_field_cnt", "auto_values", "prop_procedure", \
+        "props", "proc_spec",  "isopaque", "guard", "name"]
+    def __init__(self, struct_id, super_type, init_field_cnt, auto_values, 
+        prop_procedure, props, proc_spec, offset, isopaque, guard, name):
         self.struct_id = struct_id
         self.super_type = super_type
         self.init_field_cnt = init_field_cnt
         self.auto_values = auto_values
+        self.prop_procedure = prop_procedure
         self.props = props
         self.proc_spec = proc_spec
-        self.calculate_offset = calculate_offset
-        self.offset = None
+        # self.calculate_offset = calculate_offset
+        self.offset = offset
         self.isopaque = isopaque
         self.guard = guard
         self.name = name
 
-    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
+    def make_struct(self, field_values):
         raise NotImplementedError("abstract base class")
 
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        super = None
-        vals = _vals._get_full_list()
-        if len(vals) == 1:
-            super = vals[0]
-        if not self.offset:
-            self.offset = self.calculate_offset()
-        field_values = field_values + self.auto_values
-        if isinstance(super, W_Struct):
-            field_values = field_values + super._get_full_list()
-        result = self.make_struct(field_values, self.offset, self.struct_id, super, self.props, self.proc_spec, self.isopaque)
+        # if not self.offset:
+        #     self.offset = self.calculate_offset()
+        result = self.make_struct(field_values + self.auto_values)
         return return_value(result, env, cont)
 
     @continuation
-    def constr_proc_wrapper_cont(self, field_values, env, cont, _vals):
-        from pycket.interpreter import jump
+    def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
+        from pycket.interpreter import return_value, jump
         super_type = self.super_type
         if isinstance(super_type, W_StructType):
             def split_list(list, num):
@@ -240,30 +222,39 @@ class W_StructRootConstructor(W_Procedure):
                 return list[:num], list[num:]
             split_position = len(field_values) - self.init_field_cnt
             super_field_values, field_values = split_list(field_values, split_position)
-            return super_type.constr.call(super_field_values, env, self.constr_proc_cont(field_values, env, cont))
+            field_values = super_field_values + super_type.constr.auto_values + field_values
+            return super_type.constr.code(super_field_values, True, env, self.constr_proc_cont(field_values, env, cont))
+            # TODO: do not forget about prop_procedure, props, proc_spec and isopaque of super class
         else:
-            return jump(env, self.constr_proc_cont(field_values, env, cont))
+            if issuper:
+                return jump(env, cont)
+            else:
+                return jump(env, self.constr_proc_cont(field_values, env, cont))
 
-    def call(self, args, env, cont):
+    def code(self, field_values, issuper, env, cont):
         from pycket.interpreter import jump
         if self.guard is w_false:
-            return jump(env, self.constr_proc_wrapper_cont(args, env, cont))
+            return jump(env, self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
         else:
-            assert isinstance(self.struct_id, W_StructTypeDescriptor)
-            guard_args = args + [W_Symbol.make(self.struct_id.value)]
+            guard_args = field_values + [W_Symbol.make(self.struct_id.value)]
             jit.promote(self)
-            return self.guard.call(guard_args, env, self.constr_proc_wrapper_cont(args, env, cont))
+            return self.guard.call(guard_args, env, self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
+
+    def call(self, args, env, cont):
+        return self.code(args, False, env, cont)
 
     def tostring(self):
         return "#<procedure:%s>" % self.name
 
 class W_StructConstructor(W_StructRootConstructor):
-    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
-        return W_Struct.make(field_values, offset, struct_id, super, props, proc_spec, isopaque)
+    def make_struct(self, field_values):
+        return W_Struct.make(field_values, self.struct_id, self.offset, self.prop_procedure, 
+            self.props, self.proc_spec, self.isopaque)
 
 class W_CallableStructConstructor(W_StructRootConstructor):
-    def make_struct(self, field_values, offset, struct_id, super, props, proc_spec, isopaque):
-        struct = W_Struct.make(field_values, offset, struct_id, super, props, proc_spec, isopaque)
+    def make_struct(self, field_values):
+        struct = W_Struct.make(field_values, self.struct_id, self.offset, self.prop_procedure, 
+            self.props, self.proc_spec, self.isopaque)
         return W_CallableStruct(struct)
 
 class W_StructPredicate(W_Procedure):
@@ -274,16 +265,13 @@ class W_StructPredicate(W_Procedure):
 
     @make_call_method([W_Object])
     def call(self, struct):
-        result = w_false
-        if (isinstance(struct, W_Struct)):
-            while True:
-                assert isinstance(struct, W_Struct)
-                if struct.type == self.struct_id:
-                    result = w_true
-                    break
-                if struct.super is None: break
-                else: struct = struct.super
-        return result
+        if isinstance(struct, W_Struct):
+            struct_type = W_StructType.lookup_struct_type(struct.type)
+            while isinstance(struct_type, W_StructType):
+                if struct_type.desc == self.struct_id:
+                    return w_true
+                struct_type = struct_type.super
+        return w_false
     def tostring(self):
         return "#<procedure:%s?>" % self.struct_id.value
 

@@ -118,78 +118,98 @@ def test_struct_auto_values(source):
     assert result == w_true
 
 def test_struct_guard():
-    run("""((lambda (name) (struct thing (name) #:transparent #:guard 
+    run(
+    """
+    ((lambda (name) (struct thing (name) #:transparent #:guard 
       (lambda (name type-name) (cond 
         [(string? name) name] 
         [else (error type-name \"bad name: ~e\" name)])))
-    (thing? (thing name))) \"apple\")""", w_true)
+    (thing? (thing name))) \"apple\")
+    """, w_true)
     e = pytest.raises(SchemeException, run,
-        """((lambda (name) (struct thing (name) #:transparent #:guard 
+    """
+    ((lambda (name) (struct thing (name) #:transparent #:guard 
       (lambda (name type-name) (cond 
         [(string? name) name] 
         [else (error type-name "bad name")])))
-    (thing? (thing name))) 1)""")
+    (thing? (thing name))) 1)
+    """)
     assert "bad name" in e.value.msg
 
-def test_struct_property():
-    m = run_mod("""
-#lang pycket
-(require racket/private/kw)
+def test_struct_prop_procedure():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+    (require (prefix-in k: '#%kernel))
 
-(struct annotated-proc (base note)
-    #:property prop:procedure
-               (struct-field-index base))
-(define plus1 (annotated-proc
-                  (lambda (x) (+ x 1))
-                  "adds 1 to its argument"))
-(define x (plus1 10))
-""")
-    ov = m.defs[W_Symbol.make("x")]
-    assert ov.value == 11
+    (struct x() #:property prop:procedure (lambda _ 1))
+    (struct y() #:property k:prop:procedure (lambda _ 2))
+
+    (define xval ((x)))
+    (define yval ((y)))
+    """)
+    assert m.defs[W_Symbol.make("xval")].value == 1
+    assert m.defs[W_Symbol.make("yval")].value == 2
+
+@skip
+def test_struct_prop_procedure_fail():
+    e = pytest.raises(SchemeException, run_mod,
+    """
+    #lang pycket
+    (require racket/private/kw)
+    (require (prefix-in k: '#%kernel))
+
+    (struct x() #:property prop:procedure (lambda _ 1) #:property k:prop:procedure (lambda _ 2))
+    """)
+    assert "duplicate property binding" in e.value.msg
 
 @skip
 def test_struct_property_with_self_argument():
-    m = run_mod("""
-#lang pycket
-(require racket/private/kw)
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
 
-(struct greeter (name)
-          #:property prop:procedure
-                     (lambda (self other)
-                       (string-append
-                        "Hi " other
-                        ", I'm " (greeter-name self))))
-(define joe-greet (greeter "Joe"))
-(define greeting (joe-greet "Mary"))
-""")
+    (struct greeter (name)
+              #:property prop:procedure
+                         (lambda (self other)
+                           (string-append
+                            "Hi " other
+                            ", I'm " (greeter-name self))))
+    (define joe-greet (greeter "Joe"))
+    (define greeting (joe-greet "Mary"))
+    """)
     ov = m.defs[W_Symbol.make("greeting")]
     assert ov.value == "Hi Mary, I'm Joe"
 
 def test_struct_super():
-    m = run_mod("""
-#lang pycket
-(require racket/private/kw)
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
 
-(struct posn (x y))
-    (define (raven-constructor super-type)
-    (struct raven ()
-            #:super super-type
-            #:transparent
-            #:property prop:procedure (lambda (self) 'nevermore)) raven)
-(define r ((raven-constructor struct:posn) 1 2))
-(define x (posn-x r))
-""")
+    (struct posn (x y))
+        (define (raven-constructor super-type)
+        (struct raven ()
+                #:super super-type
+                #:transparent
+                #:property prop:procedure (lambda (self) 'nevermore)) raven)
+    (define r ((raven-constructor struct:posn) 1 2))
+    (define x (posn-x r))
+    """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
 def test_procedure():
-    m = run_mod("""
-#lang pycket
-(require racket/private/kw)
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
 
-(define ((f x) #:k [y 0])
-  (+ x y))
-(define proc (procedure-rename (f 1) 'x))
-""")
+    (define ((f x) #:k [y 0])
+      (+ x y))
+    (define proc (procedure-rename (f 1) 'x))
+    """)
     ov = m.defs[W_Symbol.make("proc")]
     assert isinstance(ov, W_Procedure)
