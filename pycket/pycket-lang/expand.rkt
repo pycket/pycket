@@ -126,8 +126,11 @@
     [(and (? real?) (? rational?) (? exact?) (not (? integer?)))
      (hash 'numerator (num (numerator n))
            'denominator (num (denominator n)))]
-    [(? real?)
+    [(? flonum?)
      (hash 'real n)]
+    ;; FIXME
+    [(? single-flonum?)
+     (num (real->double-flonum n))]
     [(and (not (? real?)) (? complex?))
        (hash 'real-part (num (real-part n))
              'imag-part (num (imag-part n)))]))
