@@ -230,6 +230,18 @@ def sub1(v):
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
 
+@expose("abs", [values.W_Number])
+def prim_abs(v):
+    return v.arith_abs()
+
+@expose("max", [values.W_Number] * 2)
+def prim_max(a, b):
+    return a.arith_max(b)
+
+@expose("min", [values.W_Number] * 2)
+def prim_min(a, b):
+    return a.arith_min(b)
+
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
@@ -1032,6 +1044,34 @@ def vector_set(v, i, new, env, cont):
         raise SchemeException("vector-set!: index out of bounds")
     return jump(env, do_vec_set_cont(v, i, new, env, cont))
 
+@expose("vector-copy!", [values.W_MVector, values.W_Fixnum, values.W_MVector], simple=False)
+def vector_copy(dest, dest_start, src, env, cont):
+    from pycket.interpreter import jump
+    idx = dest_start.value
+    if not (0 <= idx < dest.length()):
+        raise SchemeException("vector-copy!: destination start out of bounds")
+    return jump(env,
+            vector_copy_loop(src, dest, dest_start, values.W_Fixnum(0), env, cont))
+
+@label
+def vector_copy_loop(src, dest, dest_start, i, env, cont):
+    from pycket.interpreter import jump, return_value
+    if i.value >= src.length():
+        return return_value(values.w_void, env, cont)
+    return jump(env,
+            do_vec_ref_cont(src, i, env,
+                vector_copy_cont_get(src, dest, dest_start, i, env, cont)))
+
+@continuation
+def vector_copy_cont_get(src, dest, dest_start, i, env, cont, _vals):
+    from pycket.interpreter import jump, check_one_val
+    val  = check_one_val(_vals)
+    idx  = values.W_Fixnum(i.value + dest_start.value)
+    next = values.W_Fixnum(i.value + 1)
+    return jump(env,
+            do_vec_set_cont(dest, idx, val, env,
+                vector_copy_loop(src, dest, dest_start, next, env, cont)))
+
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val, jump
@@ -1269,13 +1309,25 @@ def unsafe_flminus(a, b):
 def unsafe_fltimes(a, b):
     return values.W_Flonum(a.value * b.value)
 
+@expose("unsafe-fl/", [unsafe(values.W_Flonum)] * 2)
+def unsafe_fldiv(a, b):
+    return values.W_Flonum(a.value / b.value)
+
 @expose("unsafe-fl<", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fllt(a, b):
     return values.W_Bool.make(a.value < b.value)
 
+@expose("unsafe-fl<=", [unsafe(values.W_Flonum)] * 2)
+def unsafe_fllte(a, b):
+    return values.W_Bool.make(a.value <= b.value)
+
 @expose("unsafe-fl>", [unsafe(values.W_Flonum)] * 2)
 def unsafe_flgt(a, b):
     return values.W_Bool.make(a.value > b.value)
+
+@expose("unsafe-fl>=", [unsafe(values.W_Flonum)] * 2)
+def unsafe_flgte(a, b):
+    return values.W_Bool.make(a.value >= b.value)
 
 @expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fleq(a, b):
@@ -1370,7 +1422,7 @@ def string_to_symbol(v):
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
-@expose("string->bytes/locale", [values.W_String, 
+@expose("string->bytes/locale", [values.W_String,
                                  default(values.W_Object, values.w_false),
                                  default(values.W_Integer, values.W_Fixnum(0)),
                                  default(values.W_Integer, None)])
