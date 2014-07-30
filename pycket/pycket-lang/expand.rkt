@@ -142,7 +142,7 @@
       [_ null]))
   (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
                               module* module #%plain-app quote #%require quote-syntax
-                              with-continuation-mark)
+                              with-continuation-mark #%declare #%provide)
     [v:str (hash 'string (syntax-e #'v))]
     [v 
      #:when (path? (syntax-e #'v))
@@ -158,6 +158,7 @@
                            (to-json (cdr (last-pair (syntax-e v))))))]
     [(module _ ...) #f] ;; ignore these
     [(module* _ ...) #f] ;; ignore these
+    [(#%declare _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
      #:when (prefab-struct-key (syntax-e v))
