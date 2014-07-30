@@ -38,6 +38,8 @@
     [(_ stdlib-kw forms ...)
      (eq? (syntax-e #'stdlib-kw) '#:stdlib)
      #`(#%plain-module-begin
+        (require (only-in '#%kernel chaperone-procedure))
+        (require (only-in '#%kernel impersonate-procedure))
         #,(datum->syntax #'stdlib-kw `(include (file ,(path->string stdlib.sch))))
         forms ...)]
     [(_ forms ...)
