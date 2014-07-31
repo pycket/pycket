@@ -1,4 +1,4 @@
-from rpython.rlib.rbigint import rbigint
+from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib import rarithmetic
 from rpython.rtyper.raisingops import int_floordiv_ovf
 from pycket import values, error
@@ -316,8 +316,21 @@ class __extend__(values.W_Fixnum):
     def arith_exact_inexact(self):
         return values.W_Flonum(float(self.value))
 
+    def arith_zerop(self):
+        return values.W_Bool.make(self.value == 0)
+    def arith_negativep(self):
+        return values.W_Bool.make(self.value < 0)
+    def arith_positivep(self):
+        return values.W_Bool.make(self.value > 0)
 
-class __extend__(values.W_Flonum):    
+    def arith_evenp(self):
+        return values.W_Bool.make((self.value % 2) == 0)
+
+    def arith_oddp(self):
+        return values.W_Bool.make((self.value % 2) <> 0)
+
+
+class __extend__(values.W_Flonum):
     # ------------------ addition ------------------ 
     def arith_add(self, other):
         return other.arith_add_float(self.value)
@@ -503,6 +516,19 @@ class __extend__(values.W_Flonum):
 
     def arith_exact_inexact(self):
         return self
+
+    def arith_zerop(self):
+        return values.W_Bool.make(self.value == 0.0)
+    def arith_negativep(self):
+        return values.W_Bool.make(self.value < 0.0)
+    def arith_positivep(self):
+        return values.W_Bool.make(self.value > 0.0)
+
+    def arith_evenp(self):
+        return values.W_Bool.make((self.value % 2) == 0.0)
+
+    def arith_oddp(self):
+        return values.W_Bool.make((self.value % 2) <> 0.0)
 
 
 class __extend__(values.W_Bignum):
@@ -769,3 +795,22 @@ class __extend__(values.W_Bignum):
 
     def arith_exact_inexact(self):
         return values.W_Flonum(self.value.tofloat())
+
+    def arith_zerop(self):
+        values.W_Bool.make(not self.value.tobool())
+
+    def arith_negativep(self):
+        return values.W_Bool.make(
+            self.value.lt(NULLRBIGINT))
+
+    def arith_positivep(self):
+        return values.W_Bool.make(
+            self.value.gt(NULLRBIGINT))
+
+    def arith_evenp(self):
+        return values.W_Bool.make(
+            not self.value.mod(rbigint.fromint(2)).tobool())
+
+    def arith_oddp(self):
+        return values.W_Bool.make(
+            self.value.mod(rbigint.fromint(2)).tobool())

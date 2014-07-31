@@ -221,6 +221,12 @@ def test_callcc():
     run_fix ("(+ 1 (call/cc (lambda (k) (k 1))))", 2)
     run_fix ("(+ 1 (call/cc (lambda (k) (+ 5 (k 1)))))", 2)
 
+def test_callwithcurrentcontinuation():
+    run_fix ("(call-with-current-continuation (lambda (k) 1))", 1)
+    run_fix ("(+ 1 (call-with-current-continuation (lambda (k) 1)))", 2)
+    run_fix ("(+ 1 (call-with-current-continuation (lambda (k) (k 1))))", 2)
+    run_fix ("(+ 1 (call-with-current-continuation (lambda (k) (+ 5 (k 1)))))", 2)
+
 
 def test_values():
     run_fix("(values 1)", 1)

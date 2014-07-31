@@ -53,7 +53,8 @@ def pytest_funcarg__doctest(request):
 
     assert request.function.__doc__ is not None
     code = dedent(request.function.__doc__)
-    lines = [s for s in code.splitlines() if s]
+    lines = [lin for lin in code.splitlines() if lin]
+    extra = []
     exprs = []
     expect = []
     current_expr = ""
@@ -63,6 +64,8 @@ def pytest_funcarg__doctest(request):
 
         if len(line.strip()) == 0:
             continue
+        elif line[0] == "!":
+            extra.append(line[2:])
         elif line[0] == ">":
             current_expr = line[2:]
         elif line[0] in " \t":
@@ -74,5 +77,5 @@ def pytest_funcarg__doctest(request):
     pairs = []
     for pair in zip(exprs,expect):
         pairs.extend(pair)
-    check_equal(*pairs)
+    check_equal(*pairs, extra="\n".join(extra))
     return True
