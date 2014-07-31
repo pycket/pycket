@@ -4,6 +4,7 @@
 # A place for testing primitives
 #
 
+import pytest
 from pycket.test.testhelper import check_all, check_none, check_equal
 
 def test_equal():
@@ -59,3 +60,45 @@ def test_substring(doctest):
         '(substring "applebee" 5)', '"bee"',
         '(substring "applebee" 0 8)', '"applebee"',
     )
+
+
+def test_append_single(doctest):
+    """
+    > (append (list 1 2) (list 3 4))
+    '(1 2 3 4)
+    """
+    assert doctest
+
+@pytest.mark.xfail
+def test_append_vararg(doctest):
+    """
+    > (append (list 1 2) (list 3 4) (list 5 6) (list 7 8))
+    '(1 2 3 4 5 6 7 8)
+    """
+    assert doctest
+
+
+def test_for_each_single(doctest):
+    """
+    ! (require racket/private/map)
+    > (let ([x 0])
+        (for-each (lambda (y)
+                    (set! x (+ x y)))
+                  '(1 2 3))
+        x)
+    6
+    """
+    assert doctest
+
+@pytest.mark.xfail
+def test_for_each_vararg(doctest):
+    """
+    ! (require racket/private/map)
+    > (let ([x 1])
+        (for-each (lambda (a b c)
+                    (set! x (+ x (* a b c))))
+                  '(1 2 3) '(4 5 6) '(7 8 9))
+        x)
+    271
+    """
+    assert doctest
