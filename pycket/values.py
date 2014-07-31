@@ -553,6 +553,8 @@ class W_Symbol(W_Object):
     def tostring(self):
         return "'%s"%self.value
 
+exn_handler_key = W_Symbol("exnh")
+
 class W_Keyword(W_Object):
     _immutable_fields_ = ["value"]
     errorname = "keyword"

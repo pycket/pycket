@@ -254,6 +254,7 @@ for args in [
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
+expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -438,6 +439,9 @@ for args in [
 ]:
     define_nyi(*args)
 
+@expose("object-name", [values.W_Object])
+def object_name(v):
+    return values.W_String(v.tostring())
 
 @expose("arity-at-least", [values.W_Fixnum])
 def arity_at_least(n):
