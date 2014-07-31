@@ -68,8 +68,7 @@ class W_StructType(W_Object):
             w_prop = prop.cdr()
             if w_car.is_prop_procedure():
                 self.prop_procedure = w_prop
-            else:
-                self.props[i] = (w_car, w_prop)
+            self.props[i] = (w_car, w_prop)
 
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, 
                  auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
@@ -399,14 +398,34 @@ class W_StructPropertyPredicate(W_Procedure):
     def __init__(self, prop):
         self.property = prop
     @make_call_method([W_Object])
-    def call(self, args):
-        raise SchemeException("StructPropertyPredicate %s NYI"%self.property.name)
-
+    def call(self, arg):
+        if isinstance(arg, W_Struct):
+            props = arg.props
+        elif isinstance(arg, W_CallableStruct):
+            props = arg.struct.props
+        else:
+            return values.w_false
+        for (p, val) in props:
+            # FIXME: parent properties
+            if p is self.property:
+                return values.w_true
+        return values.w_false
+                
 class W_StructPropertyAccessor(W_Procedure):
     errorname = "struct-property-accessor"
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
     @make_call_method([W_Object])
-    def call(self, args):
-        raise SchemeException("StructPropertyAccessor %s NYI"%self.property.name)
+    def call(self, arg):
+        if isinstance(arg, W_Struct):
+            props = arg.props
+        elif isinstance(arg, W_CallableStruct):
+            props = arg.struct.props
+        else:
+            raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
+        for (p, val) in props:
+            # FIXME: parent properties
+            if p is self.property:
+                return val
+        raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
