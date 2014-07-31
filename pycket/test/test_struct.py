@@ -164,7 +164,6 @@ def test_struct_prop_procedure_fail():
     """)
     assert "duplicate property binding" in e.value.msg
 
-@skip
 def test_struct_property_with_self_argument():
     m = run_mod(
     """

@@ -824,7 +824,7 @@ def do_struct_info(struct):
 @expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_info(struct_desc):
     name = values.W_Symbol.make(struct_desc.value)
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
@@ -841,7 +841,7 @@ def do_struct_type_info(struct_desc):
 def do_struct_type_make_constructor(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.constr
 
@@ -849,7 +849,7 @@ def do_struct_type_make_constructor(struct_desc):
 def do_struct_type_make_predicate(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.pred
 
@@ -1095,7 +1095,7 @@ def impersonate_struct(args):
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct.type)
+    struct_type = struct.type.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
 
     # Consider storing immutables in an easier form in the structs implementation
