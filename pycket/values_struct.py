@@ -72,6 +72,7 @@ class W_StructType(W_Object):
 
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, 
                  auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+        self.desc = struct_id
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
         self.auto_field_cnt = auto_field_cnt.value
@@ -96,9 +97,8 @@ class W_StructType(W_Object):
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.isopaque = self.inspector is not w_false
-        # self.mutable_fields = []
-
-        self.desc = struct_id
+        self.offsets = self.calculate_offsets()
+        
         constr_class = W_StructConstructor if props is w_null else W_CallableStructConstructor
         self.constr = constr_class(self.desc, self.super, self.init_field_cnt, 
             self.auto_values, self.prop_procedure, self.props, self.proc_spec, 
@@ -106,13 +106,6 @@ class W_StructType(W_Object):
         self.pred = W_StructPredicate(self.desc)
         self.acc = W_StructAccessor(self.desc)
         self.mut = W_StructMutator(self.desc)
-
-        self.offsets = self.calculate_offsets()
-
-    def set_mutable(self, field):
-        pass
-        # assert isinstance(field, W_Fixnum)
-        # self.mutable_fields.append(field.value)
 
     @jit.unroll_safe
     def calculate_offsets(self):
@@ -236,8 +229,6 @@ class W_StructRootConstructor(W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        # if not self.offsets:
-        #     self.offsets = self.calculate_offsets()
         if len(self.auto_values) > 0:
             field_values = field_values + self.auto_values
         result = self.make_struct(field_values)
@@ -357,7 +348,6 @@ class W_StructFieldMutator(W_Procedure):
         assert isinstance(mutator, W_StructMutator)
         self.mutator = mutator
         self.field = field
-        mutator.set_mutable(field)
 
     @make_call_method([W_Object, W_Object], simple=False)
     def call(self, struct, val, env, cont):
@@ -378,9 +368,6 @@ class W_StructMutator(W_Procedure):
 
     call = make_call_method([W_RootStruct, W_Fixnum, W_Object], simple=False)(mutate)
 
-    def set_mutable(self, field):
-        struct = self.struct_id.w_struct_type
-        struct.set_mutable(field)
     def tostring(self):
         return "#<procedure:%s-set!>" % self.struct_id.value
 
