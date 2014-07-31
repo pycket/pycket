@@ -301,8 +301,15 @@ class W_StructPredicate(W_Procedure):
 
     @make_call_method([W_Object])
     def call(self, struct):
+        # FIXME: refactor
         if isinstance(struct, W_Struct):
             struct_type = struct.type.w_struct_type
+            while isinstance(struct_type, W_StructType):
+                if struct_type.desc == self.struct_id:
+                    return w_true
+                struct_type = struct_type.super
+        if isinstance(struct, W_CallableStruct):
+            struct_type = struct.struct.type.w_struct_type
             while isinstance(struct_type, W_StructType):
                 if struct_type.desc == self.struct_id:
                     return w_true
