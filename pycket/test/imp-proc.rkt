@@ -1,5 +1,7 @@
 #lang pycket #:stdlib
 
+(require (only-in '#%kernel chaperone-procedure impersonate-procedure))
+
 (define size 100)
 (define times 100)
 

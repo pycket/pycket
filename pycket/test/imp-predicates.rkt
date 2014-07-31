@@ -1,5 +1,7 @@
 #lang pycket #:stdlib
 
+(require (only-in '#%kernel chaperone-procedure impersonate-procedure))
+
 ;; Some test cases for chaperone-of? and impersonator-of? operations
 
 (define test-vector
