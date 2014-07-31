@@ -66,9 +66,10 @@ class W_StructType(W_Object):
         for i, prop in enumerate(proplist):
             w_car = prop.car()
             w_prop = prop.cdr()
-            if isinstance(w_prop, W_Procedure) or isinstance(w_prop, W_Fixnum):
-                self.prop_procedure = prop.cdr()
-            self.props[i] = (w_car, w_prop)
+            if w_car.is_prop_procedure():
+                self.prop_procedure = w_prop
+            else:
+                self.props[i] = (w_car, w_prop)
 
     def __init__(self, struct_id, super_type, init_field_cnt, auto_field_cnt, 
                  auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
@@ -375,12 +376,22 @@ class W_StructProperty(W_Object):
     errorname = "struct-type-property"
     _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
     def __init__(self, name, guard, supers=w_null, can_imp=False):
-        self.name = name
+        self.name = name.value
         self.guard = guard
-        self.supers = supers
+        self.supers = values.from_list(supers) if supers is not values.w_null else []
         self.can_imp = can_imp
+    def is_prop_procedure(self):
+        if self is w_prop_procedure:
+            return True
+        elif len(self.supers) > 0:
+            for super in self.supers:
+                if super.car() is w_prop_procedure:
+                    return True
+        return False
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
+
+w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), w_false)
 
 class W_StructPropertyPredicate(W_Procedure):
     errorname = "struct-property-predicate"

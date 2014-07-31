@@ -262,9 +262,10 @@ for name in ["prop:evt",
              "prop:method-arity-error",
              "prop:arity-string",
              "prop:custom-write",
-             "prop:equal+hash",
-             "prop:procedure"]:
+             "prop:equal+hash"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
+
+expose_val("prop:procedure", values_struct.w_prop_procedure)
 
 ################################################################
 # printing
