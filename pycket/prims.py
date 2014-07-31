@@ -124,12 +124,14 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+
 @expose("integer?", [values.W_Object])
 def integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum) or
                               isinstance(n, values.W_Flonum) and
                               math.floor(n.value) == n.value)
+
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
@@ -168,6 +170,8 @@ def exactp(n):
 def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
+
+
 @expose("quotient", [values.W_Integer, values.W_Integer], simple=True)
 def quotient(a, b):
     return a.arith_quotient(b)
@@ -175,6 +179,7 @@ def quotient(a, b):
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
     return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
+
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -237,6 +242,11 @@ for args in [
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
+        ("zero?", "arith_zerop"),
+        ("negative?", "arith_negativep"),
+        ("positive?", "arith_positivep"),
+        ("even?", "arith_evenp"),
+        ("odd?", "arith_oddp"),
         ]:
     make_unary_arith(*args)
 
@@ -256,7 +266,8 @@ for name in ["prop:evt",
              "prop:procedure"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
-
+################################################################
+# printing
 
 @expose("display", [values.W_Object])
 def display(s):
@@ -308,6 +319,9 @@ def make_parameter(init, guard):
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
+
+################################################################
+# String stuff
 
 # FIXME: this implementation sucks
 @expose("string-append")
@@ -516,7 +530,7 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
-@expose("call/cc", [values.W_Procedure], simple=False)
+@expose(["call/cc", "call-with-current-continuation"], [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
@@ -792,6 +806,20 @@ def for_each_cont(f, l, env, cont, vals):
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+
+@expose("append", [values.W_List, values.W_List])
+def append(w_l1, w_l2):
+    # FIXME: make continuation.
+    l1 = values.from_list(w_l1)
+    l2 = values.from_list(w_l2)
+    return values.to_list(l1 + l2)
+
+@continuation
+def append_cont(l1, l2, env, cont, vals):
+    from pycket.interpreter import return_value
+    if l1 is values.w_null:
+        return return_value(l2, env, cont)
+    return f.call([l.car()], env, for_each_cont(l1.cdr(), l2, env, cont))
 
 
 @expose("void")
