@@ -525,10 +525,10 @@ class __extend__(values.W_Flonum):
         return values.W_Bool.make(self.value > 0.0)
 
     def arith_evenp(self):
-        return values.W_Bool.make((self.value % 2) == 0.0)
+        return values.W_Bool.make(math.fmod(self.value, 2.0) == 0.0)
 
     def arith_oddp(self):
-        return values.W_Bool.make((self.value % 2) <> 0.0)
+        return values.W_Bool.make(math.fmod(self.value, 2.0) <> 0.0)
 
 
 class __extend__(values.W_Bignum):
