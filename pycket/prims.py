@@ -171,11 +171,6 @@ def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
 
-
-@expose("quotient", [values.W_Integer, values.W_Integer], simple=True)
-def quotient(a, b):
-    return a.arith_quotient(b)
-
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
     return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
@@ -188,8 +183,11 @@ def make_binary_arith(name, methname):
     do.__name__ = methname
 
 for args in [
+        ("quotient", "arith_quotient"),
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
+        ("max",      "arith_max"),
+        ("min",      "arith_min"),
         ]:
     make_binary_arith(*args)
 
@@ -819,12 +817,13 @@ def append(w_l1, w_l2):
     l2 = values.from_list(w_l2)
     return values.to_list(l1 + l2)
 
-@continuation
-def append_cont(l1, l2, env, cont, vals):
-    from pycket.interpreter import return_value
-    if l1 is values.w_null:
-        return return_value(l2, env, cont)
-    return f.call([l.car()], env, for_each_cont(l1.cdr(), l2, env, cont))
+@expose("reverse", [values.W_List])
+def reverse(w_l):
+    # FIXME: make continuation.
+    l = values.from_list(w_l)
+    l.reverse()
+    return values.to_list(l)
+
 
 
 @expose("void")
