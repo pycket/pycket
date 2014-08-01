@@ -385,6 +385,19 @@ class W_Thread(W_Object):
     def tostring(self):
         return "#<thread>"
 
+class W_OutputPort(W_Object):
+    errorname = "output-port"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<output-port>"
+
+class W_StringOutputPort(W_OutputPort):
+    errorname = "output-port"
+    def __init__(self):
+        self.str = ""
+        
+
 class W_Semaphore(W_Object):
     errorname = "semaphore"
     def __init__(self, n):
