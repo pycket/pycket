@@ -445,6 +445,44 @@ for args in [
 def object_name(v):
     return values.W_String(v.tostring())
 
+@continuation
+def sem_post_cont(sem, env, cont, vals):
+    sem.post()
+    from interpreter import return_multi_vals
+    return return_multi_vals(vals, env, cont)
+
+@expose("call-with-semaphore", simple=False)
+def call_with_sem(args, env, cont):
+    if len(args) < 2:
+        raise SchemeException("error call-with-semaphore")
+    sem = args[0]
+    f = args[1]
+    if len(args) == 2:
+        new_args = []
+        fail = None
+    else:
+        new_args = args[3:]
+        if args[2] is values.w_false:
+            fail = None
+        else:
+            fail = args[2]
+    assert isinstance(sem, values.W_Semaphore)
+    assert isinstance(f, values.W_Procedure)
+    sem.wait()
+    return f.call(new_args, env, sem_post_cont(sem, env, cont))
+    
+@expose("current-thread", [])
+def current_thread():
+    return values.W_Thread()
+
+@expose("semaphore-post", [values.W_Semaphore])
+def sem_post(s):
+    s.post()
+
+@expose("semaphore-wait", [values.W_Semaphore])
+def sem_wait(s):
+    s.wait()
+
 @expose("arity-at-least", [values.W_Fixnum])
 def arity_at_least(n):
     return values.W_ArityAtLeast(n.value)
