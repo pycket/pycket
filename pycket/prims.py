@@ -1044,33 +1044,51 @@ def vector_set(v, i, new, env, cont):
         raise SchemeException("vector-set!: index out of bounds")
     return jump(env, do_vec_set_cont(v, i, new, env, cont))
 
-@expose("vector-copy!", [values.W_MVector, values.W_Fixnum, values.W_MVector], simple=False)
-def vector_copy(dest, dest_start, src, env, cont):
+@expose("vector-copy!",
+        [values.W_MVector, values.W_Fixnum, values.W_MVector,
+         default(values.W_Fixnum, None), default(values.W_Fixnum, None)], simple=False)
+def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     from pycket.interpreter import jump
-    idx = dest_start.value
-    if not (0 <= idx < dest.length()):
+    src_start  = _src_start.value if _src_start is not None else 0
+    src_end    = _src_end.value if _src_end is not None else src.length()
+    dest_start = _dest_start.value
+
+    src_range  = src_end - src_start
+    dest_range = dest.length() - dest_start
+
+    if not (0 <= dest_start < dest.length()):
         raise SchemeException("vector-copy!: destination start out of bounds")
+    if not (0 <= src_start < src.length()) or not (0 <= src_start < src.length()):
+        raise SchemeException("vector-copy!: source start/end out of bounds")
+    if dest_range < src_range:
+        raise SchemeException("vector-copy!: not enough room in target vector")
+
     return jump(env,
-            vector_copy_loop(src, dest, dest_start, values.W_Fixnum(0), env, cont))
+            vector_copy_loop(src, src_start, src_end,
+                dest, dest_start, values.W_Fixnum(0), env, cont))
 
 @label
-def vector_copy_loop(src, dest, dest_start, i, env, cont):
+def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     from pycket.interpreter import jump, return_value
-    if i.value >= src.length():
+    src_idx = i.value + src_start
+    if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
+    idx = values.W_Fixnum(src_idx)
     return jump(env,
-            do_vec_ref_cont(src, i, env,
-                vector_copy_cont_get(src, dest, dest_start, i, env, cont)))
+            do_vec_ref_cont(src, idx, env,
+                vector_copy_cont_get(src, src_start, src_end, dest,
+                    dest_start, i, env, cont)))
 
 @continuation
-def vector_copy_cont_get(src, dest, dest_start, i, env, cont, _vals):
+def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont, _vals):
     from pycket.interpreter import jump, check_one_val
     val  = check_one_val(_vals)
-    idx  = values.W_Fixnum(i.value + dest_start.value)
+    idx  = values.W_Fixnum(i.value + dest_start)
     next = values.W_Fixnum(i.value + 1)
     return jump(env,
             do_vec_set_cont(dest, idx, val, env,
-                vector_copy_loop(src, dest, dest_start, next, env, cont)))
+                vector_copy_loop(src, src_start, src_end,
+                    dest, dest_start, next, env, cont)))
 
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
