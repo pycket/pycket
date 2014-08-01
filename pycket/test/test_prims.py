@@ -69,7 +69,6 @@ def test_append_single(doctest):
     """
     assert doctest
 
-@pytest.mark.xfail
 def test_append_vararg(doctest):
     """
     > (append (list 1 2) (list 3 4) (list 5 6) (list 7 8))
