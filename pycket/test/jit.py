@@ -418,3 +418,5 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
+    def test_binarytree(self):
+        self.run_file("binarytree.rkt")

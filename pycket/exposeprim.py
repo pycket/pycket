@@ -97,9 +97,11 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     else:
         return func_arg_unwrap
 
-def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
     from pycket.prims import prim_env
     def wrapper(func):
+        names = [n] if isinstance(n, str) else n
+        name = names[0]
         if nyi:
             def func_arg_unwrap(*args):
                 raise SchemeException("primitive %s is not yet implemented"%name)
@@ -113,14 +115,19 @@ def expose(name, argstypes=None, simple=True, arity=None, nyi=False):
             _arity = arity or ([], 0)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         cls = values.W_Prim
-        prim_env[values.W_Symbol.make(name)] = cls(name, func_result_handling, _arity)
+        p = cls(name, func_result_handling, _arity)
+        for nam in names:
+            prim_env[values.W_Symbol.make(nam)] = p
         return func_arg_unwrap
     return wrapper
 
-def make_call_method(argstypes, arity=None, simple=True, name="<method>"):
+def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
     def wrapper(func):
-        func_arg_unwrap, _ = _make_arg_unwrapper(
-            func, argstypes, name, has_self=True)
+        if argstypes is not None:
+            func_arg_unwrap, _ = _make_arg_unwrapper(
+                func, argstypes, name, has_self=True)
+        else:
+            func_arg_unwrap = func
         return _make_result_handling_func(func_arg_unwrap, simple)
     return wrapper
 

@@ -23,17 +23,17 @@ def run_mod(m, stdlib=False):
     mod = interpret_module(parse_module(expand_string(m)))
     return mod
 
-def format_pycket_mod(s, stdlib=True, extra=""):
+def format_pycket_mod(s, stdlib=False, extra=""):
     # pycket handles the stdlib, various requires
     str = "#lang pycket%s\n%s\n%s"%(" #:stdlib" if stdlib else "", extra, s)
     return str
 
-def run_mod_defs(m, extra="",stdlib=True):
+def run_mod_defs(m, extra="",stdlib=False):
     str = format_pycket_mod(m, extra=extra, stdlib=stdlib)
     mod = run_mod(str)
     return mod
 
-def run_mod_expr(e, v=None, stdlib=True, wrap=False, extra=""):
+def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra=""):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
@@ -45,25 +45,25 @@ def run_mod_expr(e, v=None, stdlib=True, wrap=False, extra=""):
     return ov
 
 
-def execute(p, stdlib=True, extra=""):
+def execute(p, stdlib=False, extra=""):
     return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
-def run_fix(p, v, stdlib=True, extra=""):
+def run_fix(p, v, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Fixnum)
     assert ov.value == v
     return ov.value
 
-def run_flo(p, v, stdlib=True, extra=""):
+def run_flo(p, v, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Flonum)
     assert ov.value == v
     return ov.value
 
-def run(p, v=None, stdlib=True, extra=""):
+def run(p, v=None, stdlib=False, extra=""):
     return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
 
-def run_top(p, v=None, stdlib=True, extra=""):
+def run_top(p, v=None, stdlib=False, extra=""):
     return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True, extra=extra)
 
 def run_values(p, stdlib=False):
@@ -96,7 +96,7 @@ def parse_file(fname, *replacements):
 #
 # Combined checking
 #
-def check_all(*snippets_returning_true):
+def check_all(*snippets_returning_true, **kwargs):
     code = []
     tail = []
     for i, snippet in enumerate(snippets_returning_true):
@@ -105,11 +105,11 @@ def check_all(*snippets_returning_true):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)
+    res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
 
-def check_none(*snippets_returning_false):
+def check_none(*snippets_returning_false, **kwargs):
     code = []
     tail = []
     for i, snippet in enumerate(snippets_returning_false):
@@ -118,11 +118,11 @@ def check_none(*snippets_returning_false):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)
+    res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s returned a true value" % snippets_returning_false[res.value]
 
-def check_equal(*pairs_of_equal_stuff):
+def check_equal(*pairs_of_equal_stuff, **kwargs):
     code = []
     tail = []
     assert len(pairs_of_equal_stuff) % 2 == 0
@@ -135,7 +135,7 @@ def check_equal(*pairs_of_equal_stuff):
     code.append("  " * (i + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code)
+    res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
         assert 0, "%s is different from %s" % (
                 pairs_of_equal_stuff[res.value * 2], pairs_of_equal_stuff[res.value * 2 + 1])

@@ -124,12 +124,14 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+
 @expose("integer?", [values.W_Object])
 def integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum) or
                               isinstance(n, values.W_Flonum) and
                               math.floor(n.value) == n.value)
+
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
@@ -168,13 +170,11 @@ def exactp(n):
 def inexactp(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
-@expose("quotient", [values.W_Integer, values.W_Integer], simple=True)
-def quotient(a, b):
-    return a.arith_quotient(b)
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
     return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
+
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -183,8 +183,11 @@ def make_binary_arith(name, methname):
     do.__name__ = methname
 
 for args in [
+        ("quotient", "arith_quotient"),
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
+        ("max",      "arith_max"),
+        ("min",      "arith_min"),
         ]:
     make_binary_arith(*args)
 
@@ -249,6 +252,11 @@ for args in [
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
+        ("zero?", "arith_zerop"),
+        ("negative?", "arith_negativep"),
+        ("positive?", "arith_positivep"),
+        ("even?", "arith_evenp"),
+        ("odd?", "arith_oddp"),
         ]:
     make_unary_arith(*args)
 
@@ -256,6 +264,7 @@ for args in [
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
+expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -264,11 +273,13 @@ for name in ["prop:evt",
              "prop:method-arity-error",
              "prop:arity-string",
              "prop:custom-write",
-             "prop:equal+hash",
-             "prop:procedure"]:
+             "prop:equal+hash"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
+expose_val("prop:procedure", values_struct.w_prop_procedure)
 
+################################################################
+# printing
 
 @expose("display", [values.W_Object])
 def display(s):
@@ -320,6 +331,9 @@ def make_parameter(init, guard):
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
+
+################################################################
+# String stuff
 
 # FIXME: this implementation sucks
 @expose("string-append")
@@ -435,6 +449,9 @@ for args in [
 ]:
     define_nyi(*args)
 
+@expose("object-name", [values.W_Object])
+def object_name(v):
+    return values.W_String(v.tostring())
 
 @expose("arity-at-least", [values.W_Fixnum])
 def arity_at_least(n):
@@ -528,7 +545,7 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
-@expose("call/cc", [values.W_Procedure], simple=False)
+@expose(["call/cc", "call-with-current-continuation"], [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
@@ -805,6 +822,21 @@ def for_each_cont(f, l, env, cont, vals):
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
 
+@expose("append", [values.W_List, values.W_List])
+def append(w_l1, w_l2):
+    # FIXME: make continuation.
+    l1 = values.from_list(w_l1)
+    l2 = values.from_list(w_l2)
+    return values.to_list(l1 + l2)
+
+@expose("reverse", [values.W_List])
+def reverse(w_l):
+    # FIXME: make continuation.
+    l = values.from_list(w_l)
+    l.reverse()
+    return values.to_list(l)
+
+
 
 @expose("void")
 def do_void(args): return values.w_void
@@ -836,7 +868,7 @@ def do_struct_info(struct):
 @expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
 def do_struct_type_info(struct_desc):
     name = values.W_Symbol.make(struct_desc.value)
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
@@ -853,7 +885,7 @@ def do_struct_type_info(struct_desc):
 def do_struct_type_make_constructor(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.constr
 
@@ -861,25 +893,24 @@ def do_struct_type_make_constructor(struct_desc):
 def do_struct_type_make_predicate(struct_desc):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct_desc)
+    struct_type = struct_desc.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.pred
 
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
-         default(values.W_Object, None),
+         default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
-    default(values.W_Object, values.w_false)])
+         default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(
-            name, super_type, init_field_cnt, auto_field_cnt,
+    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
@@ -917,10 +948,6 @@ def mk_stp(sym, guard, supers, _can_imp):
     return values.Values.make([prop,
                                values_struct.W_StructPropertyPredicate(prop),
                                values_struct.W_StructPropertyAccessor(prop)])
-
-@expose("new-prop:procedure")
-def do_new_prop_procedure(args):
-    return values.w_void
 
 @expose("number->string", [values.W_Number])
 def num2str(a):
@@ -1158,7 +1185,7 @@ def impersonate_struct(args):
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
-    struct_type = values_struct.W_StructType.lookup_struct_type(struct.type)
+    struct_type = struct.type.w_struct_type
     assert isinstance(struct_type, values_struct.W_StructType)
 
     # Consider storing immutables in an easier form in the structs implementation
