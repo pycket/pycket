@@ -668,6 +668,7 @@ class W_Bytes(W_Object):
 class W_String(W_Object):
     errorname = "string"
     def __init__(self, val):
+        assert not (val is None)
         self.value = val
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
