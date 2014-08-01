@@ -378,10 +378,37 @@ class W_Character(W_Object):
         return self.value == other.value
     eqv = equal
 
+class W_Thread(W_Object):
+    errorname = "thread"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<thread>"
+
+class W_OutputPort(W_Object):
+    errorname = "output-port"
+    def __init__(self):
+        pass
+    def tostring(self):
+        return "#<output-port>"
+
+class W_StringOutputPort(W_OutputPort):
+    errorname = "output-port"
+    def __init__(self):
+        self.str = ""
+        
+
 class W_Semaphore(W_Object):
     errorname = "semaphore"
     def __init__(self, n):
         self.n = n
+    def post(self):
+        self.n += 1
+    def wait(self):
+        if self.n >= 1:
+            return
+        else:
+            raise SchemeException("Waiting for a semaphore will never finish")
     def tostring(self):
         return "#<semaphore>"
 

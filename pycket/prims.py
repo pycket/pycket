@@ -260,6 +260,7 @@ expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
+             "prop:output-port",
              "prop:checked-procedure",
              "prop:impersonator-of",
              "prop:method-arity-error",
@@ -297,6 +298,18 @@ def cur_print_proc(args):
     else:
         os.write(1, v.tostring())
         os.write(1, "\n")
+
+@expose("open-output-string", [])
+def open_output_string():
+    return values.W_StringOutputPort()
+
+@expose("port-display-handler", [values.W_OutputPort])
+def port_display_handler(p):
+    return values.W_SimplePrim("pretty-printer", cur_print_proc)
+
+@expose("port-write-handler", [values.W_OutputPort])
+def port_write_handler(p):
+    return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
 # FIXME: this is a parameter
 @expose("current-print", [])
@@ -444,6 +457,53 @@ for args in [
 @expose("object-name", [values.W_Object])
 def object_name(v):
     return values.W_String(v.tostring())
+
+@expose("find-main-config", [])
+def find_main_config():
+    return values.w_false
+
+@expose("version", [])
+def version():
+    from pycket import interpreter
+    return values.W_String(interpreter.GlobalConfig.lookup("version"))
+
+@continuation
+def sem_post_cont(sem, env, cont, vals):
+    sem.post()
+    from interpreter import return_multi_vals
+    return return_multi_vals(vals, env, cont)
+
+@expose("call-with-semaphore", simple=False)
+def call_with_sem(args, env, cont):
+    if len(args) < 2:
+        raise SchemeException("error call-with-semaphore")
+    sem = args[0]
+    f = args[1]
+    if len(args) == 2:
+        new_args = []
+        fail = None
+    else:
+        new_args = args[3:]
+        if args[2] is values.w_false:
+            fail = None
+        else:
+            fail = args[2]
+    assert isinstance(sem, values.W_Semaphore)
+    assert isinstance(f, values.W_Procedure)
+    sem.wait()
+    return f.call(new_args, env, sem_post_cont(sem, env, cont))
+    
+@expose("current-thread", [])
+def current_thread():
+    return values.W_Thread()
+
+@expose("semaphore-post", [values.W_Semaphore])
+def sem_post(s):
+    s.post()
+
+@expose("semaphore-wait", [values.W_Semaphore])
+def sem_wait(s):
+    s.wait()
 
 @expose("arity-at-least", [values.W_Fixnum])
 def arity_at_least(n):
@@ -813,6 +873,22 @@ def for_each_cont(f, l, env, cont, vals):
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+
+@expose("hash-for-each", [values.W_HashTable, values.W_Procedure], simple=False)
+def hash_for_each(h, f, env, cont):
+    from pycket.interpreter import return_value
+    return return_value(values.w_void, env, hash_for_each_cont(f,
+                                                               h.data.keys(), 
+                                                               h.data, 0,
+                                                               env, cont, None))
+
+@continuation
+def hash_for_each_cont(f, keys, data, n, env, cont, res):
+    from pycket.interpreter import return_value
+    if n is len(keys):
+        return return_value(values.w_void, env, cont)
+    return f.call([keys[i], data[keys[i]]], env,
+                  hash_for_each_cont(f, keys, vals, n+1, env, cont))
 
 @expose("append")
 def append(lists):

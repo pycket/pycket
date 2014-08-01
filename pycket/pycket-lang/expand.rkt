@@ -79,7 +79,8 @@
                                    pref-file init-file config-dir addon-dir
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (path->string (find-system-path k)))))
-    sysconfig))
+    (hash-set* sysconfig
+               'version (version))))
 
 (require syntax/id-table)
 (define table (make-free-id-table))
