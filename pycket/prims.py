@@ -237,14 +237,6 @@ def add1(v):
 def prim_abs(v):
     return v.arith_abs()
 
-@expose("max", [values.W_Number] * 2)
-def prim_max(a, b):
-    return a.arith_max(b)
-
-@expose("min", [values.W_Number] * 2)
-def prim_min(a, b):
-    return a.arith_min(b)
-
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
