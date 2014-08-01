@@ -814,12 +814,15 @@ def for_each_cont(f, l, env, cont, vals):
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
 
-@expose("append", [values.W_List, values.W_List])
-def append(w_l1, w_l2):
-    # FIXME: make continuation.
-    l1 = values.from_list(w_l1)
-    l2 = values.from_list(w_l2)
-    return values.to_list(l1 + l2)
+@expose("append")
+def append(lists):
+    if not lists:
+        return values.w_null
+    stack, acc = lists[:-1], lists[-1]
+    while stack:
+        vals = values.from_list(stack.pop())
+        acc = values.to_improper(vals, acc)
+    return acc
 
 @expose("reverse", [values.W_List])
 def reverse(w_l):
