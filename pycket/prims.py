@@ -818,20 +818,23 @@ def for_each_cont(f, l, env, cont, vals):
 def append(lists):
     if not lists:
         return values.w_null
-    stack, acc = lists[:-1], lists[-1]
-    while stack:
-        vals = values.from_list(stack.pop())
+    lists, acc = lists[:-1], lists[-1]
+    while lists:
+        vals = values.from_list(lists.pop())
         acc = values.to_improper(vals, acc)
     return acc
 
 @expose("reverse", [values.W_List])
 def reverse(w_l):
-    # FIXME: make continuation.
-    l = values.from_list(w_l)
-    l.reverse()
-    return values.to_list(l)
+    acc = values.w_null
+    while isinstance(w_l, values.W_Cons):
+        val, w_l = w_l.car(), w_l.cdr()
+        acc = values.W_Cons.make(val, acc)
 
+    if w_l is not values.w_null:
+        raise SchemeException("reverse: not given proper list")
 
+    return acc
 
 @expose("void")
 def do_void(args): return values.w_void
