@@ -71,7 +71,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
                     raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, args[i].tostring()))
             else:
                 assert arg is not None
-                assert type(arg) is typ
+                assert isinstance(arg, typ)
                 jit.record_known_class(arg, typ)
             typed_args += (arg, )
         typed_args += rest

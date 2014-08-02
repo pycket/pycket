@@ -93,7 +93,7 @@ for args in [
         ("boolean?", values.W_Bool),
         ("procedure?", values.W_Procedure),
         ("inspector?", values_struct.W_StructInspector),
-        ("struct-type?", values_struct.W_StructTypeDescriptor),
+        ("struct-type?", values_struct.W_StructType),
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-accessor-procedure?", values_struct.W_StructAccessor),
@@ -942,11 +942,9 @@ def do_struct_info(struct):
     skipped = values.w_false
     return values.Values.make([struct_type, skipped])
 
-@expose("struct-type-info", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_info(struct_desc):
-    name = values.W_Symbol.make(struct_desc.value)
-    struct_type = struct_desc.w_struct_type
-    assert isinstance(struct_type, values_struct.W_StructType)
+@expose("struct-type-info", [values_struct.W_StructType])
+def do_struct_type_info(struct_type):
+    name = values.W_Symbol.make(struct_type.name)
     init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
     auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
     accessor = struct_type.acc
@@ -958,20 +956,16 @@ def do_struct_type_info(struct_desc):
     return values.Values.make([name, init_field_cnt, auto_field_cnt,
         accessor, mutator, immutable_k_list, super, skipped])
 
-@expose("struct-type-make-constructor", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_constructor(struct_desc):
+@expose("struct-type-make-constructor", [values_struct.W_StructType])
+def do_struct_type_make_constructor(struct_type):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     # the exn:fail:contract exception should be raised
-    struct_type = struct_desc.w_struct_type
-    assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.constr
 
-@expose("struct-type-make-predicate", [values_struct.W_StructTypeDescriptor])
-def do_struct_type_make_predicate(struct_desc):
+@expose("struct-type-make-predicate", [values_struct.W_StructType])
+def do_struct_type_make_predicate(struct_type):
     # TODO: if the type for struct-type is not controlled by the current inspector,
     #the exn:fail:contract exception should be raised
-    struct_type = struct_desc.w_struct_type
-    assert isinstance(struct_type, values_struct.W_StructType)
     return struct_type.pred
 
 @expose("make-struct-type",
@@ -985,9 +979,9 @@ def do_struct_type_make_predicate(struct_desc):
          default(values.W_Object, values.w_false)])
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
-    if not (isinstance(super_type, values_struct.W_StructTypeDescriptor) or super_type is values.w_false):
+    if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
+    struct_type = values_struct.W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
@@ -1006,8 +1000,8 @@ def expose_struct2vector(struct):
     return struct2vector(struct)
 
 def struct2vector(struct):
-    struct_id = struct.type.value
-    first_el = values.W_Symbol.make("struct:" + struct_id)
+    struct_desc = struct.type.name
+    first_el = values.W_Symbol.make("struct:" + struct_desc)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
 @expose("make-struct-type-property", [values.W_Symbol,
@@ -1495,6 +1489,35 @@ def unsafe_vector_length(v):
 @expose("unsafe-vector*-length", [unsafe(values_vector.W_Vector)])
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
+
+# Unsafe struct ops
+@expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
+def unsafe_struct_ref(v, k):
+    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        return unsafe_struct_ref(v.struct, k)
+    else:
+        assert isinstance(v, values_struct.W_Struct)
+        k_val = k.value
+        assert k_val >= 0
+        return v._ref(k_val)
+
+@expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
+def unsafe_struct_set(v, k, val):
+    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        return unsafe_struct_set(v.struct, k, val)
+    else:
+        assert isinstance(v, values_struct.W_Struct)
+        k_val = k.value
+        assert k_val >= 0
+        return v._set(k_val, val)
+
+@expose("unsafe-struct*-ref", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum)])
+def unsafe_struct_star_ref(v, k):
+    return v._ref(k.value)
+
+@expose("unsafe-struct*-set!", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum), values.W_Object])
+def unsafe_struct_star_set(v, k, val):
+    return v._set(k.value, val)
 
 # Unsafe pair ops
 @expose("unsafe-car", [values.W_Cons])
