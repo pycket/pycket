@@ -334,9 +334,6 @@ class W_StructFieldAccessor(W_Procedure):
 
     @make_call_method([W_Object], simple=False)
     def call(self, struct, env, cont):
-        if isinstance(struct, W_CallableStruct):
-            struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
         return self.accessor.access(struct, self.field, env, cont)
 
 class W_StructAccessor(W_Procedure):
@@ -347,9 +344,12 @@ class W_StructAccessor(W_Procedure):
 
     def access(self, struct, field, env, cont):
         from pycket.interpreter import jump
+        if isinstance(struct, W_CallableStruct):
+            struct = struct.struct
+        assert isinstance(struct, W_RootStruct)
         return jump(env, struct.ref(self.struct_id, field.value, env, cont))
 
-    call = make_call_method([W_Struct, W_Fixnum], simple=False)(access)
+    call = make_call_method([W_Object, W_Fixnum], simple=False)(access)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.struct_id.value
@@ -364,9 +364,6 @@ class W_StructFieldMutator(W_Procedure):
 
     @make_call_method([W_Object, W_Object], simple=False)
     def call(self, struct, val, env, cont):
-        if isinstance(struct, W_CallableStruct):
-            struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
 class W_StructMutator(W_Procedure):
@@ -377,9 +374,12 @@ class W_StructMutator(W_Procedure):
 
     def mutate(self, struct, field, val, env, cont):
         from pycket.interpreter import jump
+        if isinstance(struct, W_CallableStruct):
+            struct = struct.struct
+        assert isinstance(struct, W_RootStruct)
         return jump(env, struct.set(self.struct_id, field.value, val, env, cont))
 
-    call = make_call_method([W_RootStruct, W_Fixnum, W_Object], simple=False)(mutate)
+    call = make_call_method([W_Object, W_Fixnum, W_Object], simple=False)(mutate)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.struct_id.value
