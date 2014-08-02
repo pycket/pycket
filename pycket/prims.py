@@ -751,8 +751,8 @@ def equal_cont(a, b, env, cont):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_RootStruct) and not a.isopaque and
-        isinstance(b, values_struct.W_RootStruct) and not b.isopaque):
+    if (isinstance(a, values_struct.W_RootStruct) and not a.type.isopaque and
+        isinstance(b, values_struct.W_RootStruct) and not b.type.isopaque):
         l = struct2vector(a)
         r = struct2vector(b)
         return jump(env, equal_cont(l, r, env, cont))
