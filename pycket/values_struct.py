@@ -196,6 +196,12 @@ class W_Struct(W_RootStruct):
         self._set_list(field + offset, val)
         return return_value(w_void, env, cont)
 
+    # unsafe versions
+    def _ref(self, k):
+        return self._get_list(k)
+    def _set(self, k, val):
+        self._set_list(k, val)
+
     def tostring(self):
         if self.isopaque:
             result =  "#<%s>" % self.type.value

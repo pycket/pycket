@@ -1493,6 +1493,35 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
+# Unsafe struct ops
+@expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
+def unsafe_struct_ref(v, k):
+    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        return unsafe_struct_ref(v.struct, k)
+    else:
+        assert isinstance(v, values_struct.W_Struct)
+        k_val = k.value
+        assert k_val >= 0
+        return v._ref(k_val)
+
+@expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
+def unsafe_struct_set(v, k, val):
+    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        return unsafe_struct_set(v.struct, k, val)
+    else:
+        assert isinstance(v, values_struct.W_Struct)
+        k_val = k.value
+        assert k_val >= 0
+        return v._set(k_val, val)
+
+@expose("unsafe-struct*-ref", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum)])
+def unsafe_struct_star_ref(v, k):
+    return v._ref(k.value)
+
+@expose("unsafe-struct*-set!", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum), values.W_Object])
+def unsafe_struct_star_set(v, k, val):
+    return v._set(k.value, val)
+
 # Unsafe pair ops
 @expose("unsafe-car", [values.W_Cons])
 def unsafe_car(p):
