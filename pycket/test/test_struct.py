@@ -212,3 +212,32 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("proc")]
     assert isinstance(ov, W_Procedure)
+
+def test_unsafe():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
+    (struct 3dposn posn ([z #:mutable]))
+
+    (define p (3dposn 1 2 3))
+    (unsafe-struct*-set! p 2 4)
+    (define x (unsafe-struct*-ref p 2))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 4
+
+def test_unsafe_impersonators():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
+    (define a (posn 1 1))
+    (define b (impersonate-struct a))
+    (unsafe-struct-set! b 1 2)
+    (define x (unsafe-struct-ref b 1))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 2
