@@ -597,7 +597,9 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
-@expose(["call/cc", "call-with-current-continuation"], [values.W_Procedure], simple=False)
+@expose(["call/cc", "call-with-current-continuation",
+         "call/ec", "call-with-escape-continuation"],
+        [values.W_Procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
@@ -651,7 +653,7 @@ def printf(args):
                 # FIXME: different format chars
                 if j >= len(vals):
                     raise SchemeException("not enough arguments for format string")
-                os.write(1,vals[j].tostring()),
+                os.write(1, vals[j].tostring()),
                 j += 1
             elif s == 'n':
                 os.write(1,"\n") # newline
@@ -794,20 +796,21 @@ def do_list(args):
 
 @expose("list*")
 def do_liststar(args):
-    a = len(args)-1
-    if a < 0:
+    if not args:
         raise SchemeException("list* expects at least one argument")
-    return values.to_improper(args[:a], args[a])
+    return values.to_improper(args[:-1], args[-1])
 
-@expose("assq", [values.W_Object] * 2)
+@expose("assq", [values.W_Object, values.W_List])
 def assq(a, b):
-    if values.w_null is b:
-        return values.w_false
-    else:
-        if eqp([a, do_car([do_car([b])])]):
-            return do_car([b])
-        else:
-            return assq([a, do_cdr([b])])
+    while isinstance(b, values.W_Cons):
+        head, b = b.car(), b.cdr()
+        if not isinstance(head, values.W_Cons):
+            raise SchemeException("assq: found a non-pair element")
+        if eqp_logic(a, head.car()):
+            return head
+    if b is not values.w_null:
+        raise SchemeException("assq: reached a non-pair")
+    return values.w_false
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
