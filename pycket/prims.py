@@ -1487,12 +1487,22 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
+# Get the underlying struct for impersonators, chaperones, and callable
+# structs
+def get_base_struct(v):
+    while True:
+        if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+            v = v.struct
+        elif isinstance(v, values_struct.W_CallableStruct):
+            v = v.struct
+        else:
+            break
+    return v
+
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
-    while isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
-        v = v.struct
-
+    v = get_base_struct(v)
     assert isinstance(v, values_struct.W_Struct)
     k_val = k.value
     assert k_val >= 0
@@ -1500,9 +1510,7 @@ def unsafe_struct_ref(v, k):
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_set(v, k, val):
-    while isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
-        v = v.struct
-
+    v = get_base_struct(v)
     assert isinstance(v, values_struct.W_Struct)
     k_val = k.value
     assert k_val >= 0
