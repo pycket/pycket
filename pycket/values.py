@@ -84,7 +84,7 @@ class W_Syntax(W_Object):
     def __init__(self, o):
         self.val = o
     def tostring(self):
-        return "#'%s"%self.val.tostring()
+        return "#'%s" % self.val.tostring()
 
 class W_ModulePathIndex(W_Object):
     errorname = "module-path-index"
@@ -99,7 +99,7 @@ class W_ResolvedModulePath(W_Object):
     def __init__(self, name):
         self.name = name
     def tostring(self):
-        return ("#<resolved-module-path:%s>"%self.name)
+        return "#<resolved-module-path:%s>" % self.name
 
 class W_Logger(W_Object):
     errorname = "logger"
@@ -281,7 +281,7 @@ class W_MCons(W_MList):
         self._car = a
         self._cdr = d
     def tostring(self):
-        return "(mcons %s %s)"%(self.car().tostring(), self.cdr().tostring())
+        return "(mcons %s %s)" % (self.car().tostring(), self.cdr().tostring())
     def car(self):
         return self._car
     def cdr(self):
@@ -307,7 +307,7 @@ class W_Complex(W_Number):
         self.real = r
         self.imag = i
     def tostring(self):
-        return "%s+%si"%(self.real.tostring(), self.imag.tostring())
+        return "%s+%si" % (self.real.tostring(), self.imag.tostring())
 
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
@@ -318,7 +318,7 @@ class W_Rational(W_Number):
         self.num = n
         self.den = d
     def tostring(self):
-        return "%s/%s"%(self.num.tostring(), self.den.tostring())
+        return "%s/%s" % (self.num.tostring(), self.den.tostring())
 
 class W_Integer(W_Number):
     errorname = "integer"
@@ -396,7 +396,7 @@ class W_StringOutputPort(W_OutputPort):
     errorname = "output-port"
     def __init__(self):
         self.str = ""
-        
+
 
 class W_Semaphore(W_Object):
     errorname = "semaphore"
@@ -422,7 +422,7 @@ class W_SemaphorePeekEvt(W_Evt):
         self.sema = sema
     def tostring(self):
         return "#<semaphore-peek-evt>"
-        
+
 
 class W_Path(W_Object):
     _immutable_fields_ = ["path"]
@@ -430,7 +430,7 @@ class W_Path(W_Object):
     def __init__(self, p):
         self.path = p
     def tostring(self):
-        return "#<path:%s>"%self.path
+        return "#<path:%s>" % self.path
 
 class W_Void(W_Object):
     def __init__(self): pass
@@ -535,7 +535,7 @@ class W_Bytes(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
-        return "#%s"%self.value
+        return "#%s" % self.value
     def equal(self, other):
         if not isinstance(other, W_Bytes):
             return False
@@ -578,7 +578,7 @@ class W_Symbol(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
-        return "'%s"%self.value
+        return "'%s" % self.value
 
 exn_handler_key = W_Symbol("exnh")
 
@@ -601,7 +601,7 @@ class W_Keyword(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
-        return "'#:%s"%self.value
+        return "'#:%s" % self.value
 
 
 # FIXME: this should really be a struct

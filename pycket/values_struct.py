@@ -99,7 +99,7 @@ class W_StructType(values.W_Object):
         return [self, self.constr, self.pred, self.acc, self.mut]
 
     def tostring(self):
-        return "#<struct-type:%s>" % self.value
+        return "#<struct-type:%s>" % self.name
 
 class W_CallableStruct(values.W_Procedure):
     errorname = "callable-struct"
@@ -178,9 +178,9 @@ class W_Struct(W_RootStruct):
 
     def tostring(self):
         if self.type.isopaque:
-            result =  "#<%s>" % self.type.value
+            result =  "#<%s>" % self.type.name
         else:
-            result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
+            result = "(%s %s)" % (self.type.name, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
@@ -372,9 +372,9 @@ class W_StructPropertyPredicate(values.W_Procedure):
     @make_call_method([values.W_Object])
     def call(self, arg):
         if isinstance(arg, W_Struct):
-            props = arg.props
+            props = arg.type.props
         elif isinstance(arg, W_CallableStruct):
-            props = arg.struct.props
+            props = arg.struct.type.props
         else:
             return values.w_false
         for (p, val) in props:
@@ -391,9 +391,9 @@ class W_StructPropertyAccessor(values.W_Procedure):
     @make_call_method([values.W_Object])
     def call(self, arg):
         if isinstance(arg, W_Struct):
-            props = arg.props
+            props = arg.type.props
         elif isinstance(arg, W_CallableStruct):
-            props = arg.struct.props
+            props = arg.struct.type.props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:

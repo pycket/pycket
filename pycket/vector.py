@@ -59,10 +59,7 @@ class W_Vector(W_MVector):
         return self.len
     def tostring(self):
         l = self.strategy.ref_all(self)
-        description = []
-        for obj in l:
-            description.append(obj.tostring())
-        return "#(%s)" % " ".join(description)
+        return "#(%s)" % " ".join([obj.tostring() for obj in l])
 
     def change_strategy(self, new_strategy):
         old_list = self.strategy.ref_all(self)
