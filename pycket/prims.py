@@ -233,10 +233,6 @@ def sub1(v):
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
 
-@expose("abs", [values.W_Number])
-def prim_abs(v):
-    return v.arith_abs()
-
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
@@ -249,6 +245,7 @@ for args in [
         ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
+        ("abs", "arith_abs")
         ]:
     make_unary_arith(*args)
 
@@ -293,11 +290,10 @@ def do_print(o):
 
 def cur_print_proc(args):
     v, = args
-    if v is values.w_void:
-        return
-    else:
+    if v is not values.w_void:
         os.write(1, v.tostring())
         os.write(1, "\n")
+    return values.w_void
 
 @expose("open-output-string", [])
 def open_output_string():
@@ -465,7 +461,8 @@ def find_main_config():
 @expose("version", [])
 def version():
     from pycket import interpreter
-    return values.W_String(interpreter.GlobalConfig.lookup("version"))
+    version = interpreter.GlobalConfig.lookup("version")
+    return values.W_String("unknown version" if version is None else version)
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -492,7 +489,7 @@ def call_with_sem(args, env, cont):
     assert isinstance(f, values.W_Procedure)
     sem.wait()
     return f.call(new_args, env, sem_post_cont(sem, env, cont))
-    
+
 @expose("current-thread", [])
 def current_thread():
     return values.W_Thread()
@@ -653,7 +650,7 @@ def printf(args):
                 # FIXME: different format chars
                 if j >= len(vals):
                     raise SchemeException("not enough arguments for format string")
-                os.write(1, vals[j].tostring()),
+                os.write(1, vals[j].tostring())
                 j += 1
             elif s == 'n':
                 os.write(1,"\n") # newline
@@ -671,7 +668,7 @@ def eqvp(a, b):
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     from pycket.interpreter import jump
-    # FIXME: broken for chaperones, cycles, excessive recursion, etc
+    # FIXME: broken for cycles, etc
     return jump(env, equal_cont(a, b, env, cont))
 
 @continuation
@@ -868,7 +865,7 @@ def do_set_mcdr(a, b):
 @expose("for-each", [values.W_Procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
     from pycket.interpreter import return_value
-    return return_value(values.w_void, env, for_each_cont(f, l, env, cont, None))
+    return return_value(values.w_void, env, for_each_cont(f, l, env, cont))
 
 @continuation
 def for_each_cont(f, l, env, cont, vals):
@@ -881,17 +878,17 @@ def for_each_cont(f, l, env, cont, vals):
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
     return return_value(values.w_void, env, hash_for_each_cont(f,
-                                                               h.data.keys(), 
+                                                               h.data.keys(),
                                                                h.data, 0,
-                                                               env, cont, None))
+                                                               env, cont))
 
 @continuation
-def hash_for_each_cont(f, keys, data, n, env, cont, res):
+def hash_for_each_cont(f, keys, data, n, env, cont, _vals):
     from pycket.interpreter import return_value
-    if n is len(keys):
+    if n == len(keys):
         return return_value(values.w_void, env, cont)
-    return f.call([keys[i], data[keys[i]]], env,
-                  hash_for_each_cont(f, keys, vals, n+1, env, cont))
+    return f.call([keys[n], data[keys[n]]], env,
+                  hash_for_each_cont(f, keys, data, n+1, env, cont))
 
 @expose("append")
 def append(lists):
@@ -1113,8 +1110,8 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
 
-@continuation
-def do_vec_ref_cont(v, i, env, cont, _vals):
+@label
+def do_vec_ref_cont(v, i, env, cont):
     from pycket.interpreter import return_value, jump
     if isinstance(v, values_vector.W_Vector):
         # we can use _ref here because we already checked the precondition
@@ -1256,7 +1253,7 @@ def impersonate_struct(args):
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
-    struct_type = struct.type.w_struct_type
+    struct_type = struct.type
     assert isinstance(struct_type, values_struct.W_StructType)
 
     # Consider storing immutables in an easier form in the structs implementation
@@ -1493,23 +1490,23 @@ def unsafe_vector_star_length(v):
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
-    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
-        return unsafe_struct_ref(v.struct, k)
-    else:
-        assert isinstance(v, values_struct.W_Struct)
-        k_val = k.value
-        assert k_val >= 0
-        return v._ref(k_val)
+    while isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        v = v.struct
+
+    assert isinstance(v, values_struct.W_Struct)
+    k_val = k.value
+    assert k_val >= 0
+    return v._ref(k_val)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_set(v, k, val):
-    if isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
-        return unsafe_struct_set(v.struct, k, val)
-    else:
-        assert isinstance(v, values_struct.W_Struct)
-        k_val = k.value
-        assert k_val >= 0
-        return v._set(k_val, val)
+    while isinstance(v, imp.W_ImpStruct) or isinstance(v, imp.W_ChpStruct):
+        v = v.struct
+
+    assert isinstance(v, values_struct.W_Struct)
+    k_val = k.value
+    assert k_val >= 0
+    return v._set(k_val, val)
 
 @expose("unsafe-struct*-ref", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):

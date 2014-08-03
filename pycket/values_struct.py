@@ -101,7 +101,7 @@ class W_StructType(values.W_Object):
         return [self, self.constr, self.pred, self.acc, self.mut]
 
     def tostring(self):
-        return "#<struct-type:%s>" % self.value
+        return "#<struct-type:%s>" % self.name
 
 class W_CallableStruct(values.W_Procedure):
     errorname = "callable-struct"
@@ -183,9 +183,9 @@ class W_Struct(W_RootStruct):
 
     def tostring(self):
         if self.isopaque:
-            result =  "#<%s>" % self.type.value
+            result =  "#<%s>" % self.type.name
         else:
-            result = "(%s %s)" % (self.type.value, ' '.join([val.tostring() for val in self.vals()]))
+            result = "(%s %s)" % (self.type.name, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
