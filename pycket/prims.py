@@ -1496,8 +1496,7 @@ def get_base_struct(v):
         elif isinstance(v, values_struct.W_CallableStruct):
             v = v.struct
         else:
-            break
-    return v
+            return v
 
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
