@@ -1487,8 +1487,8 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
-# Get the underlying struct for impersonators, chaperones, and callable
-# structs
+# Get the underlying struct for impersonators, chaperones, and callable structs
+@jit.unroll_safe
 def get_base_struct(v):
     while True:
         if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
