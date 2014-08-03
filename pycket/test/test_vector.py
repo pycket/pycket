@@ -94,8 +94,7 @@ def test_vec_imp():
     run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-ref v 0))", 0)
 
 def test_vec_equal_imp():
-# FIXME: can't work yet
-#    run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 3))", w_true)
+    run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 3))", w_true)
     run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2))", w_false)
     run("(equal? (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) (vector 1 2 5))", w_false)
 
