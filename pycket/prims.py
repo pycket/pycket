@@ -1503,24 +1503,30 @@ def get_base_struct(v):
 def unsafe_struct_ref(v, k):
     v = get_base_struct(v)
     assert isinstance(v, values_struct.W_Struct)
-    k_val = k.value
-    assert k_val >= 0
-    return v._ref(k_val)
+    assert 0 <= k.value <= v.type.total_field_cnt
+    return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_set(v, k, val):
     v = get_base_struct(v)
     assert isinstance(v, values_struct.W_Struct)
-    k_val = k.value
-    assert k_val >= 0
-    return v._set(k_val, val)
+    assert 0 <= k.value < v.type.total_field_cnt
+    return v._set(k.value, val)
 
-@expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
+@expose("unsafe-struct*-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
+    if isinstance(v, values_struct.W_CallableStruct):
+        v = v.struct
+    assert isinstance(v, values_struct.W_Struct)
+    assert 0 <= k.value < v.type.total_field_cnt
     return v._ref(k.value)
 
-@expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum), values.W_Object])
+@expose("unsafe-struct*-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_star_set(v, k, val):
+    if isinstance(v, values_struct.W_CallableStruct):
+        v = v.struct
+    assert isinstance(v, values_struct.W_Struct)
+    assert 0 <= k.value <= v.type.total_field_cnt
     return v._set(k.value, val)
 
 # Unsafe pair ops
