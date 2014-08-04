@@ -36,17 +36,24 @@ class W_StructType(values.W_Object):
         "inspector", "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
     
     @jit.unroll_safe
-    def initialize_prop_list(self, props):
+    def initialize_props(self, props):
         proplist = values.from_list(props)
         self.props =  [(None, None)] * len(proplist)
+        self.prop_procedure = None
         for i, prop in enumerate(proplist):
             w_car = prop.car()
             w_prop = prop.cdr()
-            if w_car.is_prop_procedure():
+            if w_car.isinstance(w_prop_procedure):
                 if self.prop_procedure:
                     raise SchemeException("duplicate property binding") 
                 self.prop_procedure = w_prop
             self.props[i] = (w_car, w_prop)
+        struct_type = self.super
+        while isinstance(struct_type, W_StructType):
+            self.props = self.props + struct_type.props
+            if not self.prop_procedure:
+                self.prop_procedure = struct_type.prop_procedure
+            struct_type = struct_type.super
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt, 
                  auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
@@ -57,8 +64,7 @@ class W_StructType(values.W_Object):
         self.total_field_cnt = self.init_field_cnt + self.auto_field_cnt + \
             (super_type.total_field_cnt if isinstance(super_type, W_StructType) else 0)
         self.auto_v = auto_v
-        self.prop_procedure = None
-        self.initialize_prop_list(props)
+        self.initialize_props(props)
         self.inspector = inspector
         self.proc_spec = proc_spec
         self.immutables = []
@@ -77,8 +83,8 @@ class W_StructType(values.W_Object):
         self.isopaque = self.inspector is not values.w_false
         self.offsets = self.calculate_offsets()
         
-        constr_class = W_StructConstructor if props is values.w_null else W_CallableStructConstructor
-        self.constr = constr_class(self, self.super, self.init_field_cnt, self.auto_values, self.guard, self.constr_name)
+        constr_class = W_StructConstructor if not self.props else W_CallableStructConstructor
+        self.constr = constr_class(self)
         self.pred = W_StructPredicate(self)
         self.acc = W_StructAccessor(self)
         self.mut = W_StructMutator(self)
@@ -114,15 +120,28 @@ class W_CallableStruct(values.W_Procedure):
     def call(self, args, env, cont):
         if self.struct.type.proc_spec is not values.w_false:
             args = [self.struct.type.proc_spec] + args
-
-        # FIXME: parent prop:procedure
         proc = self.struct.type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
             proc = self.struct._get_list(proc.value) 
         else:
             args = [self.struct] + args
-        # TODO: check arities
-        return proc.call(args, env, cont)
+        # FIXME: check arities
+        # (arities, rest) = proc.get_arity()
+        # if len(args) not in arities:
+        #     for prop in self.struct.type.props:
+        #         (w_car, w_prop) = prop
+        #         if w_car.isinstance(w_prop_arity_string):
+        #             msg = w_prop.call([self], env, cont)[0]
+        #             raise SchemeException(msg.tostring())
+        try:
+            return proc.call(args, env, cont)
+        except SchemeException:
+            for prop in self.struct.type.props:
+                (w_car, w_prop) = prop
+                if w_car.isinstance(w_prop_arity_string):
+                    msg = w_prop.call([self], env, cont)[0]
+                    raise SchemeException(msg.tostring())
+            raise
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
@@ -188,14 +207,9 @@ class W_Struct(W_RootStruct):
 inline_small_list(W_Struct, immutable=False, attrname="values")
 
 class W_StructRootConstructor(values.W_Procedure):
-    _immutable_fields_ = ["type", "super_type", "init_field_cnt", "auto_values", "guard", "name"]
-    def __init__(self, type, super_type, init_field_cnt, auto_values, guard, name):
+    _immutable_fields_ = ["type"]
+    def __init__(self, type):
         self.type = type
-        self.super_type = super_type
-        self.init_field_cnt = init_field_cnt
-        self.auto_values = auto_values
-        self.guard = guard
-        self.name = name
 
     def make_struct(self, field_values):
         raise NotImplementedError("abstract base class")
@@ -203,8 +217,8 @@ class W_StructRootConstructor(values.W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        if len(self.auto_values) > 0:
-            field_values = field_values + self.auto_values
+        if len(self.type.auto_values) > 0:
+            field_values = field_values + self.type.auto_values
         result = self.make_struct(field_values)
         return return_value(result, env, cont)
 
@@ -224,10 +238,10 @@ class W_StructRootConstructor(values.W_Procedure):
     @continuation
     def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
         from pycket.interpreter import return_value, jump
-        super_type = jit.promote(self.super_type)
+        super_type = jit.promote(self.type.super)
         if isinstance(super_type, W_StructType):
-            split_position = len(field_values) - self.init_field_cnt
-            super_auto = super_type.constr.auto_values
+            split_position = len(field_values) - self.type.init_field_cnt
+            super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
             field_values = self._splice(
                 field_values, len(field_values), split_position, 
@@ -242,19 +256,19 @@ class W_StructRootConstructor(values.W_Procedure):
 
     def code(self, field_values, issuper, env, cont):
         from pycket.interpreter import jump
-        if self.guard is values.w_false:
+        if self.type.guard is values.w_false:
             return jump(env, self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
         else:
             guard_args = field_values + [values.W_Symbol.make(self.type.name)]
             jit.promote(self)
-            return self.guard.call(guard_args, env, 
+            return self.type.guard.call(guard_args, env, 
                 self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
 
     def call(self, args, env, cont):
         return self.code(args, False, env, cont)
 
     def tostring(self):
-        return "#<procedure:%s>" % self.name
+        return "#<procedure:%s>" % self.type.name
 
 class W_StructConstructor(W_StructRootConstructor):
     def make_struct(self, field_values):
@@ -353,18 +367,19 @@ class W_StructProperty(values.W_Object):
         self.guard = guard
         self.supers = values.from_list(supers) if supers is not values.w_null else []
         self.can_imp = can_imp
-    def is_prop_procedure(self):
-        if self is w_prop_procedure:
+    def isinstance(self, prop):
+        if self is prop:
             return True
         elif len(self.supers) > 0:
             for super in self.supers:
-                if super.car() is w_prop_procedure:
+                if super.car() is prop:
                     return True
         return False
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
 w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
+w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
 
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"

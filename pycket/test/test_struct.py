@@ -181,6 +181,42 @@ def test_struct_property_with_self_argument():
     ov = m.defs[W_Symbol.make("greeting")]
     assert ov.value == "Hi Mary, I'm Joe"
 
+def test_struct_prop_super_procedure():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+    (require (prefix-in k: '#%kernel))
+
+    (struct x() #:property prop:procedure (lambda _ 1))
+    (struct y x())
+
+    (define yval ((y)))
+    """)
+    assert m.defs[W_Symbol.make("yval")].value == 1
+
+def test_struct_prop_arity():
+    e = pytest.raises(SchemeException, run_mod,
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (struct evens (proc)
+    #:property prop:procedure (struct-field-index proc)
+    #:property prop:arity-string
+    (lambda (p)
+      "an even number of arguments"))
+    (define pairs
+        (evens
+         (case-lambda
+          [() null]
+          [(a b . more)
+           (cons (cons a b)
+                 (apply pairs more))])))
+    (display (pairs 5))
+    """)
+    assert "an even number of arguments" in e.value.msg
+
 def test_struct_super():
     m = run_mod(
     """
