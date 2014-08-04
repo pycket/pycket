@@ -1250,6 +1250,8 @@ def impersonate_struct(args):
 
     struct, args = args[0], args[1:]
 
+    if isinstance(struct, values_struct.W_CallableStruct):
+        struct = struct.struct
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
@@ -1289,6 +1291,8 @@ def chaperone_struct(args):
 
     struct, args = args[0], args[1:]
 
+    if isinstance(struct, values_struct.W_CallableStruct):
+        struct = struct.struct
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("chaperone-struct: not given struct")
 
