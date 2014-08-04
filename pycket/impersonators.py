@@ -7,32 +7,39 @@ from pycket import values
 from pycket import values_struct
 from rpython.rlib import jit
 
+# Check that one value is an impersonator of the other
+@jit.unroll_safe
 def is_impersonator_of(a, b):
-    if a is b:
-        return True
-    if isinstance(a, W_ImpVector):
-        return is_impersonator_of(a.vec, b)
-    if isinstance(a, W_ImpProcedure):
-        return is_impersonator_of(a.code, b)
-    if isinstance(a, W_ImpBox):
-        return is_impersonator_of(a.box, b)
-    if isinstance(a, W_ImpStruct):
-        return is_impersonator_of(a.struct, b)
-    return is_chaperone_of(a, b)
+    while True:
+        if a is b:
+            return True
+        elif isinstance(a, W_ImpVector):
+            a = a.vec
+        elif isinstance(a, W_ImpProcedure):
+            a = a.code
+        elif isinstance(a, W_ImpBox):
+            a = a.box
+        elif isinstance(a, W_ImpStruct):
+            a = a.struct
+        else:
+            return is_chaperone_of(a, b)
 
 # Check that one value is a chaperone of the other
+@jit.unroll_safe
 def is_chaperone_of(a, b):
-    if a is b:
-        return True
-    if isinstance(a, W_ChpVector):
-        return is_chaperone_of(a.vec, b)
-    if isinstance(a, W_ChpProcedure):
-        return is_chaperone_of(a.code, b)
-    if isinstance(a, W_ChpBox):
-        return is_chaperone_of(a.box, b)
-    if isinstance(a, W_ChpStruct):
-        return is_chaperone_of(a.struct, b)
-    return False
+    while True:
+        if a is b:
+            return True
+        elif isinstance(a, W_ChpVector):
+            a = a.vec
+        elif isinstance(a, W_ChpProcedure):
+            a = a.code
+        elif isinstance(a, W_ChpBox):
+            a = a.box
+        elif isinstance(a, W_ChpStruct):
+            a = a.struct
+        else:
+            return False
 
 def is_chaperone(x):
     return (isinstance(x, W_ChpVector) or
@@ -266,24 +273,20 @@ class W_ChpVector(values.W_MVector):
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
 def valid_struct_proc(x):
-    if isinstance(x, W_ChpProcedure):
-        return valid_struct_proc(x.code)
-    if isinstance(x, W_ImpProcedure):
-        return valid_struct_proc(x.code)
-    return (isinstance(x, values_struct.W_StructFieldAccessor) or
-            isinstance(x, values_struct.W_StructFieldMutator) or
-            isinstance(x, values_struct.W_StructPropertyAccessor))
+    v = get_base_procedure(x)
+    return (isinstance(v, values_struct.W_StructFieldAccessor) or
+            isinstance(v, values_struct.W_StructFieldMutator) or
+            isinstance(v, values_struct.W_StructPropertyAccessor))
 
-def get_base_field_accessor(x):
-    if (isinstance(x, values_struct.W_StructFieldAccessor) or
-        isinstance(x, values_struct.W_StructFieldMutator) or
-        isinstance(x, values_struct.W_StructPropertyAccessor)):
-        return x
-    if isinstance(x, W_ChpProcedure):
-        return get_base_field_accessor(x.code)
-    if isinstance(x, W_ImpProcedure):
-        return get_base_field_accessor(x.code)
-    assert False
+@jit.unroll_safe
+def get_base_procedure(x):
+    while True:
+        if isinstance(x, W_ChpProcedure):
+            x = x.code
+        elif isinstance(x, W_ImpProcedure):
+            x = x.code
+        else:
+            return x
 
 @continuation
 def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
@@ -312,7 +315,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.properties = {}
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
-            base = get_base_field_accessor(op)
+            base = get_base_procedure(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 self.accessors[base.field.value] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
