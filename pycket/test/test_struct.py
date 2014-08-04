@@ -152,7 +152,6 @@ def test_struct_prop_procedure():
     assert m.defs[W_Symbol.make("xval")].value == 1
     assert m.defs[W_Symbol.make("yval")].value == 2
 
-@skip
 def test_struct_prop_procedure_fail():
     e = pytest.raises(SchemeException, run_mod,
     """

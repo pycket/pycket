@@ -43,6 +43,8 @@ class W_StructType(values.W_Object):
             w_car = prop.car()
             w_prop = prop.cdr()
             if w_car.is_prop_procedure():
+                if self.prop_procedure:
+                    raise SchemeException("duplicate property binding") 
                 self.prop_procedure = w_prop
             self.props[i] = (w_car, w_prop)
 
