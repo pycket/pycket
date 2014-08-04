@@ -34,6 +34,9 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             min_arg += 1
         if isinstance(typ, unsafe):
             typ = typ.typ
+            subclasses = typ.__subclasses__()
+            if subclasses:
+                raise ValueError("type %s cannot be used unsafely, since it has subclasses %s" % (typ, subclasses))
             isunsafe = True
         argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
     unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
@@ -71,7 +74,9 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
                     raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, args[i].tostring()))
             else:
                 assert arg is not None
-                assert isinstance(arg, typ)
+                # the following precise type check is intentional.
+                # record_known_class records a precise class to the JIT, excluding subclasses
+                assert type(arg) is typ
                 jit.record_known_class(arg, typ)
             typed_args += (arg, )
         typed_args += rest

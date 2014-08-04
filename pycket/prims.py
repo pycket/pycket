@@ -1515,11 +1515,11 @@ def unsafe_struct_set(v, k, val):
     assert k_val >= 0
     return v._set(k_val, val)
 
-@expose("unsafe-struct*-ref", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum)])
+@expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
     return v._ref(k.value)
 
-@expose("unsafe-struct*-set!", [unsafe(values_struct.W_Struct), unsafe(values.W_Fixnum), values.W_Object])
+@expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_star_set(v, k, val):
     return v._set(k.value, val)
 
