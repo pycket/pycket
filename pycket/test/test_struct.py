@@ -260,7 +260,7 @@ def test_procedure():
     (define proc (procedure-rename (f 1) 'x))
     """)
     ov = m.defs[W_Symbol.make("proc")]
-    assert isinstance(ov, W_Procedure)
+    assert ov.iscallable()
 
 def test_unsafe():
     m = run_mod(

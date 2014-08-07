@@ -18,6 +18,9 @@ class default(object):
         self.typ = typ
         self.default = default
 
+class procedure(object):
+    errorname = "procedure"
+
 def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
     argtype_tuples = []
     min_arg = 0
@@ -70,8 +73,9 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             arg = args[i]
 
             if not unsafe:
-                if typ is not values.W_Object and not isinstance(arg, typ):
-                    raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, args[i].tostring()))
+                if typ is not values.W_Object:
+                    if not(typ is procedure and arg.iscallable() or isinstance(arg, typ)):
+                        raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, arg.tostring()))
             else:
                 assert arg is not None
                 # the following precise type check is intentional.

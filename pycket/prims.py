@@ -10,13 +10,12 @@ from pycket.cont import Cont, continuation, label
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
-from pycket.exposeprim import unsafe, default, expose, expose_val
+from pycket.exposeprim import unsafe, default, expose, expose_val, procedure
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
 from rpython.rlib  import jit
 
 prim_env = {}
-
 
 def make_cmp(name, op, con):
     from values import W_Number, W_Fixnum, W_Flonum, W_Bignum
@@ -80,7 +79,6 @@ def make_pred_eq(name, val):
     def pred_eq(a):
         return values.W_Bool.make(isinstance(a, typ) and a is val)
 
-
 for args in [
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
@@ -91,7 +89,6 @@ for args in [
         ("string?", values.W_String),
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
-        ("procedure?", values.W_Procedure),
         ("inspector?", values_struct.W_StructInspector),
         ("struct-type?", values_struct.W_StructType),
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
@@ -124,6 +121,10 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+
+@expose("procedure?", [values.W_Object])
+def procedurep(n):
+    return values.W_Bool.make(n.iscallable())
 
 @expose("integer?", [values.W_Object])
 def integerp(n):
@@ -270,14 +271,12 @@ expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
 
 @expose("checked-procedure-check-and-extract", [values_struct.W_StructType, 
-    values.W_Object, values.W_Procedure, values.W_Object, values.W_Object], simple=False)
+    values.W_Object, procedure, values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
     from interpreter import return_value
-    if (isinstance(v, values_struct.W_Struct) and v.type is type) or \
-       (isinstance(v, values_struct.W_CallableStruct) and v.struct.type is type):
-        v = v.struct if isinstance(v, values_struct.W_CallableStruct) else v
+    if isinstance(v, values_struct.W_Struct) and v.type is type:
         first_field = v._ref(0)
-        assert isinstance(first_field, values.W_Procedure)
+        assert first_field.iscallable()
         result, env, cont = first_field.call([v1, v2], env, cont)
         from pycket import interpreter
         assert isinstance(result, interpreter.Quote)
@@ -548,7 +547,7 @@ def call_with_sem(args, env, cont):
         else:
             fail = args[2]
     assert isinstance(sem, values.W_Semaphore)
-    assert isinstance(f, values.W_Procedure)
+    assert f.iscallable()
     sem.wait()
     return f.call(new_args, env, sem_post_cont(sem, env, cont))
 
@@ -576,11 +575,11 @@ def arity_at_least(a):
 def make_hash():
     return values.W_HashTable([], [])
 
-@expose("procedure-rename", [values.W_Procedure, values.W_Object])
+@expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
     return p
 
-@expose("procedure-arity", [values.W_Procedure])
+@expose("procedure-arity", [procedure])
 def arity_at_least(n):
     # FIXME
     return values.W_ArityAtLeast(0)
@@ -613,7 +612,7 @@ def string_le(s1, s2):
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.value])
 
-@expose("procedure-arity-includes?", [values.W_Procedure, values.W_Number])
+@expose("procedure-arity-includes?", [procedure, values.W_Number])
 def procedure_arity_includes(p, n):
     if not(isinstance(n, values.W_Fixnum)):
         return values.w_false # valid arities are always small integers
@@ -656,7 +655,7 @@ def do_values(args_w):
 def call_consumer(consumer, env, cont, vals):
     return consumer.call(vals._get_full_list(), env, cont)
 
-@expose("call-with-values", [values.W_Procedure] * 2, simple=False)
+@expose("call-with-values", [procedure] * 2, simple=False)
 def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
     return producer.call([], env, call_consumer(consumer, env, cont))
@@ -672,11 +671,11 @@ def time_apply_cont(initial, env, cont, vals):
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
-        [values.W_Procedure], simple=False)
+        [procedure], simple=False)
 def callcc(a, env, cont):
     return a.call([values.W_Continuation(cont)], env, cont)
 
-@expose("time-apply", [values.W_Procedure, values.W_List], simple=False)
+@expose("time-apply", [procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
     initial = time.clock()
     return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
@@ -686,7 +685,7 @@ def apply(args, env, cont):
     if not args:
         raise SchemeException("apply expected at least one argument, got 0")
     fn = args[0]
-    if not isinstance(fn, values.W_Procedure):
+    if not fn.iscallable():
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     if not listp_loop(lst):
@@ -938,7 +937,7 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("for-each", [values.W_Procedure, values.W_List], simple=False)
+@expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
     from pycket.interpreter import return_value
     return return_value(values.w_void, env, for_each_cont(f, l, env, cont))
@@ -950,7 +949,7 @@ def for_each_cont(f, l, env, cont, vals):
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
 
-@expose("hash-for-each", [values.W_HashTable, values.W_Procedure], simple=False)
+@expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
     return return_value(values.w_void, env, hash_for_each_cont(f,
@@ -1125,13 +1124,13 @@ def box(v):
 def box_immutable(v):
     return values.W_IBox(v)
 
-@expose("chaperone-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+@expose("chaperone-box", [values.W_Box, procedure, procedure])
 def chaperone_box(b, unbox, set):
     unbox.mark_non_loop()
     set.mark_non_loop()
     return imp.W_ChpBox(b, unbox, set)
 
-@expose("impersonate-box", [values.W_Box, values.W_Procedure, values.W_Procedure])
+@expose("impersonate-box", [values.W_Box, procedure, procedure])
 def impersonate_box(b, unbox, set):
     if b.immutable():
         raise SchemeException("Cannot impersonate immutable box")
@@ -1292,12 +1291,12 @@ def do_vec_set_cont(v, i, new, env, cont, _vals):
     else:
         assert False
 
-@expose("impersonate-procedure", [values.W_Procedure, values.W_Procedure])
+@expose("impersonate-procedure", [procedure, procedure])
 def impersonate_procedure(proc, check):
     check.mark_non_loop()
     return imp.W_ImpProcedure(proc, check)
 
-@expose("impersonate-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
+@expose("impersonate-vector", [values.W_MVector, procedure, procedure])
 def impersonate_vector(v, refh, seth):
     if v.immutable():
         raise SchemeException("Cannot impersonate immutable vector")
@@ -1305,12 +1304,12 @@ def impersonate_vector(v, refh, seth):
     seth.mark_non_loop()
     return imp.W_ImpVector(v, refh, seth)
 
-@expose("chaperone-procedure", [values.W_Procedure, values.W_Procedure])
+@expose("chaperone-procedure", [procedure, procedure])
 def chaperone_procedure(proc, check):
     check.mark_non_loop()
     return imp.W_ChpProcedure(proc, check)
 
-@expose("chaperone-vector", [values.W_MVector, values.W_Procedure, values.W_Procedure])
+@expose("chaperone-vector", [values.W_MVector, procedure, procedure])
 def chaperone_vector(v, refh, seth):
     refh.mark_non_loop()
     seth.mark_non_loop()
@@ -1326,8 +1325,6 @@ def impersonate_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if isinstance(struct, values_struct.W_CallableStruct):
-        struct = struct.struct
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
@@ -1353,7 +1350,7 @@ def impersonate_struct(args):
         # Need to handle properties as well
 
     for i in handlers:
-        if not isinstance(i, values.W_Procedure):
+        if not isinstance(i, procedure):
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
     return imp.W_ImpStruct(struct, overrides, handlers)
@@ -1367,8 +1364,6 @@ def chaperone_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if isinstance(struct, values_struct.W_CallableStruct):
-        struct = struct.struct
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("chaperone-struct: not given struct")
 
@@ -1381,7 +1376,7 @@ def chaperone_struct(args):
             raise SchemeException("chaperone-struct: not given valid field accessor")
 
     for i in handlers:
-        if not isinstance(i, values.W_Procedure):
+        if not isinstance(i, procedure):
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
 
     return imp.W_ChpStruct(struct, overrides, handlers)
@@ -1567,45 +1562,30 @@ def unsafe_vector_length(v):
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
 
-# Get the underlying struct for impersonators, chaperones, and callable structs
-@jit.unroll_safe
-def get_base_struct(v):
-    while True:
-        if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-            v = v.struct
-        elif isinstance(v, values_struct.W_CallableStruct):
-            v = v.struct
-        else:
-            return v
-
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
-    v = get_base_struct(v)
+    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+        v = v.struct
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value <= v.type.total_field_cnt
     return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_set(v, k, val):
-    v = get_base_struct(v)
+    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+        v = v.struct
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value < v.type.total_field_cnt
     return v._set(k.value, val)
 
-@expose("unsafe-struct*-ref", [values.W_Object, unsafe(values.W_Fixnum)])
+@expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
-    if isinstance(v, values_struct.W_CallableStruct):
-        v = v.struct
-    assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value < v.type.total_field_cnt
     return v._ref(k.value)
 
-@expose("unsafe-struct*-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
+@expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_star_set(v, k, val):
-    if isinstance(v, values_struct.W_CallableStruct):
-        v = v.struct
-    assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value <= v.type.total_field_cnt
     return v._set(k.value, val)
 
@@ -1633,7 +1613,7 @@ def hash_set_bang(ht, k, default, env, cont):
     val = ht.ref(k)
     if val:
         return return_value(val, env, cont)
-    elif isinstance(default, values.W_Procedure):
+    elif isinstance(default, procedure):
         return val.call([], env, cont)
     elif default:
         return return_value(default, env, cont)

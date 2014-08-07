@@ -69,14 +69,17 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ImpProcedure(values.W_Procedure):
+class W_ImpProcedure(values.W_Object):
     errorname = "imp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
-        assert isinstance(code, values.W_Procedure)
-        assert isinstance(check, values.W_Procedure)
+        assert code.iscallable()
+        assert check.iscallable()
         self.code  = code
         self.check = check
+
+    def iscallable(self):
+        return True
 
     def get_arity(self):
         return self.code.get_arity()
@@ -131,14 +134,17 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ChpProcedure(values.W_Procedure):
+class W_ChpProcedure(values.W_Object):
     errorname = "chp-procedure"
     _immutable_fields_ = ["code", "check"]
     def __init__(self, code, check):
-        assert isinstance(code, values.W_Procedure)
-        assert isinstance(check, values.W_Procedure)
+        assert code.iscallable()
+        assert check.iscallable()
         self.code  = code
         self.check = check
+
+    def iscallable(self):
+        return True
 
     def get_arity(self):
         return self.code.get_arity()

@@ -89,8 +89,7 @@ class W_StructType(values.W_Object):
         self.isopaque = self.inspector is not values.w_false
         self.offsets = self.calculate_offsets()
         
-        constr_class = W_StructConstructor if not self.props else W_CallableStructConstructor
-        self.constr = constr_class(self)
+        self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
         self.acc = W_StructAccessor(self)
         self.mut = W_StructMutator(self)
@@ -114,40 +113,6 @@ class W_StructType(values.W_Object):
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
-
-class W_CallableStruct(values.W_Procedure):
-    errorname = "callable-struct"
-    _immutable_fields_ = ["struct"]
-    def __init__(self, struct):
-        assert isinstance(struct, W_Struct)
-        self.struct = struct
-
-    @make_call_method(simple=False)
-    def call(self, args, env, cont):
-        if self.struct.type.proc_spec is not values.w_false:
-            args = [self.struct.type.proc_spec] + args
-        proc = self.struct.type.prop_procedure
-        if isinstance(proc, values.W_Fixnum):
-            proc = self.struct._get_list(proc.value) 
-        else:
-            args = [self.struct] + args
-        # FIXME: check arities
-        # (arities, rest) = proc.get_arity()
-        # if len(args) not in arities:
-        #     for prop in self.struct.type.props:
-        #         (w_car, w_prop) = prop
-        #         if w_car.isinstance(w_prop_arity_string):
-        #             msg = w_prop.call([self], env, cont)[0]
-        #             raise SchemeException(msg.tostring())
-        try:
-            return proc.call(args, env, cont)
-        except SchemeException:
-            for prop in self.struct.type.props:
-                (w_car, w_prop) = prop
-                if w_car.isinstance(w_prop_arity_string):
-                    msg = w_prop.call([self], env, cont)[0]
-                    raise SchemeException(msg.tostring())
-            raise
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
@@ -212,10 +177,45 @@ class W_Struct(W_RootStruct):
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
 
-class W_StructRootConstructor(values.W_Procedure):
+class W_CallableStruct(W_Struct):
+    def iscallable(self):
+        return True
+    @make_call_method(simple=False)
+    def call(self, args, env, cont):
+        if self.type.proc_spec is not values.w_false:
+            args = [self.type.proc_spec] + args
+        proc = self.type.prop_procedure
+        if isinstance(proc, values.W_Fixnum):
+            proc = self._get_list(proc.value) 
+        else:
+            args = [self] + args
+        # FIXME: check arities
+        # (arities, rest) = proc.get_arity()
+        # if len(args) not in arities:
+        #     for prop in self.type.props:
+        #         (w_car, w_prop) = prop
+        #         if w_car.isinstance(w_prop_arity_string):
+        #             msg = w_prop.call([self], env, cont)[0]
+        #             raise SchemeException(msg.tostring())
+        try:
+            return proc.call(args, env, cont)
+        except SchemeException:
+            for prop in self.type.props:
+                (w_car, w_prop) = prop
+                if w_car.isinstance(w_prop_arity_string):
+                    msg, env, cont = w_prop.call([self], env, cont)
+                    raise SchemeException(msg.tostring())
+            raise
+
+inline_small_list(W_CallableStruct, immutable=False, attrname="values")
+
+class W_StructConstructor(values.W_Object):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
         self.type = type
+
+    def iscallable(self):
+        return True
 
     def make_struct(self, field_values):
         raise NotImplementedError("abstract base class")
@@ -225,7 +225,10 @@ class W_StructRootConstructor(values.W_Procedure):
         from pycket.interpreter import return_value
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
-        result = self.make_struct(field_values)
+        if self.type.props:
+            result = W_CallableStruct.make(field_values, self.type)
+        else:
+            result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe
@@ -276,25 +279,19 @@ class W_StructRootConstructor(values.W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.type.name
 
-class W_StructConstructor(W_StructRootConstructor):
-    def make_struct(self, field_values):
-        return W_Struct.make(field_values, self.type)
-
-class W_CallableStructConstructor(W_StructRootConstructor):
-    def make_struct(self, field_values):
-        struct = W_Struct.make(field_values, self.type)
-        return W_CallableStruct(struct)
-
-class W_StructPredicate(values.W_Procedure):
+class W_StructPredicate(values.W_Object):
     errorname = "struct-predicate"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
 
+    def iscallable(self):
+        return True
+
     @make_call_method([values.W_Object])
     def call(self, struct):
-        if isinstance(struct, W_CallableStruct):
-            struct = struct.struct
+        # if isinstance(struct, W_CallableStruct):
+        #     struct = struct.struct
         if isinstance(struct, W_Struct):
             struct_type = struct.type
             while isinstance(struct_type, W_StructType):
@@ -305,7 +302,7 @@ class W_StructPredicate(values.W_Procedure):
     def tostring(self):
         return "#<procedure:%s?>" % self.type.name
 
-class W_StructFieldAccessor(values.W_Procedure):
+class W_StructFieldAccessor(values.W_Object):
     errorname = "struct-field-accessor"
     _immutable_fields_ = ["accessor", "field"]
     def __init__ (self, accessor, field):
@@ -313,20 +310,26 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.accessor = accessor
         self.field = field
 
+    def iscallable(self):
+        return True
+
     @make_call_method([values.W_Object], simple=False)
     def call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
 
-class W_StructAccessor(values.W_Procedure):
+class W_StructAccessor(values.W_Object):
     errorname = "struct-accessor"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
 
+    def iscallable(self):
+        return True
+
     def access(self, struct, field, env, cont):
         from pycket.interpreter import jump
-        if isinstance(struct, W_CallableStruct):
-            struct = struct.struct
+        # if isinstance(struct, W_CallableStruct):
+        #     struct = struct.struct
         assert isinstance(struct, W_RootStruct)
         return jump(env, struct.ref(self.type, field.value, env, cont))
 
@@ -335,7 +338,7 @@ class W_StructAccessor(values.W_Procedure):
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
 
-class W_StructFieldMutator(values.W_Procedure):
+class W_StructFieldMutator(values.W_Object):
     errorname = "struct-field-mutator"
     _immutable_fields_ = ["mutator", "field"]
     def __init__ (self, mutator, field):
@@ -343,20 +346,26 @@ class W_StructFieldMutator(values.W_Procedure):
         self.mutator = mutator
         self.field = field
 
+    def iscallable(self):
+        return True
+
     @make_call_method([values.W_Object, values.W_Object], simple=False)
     def call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
-class W_StructMutator(values.W_Procedure):
+class W_StructMutator(values.W_Object):
     errorname = "struct-mutator"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
 
+    def iscallable(self):
+        return True
+
     def mutate(self, struct, field, val, env, cont):
         from pycket.interpreter import jump
-        if isinstance(struct, W_CallableStruct):
-            struct = struct.struct
+        # if isinstance(struct, W_CallableStruct):
+        #     struct = struct.struct
         assert isinstance(struct, W_RootStruct)
         return jump(env, struct.set(self.type, field.value, val, env, cont))
 
@@ -388,17 +397,19 @@ w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), valu
 w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
 
-class W_StructPropertyPredicate(values.W_Procedure):
+class W_StructPropertyPredicate(values.W_Object):
     errorname = "struct-property-predicate"
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
+    def iscallable(self):
+        return True
     @make_call_method([values.W_Object])
     def call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
-        elif isinstance(arg, W_CallableStruct):
-            props = arg.struct.type.props
+        # elif isinstance(arg, W_CallableStruct):
+        #     props = arg.struct.type.props
         else:
             return values.w_false
         for (p, val) in props:
@@ -407,17 +418,19 @@ class W_StructPropertyPredicate(values.W_Procedure):
                 return values.w_true
         return values.w_false
                 
-class W_StructPropertyAccessor(values.W_Procedure):
+class W_StructPropertyAccessor(values.W_Object):
     errorname = "struct-property-accessor"
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
+    def iscallable(self):
+        return True
     @make_call_method([values.W_Object])
     def call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
-        elif isinstance(arg, W_CallableStruct):
-            props = arg.struct.type.props
+        # elif isinstance(arg, W_CallableStruct):
+        #     props = arg.struct.type.props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:

@@ -35,19 +35,27 @@ class W_Object(object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    def tostring(self):
-        return str(self)
+    def iscallable(self):
+        return False
+    def mark_non_loop(self):
+        pass
+    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
+    def get_arity(self):
+        if self.iscallable():
+            return ([],0)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
 
     def immutable(self):
         return False
-
     def equal(self, other):
         return self is other # default implementation
-
     def eqv(self, other):
         return self is other # default implementation
+    def tostring(self):
+        return str(self)
 
 class W_Cell(W_Object): # not the same as Racket's box
     def __init__(self, v):
@@ -611,27 +619,16 @@ class W_ArityAtLeast(W_Object):
     def __init__(self, n):
         self.val = n
 
-class W_Procedure(W_Object):
-    errorname = "procedure"
-    def __init__(self):
-        raise NotImplementedError("abstract base class")
 
-    def mark_non_loop(self): pass
-
-    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
-    def get_arity(self):
-        return ([],0)
-
-    def call(self, args, env, cont):
-        raise NotImplementedError("abstract base class")
-
-
-class W_SimplePrim(W_Procedure):
+class W_SimplePrim(W_Object):
     _immutable_fields_ = ["name", "code", "arity"]
     def __init__ (self, name, code, arity=([],0)):
         self.name = name
         self.code = code
         self.arity = arity
+
+    def iscallable(self):
+        return True
 
     def get_arity(self):
         return self.arity
@@ -644,12 +641,15 @@ class W_SimplePrim(W_Procedure):
     def tostring(self):
         return "SimplePrim<%s>" % self.name
 
-class W_Prim(W_Procedure):
+class W_Prim(W_Object):
     _immutable_fields_ = ["name", "code", "arity"]
     def __init__ (self, name, code, arity=([],0)):
         self.name = name
         self.code = code
         self.arity = arity
+
+    def iscallable(self):
+        return True
 
     def get_arity(self):
         return self.arity
@@ -689,10 +689,12 @@ def from_list(w_curr):
     else:
         raise SchemeException("Expected list, but got something else")
 
-class W_Continuation(W_Procedure):
+class W_Continuation(W_Object):
     _immutable_fields_ = ["cont"]
     def __init__ (self, cont):
         self.cont = cont
+    def iscallable(self):
+        return True
     def get_arity(self):
         # FIXME: see if Racket ever does better than this
         return ([],0)
@@ -700,9 +702,7 @@ class W_Continuation(W_Procedure):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
 
-
-
-class W_Closure(W_Procedure):
+class W_Closure(W_Object):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
     def __init__ (self, caselam, env):
@@ -726,6 +726,9 @@ class W_Closure(W_Procedure):
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
         return W_Closure._make(envs, caselam, env)
+
+    def iscallable(self):
+        return True
 
     def get_arity(self):
         arities = []
@@ -783,7 +786,7 @@ class W_Closure(W_Procedure):
 inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 
 
-class W_PromotableClosure(W_Procedure):
+class W_PromotableClosure(W_Object):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
@@ -792,6 +795,9 @@ class W_PromotableClosure(W_Procedure):
     def __init__(self, caselam, toplevel_env):
         from pycket.interpreter import ConsEnv
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+
+    def iscallable(self):
+        return True
 
     def mark_non_loop(self):
         self.closure.mark_non_loop()
@@ -803,14 +809,15 @@ class W_PromotableClosure(W_Procedure):
     def get_arity(self):
         return self.closure.get_arity()
 
-class W_Parameter(W_Procedure):
+class W_Parameter(W_Object):
     errorname = "parameter"
     _immutable_fields_ = ["guard"]
     def __init__(self, val, guard):
         self.val = val
         self.guard = guard
-    def tostring(self):
-        return "#<parameter>"
+
+    def iscallable(self):
+        return True
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
@@ -822,8 +829,9 @@ class W_Parameter(W_Procedure):
         else:
             raise SchemeException("wrong number of arguments to parameter")
 
+    def tostring(self):
+        return "#<parameter>"
+
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
-
-
