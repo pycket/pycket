@@ -47,6 +47,9 @@ class W_StructType(values.W_Object):
                 if self.prop_procedure:
                     raise SchemeException("duplicate property binding") 
                 self.prop_procedure = w_prop
+            elif w_car.isinstance(w_prop_checked_procedure):
+                if self.total_field_cnt < 2:
+                    raise SchemeException("need at least two fields in the structure type") 
             self.props[i] = (w_car, w_prop)
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
@@ -56,7 +59,10 @@ class W_StructType(values.W_Object):
             struct_type = struct_type.super
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt, 
-                 auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+                 auto_v=values.w_false, props=values.w_null, 
+                 inspector=values.w_false, proc_spec=values.w_false, 
+                 immutables=values.w_null, guard=values.w_false, 
+                 constr_name=values.w_false):
         self.name = name.value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
@@ -176,7 +182,7 @@ class W_Struct(W_RootStruct):
     @label
     def ref(self, type, field, env, cont):
         from pycket.interpreter import return_value
-        offset = self.type.get_offset(type)
+        offset = jit.promote(self.type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         result = self._get_list(field + offset)
@@ -185,7 +191,7 @@ class W_Struct(W_RootStruct):
     @label
     def set(self, type, field, val, env, cont):
         from pycket.interpreter import return_value
-        offset = self.type.get_offset(type)
+        offset = jit.promote(self.type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         self._set_list(field + offset, val)
@@ -379,6 +385,7 @@ class W_StructProperty(values.W_Object):
         return "#<struct-type-property:%s>"%self.name
 
 w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
+w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
 
 class W_StructPropertyPredicate(values.W_Procedure):

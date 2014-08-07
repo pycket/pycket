@@ -163,7 +163,7 @@ def test_struct_prop_procedure_fail():
     """)
     assert "duplicate property binding" in e.value.msg
 
-def test_struct_property_with_self_argument():
+def test_struct_prop_procedure_with_self_arg():
     m = run_mod(
     """
     #lang pycket
@@ -181,7 +181,7 @@ def test_struct_property_with_self_argument():
     ov = m.defs[W_Symbol.make("greeting")]
     assert ov.value == "Hi Mary, I'm Joe"
 
-def test_struct_prop_super_procedure():
+def test_struct_super_prop_procedure():
     m = run_mod(
     """
     #lang pycket
