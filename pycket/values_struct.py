@@ -180,6 +180,7 @@ inline_small_list(W_Struct, immutable=False, attrname="values")
 class W_CallableStruct(W_Struct):
     def iscallable(self):
         return True
+
     @make_call_method(simple=False)
     def call(self, args, env, cont):
         if self.type.proc_spec is not values.w_false:
@@ -273,6 +274,7 @@ class W_StructConstructor(values.W_Object):
             return self.type.guard.call(guard_args, env, 
                 self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
 
+    @make_call_method(simple=False)
     def call(self, args, env, cont):
         return self.code(args, False, env, cont)
 
@@ -290,8 +292,6 @@ class W_StructPredicate(values.W_Object):
 
     @make_call_method([values.W_Object])
     def call(self, struct):
-        # if isinstance(struct, W_CallableStruct):
-        #     struct = struct.struct
         if isinstance(struct, W_Struct):
             struct_type = struct.type
             while isinstance(struct_type, W_StructType):
@@ -313,7 +313,7 @@ class W_StructFieldAccessor(values.W_Object):
     def iscallable(self):
         return True
 
-    @make_call_method([values.W_Object], simple=False)
+    @make_call_method([W_RootStruct], simple=False)
     def call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
 
@@ -328,12 +328,9 @@ class W_StructAccessor(values.W_Object):
 
     def access(self, struct, field, env, cont):
         from pycket.interpreter import jump
-        # if isinstance(struct, W_CallableStruct):
-        #     struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
         return jump(env, struct.ref(self.type, field.value, env, cont))
 
-    call = make_call_method([values.W_Object, values.W_Fixnum], simple=False)(access)
+    call = make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -349,7 +346,7 @@ class W_StructFieldMutator(values.W_Object):
     def iscallable(self):
         return True
 
-    @make_call_method([values.W_Object, values.W_Object], simple=False)
+    @make_call_method([W_RootStruct, values.W_Object], simple=False)
     def call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
@@ -364,12 +361,9 @@ class W_StructMutator(values.W_Object):
 
     def mutate(self, struct, field, val, env, cont):
         from pycket.interpreter import jump
-        # if isinstance(struct, W_CallableStruct):
-        #     struct = struct.struct
-        assert isinstance(struct, W_RootStruct)
         return jump(env, struct.set(self.type, field.value, val, env, cont))
 
-    call = make_call_method([values.W_Object, values.W_Fixnum, values.W_Object], simple=False)(mutate)
+    call = make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
@@ -408,8 +402,6 @@ class W_StructPropertyPredicate(values.W_Object):
     def call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
-        # elif isinstance(arg, W_CallableStruct):
-        #     props = arg.struct.type.props
         else:
             return values.w_false
         for (p, val) in props:
@@ -429,8 +421,6 @@ class W_StructPropertyAccessor(values.W_Object):
     def call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
-        # elif isinstance(arg, W_CallableStruct):
-        #     props = arg.struct.type.props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:

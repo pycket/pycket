@@ -1350,7 +1350,7 @@ def impersonate_struct(args):
         # Need to handle properties as well
 
     for i in handlers:
-        if not isinstance(i, procedure):
+        if not i.iscallable():
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
     return imp.W_ImpStruct(struct, overrides, handlers)
@@ -1376,7 +1376,7 @@ def chaperone_struct(args):
             raise SchemeException("chaperone-struct: not given valid field accessor")
 
     for i in handlers:
-        if not isinstance(i, procedure):
+        if not i.iscallable():
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
 
     return imp.W_ChpStruct(struct, overrides, handlers)
