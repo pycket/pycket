@@ -424,6 +424,77 @@ def string_lt(s1, s2):
 def char2int(c):
     return values.W_Fixnum(ord(c.value))
 
+################################################################
+# build-in exception types
+
+def define_exn(name, super=values.w_null, init_field_cnt=0):
+    exn = values_struct.W_StructType(values.W_Symbol.make(name), super, 
+        values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false, 
+        values.w_null, values.w_false)
+    expose_val(name, exn)
+    return exn
+
+exn = define_exn("struct:exn", values.w_null, 2)
+exn_fail = define_exn("struct:exn:fail", exn)
+exn_fail_contract = define_exn("struct:exn:fail:contract", exn_fail)
+exn_fail_contract_arity = define_exn("struct:exn:fail:contract:arity", exn_fail)
+exn_fail_contract_divide_by_zero = define_exn("struct:exn:fail:contract:divide-by-zero", exn_fail)
+exn_fail_contract_non_fixnum_result = define_exn("struct:exn:fail:contract:non-fixnum-result", exn_fail)
+exn_fail_contract_continuation = define_exn("struct:exn:fail:contract:continuation", exn_fail)
+exn_fail_contract_variable = define_exn("struct:exn:fail:contract:variable", exn_fail, 1)
+exn_fail_syntax = define_exn("struct:exn:fail:syntax", exn_fail, 1)
+exn_fail_syntax_unbound = define_exn("struct:exn:fail:syntax:unbound", exn_fail_syntax)
+exn_fail_syntax_missing_module = define_exn("struct:exn:fail:syntax:missing-module", exn_fail_syntax, 1)
+exn_fail_read = define_exn("struct:exn:fail:read", exn_fail, 1)
+exn_fail_read_eof = define_exn("struct:exn:fail:read:eof", exn_fail_read)
+exn_fail_read_non_char = define_exn("struct:exn:fail:read:non-char", exn_fail_read)
+exn_fail_filesystem = define_exn("struct:exn:fail:filesystem", exn_fail)
+exn_fail_filesystem_exists = define_exn("struct:exn:fail:filesystem:exists", exn_fail_filesystem)
+exn_fail_filesystem_version = define_exn("struct:exn:fail:filesystem:version", exn_fail_filesystem)
+exn_fail_filesystem_errno = define_exn("struct:exn:fail:filesystem:errno", exn_fail_filesystem, 1)
+exn_fail_filesystem_missing_module = define_exn("struct:exn:fail:filesystem:missing-module", exn_fail_filesystem, 1)
+exn_fail_network = define_exn("struct:exn:fail:network", exn_fail)
+exn_fail_network_errno = define_exn("struct:exn:fail:network:errno", exn_fail_network, 1)
+exn_fail_out_of_memory = define_exn("struct:exn:fail:out-of-memory", exn_fail)
+exn_fail_unsupported = define_exn("struct:exn:fail:unsupported", exn_fail)
+exn_fail_user = define_exn("struct:exn:fail:user", exn_fail)
+exn_break = define_exn("struct:exn:break", exn)
+exn_break_hang_up = define_exn("struct:exn:break:hang-up", exn_break)
+exn_break_terminate = define_exn("struct:exn:break:terminate", exn_break)
+
+def define_exn_prim(name, type):
+    expose_val(name, values_struct.W_Struct.make([], type))
+
+for args in [
+        ("exn", exn),
+        ("exn:fail", exn_fail),
+        ("exn:fail:contract", exn_fail_contract),
+        ("exn:fail:contract:arity", exn_fail_contract_arity),
+        ("exn:fail:contract:divide-by-zero", exn_fail_contract_divide_by_zero),
+        ("exn:fail:contract:non-fixnum-result", exn_fail_contract_non_fixnum_result),
+        ("exn:fail:contract:continuation", exn_fail_contract_continuation),
+        ("exn:fail:contract:variable", exn_fail_contract_variable),
+        ("exn:fail:syntax", exn_fail_syntax),
+        ("exn:fail:syntax:unbound", exn_fail_syntax_unbound),
+        ("exn:fail:syntax:missing-module", exn_fail_syntax_missing_module),
+        ("exn:fail:read", exn_fail_read),
+        ("exn:fail:read:eof", exn_fail_read_eof),
+        ("exn:fail:read:non-char", exn_fail_read_non_char),
+        ("exn:fail:filesystem", exn_fail_filesystem),
+        ("exn:fail:filesystem:exists", exn_fail_filesystem_exists),
+        ("exn:fail:filesystem:version", exn_fail_filesystem_version),
+        ("exn:fail:filesystem:errno", exn_fail_filesystem_errno),
+        ("exn:fail:filesystem:missing-module", exn_fail_filesystem_missing_module),
+        ("exn:fail:network", exn_fail_network),
+        ("exn:fail:network:errno", exn_fail_network_errno),
+        ("exn:fail:out-of-memory", exn_fail_out_of_memory),
+        ("exn:fail:unsupported", exn_fail_unsupported),
+        ("exn:fail:user", exn_fail_user),
+        ("exn:break", exn_break),
+        ("exn:break:hang-up", exn_break_hang_up),
+        ("exn:break:terminate", exn_break_terminate)
+]:
+    define_exn_prim(*args)
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
@@ -431,32 +502,6 @@ def define_nyi(name, args=None):
 
 for args in [
         ("exn",),
-        ("exn:fail",),
-        ("exn:fail:contract",),
-        ("exn:fail:contract:arity",),
-        ("exn:fail:contract:divide-by-zero",),
-        ("exn:fail:contract:non-fixnum-result",),
-        ("exn:fail:contract:continuation",),
-        ("exn:fail:contract:variable",),
-        ("exn:fail:syntax",),
-        ("exn:fail:syntax:unbound",),
-        ("exn:fail:syntax:missing-module",),
-        ("exn:fail:read",),
-        ("exn:fail:read:eof",),
-        ("exn:fail:read:non-char",),
-        ("exn:fail:filesystem",),
-        ("exn:fail:filesystem:exists",),
-        ("exn:fail:filesystem:version",),
-        ("exn:fail:filesystem:errno",),
-        ("exn:fail:filesystem:missing-module",),
-        ("exn:fail:network",),
-        ("exn:fail:network:errno",),
-        ("exn:fail:out-of-memory",),
-        ("exn:fail:unsupported",),
-        ("exn:fail:user",),
-        ("exn:break",),
-        ("exn:break:hang-up",),
-        ("exn:break:terminate",),
         ("date",),
         ("date*",),
         ("srcloc",),
