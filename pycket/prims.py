@@ -523,6 +523,20 @@ def arity_at_least(n):
     # FIXME
     return values.W_ArityAtLeast(0)
 
+@expose("procedure-arity?", [values.W_Object])
+def arity_at_least_p(n):
+    if isinstance(n, values.W_Fixnum):
+        if n.value >= 0:
+            return values.w_true
+    elif isinstance(n, values.W_ArityAtLeast):
+        return values.w_true
+    elif isinstance(n, values.W_List):
+        for item in values.from_list(n):
+            if not (isinstance(item, values.W_Fixnum) or isinstance(item, values.W_ArityAtLeast)):
+                return values.w_false 
+        return values.w_true
+    return values.w_false
+
 @expose("string<=?", [values.W_String, values.W_String])
 def string_le(s1, s2):
     v1 = s1.value
