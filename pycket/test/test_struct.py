@@ -217,6 +217,20 @@ def test_struct_prop_arity():
     """)
     assert "an even number of arguments" in e.value.msg
 
+def test_checked_procedure_check_and_extract(source):
+    """
+    (define-values (prop prop? prop-accessor) (make-struct-type-property 'p #f (list (cons prop:checked-procedure sqrt)) #f))
+    (define-values (struct:posn make-posn posn? posn-x posn-y) (make-struct-type 'a #f 2 1 'uninitialized (list (cons prop 0))))
+    (define posn_instance (make-posn (lambda (a b) #t) 2))
+    (define proc (lambda (a b c) (+ a b c)))
+
+    (let* ([check_0 (checked-procedure-check-and-extract struct:posn posn_instance proc 1 2)]
+           [check_1 (checked-procedure-check-and-extract struct:posn 3 proc 1 2)])
+    (and (= check_0 2) (= check_1 6)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
 def test_struct_super():
     m = run_mod(
     """

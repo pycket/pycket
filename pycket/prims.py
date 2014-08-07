@@ -266,7 +266,24 @@ for name in ["prop:evt",
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
+expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
+
+@expose("checked-procedure-check-and-extract", [values_struct.W_StructType, 
+    values.W_Object, values.W_Procedure, values.W_Object, values.W_Object], simple=False)
+def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
+    from interpreter import return_value
+    if (isinstance(v, values_struct.W_Struct) and v.type is type) or \
+       (isinstance(v, values_struct.W_CallableStruct) and v.struct.type is type):
+        v = v.struct if isinstance(v, values_struct.W_CallableStruct) else v
+        first_field = v._ref(0)
+        assert isinstance(first_field, values.W_Procedure)
+        result, env, cont = first_field.call([v1, v2], env, cont)
+        from pycket import interpreter
+        assert isinstance(result, interpreter.Quote)
+        if result.w_val is not values.w_false:
+            return return_value(v._ref(1), env, cont)
+    return proc.call([v, v1, v2], env, cont)
 
 ################################################################
 # printing
