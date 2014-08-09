@@ -6,7 +6,7 @@ import time
 import math
 import pycket.impersonators as imp
 from pycket import values
-from pycket.cont import Cont, continuation, label
+from pycket.cont import Cont, continuation, label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -651,14 +651,10 @@ def module_pathp(v):
 def do_values(args_w):
     return values.Values.make(args_w)
 
-@continuation
-def call_consumer(consumer, env, cont, vals):
-    return consumer.call(vals._get_full_list(), env, cont)
-
 @expose("call-with-values", [procedure] * 2, simple=False)
 def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
-    return producer.call([], env, call_consumer(consumer, env, cont))
+    return producer.call([], env, call_cont(consumer, env, cont))
 
 @continuation
 def time_apply_cont(initial, env, cont, vals):

@@ -195,6 +195,7 @@ def test_struct_super_prop_procedure():
     """)
     assert m.defs[W_Symbol.make("yval")].value == 1
 
+@pytest.mark.xfail
 def test_struct_prop_arity():
     e = pytest.raises(SchemeException, run_mod,
     """
@@ -217,6 +218,7 @@ def test_struct_prop_arity():
     """)
     assert "an even number of arguments" in e.value.msg
 
+@pytest.mark.xfail
 def test_checked_procedure_check_and_extract(source):
     """
     (define-values (prop prop? prop-accessor) (make-struct-type-property 'p #f (list (cons prop:checked-procedure sqrt)) #f))

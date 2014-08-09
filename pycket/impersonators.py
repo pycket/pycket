@@ -59,13 +59,12 @@ def is_impersonator(x):
 # Continuation used when calling an impersonator of a procedure.
 @continuation
 def imp_proc_cont(arg_count, proc, env, cont, _vals):
-    from pycket.interpreter import tailcall
     vals = _vals._get_full_list()
     if len(vals) == arg_count:
-        return tailcall(proc, vals, env, cont)
+        return proc.call(vals, env, cont)
     elif len(vals) == arg_count + 1:
         args, check = vals[1:], vals[0]
-        return tailcall(proc, args, env, call_cont(check, env, cont))
+        return proc.call(args, env, call_cont(check, env, cont))
     else:
         assert False
 
@@ -85,9 +84,8 @@ class W_ImpProcedure(values.W_Object):
         return self.code.get_arity()
 
     def call(self, args, env, cont):
-        from pycket.interpreter import tailcall
         jit.promote(self)
-        return tailcall(self.check, args, env,
+        return self.check.call(args, env,
                 imp_proc_cont(len(args), self.code, env, cont))
 
     def tostring(self):
@@ -109,27 +107,25 @@ def chp_proc_ret_cont(orig, env, cont, _vals):
 # the check operation
 @continuation
 def chp_proc_call_check_cont(check, env, cont, _vals):
-    from pycket.interpreter import tailcall
     vals = _vals._get_full_list()
-    return tailcall(check, vals, env, chp_proc_ret_cont(vals, env, cont))
+    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
 
 # Continuation used when calling a chaperone of a procedure.
 @continuation
 def chp_proc_cont(args, proc, env, cont, _vals):
-    from pycket.interpreter import tailcall
     vals = _vals._get_full_list()
     assert len(vals) >= len(args)
     if len(vals) == len(args):
         for i in range(len(args)):
             if not is_chaperone_of(vals[i], args[i]):
                 raise SchemeException("Expecting original value or chaperone")
-        return tailcall(proc, vals, env, cont)
+        return proc.call(vals, env, cont)
     elif len(vals) == len(args) + 1:
         vals, check = vals[1:], vals[0]
         for i in range(len(args)):
             if not is_chaperone_of(vals[i], args[i]):
                 raise SchemeException("Expecting original value or chaperone")
-        return tailcall(proc, vals, env,
+        return proc.call(vals, env,
                 chp_proc_call_check_cont(check, env, cont))
     else:
         assert False
@@ -150,9 +146,8 @@ class W_ChpProcedure(values.W_Object):
         return self.code.get_arity()
 
     def call(self, args, env, cont):
-        from pycket.interpreter import tailcall
         jit.promote(self)
-        return tailcall(self.check, args, env,
+        return self.check.call(args, env,
                 chp_proc_cont(args, self.code, env, cont))
 
     def tostring(self):
@@ -162,9 +157,9 @@ class W_ChpProcedure(values.W_Object):
 
 @continuation
 def chp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val, tailcall
+    from pycket.interpreter import check_one_val
     old = check_one_val(vals)
-    return tailcall(f, [box, old], env, chp_unbox_cont_ret(old, env, cont))
+    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
 
 @continuation
 def chp_unbox_cont_ret(old, env, cont, vals):
@@ -205,8 +200,7 @@ class W_ChpBox(values.W_Box):
 
     @label
     def set_box(self, val, env, cont):
-        from pycket.interpreter import tailcall
-        return tailcall(self.seth, [self.box, val], env,
+        return self.seth.call([self.box, val], env,
                 chp_box_set_cont(self.box, val, env, cont))
 
     def tostring(self):
@@ -214,8 +208,8 @@ class W_ChpBox(values.W_Box):
 
 @continuation
 def imp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val, tailcall
-    return tailcall(f, [box, check_one_val(vals)], env, cont)
+    from pycket.interpreter import check_one_val
+    return f.call([box, check_one_val(vals)], env, cont)
 
 @continuation
 def imp_box_set_cont(b, env, cont, vals):
@@ -241,8 +235,7 @@ class W_ImpBox(values.W_Box):
 
     @label
     def set_box(self, val, env, cont):
-        from pycket.interpreter import tailcall
-        return tailcall(self.seth, [self.box, val], env,
+        return self.seth.call([self.box, val], env,
                 imp_box_set_cont(self.box, env, cont))
 
     def tostring(self):
@@ -296,15 +289,15 @@ def get_base_procedure(x):
 
 @continuation
 def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
-    from pycket.interpreter import check_one_val, tailcall
+    from pycket.interpreter import check_one_val
     field_v = check_one_val(_vals)
-    return tailcall(interp, [orig_struct, field_v], env, cont)
+    return interp.call([orig_struct, field_v], env, cont)
 
 @continuation
 def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
-    from pycket.interpreter import check_one_val, tailcall
+    from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    return tailcall(setter, [orig_struct, val], env, cont)
+    return setter.call([orig_struct, val], env, cont)
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
@@ -329,6 +322,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             else:
                 assert False
 
+    def _ref(self, value):
+        return self.struct._ref(value)
+
+    def _set(self, key, val):
+        return self.struct._set(key, val)
+
     @label
     def ref(self, struct_id, field, env, cont):
         raise NotImplementedError("abstract base class")
@@ -345,27 +344,27 @@ class W_ImpStruct(W_InterposeStructBase):
 
     @label
     def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import jump, tailcall
+        from pycket.interpreter import jump
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
             return jump(env, self.struct.ref(struct_id, field, env, cont))
         after = imp_struct_ref_cont(interp, self.struct, env, cont)
-        return tailcall(op, [self.struct], env, after)
+        return op.call([self.struct], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import jump, tailcall
+        from pycket.interpreter import jump
         (op, interp) = self.mutators.get(field, (None, None))
         if interp is None or op is None:
             return jump(env, self.struct.set(struct_id, field, val, env, cont))
-        return tailcall(interp, [self.struct, val], env,
+        return interp.call([self.struct, val], env,
                 imp_struct_set_cont(self.struct, op, env, cont))
 
 @continuation
 def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
-    from pycket.interpreter import check_one_val, tailcall
+    from pycket.interpreter import check_one_val
     field_v = check_one_val(_vals)
-    return tailcall(interp, [orig_struct, field_v], env,
+    return interp.call([orig_struct, field_v], env,
             chp_struct_ref_post_cont(field_v, env, cont))
 
 @continuation
@@ -379,29 +378,29 @@ def chp_struct_ref_post_cont(field_v, env, cont, _vals):
 # called after interp function
 @continuation
 def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
-    from pycket.interpreter import check_one_val, tailcall
+    from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     if not is_chaperone_of(val, orig_val):
         raise SchemeException("chaperone handlers must produce chaperone of original value")
-    return tailcall(setter, [orig_struct, val], env, cont)
+    return setter.call([orig_struct, val], env, cont)
 
 class W_ChpStruct(W_InterposeStructBase):
 
     @label
     def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import jump, tailcall
+        from pycket.interpreter import jump
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
             return jump(env, self.struct.ref(struct_id, field, env, cont))
         after = chp_struct_ref_cont(interp, self.struct, env, cont)
-        return tailcall(op, [self.struct], env, after)
+        return op.call([self.struct], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import jump, tailcall
+        from pycket.interpreter import jump
         (op, interp) = self.mutators.get(field, (None, None))
         if interp is None or op is None:
             return jump(env, self.struct.set(struct_id, field, val, env, cont))
-        return tailcall(interp, [self.struct, val], env,
+        return interp.call([self.struct, val], env,
                 chp_struct_set_cont(self.struct, op, val, env, cont))
 

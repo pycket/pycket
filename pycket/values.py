@@ -45,8 +45,22 @@ class W_Object(object):
             return ([],0)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
+    
+    # The general `call` method is setup to return control to the CEK machine
+    # before executing the body of the function being called. Unless you know
+    # what you are doing, please override the `_call` method. This is needed to
+    # get around (R)Python's lack of tail call elimination.
+    # `_call` should always be safe to override, but `call` is safe to override
+    # if it implements a simple primitive.
+    def _call(self, args, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def call(self, args, env, cont):
-        raise SchemeException("%s is not callable" % self.tostring())
+        if self.iscallable():
+            from pycket.interpreter import tailcall
+            return tailcall(self._call, args, env, cont)
+        else:
+            raise SchemeException("%s is not callable" % self.tostring())
 
     def immutable(self):
         return False
@@ -654,7 +668,7 @@ class W_Prim(W_Object):
     def get_arity(self):
         return self.arity
 
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         jit.promote(self)
         return self.code(args, env, cont)
 
@@ -802,7 +816,7 @@ class W_PromotableClosure(W_Object):
     def mark_non_loop(self):
         self.closure.mark_non_loop()
 
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 

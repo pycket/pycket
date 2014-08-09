@@ -18,7 +18,7 @@ class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
     _immutable_fields_ = ["super"]
 
-    @staticmethod 
+    @staticmethod
     def make(inspector, issibling = False):
         super = inspector
         if issibling:
@@ -34,7 +34,7 @@ class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt", "total_field_cnt", "auto_v", "props", \
         "inspector", "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
-    
+
     @jit.unroll_safe
     def initialize_props(self, props):
         proplist = values.from_list(props)
@@ -45,11 +45,11 @@ class W_StructType(values.W_Object):
             w_prop = prop.cdr()
             if w_car.isinstance(w_prop_procedure):
                 if self.prop_procedure:
-                    raise SchemeException("duplicate property binding") 
+                    raise SchemeException("duplicate property binding")
                 self.prop_procedure = w_prop
             elif w_car.isinstance(w_prop_checked_procedure):
                 if self.total_field_cnt < 2:
-                    raise SchemeException("need at least two fields in the structure type") 
+                    raise SchemeException("need at least two fields in the structure type")
             self.props[i] = (w_car, w_prop)
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
@@ -88,7 +88,7 @@ class W_StructType(values.W_Object):
         self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.isopaque = self.inspector is not values.w_false
         self.offsets = self.calculate_offsets()
-        
+
         self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
         self.acc = W_StructAccessor(self)
@@ -177,17 +177,23 @@ class W_Struct(W_RootStruct):
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
 
+@continuation
+def receive_proc_cont(args, env, cont, _vals):
+    from pycket.interpreter import check_one_val, tailcall
+    return tailcall(check_one_val(_vals), args, env, cont)
+
 class W_CallableStruct(W_Struct):
     def iscallable(self):
         return True
 
     @make_call_method(simple=False)
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
+        from pycket.interpreter import jump
         if self.type.proc_spec is not values.w_false:
             args = [self.type.proc_spec] + args
         proc = self.type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            proc = self._get_list(proc.value) 
+            proc = self._get_list(proc.value)
         else:
             args = [self] + args
         # FIXME: check arities
@@ -275,7 +281,7 @@ class W_StructConstructor(values.W_Object):
                 self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
 
     @make_call_method(simple=False)
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         return self.code(args, False, env, cont)
 
     def tostring(self):
@@ -291,7 +297,7 @@ class W_StructPredicate(values.W_Object):
         return True
 
     @make_call_method([values.W_Object])
-    def call(self, struct):
+    def _call(self, struct):
         if isinstance(struct, W_Struct):
             struct_type = struct.type
             while isinstance(struct_type, W_StructType):
@@ -314,7 +320,7 @@ class W_StructFieldAccessor(values.W_Object):
         return True
 
     @make_call_method([W_RootStruct], simple=False)
-    def call(self, struct, env, cont):
+    def _call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
 
 class W_StructAccessor(values.W_Object):
@@ -330,7 +336,7 @@ class W_StructAccessor(values.W_Object):
         from pycket.interpreter import jump
         return jump(env, struct.ref(self.type, field.value, env, cont))
 
-    call = make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access)
+    _call = make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -347,7 +353,7 @@ class W_StructFieldMutator(values.W_Object):
         return True
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False)
-    def call(self, struct, val, env, cont):
+    def _call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
 class W_StructMutator(values.W_Object):
@@ -363,7 +369,7 @@ class W_StructMutator(values.W_Object):
         from pycket.interpreter import jump
         return jump(env, struct.set(self.type, field.value, val, env, cont))
 
-    call = make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate)
+    _call = make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
@@ -374,7 +380,7 @@ class W_StructProperty(values.W_Object):
     def __init__(self, name, guard, supers=values.w_null, can_imp=False):
         self.name = name.value
         self.guard = guard
-        self.supers = values.from_list(supers) if supers is not values.w_null else []
+        self.supers = values.from_list(supers)
         self.can_imp = can_imp
     def isinstance(self, prop):
         if self is prop:
@@ -399,7 +405,7 @@ class W_StructPropertyPredicate(values.W_Object):
     def iscallable(self):
         return True
     @make_call_method([values.W_Object])
-    def call(self, arg):
+    def _call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
         else:
@@ -418,7 +424,7 @@ class W_StructPropertyAccessor(values.W_Object):
     def iscallable(self):
         return True
     @make_call_method([values.W_Object])
-    def call(self, arg):
+    def _call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.type.props
         else:
