@@ -128,53 +128,66 @@ def receive_proc_cont(args, env, cont, _vals):
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
-    _immutable_fields_ = ["type", "ref", "set"]
+    _immutable_fields_ = ["ref", "set"]
 
-    def __init__(self, type):
-        self.type = type
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
 
     def iscallable(self):
-        return self.type.prop_procedure is not None
+        return self.struct_type().prop_procedure is not None
 
+    # For all subclasses, it should be sufficient to implement ref, set, and
+    # struct_type for _call and iscallable to work properly.
     @make_call_method(simple=False)
     def _call(self, args, env, cont):
         from pycket.interpreter import jump
-        if self.type.proc_spec is not values.w_false:
-            args = [self.type.proc_spec] + args
-        proc = self.type.prop_procedure
+        my_type = self.struct_type()
+        spec = my_type.proc_spec
+        if spec is not values.w_false:
+            args = [spec] + args
+        proc = my_type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
             return jump(env,
-                    self.ref(self.type, proc.value, env,
+                    self.ref(my_type, proc.value, env,
                         receive_proc_cont(args, env, cont)))
 
         args = [self] + args
         # FIXME: arities value is wrong?
         (arities, rest) = proc.get_arity()
         if len(args) not in arities:
-            for w_car, w_prop in self.type.props:
+            for w_car, w_prop in my_type.props:
                 if w_car.isinstance(w_prop_arity_string):
                     return w_prop.call([self], env, arity_error_cont())
         return proc.call(args, env, cont)
 
-    @label
-    def ref(self, type, field, env, cont):
-        raise NotImplementedError("base class")
+    @jit.elidable
+    def struct_type(self):
+        raise NotImplementedError("abstract base class")
 
     @label
-    def set(self, type, field, val, env, cont):
-        raise NotImplementedError("base class")
+    def ref(self, struct_type, field, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    @label
+    def set(self, struct_type, field, val, env, cont):
+        raise NotImplementedError("abstract base class")
 
     def vals(self):
-        raise NotImplementedError("base class")
+        raise NotImplementedError("abstract base class")
 
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["values"]
+    _immutable_fields_ = ["_type", "values"]
     def __init__(self, type):
-        W_RootStruct.__init__(self, type)
+        self._type = type
+        #W_RootStruct.__init__(self, type)
 
     def vals(self):
         return self._get_full_list()
+
+    @jit.elidable
+    def struct_type(self):
+        return self._type
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -182,7 +195,7 @@ class W_Struct(W_RootStruct):
     @label
     def ref(self, type, field, env, cont):
         from pycket.interpreter import return_value
-        offset = jit.promote(self.type).get_offset(type)
+        offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         result = self._get_list(field + offset)
@@ -191,7 +204,7 @@ class W_Struct(W_RootStruct):
     @label
     def set(self, type, field, val, env, cont):
         from pycket.interpreter import return_value
-        offset = jit.promote(self.type).get_offset(type)
+        offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         self._set_list(field + offset, val)
@@ -204,10 +217,10 @@ class W_Struct(W_RootStruct):
         self._set_list(k, val)
 
     def tostring(self):
-        if self.type.isopaque:
-            result =  "#<%s>" % self.type.name
+        if self._type.isopaque:
+            result =  "#<%s>" % self._type.name
         else:
-            result = "(%s %s)" % (self.type.name, ' '.join([val.tostring() for val in self.vals()]))
+            result = "(%s %s)" % (self._type.name, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
@@ -292,7 +305,7 @@ class W_StructPredicate(values.W_Object):
     @make_call_method([values.W_Object])
     def _call(self, struct):
         if isinstance(struct, W_Struct):
-            struct_type = struct.type
+            struct_type = struct.struct_type()
             while isinstance(struct_type, W_StructType):
                 if struct_type == self.type:
                     return values.w_true
@@ -400,7 +413,7 @@ class W_StructPropertyPredicate(values.W_Object):
     @make_call_method([values.W_Object])
     def _call(self, arg):
         if isinstance(arg, W_Struct):
-            props = arg.type.props
+            props = arg.struct_type().props
         else:
             return values.w_false
         for (p, val) in props:
@@ -419,7 +432,7 @@ class W_StructPropertyAccessor(values.W_Object):
     @make_call_method([values.W_Object])
     def _call(self, arg):
         if isinstance(arg, W_Struct):
-            props = arg.type.props
+            props = arg.struct_type().props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:

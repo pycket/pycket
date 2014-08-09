@@ -270,11 +270,12 @@ expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
 
-@expose("checked-procedure-check-and-extract", [values_struct.W_StructType, 
-    values.W_Object, procedure, values.W_Object, values.W_Object], simple=False)
+@expose("checked-procedure-check-and-extract",
+        [values_struct.W_StructType, values.W_Object, procedure,
+         values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
     from interpreter import return_value
-    if isinstance(v, values_struct.W_Struct) and v.type is type:
+    if isinstance(v, values_struct.W_Struct) and v.struct_type() is type:
         first_field = v._ref(0)
         assert first_field.iscallable()
         result, env, cont = first_field._call([v1, v2], env, cont)
@@ -821,8 +822,8 @@ def equal_cont(a, b, env, cont):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_RootStruct) and not a.type.isopaque and
-        isinstance(b, values_struct.W_RootStruct) and not b.type.isopaque):
+    if (isinstance(a, values_struct.W_RootStruct) and not a.struct_type().isopaque and
+        isinstance(b, values_struct.W_RootStruct) and not b.struct_type().isopaque):
         l = struct2vector(a)
         r = struct2vector(b)
         return jump(env, equal_cont(l, r, env, cont))
@@ -1000,13 +1001,14 @@ def do_current_instpector(args):
 
 @expose("struct?", [values.W_Object])
 def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and not v.type.isopaque)
+    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
+                              not v.struct_type().isopaque)
 
 @expose("struct-info", [values_struct.W_RootStruct])
 def do_struct_info(struct):
     # TODO: if the current inspector does not control any
     # structure type for which the struct is an instance then return w_false
-    struct_type = struct.type if True else values.w_false
+    struct_type = struct.struct_type() if True else values.w_false
     skipped = values.w_false
     return values.Values.make([struct_type, skipped])
 
@@ -1068,7 +1070,7 @@ def expose_struct2vector(struct):
     return struct2vector(struct)
 
 def struct2vector(struct):
-    struct_desc = struct.type.name
+    struct_desc = struct.struct_type().name
     first_el = values.W_Symbol.make("struct:" + struct_desc)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
 
@@ -1324,7 +1326,7 @@ def impersonate_struct(args):
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
-    struct_type = struct.type
+    struct_type = struct.struct_type()
     assert isinstance(struct_type, values_struct.W_StructType)
 
     # Consider storing immutables in an easier form in the structs implementation
@@ -1564,7 +1566,7 @@ def unsafe_struct_ref(v, k):
     if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
         v = v.struct
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value <= v.type.total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_cnt
     return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
@@ -1572,17 +1574,17 @@ def unsafe_struct_set(v, k, val):
     if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
         v = v.struct
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value < v.type.total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_cnt
     return v._set(k.value, val)
 
 @expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
-    assert 0 <= k.value < v.type.total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_cnt
     return v._ref(k.value)
 
 @expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_star_set(v, k, val):
-    assert 0 <= k.value <= v.type.total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_cnt
     return v._set(k.value, val)
 
 # Unsafe pair ops

@@ -307,7 +307,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def __init__(self, inner, overrides, handlers):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        values_struct.W_RootStruct.__init__(self, inner.type)
         self.struct = inner
         self.accessors = {}
         self.mutators = {}
@@ -327,6 +326,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     def _set(self, key, val):
         return self.struct._set(key, val)
+
+    @jit.elidable
+    def struct_type(self):
+        return self.struct.struct_type()
 
     @label
     def ref(self, struct_id, field, env, cont):
