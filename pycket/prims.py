@@ -270,6 +270,11 @@ expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
 
+@continuation
+def check_cont(args, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    return check_one_val(_vals) is not values.w_false
+
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
@@ -278,10 +283,7 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
     if isinstance(v, values_struct.W_Struct) and v.struct_type() is type:
         first_field = v._ref(0)
         assert first_field.iscallable()
-        result, env, cont = first_field._call([v1, v2], env, cont)
-        from pycket import interpreter
-        assert isinstance(result, interpreter.Quote)
-        if result.w_val is not values.w_false:
+        if first_field.call([v1, v2], env, check_cont(args, env, cont)):
             return return_value(v._ref(1), env, cont)
     return proc.call([v, v1, v2], env, cont)
 
