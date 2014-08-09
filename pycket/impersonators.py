@@ -294,7 +294,7 @@ def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
     return interp.call([orig_struct, field_v], env, cont)
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     return setter.call([orig_struct, val], env, cont)
@@ -321,6 +321,14 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             else:
                 assert False
 
+    @staticmethod
+    def post_ref_cont():
+        raise NotImplementedError("abstract method")
+
+    @staticmethod
+    def post_set_cont():
+        raise NotImplementedError("abstract method")
+
     def _ref(self, value):
         return self.struct._ref(value)
 
@@ -329,21 +337,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @jit.elidable
     def struct_type(self):
-        return self.struct.struct_type()
-
-    @label
-    def ref(self, struct_id, field, env, cont):
-        raise NotImplementedError("abstract base class")
-
-    @label
-    def set(self, struct_id, field, val, env, cont):
-        raise NotImplementedError("abstract base class")
-
-    def vals(self):
-        return self.struct.vals()
-
-# Need to add checks that we are only impersonating mutable fields
-class W_ImpStruct(W_InterposeStructBase):
+        struct = self.struct
+        while isinstance(struct, W_InterposeStructBase):
+            struct = struct.struct
+        return struct.struct_type()
 
     @label
     def ref(self, struct_id, field, env, cont):
@@ -351,7 +348,7 @@ class W_ImpStruct(W_InterposeStructBase):
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
             return jump(env, self.struct.ref(struct_id, field, env, cont))
-        after = imp_struct_ref_cont(interp, self.struct, env, cont)
+        after = self.post_ref_cont()(interp, self.struct, env, cont)
         return op.call([self.struct], env, after)
 
     @label
@@ -361,7 +358,24 @@ class W_ImpStruct(W_InterposeStructBase):
         if interp is None or op is None:
             return jump(env, self.struct.set(struct_id, field, val, env, cont))
         return interp.call([self.struct, val], env,
-                imp_struct_set_cont(self.struct, op, env, cont))
+                self.post_set_cont()(self.struct, op, val, env, cont))
+
+    def vals(self):
+        return self.struct.vals()
+
+# Need to add checks that we are only impersonating mutable fields
+class W_ImpStruct(W_InterposeStructBase):
+
+    @staticmethod
+    @jit.elidable
+    def post_ref_cont():
+        return imp_struct_ref_cont
+
+    @staticmethod
+    @jit.elidable
+    def post_set_cont():
+        return imp_struct_set_cont
+
 
 @continuation
 def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
@@ -389,21 +403,13 @@ def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 
 class W_ChpStruct(W_InterposeStructBase):
 
-    @label
-    def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import jump
-        (op, interp) = self.accessors.get(field, (None, None))
-        if interp is None:
-            return jump(env, self.struct.ref(struct_id, field, env, cont))
-        after = chp_struct_ref_cont(interp, self.struct, env, cont)
-        return op.call([self.struct], env, after)
+    @staticmethod
+    @jit.elidable
+    def post_ref_cont():
+        return chp_struct_ref_cont
 
-    @label
-    def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import jump
-        (op, interp) = self.mutators.get(field, (None, None))
-        if interp is None or op is None:
-            return jump(env, self.struct.set(struct_id, field, val, env, cont))
-        return interp.call([self.struct, val], env,
-                chp_struct_set_cont(self.struct, op, val, env, cont))
+    @staticmethod
+    @jit.elidable
+    def post_set_cont():
+        return chp_struct_set_cont
 
