@@ -138,6 +138,32 @@ class W_Struct(W_RootStruct):
     def __init__(self, type):
         W_RootStruct.__init__(self, type)
 
+    def iscallable(self):
+        if self.type.prop_procedure:
+            return True
+        else:
+            return False
+
+    @make_call_method(simple=False)
+    def _call(self, args, env, cont):
+        from pycket.interpreter import jump
+        if self.type.proc_spec is not values.w_false:
+            args = [self.type.proc_spec] + args
+        proc = self.type.prop_procedure
+        if isinstance(proc, values.W_Fixnum):
+            proc = self._get_list(proc.value)
+        else:
+            args = [self] + args
+        # FIXME: arities value is wrong?
+        (arities, rest) = proc.get_arity()
+        if len(args) not in arities:
+            for prop in self.type.props:
+                (w_car, w_prop) = prop
+                if w_car.isinstance(w_prop_arity_string):
+                    msg, env, cont = w_prop._call([self], env, cont)
+                    raise SchemeException(msg.tostring())
+        return proc._call(args, env, cont)
+
     def vals(self):
         return self._get_full_list()
 
@@ -177,45 +203,6 @@ class W_Struct(W_RootStruct):
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
 
-@continuation
-def receive_proc_cont(args, env, cont, _vals):
-    from pycket.interpreter import check_one_val, tailcall
-    return tailcall(check_one_val(_vals), args, env, cont)
-
-class W_CallableStruct(W_Struct):
-    def iscallable(self):
-        return True
-
-    @make_call_method(simple=False)
-    def _call(self, args, env, cont):
-        from pycket.interpreter import jump
-        if self.type.proc_spec is not values.w_false:
-            args = [self.type.proc_spec] + args
-        proc = self.type.prop_procedure
-        if isinstance(proc, values.W_Fixnum):
-            proc = self._get_list(proc.value)
-        else:
-            args = [self] + args
-        # FIXME: check arities
-        # (arities, rest) = proc.get_arity()
-        # if len(args) not in arities:
-        #     for prop in self.type.props:
-        #         (w_car, w_prop) = prop
-        #         if w_car.isinstance(w_prop_arity_string):
-        #             msg = w_prop.call([self], env, cont)[0]
-        #             raise SchemeException(msg.tostring())
-        try:
-            return proc.call(args, env, cont)
-        except SchemeException:
-            for prop in self.type.props:
-                (w_car, w_prop) = prop
-                if w_car.isinstance(w_prop_arity_string):
-                    msg, env, cont = w_prop.call([self], env, cont)
-                    raise SchemeException(msg.tostring())
-            raise
-
-inline_small_list(W_CallableStruct, immutable=False, attrname="values")
-
 class W_StructConstructor(values.W_Object):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
@@ -232,10 +219,7 @@ class W_StructConstructor(values.W_Object):
         from pycket.interpreter import return_value
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
-        if self.type.props:
-            result = W_CallableStruct.make(field_values, self.type)
-        else:
-            result = W_Struct.make(field_values, self.type)
+        result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe

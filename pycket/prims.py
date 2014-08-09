@@ -277,7 +277,7 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
     if isinstance(v, values_struct.W_Struct) and v.type is type:
         first_field = v._ref(0)
         assert first_field.iscallable()
-        result, env, cont = first_field.call([v1, v2], env, cont)
+        result, env, cont = first_field._call([v1, v2], env, cont)
         from pycket import interpreter
         assert isinstance(result, interpreter.Quote)
         if result.w_val is not values.w_false:

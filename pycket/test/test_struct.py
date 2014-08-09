@@ -195,8 +195,29 @@ def test_struct_super_prop_procedure():
     """)
     assert m.defs[W_Symbol.make("yval")].value == 1
 
-@pytest.mark.xfail
+@skip
 def test_struct_prop_arity():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (struct evens (proc)
+    #:property prop:procedure (struct-field-index proc)
+    #:property prop:arity-string
+    (lambda (p)
+      "an even number of arguments"))
+    (define pairs
+        (evens
+         (case-lambda
+          [() null]
+          [(a b . more)
+           (cons (cons a b)
+                 (apply pairs more))])))
+    (define x (pairs 1 2 3 4))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert isinstance(ov, W_Cons)
     e = pytest.raises(SchemeException, run_mod,
     """
     #lang pycket
@@ -214,11 +235,10 @@ def test_struct_prop_arity():
           [(a b . more)
            (cons (cons a b)
                  (apply pairs more))])))
-    (display (pairs 5))
+    (pairs 5)
     """)
     assert "an even number of arguments" in e.value.msg
 
-@pytest.mark.xfail
 def test_checked_procedure_check_and_extract(source):
     """
     (define-values (prop prop? prop-accessor) (make-struct-type-property 'p #f (list (cons prop:checked-procedure sqrt)) #f))
@@ -251,6 +271,7 @@ def test_struct_super():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
+@skip
 def test_procedure():
     m = run_mod(
     """

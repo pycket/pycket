@@ -37,14 +37,6 @@ class W_Object(object):
 
     def iscallable(self):
         return False
-    def mark_non_loop(self):
-        pass
-    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
-    def get_arity(self):
-        if self.iscallable():
-            return ([],0)
-        else:
-            raise SchemeException("%s does not have arity" % self.tostring())
     
     # The general `call` method is setup to return control to the CEK machine
     # before executing the body of the function being called. Unless you know
@@ -61,6 +53,16 @@ class W_Object(object):
             return tailcall(self._call, args, env, cont)
         else:
             raise SchemeException("%s is not callable" % self.tostring())
+
+    def mark_non_loop(self):
+        pass
+
+    # an arity is a pair of a list of numbers and either -1 or a non-negative integer
+    def get_arity(self):
+        if self.iscallable():
+            return ([],0)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
 
     def immutable(self):
         return False
