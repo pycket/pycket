@@ -622,8 +622,18 @@ class W_Procedure(W_Object):
     def get_arity(self):
         return ([],0)
 
-    def call(self, args, env, cont):
+    # The general `call` method is setup to return control to the CEK machine
+    # before executing the body of the function being called. Unless you know
+    # what you are doing, please override the `_call` method. This is needed to
+    # get around (R)Python's lack of tail call elimination.
+    # `_call` should always be safe to override, but `call` is safe to override
+    # if it implements a simple primitive.
+    def _call(self, args, env, cont):
         raise NotImplementedError("abstract base class")
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import tailcall
+        return tailcall(self._call, args, env, cont)
 
 
 class W_SimplePrim(W_Procedure):
@@ -654,7 +664,7 @@ class W_Prim(W_Procedure):
     def get_arity(self):
         return self.arity
 
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         jit.promote(self)
         return self.code(args, env, cont)
 
@@ -699,8 +709,6 @@ class W_Continuation(W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
-
-
 
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
@@ -796,7 +804,7 @@ class W_PromotableClosure(W_Procedure):
     def mark_non_loop(self):
         self.closure.mark_non_loop()
 
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 
@@ -812,7 +820,7 @@ class W_Parameter(W_Procedure):
     def tostring(self):
         return "#<parameter>"
 
-    def call(self, args, env, cont):
+    def _call(self, args, env, cont):
         from pycket.interpreter import return_value
         if len(args) == 0:
             return return_value(self.val, env, cont)

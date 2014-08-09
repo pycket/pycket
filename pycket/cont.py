@@ -24,7 +24,7 @@ def get_marks(cont, key):
         return values.W_Cons(v, get_marks(cont.prev, key))
     else:
         return get_marks(cont.prev, key)
-    
+
 class Link(object):
     def __init__(self, k, v, next):
         from pycket.values import W_Object
@@ -123,6 +123,10 @@ def label(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
+# A continuation that simply invokes the code given with the args, env, and
+# continuation. Typically, the code corresponds to the `_call` method used
+# for implementing function calls. This continuation is used to return control
+# to the CEK machine's dispatch loop before actually invoking the code.
 @label
-def jump_call(proc, vals, env, cont):
-    return proc.call(vals, env, cont)
+def tailcall_cont(code, args, env, cont):
+    return code(args, env, cont)

@@ -6,7 +6,7 @@ import time
 import math
 import pycket.impersonators as imp
 from pycket import values
-from pycket.cont import Cont, continuation, label
+from pycket.cont import Cont, continuation, label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -607,14 +607,10 @@ def module_pathp(v):
 def do_values(args_w):
     return values.Values.make(args_w)
 
-@continuation
-def call_consumer(consumer, env, cont, vals):
-    return consumer.call(vals._get_full_list(), env, cont)
-
 @expose("call-with-values", [values.W_Procedure] * 2, simple=False)
 def call_with_values (producer, consumer, env, cont):
     # FIXME: check arity
-    return producer.call([], env, call_consumer(consumer, env, cont))
+    return producer.call([], env, call_cont(consumer, env, cont))
 
 @continuation
 def time_apply_cont(initial, env, cont, vals):
@@ -767,6 +763,8 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 @label
 def equal_cont(a, b, env, cont):
     from pycket.interpreter import return_value, jump
+    a = a.struct if isinstance(a, values_struct.W_CallableStruct) else a
+    b = b.struct if isinstance(b, values_struct.W_CallableStruct) else b
     if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
         return return_value(values.w_true, env, cont)
     if isinstance(a, values.W_String) and isinstance(b, values.W_String):
@@ -1281,8 +1279,10 @@ def impersonate_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if isinstance(struct, values_struct.W_CallableStruct):
+    is_callable = isinstance(struct, values_struct.W_CallableStruct)
+    if is_callable:
         struct = struct.struct
+
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("impersonate-struct: not given struct")
 
@@ -1311,7 +1311,8 @@ def impersonate_struct(args):
         if not isinstance(i, values.W_Procedure):
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
-    return imp.W_ImpStruct(struct, overrides, handlers)
+    val = imp.W_ImpStruct(struct, overrides, handlers)
+    return values_struct.W_CallableStruct(val) if is_callable else val
 
 @expose("chaperone-struct")
 def chaperone_struct(args):
@@ -1322,8 +1323,10 @@ def chaperone_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if isinstance(struct, values_struct.W_CallableStruct):
+    is_callable = isinstance(struct, values_struct.W_CallableStruct)
+    if is_callable:
         struct = struct.struct
+
     if not isinstance(struct, values_struct.W_Struct):
         raise SchemeException("chaperone-struct: not given struct")
 
@@ -1339,7 +1342,8 @@ def chaperone_struct(args):
         if not isinstance(i, values.W_Procedure):
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
 
-    return imp.W_ChpStruct(struct, overrides, handlers)
+    val = imp.W_ChpStruct(struct, overrides, handlers)
+    return values_struct.W_CallableStruct(val) if is_callable else val
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
