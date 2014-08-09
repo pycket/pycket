@@ -133,6 +133,9 @@ class W_RootStruct(values.W_Object):
     def __init__(self, type):
         self.type = type
 
+    def iscallable(self):
+        return self.type.prop_procedure is not None
+
     @make_call_method(simple=False)
     def _call(self, args, env, cont):
         from pycket.interpreter import jump
@@ -169,9 +172,6 @@ class W_Struct(W_RootStruct):
     _immutable_fields_ = ["values"]
     def __init__(self, type):
         W_RootStruct.__init__(self, type)
-
-    def iscallable(self):
-        return self.type.prop_procedure is not None
 
     def vals(self):
         return self._get_full_list()
