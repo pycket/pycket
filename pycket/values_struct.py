@@ -8,7 +8,7 @@ from rpython.rlib import jit
 
 #
 # Structs are partially supported
-# 
+#
 # Not implemented:
 # 1) prefab: need update in expand.rkt
 # 2) methods overriding (including equal)
@@ -58,10 +58,10 @@ class W_StructType(values.W_Object):
                 self.prop_procedure = struct_type.prop_procedure
             struct_type = struct_type.super
 
-    def __init__(self, name, super_type, init_field_cnt, auto_field_cnt, 
-                 auto_v=values.w_false, props=values.w_null, 
-                 inspector=values.w_false, proc_spec=values.w_false, 
-                 immutables=values.w_null, guard=values.w_false, 
+    def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
+                 auto_v=values.w_false, props=values.w_null,
+                 inspector=values.w_false, proc_spec=values.w_false,
+                 immutables=values.w_null, guard=values.w_false,
                  constr_name=values.w_false):
         self.name = name.value
         self.super = super_type
@@ -114,12 +114,44 @@ class W_StructType(values.W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
+@continuation
+def arity_error_cont(_vals):
+    from pycket.interpreter import check_one_val
+    msg = check_one_val(_vals)
+    raise SchemeException(msg.tostring())
+
+@continuation
+def receive_proc_cont(args, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    proc = check_one_val(_vals)
+    return proc.call(args, env, cont)
+
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
     _immutable_fields_ = ["type", "ref", "set"]
 
     def __init__(self, type):
         self.type = type
+
+    @make_call_method(simple=False)
+    def _call(self, args, env, cont):
+        from pycket.interpreter import jump
+        if self.type.proc_spec is not values.w_false:
+            args = [self.type.proc_spec] + args
+        proc = self.type.prop_procedure
+        if isinstance(proc, values.W_Fixnum):
+            return jump(env,
+                    self.ref(self.type, proc.value, env,
+                        receive_proc_cont(args, env, cont)))
+
+        args = [self] + args
+        # FIXME: arities value is wrong?
+        (arities, rest) = proc.get_arity()
+        if len(args) not in arities:
+            for w_car, w_prop in self.type.props:
+                if w_car.isinstance(w_prop_arity_string):
+                    return w_prop.call([self], env, arity_error_cont())
+        return proc.call(args, env, cont)
 
     @label
     def ref(self, type, field, env, cont):
@@ -139,30 +171,7 @@ class W_Struct(W_RootStruct):
         W_RootStruct.__init__(self, type)
 
     def iscallable(self):
-        if self.type.prop_procedure:
-            return True
-        else:
-            return False
-
-    @make_call_method(simple=False)
-    def _call(self, args, env, cont):
-        from pycket.interpreter import jump
-        if self.type.proc_spec is not values.w_false:
-            args = [self.type.proc_spec] + args
-        proc = self.type.prop_procedure
-        if isinstance(proc, values.W_Fixnum):
-            proc = self._get_list(proc.value)
-        else:
-            args = [self] + args
-        # FIXME: arities value is wrong?
-        (arities, rest) = proc.get_arity()
-        if len(args) not in arities:
-            for prop in self.type.props:
-                (w_car, w_prop) = prop
-                if w_car.isinstance(w_prop_arity_string):
-                    msg, env, cont = w_prop._call([self], env, cont)
-                    raise SchemeException(msg.tostring())
-        return proc._call(args, env, cont)
+        return self.type.prop_procedure is not None
 
     def vals(self):
         return self._get_full_list()
@@ -244,9 +253,9 @@ class W_StructConstructor(values.W_Object):
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
             field_values = self._splice(
-                field_values, len(field_values), split_position, 
+                field_values, len(field_values), split_position,
                 super_auto, len(super_auto))
-            return super_type.constr.code(field_values[:split_position], True, 
+            return super_type.constr.code(field_values[:split_position], True,
                 env, self.constr_proc_cont(field_values, env, cont))
         else:
             if issuper:
@@ -261,7 +270,7 @@ class W_StructConstructor(values.W_Object):
         else:
             guard_args = field_values + [values.W_Symbol.make(self.type.name)]
             jit.promote(self)
-            return self.type.guard.call(guard_args, env, 
+            return self.type.guard.call(guard_args, env,
                 self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
 
     @make_call_method(simple=False)
@@ -399,7 +408,7 @@ class W_StructPropertyPredicate(values.W_Object):
             if p is self.property:
                 return values.w_true
         return values.w_false
-                
+
 class W_StructPropertyAccessor(values.W_Object):
     errorname = "struct-property-accessor"
     _immutable_fields_ = ["property"]

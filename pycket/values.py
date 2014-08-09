@@ -37,7 +37,7 @@ class W_Object(object):
 
     def iscallable(self):
         return False
-    
+
     # The general `call` method is setup to return control to the CEK machine
     # before executing the body of the function being called. Unless you know
     # what you are doing, please override the `_call` method. This is needed to
