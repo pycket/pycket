@@ -282,7 +282,8 @@ def check_cont(proc, v, v1, v2, env, cont, _vals):
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
-    # FIXME make this impersonator/chaperone friendly
+    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+        v = v.struct
     if isinstance(v, values_struct.W_Struct) and v.struct_type() is type:
         first_field = v._ref(0)
         assert first_field.iscallable()
