@@ -10,8 +10,7 @@ from rpython.rlib import jit
 # Structs are partially supported
 #
 # Not implemented:
-# 1) prefab: need update in expand.rkt
-# 2) methods overriding (including equal)
+# * prefab
 
 # TODO: inspector currently does nothing
 class W_StructInspector(values.W_Object):
@@ -86,8 +85,12 @@ class W_StructType(values.W_Object):
             self.constr_name = "make-" + self.name
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
-        self.isopaque = self.inspector is not values.w_false
         self.offsets = self.calculate_offsets()
+        self.isprefab = self.inspector is values.W_Symbol.make("prefab")
+        if self.isprefab:
+            self.isopaque = False
+        else:
+            self.isopaque = self.inspector is not values.w_false
 
         self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
@@ -147,10 +150,7 @@ class W_RootStruct(values.W_Object):
             args = [spec] + args
         proc = my_type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            return jump(env,
-                    self.ref(my_type, proc.value, env,
-                        receive_proc_cont(args, env, cont)))
-
+            return jump(env, self.ref(my_type, proc.value, env, receive_proc_cont(args, env, cont)))
         args = [self] + args
         # FIXME: arities value is wrong?
         (arities, rest) = proc.get_arity()
@@ -402,6 +402,8 @@ class W_StructProperty(values.W_Object):
 w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
+w_prop_custom_write = W_StructProperty(values.W_Symbol.make("prop:custom-write"), values.w_false)
+w_prop_equal_hash = W_StructProperty(values.W_Symbol.make("prop:equal+hash"), values.w_false)
 
 class W_StructPropertyPredicate(values.W_Object):
     errorname = "struct-property-predicate"

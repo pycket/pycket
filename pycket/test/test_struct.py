@@ -90,6 +90,32 @@ def test_struct_comparison(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+def test_struct_comparison2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/generic-interfaces)
+
+    (struct lead (width height)
+      #:methods
+      gen:equal+hash
+      [(define (equal-proc a b equal?-recur)
+         ; compare a and b
+         (and (equal?-recur (lead-width a) (lead-width b))
+              (equal?-recur (lead-height a) (lead-height b))))
+       (define (hash-proc a hash-recur)
+         ; compute primary hash code of a
+         (+ (hash-recur (lead-width a))
+            (* 3 (hash-recur (lead-height a)))))
+       (define (hash2-proc a hash2-recur)
+         ; compute secondary hash code of a
+         (+ (hash2-recur (lead-width a))
+                 (hash2-recur (lead-height a))))])
+
+    (define result (equal? (lead 1 2) (lead 1 2)))
+    """)
+    assert m.defs[W_Symbol.make("result")] == w_true
+
 def test_struct_mutation(source):
     """
     (struct dot (x y) #:mutable)
@@ -272,6 +298,22 @@ def test_struct_super():
     assert ov.value == 1
 
 @skip
+def test_struct_prefab():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (struct sprout (kind) #:prefab)
+    (define f (sprout? #s(sprout bean #f 17)))
+    (struct sprout (kind yummy? count) #:prefab)
+    (define t (sprout? #s(sprout bean #f 17)))
+
+    (define result (and (not f) t))
+    """)
+    assert m.defs[W_Symbol.make("result")] == w_false
+
+@skip
 def test_procedure():
     m = run_mod(
     """
@@ -281,9 +323,10 @@ def test_procedure():
     (define ((f x) #:k [y 0])
       (+ x y))
     (define proc (procedure-rename (f 1) 'x))
+    (define x (proc))
     """)
-    ov = m.defs[W_Symbol.make("proc")]
-    assert ov.iscallable()
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 1
 
 def test_unsafe():
     m = run_mod(

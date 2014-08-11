@@ -261,14 +261,14 @@ for name in ["prop:evt",
              "prop:output-port",
              "prop:checked-procedure",
              "prop:impersonator-of",
-             "prop:method-arity-error",
-             "prop:custom-write",
-             "prop:equal+hash"]:
+             "prop:method-arity-error"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
+expose_val("prop:custom-write", values_struct.w_prop_custom_write)
+expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
@@ -749,6 +749,11 @@ def equalp(a, b, env, cont):
     # FIXME: broken for cycles, etc
     return jump(env, equal_cont(a, b, env, cont))
 
+@expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
+def eqp_recur(v1, v2, recur_proc):
+    # TODO:
+    return values.w_void
+
 @continuation
 def equal_car_cont(a, b, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value, jump
@@ -828,11 +833,24 @@ def equal_cont(a, b, env, cont):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
-    if (isinstance(a, values_struct.W_RootStruct) and not a.struct_type().isopaque and
-        isinstance(b, values_struct.W_RootStruct) and not b.struct_type().isopaque):
-        l = struct2vector(a)
-        r = struct2vector(b)
-        return jump(env, equal_cont(l, r, env, cont))
+    if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
+        if not a.eqv(b):
+            for w_car, w_prop in a.struct_type().props:
+                if w_car.isinstance(values_struct.w_prop_equal_hash):
+                    for w_car, w_prop in b.struct_type().props:
+                        if w_car.isinstance(values_struct.w_prop_equal_hash):
+                            assert isinstance(w_prop, values_vector.W_Vector)
+                            w_equal_proc, w_hash_proc, w_hash2_proc = \
+                                w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+                            # FIXME: it should work with cycles properly and be an equal?-recur
+                            w_equal_recur = values.W_Prim("equal?-recur", equalp)
+                            return w_equal_proc.call([a, b, w_equal_recur], env, cont)
+            if not a.struct_type().isopaque and not b.struct_type().isopaque:
+                l = struct2vector(a)
+                r = struct2vector(b)
+                return jump(env, equal_cont(l, r, env, cont))
+        else:
+            return return_value(values.w_true, env, cont)
 
     return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
 
