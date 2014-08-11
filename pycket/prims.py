@@ -311,15 +311,25 @@ def write(s):
 def do_print(o):
     os.write(1, o.tostring())
 
+def multiple_replace(text, dictionary):
+    # FIXME: pypy translation error when using regex: "Don't know how to represent <SRE_Pattern..."
+    # import re
+    # rc = re.compile('|'.join(dictionary.keys()))
+    # def translate(match):
+    #     return dictionary[match.group(0)]
+    # return rc.sub(translate, text)
+    return text
+
 @expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
-def do_print(out, form, v):
-    import re
+def do_fprintf(out, form, v):
     # FIXME: it should print formatted output to out, 
-    # where form is a string that is printed directly, except for special formatting escapes
-    form = form.tostring() \
-               .replace("~n", "\n") \
-               .replace("~a", v.tostring())
-    os.write(1, form)
+    # where form is a string that is printed directly, 
+    # except for special formatting escapes
+    dictionary = {
+        '~n': '\n',
+        '~%': '\n',
+        '~a': v.tostring()}
+    os.write(1, multiple_replace(form.tostring(), dictionary))
 
 def cur_print_proc(args):
     v, = args
