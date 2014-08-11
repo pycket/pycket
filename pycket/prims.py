@@ -316,10 +316,10 @@ def do_print(out, form, v):
     import re
     # FIXME: it should print formatted output to out, 
     # where form is a string that is printed directly, except for special formatting escapes
-    form = form.tostring() \
-               .replace("~n", "\n") \
-               .replace("~a", v.tostring())
-    os.write(1, form)
+    #form = form.tostring() \
+               #.replace("~n", "\n") \
+               #.replace("~a", v.tostring())
+    os.write(1, form.tostring())
 
 def cur_print_proc(args):
     v, = args
