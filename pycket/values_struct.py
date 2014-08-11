@@ -1,5 +1,6 @@
 from collections import namedtuple
 from pycket import values
+from pycket import vector as values_vector
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.exposeprim import make_call_method
@@ -215,6 +216,17 @@ class W_Struct(W_RootStruct):
         return self._get_list(k)
     def _set(self, k, val):
         self._set_list(k, val)
+
+    # FIXME: it can not be called currently
+    # def display(self, env, cont):
+    #     for w_car, w_prop in self._type.props:
+    #         if w_car.isinstance(w_prop_custom_write):
+    #             assert isinstance(w_prop, values_vector.W_Vector)
+    #             w_write_proc = w_prop.ref(0)
+    #             port = values.W_StringOutputPort()
+    #             # FIXME: #t for write mode, #f for display mode, or 0 or 1 indicating the current quoting depth for print mode
+    #             mode = values.w_false
+    #             return w_write_proc.call([self, port, mode], env, cont)
 
     def tostring(self):
         if self._type.isopaque:

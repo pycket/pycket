@@ -311,6 +311,16 @@ def write(s):
 def do_print(o):
     os.write(1, o.tostring())
 
+@expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
+def do_print(out, form, v):
+    import re
+    # FIXME: it should print formatted output to out, 
+    # where form is a string that is printed directly, except for special formatting escapes
+    form = form.tostring() \
+               .replace("~n", "\n") \
+               .replace("~a", v.tostring())
+    os.write(1, form)
+
 def cur_print_proc(args):
     v, = args
     if v is not values.w_void:
@@ -614,6 +624,10 @@ def string_le(s1, s2):
             return values.w_false
     return values.w_true
 
+@expose("make-string", [values.W_Fixnum, default(values.W_Character, values.w_null)])
+def string_to_list(k, char):
+    char = str(char.value) if isinstance(char, values.W_Character) else '\0'
+    return values.W_String(char * k.value)
 
 @expose("string->list", [values.W_String])
 def string_to_list(s):
