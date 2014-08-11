@@ -172,11 +172,11 @@ def chp_unbox_cont_ret(old, env, cont, vals):
 
 @continuation
 def chp_box_set_cont(b, orig, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
+    from pycket.interpreter import check_one_val
     val = check_one_val(vals)
     if not is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
-    return jump(env, b.set_box(val, env, cont))
+    return b.set_box(val, env, cont)
 
 class W_ChpBox(values.W_Box):
     errorname = "chp-box"
@@ -193,10 +193,8 @@ class W_ChpBox(values.W_Box):
 
     @label
     def unbox(self, env, cont):
-        from pycket.interpreter import jump
-        return jump(env,
-                self.box.unbox(env,
-                    chp_unbox_cont(self.unboxh, self.box, env, cont)))
+        return self.box.unbox(env,
+                    chp_unbox_cont(self.unboxh, self.box, env, cont))
 
     @label
     def set_box(self, val, env, cont):
@@ -213,8 +211,8 @@ def imp_unbox_cont(f, box, env, cont, vals):
 
 @continuation
 def imp_box_set_cont(b, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
-    return jump(env, b.set_box(check_one_val(vals), env, cont))
+    from pycket.interpreter import check_one_val
+    return b.set_box(check_one_val(vals), env, cont)
 
 class W_ImpBox(values.W_Box):
     errorname = "imp-box"
@@ -228,10 +226,7 @@ class W_ImpBox(values.W_Box):
 
     @label
     def unbox(self, env, cont):
-        from pycket.interpreter import jump
-        return jump(env,
-                self.box.unbox(env,
-                    imp_unbox_cont(self.unboxh, self.box, env, cont)))
+        return self.box.unbox(env, imp_unbox_cont(self.unboxh, self.box, env, cont))
 
     @label
     def set_box(self, val, env, cont):
@@ -344,19 +339,17 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def ref(self, struct_id, field, env, cont):
-        from pycket.interpreter import jump
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
-            return jump(env, self.struct.ref(struct_id, field, env, cont))
+            return self.struct.ref(struct_id, field, env, cont)
         after = self.post_ref_cont()(interp, self.struct, env, cont)
         return op.call([self.struct], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        from pycket.interpreter import jump
         (op, interp) = self.mutators.get(field, (None, None))
         if interp is None or op is None:
-            return jump(env, self.struct.set(struct_id, field, val, env, cont))
+            return self.struct.set(struct_id, field, val, env, cont)
         return interp.call([self.struct, val], env,
                 self.post_set_cont()(self.struct, op, val, env, cont))
 
