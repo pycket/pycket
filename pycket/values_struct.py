@@ -181,7 +181,6 @@ class W_Struct(W_RootStruct):
     _immutable_fields_ = ["_type", "values"]
     def __init__(self, type):
         self._type = type
-        #W_RootStruct.__init__(self, type)
 
     def vals(self):
         return self._get_full_list()
