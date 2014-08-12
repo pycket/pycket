@@ -79,6 +79,11 @@ class W_StructType(values.W_Object):
         for i in values.from_list(immutables):
             assert isinstance(i, values.W_Fixnum)
             self.immutables.append(i.value)
+        self.immutables += super_type.immutables if isinstance(super_type, W_StructType) else []
+        self.mutables = []
+        for i in range(self.total_field_cnt):
+            if i not in self.immutables:
+                self.mutables.append(i)
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
             self.constr_name = constr_name.value
@@ -117,6 +122,21 @@ class W_StructType(values.W_Object):
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
+
+class W_Cell(values.W_Object):
+    errorname = "cell"
+    _immutable_fields_ = ["value"]
+    def __init__(self, value):
+        self.value = value
+    def get(self):
+        raise NotImplementedError("abstract base class")
+    def set(self, value):
+        self.value = value
+
+class W_FixnumCell(W_Cell):
+    errorname = "fixnum-cell"
+    def get(self):
+        return values.W_Fixnum(self.value)
 
 @continuation
 def arity_error_cont(_vals):
@@ -197,8 +217,10 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        result = self._get_list(field + offset)
-        return return_value(result, env, cont)
+        value = self._get_list(field + offset)
+        if isinstance(value, W_Cell):
+            value = value.get()
+        return return_value(value, env, cont)
 
     @label
     def set(self, type, field, val, env, cont):
@@ -206,14 +228,26 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        self._set_list(field + offset, val)
+        value = self._get_list(field + offset)
+        if isinstance(value, W_FixnumCell) and isinstance(val, values.W_Fixnum):
+            value.set(val.value)
+        else:
+            self._set_list(field + offset, val)
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
     def _ref(self, k):
-        return self._get_list(k)
+        value = self._get_list(k)
+        if isinstance(value, W_Cell):
+            value = value.get()
+        return value
     def _set(self, k, val):
-        self._set_list(k, val)
+        value = self._get_list(k)
+        if isinstance(value, W_Cell):
+            if isinstance(val, values.W_Fixnum):
+                value.set(val.value)
+        else:
+            self._set_list(k, val)
 
     # FIXME: it can not be called currently
     # def display(self, env, cont):
@@ -251,6 +285,11 @@ class W_StructConstructor(values.W_Object):
         from pycket.interpreter import return_value
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
+        # FIXME: this is very slow
+        for i in self.type.mutables:
+            field = field_values[i]
+            if isinstance(field, values.W_Fixnum):
+                field_values[i] = W_FixnumCell(field.value)
         result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
