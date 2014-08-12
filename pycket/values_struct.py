@@ -228,9 +228,13 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        value = self._get_list(field + offset)
-        if isinstance(value, W_FixnumCell) and isinstance(val, values.W_Fixnum):
-            value.set(val.value)
+        if isinstance(val, values.W_Fixnum):
+            value = self._get_list(field + offset)
+            if isinstance(value, W_FixnumCell):
+                value.set(val.value)
+            else:
+                val = W_FixnumCell(val.value)
+                self._set_list(field + offset, val)
         else:
             self._set_list(field + offset, val)
         return return_value(values.w_void, env, cont)
@@ -285,11 +289,6 @@ class W_StructConstructor(values.W_Object):
         from pycket.interpreter import return_value
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
-        # FIXME: this is very slow
-        for i in self.type.mutables:
-            field = field_values[i]
-            if isinstance(field, values.W_Fixnum):
-                field_values[i] = W_FixnumCell(field.value)
         result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
