@@ -447,6 +447,10 @@ class W_SemaphorePeekEvt(W_Evt):
     def tostring(self):
         return "#<semaphore-peek-evt>"
 
+class W_PseudoRandomGenerator(W_Object):
+    errorname = "pseudo-random-generator"
+    def __init__(self):
+        pass
 
 class W_Path(W_Object):
     _immutable_fields_ = ["path"]

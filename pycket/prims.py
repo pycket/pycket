@@ -5,6 +5,7 @@ import os
 import time
 import math
 import pycket.impersonators as imp
+from rpython.rlib.rbigint import rbigint
 from pycket import values
 from pycket.cont import Cont, continuation, label, call_cont
 from pycket import cont
@@ -110,7 +111,9 @@ for args in [
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
         ("path?", values.W_Path),
         ("arity-at-least?", values.W_ArityAtLeast),
-        ("bytes?", values.W_Bytes)
+        ("bytes?", values.W_Bytes),
+        ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
+        ("char?", values.W_Character),
         ]:
     make_pred(*args)
 
@@ -121,6 +124,17 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+@expose("byte?", [values.W_Object])
+def byte_huh(val):
+    if isinstance(val, values.W_Fixnum):
+        return values.W_Bool.make(0 <= val.value <= 255)
+    if isinstance(val, values.W_Bignum):
+        try:
+            v = val.value.toint()
+            return values.W_Bool.make(0 <= v <= 255)
+        except OverflowError:
+            return values.w_false
+    return values.w_false
 
 @expose("procedure?", [values.W_Object])
 def procedurep(n):
@@ -587,10 +601,6 @@ def arity_at_least(n):
 @expose("arity-at-least-value", [values.W_ArityAtLeast])
 def arity_at_least(a):
     return values.W_Fixnum(a.val)
-
-@expose("make-hash", [])
-def make_hash():
-    return values.W_HashTable([], [])
 
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
@@ -1619,6 +1629,18 @@ def unsafe_car(p):
 def unsafe_cdr(p):
     return p.cdr()
 
+@expose("hash")
+def hash(args):
+    return values.W_HashTable([], [])
+
+@expose("hasheq")
+def hasheq(args):
+    return values.W_HashTable([], [])
+
+@expose("make-hash")
+def make_hash(args):
+    return values.W_HashTable([], [])
+
 @expose("make-hasheq")
 def make_hasheq(args):
     return values.W_HashTable([], [])
@@ -1802,4 +1824,40 @@ def load(lib, env, cont):
             "can't gernerate load-file for %s "%(lib.tostring()))
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
+
+# FIXME : Make the random functions actually do what they are supposed to do
+# random things.
+@expose("random")
+def random(args):
+    return values.W_Fixnum(1)
+
+@expose("random-seed", [values.W_Fixnum])
+def random_seed(seed):
+    return values.w_void
+
+@expose("make-pseudo-random-generator", [])
+def make_pseudo_random_generator():
+    return values.W_PseudoRandomGenerator()
+
+@expose("current-pseudo-random-generator")
+def current_pseudo_random_generator(args):
+    if not args:
+        return values.W_PseudoRandomGenerator()
+    return values.w_void
+
+@expose("pseudo-random-generator->vector", [values.W_PseudoRandomGenerator])
+def pseudo_random_generator_to_vector(gen):
+    return values_vector.W_Vector.fromelements([])
+
+@expose("vector->pseudo-random-generator", [values.W_MVector])
+def vector_to_pseudo_random_generator(vec):
+    return values.W_PseudoRandomGenerator()
+
+@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, values.W_MVector])
+def vector_to_pseudo_random_generator(gen, vec):
+    return values.w_void
+
+@expose("pseudo-random-generator-vector?", [values.W_Object])
+def pseudo_random_generator_vector_huh(vec):
+    return values.W_Bool.make(isinstance(vec, values.W_MVector) and vec.length() == 0)
 
