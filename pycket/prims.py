@@ -5,6 +5,7 @@ import os
 import time
 import math
 import pycket.impersonators as imp
+from rpython.rlib.rbigint import rbigint
 from pycket import values
 from pycket.cont import Cont, continuation, label, call_cont
 from pycket import cont
@@ -110,7 +111,9 @@ for args in [
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
         ("path?", values.W_Path),
         ("arity-at-least?", values.W_ArityAtLeast),
-        ("bytes?", values.W_Bytes)
+        ("bytes?", values.W_Bytes),
+        ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
+        ("char?", values.W_Character),
         ]:
     make_pred(*args)
 
@@ -121,6 +124,17 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+@expose("byte?", [values.W_Object])
+def byte_huh(val):
+    if isinstance(val, values.W_Fixnum):
+        return values.W_Bool.make(0 <= val.value <= 255)
+    if isinstance(val, values.W_Bignum):
+        try:
+            v = val.value.toint()
+            return values.W_Bool.make(0 <= v <= 255)
+        except OverflowError:
+            return values.w_false
+    return values.w_false
 
 @expose("procedure?", [values.W_Object])
 def procedurep(n):
@@ -598,10 +612,6 @@ def arity_at_least(n):
 def arity_at_least(a):
     return values.W_Fixnum(a.val)
 
-@expose("make-hash", [])
-def make_hash():
-    return values.W_HashTable([], [])
-
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
     return p
@@ -769,9 +779,8 @@ def eqvp(a, b):
 
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
-    from pycket.interpreter import jump
     # FIXME: broken for cycles, etc
-    return jump(env, equal_cont(a, b, env, cont))
+    return equal_cont(a, b, env, cont)
 
 @expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
 def eqp_recur(v1, v2, recur_proc):
@@ -780,61 +789,56 @@ def eqp_recur(v1, v2, recur_proc):
 
 @continuation
 def equal_car_cont(a, b, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value, jump
+    from pycket.interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
-    return jump(env, equal_cont(a, b, env, cont))
+    return equal_cont(a, b, env, cont)
 
 @continuation
 def equal_unbox_right_cont(r, env, cont, _vals):
-    from pycket.interpreter import check_one_val, jump
+    from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
-    return jump(env, r.unbox(env, equal_unbox_done_cont(l, env, cont)))
+    return r.unbox(env, equal_unbox_done_cont(l, env, cont))
 
 @continuation
 def equal_unbox_done_cont(l, env, cont, _vals):
-    from pycket.interpreter import check_one_val, jump
+    from pycket.interpreter import check_one_val
     r = check_one_val(_vals)
-    return jump(env, equal_cont(l, r, env, cont))
+    return equal_cont(l, r, env, cont)
 
 # This function assumes that a and b have the same length
-@continuation
-def equal_vec_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import return_value, jump
+@label
+def equal_vec_func(a, b, idx, env, cont):
+    from pycket.interpreter import return_value
     if idx.value >= a.length():
         return return_value(values.w_true, env, cont)
-    return jump(env,
-            do_vec_ref_cont(a, idx, env,
-                equal_vec_left_cont(a, b, idx, env, cont)))
+    return do_vec_ref_func(a, idx, env, equal_vec_left_cont(a, b, idx, env, cont))
 
 # Receive the first value for a given index
 @continuation
 def equal_vec_left_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import jump, check_one_val
+    from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
-    return jump(env,
-            do_vec_ref_cont(b, idx, env,
-                equal_vec_right_cont(a, b, idx, l, env, cont)))
+    return do_vec_ref_func(b, idx, env,
+                equal_vec_right_cont(a, b, idx, l, env, cont))
 
 # Receive the second value for a given index
 @continuation
 def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
-    from pycket.interpreter import jump, check_one_val
+    from pycket.interpreter import check_one_val
     r = check_one_val(_vals)
-    return jump(env,
-            equal_cont(l, r, env,
-                equal_vec_done_cont(a, b, idx, env, cont)))
+    return equal_cont(l, r, env, equal_vec_done_cont(a, b, idx, env, cont))
 
 # Receive the comparison of the two elements and decide what to do
 @continuation
 def equal_vec_done_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import jump, check_one_val, return_value
+    from pycket.interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
     inc = values.W_Fixnum(idx.value + 1)
-    return jump(env, equal_vec_cont(a, b, inc, env, cont))
+    return equal_vec_func(a, b, inc, env, cont)
 
 # This is needed to be able to drop out of the current stack frame,
 # as direct recursive calls to equal will blow out the stack.
@@ -842,21 +846,20 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 # items.
 @label
 def equal_cont(a, b, env, cont):
-    from pycket.interpreter import return_value, jump
+    from pycket.interpreter import return_value
     if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
         return return_value(values.w_true, env, cont)
     if isinstance(a, values.W_String) and isinstance(b, values.W_String):
         return return_value(values.W_Bool.make(a.value == b.value), env, cont)
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        return jump(env,
-                equal_cont(a.car(), b.car(), env,
-                    equal_car_cont(a.cdr(), b.cdr(), env, cont)))
+        return equal_cont(a.car(), b.car(), env,
+                    equal_car_cont(a.cdr(), b.cdr(), env, cont))
     if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        return jump(env, a.unbox(env, equal_unbox_right_cont(b, env, cont)))
+        return a.unbox(env, equal_unbox_right_cont(b, env, cont))
     if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
-        return jump(env, equal_vec_cont(a, b, values.W_Fixnum(0), env, cont))
+        return equal_vec_func(a, b, values.W_Fixnum(0), env, cont)
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         if not a.eqv(b):
             for w_car, w_prop in a.struct_type().props:
@@ -872,7 +875,7 @@ def equal_cont(a, b, env, cont):
             if not a.struct_type().isopaque and not b.struct_type().isopaque:
                 l = struct2vector(a)
                 r = struct2vector(b)
-                return jump(env, equal_cont(l, r, env, cont))
+                return equal_cont(l, r, env, cont)
         else:
             return return_value(values.w_true, env, cont)
 
@@ -1186,14 +1189,11 @@ def impersonate_box(b, unbox, set):
 
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
-    from pycket.interpreter import jump
-    return jump(env, b.unbox(env, cont))
-    #return jump(env, do_unbox_cont(b, env, cont))
+    return b.unbox(env, cont)
 
 @expose("set-box!", [values.W_Box, values.W_Object], simple=False)
 def set_box(box, v, env, cont):
-    from pycket.interpreter import jump
-    return jump(env, box.set_box(v, env, cont))
+    return box.set_box(v, env, cont)
 
 # This implementation makes no guarantees about atomicity
 @expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
@@ -1205,11 +1205,10 @@ def box_cas(box, old, new):
 
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
-    from pycket.interpreter import jump
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return jump(env, do_vec_ref_cont(v, i, env, cont))
+    return do_vec_ref_func(v, i, env, cont)
 
 @continuation
 def imp_vec_ref_cont(f, i, v, env, cont, vals):
@@ -1232,39 +1231,33 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
         raise SchemeException("Expecting original value or chaperone of thereof")
 
 @label
-def do_vec_ref_cont(v, i, env, cont):
-    from pycket.interpreter import return_value, jump
+def do_vec_ref_func(v, i, env, cont):
+    from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         # we can use _ref here because we already checked the precondition
         return return_value(v._ref(i.value), env, cont)
     elif isinstance(v, imp.W_ImpVector):
         uv = v.vec
         f = v.refh
-        return jump(env,
-                do_vec_ref_cont(uv, i, env,
-                    imp_vec_ref_cont(f, i, uv, env, cont)))
+        return do_vec_ref_func(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
     elif isinstance(v, imp.W_ChpVector):
         uv = v.vec
         f  = v.refh
-        return jump(env,
-                do_vec_ref_cont(uv, i, env,
-                    chp_vec_ref_cont(f, i, uv, env, cont)))
+        return do_vec_ref_func(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
     else:
         assert False
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
-    from pycket.interpreter import jump
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return jump(env, do_vec_set_cont(v, i, new, env, cont))
+    return do_vec_set_func(v, i, new, env, cont)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)], simple=False)
 def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
-    from pycket.interpreter import jump
     src_start  = _src_start.value if _src_start is not None else 0
     src_end    = _src_end.value if _src_end is not None else src.length()
     dest_start = _dest_start.value
@@ -1279,48 +1272,50 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     if dest_range < src_range:
         raise SchemeException("vector-copy!: not enough room in target vector")
 
-    return jump(env,
-            vector_copy_loop(src, src_start, src_end,
-                dest, dest_start, values.W_Fixnum(0), env, cont))
+    return vector_copy_loop(src, src_start, src_end,
+                dest, dest_start, values.W_Fixnum(0), env, cont)
 
 @label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
-    from pycket.interpreter import jump, return_value
+    from pycket.interpreter import return_value
     src_idx = i.value + src_start
     if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
     idx = values.W_Fixnum(src_idx)
-    return jump(env,
-            do_vec_ref_cont(src, idx, env,
+    return do_vec_ref_func(src, idx, env,
                 vector_copy_cont_get(src, src_start, src_end, dest,
-                    dest_start, i, env, cont)))
+                    dest_start, i, env, cont))
+
+@continuation
+def goto_vector_copy_loop(src, src_start, src_end, dest, dest_start, next, env, cont, _vals):
+    return vector_copy_loop(
+            src, src_start, src_end, dest, dest_start, next, env, cont)
 
 @continuation
 def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont, _vals):
-    from pycket.interpreter import jump, check_one_val
+    from pycket.interpreter import check_one_val
     val  = check_one_val(_vals)
     idx  = values.W_Fixnum(i.value + dest_start)
     next = values.W_Fixnum(i.value + 1)
-    return jump(env,
-            do_vec_set_cont(dest, idx, val, env,
-                vector_copy_loop(src, src_start, src_end,
-                    dest, dest_start, next, env, cont)))
+    return do_vec_set_func(dest, idx, val, env,
+                goto_vector_copy_loop(src, src_start, src_end,
+                    dest, dest_start, next, env, cont))
 
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
-    return jump(env, do_vec_set_cont(v, i, check_one_val(vals), env, cont))
+    from pycket.interpreter import check_one_val
+    return do_vec_set_func(v, i, check_one_val(vals), env, cont)
 
 @continuation
 def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val, jump
+    from pycket.interpreter import check_one_val
     val = check_one_val(vals)
     if not imp.is_chaperone_of(val, orig):
         raise SchemeException("Expecting original value or chaperone")
-    return jump(env, do_vec_set_cont(v, i, val, env, cont))
+    return do_vec_set_func(v, i, val, env, cont)
 
-@continuation
-def do_vec_set_cont(v, i, new, env, cont, _vals):
+@label
+def do_vec_set_func(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         # we can use _set here because we already checked the precondition
@@ -1572,9 +1567,9 @@ def unsafe_fleq(a, b):
 # FIXME: Chaperones
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
-    from pycket.interpreter import return_value, jump
+    from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return jump(env, do_vec_ref_cont(v, i, env, cont))
+        return do_vec_ref_func(v, i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         val = i.value
@@ -1588,9 +1583,9 @@ def unsafe_vector_star_ref(v, i):
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
-    from pycket.interpreter import return_value, jump
+    from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return jump(env, do_vec_set_cont(v, i, new, env, cont))
+        return do_vec_set_func(v, i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         return return_value(v._set(i.value, new), env, cont)
@@ -1643,6 +1638,18 @@ def unsafe_car(p):
 @expose("unsafe-cdr", [values.W_Cons])
 def unsafe_cdr(p):
     return p.cdr()
+
+@expose("hash")
+def hash(args):
+    return values.W_HashTable([], [])
+
+@expose("hasheq")
+def hasheq(args):
+    return values.W_HashTable([], [])
+
+@expose("make-hash")
+def make_hash(args):
+    return values.W_HashTable([], [])
 
 @expose("make-hasheq")
 def make_hasheq(args):
@@ -1827,4 +1834,40 @@ def load(lib, env, cont):
             "can't gernerate load-file for %s "%(lib.tostring()))
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
+
+# FIXME : Make the random functions actually do what they are supposed to do
+# random things.
+@expose("random")
+def random(args):
+    return values.W_Fixnum(1)
+
+@expose("random-seed", [values.W_Fixnum])
+def random_seed(seed):
+    return values.w_void
+
+@expose("make-pseudo-random-generator", [])
+def make_pseudo_random_generator():
+    return values.W_PseudoRandomGenerator()
+
+@expose("current-pseudo-random-generator")
+def current_pseudo_random_generator(args):
+    if not args:
+        return values.W_PseudoRandomGenerator()
+    return values.w_void
+
+@expose("pseudo-random-generator->vector", [values.W_PseudoRandomGenerator])
+def pseudo_random_generator_to_vector(gen):
+    return values_vector.W_Vector.fromelements([])
+
+@expose("vector->pseudo-random-generator", [values.W_MVector])
+def vector_to_pseudo_random_generator(vec):
+    return values.W_PseudoRandomGenerator()
+
+@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, values.W_MVector])
+def vector_to_pseudo_random_generator(gen, vec):
+    return values.w_void
+
+@expose("pseudo-random-generator-vector?", [values.W_Object])
+def pseudo_random_generator_vector_huh(vec):
+    return values.W_Bool.make(isinstance(vec, values.W_MVector) and vec.length() == 0)
 

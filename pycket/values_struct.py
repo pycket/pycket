@@ -144,14 +144,13 @@ class W_RootStruct(values.W_Object):
     # struct_type for _call and iscallable to work properly.
     @make_call_method(simple=False)
     def _call(self, args, env, cont):
-        from pycket.interpreter import jump
         my_type = self.struct_type()
         spec = my_type.proc_spec
         if spec is not values.w_false:
             args = [spec] + args
         proc = my_type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            return jump(env, self.ref(my_type, proc.value, env, receive_proc_cont(args, env, cont)))
+            return self.ref(my_type, proc.value, env, receive_proc_cont(args, env, cont))
         args = [self] + args
         # FIXME: arities value is wrong?
         (arities, rest) = proc.get_arity()
@@ -350,8 +349,7 @@ class W_StructAccessor(values.W_Object):
         return True
 
     def access(self, struct, field, env, cont):
-        from pycket.interpreter import jump
-        return jump(env, struct.ref(self.type, field.value, env, cont))
+        return struct.ref(self.type, field.value, env, cont)
 
     _call = make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access)
 
@@ -383,8 +381,7 @@ class W_StructMutator(values.W_Object):
         return True
 
     def mutate(self, struct, field, val, env, cont):
-        from pycket.interpreter import jump
-        return jump(env, struct.set(self.type, field.value, val, env, cont))
+        return struct.set(self.type, field.value, val, env, cont)
 
     _call = make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate)
 
