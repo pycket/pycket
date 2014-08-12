@@ -16,7 +16,7 @@ def get_mark_first(cont, key):
 
 def get_marks(cont, key):
     from pycket import values
-    if not(cont):
+    if not cont:
         return values.w_null
     # FIXME: don't use recursion
     # it would be much more convenient to write this with mutable pairs
@@ -115,16 +115,12 @@ def label(func):
     def invoke_func(func, args, _vals):
         return func(*args)
 
-    def f(*args):
+    def make_label(*args):
         from pycket.interpreter import jump
         env = args[-2]
         return jump(env, invoke_func(func, args))
 
-    return f
-
-@continuation
-def invoke_func(func, args, _vals):
-    return func(*args)
+    return make_label
 
 # A useful continuation constructor. This invokes the given procedure with
 # the enviroment and continuation when values are supplied.
