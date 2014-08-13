@@ -80,10 +80,6 @@ class W_StructType(values.W_Object):
             assert isinstance(i, values.W_Fixnum)
             self.immutables.append(i.value)
         self.immutables += super_type.immutables if isinstance(super_type, W_StructType) else []
-        self.mutables = []
-        for i in range(self.total_field_cnt):
-            if i not in self.immutables:
-                self.mutables.append(i)
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
             self.constr_name = constr_name.value
@@ -138,18 +134,6 @@ class W_FixnumCell(W_Cell):
     def get(self):
         return values.W_Fixnum(self.value)
 
-@continuation
-def arity_error_cont(_vals):
-    from pycket.interpreter import check_one_val
-    msg = check_one_val(_vals)
-    raise SchemeException(msg.tostring())
-
-@continuation
-def receive_proc_cont(args, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    proc = check_one_val(_vals)
-    return proc.call(args, env, cont)
-
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
     _immutable_fields_ = ["ref", "set"]
@@ -159,6 +143,27 @@ class W_RootStruct(values.W_Object):
 
     def iscallable(self):
         return self.struct_type().prop_procedure is not None
+
+    @continuation
+    def arity_error_cont(self, _vals):
+        from pycket.interpreter import check_one_val
+        msg = check_one_val(_vals)
+        raise SchemeException("expected: " + msg.tostring())
+
+    @continuation
+    def receive_proc_cont(self, args, env, cont, _vals):
+        from pycket.interpreter import check_one_val
+        proc = check_one_val(_vals)
+        return self.checked_call(proc, args, env, cont)
+
+    def checked_call(self, proc, args, env, cont):
+        args_len = len(args)
+        (arities, rest) = proc.get_arity()
+        if args_len < rest and args_len not in arities:
+            for w_car, w_prop in self.struct_type().props:
+                if w_car.isinstance(w_prop_arity_string):
+                    return w_prop.call([self], env, self.arity_error_cont())
+        return proc.call(args, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
     # struct_type for _call and iscallable to work properly.
@@ -170,15 +175,9 @@ class W_RootStruct(values.W_Object):
             args = [spec] + args
         proc = my_type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            return self.ref(my_type, proc.value, env, receive_proc_cont(args, env, cont))
+            return self.ref(my_type, proc.value, env, self.receive_proc_cont(args, env, cont))
         args = [self] + args
-        # FIXME: arities value is wrong?
-        (arities, rest) = proc.get_arity()
-        if len(args) not in arities:
-            for w_car, w_prop in my_type.props:
-                if w_car.isinstance(w_prop_arity_string):
-                    return w_prop.call([self], env, arity_error_cont())
-        return proc.call(args, env, cont)
+        return self.checked_call(proc, args, env, cont)
 
     @jit.elidable
     def struct_type(self):

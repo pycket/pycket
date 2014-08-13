@@ -221,7 +221,6 @@ def test_struct_super_prop_procedure():
     """)
     assert m.defs[W_Symbol.make("yval")].value == 1
 
-@skip
 def test_struct_prop_arity():
     m = run_mod(
     """
