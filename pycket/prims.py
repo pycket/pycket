@@ -114,6 +114,9 @@ for args in [
         ("bytes?", values.W_Bytes),
         ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
         ("char?", values.W_Character),
+        ("continuation?", values.W_Continuation),
+        ("continuation-mark-set?", values.W_ContinuationMarkSet),
+        ("primitive?", values.W_Prim)
         ]:
     make_pred(*args)
 
@@ -379,6 +382,10 @@ def make_parameter(init, guard):
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
+
+@expose("primitive-closure?", [values.W_Object])
+def prim_clos(v):
+    return values.w_false
 
 ################################################################
 # String stuff
@@ -695,6 +702,15 @@ def time_apply_cont(initial, env, cont, vals):
     vals_l = vals._get_full_list()
     results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
+
+@expose("continuation-prompt-available?")
+def cont_prompt_avail(args):
+    return values.w_false
+
+# FIXME: this is a data type
+@expose("continuation-prompt-tag?")
+def cont_prompt_tag(args):
+    return values.w_false
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
@@ -1114,6 +1130,11 @@ def struct2vector(struct):
     struct_desc = struct.struct_type().name
     first_el = values.W_Symbol.make("struct:" + struct_desc)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals())
+
+@expose("make-impersonator-property", [values.W_Symbol], simple=False)
+def make_imp_prop(sym, env, cont):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(values.Values.make([values.w_void, values.w_void, values.w_void]), env, cont)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
