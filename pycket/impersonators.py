@@ -240,9 +240,41 @@ class W_ImpBox(Impersonator, W_InterposeBox):
     def post_set_box_cont(self, val, env, cont):
         return imp_box_set_cont(self.inner, val, env, cont)
 
-# Vectors
-class W_ImpVector(Impersonator, values.W_MVector):
-    errorname = "imp-vector"
+@continuation
+def imp_vec_set_cont(orig, v, i, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return v.vector_set(i, check_one_val(vals), env, cont)
+
+@continuation
+def chp_vec_set_cont(orig, v, i, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(vals)
+    if not is_chaperone_of(val, orig):
+        raise SchemeException("Expecting original value or chaperone")
+    return v.vector_set(i, val, env, cont)
+
+@continuation
+def imp_vec_ref_cont(f, i, v, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    return f.call([v, i, check_one_val(vals)], env, cont)
+
+@continuation
+def chp_vec_ref_cont(f, i, v, env, cont, vals):
+    from pycket.interpreter import check_one_val
+    old = check_one_val(vals)
+    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
+
+@continuation
+def chp_vec_ref_cont_ret(old, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    new = check_one_val(vals)
+    if is_chaperone_of(new, old):
+        return return_multi_vals(vals, env, cont)
+    else:
+        raise SchemeException("Expecting original value or chaperone of thereof")
+
+class W_InterposeVector(values.W_MVector):
+    errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, values.W_MVector)
@@ -253,31 +285,55 @@ class W_ImpVector(Impersonator, values.W_MVector):
     def length(self):
         return self.inner.length()
 
-class W_ChpVector(Chaperone, values.W_MVector):
-    errorname = "chp-procedure"
-    _immutable_fields_ = ["inner", "refh", "seth"]
-    def __init__(self, v, r, s):
-        assert isinstance(v, values.W_MVector)
-        self.inner  = v
-        self.refh = r
-        self.seth = s
+    def post_set_cont(self, new, i, env, cont):
+        raise NotImplementedError("abstract method")
 
-    def length(self):
-        return self.inner.length()
+    def post_ref_cont(self, i, env, cont):
+        raise NotImplementedError("abstract method")
 
-    def immutable(self):
-        return self.inner.immutable()
+    @label
+    def vector_set(self, i, new, env, cont):
+        after = self.post_set_cont(new, i, env, cont)
+        return self.seth.call([self.inner, i, new], env, after)
+
+    @label
+    def vector_ref(self, i, env, cont):
+        after = self.post_ref_cont(i, env, cont)
+        return self.inner.vector_ref(i, env, after)
+
+# Vectors
+class W_ImpVector(Impersonator, W_InterposeVector):
+    errorname = "impersonate-vector"
+
+    @jit.elidable
+    def post_set_cont(self, new, i, env, cont):
+        return imp_vec_set_cont(new, self.inner, i, env, cont)
+
+    @jit.elidable
+    def post_ref_cont(self, i, env, cont):
+        return imp_vec_ref_cont(self.refh, i, self.inner, env, cont)
+
+class W_ChpVector(Chaperone, W_InterposeVector):
+    errorname = "chaperone-vector"
+
+    @jit.elidable
+    def post_set_cont(self, new, i, env, cont):
+        return chp_vec_set_cont(new, self.inner, i, env, cont)
+
+    @jit.elidable
+    def post_ref_cont(self, i, env, cont):
+        return chp_vec_ref_cont(self.refh, i, self.inner, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
 def valid_struct_proc(x):
-    v = get_base_procedure(x)
+    v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
             isinstance(v, values_struct.W_StructFieldMutator) or
             isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @jit.unroll_safe
-def get_base_procedure(x):
+def get_base_object(x):
     while x.is_proxy():
         x = x.get_proxied()
     return x
@@ -308,7 +364,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.properties = {}
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
-            base = get_base_procedure(op)
+            base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 self.accessors[base.field.value] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
@@ -322,17 +378,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_set_cont(self, op, val, env, cont):
         raise NotImplementedError("abstract method")
 
-    def _ref(self, value):
-        return self.inner._ref(value)
-
-    def _set(self, key, val):
-        return self.inner._set(key, val)
-
     @jit.elidable
     def struct_type(self):
-        struct = self.inner
-        while isinstance(struct, W_InterposeStructBase):
-            struct = struct.inner
+        struct = get_base_object(self.inner)
+        assert isinstance(struct, values_struct.W_Struct)
         return struct.struct_type()
 
     @label

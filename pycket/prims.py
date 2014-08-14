@@ -823,14 +823,14 @@ def equal_vec_func(a, b, idx, env, cont):
     from pycket.interpreter import return_value
     if idx.value >= a.length():
         return return_value(values.w_true, env, cont)
-    return do_vec_ref_func(a, idx, env, equal_vec_left_cont(a, b, idx, env, cont))
+    return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, env, cont))
 
 # Receive the first value for a given index
 @continuation
 def equal_vec_left_cont(a, b, idx, env, cont, _vals):
     from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
-    return do_vec_ref_func(b, idx, env,
+    return b.vector_ref(idx, env,
                 equal_vec_right_cont(a, b, idx, l, env, cont))
 
 # Receive the second value for a given index
@@ -1223,51 +1223,14 @@ def vector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return do_vec_ref_func(v, i, env, cont)
-
-@continuation
-def imp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return f.call([v, i, check_one_val(vals)], env, cont)
-
-@continuation
-def chp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    old = check_one_val(vals)
-    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
-
-@continuation
-def chp_vec_ref_cont_ret(old, env, cont, vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    new = check_one_val(vals)
-    if imp.is_chaperone_of(new, old):
-        return return_multi_vals(vals, env, cont)
-    else:
-        raise SchemeException("Expecting original value or chaperone of thereof")
-
-@label
-def do_vec_ref_func(v, i, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(v, values_vector.W_Vector):
-        # we can use _ref here because we already checked the precondition
-        return return_value(v._ref(i.value), env, cont)
-    elif isinstance(v, imp.W_ImpVector):
-        uv = v.inner
-        f = v.refh
-        return do_vec_ref_func(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
-    elif isinstance(v, imp.W_ChpVector):
-        uv = v.inner
-        f  = v.refh
-        return do_vec_ref_func(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
-    else:
-        assert False
+    return v.vector_ref(i, env, cont)
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return do_vec_set_func(v, i, new, env, cont)
+    return v.vector_set(i, new, env, cont)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
@@ -1297,7 +1260,7 @@ def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
     idx = values.W_Fixnum(src_idx)
-    return do_vec_ref_func(src, idx, env,
+    return src.vector_ref(idx, env,
                 vector_copy_cont_get(src, src_start, src_end, dest,
                     dest_start, i, env, cont))
 
@@ -1312,40 +1275,9 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
     val  = check_one_val(_vals)
     idx  = values.W_Fixnum(i.value + dest_start)
     next = values.W_Fixnum(i.value + 1)
-    return do_vec_set_func(dest, idx, val, env,
+    return dest.vector_set(idx, val, env,
                 goto_vector_copy_loop(src, src_start, src_end,
                     dest, dest_start, next, env, cont))
-
-@continuation
-def imp_vec_set_cont(v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return do_vec_set_func(v, i, check_one_val(vals), env, cont)
-
-@continuation
-def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(vals)
-    if not imp.is_chaperone_of(val, orig):
-        raise SchemeException("Expecting original value or chaperone")
-    return do_vec_set_func(v, i, val, env, cont)
-
-@label
-def do_vec_set_func(v, i, new, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(v, values_vector.W_Vector):
-        # we can use _set here because we already checked the precondition
-        v._set(i.value, new)
-        return return_value(values.w_void, env, cont)
-    elif isinstance(v, imp.W_ImpVector):
-        uv = v.inner
-        f = v.seth
-        return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
-    elif isinstance(v, imp.W_ChpVector):
-        uv = v.inner
-        f  = v.seth
-        return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
-    else:
-        assert False
 
 @expose("impersonate-procedure", [procedure, procedure])
 def impersonate_procedure(proc, check):
@@ -1584,7 +1516,7 @@ def unsafe_fleq(a, b):
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_ref_func(v, i, env, cont)
+        return v.vector_ref(i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         val = i.value
@@ -1600,7 +1532,7 @@ def unsafe_vector_star_ref(v, i):
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_set_func(v, i, new, env, cont)
+        return v.vector_set(i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         return return_value(v._set(i.value, new), env, cont)

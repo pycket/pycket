@@ -172,6 +172,14 @@ class W_MVector(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    @label
+    def vector_set(self, i, new, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    @label
+    def vector_ref(self, i, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def length(self):
         raise NotImplementedError("abstract base class")
 
