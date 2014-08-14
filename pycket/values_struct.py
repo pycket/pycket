@@ -202,6 +202,7 @@ class W_Struct(W_RootStruct):
     @staticmethod
     def prefab(args):
         name, fields = args[0], args[1:]
+        assert isinstance(name, values.W_Symbol)
         type = W_StructType(name, None, values.W_Fixnum(len(fields)), values.W_Fixnum(0))
         return W_Struct.make(args, type)
 
