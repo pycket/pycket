@@ -58,8 +58,9 @@ def is_chaperone_of(a, b):
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
-def imp_proc_cont(arg_count, proc, env, cont, _vals):
+def imp_proc_cont(args, proc, env, cont, _vals):
     vals = _vals._get_full_list()
+    arg_count = len(args)
     if len(vals) == arg_count:
         return proc.call(vals, env, cont)
     elif len(vals) == arg_count + 1:
@@ -68,8 +69,8 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ImpProcedure(Impersonator, values.W_Procedure):
-    errorname = "imp-procedure"
+class W_InterposeProcedure(values.W_Procedure):
+    errorname = "interpose-prcedure"
     _immutable_fields_ = ["inner", "check"]
     def __init__(self, code, check):
         assert code.iscallable()
@@ -80,13 +81,23 @@ class W_ImpProcedure(Impersonator, values.W_Procedure):
     def get_arity(self):
         return self.inner.get_arity()
 
-    def call(self, args, env, cont):
+    def post_call_cont(self, args, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def _call(self, args, env, cont):
         jit.promote(self)
-        return self.check.call(args, env,
-                imp_proc_cont(len(args), self.inner, env, cont))
+        after = self.post_call_cont(args, env, cont)
+        return self.check.call(args, env, after)
 
     def tostring(self):
         return "ImpProcedure<%s>" % self.inner.tostring()
+
+class W_ImpProcedure(Impersonator, W_InterposeProcedure):
+    errorname = "imp-procedure"
+
+    @jit.elidable
+    def post_call_cont(self, args, env, cont):
+        return imp_proc_cont(args, self.inner, env, cont)
 
 # Check that the results of che call to check are all chaperones of
 # the original function outputs.
@@ -127,25 +138,13 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ChpProcedure(Chaperone, values.W_Procedure):
+class W_ChpProcedure(Chaperone, W_InterposeProcedure):
     errorname = "chp-procedure"
     _immutable_fields_ = ["inner", "check"]
-    def __init__(self, code, check):
-        assert code.iscallable()
-        assert check.iscallable()
-        self.inner = code
-        self.check = check
 
-    def get_arity(self):
-        return self.inner.get_arity()
-
-    def call(self, args, env, cont):
-        jit.promote(self)
-        return self.check.call(args, env,
-                chp_proc_cont(args, self.inner, env, cont))
-
-    def tostring(self):
-        return "ChpProcedure<%s>" % self.inner.tostring()
+    @jit.elidable
+    def post_call_cont(self, args, env, cont):
+        return chp_proc_cont(args, self.inner, env, cont)
 
 # Boxes
 
@@ -172,8 +171,8 @@ def chp_box_set_cont(b, orig, env, cont, vals):
         raise SchemeException("Expecting original value or chaperone")
     return b.set_box(val, env, cont)
 
-class W_ChpBox(Chaperone, values.W_Box):
-    errorname = "chp-box"
+class W_InterposeBox(values.W_Box):
+    errorname = "interpose-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def __init__(self, box, unboxh, seth):
@@ -185,18 +184,39 @@ class W_ChpBox(Chaperone, values.W_Box):
     def immutable(self):
         return self.inner.immutable()
 
+    def post_unbox_cont(self, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def post_set_box_cont(self, val, env, cont):
+        raise NotImplementedError("abstract method")
+
     @label
     def unbox(self, env, cont):
-        return self.inner.unbox(env,
-                    chp_unbox_cont(self.unboxh, self.inner, env, cont))
+        after = self.post_unbox_cont(env, cont)
+        return self.inner.unbox(env, after)
 
     @label
     def set_box(self, val, env, cont):
-        return self.seth.call([self.inner, val], env,
-                chp_box_set_cont(self.inner, val, env, cont))
+        after = self.post_set_box_cont(val, env, cont)
+        return self.seth.call([self.inner, val], env, after)
 
     def tostring(self):
         return self.inner.tostring()
+
+class W_ChpBox(Chaperone, W_InterposeBox):
+    errorname = "chp-box"
+    _immutable_fields_ = ["inner", "unbox", "set"]
+
+    @jit.elidable
+    def post_unbox_cont(self, env, cont):
+        return chp_unbox_cont(self.unboxh, self.inner, env, cont)
+
+    @jit.elidable
+    def post_set_box_cont(self, val, env, cont):
+        return chp_box_set_cont(self.inner, val, env, cont)
+
+    def immutable(self):
+        return self.inner.immutable()
 
 @continuation
 def imp_unbox_cont(f, box, env, cont, vals):
@@ -204,34 +224,21 @@ def imp_unbox_cont(f, box, env, cont, vals):
     return f.call([box, check_one_val(vals)], env, cont)
 
 @continuation
-def imp_box_set_cont(b, env, cont, vals):
+def imp_box_set_cont(b, val, env, cont, vals):
     from pycket.interpreter import check_one_val
     return b.set_box(check_one_val(vals), env, cont)
 
-class W_ImpBox(Impersonator, values.W_Box):
+class W_ImpBox(Impersonator, W_InterposeBox):
     errorname = "imp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
-    def __init__(self, box, unboxh, seth):
-        assert isinstance(box, values.W_Box)
-        self.inner = box
-        self.unboxh = unboxh
-        self.seth = seth
+    @jit.elidable
+    def post_unbox_cont(self, env, cont):
+        return imp_unbox_cont(self.unboxh, self.inner, env, cont)
 
-    def impersonator(self):
-        return True
-
-    @label
-    def unbox(self, env, cont):
-        return self.inner.unbox(env, imp_unbox_cont(self.unboxh, self.inner, env, cont))
-
-    @label
-    def set_box(self, val, env, cont):
-        return self.seth.call([self.inner, val], env,
-                imp_box_set_cont(self.inner, env, cont))
-
-    def tostring(self):
-        return self.inner.tostring()
+    @jit.elidable
+    def post_set_box_cont(self, val, env, cont):
+        return imp_box_set_cont(self.inner, val, env, cont)
 
 # Vectors
 class W_ImpVector(Impersonator, values.W_MVector):
@@ -309,12 +316,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             else:
                 assert False
 
-    @staticmethod
-    def post_ref_cont():
+    def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
 
-    @staticmethod
-    def post_set_cont():
+    def post_set_cont(self, op, val, env, cont):
         raise NotImplementedError("abstract method")
 
     def _ref(self, value):
@@ -335,7 +340,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
             return self.inner.ref(struct_id, field, env, cont)
-        after = self.post_ref_cont()(interp, self.inner, env, cont)
+        after = self.post_ref_cont(interp, env, cont)
         return op.call([self.inner], env, after)
 
     @label
@@ -344,7 +349,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         if interp is None or op is None:
             return self.inner.set(struct_id, field, val, env, cont)
         return interp.call([self.inner, val], env,
-                self.post_set_cont()(self.inner, op, val, env, cont))
+                self.post_set_cont(op, val, env, cont))
 
     # FIXME: This is incorrect
     def vals(self):
@@ -353,15 +358,13 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 # Need to add checks that we are only impersonating mutable fields
 class W_ImpStruct(Impersonator, W_InterposeStructBase):
 
-    @staticmethod
     @jit.elidable
-    def post_ref_cont():
-        return imp_struct_ref_cont
+    def post_ref_cont(self, interp, env, cont):
+        return imp_struct_ref_cont(interp, self.inner, env, cont)
 
-    @staticmethod
     @jit.elidable
-    def post_set_cont():
-        return imp_struct_set_cont
+    def post_set_cont(self, op, val, env, cont):
+        return imp_struct_set_cont(self.inner, op, val, env, cont)
 
 @continuation
 def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
@@ -389,18 +392,13 @@ def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 
 class W_ChpStruct(Chaperone, W_InterposeStructBase):
 
-    def is_chaperone(self):
-        return True
-
-    @staticmethod
     @jit.elidable
-    def post_ref_cont():
-        return chp_struct_ref_cont
+    def post_ref_cont(self, interp, env, cont):
+        return chp_struct_ref_cont(interp, self.inner, env, cont)
 
-    @staticmethod
     @jit.elidable
-    def post_set_cont():
-        return chp_struct_set_cont
+    def post_set_cont(self, op, val, env, cont):
+        return chp_struct_set_cont(self.inner, op, val, env, cont)
 
 class W_ImpProperty(values.W_Object):
     errorname = "impersonator-property"
