@@ -132,7 +132,6 @@ def receive_proc_cont(args, env, cont, _vals):
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
-    _immutable_fields_ = ["ref", "set"]
 
     def __init__(self):
         raise NotImplementedError("abstract base class")
