@@ -7,20 +7,39 @@ from pycket import values
 from pycket import values_struct
 from rpython.rlib import jit
 
-# Check that one value is an impersonator of the other
+# A mixin for describing the general behaviour for a proxied object.
+# This is mostly useful for preventing an annoying amount of duplication
+# when implementing the various impersonator/chaperone operations.
+# NOTE: These must be the first argument in the list of super classes for
+# a class declaration.
+# This assumes that all proxied have a field called `inner` for the proxied
+# object.
+class Proxy(object):
+    _mixin_ = True
+    def get_proxied(self):
+        return self.inner
+    def is_proxy(self):
+        return True
+
+# Mixin for describing the behaviour of chaperones
+class Chaperone(Proxy):
+    _mixin_ = True
+    def is_chaperone(self):
+        return True
+
+# Mixin for describing the behaviour of chaperones
+class Impersonator(Proxy):
+    _mixin_ = True
+    def is_impersonator(self):
+        return True
+
 @jit.unroll_safe
 def is_impersonator_of(a, b):
     while True:
         if a is b:
             return True
-        elif isinstance(a, W_ImpVector):
-            a = a.vec
-        elif isinstance(a, W_ImpProcedure):
-            a = a.code
-        elif isinstance(a, W_ImpBox):
-            a = a.box
-        elif isinstance(a, W_ImpStruct):
-            a = a.struct
+        elif a.is_impersonator():
+            a = a.get_proxied()
         else:
             return is_chaperone_of(a, b)
 
@@ -30,29 +49,10 @@ def is_chaperone_of(a, b):
     while True:
         if a is b:
             return True
-        elif isinstance(a, W_ChpVector):
-            a = a.vec
-        elif isinstance(a, W_ChpProcedure):
-            a = a.code
-        elif isinstance(a, W_ChpBox):
-            a = a.box
-        elif isinstance(a, W_ChpStruct):
-            a = a.struct
+        elif a.is_chaperone():
+            a = a.get_proxied()
         else:
             return False
-
-def is_chaperone(x):
-    return (isinstance(x, W_ChpVector) or
-            isinstance(x, W_ChpBox) or
-            isinstance(x, W_ChpProcedure) or
-            isinstance(x, W_ChpStruct))
-
-def is_impersonator(x):
-    return (isinstance(x, W_ImpVector) or
-            isinstance(x, W_ImpBox) or
-            isinstance(x, W_ImpProcedure) or
-            isinstance(x, W_ImpStruct) or
-            is_chaperone(x))
 
 # Procedures
 
@@ -68,28 +68,25 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ImpProcedure(values.W_Object):
+class W_ImpProcedure(Impersonator, values.W_Procedure):
     errorname = "imp-procedure"
-    _immutable_fields_ = ["code", "check"]
+    _immutable_fields_ = ["inner", "check"]
     def __init__(self, code, check):
         assert code.iscallable()
         assert check.iscallable()
-        self.code  = code
+        self.inner = code
         self.check = check
 
-    def iscallable(self):
-        return True
-
     def get_arity(self):
-        return self.code.get_arity()
+        return self.inner.get_arity()
 
     def call(self, args, env, cont):
         jit.promote(self)
         return self.check.call(args, env,
-                imp_proc_cont(len(args), self.code, env, cont))
+                imp_proc_cont(len(args), self.inner, env, cont))
 
     def tostring(self):
-        return "ImpProcedure<%s>" % self.code.tostring()
+        return "ImpProcedure<%s>" % self.inner.tostring()
 
 # Check that the results of che call to check are all chaperones of
 # the original function outputs.
@@ -130,28 +127,25 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ChpProcedure(values.W_Object):
+class W_ChpProcedure(Chaperone, values.W_Procedure):
     errorname = "chp-procedure"
-    _immutable_fields_ = ["code", "check"]
+    _immutable_fields_ = ["inner", "check"]
     def __init__(self, code, check):
         assert code.iscallable()
         assert check.iscallable()
-        self.code  = code
+        self.inner = code
         self.check = check
 
-    def iscallable(self):
-        return True
-
     def get_arity(self):
-        return self.code.get_arity()
+        return self.inner.get_arity()
 
     def call(self, args, env, cont):
         jit.promote(self)
         return self.check.call(args, env,
-                chp_proc_cont(args, self.code, env, cont))
+                chp_proc_cont(args, self.inner, env, cont))
 
     def tostring(self):
-        return "ChpProcedure<%s>" % self.code.tostring()
+        return "ChpProcedure<%s>" % self.inner.tostring()
 
 # Boxes
 
@@ -178,31 +172,31 @@ def chp_box_set_cont(b, orig, env, cont, vals):
         raise SchemeException("Expecting original value or chaperone")
     return b.set_box(val, env, cont)
 
-class W_ChpBox(values.W_Box):
+class W_ChpBox(Chaperone, values.W_Box):
     errorname = "chp-box"
-    _immutable_fields_ = ["box", "unbox", "set"]
+    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def __init__(self, box, unboxh, seth):
         assert isinstance(box, values.W_MBox)
-        self.box = box
+        self.inner = box
         self.unboxh = unboxh
         self.seth = seth
 
     def immutable(self):
-        return self.box.immutable()
+        return self.inner.immutable()
 
     @label
     def unbox(self, env, cont):
-        return self.box.unbox(env,
-                    chp_unbox_cont(self.unboxh, self.box, env, cont))
+        return self.inner.unbox(env,
+                    chp_unbox_cont(self.unboxh, self.inner, env, cont))
 
     @label
     def set_box(self, val, env, cont):
-        return self.seth.call([self.box, val], env,
-                chp_box_set_cont(self.box, val, env, cont))
+        return self.seth.call([self.inner, val], env,
+                chp_box_set_cont(self.inner, val, env, cont))
 
     def tostring(self):
-        return self.box.tostring()
+        return self.inner.tostring()
 
 @continuation
 def imp_unbox_cont(f, box, env, cont, vals):
@@ -214,55 +208,58 @@ def imp_box_set_cont(b, env, cont, vals):
     from pycket.interpreter import check_one_val
     return b.set_box(check_one_val(vals), env, cont)
 
-class W_ImpBox(values.W_Box):
+class W_ImpBox(Impersonator, values.W_Box):
     errorname = "imp-box"
-    _immutable_fields_ = ["box", "unbox", "set"]
+    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def __init__(self, box, unboxh, seth):
         assert isinstance(box, values.W_Box)
-        self.box = box
+        self.inner = box
         self.unboxh = unboxh
         self.seth = seth
 
+    def impersonator(self):
+        return True
+
     @label
     def unbox(self, env, cont):
-        return self.box.unbox(env, imp_unbox_cont(self.unboxh, self.box, env, cont))
+        return self.inner.unbox(env, imp_unbox_cont(self.unboxh, self.inner, env, cont))
 
     @label
     def set_box(self, val, env, cont):
-        return self.seth.call([self.box, val], env,
-                imp_box_set_cont(self.box, env, cont))
+        return self.seth.call([self.inner, val], env,
+                imp_box_set_cont(self.inner, env, cont))
 
     def tostring(self):
-        return self.box.tostring()
+        return self.inner.tostring()
 
 # Vectors
-class W_ImpVector(values.W_MVector):
+class W_ImpVector(Impersonator, values.W_MVector):
     errorname = "imp-vector"
-    _immutable_fields_ = ["vec", "refh", "seth"]
+    _immutable_fields_ = ["inner", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, values.W_MVector)
-        self.vec = v
+        self.inner = v
         self.refh = r
         self.seth = s
 
     def length(self):
-        return self.vec.length()
+        return self.inner.length()
 
-class W_ChpVector(values.W_MVector):
+class W_ChpVector(Chaperone, values.W_MVector):
     errorname = "chp-procedure"
-    _immutable_fields_ = ["vec", "refh", "seth"]
+    _immutable_fields_ = ["inner", "refh", "seth"]
     def __init__(self, v, r, s):
         assert isinstance(v, values.W_MVector)
-        self.vec  = v
+        self.inner  = v
         self.refh = r
         self.seth = s
 
     def length(self):
-        return self.vec.length()
+        return self.inner.length()
 
     def immutable(self):
-        return self.vec.immutable()
+        return self.inner.immutable()
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -274,13 +271,9 @@ def valid_struct_proc(x):
 
 @jit.unroll_safe
 def get_base_procedure(x):
-    while True:
-        if isinstance(x, W_ChpProcedure):
-            x = x.code
-        elif isinstance(x, W_ImpProcedure):
-            x = x.code
-        else:
-            return x
+    while x.is_proxy():
+        x = x.get_proxied()
+    return x
 
 @continuation
 def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
@@ -297,12 +290,12 @@ def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["struct", "accessors", "mutators", "handlers"]
+    _immutable_fields = ["inner", "accessors", "mutators", "handlers"]
 
     def __init__(self, inner, overrides, handlers):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        self.struct = inner
+        self.inner = inner
         self.accessors = {}
         self.mutators = {}
         self.properties = {}
@@ -325,39 +318,40 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         raise NotImplementedError("abstract method")
 
     def _ref(self, value):
-        return self.struct._ref(value)
+        return self.inner._ref(value)
 
     def _set(self, key, val):
-        return self.struct._set(key, val)
+        return self.inner._set(key, val)
 
     @jit.elidable
     def struct_type(self):
-        struct = self.struct
+        struct = self.inner
         while isinstance(struct, W_InterposeStructBase):
-            struct = struct.struct
+            struct = struct.inner
         return struct.struct_type()
 
     @label
     def ref(self, struct_id, field, env, cont):
         (op, interp) = self.accessors.get(field, (None, None))
         if interp is None:
-            return self.struct.ref(struct_id, field, env, cont)
-        after = self.post_ref_cont()(interp, self.struct, env, cont)
-        return op.call([self.struct], env, after)
+            return self.inner.ref(struct_id, field, env, cont)
+        after = self.post_ref_cont()(interp, self.inner, env, cont)
+        return op.call([self.inner], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
         (op, interp) = self.mutators.get(field, (None, None))
         if interp is None or op is None:
-            return self.struct.set(struct_id, field, val, env, cont)
-        return interp.call([self.struct, val], env,
-                self.post_set_cont()(self.struct, op, val, env, cont))
+            return self.inner.set(struct_id, field, val, env, cont)
+        return interp.call([self.inner, val], env,
+                self.post_set_cont()(self.inner, op, val, env, cont))
 
+    # FIXME: This is incorrect
     def vals(self):
-        return self.struct.vals()
+        return self.inner.vals()
 
 # Need to add checks that we are only impersonating mutable fields
-class W_ImpStruct(W_InterposeStructBase):
+class W_ImpStruct(Impersonator, W_InterposeStructBase):
 
     @staticmethod
     @jit.elidable
@@ -368,7 +362,6 @@ class W_ImpStruct(W_InterposeStructBase):
     @jit.elidable
     def post_set_cont():
         return imp_struct_set_cont
-
 
 @continuation
 def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
@@ -394,7 +387,10 @@ def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
         raise SchemeException("chaperone handlers must produce chaperone of original value")
     return setter.call([orig_struct, val], env, cont)
 
-class W_ChpStruct(W_InterposeStructBase):
+class W_ChpStruct(Chaperone, W_InterposeStructBase):
+
+    def is_chaperone(self):
+        return True
 
     @staticmethod
     @jit.elidable
@@ -405,4 +401,16 @@ class W_ChpStruct(W_InterposeStructBase):
     @jit.elidable
     def post_set_cont():
         return chp_struct_set_cont
+
+class W_ImpProperty(values.W_Object):
+    errorname = "impersonator-property"
+    _immutable_fields_ = ["name"]
+
+class W_ImpPropertyDescriptor(values.W_Procedure):
+    errorname = "impersonator-property-descriptor"
+    _immutable_fields_ = ["name"]
+
+class W_ImpPropertyAccessor(values.W_Procedure):
+    errorname = "impersonator-property-accessor"
+    _immutable_fields_ = ["name"]
 

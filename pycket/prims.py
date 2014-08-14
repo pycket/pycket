@@ -295,17 +295,21 @@ def check_cont(proc, v, v1, v2, env, cont, _vals):
         return return_value(v._ref(1), env, cont)
     return proc.call([v, v1, v2], env, cont)
 
+@continuation
+def receive_first_field(proc, v, v1, v2, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    first_field = check_one_val(_vals)
+    return first_field.call([v1, v2], env, check_cont(proc, v, v1, v2, env, cont))
+
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
-    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.struct
-    if isinstance(v, values_struct.W_Struct) and v.struct_type() is type:
-        first_field = v._ref(0)
-        assert first_field.iscallable()
-        return first_field.call([v1, v2], env,
-                check_cont(proc, v, v1, v2, env, cont))
+    if isinstance(v, values_struct.W_Struct):
+        st = v.struct_type()
+        if st is type:
+            return v.ref(v.struct_type(), 0, env,
+                    receive_first_field(proc, v, v1, v2, env, cont))
     return proc.call([v, v1, v2], env, cont)
 
 ################################################################
@@ -1258,11 +1262,11 @@ def do_vec_ref_func(v, i, env, cont):
         # we can use _ref here because we already checked the precondition
         return return_value(v._ref(i.value), env, cont)
     elif isinstance(v, imp.W_ImpVector):
-        uv = v.vec
+        uv = v.inner
         f = v.refh
         return do_vec_ref_func(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
     elif isinstance(v, imp.W_ChpVector):
-        uv = v.vec
+        uv = v.inner
         f  = v.refh
         return do_vec_ref_func(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
     else:
@@ -1343,11 +1347,11 @@ def do_vec_set_func(v, i, new, env, cont):
         v._set(i.value, new)
         return return_value(values.w_void, env, cont)
     elif isinstance(v, imp.W_ImpVector):
-        uv = v.vec
+        uv = v.inner
         f = v.seth
         return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
     elif isinstance(v, imp.W_ChpVector):
-        uv = v.vec
+        uv = v.inner
         f  = v.seth
         return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
     else:
@@ -1453,11 +1457,11 @@ def impersonator_of(a, b):
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
-    return values.W_Bool.make(imp.is_impersonator(x))
+    return values.W_Bool.make(x.is_impersonator())
 
 @expose("chaperone?", [values.W_Object])
 def chaperone(x):
-    return values.W_Bool.make(imp.is_chaperone(x))
+    return values.W_Bool.make(x.is_chaperone())
 
 @expose("vector")
 def vector(args):
@@ -1627,16 +1631,16 @@ def unsafe_vector_star_length(v):
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
-    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.struct
+    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+        v = v.inner
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value <= v.struct_type().total_field_cnt
     return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
 def unsafe_struct_set(v, k, val):
-    if isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.struct
+    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
+        v = v.inner
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value < v.struct_type().total_field_cnt
     return v._set(k.value, val)
@@ -1857,7 +1861,7 @@ def load(lib, env, cont):
     return ast, env, cont
 
 # FIXME : Make the random functions actually do what they are supposed to do
-# random things.
+# random things
 @expose("random")
 def random(args):
     return values.W_Fixnum(1)

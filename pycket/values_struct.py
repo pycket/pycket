@@ -136,7 +136,6 @@ class W_FixnumCell(W_Cell):
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
-    _immutable_fields_ = ["ref", "set"]
 
     def __init__(self):
         raise NotImplementedError("abstract base class")
