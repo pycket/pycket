@@ -163,7 +163,10 @@
     ;; this is a simplification of the json output
     [_
      #:when (prefab-struct-key (syntax-e v))
-     (hash 'string "PREFAB")]
+     (let ([key (prefab-struct-key (syntax-e v))]
+           [pats (cdr (vector->list (struct->vector (syntax-e v))))])
+     (hash 'struct (map to-json (list* (symbol->string key) pats))
+      ))]
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]

@@ -14,6 +14,7 @@ from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values
 from pycket import vector
+from pycket import values_struct
 
 class ExpandException(SchemeException):
     pass
@@ -512,6 +513,8 @@ def to_value(json):
         obj = json.value_object()
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
+        if "struct" in obj:
+            return values_struct.W_Struct.prefab([to_value(v) for v in obj["struct"].value_array()])
         if "box" in obj:
             return values.W_IBox(to_value(obj["box"]))
         if "number" in obj:
