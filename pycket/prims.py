@@ -1231,7 +1231,7 @@ def weak_box_value(val, default):
 def make_ephemeron(key, val):
     return values.W_Ephemeron(key, val)
 
-@expose("ephemeron-value", [values.W_Object, default(values.W_Object, None)])
+@expose("ephemeron-value", [values.W_Ephemeron, default(values.W_Object, None)])
 def ephemeron_value(ephemeron, default):
     return ephemeron.value
 
