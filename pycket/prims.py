@@ -116,7 +116,15 @@ for args in [
         ("char?", values.W_Character),
         ("continuation?", values.W_Continuation),
         ("continuation-mark-set?", values.W_ContinuationMarkSet),
-        ("primitive?", values.W_Prim)
+        ("primitive?", values.W_Prim),
+        ("keyword?", values.W_Keyword),
+        ("weak-box?", values.W_WeakBox),
+        # FIXME: Assumes we only have eq-hashes
+        ("hash?", values.W_HashTable),
+        ("hash-eq?", values.W_HashTable),
+        ("hash-eqv?", values.W_HashTable),
+        ("hash-equal?", values.W_HashTable),
+        ("hash-weak?", values.W_HashTable)
         ]:
     make_pred(*args)
 
@@ -1209,6 +1217,14 @@ def box_cas(box, old, new):
         return values.w_true
     return values.w_false
 
+@expose("make-weak-box", [values.W_Object])
+def make_weak_box(val):
+    return values.W_WeakBox(val)
+
+@expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, None)])
+def weak_box_value(val, default):
+    return val.value
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
@@ -1777,6 +1793,16 @@ def mcpt():
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
+
+@expose("symbol-unreadable?", [values.W_Object])
+def symbol_unreadable(sym):
+    return values.w_false
+
+@expose("symbol-interned?", [values.W_Object])
+def symbol_interned(sym):
+    if isinstance(sym, values.W_Symbol):
+        return values.W_Bool.make(sym.value in values.W_Symbol.all_symbols)
+    return values.w_false
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):

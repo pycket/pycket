@@ -286,6 +286,13 @@ class W_IBox(W_Box):
     def tostring(self):
         return "'#&%s" % self.value.tostring()
 
+# A weak box does not test as a box for most operations and cannot be
+# chaperoned/impersonated
+class W_WeakBox(W_Object):
+    errorname = "weak-box"
+    def __init__(self, value):
+        self.value = value
+
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
