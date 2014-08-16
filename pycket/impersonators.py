@@ -87,7 +87,7 @@ class W_InterposeProcedure(Proxy, values.W_Procedure):
     def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check.iscallable()
-        assert len(overrides) == len(handlers)
+        assert len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
         self.properties = {}
@@ -194,7 +194,7 @@ class W_InterposeBox(Proxy, values.W_Box):
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_MBox)
-        assert len(overrides) == len(handlers)
+        assert len(prop_keys) == len(prop_vals)
         self.inner = box
         self.unboxh = unboxh
         self.seth = seth
@@ -384,6 +384,7 @@ class W_InterposeStructBase(Proxy, values_struct.W_RootStruct):
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
+        assert len(prop_keys) == len(prop_vals)
         self.inner = inner
         self.accessors = {}
         self.mutators = {}
