@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pycket.cont import continuation, label, call_cont
+from pycket.exposeprim import make_call_method
 from pycket.error import SchemeException
 from pycket import values
 from pycket import values_struct
@@ -20,15 +21,26 @@ class Proxy(object):
         return self.inner
     def is_proxy(self):
         return True
+    def get_properties(self):
+        return self.properties
+
+@jit.unroll_safe
+def lookup_property(obj, prop):
+    while obj.is_proxy():
+        val = obj.get_properties().get(prop, None)
+        if val is not None:
+            return val
+        obj = obj.get_proxied()
+    return None
 
 # Mixin for describing the behaviour of chaperones
-class Chaperone(Proxy):
+class Chaperone(object):
     _mixin_ = True
     def is_chaperone(self):
         return True
 
 # Mixin for describing the behaviour of chaperones
-class Impersonator(Proxy):
+class Impersonator(object):
     _mixin_ = True
     def is_impersonator(self):
         return True
@@ -69,14 +81,19 @@ def imp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_InterposeProcedure(values.W_Procedure):
+class W_InterposeProcedure(Proxy, values.W_Procedure):
     errorname = "interpose-prcedure"
     _immutable_fields_ = ["inner", "check"]
-    def __init__(self, code, check):
+    def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check.iscallable()
+        assert len(overrides) == len(handlers)
         self.inner = code
         self.check = check
+        self.properties = {}
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k.name] = prop_vals[i]
 
     def get_arity(self):
         return self.inner.get_arity()
@@ -171,15 +188,20 @@ def chp_box_set_cont(b, orig, env, cont, vals):
         raise SchemeException("Expecting original value or chaperone")
     return b.set_box(val, env, cont)
 
-class W_InterposeBox(values.W_Box):
+class W_InterposeBox(Proxy, values.W_Box):
     errorname = "interpose-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
-    def __init__(self, box, unboxh, seth):
+    def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_MBox)
+        assert len(overrides) == len(handlers)
         self.inner = box
         self.unboxh = unboxh
         self.seth = seth
+        self.properties = {}
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k.name] = prop_vals[i]
 
     def immutable(self):
         return self.inner.immutable()
@@ -273,14 +295,19 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
 
-class W_InterposeVector(values.W_MVector):
+class W_InterposeVector(Proxy, values.W_MVector):
     errorname = "interpose-vector"
-    _immutable_fields_ = ["inner", "refh", "seth"]
-    def __init__(self, v, r, s):
+    _immutable_fields_ = ["inner", "refh", "seth", "properties"]
+    def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
+        assert len(prop_keys) == len(prop_vals)
         self.inner = v
         self.refh = r
         self.seth = s
+        self.properties = {}
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k.name] = prop_vals[i]
 
     def length(self):
         return self.inner.length()
@@ -329,8 +356,7 @@ class W_ChpVector(Chaperone, W_InterposeVector):
 def valid_struct_proc(x):
     v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
-            isinstance(v, values_struct.W_StructFieldMutator) or
-            isinstance(v, values_struct.W_StructPropertyAccessor))
+            isinstance(v, values_struct.W_StructFieldMutator))
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -352,10 +378,10 @@ def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
-class W_InterposeStructBase(values_struct.W_RootStruct):
+class W_InterposeStructBase(Proxy, values_struct.W_RootStruct):
     _immutable_fields = ["inner", "accessors", "mutators", "handlers"]
 
-    def __init__(self, inner, overrides, handlers):
+    def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         self.inner = inner
@@ -371,6 +397,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 self.mutators[base.field.value] = (op, handlers[i])
             else:
                 assert False
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k.name] = prop_vals[i]
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -449,15 +478,28 @@ class W_ChpStruct(Chaperone, W_InterposeStructBase):
     def post_set_cont(self, op, val, env, cont):
         return chp_struct_set_cont(self.inner, op, val, env, cont)
 
-class W_ImpProperty(values.W_Object):
+class W_ImpPropertyDescriptor(values.W_Object):
     errorname = "impersonator-property"
     _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
 
-class W_ImpPropertyDescriptor(values.W_Procedure):
-    errorname = "impersonator-property-descriptor"
+class W_ImpPropertyFunction(values.W_Procedure):
     _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
 
-class W_ImpPropertyAccessor(values.W_Procedure):
+class W_ImpPropertyPredicate(W_ImpPropertyFunction):
+    errorname = "impersonator-property-predicate"
+
+    @make_call_method([values.W_Object])
+    def call(self, obj):
+        return values.W_Bool.make(lookup_property(obj, self.name) is not None)
+
+class W_ImpPropertyAccessor(W_ImpPropertyFunction):
     errorname = "impersonator-property-accessor"
-    _immutable_fields_ = ["name"]
+
+    @make_call_method([values.W_Object])
+    def call(self, obj):
+        return lookup_property(obj, self.name)
 

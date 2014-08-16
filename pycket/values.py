@@ -114,7 +114,7 @@ class W_CellIntegerStrategy(W_Object):
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
-    _immutable_fields_ = ["o"]
+    _immutable_fields_ = ["val"]
     errorname = "syntax"
     def __init__(self, o):
         self.val = o

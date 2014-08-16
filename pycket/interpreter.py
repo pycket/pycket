@@ -455,7 +455,7 @@ def tailcall(code, args, env, cont):
     return jump(env, tailcall_cont(code, args, env, cont))
 
 def jump(env, cont):
-    return return_multi_vals(values.empty_vals, env, cont)
+    return the_trampoline, env, TrampolineCont(values.empty_vals, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
@@ -464,7 +464,6 @@ def return_multi_vals(vals, env, cont):
     if cont is None:
         raise Done(vals)
     return the_trampoline, env, TrampolineCont(vals, cont)
-    #return cont.plug_reduce(vals)
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
