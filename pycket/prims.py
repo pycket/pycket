@@ -119,6 +119,8 @@ for args in [
         ("primitive?", values.W_Prim),
         ("keyword?", values.W_Keyword),
         ("weak-box?", values.W_WeakBox),
+        ("ephemeron?", values.W_Ephemeron),
+        ("placeholder?", values.W_Placeholder),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -1224,6 +1226,27 @@ def make_weak_box(val):
 @expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, None)])
 def weak_box_value(val, default):
     return val.value
+
+@expose("make-ephemeron", [values.W_Object] * 2)
+def make_ephemeron(key, val):
+    return values.W_Ephemeron(key, val)
+
+@expose("ephemeron-value", [values.W_Object, default(values.W_Object, None)])
+def ephemeron_value(ephemeron, default):
+    return ephemeron.value
+
+@expose("make-placeholder", [values.W_Object])
+def make_placeholder(val):
+    return values.W_Placeholder(val)
+
+@expose("placeholder-set!", [values.W_Placeholder, values.W_Object])
+def placeholder_set(ph, datum):
+    ph.value = datum
+    return values.w_void
+
+@expose("placeholder-get", [values.W_Placeholder])
+def placeholder_get(ph):
+    return ph.value
 
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):

@@ -292,6 +292,24 @@ class W_WeakBox(W_Object):
     errorname = "weak-box"
     def __init__(self, value):
         self.value = value
+    def tostring(self):
+        return "#<weak-box"
+
+class W_Ephemeron(W_Object):
+    errorname = "ephemeron"
+    _immutable_fields_ = ["key", "value"]
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+    def tostring(self):
+        return "#<ephemeron>"
+
+class W_Placeholder(W_Object):
+    errorname = "placeholder"
+    def __init__(self, value):
+        self.value = value
+    def tostring(self):
+        return "#<placeholder>"
 
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
