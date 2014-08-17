@@ -1,4 +1,5 @@
 
+from pycket.cont import label
 from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
@@ -48,6 +49,18 @@ class W_Vector(W_MVector):
         return self.strategy.ref(self, i)
     def set(self, i, v):
         self.strategy.set(self, i, v)
+
+    @label
+    def vector_set(self, i, new, env, cont):
+        from pycket.interpreter import return_value
+        from pycket.values import w_void
+        self.set(i.value, new)
+        return return_value(w_void, env, cont)
+
+    @label
+    def vector_ref(self, i, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.ref(i.value), env, cont)
 
     # unsafe versions
     def _ref(self, i):

@@ -278,13 +278,10 @@ class W_Struct(W_RootStruct):
 
 inline_small_list(W_Struct, immutable=False, attrname="values")
 
-class W_StructConstructor(values.W_Object):
+class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
         self.type = type
-
-    def iscallable(self):
-        return True
 
     def make_struct(self, field_values):
         raise NotImplementedError("abstract base class")
@@ -346,14 +343,11 @@ class W_StructConstructor(values.W_Object):
     def tostring(self):
         return "#<procedure:%s>" % self.type.name
 
-class W_StructPredicate(values.W_Object):
+class W_StructPredicate(values.W_Procedure):
     errorname = "struct-predicate"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
-
-    def iscallable(self):
-        return True
 
     @make_call_method([values.W_Object])
     def _call(self, struct):
@@ -367,7 +361,7 @@ class W_StructPredicate(values.W_Object):
     def tostring(self):
         return "#<procedure:%s?>" % self.type.name
 
-class W_StructFieldAccessor(values.W_Object):
+class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
     _immutable_fields_ = ["accessor", "field"]
     def __init__ (self, accessor, field):
@@ -375,21 +369,15 @@ class W_StructFieldAccessor(values.W_Object):
         self.accessor = accessor
         self.field = field
 
-    def iscallable(self):
-        return True
-
     @make_call_method([W_RootStruct], simple=False)
     def _call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
 
-class W_StructAccessor(values.W_Object):
+class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
-
-    def iscallable(self):
-        return True
 
     def access(self, struct, field, env, cont):
         return struct.ref(self.type, field.value, env, cont)
@@ -399,7 +387,7 @@ class W_StructAccessor(values.W_Object):
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
 
-class W_StructFieldMutator(values.W_Object):
+class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
     _immutable_fields_ = ["mutator", "field"]
     def __init__ (self, mutator, field):
@@ -407,21 +395,15 @@ class W_StructFieldMutator(values.W_Object):
         self.mutator = mutator
         self.field = field
 
-    def iscallable(self):
-        return True
-
     @make_call_method([W_RootStruct, values.W_Object], simple=False)
     def _call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
-class W_StructMutator(values.W_Object):
+class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
-
-    def iscallable(self):
-        return True
 
     def mutate(self, struct, field, val, env, cont):
         return struct.set(self.type, field.value, val, env, cont)
@@ -456,13 +438,11 @@ w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string")
 w_prop_custom_write = W_StructProperty(values.W_Symbol.make("prop:custom-write"), values.w_false)
 w_prop_equal_hash = W_StructProperty(values.W_Symbol.make("prop:equal+hash"), values.w_false)
 
-class W_StructPropertyPredicate(values.W_Object):
+class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    def iscallable(self):
-        return True
     @make_call_method([values.W_Object])
     def _call(self, arg):
         if isinstance(arg, W_Struct):
@@ -475,13 +455,11 @@ class W_StructPropertyPredicate(values.W_Object):
                 return values.w_true
         return values.w_false
 
-class W_StructPropertyAccessor(values.W_Object):
+class W_StructPropertyAccessor(values.W_Procedure):
     errorname = "struct-property-accessor"
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    def iscallable(self):
-        return True
     @make_call_method([values.W_Object])
     def _call(self, arg):
         if isinstance(arg, W_Struct):

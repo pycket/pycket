@@ -84,6 +84,7 @@ for args in [
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
+        ("complex?", values.W_Complex),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
         ("vector?", values.W_MVector),
@@ -116,7 +117,18 @@ for args in [
         ("char?", values.W_Character),
         ("continuation?", values.W_Continuation),
         ("continuation-mark-set?", values.W_ContinuationMarkSet),
-        ("primitive?", values.W_Prim)
+        ("primitive?", values.W_Prim),
+        ("keyword?", values.W_Keyword),
+        ("weak-box?", values.W_WeakBox),
+        ("ephemeron?", values.W_Ephemeron),
+        ("placeholder?", values.W_Placeholder),
+        ("hash-placeholder?", values.W_HashTablePlaceholder),
+        # FIXME: Assumes we only have eq-hashes
+        ("hash?", values.W_HashTable),
+        ("hash-eq?", values.W_HashTable),
+        ("hash-eqv?", values.W_HashTable),
+        ("hash-equal?", values.W_HashTable),
+        ("hash-weak?", values.W_HashTable)
         ]:
     make_pred(*args)
 
@@ -165,11 +177,44 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
     return values.w_false
 
+@expose("exact-positive-integer?", [values.W_Object])
+def exact_nonneg_integerp(n):
+    from rpython.rlib.rbigint import rbigint
+    if isinstance(n, values.W_Fixnum):
+        return values.W_Bool.make(n.value > 0)
+    if isinstance(n, values.W_Bignum):
+        return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
+    return values.w_false
+
 @expose("real?", [values.W_Object])
 def realp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum) or
                               isinstance(n, values.W_Flonum))
+
+@expose("inexact-real?", [values.W_Object])
+def inexact_real(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("single-flonum?", [values.W_Object])
+def single_flonum(n):
+    return values.w_false
+
+@expose("double-flonum?", [values.W_Object])
+def double_flonum(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("syntax-original?", [values.W_Syntax])
+def syntax_original(v):
+    return values.w_false
+
+@expose("syntax-tainted?", [values.W_Syntax])
+def syntax_tainted(v):
+    return values.w_false
+
+@expose("compiled-module-expression?", [values.W_Object])
+def compiled_module_expression(v):
+    return values.w_false
 
 @expose("rational?", [values.W_Object])
 def rationalp(n):
@@ -833,14 +878,14 @@ def equal_vec_func(a, b, idx, env, cont):
     from pycket.interpreter import return_value
     if idx.value >= a.length():
         return return_value(values.w_true, env, cont)
-    return do_vec_ref_func(a, idx, env, equal_vec_left_cont(a, b, idx, env, cont))
+    return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, env, cont))
 
 # Receive the first value for a given index
 @continuation
 def equal_vec_left_cont(a, b, idx, env, cont, _vals):
     from pycket.interpreter import check_one_val
     l = check_one_val(_vals)
-    return do_vec_ref_func(b, idx, env,
+    return b.vector_ref(idx, env,
                 equal_vec_right_cont(a, b, idx, l, env, cont))
 
 # Receive the second value for a given index
@@ -1148,7 +1193,12 @@ def struct2vector(struct):
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
     from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([values.w_void, values.w_void, values.w_void]), env, cont)
+    from pycket.values import W_SimplePrim
+    name = sym.value
+    prop = imp.W_ImpPropertyDescriptor(name)
+    pred = imp.W_ImpPropertyPredicate(name)
+    accs = imp.W_ImpPropertyAccessor(name)
+    return return_multi_vals(values.Values.make([prop, pred, accs]), env, cont)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
@@ -1198,20 +1248,6 @@ def box(v):
 def box_immutable(v):
     return values.W_IBox(v)
 
-@expose("chaperone-box", [values.W_Box, procedure, procedure])
-def chaperone_box(b, unbox, set):
-    unbox.mark_non_loop()
-    set.mark_non_loop()
-    return imp.W_ChpBox(b, unbox, set)
-
-@expose("impersonate-box", [values.W_Box, procedure, procedure])
-def impersonate_box(b, unbox, set):
-    if b.immutable():
-        raise SchemeException("Cannot impersonate immutable box")
-    unbox.mark_non_loop()
-    set.mark_non_loop()
-    return imp.W_ImpBox(b, unbox, set)
-
 @expose("unbox", [values.W_Box], simple=False)
 def unbox(b, env, cont):
     return b.unbox(env, cont)
@@ -1228,56 +1264,62 @@ def box_cas(box, old, new):
         return values.w_true
     return values.w_false
 
+@expose("make-weak-box", [values.W_Object])
+def make_weak_box(val):
+    return values.W_WeakBox(val)
+
+@expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, values.w_false)])
+def weak_box_value(wb, default):
+    v = wb.get()
+    return v if v is not None else default
+
+@expose("make-ephemeron", [values.W_Object] * 2)
+def make_ephemeron(key, val):
+    return values.W_Ephemeron(key, val)
+
+@expose("ephemeron-value", [values.W_Ephemeron, default(values.W_Object, values.w_false)])
+def ephemeron_value(ephemeron, default):
+    v = ephemeron.get()
+    return v if v is not None else default
+
+@expose("make-placeholder", [values.W_Object])
+def make_placeholder(val):
+    return values.W_Placeholder(val)
+
+@expose("placeholder-set!", [values.W_Placeholder, values.W_Object])
+def placeholder_set(ph, datum):
+    ph.value = datum
+    return values.w_void
+
+@expose("placeholder-get", [values.W_Placeholder])
+def placeholder_get(ph):
+    return ph.value
+
+@expose("make-hash-placeholder", [values.W_List])
+def make_hash_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
+
+@expose("make-hasheq-placeholder", [values.W_List])
+def make_hasheq_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
+
+@expose("make-hasheqv-placeholder", [values.W_List])
+def make_hasheqv_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return do_vec_ref_func(v, i, env, cont)
-
-@continuation
-def imp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return f.call([v, i, check_one_val(vals)], env, cont)
-
-@continuation
-def chp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    old = check_one_val(vals)
-    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
-
-@continuation
-def chp_vec_ref_cont_ret(old, env, cont, vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    new = check_one_val(vals)
-    if imp.is_chaperone_of(new, old):
-        return return_multi_vals(vals, env, cont)
-    else:
-        raise SchemeException("Expecting original value or chaperone of thereof")
-
-@label
-def do_vec_ref_func(v, i, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(v, values_vector.W_Vector):
-        # we can use _ref here because we already checked the precondition
-        return return_value(v._ref(i.value), env, cont)
-    elif isinstance(v, imp.W_ImpVector):
-        uv = v.inner
-        f = v.refh
-        return do_vec_ref_func(uv, i, env, imp_vec_ref_cont(f, i, uv, env, cont))
-    elif isinstance(v, imp.W_ChpVector):
-        uv = v.inner
-        f  = v.refh
-        return do_vec_ref_func(uv, i, env, chp_vec_ref_cont(f, i, uv, env, cont))
-    else:
-        assert False
+    return v.vector_ref(i, env, cont)
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return do_vec_set_func(v, i, new, env, cont)
+    return v.vector_set(i, new, env, cont)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
@@ -1307,7 +1349,7 @@ def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
     idx = values.W_Fixnum(src_idx)
-    return do_vec_ref_func(src, idx, env,
+    return src.vector_ref(idx, env,
                 vector_copy_cont_get(src, src_start, src_end, dest,
                     dest_start, i, env, cont))
 
@@ -1322,68 +1364,100 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
     val  = check_one_val(_vals)
     idx  = values.W_Fixnum(i.value + dest_start)
     next = values.W_Fixnum(i.value + 1)
-    return do_vec_set_func(dest, idx, val, env,
+    return dest.vector_set(idx, val, env,
                 goto_vector_copy_loop(src, src_start, src_end,
                     dest, dest_start, next, env, cont))
 
-@continuation
-def imp_vec_set_cont(v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return do_vec_set_func(v, i, check_one_val(vals), env, cont)
+def find_prop_start_index(args):
+    for i, v in enumerate(args):
+        if isinstance(v, imp.W_ImpPropertyDescriptor):
+            return i
+    return len(args)
 
-@continuation
-def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(vals)
-    if not imp.is_chaperone_of(val, orig):
-        raise SchemeException("Expecting original value or chaperone")
-    return do_vec_set_func(v, i, val, env, cont)
+def unpack_properties(args, name):
+    idx = find_prop_start_index(args)
+    args, props = args[:idx], args[idx:]
+    prop_len = len(props)
 
-@label
-def do_vec_set_func(v, i, new, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(v, values_vector.W_Vector):
-        # we can use _set here because we already checked the precondition
-        v._set(i.value, new)
-        return return_value(values.w_void, env, cont)
-    elif isinstance(v, imp.W_ImpVector):
-        uv = v.inner
-        f = v.seth
-        return f.call([uv, i, new], env, imp_vec_set_cont(uv, i, env, cont))
-    elif isinstance(v, imp.W_ChpVector):
-        uv = v.inner
-        f  = v.seth
-        return f.call([uv, i, new], env, chp_vec_set_cont(new, uv, i, env, cont))
-    else:
-        assert False
+    if prop_len % 2 != 0:
+        raise SchemeException(name + ": not all properties have corresponding values")
 
-@expose("impersonate-procedure", [procedure, procedure])
-def impersonate_procedure(proc, check):
+    prop_keys = [props[i] for i in range(0, prop_len, 2)]
+    prop_vals = [props[i] for i in range(1, prop_len, 2)]
+
+    for k in prop_keys:
+        if not isinstance(k, imp.W_ImpPropertyDescriptor):
+            desc = name + ": %s is not a property descriptor" % k.tostring()
+            raise SchemeException(desc)
+
+    return args, prop_keys, prop_vals
+
+def unpack_vector_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    if len(args) != 3:
+        raise SchemeException(name + ": not given 3 required arguments")
+    v, refh, seth = args
+    if not isinstance(v, values.W_MVector):
+        raise SchemeException(name + ": first arg not a vector")
+    if not refh.iscallable() or not seth.iscallable:
+        raise SchemeException(name + ": provided handler is not callable")
+
+    return v, refh, seth, prop_keys, prop_vals
+
+def unpack_procedure_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    if len(args) != 2:
+        raise SchemeException(name + ": not given 2 required arguments")
+    proc, check = args
+    if not proc.iscallable():
+        raise SchemeException(name + ": first argument is not a procedure")
+    if not check.iscallable():
+        raise SchemeException(name + ": handler is not a procedure")
+    return proc, check, prop_keys, prop_vals
+
+def unpack_box_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    if len(args) != 3:
+        raise SchemeException(name + ": not given three required arguments")
+    box, unboxh, seth = args
+    if not unboxh.iscallable():
+        raise SchemeException(name + ": supplied unbox handler is not callable")
+    if not seth.iscallable():
+        raise SchemeException(name + ": supplied set-box! handler is not callable")
+    return box, unboxh, seth, prop_keys, prop_vals
+
+@expose("impersonate-procedure")
+def impersonate_procedure(args):
+    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
     check.mark_non_loop()
-    return imp.W_ImpProcedure(proc, check)
+    return imp.W_ImpProcedure(proc, check, prop_keys, prop_vals)
 
-@expose("impersonate-vector", [values.W_MVector, procedure, procedure])
-def impersonate_vector(v, refh, seth):
+@expose("impersonate-vector")
+def impersonate_vector(args):
+    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "impersonate-vector")
     if v.immutable():
         raise SchemeException("Cannot impersonate immutable vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
-    return imp.W_ImpVector(v, refh, seth)
+    return imp.W_ImpVector(v, refh, seth, prop_keys, prop_vals)
 
-@expose("chaperone-procedure", [procedure, procedure])
-def chaperone_procedure(proc, check):
+@expose("chaperone-procedure")
+def chaperone_procedure(args):
+    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "chaperone-procedure")
     check.mark_non_loop()
-    return imp.W_ChpProcedure(proc, check)
+    return imp.W_ChpProcedure(proc, check, prop_keys, prop_vals)
 
-@expose("chaperone-vector", [values.W_MVector, procedure, procedure])
-def chaperone_vector(v, refh, seth):
+@expose("chaperone-vector")
+def chaperone_vector(args):
+    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "chaperone-vector")
     refh.mark_non_loop()
     seth.mark_non_loop()
-    return imp.W_ChpVector(v, refh, seth)
+    return imp.W_ChpVector(v, refh, seth, prop_keys, prop_vals)
 
 # Need to check that fields are mutable
 @expose("impersonate-struct")
 def impersonate_struct(args):
+    args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
     if len(args) < 1 or len(args) % 2 != 1:
         raise SchemeException("impersonate-struct: arity mismatch")
     if len(args) == 1:
@@ -1413,16 +1487,16 @@ def impersonate_struct(args):
         elif (isinstance(i, values_struct.W_StructFieldAccessor) and
                 i.field.value in immutables):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
-        # Need to handle properties as well
 
     for i in handlers:
         if not i.iscallable():
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
-    return imp.W_ImpStruct(struct, overrides, handlers)
+    return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-struct")
 def chaperone_struct(args):
+    args, prop_keys, prop_vals = unpack_properties(args, "chaperone-struct")
     if len(args) < 1 or len(args) % 2 != 1:
         raise SchemeException("chaperone-struct: arity mismatch")
     if len(args) == 1:
@@ -1445,7 +1519,23 @@ def chaperone_struct(args):
         if not i.iscallable():
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
 
-    return imp.W_ChpStruct(struct, overrides, handlers)
+    return imp.W_ChpStruct(struct, overrides, handlers, prop_keys, prop_vals)
+
+@expose("chaperone-box")
+def chaperone_box(args):
+    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "chaperone-box")
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return imp.W_ChpBox(b, unbox, set, prop_keys, prop_vals)
+
+@expose("impersonate-box")
+def impersonate_box(args):
+    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "impersonate-box")
+    if b.immutable():
+        raise SchemeException("Cannot impersonate immutable box")
+    unbox.mark_non_loop()
+    set.mark_non_loop()
+    return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
@@ -1594,7 +1684,7 @@ def unsafe_fleq(a, b):
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_ref_func(v, i, env, cont)
+        return v.vector_ref(i, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         val = i.value
@@ -1610,7 +1700,7 @@ def unsafe_vector_star_ref(v, i):
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return do_vec_set_func(v, i, new, env, cont)
+        return v.vector_set(i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         return return_value(v._set(i.value, new), env, cont)
@@ -1785,6 +1875,16 @@ def mcpt():
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
+
+@expose("symbol-unreadable?", [values.W_Object])
+def symbol_unreadable(sym):
+    return values.w_false
+
+@expose("symbol-interned?", [values.W_Object])
+def symbol_interned(sym):
+    if isinstance(sym, values.W_Symbol):
+        return values.W_Bool.make(sym.value in values.W_Symbol.all_symbols)
+    return values.w_false
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):

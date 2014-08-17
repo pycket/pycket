@@ -8,6 +8,8 @@ from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit, runicode
 from rpython.rlib.objectmodel import r_dict, compute_hash
 
+import rpython.rlib.rweakref as weakref
+
 UNROLLING_CUTOFF = 5
 
 # This is not a real value, so it's not a W_Object
@@ -114,7 +116,7 @@ class W_CellIntegerStrategy(W_Object):
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
-    _immutable_fields_ = ["o"]
+    _immutable_fields_ = ["val"]
     errorname = "syntax"
     def __init__(self, o):
         self.val = o
@@ -170,6 +172,14 @@ class W_VariableReference(W_Object):
 class W_MVector(W_Object):
     errorname = "vector"
     def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+    @label
+    def vector_set(self, i, new, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    @label
+    def vector_ref(self, i, env, cont):
         raise NotImplementedError("abstract base class")
 
     def length(self):
@@ -277,6 +287,56 @@ class W_IBox(W_Box):
 
     def tostring(self):
         return "'#&%s" % self.value.tostring()
+
+# A weak box does not test as a box for most operations and cannot be
+# chaperoned/impersonated, so we start it from W_Object rather than W_Box.
+class W_WeakBox(W_Object):
+    errorname = "weak-box"
+    _immutable_fields_ = ["value"]
+
+    def __init__(self, value):
+        assert isinstance(value, W_Object)
+        self.value = weakref.ref(value)
+
+    def get(self):
+        return self.value()
+
+    def tostring(self):
+        return "#<weak-box>"
+
+class W_Ephemeron(W_Object):
+    errorname = "ephemeron"
+    _immutable_fields_ = ["key", "value"]
+
+    def __init__(self, key, value):
+        assert isinstance(key, W_Object)
+        assert isinstance(value, W_Object)
+        self.key = weakref.ref(key)
+        self.value = weakref.ref(value)
+
+    def get(self):
+        k = self.key()
+        v = self.value()
+        if k is None or v is None:
+            return None
+        return v
+
+    def tostring(self):
+        return "#<ephemeron>"
+
+class W_Placeholder(W_Object):
+    errorname = "placeholder"
+    def __init__(self, value):
+        self.value = value
+    def tostring(self):
+        return "#<placeholder>"
+
+class W_HashTablePlaceholder(W_Object):
+    errorname = "hash-table-placeholder"
+    def __init__(self, keys, vals):
+        pass
+    def tostring(self):
+        return "#<hash-table-placeholder>"
 
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
@@ -395,6 +455,17 @@ class W_Bignum(W_Integer):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
+
+class W_Complex(W_Number):
+    _immutable_fields_ = ["real", "imag"]
+    def __init__(self, re, im):
+        assert isinstance(re, W_Number)
+        assert isinstance(im, W_Number)
+        self.real = re
+        self.imag = im
+
+    def tostring(self):
+        return "%s+%si" % (self.real.tostring(), self.imag.tostring())
 
 class W_Character(W_Object):
     _immutable_fields_ = ["value"]
