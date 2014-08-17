@@ -331,6 +331,13 @@ class W_Placeholder(W_Object):
     def tostring(self):
         return "#<placeholder>"
 
+class W_HashTablePlaceholder(W_Object):
+    errorname = "hash-table-placeholder"
+    def __init__(self, keys, vals):
+        pass
+    def tostring(self):
+        return "#<hash-table-placeholder>"
+
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -448,6 +455,17 @@ class W_Bignum(W_Integer):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
+
+class W_Complex(W_Number):
+    _immutable_fields_ = ["real", "imag"]
+    def __init__(self, re, im):
+        assert isinstance(re, W_Number)
+        assert isinstance(im, W_Number)
+        self.real = re
+        self.imag = im
+
+    def tostring(self):
+        return "%s+%si" % (self.real.tostring(), self.imag.tostring())
 
 class W_Character(W_Object):
     _immutable_fields_ = ["value"]

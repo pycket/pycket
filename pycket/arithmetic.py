@@ -8,7 +8,7 @@ import math
 def make_int(w_value):
     if isinstance(w_value, values.W_Bignum):
         try:
-            num = w_value.value.toint() 
+            num = w_value.value.toint()
         except OverflowError:
             pass
         else:
@@ -27,7 +27,7 @@ class __extend__(values.W_Number):
 
 
 class __extend__(values.W_Fixnum):
-    # ------------------ addition ------------------ 
+    # ------------------ addition ------------------
     def arith_add(self, other):
         return other.arith_add_number(self.value)
 
@@ -46,7 +46,7 @@ class __extend__(values.W_Fixnum):
     def arith_unaryadd(self):
         return self
 
-    # ------------------ subtraction ------------------ 
+    # ------------------ subtraction ------------------
     def arith_sub(self, other):
         return other.arith_sub_number(self.value)
 
@@ -73,7 +73,7 @@ class __extend__(values.W_Fixnum):
     def arith_sub1(self):
         return values.W_Fixnum(self.value - 1)
 
-    # ------------------ multiplication ------------------ 
+    # ------------------ multiplication ------------------
     def arith_mul(self, other):
         if not self.value: return self
         return other.arith_mul_number(self.value)
@@ -94,7 +94,7 @@ class __extend__(values.W_Fixnum):
         if not self.value: return self
         return values.W_Flonum(other_float * float(self.value))
 
-    # ------------------ division ------------------ 
+    # ------------------ division ------------------
     def arith_div(self, other):
         return other.arith_div_number(self.value)
 
@@ -162,7 +162,7 @@ class __extend__(values.W_Fixnum):
             raise SchemeException("zero_divisor")
         return values.W_Bignum(rbigint.fromint(self.value)).arith_quotient_bigint(other_value)
 
-    # ------------------ power ------------------ 
+    # ------------------ power ------------------
     def arith_pow(self, other):
         return other.arith_pow_number(self.value)
 
@@ -179,7 +179,7 @@ class __extend__(values.W_Fixnum):
     def arith_pow_float(self, other_float):
         return values.W_Flonum(math.pow(other_float, float(self.value)))
 
-    # ------------------ shift right ------------------ 
+    # ------------------ shift right ------------------
     def arith_shr(self, other):
         return other.arith_shr_number(self.value)
 
@@ -189,7 +189,7 @@ class __extend__(values.W_Fixnum):
     def arith_shr_bigint(self, other_value):
         return make_int(values.W_Bignum(other_value.rshift(self.value)))
 
-    # ------------------ shift left ------------------ 
+    # ------------------ shift left ------------------
     def arith_shl(self, other):
         return other.arith_shl_number(self.value)
 
@@ -199,7 +199,7 @@ class __extend__(values.W_Fixnum):
     def arith_shl_bigint(self, other_value):
         return make_int(values.W_Bignum(other_value.lshift(self.value)))
 
-    # ------------------ or ------------------ 
+    # ------------------ or ------------------
     def arith_or(self, other):
         return other.arith_or_number(self.value)
 
@@ -209,7 +209,7 @@ class __extend__(values.W_Fixnum):
     def arith_or_bigint(self, other_value):
         return make_int(values.W_Bignum(rbigint.fromint(self.value).or_(other_value)))
 
-    # ------------------ and ------------------ 
+    # ------------------ and ------------------
     def arith_and(self, other):
         return other.arith_and_number(self.value)
 
@@ -219,7 +219,7 @@ class __extend__(values.W_Fixnum):
     def arith_and_bigint(self, other_value):
         return make_int(values.W_Bignum(rbigint.fromint(self.value).and_(other_value)))
 
-    # ------------------ xor ------------------ 
+    # ------------------ xor ------------------
     def arith_xor(self, other):
         return other.arith_xor_number(self.value)
 
@@ -229,7 +229,7 @@ class __extend__(values.W_Fixnum):
     def arith_xor_bigint(self, other_value):
         return make_int(values.W_Bignum(rbigint.fromint(self.value).xor(other_value)))
 
-    # ------------------ mod ------------------ 
+    # ------------------ mod ------------------
     def arith_mod(self, other):
         return other.arith_mod_number(self.value)
 
@@ -331,7 +331,7 @@ class __extend__(values.W_Fixnum):
 
 
 class __extend__(values.W_Flonum):
-    # ------------------ addition ------------------ 
+    # ------------------ addition ------------------
     def arith_add(self, other):
         return other.arith_add_float(self.value)
 
@@ -347,7 +347,7 @@ class __extend__(values.W_Flonum):
     def arith_unaryadd(self):
         return self
 
-    # ------------------ subtraction ------------------ 
+    # ------------------ subtraction ------------------
     def arith_sub(self, other):
         return other.arith_sub_float(self.value)
 
@@ -366,7 +366,7 @@ class __extend__(values.W_Flonum):
     def arith_sub1(self):
         return values.W_Flonum(self.value - 1)
 
-    # ------------------ multiplication ------------------ 
+    # ------------------ multiplication ------------------
     def arith_mul(self, other):
         return other.arith_mul_float(self.value)
 
@@ -379,7 +379,7 @@ class __extend__(values.W_Flonum):
     def arith_mul_float(self, other_float):
         return values.W_Flonum(other_float * self.value)
 
-    # ------------------ division ------------------ 
+    # ------------------ division ------------------
     def arith_div(self, other):
         return other.arith_div_float(self.value)
 
@@ -416,7 +416,7 @@ class __extend__(values.W_Flonum):
             raise Exception("zero_divisor")
         return values.W_Flonum(math.fmod(other_float, self.value))
 
-    # ------------------ power ------------------ 
+    # ------------------ power ------------------
     def arith_pow(self, other):
         return other.arith_pow_float(self.value)
 
@@ -429,11 +429,11 @@ class __extend__(values.W_Flonum):
     def arith_pow_float(self, other_float):
         return values.W_Flonum(math.pow(other_float, self.value))
 
-    # ------------------ abs ------------------ 
+    # ------------------ abs ------------------
     def arith_abs(self):
         return values.W_Flonum(abs(self.value))
 
-    # ------------------ max ------------------ 
+    # ------------------ max ------------------
     def arith_max(self, other):
         return other.arith_max_float(self.value)
 
@@ -445,8 +445,8 @@ class __extend__(values.W_Flonum):
 
     def arith_max_float(self, other_float):
         return values.W_Flonum(max(other_float, self.value))
-    
-    # ------------------ min ------------------ 
+
+    # ------------------ min ------------------
     def arith_min(self, other):
         return other.arith_min_float(self.value)
 
@@ -532,7 +532,7 @@ class __extend__(values.W_Flonum):
 
 
 class __extend__(values.W_Bignum):
-    # ------------------ addition ------------------ 
+    # ------------------ addition ------------------
     def arith_add(self, other):
         return other.arith_add_bigint(self.value)
 
@@ -548,7 +548,7 @@ class __extend__(values.W_Bignum):
     def arith_unaryadd(self):
         return self
 
-    # ------------------ subtraction ------------------ 
+    # ------------------ subtraction ------------------
     def arith_sub(self, other):
         return other.arith_sub_bigint(self.value)
 
@@ -564,7 +564,7 @@ class __extend__(values.W_Bignum):
     def arith_unarysub(self):
         return values.W_Bignum(self.value.neg())
 
-    # ------------------ multiplication ------------------ 
+    # ------------------ multiplication ------------------
     def arith_mul(self, other):
         return other.arith_mul_bigint(self.value)
 
@@ -577,7 +577,7 @@ class __extend__(values.W_Bignum):
     def arith_mul_float(self, other_float):
         return values.W_Flonum(other_float * self.value.tofloat())
 
-    # ------------------ division ------------------ 
+    # ------------------ division ------------------
     def arith_div(self, other):
         return other.arith_div_bigint(self.value)
 
@@ -644,7 +644,7 @@ class __extend__(values.W_Bignum):
     def arith_pow_float(self, other_float):
         return values.W_Flonum(math.pow(other_float, self.value.tofloat()))
 
-    # ------------------ shift right ------------------ 
+    # ------------------ shift right ------------------
     def arith_shr(self, other):
         return other.arith_shr_bigint(self.value)
 
@@ -664,7 +664,7 @@ class __extend__(values.W_Bignum):
             raise ValueError('Right operand too big')
         return make_int(values.W_Bignum(other_value.rshift(num)))
 
-    # ------------------ shift left ------------------ 
+    # ------------------ shift left ------------------
     def arith_shl(self, other):
         return other.arith_shl_bigint(self.value)
 
@@ -685,7 +685,7 @@ class __extend__(values.W_Bignum):
             raise ValueError('Right operand too big')
         return make_int(values.W_Bignum(other_value.lshift(num)))
 
-    # ------------------ or ------------------ 
+    # ------------------ or ------------------
     def arith_or(self, other):
         return other.arith_or_bigint(self.value)
 
@@ -695,7 +695,7 @@ class __extend__(values.W_Bignum):
     def arith_or_bigint(self, other_value):
         return make_int(values.W_Bignum(other_value.or_(self.value)))
 
-    # ------------------ and ------------------ 
+    # ------------------ and ------------------
     def arith_and(self, other):
         return other.arith_and_bigint(self.value)
 
@@ -705,7 +705,7 @@ class __extend__(values.W_Bignum):
     def arith_and_bigint(self, other_value):
         return make_int(values.W_Bignum(other_value.and_(self.value)))
 
-    # ------------------ xor ------------------ 
+    # ------------------ xor ------------------
     def arith_xor(self, other):
         return other.arith_xor_bigint(self.value)
 
@@ -715,7 +715,7 @@ class __extend__(values.W_Bignum):
     def arith_xor_bigint(self, other_value):
         return make_int(values.W_Bignum(other_value.xor(self.value)))
 
-    # ------------------ mod ------------------ 
+    # ------------------ mod ------------------
     def arith_mod(self, other):
         return other.arith_mod_bigint(self.value)
 
@@ -731,7 +731,7 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
 
-    # ------------------ inversion ------------------ 
+    # ------------------ inversion ------------------
     def arith_not(self):
         return make_int(values.W_Bignum(self.value.invert()))
 

@@ -84,6 +84,7 @@ for args in [
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
+        ("complex?", values.W_Complex),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
         ("vector?", values.W_MVector),
@@ -121,6 +122,7 @@ for args in [
         ("weak-box?", values.W_WeakBox),
         ("ephemeron?", values.W_Ephemeron),
         ("placeholder?", values.W_Placeholder),
+        ("hash-placeholder?", values.W_HashTablePlaceholder),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -175,11 +177,44 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
     return values.w_false
 
+@expose("exact-positive-integer?", [values.W_Object])
+def exact_nonneg_integerp(n):
+    from rpython.rlib.rbigint import rbigint
+    if isinstance(n, values.W_Fixnum):
+        return values.W_Bool.make(n.value > 0)
+    if isinstance(n, values.W_Bignum):
+        return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
+    return values.w_false
+
 @expose("real?", [values.W_Object])
 def realp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum) or
                               isinstance(n, values.W_Flonum))
+
+@expose("inexact-real?", [values.W_Object])
+def inexact_real(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("single-flonum?", [values.W_Object])
+def single_flonum(n):
+    return values.w_false
+
+@expose("double-flonum?", [values.W_Object])
+def double_flonum(n):
+    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("syntax-original?", [values.W_Syntax])
+def syntax_original(v):
+    return values.w_false
+
+@expose("syntax-tainted?", [values.W_Syntax])
+def syntax_tainted(v):
+    return values.w_false
+
+@expose("compiled-module-expression?", [values.W_Object])
+def compiled_module_expression(v):
+    return values.w_false
 
 @expose("rational?", [values.W_Object])
 def rationalp(n):
@@ -1249,6 +1284,18 @@ def placeholder_set(ph, datum):
 @expose("placeholder-get", [values.W_Placeholder])
 def placeholder_get(ph):
     return ph.value
+
+@expose("make-hash-placeholder", [values.W_List])
+def make_hash_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
+
+@expose("make-hasheq-placeholder", [values.W_List])
+def make_hasheq_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
+
+@expose("make-hasheqv-placeholder", [values.W_List])
+def make_hasheqv_placeholder(vals):
+    return values.W_HashTablePlaceholder([], [])
 
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
