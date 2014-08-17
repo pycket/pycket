@@ -688,7 +688,7 @@ class W_Symbol(W_Object):
         if string in W_Symbol.unreadable_symbols:
             return W_Symbol.unreadable_symbols[string]
         else:
-            W_Symbol.unreadbale_symbols[string] = w_result = W_Symbol(string, True)
+            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(string, True)
             return w_result
     def __repr__(self):
         return self.value
@@ -696,6 +696,7 @@ class W_Symbol(W_Object):
         self.value = val
         self.unreadable = unreadable
     def is_interned(self):
+        string = self.value
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string] is self
         if string in W_Symbol.unreadable_symbols:
