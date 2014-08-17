@@ -71,7 +71,14 @@ class Cont(object):
         else:
             return "%s()"%(self.__class__.__name__)
 
-def continuation(func):
+# Not used yet, but maybe if there's a continuation whose prev isn't named `cont`
+def continuation_named(name="cont"):
+    def wrap(f):
+        return continuation(f, prev_name=name)
+    return wrap
+    
+
+def continuation(func, prev_name="cont"):
     """ workaround for the lack of closures in RPython. use to decorate a
     function that is supposed to be usable as a continuation. When the
     continuation triggers, the original function is called with one extra
@@ -90,7 +97,10 @@ def continuation(func):
         _immutable_fields_ = argnames
 
         def __init__(self, *args):
+            self.marks = None
             for i, name in unroll_argnames:
+                if name == prev_name:
+                    self.prev = args[i]
                 setattr(self, name, args[i])
 
         def plug_reduce(self, vals, env):

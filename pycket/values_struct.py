@@ -119,7 +119,7 @@ class W_StructType(values.W_Object):
         return "#<struct-type:%s>" % self.name
 
 @continuation
-def arity_error_cont(_vals):
+def arity_error_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val
     msg = check_one_val(_vals)
     raise SchemeException(msg.tostring())
@@ -156,7 +156,7 @@ class W_RootStruct(values.W_Object):
         if len(args) not in arities:
             for w_car, w_prop in my_type.props:
                 if w_car.isinstance(w_prop_arity_string):
-                    return w_prop.call([self], env, arity_error_cont())
+                    return w_prop.call([self], env, arity_error_cont(env, cont))
         return proc.call(args, env, cont)
 
     @jit.elidable
