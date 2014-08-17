@@ -681,6 +681,8 @@ for args in [ ("date",),
               ("port?",),
               ("sequence?",),
               ("namespace-anchor?",),
+              ("chaperone-channel",),
+              ("impersonate-channel",),
 
               ("string-ci<?", [values.W_String, values.W_String]),
               ("keyword<?", [values.W_Keyword, values.W_Keyword]),
@@ -1616,6 +1618,14 @@ def impersonate_box(args):
     unbox.mark_non_loop()
     set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
+
+@expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
+def ccmk(cmk, f):
+    return cmk
+
+@expose("impersonate-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
+def icmk(cmk, f):
+    return cmk
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
