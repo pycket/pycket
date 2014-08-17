@@ -8,6 +8,8 @@ from rpython.tool.pairtype import extendabletype
 from rpython.rlib  import jit, runicode
 from rpython.rlib.objectmodel import r_dict, compute_hash
 
+import rpython.rlib.rweakref as weakref
+
 UNROLLING_CUTOFF = 5
 
 # This is not a real value, so it's not a W_Object
@@ -287,20 +289,38 @@ class W_IBox(W_Box):
         return "'#&%s" % self.value.tostring()
 
 # A weak box does not test as a box for most operations and cannot be
-# chaperoned/impersonated
+# chaperoned/impersonated, so we start it from W_Object rather than W_Box.
 class W_WeakBox(W_Object):
     errorname = "weak-box"
+    _immutable_fields_ = ["value"]
+
     def __init__(self, value):
-        self.value = value
+        assert isinstance(value, W_Object)
+        self.value = weakref.ref(value)
+
+    def get(self):
+        return self.value()
+
     def tostring(self):
-        return "#<weak-box"
+        return "#<weak-box>"
 
 class W_Ephemeron(W_Object):
     errorname = "ephemeron"
     _immutable_fields_ = ["key", "value"]
+
     def __init__(self, key, value):
-        self.key = key
-        self.value = value
+        assert isinstance(key, W_Object)
+        assert isinstance(value, W_Object)
+        self.key = weakref.ref(key)
+        self.value = weakref.ref(value)
+
+    def get(self):
+        k = self.key()
+        v = self.value()
+        if k is None or v is None:
+            return None
+        return v
+
     def tostring(self):
         return "#<ephemeron>"
 

@@ -1223,17 +1223,19 @@ def box_cas(box, old, new):
 def make_weak_box(val):
     return values.W_WeakBox(val)
 
-@expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, None)])
-def weak_box_value(val, default):
-    return val.value
+@expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, values.w_false)])
+def weak_box_value(wb, default):
+    v = wb.get()
+    return v if v is not None else default
 
 @expose("make-ephemeron", [values.W_Object] * 2)
 def make_ephemeron(key, val):
     return values.W_Ephemeron(key, val)
 
-@expose("ephemeron-value", [values.W_Ephemeron, default(values.W_Object, None)])
+@expose("ephemeron-value", [values.W_Ephemeron, default(values.W_Object, values.w_false)])
 def ephemeron_value(ephemeron, default):
-    return ephemeron.value
+    v = ephemeron.get()
+    return v if v is not None else default
 
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
