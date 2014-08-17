@@ -162,6 +162,14 @@ class W_ContinuationMarkSet(W_Object):
     def tostring(self):
         return "#<continuation-mark-set>"
 
+class W_ContinuationMarkKey(W_Object):
+    errorname = "continuation-mark-key"
+    _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
+    def tostring(self):
+        return "#<continuation-mark-name>"
+
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
     def __init__(self, varref):
@@ -706,6 +714,7 @@ class W_Symbol(W_Object):
         return "'%s" % self.value
 
 exn_handler_key = W_Symbol("exnh")
+parameterization_key = W_Symbol("parameterization")
 
 class W_Keyword(W_Object):
     _immutable_fields_ = ["value"]
@@ -916,6 +925,13 @@ class W_PromotableClosure(W_Procedure):
 
     def get_arity(self):
         return self.closure.get_arity()
+
+class W_Parameterization(W_Object):
+    errorname = "parameterization"
+    def __init__(self): pass
+    def extend(self, param, val): return self
+    def tostring(self):
+        return "#<parameterization>"
 
 class W_Parameter(W_Object):
     errorname = "parameter"

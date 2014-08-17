@@ -317,6 +317,7 @@ expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
+expose_val("parameterization-key", values.parameterization_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -1952,13 +1953,31 @@ def current_cont_marks(env, cont):
 def cms_list(cms, mark):
     return cont.get_marks(cms.cont, mark)
 
-@expose("continuation-mark-set-first", [values.W_ContinuationMarkSet, values.W_Object, default(values.W_Object, values.w_false)])
-def cms_list(cms, mark, missing):
-    v = cont.get_mark_first(cms.cont, mark)
-    if v:
-        return v
+@expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
+def cms_list(cms, mark, missing, env, con):
+    from pycket.interpreter import return_value
+    if cms is values.w_false:
+        the_cont = con
+    elif isinstance(cms, values.W_ContinuationMarkSet):
+        the_cont = cms.cont
     else:
-        return missing
+        raise SchemeException("Expected #f or a continuation-mark-set")
+    v = cont.get_mark_first(the_cont, mark)
+    if v:
+        return return_value(v, env, con)
+    else:
+        return return_value(missing, env, con)
+
+@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
+def extend_paramz(paramz, key, val):
+    if isinstance(paramz, values.W_Parameterization):
+        return paramz.extend(key, val)
+    else:
+        return paramz # This really is the Racket behavior
+
+@expose("make-continuation-mark-key", [values.W_Symbol])
+def mk_cmk(s):
+    return values.W_ContinuationMarkKey(s)
 
 @expose("make-continuation-prompt-tag", [])
 def mcpt():
