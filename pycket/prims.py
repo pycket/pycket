@@ -123,6 +123,9 @@ for args in [
         ("ephemeron?", values.W_Ephemeron),
         ("placeholder?", values.W_Placeholder),
         ("hash-placeholder?", values.W_HashTablePlaceholder),
+        ("module-path-index?", values.W_ModulePathIndex),
+        ("resolved-module-path?", values.W_ResolvedModulePath),
+        ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -289,9 +292,6 @@ def make_unary_arith(name, methname):
         return getattr(a, methname)()
     do.__name__ = methname
 
-@expose("sub1", [values.W_Number])
-def sub1(v):
-    return v.arith_add(values.W_Fixnum(-1))
 @expose("add1", [values.W_Number])
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
@@ -321,7 +321,6 @@ expose_val("exception-handler-key", values.exn_handler_key)
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
              "prop:output-port",
-             "prop:checked-procedure",
              "prop:impersonator-of",
              "prop:method-arity-error"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
@@ -380,7 +379,7 @@ def do_print(o):
 @expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
 def do_print(out, form, v):
     import re
-    # FIXME: it should print formatted output to out, 
+    # FIXME: it should print formatted output to out,
     # where form is a string that is printed directly, except for special formatting escapes
     #form = form.tostring() \
                #.replace("~n", "\n") \
@@ -514,8 +513,8 @@ def char2int(c):
 # build-in exception types
 
 def define_exn(name, super=values.w_null, init_field_cnt=0):
-    exn = values_struct.W_StructType(values.W_Symbol.make(name), super, 
-        values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false, 
+    exn = values_struct.W_StructType(values.W_Symbol.make(name), super,
+        values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false,
         values.w_null, values.w_false)
     expose_val(name, exn)
     return exn
@@ -586,15 +585,105 @@ def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
 
-for args in [
-        ("exn",),
-        ("date",),
-        ("date*",),
-        ("srcloc",),
+for args in [ ("date",),
+              ("date*",),
+              ("srcloc",),
+              ("subprocess?",),
+              ("input-port?",),
 
-        ("string-ci<?", [values.W_String, values.W_String]),
-        ("keyword<?", [values.W_Keyword, values.W_Keyword]),
-        ("string-ci<=?", [values.W_String, values.W_String])
+              ("output-port?",),
+              ("file-stream-port?",),
+              ("terminal-port?",),
+              ("port-closed?",),
+              ("port-provides-progress-evts?",),
+              ("port-writes-atomic?",),
+              ("port-writes-special?",),
+              ("byte-ready?",),
+              ("char-ready?",),
+              ("eof-object?",),
+              ("bytes-converter?",),
+              ("char-alphabetic?",),
+              ("char-numeric?",),
+              ("char-symbolic?",),
+              ("char-graphic?",),
+              ("char-whitespace?",),
+              ("char-blank?",),
+              ("char-iso-control?",),
+              ("char-punctuation?",),
+              ("char-upper-case?",),
+              ("char-title-case?",),
+              ("char-lower-case?",),
+              ("compiled-expression?",),
+              ("custom-write?",),
+              ("custom-print-quotable?",),
+              ("liberal-define-context?",),
+              ("handle-evt?",),
+              ("procedure-struct-type?",),
+              ("special-comment?",),
+              ("exn:srclocs?",),
+              ("impersonator-property?",),
+              ("logger?",),
+              ("log-receiver?",),
+              # FIXME: these need to be defined with structs
+              ("date?",),
+              ("date-dst?",),
+              ("date*?",),
+              ("srcloc?",),
+              ("exn?",),
+              ("exn:fail?",),
+              ("exn:fail:contract?",),
+              ("exn:fail:contract:arity?",),
+              ("exn:fail:contract:divide-by-zero?",),
+              ("exn:fail:contract:non-fixnum-result?",),
+              ("exn:fail:contract:continuation?",),
+              ("exn:fail:contract:variable?",),
+              ("exn:fail:syntax?",),
+              ("exn:fail:syntax:unbound?",),
+              ("exn:fail:read?",),
+              ("exn:fail:read:eof?",),
+              ("exn:fail:read:non-char?",),
+              ("exn:fail:filesystem?",),
+              ("exn:fail:filesystem:exists?",),
+              ("exn:fail:filesystem:version?",),
+              ("exn:fail:network?",),
+              ("exn:fail:out-of-memory?",),
+              ("exn:fail:unsupported?",),
+              ("exn:fail:user?",),
+              ("exn:break?",),
+              ("thread?",),
+              ("thread-running?",),
+              ("thread-dead?",),
+              ("custodian?",),
+              ("custodian-box?",),
+              ("namespace?",),
+              ("security-guard?",),
+              ("thread-group?",),
+              ("parameter?",),
+              ("parameterization?",),
+              ("will-executor?",),
+              ("evt?",),
+              ("semaphore-try-wait?",),
+              ("channel?",),
+              ("readtable?",),
+              ("path-for-some-system?",),
+              ("file-exists?",),
+              ("directory-exists?",),
+              ("link-exists?",),
+              ("relative-path?",),
+              ("absolute-path?",),
+              ("complete-path?",),
+              ("internal-definition-context?",),
+              ("set!-transformer?",),
+              ("rename-transformer?",),
+              ("path-string?",),
+              ("identifier?",),
+              ("port?",),
+              ("sequence?",),
+              ("namespace-anchor?",),
+
+              ("string-ci<?", [values.W_String, values.W_String]),
+              ("keyword<?", [values.W_Keyword, values.W_Keyword]),
+              ("string-ci<=?", [values.W_String, values.W_String])
 ]:
     define_nyi(*args)
 
@@ -677,7 +766,7 @@ def arity_at_least_p(n):
     elif isinstance(n, values.W_List):
         for item in values.from_list(n):
             if not (isinstance(item, values.W_Fixnum) or isinstance(item, values.W_ArityAtLeast)):
-                return values.w_false 
+                return values.w_false
         return values.w_true
     return values.w_false
 
@@ -1978,15 +2067,10 @@ def current_pseudo_random_generator(args):
 def pseudo_random_generator_to_vector(gen):
     return values_vector.W_Vector.fromelements([])
 
-@expose("vector->pseudo-random-generator", [values.W_MVector])
-def vector_to_pseudo_random_generator(vec):
-    return values.W_PseudoRandomGenerator()
-
-@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, values.W_MVector])
+@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, default(values.W_MVector, None)])
 def vector_to_pseudo_random_generator(gen, vec):
-    return values.w_void
+    return values.W_PseudoRandomGenerator()
 
 @expose("pseudo-random-generator-vector?", [values.W_Object])
 def pseudo_random_generator_vector_huh(vec):
     return values.W_Bool.make(isinstance(vec, values.W_MVector) and vec.length() == 0)
-
