@@ -1791,6 +1791,20 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol.make(v.value)
 
+@expose("string->unreadable-symbol", [values.W_String])
+def string_to_unsymbol(v):
+    return values.W_Symbol.make_unreadable(v.value)
+
+@expose("symbol-unreadable?", [values.W_Symbol])
+def sym_unreadable(v):
+    if v.unreadable:
+        return values.w_true
+    return values.w_false
+
+@expose("symbol-interned?", [values.W_Symbol])
+def string_to_symbol(v):
+    return values.W_Bool.make(v.is_interned())
+
 @expose("string->uninterned-symbol", [values.W_String])
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
@@ -1865,16 +1879,6 @@ def mcpt():
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
-
-@expose("symbol-unreadable?", [values.W_Object])
-def symbol_unreadable(sym):
-    return values.w_false
-
-@expose("symbol-interned?", [values.W_Object])
-def symbol_interned(sym):
-    if isinstance(sym, values.W_Symbol):
-        return values.W_Bool.make(sym.value in values.W_Symbol.all_symbols)
-    return values.w_false
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
