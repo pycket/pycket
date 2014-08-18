@@ -84,7 +84,7 @@ for args in [
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
-        ("complex?", values.W_Complex),
+        ("complex?", values.W_Number),
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
         ("vector?", values.W_MVector),
@@ -123,6 +123,9 @@ for args in [
         ("ephemeron?", values.W_Ephemeron),
         ("placeholder?", values.W_Placeholder),
         ("hash-placeholder?", values.W_HashTablePlaceholder),
+        ("module-path-index?", values.W_ModulePathIndex),
+        ("resolved-module-path?", values.W_ResolvedModulePath),
+        ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -289,9 +292,6 @@ def make_unary_arith(name, methname):
         return getattr(a, methname)()
     do.__name__ = methname
 
-@expose("sub1", [values.W_Number])
-def sub1(v):
-    return v.arith_add(values.W_Fixnum(-1))
 @expose("add1", [values.W_Number])
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
@@ -317,11 +317,11 @@ expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
+expose_val("parameterization-key", values.parameterization_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
              "prop:output-port",
-             "prop:checked-procedure",
              "prop:impersonator-of",
              "prop:method-arity-error"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
@@ -377,25 +377,15 @@ def write(s):
 def do_print(o):
     os.write(1, o.tostring())
 
-def multiple_replace(text, dictionary):
-    # FIXME: pypy translation error when using regex: "Don't know how to represent <SRE_Pattern..."
-    # import re
-    # rc = re.compile('|'.join(dictionary.keys()))
-    # def translate(match):
-    #     return dictionary[match.group(0)]
-    # return rc.sub(translate, text)
-    return text
-
 @expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
-def do_fprintf(out, form, v):
-    # FIXME: it should print formatted output to out, 
-    # where form is a string that is printed directly, 
-    # except for special formatting escapes
-    dictionary = {
-        '~n': '\n',
-        '~%': '\n',
-        '~a': v.tostring()}
-    os.write(1, multiple_replace(form.tostring(), dictionary))
+def do_print(out, form, v):
+    import re
+    # FIXME: it should print formatted output to out,
+    # where form is a string that is printed directly, except for special formatting escapes
+    #form = form.tostring() \
+               #.replace("~n", "\n") \
+               #.replace("~a", v.tostring())
+    os.write(1, form.tostring())
 
 def cur_print_proc(args):
     v, = args
@@ -524,8 +514,8 @@ def char2int(c):
 # build-in exception types
 
 def define_exn(name, super=values.w_null, init_field_cnt=0):
-    exn = values_struct.W_StructType(values.W_Symbol.make(name), super, 
-        values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false, 
+    exn = values_struct.W_StructType(values.W_Symbol.make(name), super,
+        values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false,
         values.w_null, values.w_false)
     expose_val(name, exn)
     return exn
@@ -596,15 +586,107 @@ def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
 
-for args in [
-        ("exn",),
-        ("date",),
-        ("date*",),
-        ("srcloc",),
+for args in [ ("date",),
+              ("date*",),
+              ("srcloc",),
+              ("subprocess?",),
+              ("input-port?",),
 
-        ("string-ci<?", [values.W_String, values.W_String]),
-        ("keyword<?", [values.W_Keyword, values.W_Keyword]),
-        ("string-ci<=?", [values.W_String, values.W_String])
+              ("output-port?",),
+              ("file-stream-port?",),
+              ("terminal-port?",),
+              ("port-closed?",),
+              ("port-provides-progress-evts?",),
+              ("port-writes-atomic?",),
+              ("port-writes-special?",),
+              ("byte-ready?",),
+              ("char-ready?",),
+              ("eof-object?",),
+              ("bytes-converter?",),
+              ("char-alphabetic?",),
+              ("char-numeric?",),
+              ("char-symbolic?",),
+              ("char-graphic?",),
+              ("char-whitespace?",),
+              ("char-blank?",),
+              ("char-iso-control?",),
+              ("char-punctuation?",),
+              ("char-upper-case?",),
+              ("char-title-case?",),
+              ("char-lower-case?",),
+              ("compiled-expression?",),
+              ("custom-write?",),
+              ("custom-print-quotable?",),
+              ("liberal-define-context?",),
+              ("handle-evt?",),
+              ("procedure-struct-type?",),
+              ("special-comment?",),
+              ("exn:srclocs?",),
+              ("impersonator-property?",),
+              ("logger?",),
+              ("log-receiver?",),
+              # FIXME: these need to be defined with structs
+              ("date?",),
+              ("date-dst?",),
+              ("date*?",),
+              ("srcloc?",),
+              ("exn?",),
+              ("exn:fail?",),
+              ("exn:fail:contract?",),
+              ("exn:fail:contract:arity?",),
+              ("exn:fail:contract:divide-by-zero?",),
+              ("exn:fail:contract:non-fixnum-result?",),
+              ("exn:fail:contract:continuation?",),
+              ("exn:fail:contract:variable?",),
+              ("exn:fail:syntax?",),
+              ("exn:fail:syntax:unbound?",),
+              ("exn:fail:read?",),
+              ("exn:fail:read:eof?",),
+              ("exn:fail:read:non-char?",),
+              ("exn:fail:filesystem?",),
+              ("exn:fail:filesystem:exists?",),
+              ("exn:fail:filesystem:version?",),
+              ("exn:fail:network?",),
+              ("exn:fail:out-of-memory?",),
+              ("exn:fail:unsupported?",),
+              ("exn:fail:user?",),
+              ("exn:break?",),
+              ("thread?",),
+              ("thread-running?",),
+              ("thread-dead?",),
+              ("custodian?",),
+              ("custodian-box?",),
+              ("namespace?",),
+              ("security-guard?",),
+              ("thread-group?",),
+              ("parameter?",),
+              ("parameterization?",),
+              ("will-executor?",),
+              ("evt?",),
+              ("semaphore-try-wait?",),
+              ("channel?",),
+              ("readtable?",),
+              ("path-for-some-system?",),
+              ("file-exists?",),
+              ("directory-exists?",),
+              ("link-exists?",),
+              ("relative-path?",),
+              ("absolute-path?",),
+              ("complete-path?",),
+              ("internal-definition-context?",),
+              ("set!-transformer?",),
+              ("rename-transformer?",),
+              ("path-string?",),
+              ("identifier?",),
+              ("port?",),
+              ("sequence?",),
+              ("namespace-anchor?",),
+              ("chaperone-channel",),
+              ("impersonate-channel",),
+
+              ("string-ci<?", [values.W_String, values.W_String]),
+              ("keyword<?", [values.W_Keyword, values.W_Keyword]),
+              ("string-ci<=?", [values.W_String, values.W_String])
 ]:
     define_nyi(*args)
 
@@ -687,7 +769,7 @@ def arity_at_least_p(n):
     elif isinstance(n, values.W_List):
         for item in values.from_list(n):
             if not (isinstance(item, values.W_Fixnum) or isinstance(item, values.W_ArityAtLeast)):
-                return values.w_false 
+                return values.w_false
         return values.w_true
     return values.w_false
 
@@ -1537,6 +1619,14 @@ def impersonate_box(args):
     set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
+@expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
+def ccmk(cmk, f):
+    return cmk
+
+@expose("impersonate-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
+def icmk(cmk, f):
+    return cmk
+
 @expose("chaperone-of?", [values.W_Object, values.W_Object])
 def chaperone_of(a, b):
     return values.W_Bool.make(imp.is_chaperone_of(a, b))
@@ -1801,6 +1891,20 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol.make(v.value)
 
+@expose("string->unreadable-symbol", [values.W_String])
+def string_to_unsymbol(v):
+    return values.W_Symbol.make_unreadable(v.value)
+
+@expose("symbol-unreadable?", [values.W_Symbol])
+def sym_unreadable(v):
+    if v.unreadable:
+        return values.w_true
+    return values.w_false
+
+@expose("symbol-interned?", [values.W_Symbol])
+def string_to_symbol(v):
+    return values.W_Bool.make(v.is_interned())
+
 @expose("string->uninterned-symbol", [values.W_String])
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
@@ -1859,13 +1963,31 @@ def current_cont_marks(env, cont):
 def cms_list(cms, mark):
     return cont.get_marks(cms.cont, mark)
 
-@expose("continuation-mark-set-first", [values.W_ContinuationMarkSet, values.W_Object, default(values.W_Object, values.w_false)])
-def cms_list(cms, mark, missing):
-    v = cont.get_mark_first(cms.cont, mark)
-    if v:
-        return v
+@expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
+def cms_list(cms, mark, missing, env, con):
+    from pycket.interpreter import return_value
+    if cms is values.w_false:
+        the_cont = con
+    elif isinstance(cms, values.W_ContinuationMarkSet):
+        the_cont = cms.cont
     else:
-        return missing
+        raise SchemeException("Expected #f or a continuation-mark-set")
+    v = cont.get_mark_first(the_cont, mark)
+    if v:
+        return return_value(v, env, con)
+    else:
+        return return_value(missing, env, con)
+
+@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
+def extend_paramz(paramz, key, val):
+    if isinstance(paramz, values.W_Parameterization):
+        return paramz.extend(key, val)
+    else:
+        return paramz # This really is the Racket behavior
+
+@expose("make-continuation-mark-key", [values.W_Symbol])
+def mk_cmk(s):
+    return values.W_ContinuationMarkKey(s)
 
 @expose("make-continuation-prompt-tag", [])
 def mcpt():
@@ -1875,16 +1997,6 @@ def mcpt():
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
-
-@expose("symbol-unreadable?", [values.W_Object])
-def symbol_unreadable(sym):
-    return values.w_false
-
-@expose("symbol-interned?", [values.W_Object])
-def symbol_interned(sym):
-    if isinstance(sym, values.W_Symbol):
-        return values.W_Bool.make(sym.value in values.W_Symbol.all_symbols)
-    return values.w_false
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
@@ -1984,15 +2096,10 @@ def current_pseudo_random_generator(args):
 def pseudo_random_generator_to_vector(gen):
     return values_vector.W_Vector.fromelements([])
 
-@expose("vector->pseudo-random-generator", [values.W_MVector])
-def vector_to_pseudo_random_generator(vec):
-    return values.W_PseudoRandomGenerator()
-
-@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, values.W_MVector])
+@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, default(values.W_MVector, None)])
 def vector_to_pseudo_random_generator(gen, vec):
-    return values.w_void
+    return values.W_PseudoRandomGenerator()
 
 @expose("pseudo-random-generator-vector?", [values.W_Object])
 def pseudo_random_generator_vector_huh(vec):
     return values.W_Bool.make(isinstance(vec, values.W_MVector) and vec.length() == 0)
-

@@ -126,7 +126,10 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
         cls = values.W_Prim
         p = cls(name, func_result_handling, _arity)
         for nam in names:
-            prim_env[values.W_Symbol.make(nam)] = p
+            sym = values.W_Symbol.make(nam)
+            if sym in prim_env:
+                raise Error("name %s already defined"%nam)
+            prim_env[sym] = p
         return func_arg_unwrap
     return wrapper
 
@@ -142,4 +145,7 @@ def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
 
 def expose_val(name, w_v):
     from pycket.prims import prim_env
-    prim_env[values.W_Symbol.make(name)] = w_v
+    sym = values.W_Symbol.make(name)
+    if sym in prim_env:
+        raise Error("name %s already defined"%name)
+    prim_env[sym] = w_v

@@ -162,6 +162,14 @@ class W_ContinuationMarkSet(W_Object):
     def tostring(self):
         return "#<continuation-mark-set>"
 
+class W_ContinuationMarkKey(W_Object):
+    errorname = "continuation-mark-key"
+    _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
+    def tostring(self):
+        return "#<continuation-mark-name>"
+
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
     def __init__(self, varref):
@@ -669,9 +677,10 @@ class W_String(W_Object):
         return True
 
 class W_Symbol(W_Object):
-    _immutable_fields_ = ["value"]
+    _immutable_fields_ = ["value", "unreadable"]
     errorname = "symbol"
     all_symbols = {}
+    unreadable_symbols = {}
     @staticmethod
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
@@ -682,14 +691,30 @@ class W_Symbol(W_Object):
         else:
             W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
             return w_result
+    @staticmethod
+    def make_unreadable(string):
+        if string in W_Symbol.unreadable_symbols:
+            return W_Symbol.unreadable_symbols[string]
+        else:
+            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(string, True)
+            return w_result
     def __repr__(self):
         return self.value
-    def __init__(self, val):
+    def __init__(self, val, unreadable=False):
         self.value = val
+        self.unreadable = unreadable
+    def is_interned(self):
+        string = self.value
+        if string in W_Symbol.all_symbols:
+            return W_Symbol.all_symbols[string] is self
+        if string in W_Symbol.unreadable_symbols:
+            return W_Symbol.unreadable_symbols[string] is self
+        return False
     def tostring(self):
         return "'%s" % self.value
 
 exn_handler_key = W_Symbol("exnh")
+parameterization_key = W_Symbol("parameterization")
 
 class W_Keyword(W_Object):
     _immutable_fields_ = ["value"]
@@ -900,6 +925,13 @@ class W_PromotableClosure(W_Procedure):
 
     def get_arity(self):
         return self.closure.get_arity()
+
+class W_Parameterization(W_Object):
+    errorname = "parameterization"
+    def __init__(self): pass
+    def extend(self, param, val): return self
+    def tostring(self):
+        return "#<parameterization>"
 
 class W_Parameter(W_Object):
     errorname = "parameter"
