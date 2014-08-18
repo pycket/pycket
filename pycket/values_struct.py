@@ -28,6 +28,30 @@ class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt", "total_field_cnt", "auto_v", "props", \
         "inspector", "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
+    unbound_prefab_types = {}
+
+    @staticmethod
+    def make(name, super_type, init_field_cnt, auto_field_cnt,
+             auto_v=values.w_false, props=values.w_null,
+             inspector=values.w_false, proc_spec=values.w_false,
+             immutables=values.w_null, guard=values.w_false,
+             constr_name=values.w_false):
+        if inspector is values.W_Symbol.make("prefab"):
+            # FIXME: it can has a supertype, mutable fields and auto fields
+            key = (name.value, init_field_cnt.value)
+            if key in W_StructType.unbound_prefab_types:
+                return W_StructType.unbound_prefab_types.pop(key)
+        return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
+                            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+
+    @staticmethod
+    def make_prefab(name, super_type, init_field_cnt):
+        assert isinstance(name, values.W_String)
+        name = values.W_Symbol.make(name.value)
+        auto_field_cnt = values.W_Fixnum(0)
+        w_result = W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt)
+        W_StructType.unbound_prefab_types[(name.value, init_field_cnt.value)] = w_result
+        return w_result
 
     @jit.unroll_safe
     def initialize_props(self, props):
@@ -53,10 +77,7 @@ class W_StructType(values.W_Object):
             struct_type = struct_type.super
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
-                 auto_v=values.w_false, props=values.w_null,
-                 inspector=values.w_false, proc_spec=values.w_false,
-                 immutables=values.w_null, guard=values.w_false,
-                 constr_name=values.w_false):
+                 auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         self.name = name.value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
@@ -84,11 +105,6 @@ class W_StructType(values.W_Object):
         self.offsets = self.calculate_offsets()
         self.isprefab = self.inspector is values.W_Symbol.make("prefab")
         if self.isprefab:
-            if self.name in W_Struct.unbound_prefabs:
-                prefabs = W_Struct.unbound_prefabs[self.name]
-                if prefabs:
-                    w_struct = prefabs.pop(0)
-                    w_struct._type = self
             self.isopaque = False
         else:
             self.isopaque = self.inspector is not values.w_false
@@ -195,21 +211,15 @@ class W_RootStruct(values.W_Object):
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type", "values"]
-    unbound_prefabs = {}
 
     def __init__(self, type):
         self._type = type
 
     @staticmethod
     def make_prefab(args):
-        name, fields = args[0], args[1:]
-        assert isinstance(name, values.W_String)
-        name = name.value
-        if name not in W_Struct.unbound_prefabs:
-            W_Struct.unbound_prefabs[name] = []
-        w_result = W_Struct.make(fields, None)
-        W_Struct.unbound_prefabs[name].append(w_result)
-        return w_result
+        w_name, w_values = args[0], args[1:]
+        w_type = W_StructType.make_prefab(w_name, None, values.W_Fixnum(len(w_values)))
+        return W_Struct.make(w_values, w_type)
 
     def vals(self):
         return self._get_full_list()

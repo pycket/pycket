@@ -377,15 +377,27 @@ def write(s):
 def do_print(o):
     os.write(1, o.tostring())
 
+class OutputFormatter(object):
+    def __init__(self, replacements):
+        import re
+        self.replacements = replacements
+        # self.rc = re.compile('|'.join(replacements.keys()))
+    def translate(self, match):
+        return self.replacements[match.group(0)]
+    def format(self, text):
+        # result = self.rc.sub(self.translate, text)
+        result = "test"
+        return result
+
 @expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
-def do_print(out, form, v):
-    import re
-    # FIXME: it should print formatted output to out,
-    # where form is a string that is printed directly, except for special formatting escapes
-    #form = form.tostring() \
-               #.replace("~n", "\n") \
-               #.replace("~a", v.tostring())
-    os.write(1, form.tostring())
+def do_fprintf(out, form, v):
+    # FIXME: it should print formatted output to _out_
+    replacements = {
+        '~n': '\n',
+        '~%': '\n',
+        '~a': v.tostring()}
+    formatter = OutputFormatter(replacements)
+    os.write(1, formatter.format(form.tostring()))
 
 def cur_print_proc(args):
     v, = args
@@ -514,7 +526,7 @@ def char2int(c):
 # build-in exception types
 
 def define_exn(name, super=values.w_null, init_field_cnt=0):
-    exn = values_struct.W_StructType(values.W_Symbol.make(name), super,
+    exn = values_struct.W_StructType.make(values.W_Symbol.make(name), super,
         values.W_Fixnum(init_field_cnt), values.W_Fixnum(0), values.w_false,
         values.w_null, values.w_false)
     expose_val(name, exn)
@@ -1249,7 +1261,7 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
+    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
     return values.Values.make(struct_type.make_struct_tuple())
 
