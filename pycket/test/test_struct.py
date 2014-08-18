@@ -296,21 +296,20 @@ def test_struct_super():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
-@skip
 def test_struct_prefab():
     m = run_mod(
     """
     #lang pycket
     (require racket/private/kw)
 
+    (define lunch '#s(sprout bean))
     (struct sprout (kind) #:prefab)
+    (define t (sprout? lunch))
     (define f (sprout? #s(sprout bean #f 17)))
-    (struct sprout (kind yummy? count) #:prefab)
-    (define t (sprout? #s(sprout bean #f 17)))
 
     (define result (and (not f) t))
     """)
-    assert m.defs[W_Symbol.make("result")] == w_false
+    assert m.defs[W_Symbol.make("result")] == w_true
 
 @skip
 def test_procedure():

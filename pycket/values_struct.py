@@ -7,12 +7,6 @@ from pycket.exposeprim import make_call_method
 from pycket.small_list import inline_small_list
 from rpython.rlib import jit
 
-#
-# Structs are partially supported
-#
-# Not implemented:
-# * prefab
-
 # TODO: inspector currently does nothing
 class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
@@ -90,6 +84,11 @@ class W_StructType(values.W_Object):
         self.offsets = self.calculate_offsets()
         self.isprefab = self.inspector is values.W_Symbol.make("prefab")
         if self.isprefab:
+            if self.name in W_Struct.unbound_prefabs:
+                prefabs = W_Struct.unbound_prefabs[self.name]
+                if prefabs:
+                    w_struct = prefabs.pop(0)
+                    w_struct._type = self
             self.isopaque = False
         else:
             self.isopaque = self.inspector is not values.w_false
@@ -196,15 +195,21 @@ class W_RootStruct(values.W_Object):
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type", "values"]
+    unbound_prefabs = {}
+
     def __init__(self, type):
         self._type = type
 
     @staticmethod
-    def prefab(args):
+    def make_prefab(args):
         name, fields = args[0], args[1:]
-        assert isinstance(name, values.W_Symbol)
-        type = W_StructType(name, None, values.W_Fixnum(len(fields)), values.W_Fixnum(0))
-        return W_Struct.make(args, type)
+        assert isinstance(name, values.W_String)
+        name = name.value
+        if name not in W_Struct.unbound_prefabs:
+            W_Struct.unbound_prefabs[name] = []
+        w_result = W_Struct.make(fields, None)
+        W_Struct.unbound_prefabs[name].append(w_result)
+        return w_result
 
     def vals(self):
         return self._get_full_list()
