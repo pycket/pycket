@@ -37,7 +37,6 @@ class W_StructType(values.W_Object):
              immutables=values.w_null, guard=values.w_false,
              constr_name=values.w_false):
         if inspector is values.W_Symbol.make("prefab"):
-            # FIXME: it can has a supertype, mutable fields and auto fields
             key = (name.value, init_field_cnt.value)
             if key in W_StructType.unbound_prefab_types:
                 return W_StructType.unbound_prefab_types.pop(key)
@@ -379,14 +378,18 @@ class W_StructPredicate(values.W_Procedure):
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
     _immutable_fields_ = ["accessor", "field"]
-    def __init__ (self, accessor, field):
+    def __init__ (self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
         self.accessor = accessor
         self.field = field
+        self.field_name = field_name
 
     @make_call_method([W_RootStruct], simple=False)
     def _call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
+
+    def tostring(self):
+        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name)
 
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
@@ -405,14 +408,18 @@ class W_StructAccessor(values.W_Procedure):
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
     _immutable_fields_ = ["mutator", "field"]
-    def __init__ (self, mutator, field):
+    def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
         self.mutator = mutator
         self.field = field
+        self.field_name = field_name
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False)
     def _call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
+
+    def tostring(self):
+        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name)
 
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
