@@ -314,20 +314,17 @@ class W_WeakBox(W_Object):
 
 class W_Ephemeron(W_Object):
     errorname = "ephemeron"
-    _immutable_fields_ = ["key", "value"]
+    _immutable_fields_ = ["key", "mapping"]
 
     def __init__(self, key, value):
         assert isinstance(key, W_Object)
         assert isinstance(value, W_Object)
         self.key = weakref.ref(key)
-        self.value = weakref.ref(value)
+        self.mapping = weakref.RWeakKeyDictionary(W_Object, W_Object)
+        self.mapping.set(key, value)
 
     def get(self):
-        k = self.key()
-        v = self.value()
-        if k is None or v is None:
-            return None
-        return v
+        return self.mapping.get(self.key())
 
     def tostring(self):
         return "#<ephemeron>"

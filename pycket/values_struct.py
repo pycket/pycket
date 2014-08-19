@@ -366,10 +366,10 @@ class W_StructPredicate(values.W_Procedure):
 
     @make_call_method([values.W_Object])
     def _call(self, struct):
-        if isinstance(struct, W_Struct):
+        if isinstance(struct, W_RootStruct):
             struct_type = struct.struct_type()
             while isinstance(struct_type, W_StructType):
-                if struct_type == self.type:
+                if struct_type is self.type:
                     return values.w_true
                 struct_type = struct_type.super
         return values.w_false
