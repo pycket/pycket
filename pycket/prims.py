@@ -379,15 +379,22 @@ def do_print(o):
 
 class OutputFormatter(object):
     def __init__(self, replacements):
-        import re
         self.replacements = replacements
-        # self.rc = re.compile('|'.join(replacements.keys()))
-    def translate(self, match):
-        return self.replacements[match.group(0)]
     def format(self, text):
-        # result = self.rc.sub(self.translate, text)
-        result = "test"
-        return result
+        for key, value in self.replacements.iteritems():
+            result = []
+            pos = 0
+            while True:
+                match = text.find(key, pos)
+                if match > 0:
+                    result.append(text[pos : match])
+                    result.append(value)
+                    pos = match + len(key)
+                else:
+                    result.append(text[pos:])
+                    break
+            text = "".join(result)
+        return text
 
 @expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
 def do_fprintf(out, form, v):
