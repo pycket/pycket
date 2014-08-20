@@ -446,10 +446,9 @@ class W_StructProperty(values.W_Object):
     def isinstance(self, prop):
         if self is prop:
             return True
-        elif len(self.supers) > 0:
-            for super in self.supers:
-                if super.car() is prop:
-                    return True
+        for super in self.supers:
+            if super.car().isinstance(prop):
+                return True
         return False
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
@@ -466,14 +465,13 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
     @make_call_method([values.W_Object])
-    def _call(self, arg):
+    def _call(self, arg):        
         if isinstance(arg, W_Struct):
             props = arg.struct_type().props
         else:
             return values.w_false
         for (p, val) in props:
-            # FIXME: parent properties
-            if p is self.property:
+            if p.isinstance(self.property):
                 return values.w_true
         return values.w_false
 
@@ -489,7 +487,6 @@ class W_StructPropertyAccessor(values.W_Procedure):
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
-            # FIXME: parent properties
-            if p is self.property:
+            if p.isinstance(self.property):
                 return val
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
