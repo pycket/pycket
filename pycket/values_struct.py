@@ -45,8 +45,7 @@ class W_StructType(values.W_Object):
 
     @staticmethod
     def make_prefab(name, super_type, init_field_cnt):
-        assert isinstance(name, values.W_String)
-        name = values.W_Symbol.make(name.value)
+        assert isinstance(name, values.W_Symbol)
         auto_field_cnt = values.W_Fixnum(0)
         w_result = W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt)
         W_StructType.unbound_prefab_types[(name.value, init_field_cnt.value)] = w_result
