@@ -165,8 +165,10 @@
      #:when (prefab-struct-key (syntax-e v))
      (let ([key (prefab-struct-key (syntax-e v))]
            [pats (cdr (vector->list (struct->vector (syntax-e v))))])
-     (hash 'struct (map to-json (list* (symbol->string key) pats))
-      ))]
+       (parameterize ([quoted? #t])
+         (hash 
+          'prefab-key (to-json (datum->syntax #f key))
+          'struct (map to-json pats))))]
     [(#%plain-app e0 e ...)
      (hash 'operator (to-json #'e0)
            'operands (map to-json (syntax->list #'(e ...))))]

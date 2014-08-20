@@ -514,7 +514,9 @@ def to_value(json):
         if "vector" in obj:
             return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
         if "struct" in obj:
-            return values_struct.W_Struct.make_prefab([to_value(v) for v in obj["struct"].value_array()])
+            key = to_value(obj["prefab-key"])
+            fields = [to_value(v) for v in obj["struct"].value_array()]
+            return values_struct.W_Struct.make_prefab(key, fields)
         if "box" in obj:
             return values.W_IBox(to_value(obj["box"]))
         if "number" in obj:
