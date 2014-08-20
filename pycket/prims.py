@@ -1183,17 +1183,7 @@ def do_struct_info(struct):
 
 @expose("struct-type-info", [values_struct.W_StructType])
 def do_struct_type_info(struct_type):
-    name = values.W_Symbol.make(struct_type.name)
-    init_field_cnt = values.W_Fixnum(struct_type.init_field_cnt)
-    auto_field_cnt = values.W_Fixnum(struct_type.auto_field_cnt)
-    accessor = struct_type.acc
-    mutator = struct_type.mut
-    immutable_k_list = values.to_list([values.W_Fixnum(i) for i in struct_type.immutables])
-    # TODO: if no ancestor is controlled by the current inspector return w_false
-    super = struct_type.super
-    skipped = values.w_false
-    return values.Values.make([name, init_field_cnt, auto_field_cnt,
-        accessor, mutator, immutable_k_list, super, skipped])
+    return values.Values.make(struct_type.struct_type_info())
 
 @expose("struct-type-make-constructor", [values_struct.W_StructType])
 def do_struct_type_make_constructor(struct_type):

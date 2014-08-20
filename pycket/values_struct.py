@@ -127,6 +127,20 @@ class W_StructType(values.W_Object):
     def get_offset(self, type):
         return self.offsets.get(type, -1)
 
+    def struct_type_info(self):
+        name = values.W_Symbol.make(self.name)
+        init_field_cnt = values.W_Fixnum(self.init_field_cnt)
+        auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
+        immutable_k_list = values.to_list([values.W_Fixnum(i) for i in self.immutables])
+        # TODO: value of the super variable should be a structure type descriptor 
+        # for the most specific ancestor of the type that is controlled by the current inspector, 
+        # or #f if no ancestor is controlled by the current inspector
+        super = self.super
+        # TODO: #f if the seventh result is the most specific ancestor type or 
+        # if the type has no supertype, #t otherwise
+        skipped = values.w_false
+        return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut, immutable_k_list, super, skipped]
+
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
 
@@ -480,13 +494,15 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    @make_call_method([values.W_Object])
-    def _call(self, arg):
+    @make_call_method([values.W_Object], simple=False)
+    def _call(self, arg, env, cont):
         if isinstance(arg, W_Struct):
             props = arg.struct_type().props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
             if p.isinstance(self.property):
+                if p.guard.iscallable():
+                    return p.guard.call([val, arg.struct_type().struct_type_info()], env, cont)
                 return val
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
