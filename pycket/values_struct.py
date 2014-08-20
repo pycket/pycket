@@ -215,8 +215,7 @@ class W_Struct(W_RootStruct):
         self._type = type
 
     @staticmethod
-    def make_prefab(args):
-        w_name, w_values = args[0], args[1:]
+    def make_prefab(w_name, w_values):
         w_type = W_StructType.make_prefab(w_name, None, values.W_Fixnum(len(w_values)))
         return W_Struct.make(w_values, w_type)
 
