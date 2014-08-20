@@ -1,4 +1,5 @@
-#lang racket
+#lang racket/base
+(require racket/shared racket/match (for-syntax racket/base))
 (define cur-section '())(define errs '())
 
 (define-syntax defvar
