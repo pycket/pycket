@@ -501,8 +501,11 @@ class W_StructPropertyAccessor(values.W_Procedure):
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
+            assert isinstance(p, W_StructProperty)
             if p.isinstance(self.property):
                 if p.guard.iscallable():
-                    return p.guard.call([val, arg.struct_type().struct_type_info()], env, cont)
-                return val
+                    return p.guard.call([val, values.to_list(arg.struct_type().struct_type_info())], env, cont)
+                else:
+                    from pycket.interpreter import return_value
+                    return return_value(val, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
