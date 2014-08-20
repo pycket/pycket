@@ -822,6 +822,7 @@ class ModuleVar(Var):
         elif (self.srcmod == "#%kernel" or
              self.srcmod == "#%unsafe" or
              self.srcmod == "#%paramz" or
+             self.srcmod == "#%flfxnum" or
              self.srcmod == "#%utils"):
             # we don't separate these the way racket does
             # but maybe we should
