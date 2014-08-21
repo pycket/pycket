@@ -1197,6 +1197,23 @@ def do_struct_type_make_predicate(struct_type):
     #the exn:fail:contract exception should be raised
     return struct_type.pred
 
+@continuation
+def attach_prop(struct_type, idx, prop, env, cont, _vals):
+    from pycket.interpreter import check_one_val, jump
+    struct_type.props[idx] = (prop, check_one_val(_vals))
+    return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
+
+@continuation
+def make_struct_type_cont(struct_type, idx, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    if idx < len(struct_type.props):
+        (prop, prop_val) = struct_type.props[idx]
+        assert isinstance(prop, values_struct.W_StructProperty)
+        if prop.guard.iscallable():
+            return prop.guard.call([prop_val, values.to_list(struct_type.struct_type_info())],
+                env, attach_prop(struct_type, idx, prop, env, cont))
+    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
+
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
@@ -1205,14 +1222,15 @@ def do_struct_type_make_predicate(struct_type):
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_false)])
+         default(values.W_Object, values.w_false)], simple=False)
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+        auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
+    from pycket.interpreter import jump
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
     struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
-    return values.Values.make(struct_type.make_struct_tuple())
+    return jump(env, make_struct_type_cont(struct_type, 0, env, cont))
 
 @expose("make-struct-field-accessor",
         [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])

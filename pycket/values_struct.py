@@ -492,18 +492,13 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    @make_call_method([values.W_Object], simple=False)
-    def _call(self, arg, env, cont):
+    @make_call_method([values.W_Object])
+    def _call(self, arg):
         if isinstance(arg, W_Struct):
             props = arg.struct_type().props
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
-            assert isinstance(p, W_StructProperty)
             if p.isinstance(self.property):
-                if p.guard.iscallable():
-                    return p.guard.call([val, values.to_list(arg.struct_type().struct_type_info())], env, cont)
-                else:
-                    from pycket.interpreter import return_value
-                    return return_value(val, env, cont)
+                return val
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
