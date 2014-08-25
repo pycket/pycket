@@ -412,6 +412,17 @@ def do_fprintf(args):
     assert isinstance(form, values.W_String)
     # FIXME: it should print formatted output to _out_
     os.write(1, format(form, v))
+    return values.w_void
+
+@expose("current-output-port", [default(values.W_OutputPort, None)])
+def current_output_port(port):
+    # FIXME: Not a real implementation
+    return values.w_void if port is not None else values.W_OutputPort()
+
+@expose("flush-output", [default(values.W_OutputPort, None)])
+def flush_output(port):
+    # FIXME: Not a real implementation
+    return values.w_void
 
 @expose("format")
 def do_format(args):
@@ -1211,19 +1222,18 @@ def do_struct_type_make_predicate(struct_type):
 
 @continuation
 def attach_result(struct_type, idx, prop, env, cont, _vals):
-    from pycket.interpreter import check_one_val, jump
+    from pycket.interpreter import check_one_val
     struct_type.props[idx] = (prop, check_one_val(_vals))
-    return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
+    return make_struct_type_cont(struct_type, idx + 1, env, cont)
 
-@continuation
-def attach_prop(struct_type, idx, prop, prop_val, env, cont, _vals):
-    from pycket.interpreter import jump
+@label
+def attach_prop(struct_type, idx, prop, prop_val, env, cont):
     struct_type.props[idx] = (prop, prop_val)
-    return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
+    return make_struct_type_cont(struct_type, idx + 1, env, cont)
 
-@continuation
-def make_struct_type_cont(struct_type, idx, env, cont, _vals):
-    from pycket.interpreter import jump, return_multi_vals
+@label
+def make_struct_type_cont(struct_type, idx, env, cont):
+    from pycket.interpreter import return_multi_vals
     if idx < len(struct_type.props):
         (prop, prop_val) = struct_type.props[idx]
         if isinstance(prop_val, values.W_Cons):
@@ -1239,9 +1249,9 @@ def make_struct_type_cont(struct_type, idx, env, cont, _vals):
                         values.to_list(struct_type.struct_type_info())],
                         env, attach_result(struct_type, idx, prop, env, cont))
                 else:
-                    return jump(env, attach_prop(struct_type, idx, prop, prop_val, env, cont))
+                    return attach_prop(struct_type, idx, prop, prop_val, env, cont)
         else:
-            return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
+            return make_struct_type_cont(struct_type, idx + 1, env, cont)
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
 @expose("make-struct-type",
@@ -1255,13 +1265,12 @@ def make_struct_type_cont(struct_type, idx, env, cont, _vals):
          default(values.W_Object, values.w_false)], simple=False)
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    from pycket.interpreter import jump
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
     struct_type = values_struct.W_StructType.make(name, super_type, 
         init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec,
         immutables, guard, constr_name)
-    return jump(env, make_struct_type_cont(struct_type, 0, env, cont))
+    return make_struct_type_cont(struct_type, 0, env, cont)
 
 @expose("make-struct-field-accessor",
         [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
