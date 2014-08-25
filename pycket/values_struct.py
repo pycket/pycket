@@ -64,8 +64,9 @@ class W_StructType(values.W_Object):
             if self.total_field_cnt < 2:
                 raise SchemeException("need at least two fields in the structure type")
         if sub_prop_val:
-            prop_val = values.W_Cons.make(sub_prop_val, prop_val)
-        self.props.append((prop, prop_val))
+            self.props.append((prop, values.W_Cons.make(sub_prop_val, prop_val)))
+        else:
+            self.props.append((prop, prop_val))
         assert isinstance(prop, W_StructProperty)
         for super_prop_cons in prop.supers:
             self.attach_prop(super_prop_cons, prop_val)
@@ -476,7 +477,7 @@ class W_StructPropertyPredicate(values.W_Procedure):
         else:
             return values.w_false
         for (p, val) in props:
-            if p.isinstance(self.property):
+            if p is self.property:
                 return values.w_true
         return values.w_false
 
@@ -492,6 +493,6 @@ class W_StructPropertyAccessor(values.W_Procedure):
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
-            if p.isinstance(self.property):
+            if p is self.property:
                 return val
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
