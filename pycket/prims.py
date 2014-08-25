@@ -378,34 +378,46 @@ def write(s):
 def do_print(o):
     os.write(1, o.tostring())
 
-class OutputFormatter(object):
-    def __init__(self, replacements):
-        self.replacements = replacements
-    def format(self, text):
-        for key, value in self.replacements.iteritems():
-            result = []
-            pos = 0
-            while True:
-                match = text.find(key, pos)
-                if match > 0:
-                    result.append(text[pos : match])
-                    result.append(value)
-                    pos = match + len(key)
-                else:
-                    result.append(text[pos:])
-                    break
-            text = "".join(result)
-        return text
+format_dict = {
+    '~n': '\n',
+    '~%': '\n',
+    '~a': '%s',
+    '~e': '%s'
+}
+pattern = "|".join(format_dict.keys())
 
-@expose("fprintf", [values.W_OutputPort, values.W_String, values.W_Object])
-def do_fprintf(out, form, v):
+@jit.unroll_safe
+def format(form, v):
+    from rpython.rlib.rsre import rsre_re as re
+    from rpython.rlib.rstring import StringBuilder
+    text = form.tostring()
+    result = StringBuilder()
+    pos = 0
+    for match in re.finditer(pattern, text):
+        match_start = match.start()
+        assert match_start >= 0
+        result.append(text[pos : match_start])
+        val = format_dict[match.group()] \
+            if format_dict[match.group()] != '%s' else v.pop().tostring()
+        result.append(val)
+        pos = match.end()
+        assert pos >= 0
+    result.append(text[pos:])
+    return result.build()
+
+@expose("fprintf")
+def do_fprintf(args):
+    out, form, v = args[0], args[1], args[2:]
+    assert isinstance(out, values.W_OutputPort)
+    assert isinstance(form, values.W_String)
     # FIXME: it should print formatted output to _out_
-    replacements = {
-        '~n': '\n',
-        '~%': '\n',
-        '~a': v.tostring()}
-    formatter = OutputFormatter(replacements)
-    os.write(1, formatter.format(form.tostring()))
+    os.write(1, format(form, v))
+
+@expose("format")
+def do_format(args):
+    form, v = args[0], args[1:]
+    assert isinstance(form, values.W_String)
+    os.write(1, format(form, v))
 
 def cur_print_proc(args):
     v, = args
@@ -1198,20 +1210,38 @@ def do_struct_type_make_predicate(struct_type):
     return struct_type.pred
 
 @continuation
-def attach_prop(struct_type, idx, prop, env, cont, _vals):
+def attach_result(struct_type, idx, prop, env, cont, _vals):
     from pycket.interpreter import check_one_val, jump
     struct_type.props[idx] = (prop, check_one_val(_vals))
     return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
 
 @continuation
+def attach_prop(struct_type, idx, prop, prop_val, env, cont, _vals):
+    from pycket.interpreter import jump
+    struct_type.props[idx] = (prop, prop_val)
+    return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
+
+@continuation
 def make_struct_type_cont(struct_type, idx, env, cont, _vals):
-    from pycket.interpreter import return_multi_vals
+    from pycket.interpreter import jump, return_multi_vals
     if idx < len(struct_type.props):
         (prop, prop_val) = struct_type.props[idx]
-        assert isinstance(prop, values_struct.W_StructProperty)
-        if prop.guard.iscallable():
-            return prop.guard.call([prop_val, values.to_list(struct_type.struct_type_info())],
-                env, attach_prop(struct_type, idx, prop, env, cont))
+        if isinstance(prop_val, values.W_Cons):
+            sub_prop_val = prop_val.car()
+            prop_val = prop_val.cdr()
+            if sub_prop_val:
+                return prop_val.call([sub_prop_val], env, 
+                    attach_result(struct_type, idx, prop, env, cont))
+            else:
+                assert isinstance(prop, values_struct.W_StructProperty)
+                if prop.guard.iscallable():
+                    return prop.guard.call([prop_val, 
+                        values.to_list(struct_type.struct_type_info())],
+                        env, attach_result(struct_type, idx, prop, env, cont))
+                else:
+                    return jump(env, attach_prop(struct_type, idx, prop, prop_val, env, cont))
+        else:
+            return jump(env, make_struct_type_cont(struct_type, idx + 1, env, cont))
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
 @expose("make-struct-type",
@@ -1228,8 +1258,9 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
     from pycket.interpreter import jump
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, init_field_cnt, auto_field_cnt,
-            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+    struct_type = values_struct.W_StructType.make(name, super_type, 
+        init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec,
+        immutables, guard, constr_name)
     return jump(env, make_struct_type_cont(struct_type, 0, env, cont))
 
 @expose("make-struct-field-accessor",
@@ -2015,6 +2046,11 @@ def cur_env_vars():
 @expose("environment-variables-ref", [values.W_EnvVarSet, values.W_Bytes])
 def env_var_ref(set, name):
     return values.w_false
+
+@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)])
+def do_raise(v, barrier):
+    # TODO: 
+    raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
 def raise_arg_err(sym, str, val):

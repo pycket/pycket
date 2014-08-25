@@ -1,4 +1,3 @@
-from collections import namedtuple
 from pycket import values
 from pycket import vector as values_vector
 from pycket.cont import continuation, label
@@ -26,8 +25,9 @@ current_inspector = W_StructInspector(None)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
-    _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt", "total_field_cnt", "auto_v", "props", \
-        "inspector", "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
+    _immutable_fields_ = ["name", "super", "init_field_cnt", \
+        "auto_field_cnt", "total_field_cnt", "auto_v", "props", "inspector", \
+        "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -41,7 +41,8 @@ class W_StructType(values.W_Object):
             if key in W_StructType.unbound_prefab_types:
                 return W_StructType.unbound_prefab_types.pop(key)
         return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
-                            auto_v, props, inspector, proc_spec, immutables, guard, constr_name)
+                            auto_v, props, inspector, proc_spec, immutables, 
+                            guard, constr_name)
 
     @staticmethod
     def make_prefab(name, super_type, init_field_cnt):
@@ -52,21 +53,31 @@ class W_StructType(values.W_Object):
         return w_result
 
     @jit.unroll_safe
+    def attach_prop(self, prop_cons, sub_prop_val=None):
+        prop = prop_cons.car()
+        prop_val = prop_cons.cdr()
+        if not sub_prop_val and prop.isinstance(w_prop_procedure):
+            if self.prop_procedure:
+                raise SchemeException("duplicate property binding")
+            self.prop_procedure = prop_val
+        elif prop.isinstance(w_prop_checked_procedure):
+            if self.total_field_cnt < 2:
+                raise SchemeException("need at least two fields in the structure type")
+        if sub_prop_val:
+            self.props.append((prop, values.W_Cons.make(sub_prop_val, prop_val)))
+        else:
+            self.props.append((prop, prop_val))
+        assert isinstance(prop, W_StructProperty)
+        for super_prop_cons in prop.supers:
+            self.attach_prop(super_prop_cons, prop_val)
+
+    @jit.unroll_safe
     def initialize_props(self, props):
         proplist = values.from_list(props)
-        self.props =  [(None, None)] * len(proplist)
+        self.props = []
         self.prop_procedure = None
-        for i, prop in enumerate(proplist):
-            w_car = prop.car()
-            w_prop = prop.cdr()
-            if w_car.isinstance(w_prop_procedure):
-                if self.prop_procedure:
-                    raise SchemeException("duplicate property binding")
-                self.prop_procedure = w_prop
-            elif w_car.isinstance(w_prop_checked_procedure):
-                if self.total_field_cnt < 2:
-                    raise SchemeException("need at least two fields in the structure type")
-            self.props[i] = (w_car, w_prop)
+        for prop_cons in proplist:
+            self.attach_prop(prop_cons)
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
             self.props = self.props + struct_type.props
@@ -75,7 +86,7 @@ class W_StructType(values.W_Object):
             struct_type = struct_type.super
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
-                 auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
+            auto_v, props, inspector, proc_spec, immutables, guard, constr_name):
         self.name = name.value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
@@ -146,21 +157,6 @@ class W_StructType(values.W_Object):
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
-class W_Cell(values.W_Object):
-    errorname = "cell"
-    _immutable_fields_ = ["value"]
-    def __init__(self, value):
-        self.value = value
-    def get(self):
-        raise NotImplementedError("abstract base class")
-    def set(self, value):
-        self.value = value
-
-class W_FixnumCell(W_Cell):
-    errorname = "fixnum-cell"
-    def get(self):
-        return values.W_Fixnum(self.value)
-
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
 
@@ -186,9 +182,9 @@ class W_RootStruct(values.W_Object):
         args_len = len(args)
         (arities, rest) = proc.get_arity()
         if args_len < rest and args_len not in arities:
-            for w_car, w_prop in self.struct_type().props:
-                if w_car.isinstance(w_prop_arity_string):
-                    return w_prop.call([self], env, self.arity_error_cont())
+            for w_prop, w_prop_val in self.struct_type().props:
+                if w_prop.isinstance(w_prop_arity_string):
+                    return w_prop_val.call([self], env, self.arity_error_cont())
         return proc.call(args, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
@@ -247,10 +243,11 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_value
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
+            # return return_value(self._get_list(0), env, cont)
             raise SchemeException("cannot reference an identifier before its definition")
         value = self._get_list(field + offset)
-        if isinstance(value, W_Cell):
-            value = value.get()
+        if isinstance(value, values.W_Cell):
+            value = value.get_val()
         return return_value(value, env, cont)
 
     @label
@@ -259,43 +256,40 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        if isinstance(val, values.W_Fixnum):
-            value = self._get_list(field + offset)
-            if isinstance(value, W_FixnumCell):
-                value.set(val.value)
-            else:
-                val = W_FixnumCell(val.value)
-                self._set_list(field + offset, val)
+        value = self._get_list(field + offset)
+        if isinstance(value, values.W_Cell):
+            value.set_val(val)
         else:
-            self._set_list(field + offset, val)
+            self._set_list(field + offset, values.W_Cell(val))
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
     def _ref(self, k):
         value = self._get_list(k)
-        if isinstance(value, W_Cell):
-            value = value.get()
+        if isinstance(value, values.W_Cell):
+            return value.get_val()
         return value
     def _set(self, k, val):
         value = self._get_list(k)
-        if isinstance(value, W_Cell):
-            if isinstance(val, values.W_Fixnum):
-                value.set(val.value)
+        if isinstance(value, values.W_Cell):
+            value.set_val(val)
         else:
-            self._set_list(k, val)
+            self._set_list(k, values.W_Cell(val))
 
-    # FIXME: it can not be called currently
-    # def display(self, env, cont):
-    #     for w_car, w_prop in self._type.props:
-    #         if w_car.isinstance(w_prop_custom_write):
-    #             assert isinstance(w_prop, values_vector.W_Vector)
-    #             w_write_proc = w_prop.ref(0)
-    #             port = values.W_StringOutputPort()
-    #             # FIXME: #t for write mode, #f for display mode, or 0 or 1 indicating the current quoting depth for print mode
-    #             mode = values.w_false
-    #             return w_write_proc.call([self, port, mode], env, cont)
+    def tostring_proc(self, env, cont):
+        for w_prop, w_val in self._type.props:
+            if w_prop.isinstance(w_prop_custom_write):
+                assert isinstance(w_val, values_vector.W_Vector)
+                w_write_proc = w_val.ref(0)
+                port = values.W_StringOutputPort()
+                # FIXME: #t for write mode, #f for display mode,
+                # or 0 or 1 indicating the current quoting depth for print mode
+                mode = values.w_false
+                return w_write_proc.call([self, port, mode], env, cont)
+        return self.tostring()
 
     def tostring(self):
+        # assert has_not_custom_write
         if self._type.isopaque:
             result =  "#<%s>" % self._type.name
         else:
@@ -483,7 +477,7 @@ class W_StructPropertyPredicate(values.W_Procedure):
         else:
             return values.w_false
         for (p, val) in props:
-            if p.isinstance(self.property):
+            if p is self.property:
                 return values.w_true
         return values.w_false
 
@@ -499,6 +493,6 @@ class W_StructPropertyAccessor(values.W_Procedure):
         else:
             raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
         for (p, val) in props:
-            if p.isinstance(self.property):
+            if p is self.property:
                 return val
         raise SchemeException("%s-accessor: expected %s? but got %s"%(self.property.name, self.property.name, arg.tostring()))
