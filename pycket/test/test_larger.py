@@ -57,5 +57,8 @@ def test_imp_struct():
 def test_thread_cells():
     run_file("test-thread-cell.rkt")
 
+def test_impersonator_properties():
+    run_file("impersonator-properties.rkt")
+
 #def test_minikanren():
 #    run_file("minikanren.sch")
