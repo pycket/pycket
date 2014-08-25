@@ -25,6 +25,52 @@ class __extend__(values.W_Number):
     def arith_quotient_bigint(self, other):
         raise SchemeException("quotient is not fully implemented")
 
+class __extend__(values.W_Complex):
+    # ------------------ addition ------------------
+    def arith_add(self, other):
+        return other.arith_add_complex(self.real, self.imag)
+
+    def arith_add_number(self, other_num):
+        return values.W_Complex(self.real.arith_add_number(other_num), self.imag)
+
+    def arith_add_bigint(self, other_value):
+        return values.W_Complex(self.real.arith_add_bigint(other_value), self.imag)
+
+    def arith_add_float(self, other_float):
+        return values.W_Complex(self.real.arith_add_float(other_float),
+                                self.imag.arith_add_float(0.0))
+
+    def arith_add_complex(self, real, imag):
+        return values.W_Complex(real.arith_add(self.real),
+                                imag.arith_add(self.imag))
+
+    def arith_unaryadd(self):
+        return self
+
+    # ------------------ subtraction ------------------
+    def arith_sub(self, other):
+        return other.arith_sub_complex(self.real, self.imag)
+
+    def arith_sub_number(self, other_num):
+        return values.W_Complex(self.real.arith_sub_number(other_num), self.imag)
+
+    def arith_sub_bigint(self, other_num):
+        return values.W_Complex(self.real.arith_sub_bigint(other_num),
+                                self.imag.arith_sub_number(0))
+
+    def arith_sub_float(self, other_float):
+        return values.W_Complex(self.real.arith_sub_float(other_float),
+                                self.imag.arith_sub_float(0.0))
+
+    def arith_sub_complex(self, real, imag):
+        return values.W_Complex(real.arith_sub(self.real), imag.arith_sub(self.imag))
+
+    def arith_sub1(self):
+        return values.W_Complex(self.real.arith_sub1(), self.imag)
+
+    # ------------------ multiplication ----------------
+    #def arith_mul(self, other):
+        #return other.arith_mul_complex(self.real, self.imag)
 
 class __extend__(values.W_Fixnum):
     # ------------------ addition ------------------
@@ -42,6 +88,9 @@ class __extend__(values.W_Fixnum):
         return make_int(values.W_Bignum(other_value.add(rbigint.fromint(self.value))))
     def arith_add_float(self, other_float):
         return values.W_Flonum(other_float + float(self.value))
+
+    def arith_add_complex(self, real, imag):
+        return values.W_Complex(real.arith_add(self), imag)
 
     def arith_unaryadd(self):
         return self
@@ -62,6 +111,9 @@ class __extend__(values.W_Fixnum):
 
     def arith_sub_float(self, other_float):
         return values.W_Flonum(other_float - float(self.value))
+
+    def arith_sub_complex(self, real, imag):
+        return values.W_Complex(real.arith_sub(self), imag.arith_sub_number(0))
 
     def arith_unarysub(self):
         try:
@@ -329,7 +381,6 @@ class __extend__(values.W_Fixnum):
     def arith_oddp(self):
         return values.W_Bool.make((self.value % 2) <> 0)
 
-
 class __extend__(values.W_Flonum):
     # ------------------ addition ------------------
     def arith_add(self, other):
@@ -343,6 +394,9 @@ class __extend__(values.W_Flonum):
 
     def arith_add_float(self, other_float):
         return values.W_Flonum(other_float + self.value)
+
+    def arith_add_complex(self, real, imag):
+        return values.W_Complex(real.arith_add(self), imag)
 
     def arith_unaryadd(self):
         return self
@@ -359,6 +413,9 @@ class __extend__(values.W_Flonum):
 
     def arith_sub_float(self, other_float):
         return values.W_Flonum(other_float - self.value)
+
+    def arith_sub_complex(self, real, imag):
+        return values.W_Complex(real.arith_sub(self), imag.arith_sub_float(0.0))
 
     def arith_unarysub(self):
         return values.W_Flonum(-self.value)
@@ -530,7 +587,6 @@ class __extend__(values.W_Flonum):
     def arith_oddp(self):
         return values.W_Bool.make(math.fmod(self.value, 2.0) <> 0.0)
 
-
 class __extend__(values.W_Bignum):
     # ------------------ addition ------------------
     def arith_add(self, other):
@@ -544,6 +600,9 @@ class __extend__(values.W_Bignum):
 
     def arith_add_float(self, other_float):
         return values.W_Flonum(other_float + self.value.tofloat())
+
+    def arith_add_complex(self, real, imag):
+        return values.W_Complex(real.arith_add(self), imag)
 
     def arith_unaryadd(self):
         return self
@@ -560,6 +619,9 @@ class __extend__(values.W_Bignum):
 
     def arith_sub_float(self, other_float):
         return values.W_Flonum(other_float - self.value.tofloat())
+
+    def arith_sub_complex(self, real, imag):
+        return values.W_Complex(real.arith_sub(self), imag.arith_sub_bigint(rbigint.fromint(0)))
 
     def arith_unarysub(self):
         return values.W_Bignum(self.value.neg())
