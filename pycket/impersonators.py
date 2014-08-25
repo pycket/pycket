@@ -8,21 +8,31 @@ from pycket import values
 from pycket import values_struct
 from rpython.rlib import jit
 
-# A mixin for describing the general behaviour for a proxied object.
-# This is mostly useful for preventing an annoying amount of duplication
-# when implementing the various impersonator/chaperone operations.
-# NOTE: These must be the first argument in the list of super classes for
-# a class declaration.
-# This assumes that all proxied have a field called `inner` for the proxied
-# object.
-class Proxy(object):
-    _mixin_ = True
-    def get_proxied(self):
-        return self.inner
-    def is_proxy(self):
+def make_proxy(proxied="inner", properties="properties"):
+    def wrapper(cls):
+        def get_proxied(self):
+            return getattr(self, proxied)
+        def is_proxy(self):
+            return True
+        def get_properties(self):
+            return getattr(self, properties)
+        setattr(cls, "get_proxied", get_proxied)
+        setattr(cls, "is_proxy", is_proxy)
+        setattr(cls, "get_properties", get_properties)
+        return cls
+    return wrapper
+
+def make_chaperone(cls):
+    def is_chaperone(self):
         return True
-    def get_properties(self):
-        return self.properties
+    setattr(cls, "is_chaperone", is_chaperone)
+    return cls
+
+def make_impersonator(cls):
+    def is_impersonator(self):
+        return True
+    setattr(cls, "is_impersonator", is_impersonator)
+    return cls
 
 @jit.unroll_safe
 def lookup_property(obj, prop):
@@ -32,18 +42,6 @@ def lookup_property(obj, prop):
             return val
         obj = obj.get_proxied()
     return None
-
-# Mixin for describing the behaviour of chaperones
-class Chaperone(object):
-    _mixin_ = True
-    def is_chaperone(self):
-        return True
-
-# Mixin for describing the behaviour of chaperones
-class Impersonator(object):
-    _mixin_ = True
-    def is_impersonator(self):
-        return True
 
 @jit.unroll_safe
 def is_impersonator_of(a, b):
@@ -81,9 +79,10 @@ def imp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_InterposeProcedure(Proxy, values.W_Procedure):
-    errorname = "interpose-prcedure"
-    _immutable_fields_ = ["inner", "check"]
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeProcedure(values.W_Procedure):
+    errorname = "interpose-procedure"
+    _immutable_fields_ = ["inner", "check", "properties"]
     def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check.iscallable()
@@ -109,7 +108,8 @@ class W_InterposeProcedure(Proxy, values.W_Procedure):
     def tostring(self):
         return "ImpProcedure<%s>" % self.inner.tostring()
 
-class W_ImpProcedure(Impersonator, W_InterposeProcedure):
+@make_impersonator
+class W_ImpProcedure(W_InterposeProcedure):
     errorname = "imp-procedure"
 
     @jit.elidable
@@ -155,7 +155,8 @@ def chp_proc_cont(args, proc, env, cont, _vals):
     else:
         assert False
 
-class W_ChpProcedure(Chaperone, W_InterposeProcedure):
+@make_chaperone
+class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
     _immutable_fields_ = ["inner", "check"]
 
@@ -164,7 +165,6 @@ class W_ChpProcedure(Chaperone, W_InterposeProcedure):
         return chp_proc_cont(args, self.inner, env, cont)
 
 # Boxes
-
 @continuation
 def chp_unbox_cont(f, box, env, cont, vals):
     from pycket.interpreter import check_one_val
@@ -188,9 +188,10 @@ def chp_box_set_cont(b, orig, env, cont, vals):
         raise SchemeException("Expecting original value or chaperone")
     return b.set_box(val, env, cont)
 
-class W_InterposeBox(Proxy, values.W_Box):
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
+    _immutable_fields_ = ["inner", "unbox", "set", "properties"]
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_MBox)
@@ -225,7 +226,8 @@ class W_InterposeBox(Proxy, values.W_Box):
     def tostring(self):
         return self.inner.tostring()
 
-class W_ChpBox(Chaperone, W_InterposeBox):
+@make_chaperone
+class W_ChpBox(W_InterposeBox):
     errorname = "chp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
@@ -250,7 +252,8 @@ def imp_box_set_cont(b, val, env, cont, vals):
     from pycket.interpreter import check_one_val
     return b.set_box(check_one_val(vals), env, cont)
 
-class W_ImpBox(Impersonator, W_InterposeBox):
+@make_impersonator
+class W_ImpBox(W_InterposeBox):
     errorname = "imp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
@@ -295,7 +298,8 @@ def chp_vec_ref_cont_ret(old, env, cont, vals):
     else:
         raise SchemeException("Expecting original value or chaperone of thereof")
 
-class W_InterposeVector(Proxy, values.W_MVector):
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth", "properties"]
     def __init__(self, v, r, s, prop_keys, prop_vals):
@@ -329,7 +333,8 @@ class W_InterposeVector(Proxy, values.W_MVector):
         return self.inner.vector_ref(i, env, after)
 
 # Vectors
-class W_ImpVector(Impersonator, W_InterposeVector):
+@make_impersonator
+class W_ImpVector(W_InterposeVector):
     errorname = "impersonate-vector"
 
     @jit.elidable
@@ -340,7 +345,8 @@ class W_ImpVector(Impersonator, W_InterposeVector):
     def post_ref_cont(self, i, env, cont):
         return imp_vec_ref_cont(self.refh, i, self.inner, env, cont)
 
-class W_ChpVector(Chaperone, W_InterposeVector):
+@make_chaperone
+class W_ChpVector(W_InterposeVector):
     errorname = "chaperone-vector"
 
     @jit.elidable
@@ -378,8 +384,9 @@ def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
-class W_InterposeStructBase(Proxy, values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors", "mutators", "handlers"]
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeStructBase(values_struct.W_RootStruct):
+    _immutable_fields = ["inner", "accessors", "mutators", "handlers", "properties"]
 
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
@@ -435,7 +442,8 @@ class W_InterposeStructBase(Proxy, values_struct.W_RootStruct):
         return self.inner.vals()
 
 # Need to add checks that we are only impersonating mutable fields
-class W_ImpStruct(Impersonator, W_InterposeStructBase):
+@make_impersonator
+class W_ImpStruct(W_InterposeStructBase):
 
     @jit.elidable
     def post_ref_cont(self, interp, env, cont):
@@ -469,7 +477,8 @@ def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
         raise SchemeException("chaperone handlers must produce chaperone of original value")
     return setter.call([orig_struct, val], env, cont)
 
-class W_ChpStruct(Chaperone, W_InterposeStructBase):
+@make_chaperone
+class W_ChpStruct(W_InterposeStructBase):
 
     @jit.elidable
     def post_ref_cont(self, interp, env, cont):
@@ -480,10 +489,12 @@ class W_ChpStruct(Chaperone, W_InterposeStructBase):
         return chp_struct_set_cont(self.inner, op, val, env, cont)
 
 class W_ImpPropertyDescriptor(values.W_Object):
-    errorname = "impersonator-property"
+    errorname = "chaperone-property"
     _immutable_fields_ = ["name"]
     def __init__(self, name):
         self.name = name
+    def tostring(self):
+        return "#<chaperone-property>"
 
 class W_ImpPropertyFunction(values.W_Procedure):
     _immutable_fields_ = ["name"]

@@ -76,7 +76,7 @@ def continuation_named(name="cont"):
     def wrap(f):
         return continuation(f, prev_name=name)
     return wrap
-    
+
 
 def continuation(func, prev_name="cont"):
     """ workaround for the lack of closures in RPython. use to decorate a

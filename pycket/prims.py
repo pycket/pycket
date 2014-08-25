@@ -126,6 +126,7 @@ for args in [
         ("module-path-index?", values.W_ModulePathIndex),
         ("resolved-module-path?", values.W_ResolvedModulePath),
         ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
+        ("impersonator-property?", imp.W_ImpPropertyDescriptor),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -614,7 +615,6 @@ for args in [ ("date",),
               ("procedure-struct-type?",),
               ("special-comment?",),
               ("exn:srclocs?",),
-              ("impersonator-property?",),
               ("logger?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
@@ -1969,8 +1969,10 @@ def extend_paramz(paramz, key, val):
     else:
         return paramz # This really is the Racket behavior
 
-@expose("make-continuation-mark-key", [values.W_Symbol])
+@expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):
+    from pycket.interpreter import Gensym
+    s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
 
 @expose("make-continuation-prompt-tag", [])
