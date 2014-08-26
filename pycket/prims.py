@@ -15,6 +15,7 @@ from pycket.exposeprim import unsafe, default, expose, expose_val, procedure
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
 from rpython.rlib  import jit
+from rpython.rlib.rsre import rsre_re as re
 
 prim_env = {}
 
@@ -384,16 +385,15 @@ format_dict = {
     '~a': '%s',
     '~e': '%s'
 }
-pattern = "|".join(format_dict.keys())
+format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
-    from rpython.rlib.rsre import rsre_re as re
     from rpython.rlib.rstring import StringBuilder
     text = form.tostring()
     result = StringBuilder()
     pos = 0
-    for match in re.finditer(pattern, text):
+    for match in format_regex.finditer(text):
         match_start = match.start()
         assert match_start >= 0
         result.append(text[pos : match_start])
