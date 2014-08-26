@@ -63,10 +63,7 @@ class W_StructType(values.W_Object):
         elif prop.isinstance(w_prop_checked_procedure):
             if self.total_field_cnt < 2:
                 raise SchemeException("need at least two fields in the structure type")
-        if sub_prop_val:
-            self.props.append((prop, values.W_Cons.make(sub_prop_val, prop_val)))
-        else:
-            self.props.append((prop, prop_val))
+        self.props.append([prop, prop_val, sub_prop_val])
         assert isinstance(prop, W_StructProperty)
         for super_prop_cons in prop.supers:
             self.attach_prop(super_prop_cons, prop_val)

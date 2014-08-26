@@ -1221,37 +1221,28 @@ def do_struct_type_make_predicate(struct_type):
     return struct_type.pred
 
 @continuation
-def attach_result(struct_type, idx, prop, env, cont, _vals):
+def attach_prop(struct_type, idx, prop, env, cont, _vals):
     from pycket.interpreter import check_one_val
-    struct_type.props[idx] = (prop, check_one_val(_vals))
-    return make_struct_type_cont(struct_type, idx + 1, env, cont)
-
-@label
-def attach_prop(struct_type, idx, prop, prop_val, env, cont):
-    struct_type.props[idx] = (prop, prop_val)
+    struct_type.props[idx] = [prop, check_one_val(_vals)]
     return make_struct_type_cont(struct_type, idx + 1, env, cont)
 
 @label
 def make_struct_type_cont(struct_type, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     if idx < len(struct_type.props):
-        (prop, prop_val) = struct_type.props[idx]
-        if isinstance(prop_val, values.W_Cons):
-            sub_prop_val = prop_val.car()
-            prop_val = prop_val.cdr()
-            if sub_prop_val:
-                return prop_val.call([sub_prop_val], env, 
-                    attach_result(struct_type, idx, prop, env, cont))
-            else:
-                assert isinstance(prop, values_struct.W_StructProperty)
-                if prop.guard.iscallable():
-                    return prop.guard.call([prop_val, 
-                        values.to_list(struct_type.struct_type_info())],
-                        env, attach_result(struct_type, idx, prop, env, cont))
-                else:
-                    return attach_prop(struct_type, idx, prop, prop_val, env, cont)
+        p = struct_type.props[idx]
+        prop, prop_val, sub_prop_val = p[0], p[1], p[2] if len(p) > 2 else None
+        if sub_prop_val:
+            return prop_val.call([sub_prop_val], env, attach_prop(struct_type, idx, prop, env, cont))
         else:
-            return make_struct_type_cont(struct_type, idx + 1, env, cont)
+            assert isinstance(prop, values_struct.W_StructProperty)
+            if prop.guard.iscallable():
+                return prop.guard.call([prop_val, 
+                    values.to_list(struct_type.struct_type_info())],
+                    env, attach_prop(struct_type, idx, prop, env, cont))
+            else:
+                struct_type.props[idx] = [prop, prop_val]
+        return make_struct_type_cont(struct_type, idx + 1, env, cont)
     return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
 
 @expose("make-struct-type",
