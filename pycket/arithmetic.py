@@ -68,7 +68,7 @@ class __extend__(values.W_Complex):
     def arith_sub1(self):
         return values.W_Complex(self.real.arith_sub1(), self.imag)
 
-    # ------------------ multiplication ----------------
+    # ------------------ multiplication ------------------
     def arith_mul(self, other):
         return other.arith_mul_complex(self.real, self.imag)
 
@@ -90,6 +90,33 @@ class __extend__(values.W_Complex):
         im1 = real.arith_mul(self.imag)
         im2 = imag.arith_mul(self.real)
         return values.W_Complex(re1.arith_sub(re2), im1.arith_add(im2))
+
+    # ------------------ division ------------------
+    def arith_div(self, other):
+        return other.arith_div_complex(self.real, self.imag)
+
+    def arith_div_number(self, value):
+        return self.reciprocal().arith_mul_number(value)
+
+    def arith_div_bigint(self, other_value):
+        return self.reciprocal().arith_mul_bigint(other_value)
+
+    def arith_div_float(self, other_float):
+        return self.reciprocal().arith_mul_float(other_float)
+
+    def arith_div_complex(self, real, imag):
+        factor = self.reciprocal()
+        return values.W_Complex(real, imag).arith_mul(factor)
+
+    # Useful complex number operations
+    def complex_conjugate(self):
+        return values.W_Complex(self.real, self.imag.arith_mul_number(-1))
+
+    def reciprocal(self):
+        re2 = self.real.arith_mul(self.real)
+        im2 = self.imag.arith_mul(self.imag)
+        denom = re2.arith_add(im2)
+        return self.complex_conjugate().arith_div(denom)
 
 class __extend__(values.W_Fixnum):
     # ------------------ addition ------------------
@@ -167,8 +194,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_mul_complex(self, real, imag):
         if not self.value: return self
-        return values.W_Complex(real.arith_mul_number(self.value),
-                                imag.arith_mul_number(self.value))
+        return values.W_Complex(real.arith_mul(self), imag.arith_mul(self))
 
     # ------------------ division ------------------
     def arith_div(self, other):
@@ -197,6 +223,9 @@ class __extend__(values.W_Fixnum):
         if self.value == 0:
             raise SchemeException("zero_divisor")
         return values.W_Flonum(other_float / float(self.value))
+
+    def arith_div_complex(self, real, imag):
+        return values.W_Complex(real.arith_div(self), imag.arith_div(self))
 
     def arith_mod(self, other):
         return other.arith_mod_number(self.value)
@@ -461,8 +490,7 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(other_float * self.value)
 
     def arith_mul_complex(self, real, imag):
-        return values.W_Complex(real.arith_mul_float(self.value),
-                                imag.arith_mul_float(self.value))
+        return values.W_Complex(real.arith_mul(self), imag.arith_mul(self))
 
     # ------------------ division ------------------
     def arith_div(self, other):
@@ -482,6 +510,12 @@ class __extend__(values.W_Flonum):
         if self.value == 0.0:
             raise SchemeException("zero_divisor")
         return values.W_Flonum(other_float / self.value)
+
+    def arith_div_complex(self, real, imag):
+        if self.value == 0.0:
+            raise SchemeException("zero_divisor")
+        return values.W_Complex(real.arith_div_float(self.value),
+                                imag.arith_div_float(self.value))
 
     def arith_mod(self, other):
         return other.arith_mod_float(self.value)
@@ -668,8 +702,7 @@ class __extend__(values.W_Bignum):
         return values.W_Flonum(other_float * self.value.tofloat())
 
     def arith_mul_complex(self, real, imag):
-        return values.W_Complex(real.arith_mul_bigint(self.value),
-                                imag.arith_mul_bigint(self.value))
+        return values.W_Complex(real.arith_mul(self), imag.arith_mul(self))
 
     # ------------------ division ------------------
     def arith_div(self, other):
@@ -692,6 +725,9 @@ class __extend__(values.W_Bignum):
 
     def arith_div_float(self, other_float):
         return values.W_Flonum(other_float / self.value.tofloat())
+
+    def arith_div_complex(self, real, imag):
+        return values.W_Complex(real.arith_div(self), imag.arith_div(self))
 
     def arith_mod(self, other):
         return other.arith_mod_bigint(self.value)
