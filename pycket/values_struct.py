@@ -96,6 +96,14 @@ class W_StructType(values.W_Object):
                     env, self.save_prop_value(props, idx, True, env, cont))
             self.props.append((prop, prop_val))
             return self.attach_prop(props, idx + 1, False, env, cont)
+        # at this point all properties are saved, next step is to copy
+        # propertyes from super types
+        struct_type = self.super
+        while isinstance(struct_type, W_StructType):
+            self.props = self.props + struct_type.props
+            if not self.prop_procedure:
+                self.prop_procedure = struct_type.prop_procedure
+            struct_type = struct_type.super
         struct_tuple = self.make_struct_tuple()
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
@@ -133,16 +141,9 @@ class W_StructType(values.W_Object):
     def initialize_props(self, props, env, cont):
         proplist = values.from_list(props)
         props = [] # raw-values of properties
-        self.props = []
-        self.prop_procedure = None
         for p in proplist:
             self.initialize_prop(props, p)
         struct_type = self.super
-        while isinstance(struct_type, W_StructType):
-            self.props = self.props + struct_type.props
-            if not self.prop_procedure:
-                self.prop_procedure = struct_type.prop_procedure
-            struct_type = struct_type.super
         return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
@@ -154,6 +155,8 @@ class W_StructType(values.W_Object):
         self.total_field_cnt = self.init_field_cnt + self.auto_field_cnt + \
             (super_type.total_field_cnt if isinstance(super_type, W_StructType) else 0)
         self.auto_v = auto_v
+        self.props = []
+        self.prop_procedure = None
         self.inspector = inspector
         self.proc_spec = proc_spec
         self.immutables = []

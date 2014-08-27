@@ -82,6 +82,7 @@ def make_pred_eq(name, val):
         return values.W_Bool.make(isinstance(a, typ) and a is val)
 
 for args in [
+        ("output-port?", values.W_OutputPort),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -362,13 +363,13 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
 ################################################################
 # printing
 
-@expose("display", [values.W_Object])
-def display(s):
-    os.write(1, s.tostring())
+@expose("display", [values.W_Object, default(values.W_OutputPort, None)])
+def display(datum, out):
+    os.write(1, datum.tostring())
     return values.w_void
 
-@expose("newline", [])
-def newline():
+@expose("newline", [default(values.W_OutputPort, None)])
+def newline(out):
     os.write(1, "\n")
 
 @expose("write", [values.W_Object])
@@ -597,7 +598,6 @@ exn_break = define_exn("exn:break", exn)
 exn_break_hang_up = define_exn("exn:break:hang-up", exn_break)
 exn_break_terminate = define_exn("exn:break:terminate", exn_break)
 
-
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
@@ -608,7 +608,6 @@ for args in [ ("date",),
               ("subprocess?",),
               ("input-port?",),
 
-              ("output-port?",),
               ("file-stream-port?",),
               ("terminal-port?",),
               ("port-closed?",),
