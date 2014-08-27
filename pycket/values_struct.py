@@ -338,13 +338,14 @@ class W_Struct(W_RootStruct):
         else:
             self._set_list(k, values.W_Cell(val))
 
+    # TODO: currently unused
     def tostring_proc(self, env, cont):
         for w_prop, w_val in self._type.props:
             if w_prop.isinstance(w_prop_custom_write):
                 assert isinstance(w_val, values_vector.W_Vector)
                 w_write_proc = w_val.ref(0)
                 port = values.W_StringOutputPort()
-                # FIXME: #t for write mode, #f for display mode,
+                # TODO: #t for write mode, #f for display mode,
                 # or 0 or 1 indicating the current quoting depth for print mode
                 mode = values.w_false
                 return w_write_proc.call([self, port, mode], env, cont)

@@ -1659,9 +1659,29 @@ def consp(v):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error", [values.W_Symbol, values.W_String])
-def error(name, msg):
-    raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
+@expose("error")
+def error(args):
+    if len(args) == 1:
+        sym = args
+        assert isinstance(sym, values.W_Symbol)
+        raise SchemeException("error: %s"%sym.tostring())
+    else:
+        first_arg = args[0]
+        if isinstance(first_arg, values.W_String):
+            from rpython.rlib.rstring import StringBuilder
+            msg = StringBuilder()
+            msg.append(first_arg.tostring())
+            v = args[1:]
+            for item in v:
+                msg.append(" %s"%item.tostring())
+            raise SchemeException(msg.build())
+        else:
+            src = first_arg
+            form = args[1]
+            v = args[2:]
+            assert isinstance(src, values.W_Symbol)
+            assert isinstance(form, values.W_String)
+            raise SchemeException("%s: %s"%(src.tostring(), format(form, v)))
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
