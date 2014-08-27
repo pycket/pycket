@@ -558,9 +558,9 @@ def char2int(c):
 
 def define_exn(name, super=values.w_null, fields=[]):
     exn_type, exn_constr, exn_pred, exn_acc, exn_mut = \
-        values_struct.W_StructType.make(values.W_Symbol.make(name), super,
-        values.W_Fixnum(len(fields)), values.W_Fixnum(0), values.w_false,
-        values.w_null, values.w_false).make_struct_tuple()
+        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
+            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
+            values.w_false, values.w_null, values.w_false).make_struct_tuple()
     expose_val("struct:" + name, exn_type)
     expose_val(name, exn_constr)
     expose_val(name + "?", exn_pred)
@@ -1220,31 +1220,6 @@ def do_struct_type_make_predicate(struct_type):
     #the exn:fail:contract exception should be raised
     return struct_type.pred
 
-@continuation
-def attach_prop(struct_type, idx, prop, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    struct_type.props[idx] = [prop, check_one_val(_vals)]
-    return make_struct_type_cont(struct_type, idx + 1, env, cont)
-
-@label
-def make_struct_type_cont(struct_type, idx, env, cont):
-    from pycket.interpreter import return_multi_vals
-    if idx < len(struct_type.props):
-        p = struct_type.props[idx]
-        prop, prop_val, sub_prop_val = p[0], p[1], p[2] if len(p) > 2 else None
-        if sub_prop_val:
-            return prop_val.call([sub_prop_val], env, attach_prop(struct_type, idx, prop, env, cont))
-        else:
-            assert isinstance(prop, values_struct.W_StructProperty)
-            if prop.guard.iscallable():
-                return prop.guard.call([prop_val, 
-                    values.to_list(struct_type.struct_type_info())],
-                    env, attach_prop(struct_type, idx, prop, env, cont))
-            else:
-                struct_type.props[idx] = [prop, prop_val]
-        return make_struct_type_cont(struct_type, idx + 1, env, cont)
-    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
-
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
@@ -1258,10 +1233,9 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, 
-        init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec,
-        immutables, guard, constr_name)
-    return make_struct_type_cont(struct_type, 0, env, cont)
+    return values_struct.W_StructType.make(name, super_type, init_field_cnt,
+        auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
+        guard, constr_name, env, cont)
 
 @expose("make-struct-field-accessor",
         [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
