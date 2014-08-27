@@ -75,62 +75,77 @@ class W_StructType(values.W_Object):
         return w_struct_type
 
     @continuation
-    def attach_result(self, temp_vals, prop, idx, env, cont, _vals):
+    def attach_result(self, props, idx, env, cont, _vals):
         from pycket.interpreter import check_one_val
-        self.props[idx] = (prop, check_one_val(_vals))
-        return self.initialize_props_cont(idx + 1, temp_vals, env, cont)
+        prop = props[idx][0]
+        prop_val = check_one_val(_vals)
+        self.props.append((prop, prop_val))
+        return self.attach_prop(props, idx + 1, env, cont)
 
     @label
-    def initialize_props_cont(self, idx, temp_vals, env, cont):
+    def attach_prop(self, props, idx, env, cont):
         from pycket.interpreter import return_multi_vals
-        if idx < len(self.props):
-            (prop, prop_val) = self.props[idx]
-            if prop in temp_vals:
-                return prop_val.call([temp_vals[prop]], env, 
-                    self.attach_result(temp_vals, prop, idx, env, cont))
+        if idx < len(props):
+            (prop, prop_val, sub_prop_val) = props[idx]
+            if sub_prop_val:
+                return prop_val.call([sub_prop_val], env,
+                    self.attach_result(props, idx, env, cont))
             else:
                 assert isinstance(prop, W_StructProperty)
                 if prop.guard.iscallable():
                     return prop.guard.call([prop_val,
                         values.to_list(self.struct_type_info())],
-                        env, self.attach_result(temp_vals, prop, idx, env, cont))
-            return self.initialize_props_cont(idx + 1, temp_vals, env, cont)
+                        env, self.attach_result(props, idx, env, cont))
+            self.props.append((prop, prop_val))
+            return self.attach_prop(props, idx + 1, env, cont)
         struct_tuple = self.make_struct_tuple()
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
     @jit.unroll_safe
-    def attach_prop(self, p, temp_vals, temp_val=None):
+    def initialize_prop(self, props, p, sub_prop_val=None):
         prop = p.car()
         prop_val = p.cdr()
-        if not temp_val and prop.isinstance(w_prop_procedure):
-            if self.prop_procedure:
-                raise SchemeException("duplicate property binding")
-            self.prop_procedure = prop_val
-        elif prop.isinstance(w_prop_checked_procedure):
-            if self.total_field_cnt < 2:
-                raise SchemeException("need at least two fields in the structure type")
-        self.props.append((prop, prop_val))
-        if temp_val:
-            temp_vals[prop] = temp_val
+        if not sub_prop_val:
+            if prop.isinstance(w_prop_procedure):
+                if self.prop_procedure:
+                    raise SchemeException("duplicate property binding")
+                self.prop_procedure = prop_val
+            elif prop.isinstance(w_prop_checked_procedure):
+                if self.total_field_cnt < 2:
+                    raise SchemeException("need at least two fields in the structure type")
+        props.append((prop, prop_val, sub_prop_val))
         assert isinstance(prop, W_StructProperty)
         for super_p in prop.supers:
-            self.attach_prop(super_p, temp_vals, prop_val)
+            self.initialize_prop(props, super_p, prop_val)
 
+    """
+    Properties initialisation contains few steps:
+        1. call initialize_prop for each property from the input list,
+           it extracts all super values and stores them into props array
+           with a flat structure
+        2. recursively call attach_prop for each property from props and
+           prepare the value:
+           * if the current property has a subproperty, the value is the result
+             of calling value procedure with a sub value as an argument
+           * if the current property has a guard, the value is the result of
+             calling guard with a value and struct type info as arguments
+           * in other case just keep the current value
+    """
     @jit.unroll_safe
     def initialize_props(self, props, env, cont):
         proplist = values.from_list(props)
+        props = [] # raw-values of properties
         self.props = []
         self.prop_procedure = None
-        temp_vals = {}
         for p in proplist:
-            self.attach_prop(p, temp_vals)
+            self.initialize_prop(props, p)
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
             self.props = self.props + struct_type.props
             if not self.prop_procedure:
                 self.prop_procedure = struct_type.prop_procedure
             struct_type = struct_type.super
-        return self.initialize_props_cont(0, temp_vals, env, cont)
+        return self.attach_prop(props, 0, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
