@@ -1655,6 +1655,10 @@ def listp_loop(v):
 def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
+@expose("list-ref", [values.W_Cons, values.W_Fixnum])
+def list_ref(lst, pos):
+    return values.from_list(lst)[pos.value]
+
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
