@@ -383,23 +383,25 @@ def do_print(o):
 format_dict = {
     '~n': '\n',
     '~%': '\n',
-    '~a': '%s',
-    '~e': '%s'
+    '~a': None,
+    '~e': None,
+    '~s': None
 }
 format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
     from rpython.rlib.rstring import StringBuilder
-    text = form.tostring()
+    text = form.value
     result = StringBuilder()
     pos = 0
     for match in format_regex.finditer(text):
         match_start = match.start()
         assert match_start >= 0
         result.append(text[pos : match_start])
-        val = format_dict[match.group()] \
-            if format_dict[match.group()] != '%s' else v.pop().tostring()
+        val = format_dict[match.group()]
+        if val is None:
+            val, v = v[0].tostring(), v[1:]
         result.append(val)
         pos = match.end()
         assert pos >= 0
