@@ -15,6 +15,7 @@ from pycket.exposeprim import unsafe, default, expose, expose_val, procedure
 from pycket import arithmetic # imported for side effect
 from pycket.error import SchemeException
 from rpython.rlib  import jit
+from rpython.rlib.rsre import rsre_re as re
 
 prim_env = {}
 
@@ -81,6 +82,7 @@ def make_pred_eq(name, val):
         return values.W_Bool.make(isinstance(a, typ) and a is val)
 
 for args in [
+        ("output-port?", values.W_OutputPort),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -361,13 +363,13 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
 ################################################################
 # printing
 
-@expose("display", [values.W_Object])
-def display(s):
-    os.write(1, s.tostring())
+@expose("display", [values.W_Object, default(values.W_OutputPort, None)])
+def display(datum, out):
+    os.write(1, datum.tostring())
     return values.w_void
 
-@expose("newline", [])
-def newline():
+@expose("newline", [default(values.W_OutputPort, None)])
+def newline(out):
     os.write(1, "\n")
 
 @expose("write", [values.W_Object])
@@ -384,16 +386,15 @@ format_dict = {
     '~a': '%s',
     '~e': '%s'
 }
-pattern = "|".join(format_dict.keys())
+format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
-    from rpython.rlib.rsre import rsre_re as re
     from rpython.rlib.rstring import StringBuilder
     text = form.tostring()
     result = StringBuilder()
     pos = 0
-    for match in re.finditer(pattern, text):
+    for match in format_regex.finditer(text):
         match_start = match.start()
         assert match_start >= 0
         result.append(text[pos : match_start])
@@ -558,9 +559,9 @@ def char2int(c):
 
 def define_exn(name, super=values.w_null, fields=[]):
     exn_type, exn_constr, exn_pred, exn_acc, exn_mut = \
-        values_struct.W_StructType.make(values.W_Symbol.make(name), super,
-        values.W_Fixnum(len(fields)), values.W_Fixnum(0), values.w_false,
-        values.w_null, values.w_false).make_struct_tuple()
+        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
+            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
+            values.w_false, values.w_null, values.w_false).make_struct_tuple()
     expose_val("struct:" + name, exn_type)
     expose_val(name, exn_constr)
     expose_val(name + "?", exn_pred)
@@ -597,7 +598,6 @@ exn_break = define_exn("exn:break", exn)
 exn_break_hang_up = define_exn("exn:break:hang-up", exn_break)
 exn_break_terminate = define_exn("exn:break:terminate", exn_break)
 
-
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
@@ -608,7 +608,6 @@ for args in [ ("date",),
               ("subprocess?",),
               ("input-port?",),
 
-              ("output-port?",),
               ("file-stream-port?",),
               ("terminal-port?",),
               ("port-closed?",),
@@ -1220,40 +1219,6 @@ def do_struct_type_make_predicate(struct_type):
     #the exn:fail:contract exception should be raised
     return struct_type.pred
 
-@continuation
-def attach_result(struct_type, idx, prop, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    struct_type.props[idx] = (prop, check_one_val(_vals))
-    return make_struct_type_cont(struct_type, idx + 1, env, cont)
-
-@label
-def attach_prop(struct_type, idx, prop, prop_val, env, cont):
-    struct_type.props[idx] = (prop, prop_val)
-    return make_struct_type_cont(struct_type, idx + 1, env, cont)
-
-@label
-def make_struct_type_cont(struct_type, idx, env, cont):
-    from pycket.interpreter import return_multi_vals
-    if idx < len(struct_type.props):
-        (prop, prop_val) = struct_type.props[idx]
-        if isinstance(prop_val, values.W_Cons):
-            sub_prop_val = prop_val.car()
-            prop_val = prop_val.cdr()
-            if sub_prop_val:
-                return prop_val.call([sub_prop_val], env, 
-                    attach_result(struct_type, idx, prop, env, cont))
-            else:
-                assert isinstance(prop, values_struct.W_StructProperty)
-                if prop.guard.iscallable():
-                    return prop.guard.call([prop_val, 
-                        values.to_list(struct_type.struct_type_info())],
-                        env, attach_result(struct_type, idx, prop, env, cont))
-                else:
-                    return attach_prop(struct_type, idx, prop, prop_val, env, cont)
-        else:
-            return make_struct_type_cont(struct_type, idx + 1, env, cont)
-    return return_multi_vals(values.Values.make(struct_type.make_struct_tuple()), env, cont)
-
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
@@ -1267,10 +1232,9 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
     if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    struct_type = values_struct.W_StructType.make(name, super_type, 
-        init_field_cnt, auto_field_cnt, auto_v, props, inspector, proc_spec,
-        immutables, guard, constr_name)
-    return make_struct_type_cont(struct_type, 0, env, cont)
+    return values_struct.W_StructType.make(name, super_type, init_field_cnt,
+        auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
+        guard, constr_name, env, cont)
 
 @expose("make-struct-field-accessor",
         [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
@@ -1690,13 +1654,37 @@ def listp_loop(v):
 def consp(v):
     return values.W_Bool.make(listp_loop(v))
 
+@expose("list-ref", [values.W_Cons, values.W_Fixnum])
+def list_ref(lst, pos):
+    return values.from_list(lst)[pos.value]
+
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error", [values.W_Symbol, values.W_String])
-def error(name, msg):
-    raise SchemeException("%s: %s"%(name.tostring(), msg.tostring()))
+@expose("error")
+def error(args):
+    if len(args) == 1:
+        sym = args
+        assert isinstance(sym, values.W_Symbol)
+        raise SchemeException("error: %s"%sym.tostring())
+    else:
+        first_arg = args[0]
+        if isinstance(first_arg, values.W_String):
+            from rpython.rlib.rstring import StringBuilder
+            msg = StringBuilder()
+            msg.append(first_arg.tostring())
+            v = args[1:]
+            for item in v:
+                msg.append(" %s"%item.tostring())
+            raise SchemeException(msg.build())
+        else:
+            src = first_arg
+            form = args[1]
+            v = args[2:]
+            assert isinstance(src, values.W_Symbol)
+            assert isinstance(form, values.W_String)
+            raise SchemeException("%s: %s"%(src.tostring(), format(form, v)))
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
