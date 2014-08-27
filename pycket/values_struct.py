@@ -75,29 +75,27 @@ class W_StructType(values.W_Object):
         return w_struct_type
 
     @continuation
-    def attach_result(self, props, idx, env, cont, _vals):
+    def save_prop_value(self, props, idx, is_checked, env, cont, _vals):
         from pycket.interpreter import check_one_val
         prop = props[idx][0]
         prop_val = check_one_val(_vals)
-        self.props.append((prop, prop_val))
-        return self.attach_prop(props, idx + 1, env, cont)
+        props[idx] = (prop, prop_val, None)
+        return self.attach_prop(props, idx, is_checked, env, cont)
 
     @label
-    def attach_prop(self, props, idx, env, cont):
+    def attach_prop(self, props, idx, is_checked, env, cont):
         from pycket.interpreter import return_multi_vals
         if idx < len(props):
             (prop, prop_val, sub_prop_val) = props[idx]
             if sub_prop_val:
                 return prop_val.call([sub_prop_val], env,
-                    self.attach_result(props, idx, env, cont))
-            else:
-                assert isinstance(prop, W_StructProperty)
-                if prop.guard.iscallable():
-                    return prop.guard.call([prop_val,
-                        values.to_list(self.struct_type_info())],
-                        env, self.attach_result(props, idx, env, cont))
+                    self.save_prop_value(props, idx, False, env, cont))
+            assert isinstance(prop, W_StructProperty)
+            if not is_checked and prop.guard.iscallable():
+                return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
+                    env, self.save_prop_value(props, idx, True, env, cont))
             self.props.append((prop, prop_val))
-            return self.attach_prop(props, idx + 1, env, cont)
+            return self.attach_prop(props, idx + 1, False, env, cont)
         struct_tuple = self.make_struct_tuple()
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
@@ -145,7 +143,7 @@ class W_StructType(values.W_Object):
             if not self.prop_procedure:
                 self.prop_procedure = struct_type.prop_procedure
             struct_type = struct_type.super
-        return self.attach_prop(props, 0, env, cont)
+        return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
@@ -210,7 +208,8 @@ class W_StructType(values.W_Object):
         # TODO: #f if the seventh result is the most specific ancestor type or 
         # if the type has no supertype, #t otherwise
         skipped = values.w_false
-        return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut, immutable_k_list, super, skipped]
+        return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut,
+                immutable_k_list, super, skipped]
 
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
@@ -287,7 +286,6 @@ class W_Struct(W_RootStruct):
     @staticmethod
     def make_prefab(w_name, w_values):
         w_struct_type = W_StructType.make_prefab(w_name, None, values.W_Fixnum(len(w_values)))
-        # assert isinstance(w_struct_type, W_StructType)
         return W_Struct.make(w_values, w_struct_type)
 
     def vals(self):
@@ -440,6 +438,7 @@ class W_StructPredicate(values.W_Procedure):
                     return values.w_true
                 struct_type = struct_type.super
         return values.w_false
+
     def tostring(self):
         return "#<procedure:%s?>" % self.type.name
 
@@ -511,6 +510,7 @@ class W_StructProperty(values.W_Object):
         self.guard = guard
         self.supers = values.from_list(supers)
         self.can_imp = can_imp
+
     def isinstance(self, prop):
         if self is prop:
             return True
@@ -518,6 +518,7 @@ class W_StructProperty(values.W_Object):
             if super.car().isinstance(prop):
                 return True
         return False
+
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
