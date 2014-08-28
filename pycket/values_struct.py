@@ -47,7 +47,7 @@ class W_StructType(values.W_Object):
         w_struct_type = W_StructType.make_simple(name, super_type,
             init_field_cnt, auto_field_cnt, auto_v, props, inspector,
             proc_spec, immutables, guard, constr_name)
-        return w_struct_type.initialize_props(props, env, cont)
+        return w_struct_type.initialize_props(props, proc_spec, env, cont)
 
     """
     This method returns an instance of W_StructType only.
@@ -101,8 +101,9 @@ class W_StructType(values.W_Object):
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
             self.props = self.props + struct_type.props
-            if not self.prop_procedure:
+            if self.prop_procedure is None:
                 self.prop_procedure = struct_type.prop_procedure
+                self.procedure_source = struct_type
             struct_type = struct_type.super
         struct_tuple = self.make_struct_tuple()
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
@@ -113,9 +114,10 @@ class W_StructType(values.W_Object):
         prop_val = p.cdr()
         if not sub_prop_val:
             if prop.isinstance(w_prop_procedure):
-                if self.prop_procedure:
+                if self.prop_procedure is not None:
                     raise SchemeException("duplicate property binding")
                 self.prop_procedure = prop_val
+                self.procedure_source = self
             elif prop.isinstance(w_prop_checked_procedure):
                 if self.total_field_cnt < 2:
                     raise SchemeException("need at least two fields in the structure type")
@@ -138,11 +140,13 @@ class W_StructType(values.W_Object):
            * in other case just keep the current value
     """
     @jit.unroll_safe
-    def initialize_props(self, props, env, cont):
+    def initialize_props(self, props, proc_spec, env, cont):
         proplist = values.from_list(props)
         props = [] # raw-values of properties
         for p in proplist:
             self.initialize_prop(props, p)
+        if proc_spec is not values.w_false:
+            self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
         struct_type = self.super
         return self.attach_prop(props, 0, False, env, cont)
 
@@ -157,8 +161,8 @@ class W_StructType(values.W_Object):
         self.auto_v = auto_v
         self.props = []
         self.prop_procedure = None
+        self.procedure_source = None
         self.inspector = inspector
-        self.proc_spec = proc_spec
         self.immutables = []
         if isinstance(proc_spec, values.W_Fixnum):
             self.immutables.append(proc_spec.value)
@@ -204,11 +208,11 @@ class W_StructType(values.W_Object):
         init_field_cnt = values.W_Fixnum(self.init_field_cnt)
         auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
         immutable_k_list = values.to_list([values.W_Fixnum(i) for i in self.immutables])
-        # TODO: value of the super variable should be a structure type descriptor 
-        # for the most specific ancestor of the type that is controlled by the current inspector, 
+        # TODO: value of the super variable should be a structure type descriptor
+        # for the most specific ancestor of the type that is controlled by the current inspector,
         # or #f if no ancestor is controlled by the current inspector
         super = self.super
-        # TODO: #f if the seventh result is the most specific ancestor type or 
+        # TODO: #f if the seventh result is the most specific ancestor type or
         # if the type has no supertype, #t otherwise
         skipped = values.w_false
         return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut,
@@ -230,7 +234,7 @@ class W_RootStruct(values.W_Object):
         return self.struct_type().prop_procedure is not None
 
     @continuation
-    def arity_error_cont(self, _vals):
+    def arity_error_cont(self, env, cont, _vals):
         from pycket.interpreter import check_one_val
         msg = check_one_val(_vals)
         raise SchemeException("expected: " + msg.tostring())
@@ -247,20 +251,18 @@ class W_RootStruct(values.W_Object):
         if args_len < rest and args_len not in arities:
             for w_prop, w_prop_val in self.struct_type().props:
                 if w_prop.isinstance(w_prop_arity_string):
-                    return w_prop_val.call([self], env, self.arity_error_cont())
+                    return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
         return proc.call(args, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
     # struct_type for _call and iscallable to work properly.
     @make_call_method(simple=False)
     def _call(self, args, env, cont):
-        my_type = self.struct_type()
-        spec = my_type.proc_spec
-        if spec is not values.w_false:
-            args = [spec] + args
-        proc = my_type.prop_procedure
+        typ = self.struct_type()
+        proc = typ.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            return self.ref(my_type, proc.value, env, self.receive_proc_cont(args, env, cont))
+            return self.ref(typ.procedure_source, proc.value, env,
+                    self.receive_proc_cont(args, env, cont))
         args = [self] + args
         return self.checked_call(proc, args, env, cont)
 
@@ -433,7 +435,7 @@ class W_StructPredicate(values.W_Procedure):
         self.type = type
 
     @make_call_method([values.W_Object])
-    def _call(self, struct):
+    def call(self, struct):
         if isinstance(struct, W_RootStruct):
             struct_type = struct.struct_type()
             while isinstance(struct_type, W_StructType):
@@ -537,12 +539,11 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
     @make_call_method([values.W_Object])
-    def _call(self, arg):        
-        if isinstance(arg, W_Struct):
-            props = arg.struct_type().props
-        else:
+    def call(self, arg):
+        if not isinstance(arg, W_RootStruct):
             return values.w_false
-        for (p, val) in props:
+        props = arg.struct_type().props
+        for p, val in props:
             if p is self.property:
                 return values.w_true
         return values.w_false
