@@ -323,6 +323,7 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
+expose_val("unsafe-undefined", values.w_unsafe_undefined)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -439,7 +440,7 @@ def flush_output(port):
 def do_format(args):
     form, v = args[0], args[1:]
     assert isinstance(form, values.W_String)
-    os.write(1, format(form, v))
+    return values.W_String(format(form, v))
 
 def cur_print_proc(args):
     v, = args

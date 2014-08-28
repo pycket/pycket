@@ -113,6 +113,13 @@ class W_CellIntegerStrategy(W_Object):
     def __init__(self, value):
         self.value = value
 
+class W_Undefined(W_Object):
+    errorname = "unsafe-undefined"
+    def __init__(self):
+        pass
+
+w_unsafe_undefined = W_Undefined()
+
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
     _immutable_fields_ = ["val"]
