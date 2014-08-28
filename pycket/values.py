@@ -53,8 +53,7 @@ class W_Object(object):
         if self.iscallable():
             from pycket.interpreter import tailcall
             return tailcall(self._call, args, env, cont)
-        else:
-            raise SchemeException("%s is not callable" % self.tostring())
+        raise SchemeException("%s is not callable" % self.tostring())
 
     def mark_non_loop(self):
         pass
@@ -747,6 +746,8 @@ class W_Procedure(W_Object):
         raise NotImplementedError("Abstract base class")
     def iscallable(self):
         return True
+    def tostring(self):
+        return "#<procedure>"
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
@@ -764,7 +765,7 @@ class W_SimplePrim(W_Procedure):
         return return_value(self.code(args), env, cont)
 
     def tostring(self):
-        return "SimplePrim<%s>" % self.name
+        return "<procedure:%s>" % self.name
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
@@ -781,7 +782,7 @@ class W_Prim(W_Procedure):
         return self.code(args, env, cont)
 
     def tostring(self):
-        return "Prim<%s>" % self.name
+        return "#<procedure:%s>" % self.name
 
 def to_list(l): return to_improper(l, w_null)
 
@@ -821,6 +822,8 @@ class W_Continuation(W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)
+    def tostring(self):
+        return "#<continuation>"
 
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
@@ -922,6 +925,9 @@ class W_PromotableClosure(W_Procedure):
 
     def get_arity(self):
         return self.closure.get_arity()
+
+    def tostring(self):
+        return self.closure.tostring()
 
 class W_Parameterization(W_Object):
     errorname = "parameterization"
