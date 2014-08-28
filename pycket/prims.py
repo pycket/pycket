@@ -327,7 +327,8 @@ for name in ["prop:evt",
              "prop:output-port",
              "prop:impersonator-of",
              "prop:method-arity-error",
-             "prop:exn:srclocs"]:
+             "prop:exn:srclocs",
+             "prop:incomplete-arity"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
@@ -473,6 +474,11 @@ def make_logger(name, parent):
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
+    return values.W_HashTable([], [])
+
+@expose("make-immutable-hash", [default(values.W_Object, None)])
+def make_immutable_hash(assocs):
+    # FIXME: not impelemented
     return values.W_HashTable([], [])
 
 @expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
@@ -818,6 +824,11 @@ def varref_const(varref, env, cont):
 @expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
 def varref_rmp(varref):
     return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
+
+@expose("variable-reference->module-source",  [values.W_VariableReference])
+def varref_ms(varref):
+    # FIXME: not implemented
+    return values.w_void
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -1616,6 +1627,16 @@ def impersonate_box(args):
     set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
+@expose("chaperone-hash")
+def chaperone_hash(args):
+    # FIXME: not implemented
+    return values.w_void
+
+@expose("impersonate-hash")
+def chaperone_hash(args):
+    # FIXME: not implemented
+    return values.w_void
+
 @expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
 def ccmk(cmk, f):
     return cmk
@@ -1898,8 +1919,14 @@ def hash_set_bang(ht, k, v):
     ht.set(k, v)
     return values.w_void
 
+@expose("hash-set", [values.W_HashTable, values.W_Object, values.W_Object])
+def hash_set(ht, k, v):
+    # FIXME: implementation
+    ht.set(k, v)
+    return values.w_void
+
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
-def hash_set_bang(ht, k, default, env, cont):
+def hash_ref(ht, k, default, env, cont):
     from pycket.interpreter import return_value
     val = ht.ref(k)
     if val:
@@ -1910,6 +1937,75 @@ def hash_set_bang(ht, k, default, env, cont):
         return return_value(default, env, cont)
     else:
         raise SchemeException("key not found")
+
+@expose("hash-remove!", [values.W_HashTable, values.W_Object])
+def hash_remove_bang(hash, key):
+    # FIXME: not implemented
+    return hash
+
+@expose("hash-remove", [values.W_HashTable, values.W_Object])
+def hash_remove(hash, key):
+    # FIXME: not implemented
+    return hash
+
+@expose("hash-clear!", [values.W_HashTable])
+def hash_clear_bang(hash):
+    # FIXME: not implemented
+    return values.W_HashTable([], [])
+
+@expose("hash-clear", [values.W_HashTable])
+def hash_clear(hash):
+    # FIXME: not implemented
+    return values.W_HashTable([], [])
+
+@expose("hash-map", [values.W_HashTable, values.W_Object])
+def hash_map(hash, proc):
+    # FIXME: not implemented
+    return values.w_void
+
+@expose("hash-count", [values.W_HashTable])
+def hash_count(hash):
+    # FIXME: implementation
+    return values.W_Fixnum(len(hash.data))
+
+@expose("hash-iterate-first", [values.W_HashTable])
+def hash_iterate_first(hash):
+    # FIXME: implementation
+    # if not hash.data:
+    #     return values.w_false
+    # else:
+    #     return hash.ref(0)
+    return values.w_false
+
+@expose("hash-iterate-next", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_next(hash, pos):
+    # FIXME: implementation
+    # next_pos = pos.value + 1
+    # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
+    return values.w_false
+
+@expose("hash-iterate-key", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_key(hash, pos):
+    # FIXME: implementation
+    # return hash.ref(pos.value)
+    return values.w_false
+
+@expose("hash-iterate-value", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_value(hash, pos):
+    # FIXME: implementation
+    # return hash.ref(pos.value)
+    return values.w_false
+
+@expose("hash-copy", [values.W_HashTable])
+def hash_iterate_value(hash):
+    # FIXME: implementation
+    return hash
+
+@expose("equal-hash-code", [values.W_Object])
+def equal_hash_code(v):
+    # FIXME: not implemented
+    return values.W_Fixnum(0)
+
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
