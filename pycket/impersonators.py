@@ -106,7 +106,7 @@ class W_InterposeProcedure(values.W_Procedure):
         return self.check.call(args, env, after)
 
     def tostring(self):
-        return "ImpProcedure<%s>" % self.inner.tostring()
+        return self.inner.tostring()
 
 @make_impersonator
 class W_ImpProcedure(W_InterposeProcedure):
@@ -194,7 +194,7 @@ class W_InterposeBox(values.W_Box):
     _immutable_fields_ = ["inner", "unbox", "set", "properties"]
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
-        assert isinstance(box, values.W_MBox)
+        assert isinstance(box, values.W_Box)
         assert len(prop_keys) == len(prop_vals)
         self.inner = box
         self.unboxh = unboxh
