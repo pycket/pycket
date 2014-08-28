@@ -1612,13 +1612,20 @@ def ccmk(cmk, f):
 def icmk(cmk, f):
     return cmk
 
-@expose("chaperone-of?", [values.W_Object, values.W_Object])
-def chaperone_of(a, b):
-    return values.W_Bool.make(imp.is_chaperone_of(a, b))
+@expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
+def chaperone_of(a, b, env, cont):
+    from pycket.interpreter import return_value
+    # If there are no interposing structures, we can do regular equality
+    if a.is_impersonator() or b.is_impersonator():
+        return return_value(values.W_Bool.make(imp.is_chaperone_of(a, b)), env, cont)
+    return equal_cont(a, b, env, cont)
 
-@expose("impersonator-of?", [values.W_Object, values.W_Object])
-def impersonator_of(a, b):
-    return values.W_Bool.make(imp.is_impersonator_of(a, b))
+@expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
+def impersonator_of(a, b, env, cont):
+    from pycket.interpreter import return_value
+    if a.is_impersonator() or b.is_impersonator():
+        return return_value(values.W_Bool.make(imp.is_impersonator_of(a, b)), env, cont)
+    return equal_cont(a, b, env, cont)
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):
@@ -1908,6 +1915,10 @@ def string_to_symbol(v):
 @expose("string->unreadable-symbol", [values.W_String])
 def string_to_unsymbol(v):
     return values.W_Symbol.make_unreadable(v.value)
+
+@expose("string->immutable-string", [values.W_String])
+def string_to_immutable_string(string):
+    return values.W_String(string.value)
 
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
