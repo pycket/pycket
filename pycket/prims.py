@@ -828,7 +828,7 @@ def varref_rmp(varref):
 @expose("variable-reference->module-source",  [values.W_VariableReference])
 def varref_ms(varref):
     # FIXME: not implemented
-    return values.w_void
+    return values.W_Symbol.make("dummy_module")
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -1630,12 +1630,12 @@ def impersonate_box(args):
 @expose("chaperone-hash")
 def chaperone_hash(args):
     # FIXME: not implemented
-    return values.w_void
+    return args[0]
 
 @expose("impersonate-hash")
 def chaperone_hash(args):
     # FIXME: not implemented
-    return values.w_void
+    return args[0]
 
 @expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
 def ccmk(cmk, f):
@@ -1670,6 +1670,11 @@ def chaperone(x):
 
 @expose("vector")
 def vector(args):
+    return values_vector.W_Vector.fromelements(args)
+
+# FIXME: immutable
+@expose("vector-immutable")
+def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args)
 
 @expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
@@ -1923,7 +1928,7 @@ def hash_set_bang(ht, k, v):
 def hash_set(ht, k, v):
     # FIXME: implementation
     ht.set(k, v)
-    return values.w_void
+    return ht
 
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
@@ -1961,7 +1966,7 @@ def hash_clear(hash):
 @expose("hash-map", [values.W_HashTable, values.W_Object])
 def hash_map(hash, proc):
     # FIXME: not implemented
-    return values.w_void
+    return hash
 
 @expose("hash-count", [values.W_HashTable])
 def hash_count(hash):
