@@ -178,6 +178,19 @@ def test_struct_prop_procedure():
     assert m.defs[W_Symbol.make("xval")].value == 1
     assert m.defs[W_Symbol.make("yval")].value == 2
 
+def test_struct_procedure_inheritance():
+    m = run_mod(
+    """
+    #lang racket/base
+
+    (struct x (proc) #:property prop:procedure 0)
+    (struct y x ())
+
+    (define b (y (lambda (x) x)))
+    (define val (b 10))
+    """)
+    assert m.defs[W_Symbol.make("val")].value == 10
+
 def test_struct_prop_procedure_fail():
     e = pytest.raises(SchemeException, run_mod,
     """
