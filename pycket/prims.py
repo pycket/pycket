@@ -326,7 +326,8 @@ expose_val("parameterization-key", values.parameterization_key)
 for name in ["prop:evt",
              "prop:output-port",
              "prop:impersonator-of",
-             "prop:method-arity-error"]:
+             "prop:method-arity-error",
+             "prop:exn:srclocs"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
@@ -416,6 +417,10 @@ def do_fprintf(args):
     # FIXME: it should print formatted output to _out_
     os.write(1, format(form, v))
     return values.w_void
+
+@expose("print-struct", [default(values.W_Object, None)])
+def do_print_struct(on):
+    return values.w_true
 
 @expose("current-output-port", [default(values.W_OutputPort, None)])
 def current_output_port(port):
@@ -688,6 +693,13 @@ for args in [ ("date",),
 @expose("object-name", [values.W_Object])
 def object_name(v):
     return values.W_String(v.tostring())
+
+@expose("namespace-variable-value", [values.W_Symbol,
+    default(values.W_Object, values.w_true),
+    default(values.W_Object, values.w_true),
+    default(values.W_Object, None)])
+def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
+    return values.w_void
 
 @expose("find-main-config", [])
 def find_main_config():
@@ -2016,9 +2028,11 @@ def mk_cmk(s):
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
 
-@expose("make-continuation-prompt-tag", [])
-def mcpt():
-    return values.W_ContinuationPromptTag()
+@expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
+def mcpt(s):
+    from pycket.interpreter import Gensym
+    s = Gensym.gensym("cm") if s is None else s
+    return values.W_ContinuationPromptTag(s)
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
