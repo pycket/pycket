@@ -98,10 +98,12 @@ class W_StructType(values.W_Object):
     def attach_prop(self, props, idx, is_checked, env, cont):
         from pycket.interpreter import return_multi_vals
         if idx < len(props):
-            (prop, prop_val, sub_prop_val) = props[idx]
-            if sub_prop_val:
-                return prop_val.call([sub_prop_val], env,
-                    self.save_prop_value(props, idx, False, env, cont))
+            (prop, prop_val, sub_prop) = props[idx]
+            if sub_prop:
+                for p in props:
+                    if p[0] is sub_prop:
+                        return prop_val.call([p[1]], env,
+                            self.save_prop_value(props, idx, False, env, cont))
             assert isinstance(prop, W_StructProperty)
             if not is_checked and prop.guard.iscallable():
                 return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
@@ -121,10 +123,10 @@ class W_StructType(values.W_Object):
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
     @jit.unroll_safe
-    def initialize_prop(self, props, p, sub_prop_val=None):
+    def initialize_prop(self, props, p, sub_prop=None):
         prop = p.car()
         prop_val = p.cdr()
-        if not sub_prop_val:
+        if not sub_prop:
             if prop.isinstance(w_prop_procedure):
                 if self.prop_procedure is not None:
                     raise SchemeException("duplicate property binding")
@@ -133,10 +135,10 @@ class W_StructType(values.W_Object):
             elif prop.isinstance(w_prop_checked_procedure):
                 if self.total_field_cnt < 2:
                     raise SchemeException("need at least two fields in the structure type")
-        props.append((prop, prop_val, sub_prop_val))
+        props.append((prop, prop_val, sub_prop))
         assert isinstance(prop, W_StructProperty)
         for super_p in prop.supers:
-            self.initialize_prop(props, super_p, prop_val)
+            self.initialize_prop(props, super_p, prop)
 
     """
     Properties initialisation contains few steps:
@@ -154,7 +156,7 @@ class W_StructType(values.W_Object):
     @jit.unroll_safe
     def initialize_props(self, props, proc_spec, env, cont):
         proplist = values.from_list(props)
-        props = [] # raw-values of properties
+        props = []
         for p in proplist:
             self.initialize_prop(props, p)
         if proc_spec is not values.w_false:
@@ -326,7 +328,6 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_value
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
-            # return return_value(self._get_list(0), env, cont)
             raise SchemeException("cannot reference an identifier before its definition")
         value = self._get_list(field + offset)
         if isinstance(value, values.W_Cell):
