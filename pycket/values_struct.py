@@ -60,18 +60,30 @@ class W_StructType(values.W_Object):
              immutables=values.w_null, guard=values.w_false,
              constr_name=values.w_false):
         if inspector is values.W_Symbol.make("prefab"):
-            key = (name.value, init_field_cnt.value)
+            field_cnt = init_field_cnt.value
+            struct_type = super_type
+            while isinstance(struct_type, W_StructType):
+                field_cnt += struct_type.init_field_cnt
+                struct_type = struct_type.super
+            key = (name.value, field_cnt)
             if key in W_StructType.unbound_prefab_types:
                 return W_StructType.unbound_prefab_types.pop(key)
         return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
     @staticmethod
-    def make_prefab(name, super_type, init_field_cnt):
+    def make_prefab(name, super_type, super_type_field_cnt, init_field_cnt):
         assert isinstance(name, values.W_Symbol)
-        auto_field_cnt = values.W_Fixnum(0)
-        w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt, auto_field_cnt)
-        W_StructType.unbound_prefab_types[(name.value, init_field_cnt.value)] = w_struct_type
+        assert isinstance(init_field_cnt, values.W_Fixnum)
+        key = (name.value, init_field_cnt.value)
+        if key in W_StructType.unbound_prefab_types:
+            w_struct_type = W_StructType.unbound_prefab_types[key]
+        else:
+            auto_field_cnt = values.W_Fixnum(0)
+            if super_type:
+                super_type = W_StructType.make_prefab(super_type, None, None, super_type_field_cnt)
+            w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt, auto_field_cnt)
+            W_StructType.unbound_prefab_types[key] = w_struct_type
         return w_struct_type
 
     @continuation
@@ -147,7 +159,6 @@ class W_StructType(values.W_Object):
             self.initialize_prop(props, p)
         if proc_spec is not values.w_false:
             self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
-        struct_type = self.super
         return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
@@ -289,8 +300,15 @@ class W_Struct(W_RootStruct):
         self._type = type
 
     @staticmethod
-    def make_prefab(w_name, w_values):
-        w_struct_type = W_StructType.make_prefab(w_name, None, values.W_Fixnum(len(w_values)))
+    def make_prefab(w_key, w_values):
+        w_super = None
+        w_super_field_cnt = None
+        if isinstance(w_key, values.W_Cons):
+            w_name, w_super, w_super_field_cnt = values.from_list(w_key)
+        else:
+            w_name = w_key
+        w_struct_type = W_StructType.make_prefab(w_name, w_super,
+            w_super_field_cnt, values.W_Fixnum(len(w_values)))
         return W_Struct.make(w_values, w_struct_type)
 
     def vals(self):
