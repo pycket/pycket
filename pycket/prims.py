@@ -129,6 +129,8 @@ for args in [
         ("resolved-module-path?", values.W_ResolvedModulePath),
         ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
+        ("parameter?", values.W_Parameter),
+        ("parameterization?", values.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -568,57 +570,70 @@ def char2int(c):
     return values.W_Fixnum(ord(c.value))
 
 ################################################################
-# build-in exception types
+# built-in struct types
 
-def define_exn(name, super=values.w_null, fields=[]):
-    exn_type, exn_constr, exn_pred, exn_acc, exn_mut = \
+def define_struct(name, super=values.w_null, fields=[]):
+    struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
         values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
             super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
             values.w_false, values.w_null, values.w_false).make_struct_tuple()
-    expose_val("struct:" + name, exn_type)
-    expose_val(name, exn_constr)
-    expose_val(name + "?", exn_pred)
+    expose_val("struct:" + name, struct_type)
+    expose_val(name, struct_constr)
+    # this is almost always also provided
+    expose_val("make-" + name, struct_constr)
+    expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        acc = values_struct.W_StructFieldAccessor(exn_acc, values.W_Fixnum(field), values.W_Symbol.make(field_name))
+        acc = values_struct.W_StructFieldAccessor(struct_acc, values.W_Fixnum(field), values.W_Symbol.make(field_name))
         expose_val(name + "-" + field_name, acc)
-    return exn_type
+    return struct_type
 
-exn = define_exn("exn", values.w_null, ["message", "continuation-marks"])
-exn_fail = define_exn("exn:fail", exn)
-exn_fail_contract = define_exn("exn:fail:contract", exn_fail)
-exn_fail_contract_arity = define_exn("exn:fail:contract:arity", exn_fail)
-exn_fail_contract_divide_by_zero = define_exn("exn:fail:contract:divide-by-zero", exn_fail)
-exn_fail_contract_non_fixnum_result = define_exn("exn:fail:contract:non-fixnum-result", exn_fail)
-exn_fail_contract_continuation = define_exn("exn:fail:contract:continuation", exn_fail)
-exn_fail_contract_variable = define_exn("exn:fail:contract:variable", exn_fail, ["id"])
-exn_fail_syntax = define_exn("exn:fail:syntax", exn_fail, ["exprs"])
-exn_fail_syntax_unbound = define_exn("exn:fail:syntax:unbound", exn_fail_syntax)
-exn_fail_syntax_missing_module = define_exn("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
-exn_fail_read = define_exn("exn:fail:read", exn_fail, ["srclocs"])
-exn_fail_read_eof = define_exn("exn:fail:read:eof", exn_fail_read)
-exn_fail_read_non_char = define_exn("exn:fail:read:non-char", exn_fail_read)
-exn_fail_fs = define_exn("exn:fail:filesystem", exn_fail)
-exn_fail_fs_exists = define_exn("exn:fail:filesystem:exists", exn_fail_fs)
-exn_fail_fs_version = define_exn("exn:fail:filesystem:version", exn_fail_fs)
-exn_fail_fs_errno = define_exn("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
-exn_fail_fs_missing_module = define_exn("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
-exn_fail_network = define_exn("exn:fail:network", exn_fail)
-exn_fail_network_errno = define_exn("exn:fail:network:errno", exn_fail_network, ["errno"])
-exn_fail_out_of_memory = define_exn("exn:fail:out-of-memory", exn_fail)
-exn_fail_unsupported = define_exn("exn:fail:unsupported", exn_fail)
-exn_fail_user = define_exn("exn:fail:user", exn_fail)
-exn_break = define_exn("exn:break", exn)
-exn_break_hang_up = define_exn("exn:break:hang-up", exn_break)
-exn_break_terminate = define_exn("exn:break:terminate", exn_break)
+exn = define_struct("exn", values.w_null, ["message", "continuation-marks"])
+exn_fail = define_struct("exn:fail", exn)
+exn_fail_contract = define_struct("exn:fail:contract", exn_fail)
+exn_fail_contract_arity = define_struct("exn:fail:contract:arity", exn_fail)
+exn_fail_contract_divide_by_zero = define_struct("exn:fail:contract:divide-by-zero", exn_fail)
+exn_fail_contract_non_fixnum_result = define_struct("exn:fail:contract:non-fixnum-result", exn_fail)
+exn_fail_contract_continuation = define_struct("exn:fail:contract:continuation", exn_fail)
+exn_fail_contract_variable = define_struct("exn:fail:contract:variable", exn_fail, ["id"])
+exn_fail_syntax = define_struct("exn:fail:syntax", exn_fail, ["exprs"])
+exn_fail_syntax_unbound = define_struct("exn:fail:syntax:unbound", exn_fail_syntax)
+exn_fail_syntax_missing_module = define_struct("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
+exn_fail_read = define_struct("exn:fail:read", exn_fail, ["srclocs"])
+exn_fail_read_eof = define_struct("exn:fail:read:eof", exn_fail_read)
+exn_fail_read_non_char = define_struct("exn:fail:read:non-char", exn_fail_read)
+exn_fail_fs = define_struct("exn:fail:filesystem", exn_fail)
+exn_fail_fs_exists = define_struct("exn:fail:filesystem:exists", exn_fail_fs)
+exn_fail_fs_version = define_struct("exn:fail:filesystem:version", exn_fail_fs)
+exn_fail_fs_errno = define_struct("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
+exn_fail_fs_missing_module = define_struct("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
+exn_fail_network = define_struct("exn:fail:network", exn_fail)
+exn_fail_network_errno = define_struct("exn:fail:network:errno", exn_fail_network, ["errno"])
+exn_fail_out_of_memory = define_struct("exn:fail:out-of-memory", exn_fail)
+exn_fail_unsupported = define_struct("exn:fail:unsupported", exn_fail)
+exn_fail_user = define_struct("exn:fail:user", exn_fail)
+exn_break = define_struct("exn:break", exn)
+exn_break_hang_up = define_struct("exn:break:hang-up", exn_break)
+exn_break_terminate = define_struct("exn:break:terminate", exn_break)
+
+srcloc = define_struct("srcloc", fields=["source", "line", "column", "position", "span"])
+date_struct = define_struct("date", fields=["second", 
+                                            "minute",
+                                            "hour", 
+                                            "day",
+                                            "month",
+                                            "year",
+                                            "week-day",
+                                            "year-day",
+                                            "dst?"
+                                            "time-zone-offset"])
+date_star_struct = define_struct("date*", date_struct, fields=["nanosecond",
+                                                               "time-zone-name"])
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
 
-for args in [ ("date",),
-              ("date*",),
-              ("srcloc",),
-              ("subprocess?",),
+for args in [ ("subprocess?",),
               ("input-port?",),
 
               ("file-stream-port?",),
@@ -653,10 +668,7 @@ for args in [ ("date",),
               ("logger?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
-              ("date?",),
               ("date-dst?",),
-              ("date*?",),
-              ("srcloc?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
@@ -665,8 +677,6 @@ for args in [ ("date",),
               ("namespace?",),
               ("security-guard?",),
               ("thread-group?",),
-              ("parameter?",),
-              ("parameterization?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
@@ -695,6 +705,7 @@ for args in [ ("date",),
               ("string-ci<=?", [values.W_String, values.W_String])
 ]:
     define_nyi(*args)
+
 
 @expose("object-name", [values.W_Object])
 def object_name(v):
