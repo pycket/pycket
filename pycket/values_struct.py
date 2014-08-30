@@ -87,7 +87,7 @@ class W_StructType(values.W_Object):
         from pycket.interpreter import return_multi_vals
         if idx < len(props):
             (prop, prop_val, sub_prop_val) = props[idx]
-            if sub_prop_val:
+            if sub_prop_val is not None:
                 return prop_val.call([sub_prop_val], env,
                     self.save_prop_value(props, idx, False, env, cont))
             assert isinstance(prop, W_StructProperty)
@@ -112,7 +112,7 @@ class W_StructType(values.W_Object):
     def initialize_prop(self, props, p, sub_prop_val=None):
         prop = p.car()
         prop_val = p.cdr()
-        if not sub_prop_val:
+        if sub_prop_val is None:
             if prop.isinstance(w_prop_procedure):
                 if self.prop_procedure is not None:
                     raise SchemeException("duplicate property binding")
