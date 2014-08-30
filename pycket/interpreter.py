@@ -308,8 +308,6 @@ class WCMValCont(Cont):
         prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
 
-
-
 class Done(Exception):
     def __init__(self, vals):
         self.values = vals

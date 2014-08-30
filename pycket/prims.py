@@ -14,6 +14,8 @@ from rpython.rlib      import jit
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
+import pycket.equal_prims as eq_prims
+import pycket.impersonator_prims
 import pycket.numeric_prims
 import pycket.random_prims
 import pycket.string_prims
@@ -674,123 +676,6 @@ def printf(args):
 def eqvp(a, b):
     return values.W_Bool.make(a.eqv(b))
 
-@expose("equal?", [values.W_Object] * 2, simple=False)
-def equalp(a, b, env, cont):
-    # FIXME: broken for cycles, etc
-    return equal_cont(a, b, env, cont)
-
-@expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
-def eqp_recur(v1, v2, recur_proc):
-    # TODO:
-    return values.w_void
-
-@continuation
-def equal_car_cont(a, b, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
-    eq = check_one_val(_vals)
-    if eq is values.w_false:
-        return return_value(values.w_false, env, cont)
-    return equal_cont(a, b, env, cont)
-
-@continuation
-def equal_unbox_right_cont(r, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    l = check_one_val(_vals)
-    return r.unbox(env, equal_unbox_done_cont(l, env, cont))
-
-@continuation
-def equal_unbox_done_cont(l, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    r = check_one_val(_vals)
-    return equal_cont(l, r, env, cont)
-
-# This function assumes that a and b have the same length
-@label
-def equal_vec_func(a, b, idx, env, cont):
-    from pycket.interpreter import return_value
-    if idx.value >= a.length():
-        return return_value(values.w_true, env, cont)
-    return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, env, cont))
-
-# Receive the first value for a given index
-@continuation
-def equal_vec_left_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    l = check_one_val(_vals)
-    return b.vector_ref(idx, env,
-                equal_vec_right_cont(a, b, idx, l, env, cont))
-
-# Receive the second value for a given index
-@continuation
-def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    r = check_one_val(_vals)
-    return equal_cont(l, r, env, equal_vec_done_cont(a, b, idx, env, cont))
-
-# Receive the comparison of the two elements and decide what to do
-@continuation
-def equal_vec_done_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
-    eq = check_one_val(_vals)
-    if eq is values.w_false:
-        return return_value(values.w_false, env, cont)
-    inc = values.W_Fixnum(idx.value + 1)
-    return equal_vec_func(a, b, inc, env, cont)
-
-# This is needed to be able to drop out of the current stack frame,
-# as direct recursive calls to equal will blow out the stack.
-# This lets us 'return' before invoking equal on the next pair of
-# items.
-@label
-def equal_cont(a, b, env, cont):
-    from pycket.interpreter import return_value
-    if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
-        return return_value(values.w_true, env, cont)
-    if isinstance(a, values.W_String) and isinstance(b, values.W_String):
-        return return_value(values.W_Bool.make(a.value == b.value), env, cont)
-    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        return equal_cont(a.car(), b.car(), env,
-                    equal_car_cont(a.cdr(), b.cdr(), env, cont))
-    if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        return a.unbox(env, equal_unbox_right_cont(b, env, cont))
-    if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
-        if a.length() != b.length():
-            return return_value(values.w_false, env, cont)
-        return equal_vec_func(a, b, values.W_Fixnum(0), env, cont)
-    if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
-        if not a.eqv(b):
-            for w_car, w_prop in a.struct_type().props:
-                if w_car.isinstance(values_struct.w_prop_equal_hash):
-                    for w_car, w_prop in b.struct_type().props:
-                        if w_car.isinstance(values_struct.w_prop_equal_hash):
-                            assert isinstance(w_prop, values_vector.W_Vector)
-                            w_equal_proc, w_hash_proc, w_hash2_proc = \
-                                w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
-                            # FIXME: it should work with cycles properly and be an equal?-recur
-                            w_equal_recur = values.W_Prim("equal?-recur", equalp)
-                            return w_equal_proc.call([a, b, w_equal_recur], env, cont)
-            if not a.struct_type().isopaque and not b.struct_type().isopaque:
-                l = struct2vector(a)
-                r = struct2vector(b)
-                return equal_cont(l, r, env, cont)
-        else:
-            return return_value(values.w_true, env, cont)
-
-    return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
-
-def eqp_logic(a, b):
-    if a is b:
-        return True
-    elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
-        return a.value == b.value
-    elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
-        return a.value == b.value
-    return False
-
-@expose("eq?", [values.W_Object] * 2)
-def eqp(a, b):
-    return values.W_Bool.make(eqp_logic(a, b))
-
 @expose("not", [values.W_Object])
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
@@ -823,7 +708,7 @@ def assq(a, b):
         head, b = b.car(), b.cdr()
         if not isinstance(head, values.W_Cons):
             raise SchemeException("assq: found a non-pair element")
-        if eqp_logic(a, head.car()):
+        if eq_prims.eqp_logic(a, head.car()):
             return head
     if b is not values.w_null:
         raise SchemeException("assq: reached a non-pair")
@@ -1005,12 +890,7 @@ def do_make_struct_field_mutator(mutator, field, field_name):
 
 @expose("struct->vector", [values_struct.W_RootStruct])
 def expose_struct2vector(struct):
-    return struct2vector(struct)
-
-def struct2vector(struct):
-    struct_desc = struct.struct_type().name
-    first_el = values.W_Symbol.make("struct:" + struct_desc)
-    return values_vector.W_Vector.fromelements([first_el] + struct.vals())
+    return values_struct.struct2vector(struct)
 
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
@@ -1063,7 +943,7 @@ def set_box(box, v, env, cont):
 # This implementation makes no guarantees about atomicity
 @expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
 def box_cas(box, old, new):
-    if eqp_logic(box.value, old):
+    if eq_prims.eqp_logic(box.value, old):
         box.value = new
         return values.w_true
     return values.w_false
@@ -1110,216 +990,6 @@ def make_hasheq_placeholder(vals):
 @expose("make-hasheqv-placeholder", [values.W_List])
 def make_hasheqv_placeholder(vals):
     return values.W_HashTablePlaceholder([], [])
-
-def find_prop_start_index(args):
-    for i, v in enumerate(args):
-        if isinstance(v, imp.W_ImpPropertyDescriptor):
-            return i
-    return len(args)
-
-def unpack_properties(args, name):
-    idx = find_prop_start_index(args)
-    args, props = args[:idx], args[idx:]
-    prop_len = len(props)
-
-    if prop_len % 2 != 0:
-        raise SchemeException(name + ": not all properties have corresponding values")
-
-    prop_keys = [props[i] for i in range(0, prop_len, 2)]
-    prop_vals = [props[i] for i in range(1, prop_len, 2)]
-
-    for k in prop_keys:
-        if not isinstance(k, imp.W_ImpPropertyDescriptor):
-            desc = name + ": %s is not a property descriptor" % k.tostring()
-            raise SchemeException(desc)
-
-    return args, prop_keys, prop_vals
-
-def unpack_vector_args(args, name):
-    args, prop_keys, prop_vals = unpack_properties(args, name)
-    if len(args) != 3:
-        raise SchemeException(name + ": not given 3 required arguments")
-    v, refh, seth = args
-    if not isinstance(v, values.W_MVector):
-        raise SchemeException(name + ": first arg not a vector")
-    if not refh.iscallable() or not seth.iscallable:
-        raise SchemeException(name + ": provided handler is not callable")
-
-    return v, refh, seth, prop_keys, prop_vals
-
-def unpack_procedure_args(args, name):
-    args, prop_keys, prop_vals = unpack_properties(args, name)
-    if len(args) != 2:
-        raise SchemeException(name + ": not given 2 required arguments")
-    proc, check = args
-    if not proc.iscallable():
-        raise SchemeException(name + ": first argument is not a procedure")
-    if not check.iscallable():
-        raise SchemeException(name + ": handler is not a procedure")
-    return proc, check, prop_keys, prop_vals
-
-def unpack_box_args(args, name):
-    args, prop_keys, prop_vals = unpack_properties(args, name)
-    if len(args) != 3:
-        raise SchemeException(name + ": not given three required arguments")
-    box, unboxh, seth = args
-    if not unboxh.iscallable():
-        raise SchemeException(name + ": supplied unbox handler is not callable")
-    if not seth.iscallable():
-        raise SchemeException(name + ": supplied set-box! handler is not callable")
-    return box, unboxh, seth, prop_keys, prop_vals
-
-@expose("impersonate-procedure")
-def impersonate_procedure(args):
-    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
-    check.mark_non_loop()
-    return imp.W_ImpProcedure(proc, check, prop_keys, prop_vals)
-
-@expose("impersonate-vector")
-def impersonate_vector(args):
-    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "impersonate-vector")
-    if v.immutable():
-        raise SchemeException("Cannot impersonate immutable vector")
-    refh.mark_non_loop()
-    seth.mark_non_loop()
-    return imp.W_ImpVector(v, refh, seth, prop_keys, prop_vals)
-
-@expose("chaperone-procedure")
-def chaperone_procedure(args):
-    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "chaperone-procedure")
-    check.mark_non_loop()
-    return imp.W_ChpProcedure(proc, check, prop_keys, prop_vals)
-
-@expose("chaperone-vector")
-def chaperone_vector(args):
-    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "chaperone-vector")
-    refh.mark_non_loop()
-    seth.mark_non_loop()
-    return imp.W_ChpVector(v, refh, seth, prop_keys, prop_vals)
-
-# Need to check that fields are mutable
-@expose("impersonate-struct")
-def impersonate_struct(args):
-    args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
-    if len(args) < 1 or len(args) % 2 != 1:
-        raise SchemeException("impersonate-struct: arity mismatch")
-    if len(args) == 1:
-        return args[0]
-
-    struct, args = args[0], args[1:]
-
-    if not isinstance(struct, values_struct.W_Struct):
-        raise SchemeException("impersonate-struct: not given struct")
-
-    struct_type = struct.struct_type()
-    assert isinstance(struct_type, values_struct.W_StructType)
-
-    # Consider storing immutables in an easier form in the structs implementation
-    immutables = struct_type.immutables
-
-    # Slicing would be nicer
-    overrides = [args[i] for i in range(0, len(args), 2)]
-    handlers  = [args[i] for i in range(1, len(args), 2)]
-
-    for i in overrides:
-        if not imp.valid_struct_proc(i):
-            raise SchemeException("impersonate-struct: not given valid field accessor")
-        elif (isinstance(i, values_struct.W_StructFieldMutator) and
-                i.field.value in immutables):
-            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
-        elif (isinstance(i, values_struct.W_StructFieldAccessor) and
-                i.field.value in immutables):
-            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
-
-    for i in handlers:
-        if not i.iscallable():
-            raise SchemeException("impersonate-struct: supplied hander is not a procedure")
-
-    return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
-
-@expose("chaperone-struct")
-def chaperone_struct(args):
-    args, prop_keys, prop_vals = unpack_properties(args, "chaperone-struct")
-    if len(args) < 1 or len(args) % 2 != 1:
-        raise SchemeException("chaperone-struct: arity mismatch")
-    if len(args) == 1:
-        return args[0]
-
-    struct, args = args[0], args[1:]
-
-    if not isinstance(struct, values_struct.W_Struct):
-        raise SchemeException("chaperone-struct: not given struct")
-
-    # Slicing would be nicer
-    overrides = [args[i] for i in range(0, len(args), 2)]
-    handlers  = [args[i] for i in range(1, len(args), 2)]
-
-    for i in overrides:
-        if not imp.valid_struct_proc(i):
-            raise SchemeException("chaperone-struct: not given valid field accessor")
-
-    for i in handlers:
-        if not i.iscallable():
-            raise SchemeException("chaperone-struct: supplied hander is not a procedure")
-
-    return imp.W_ChpStruct(struct, overrides, handlers, prop_keys, prop_vals)
-
-@expose("chaperone-box")
-def chaperone_box(args):
-    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "chaperone-box")
-    unbox.mark_non_loop()
-    set.mark_non_loop()
-    return imp.W_ChpBox(b, unbox, set, prop_keys, prop_vals)
-
-@expose("impersonate-box")
-def impersonate_box(args):
-    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "impersonate-box")
-    if b.immutable():
-        raise SchemeException("Cannot impersonate immutable box")
-    unbox.mark_non_loop()
-    set.mark_non_loop()
-    return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
-
-@expose("chaperone-hash")
-def chaperone_hash(args):
-    # FIXME: not implemented
-    return args[0]
-
-@expose("impersonate-hash")
-def chaperone_hash(args):
-    # FIXME: not implemented
-    return args[0]
-
-@expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
-def ccmk(cmk, f):
-    return cmk
-
-@expose("impersonate-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
-def icmk(cmk, f):
-    return cmk
-
-@expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
-def chaperone_of(a, b, env, cont):
-    from pycket.interpreter import return_value
-    # If there are no interposing structures, we can do regular equality
-    if a.is_impersonator() or b.is_impersonator():
-        return return_value(values.W_Bool.make(imp.is_chaperone_of(a, b)), env, cont)
-    return equal_cont(a, b, env, cont)
-
-@expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
-def impersonator_of(a, b, env, cont):
-    from pycket.interpreter import return_value
-    if a.is_impersonator() or b.is_impersonator():
-        return return_value(values.W_Bool.make(imp.is_impersonator_of(a, b)), env, cont)
-    return equal_cont(a, b, env, cont)
-
-@expose("impersonator?", [values.W_Object])
-def impersonator(x):
-    return values.W_Bool.make(x.is_impersonator())
-
-@expose("chaperone?", [values.W_Object])
-def chaperone(x):
-    return values.W_Bool.make(x.is_chaperone())
 
 # my kingdom for a tail call
 def listp_loop(v):
@@ -1540,7 +1210,6 @@ def equal_hash_code(v):
 def path2bytes(p):
     return values.W_Bytes(p.path)
 
-
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
     return values.W_String(v.value)
@@ -1755,8 +1424,7 @@ def load(lib, env, cont):
     lib_name = lib.tostring()
     json_ast = ensure_json_ast_load(lib_name)
     if json_ast is None:
-        raise SchemeException(
-            "can't gernerate load-file for %s "%(lib.tostring()))
+        raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
 

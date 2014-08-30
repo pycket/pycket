@@ -616,9 +616,9 @@ def eq_hash(k):
 class W_HashTable(W_Object):
     errorname = "hash"
     def __init__(self, keys, vals, cmp=None, hash=eq_hash):
-        from pycket import prims
+        from pycket.equal_prims import eqp_logic
         if not cmp:
-            cmp = prims.eqp_logic
+            cmp = eqp_logic
         assert len(keys) == len(vals)
         self.data = r_dict(cmp, hash, force_non_null=True)
         for (i, k) in enumerate(keys):

@@ -47,7 +47,7 @@ class Cont(object):
 
     def find_cm(self, k):
         l = self.marks
-        from pycket.prims import eqp_logic
+        from pycket.equal_prims import eqp_logic
         while l:
             if eqp_logic(l.key, k):
                 return l.val
@@ -56,7 +56,7 @@ class Cont(object):
         return None
 
     def update_cm(self, k, v):
-        from pycket.prims import eqp_logic
+        from pycket.equal_prims import eqp_logic
         l = self.marks
         while l:
             if eqp_logic(l.key, k):
@@ -76,7 +76,6 @@ def continuation_named(name="cont"):
     def wrap(f):
         return continuation(f, prev_name=name)
     return wrap
-
 
 def continuation(func, prev_name="cont"):
     """ workaround for the lack of closures in RPython. use to decorate a
