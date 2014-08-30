@@ -28,8 +28,6 @@ class Values(object):
 
 inline_small_list(Values, immutable=True, attrname="vals")
 
-empty_vals = Values.make([])
-
 class W_Object(object):
     __metaclass__ = extendabletype
     _attrs_ = []

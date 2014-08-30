@@ -303,8 +303,8 @@ class WCMValCont(Cont):
         if not prev:
             prev = self
         prev.update_cm(self.key, val)
-        return self.ast.body, self.env, self.prev            
-            
+        return self.ast.body, self.env, self.prev
+
 
 
 class Done(Exception):
@@ -366,7 +366,7 @@ class Module(AST):
 
     @jit.elidable
     def lookup(self, sym):
-        if not (sym in self.defs):
+        if sym not in self.defs:
             raise SchemeException("unknown module variable %s" % (sym.tostring()))
         v = self.defs[sym]
         if not v:
@@ -425,6 +425,7 @@ class Require(AST):
 
     def _mutated_vars(self):
         return variable_set()
+
     def free_vars(self):
         return {}
 
@@ -435,8 +436,9 @@ class Require(AST):
     def interpret_simple(self, env):
         top = env.toplevel_env
         top.module_env.add_module(self.modname, self.module)
-        mod = self.module.interpret_mod(top)
+        self.module.interpret_mod(top)
         return values.w_void
+
     def tostring(self):
         return "(require %s)"%self.modname
 
@@ -451,13 +453,14 @@ class Trampoline(AST):
         return "TRAMPOLINE"
 
 the_trampoline = Trampoline()
+empty_vals = values.Values.make([])
 
 def tailcall(code, args, env, cont):
     from pycket.cont import tailcall_cont
     return jump(env, tailcall_cont(code, args, env, cont))
 
 def jump(env, cont):
-    return the_trampoline, env, TrampolineCont(values.empty_vals, cont)
+    return the_trampoline, env, TrampolineCont(empty_vals, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
@@ -499,9 +502,12 @@ class Quote(AST):
     def _mutated_vars(self):
         return variable_set()
     def tostring(self):
-        if isinstance(self.w_val, values.W_Bool) or isinstance(self.w_val, values.W_Number) or isinstance(self.w_val, values.W_String) or isinstance(self.w_val, values.W_Symbol):
-            return "%s"%self.w_val.tostring()
-        return "'%s"%self.w_val.tostring()
+        if (isinstance(self.w_val, values.W_Bool) or
+                isinstance(self.w_val, values.W_Number) or
+                isinstance(self.w_val, values.W_String) or
+                isinstance(self.w_val, values.W_Symbol)):
+            return "%s" % self.w_val.tostring()
+        return "'%s" % self.w_val.tostring()
 
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
@@ -515,7 +521,7 @@ class QuoteSyntax(AST):
     def _mutated_vars(self):
         return variable_set()
     def tostring(self):
-        return "#'%s"%self.w_val.tostring()
+        return "#'%s" % self.w_val.tostring()
 
 class VariableReference(AST):
     _immutable_fields_ = ["var", "is_mut", "path"]
@@ -533,19 +539,23 @@ class VariableReference(AST):
             return var.is_mutable(env)
         else:
             return False
+
     def interpret_simple(self, env):
         return values.W_VariableReference(self)
+
     def assign_convert(self, vars, env_structure):
         v = self.var
-        if v and isinstance(v, LexicalVar) and v in vars:
+        if isinstance(v, LexicalVar) and v in vars:
             return VariableReference(v, self.path, True)
         # top-level variables are always mutable
-        if v and isinstance(v, ToplevelVar):
+        if isinstance(v, ToplevelVar):
             return VariableReference(v, self.path, True)
         else:
             return self
+
     def _mutated_vars(self):
         return variable_set()
+
     def tostring(self):
         return "#<#%variable-reference>"
 
