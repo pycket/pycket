@@ -129,6 +129,8 @@ for args in [
         ("resolved-module-path?", values.W_ResolvedModulePath),
         ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
+        ("parameter?", values.W_Parameter),
+        ("parameterization?", values.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         ("hash?", values.W_HashTable),
         ("hash-eq?", values.W_HashTable),
@@ -321,12 +323,15 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
+expose_val("unsafe-undefined", values.w_unsafe_undefined)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
              "prop:output-port",
              "prop:impersonator-of",
-             "prop:method-arity-error"]:
+             "prop:method-arity-error",
+             "prop:exn:srclocs",
+             "prop:incomplete-arity"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
@@ -417,6 +422,10 @@ def do_fprintf(args):
     os.write(1, format(form, v))
     return values.w_void
 
+@expose("print-struct", [default(values.W_Object, None)])
+def do_print_struct(on):
+    return values.w_true
+
 @expose("current-output-port", [default(values.W_OutputPort, None)])
 def current_output_port(port):
     # FIXME: Not a real implementation
@@ -431,7 +440,7 @@ def flush_output(port):
 def do_format(args):
     form, v = args[0], args[1:]
     assert isinstance(form, values.W_String)
-    os.write(1, format(form, v))
+    return values.W_String(format(form, v))
 
 def cur_print_proc(args):
     v, = args
@@ -468,6 +477,11 @@ def make_logger(name, parent):
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
+    return values.W_HashTable([], [])
+
+@expose("make-immutable-hash", [default(values.W_Object, None)])
+def make_immutable_hash(assocs):
+    # FIXME: not impelemented
     return values.W_HashTable([], [])
 
 @expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
@@ -557,57 +571,70 @@ def char2int(c):
     return values.W_Fixnum(ord(c.value))
 
 ################################################################
-# build-in exception types
+# built-in struct types
 
-def define_exn(name, super=values.w_null, fields=[]):
-    exn_type, exn_constr, exn_pred, exn_acc, exn_mut = \
+def define_struct(name, super=values.w_null, fields=[]):
+    struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
         values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
             super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
             values.w_false, values.w_null, values.w_false).make_struct_tuple()
-    expose_val("struct:" + name, exn_type)
-    expose_val(name, exn_constr)
-    expose_val(name + "?", exn_pred)
+    expose_val("struct:" + name, struct_type)
+    expose_val(name, struct_constr)
+    # this is almost always also provided
+    expose_val("make-" + name, struct_constr)
+    expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        acc = values_struct.W_StructFieldAccessor(exn_acc, values.W_Fixnum(field), values.W_Symbol.make(field_name))
+        acc = values_struct.W_StructFieldAccessor(struct_acc, values.W_Fixnum(field), values.W_Symbol.make(field_name))
         expose_val(name + "-" + field_name, acc)
-    return exn_type
+    return struct_type
 
-exn = define_exn("exn", values.w_null, ["message", "continuation-marks"])
-exn_fail = define_exn("exn:fail", exn)
-exn_fail_contract = define_exn("exn:fail:contract", exn_fail)
-exn_fail_contract_arity = define_exn("exn:fail:contract:arity", exn_fail)
-exn_fail_contract_divide_by_zero = define_exn("exn:fail:contract:divide-by-zero", exn_fail)
-exn_fail_contract_non_fixnum_result = define_exn("exn:fail:contract:non-fixnum-result", exn_fail)
-exn_fail_contract_continuation = define_exn("exn:fail:contract:continuation", exn_fail)
-exn_fail_contract_variable = define_exn("exn:fail:contract:variable", exn_fail, ["id"])
-exn_fail_syntax = define_exn("exn:fail:syntax", exn_fail, ["exprs"])
-exn_fail_syntax_unbound = define_exn("exn:fail:syntax:unbound", exn_fail_syntax)
-exn_fail_syntax_missing_module = define_exn("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
-exn_fail_read = define_exn("exn:fail:read", exn_fail, ["srclocs"])
-exn_fail_read_eof = define_exn("exn:fail:read:eof", exn_fail_read)
-exn_fail_read_non_char = define_exn("exn:fail:read:non-char", exn_fail_read)
-exn_fail_fs = define_exn("exn:fail:filesystem", exn_fail)
-exn_fail_fs_exists = define_exn("exn:fail:filesystem:exists", exn_fail_fs)
-exn_fail_fs_version = define_exn("exn:fail:filesystem:version", exn_fail_fs)
-exn_fail_fs_errno = define_exn("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
-exn_fail_fs_missing_module = define_exn("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
-exn_fail_network = define_exn("exn:fail:network", exn_fail)
-exn_fail_network_errno = define_exn("exn:fail:network:errno", exn_fail_network, ["errno"])
-exn_fail_out_of_memory = define_exn("exn:fail:out-of-memory", exn_fail)
-exn_fail_unsupported = define_exn("exn:fail:unsupported", exn_fail)
-exn_fail_user = define_exn("exn:fail:user", exn_fail)
-exn_break = define_exn("exn:break", exn)
-exn_break_hang_up = define_exn("exn:break:hang-up", exn_break)
-exn_break_terminate = define_exn("exn:break:terminate", exn_break)
+exn = define_struct("exn", values.w_null, ["message", "continuation-marks"])
+exn_fail = define_struct("exn:fail", exn)
+exn_fail_contract = define_struct("exn:fail:contract", exn_fail)
+exn_fail_contract_arity = define_struct("exn:fail:contract:arity", exn_fail)
+exn_fail_contract_divide_by_zero = define_struct("exn:fail:contract:divide-by-zero", exn_fail)
+exn_fail_contract_non_fixnum_result = define_struct("exn:fail:contract:non-fixnum-result", exn_fail)
+exn_fail_contract_continuation = define_struct("exn:fail:contract:continuation", exn_fail)
+exn_fail_contract_variable = define_struct("exn:fail:contract:variable", exn_fail, ["id"])
+exn_fail_syntax = define_struct("exn:fail:syntax", exn_fail, ["exprs"])
+exn_fail_syntax_unbound = define_struct("exn:fail:syntax:unbound", exn_fail_syntax)
+exn_fail_syntax_missing_module = define_struct("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
+exn_fail_read = define_struct("exn:fail:read", exn_fail, ["srclocs"])
+exn_fail_read_eof = define_struct("exn:fail:read:eof", exn_fail_read)
+exn_fail_read_non_char = define_struct("exn:fail:read:non-char", exn_fail_read)
+exn_fail_fs = define_struct("exn:fail:filesystem", exn_fail)
+exn_fail_fs_exists = define_struct("exn:fail:filesystem:exists", exn_fail_fs)
+exn_fail_fs_version = define_struct("exn:fail:filesystem:version", exn_fail_fs)
+exn_fail_fs_errno = define_struct("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
+exn_fail_fs_missing_module = define_struct("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
+exn_fail_network = define_struct("exn:fail:network", exn_fail)
+exn_fail_network_errno = define_struct("exn:fail:network:errno", exn_fail_network, ["errno"])
+exn_fail_out_of_memory = define_struct("exn:fail:out-of-memory", exn_fail)
+exn_fail_unsupported = define_struct("exn:fail:unsupported", exn_fail)
+exn_fail_user = define_struct("exn:fail:user", exn_fail)
+exn_break = define_struct("exn:break", exn)
+exn_break_hang_up = define_struct("exn:break:hang-up", exn_break)
+exn_break_terminate = define_struct("exn:break:terminate", exn_break)
+
+srcloc = define_struct("srcloc", fields=["source", "line", "column", "position", "span"])
+date_struct = define_struct("date", fields=["second", 
+                                            "minute",
+                                            "hour", 
+                                            "day",
+                                            "month",
+                                            "year",
+                                            "week-day",
+                                            "year-day",
+                                            "dst?"
+                                            "time-zone-offset"])
+date_star_struct = define_struct("date*", date_struct, fields=["nanosecond",
+                                                               "time-zone-name"])
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args): pass
 
-for args in [ ("date",),
-              ("date*",),
-              ("srcloc",),
-              ("subprocess?",),
+for args in [ ("subprocess?",),
               ("input-port?",),
 
               ("file-stream-port?",),
@@ -642,10 +669,7 @@ for args in [ ("date",),
               ("logger?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
-              ("date?",),
               ("date-dst?",),
-              ("date*?",),
-              ("srcloc?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
@@ -654,8 +678,6 @@ for args in [ ("date",),
               ("namespace?",),
               ("security-guard?",),
               ("thread-group?",),
-              ("parameter?",),
-              ("parameterization?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
@@ -685,9 +707,17 @@ for args in [ ("date",),
 ]:
     define_nyi(*args)
 
+
 @expose("object-name", [values.W_Object])
 def object_name(v):
     return values.W_String(v.tostring())
+
+@expose("namespace-variable-value", [values.W_Symbol,
+    default(values.W_Object, values.w_true),
+    default(values.W_Object, values.w_true),
+    default(values.W_Object, None)])
+def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
+    return values.w_void
 
 @expose("find-main-config", [])
 def find_main_config():
@@ -806,6 +836,11 @@ def varref_const(varref, env, cont):
 @expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
 def varref_rmp(varref):
     return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
+
+@expose("variable-reference->module-source",  [values.W_VariableReference])
+def varref_ms(varref):
+    # FIXME: not implemented
+    return values.W_Symbol.make("dummy_module")
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -1604,6 +1639,16 @@ def impersonate_box(args):
     set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
+@expose("chaperone-hash")
+def chaperone_hash(args):
+    # FIXME: not implemented
+    return args[0]
+
+@expose("impersonate-hash")
+def chaperone_hash(args):
+    # FIXME: not implemented
+    return args[0]
+
 @expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
 def ccmk(cmk, f):
     return cmk
@@ -1637,6 +1682,11 @@ def chaperone(x):
 
 @expose("vector")
 def vector(args):
+    return values_vector.W_Vector.fromelements(args)
+
+# FIXME: immutable
+@expose("vector-immutable")
+def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args)
 
 @expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
@@ -1886,8 +1936,14 @@ def hash_set_bang(ht, k, v):
     ht.set(k, v)
     return values.w_void
 
+@expose("hash-set", [values.W_HashTable, values.W_Object, values.W_Object])
+def hash_set(ht, k, v):
+    # FIXME: implementation
+    ht.set(k, v)
+    return ht
+
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
-def hash_set_bang(ht, k, default, env, cont):
+def hash_ref(ht, k, default, env, cont):
     from pycket.interpreter import return_value
     val = ht.ref(k)
     if val:
@@ -1898,6 +1954,75 @@ def hash_set_bang(ht, k, default, env, cont):
         return return_value(default, env, cont)
     else:
         raise SchemeException("key not found")
+
+@expose("hash-remove!", [values.W_HashTable, values.W_Object])
+def hash_remove_bang(hash, key):
+    # FIXME: not implemented
+    return hash
+
+@expose("hash-remove", [values.W_HashTable, values.W_Object])
+def hash_remove(hash, key):
+    # FIXME: not implemented
+    return hash
+
+@expose("hash-clear!", [values.W_HashTable])
+def hash_clear_bang(hash):
+    # FIXME: not implemented
+    return values.W_HashTable([], [])
+
+@expose("hash-clear", [values.W_HashTable])
+def hash_clear(hash):
+    # FIXME: not implemented
+    return values.W_HashTable([], [])
+
+@expose("hash-map", [values.W_HashTable, values.W_Object])
+def hash_map(hash, proc):
+    # FIXME: not implemented
+    return hash
+
+@expose("hash-count", [values.W_HashTable])
+def hash_count(hash):
+    # FIXME: implementation
+    return values.W_Fixnum(len(hash.data))
+
+@expose("hash-iterate-first", [values.W_HashTable])
+def hash_iterate_first(hash):
+    # FIXME: implementation
+    # if not hash.data:
+    #     return values.w_false
+    # else:
+    #     return hash.ref(0)
+    return values.w_false
+
+@expose("hash-iterate-next", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_next(hash, pos):
+    # FIXME: implementation
+    # next_pos = pos.value + 1
+    # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
+    return values.w_false
+
+@expose("hash-iterate-key", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_key(hash, pos):
+    # FIXME: implementation
+    # return hash.ref(pos.value)
+    return values.w_false
+
+@expose("hash-iterate-value", [values.W_HashTable, values.W_Fixnum])
+def hash_iterate_value(hash, pos):
+    # FIXME: implementation
+    # return hash.ref(pos.value)
+    return values.w_false
+
+@expose("hash-copy", [values.W_HashTable])
+def hash_iterate_value(hash):
+    # FIXME: implementation
+    return hash
+
+@expose("equal-hash-code", [values.W_Object])
+def equal_hash_code(v):
+    # FIXME: not implemented
+    return values.W_Fixnum(0)
+
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
@@ -2016,9 +2141,11 @@ def mk_cmk(s):
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
 
-@expose("make-continuation-prompt-tag", [])
-def mcpt():
-    return values.W_ContinuationPromptTag()
+@expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
+def mcpt(s):
+    from pycket.interpreter import Gensym
+    s = Gensym.gensym("cm") if s is None else s
+    return values.W_ContinuationPromptTag(s)
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):

@@ -111,6 +111,13 @@ class W_CellIntegerStrategy(W_Object):
     def __init__(self, value):
         self.value = value
 
+class W_Undefined(W_Object):
+    errorname = "unsafe-undefined"
+    def __init__(self):
+        pass
+
+w_unsafe_undefined = W_Undefined()
+
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
     _immutable_fields_ = ["val"]
@@ -146,8 +153,9 @@ current_logger = W_Logger()
 
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
-    def __init__(self):
-        pass
+    _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
     def tostring(self):
         return "#<continuation-prompt-tag>"
 
@@ -658,6 +666,7 @@ class W_Bytes(W_Object):
 class W_String(W_Object):
     errorname = "string"
     def __init__(self, val):
+        assert not (val is None)
         self.value = val
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode

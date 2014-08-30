@@ -592,7 +592,6 @@ class WithContinuationMark(AST):
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
 
-
     def __init__ (self, rator, rands, remove_env=False):
         assert rator.simple
         for r in rands:
@@ -1350,7 +1349,7 @@ class DefineValues(AST):
     def assign_convert(self, vars, env_structure):
         mut = False
         need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in self.names]
-        if (True in need_cell_flags):
+        if True in need_cell_flags:
             return DefineValues(self.names,
                                 Cell(self.rhs.assign_convert(vars, env_structure),
                                      need_cell_flags),
@@ -1372,6 +1371,7 @@ def get_printable_location(green_ast):
     if green_ast is None:
         return 'Green_Ast is None'
     return green_ast.tostring()
+
 driver = jit.JitDriver(reds=["env", "cont"],
                        greens=["ast"],
                        get_printable_location=get_printable_location)
@@ -1387,7 +1387,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, env=env, cont=cont)
             ast, env, cont = ast.interpret(env, cont)
             if ast.should_enter:
-#                print ast.tostring()
+                #print ast.tostring()
                 driver.can_enter_jit(ast=ast, env=env, cont=cont)
     except Done, e:
         return e.values

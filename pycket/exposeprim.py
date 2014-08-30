@@ -128,7 +128,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env:
-                raise Error("name %s already defined"%nam)
+                raise SchemeException("name %s already defined"%nam)
             prim_env[sym] = p
         return func_arg_unwrap
     return wrapper

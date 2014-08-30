@@ -60,18 +60,30 @@ class W_StructType(values.W_Object):
              immutables=values.w_null, guard=values.w_false,
              constr_name=values.w_false):
         if inspector is values.W_Symbol.make("prefab"):
-            key = (name.value, init_field_cnt.value)
+            field_cnt = init_field_cnt.value
+            struct_type = super_type
+            while isinstance(struct_type, W_StructType):
+                field_cnt += struct_type.init_field_cnt
+                struct_type = struct_type.super
+            key = (name.value, field_cnt)
             if key in W_StructType.unbound_prefab_types:
                 return W_StructType.unbound_prefab_types.pop(key)
         return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
     @staticmethod
-    def make_prefab(name, super_type, init_field_cnt):
+    def make_prefab(name, super_type, super_type_field_cnt, init_field_cnt):
         assert isinstance(name, values.W_Symbol)
-        auto_field_cnt = values.W_Fixnum(0)
-        w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt, auto_field_cnt)
-        W_StructType.unbound_prefab_types[(name.value, init_field_cnt.value)] = w_struct_type
+        assert isinstance(init_field_cnt, values.W_Fixnum)
+        key = (name.value, init_field_cnt.value)
+        if key in W_StructType.unbound_prefab_types:
+            w_struct_type = W_StructType.unbound_prefab_types[key]
+        else:
+            auto_field_cnt = values.W_Fixnum(0)
+            if super_type:
+                super_type = W_StructType.make_prefab(super_type, None, None, super_type_field_cnt)
+            w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt, auto_field_cnt)
+            W_StructType.unbound_prefab_types[key] = w_struct_type
         return w_struct_type
 
     @continuation
@@ -86,10 +98,12 @@ class W_StructType(values.W_Object):
     def attach_prop(self, props, idx, is_checked, env, cont):
         from pycket.interpreter import return_multi_vals
         if idx < len(props):
-            (prop, prop_val, sub_prop_val) = props[idx]
-            if sub_prop_val is not None:
-                return prop_val.call([sub_prop_val], env,
-                    self.save_prop_value(props, idx, False, env, cont))
+            (prop, prop_val, sub_prop) = props[idx]
+            if sub_prop is not None:
+                for p in props:
+                    if p[0] is sub_prop:
+                        return prop_val.call([p[1]], env,
+                            self.save_prop_value(props, idx, False, env, cont))
             assert isinstance(prop, W_StructProperty)
             if not is_checked and prop.guard.iscallable():
                 return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
@@ -109,10 +123,10 @@ class W_StructType(values.W_Object):
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
     @jit.unroll_safe
-    def initialize_prop(self, props, p, sub_prop_val=None):
+    def initialize_prop(self, props, p, sub_prop=None):
         prop = p.car()
         prop_val = p.cdr()
-        if sub_prop_val is None:
+        if sub_prop is None:
             if prop.isinstance(w_prop_procedure):
                 if self.prop_procedure is not None:
                     raise SchemeException("duplicate property binding")
@@ -121,10 +135,10 @@ class W_StructType(values.W_Object):
             elif prop.isinstance(w_prop_checked_procedure):
                 if self.total_field_cnt < 2:
                     raise SchemeException("need at least two fields in the structure type")
-        props.append((prop, prop_val, sub_prop_val))
+        props.append((prop, prop_val, sub_prop))
         assert isinstance(prop, W_StructProperty)
         for super_p in prop.supers:
-            self.initialize_prop(props, super_p, prop_val)
+            self.initialize_prop(props, super_p, prop)
 
     """
     Properties initialisation contains few steps:
@@ -142,12 +156,11 @@ class W_StructType(values.W_Object):
     @jit.unroll_safe
     def initialize_props(self, props, proc_spec, env, cont):
         proplist = values.from_list(props)
-        props = [] # raw-values of properties
+        props = []
         for p in proplist:
             self.initialize_prop(props, p)
         if proc_spec is not values.w_false:
             self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
-        struct_type = self.super
         return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
@@ -289,8 +302,15 @@ class W_Struct(W_RootStruct):
         self._type = type
 
     @staticmethod
-    def make_prefab(w_name, w_values):
-        w_struct_type = W_StructType.make_prefab(w_name, None, values.W_Fixnum(len(w_values)))
+    def make_prefab(w_key, w_values):
+        w_super = None
+        w_super_field_cnt = None
+        if isinstance(w_key, values.W_Cons):
+            w_name, w_super, w_super_field_cnt = values.from_list(w_key)
+        else:
+            w_name = w_key
+        w_struct_type = W_StructType.make_prefab(w_name, w_super,
+            w_super_field_cnt, values.W_Fixnum(len(w_values)))
         return W_Struct.make(w_values, w_struct_type)
 
     def vals(self):
@@ -308,7 +328,6 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_value
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
-            # return return_value(self._get_list(0), env, cont)
             raise SchemeException("cannot reference an identifier before its definition")
         value = self._get_list(field + offset)
         if isinstance(value, values.W_Cell):
