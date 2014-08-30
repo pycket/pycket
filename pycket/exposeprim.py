@@ -2,6 +2,8 @@ from rpython.rlib  import jit, unroll
 from pycket.error import SchemeException
 from pycket import values
 
+prim_env = {}
+
 class unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
     argument will be assumed to have the precise corresponding type (no
@@ -107,7 +109,6 @@ def _make_result_handling_func(func_arg_unwrap, simple):
         return func_arg_unwrap
 
 def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
-    from pycket.prims import prim_env
     def wrapper(func):
         names = [n] if isinstance(n, str) else n
         name = names[0]
@@ -144,7 +145,6 @@ def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
     return wrapper
 
 def expose_val(name, w_v):
-    from pycket.prims import prim_env
     sym = values.W_Symbol.make(name)
     if sym in prim_env:
         raise Error("name %s already defined"%name)
