@@ -15,6 +15,7 @@ from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
 import pycket.numeric_prims
+import pycket.random_prims
 import pycket.string_prims
 import pycket.vector_prims
 
@@ -358,9 +359,9 @@ exn_break_hang_up = define_struct("exn:break:hang-up", exn_break)
 exn_break_terminate = define_struct("exn:break:terminate", exn_break)
 
 srcloc = define_struct("srcloc", fields=["source", "line", "column", "position", "span"])
-date_struct = define_struct("date", fields=["second", 
+date_struct = define_struct("date", fields=["second",
                                             "minute",
-                                            "hour", 
+                                            "hour",
                                             "day",
                                             "month",
                                             "year",
@@ -1390,9 +1391,6 @@ def current_command_line_arguments(env, cont):
             env.toplevel_env.commandline_arguments)
     return return_value(w_v, env, cont)
 
-## Unsafe vector ops
-
-
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
@@ -1717,7 +1715,7 @@ def env_var_ref(set, name):
 
 @expose("raise", [values.W_Object, default(values.W_Object, values.w_true)])
 def do_raise(v, barrier):
-    # TODO: 
+    # TODO:
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
@@ -1762,34 +1760,3 @@ def load(lib, env, cont):
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
 
-# FIXME : Make the random functions actually do what they are supposed to do
-# random things
-@expose("random")
-def random(args):
-    return values.W_Fixnum(1)
-
-@expose("random-seed", [values.W_Fixnum])
-def random_seed(seed):
-    return values.w_void
-
-@expose("make-pseudo-random-generator", [])
-def make_pseudo_random_generator():
-    return values.W_PseudoRandomGenerator()
-
-@expose("current-pseudo-random-generator")
-def current_pseudo_random_generator(args):
-    if not args:
-        return values.W_PseudoRandomGenerator()
-    return values.w_void
-
-@expose("pseudo-random-generator->vector", [values.W_PseudoRandomGenerator])
-def pseudo_random_generator_to_vector(gen):
-    return values_vector.W_Vector.fromelements([])
-
-@expose("vector->pseudo-random-generator", [values.W_PseudoRandomGenerator, default(values.W_MVector, None)])
-def vector_to_pseudo_random_generator(gen, vec):
-    return values.W_PseudoRandomGenerator()
-
-@expose("pseudo-random-generator-vector?", [values.W_Object])
-def pseudo_random_generator_vector_huh(vec):
-    return values.W_Bool.make(isinstance(vec, values.W_MVector) and vec.length() == 0)
