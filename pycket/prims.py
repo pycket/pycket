@@ -384,9 +384,6 @@ for args in [ ("subprocess?",),
               ("file-stream-port?",),
               ("terminal-port?",),
               ("port-closed?",),
-              ("port-provides-progress-evts?",),
-              ("port-writes-atomic?",),
-              ("port-writes-special?",),
               ("byte-ready?",),
               ("char-ready?",),
               ("eof-object?",),
@@ -437,7 +434,6 @@ for args in [ ("subprocess?",),
               ("internal-definition-context?",),
               ("set!-transformer?",),
               ("rename-transformer?",),
-              ("path-string?",),
               ("identifier?",),
               ("port?",),
               ("sequence?",),
@@ -1205,10 +1201,37 @@ def equal_hash_code(v):
     # FIXME: not implemented
     return values.W_Fixnum(0)
 
+@expose("path-string?", [values.W_Object])
+def path_stringp(v):
+    # FIXME: handle zeros in string
+    return values.W_Bool.make(isinstance(v, values.W_String) or isinstance(v, values.W_Path))
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
     return values.W_Bytes(p.path)
+
+@expose("port-next-location", [values.W_Object], simple=False)
+def port_next_loc(p, env, cont):
+    from interpreter import return_multi_vals
+    return return_multi_vals(values.Values.make([values.w_false] * 3), env, cont)
+
+@expose("port-writes-special?", [values.W_Object])
+def port_writes_special(v):
+    return values.w_false
+
+@expose("port-writes-atomic?", [values.W_Object])
+def port_writes_atomic(v):
+    return values.w_false
+
+@expose("port-provides-progress-evts?", [values.W_Object])
+def port_ppe(v):
+    return values.w_false
+
+@expose("file-position*", [values.W_Object])
+def file_pos_star(v):
+    return values.w_false
+
+
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
