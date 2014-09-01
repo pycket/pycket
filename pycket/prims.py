@@ -123,6 +123,10 @@ def syntax_original(v):
 def syntax_tainted(v):
     return values.w_false
 
+@expose("syntax->datum", [values.W_Syntax])
+def syntax_to_datum(v):
+    return v.val
+
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
     return values.w_false
@@ -1241,7 +1245,9 @@ def string_to_unsymbol(v):
 
 @expose("string->immutable-string", [values.W_String])
 def string_to_immutable_string(string):
-    return values.W_String(string.value)
+    if string.immutable():
+        return string
+    return values.W_String(string.value, immutable=True)
 
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
