@@ -512,7 +512,7 @@ def to_value(json):
         # The json-object should only contain one element
         obj = json.value_object()
         if "vector" in obj:
-            return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()])
+            return vector.W_Vector.fromelements([to_value(v) for v in obj["vector"].value_array()], immutable=True)
         if "struct" in obj:
             key = to_value(obj["prefab-key"])
             fields = [to_value(v) for v in obj["struct"].value_array()]
@@ -538,7 +538,7 @@ def to_value(json):
         if "byte-regexp" in obj:
             return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "string" in obj:
-            return values.W_String(str(obj["string"].value_string()))
+            return values.W_String(str(obj["string"].value_string()), immutable=True)
         if "keyword" in obj:
             return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:

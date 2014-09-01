@@ -26,25 +26,26 @@ def _find_strategy_class(elements):
     return ObjectVectorStrategy.singleton
 
 class W_Vector(W_MVector):
-    _immutable_fields_ = ["elems", "len"]
+    _immutable_fields_ = ["elems", "len", "is_immutable"]
     errorname = "vector"
-    def __init__(self, strategy, storage, len):
+    def __init__(self, strategy, storage, len, immutable):
         self.strategy = strategy
         self.storage = storage
         self.len = len
+        self.is_immutable = immutable
     @staticmethod
-    def fromelements(elems):
+    def fromelements(elems, immutable=False):
         strategy = _find_strategy_class(elems)
         storage = strategy.create_storage_for_elements(elems)
-        return W_Vector(strategy, storage, len(elems))
+        return W_Vector(strategy, storage, len(elems), immutable)
     @staticmethod
-    def fromelement(elem, times):
+    def fromelement(elem, times, immutable=False):
         check_list = [elem]
         if times == 0:
             check_list = []
         strategy = _find_strategy_class(check_list)
         storage = strategy.create_storage_for_element(elem, times)
-        return W_Vector(strategy, storage, times)
+        return W_Vector(strategy, storage, times, immutable)
     def ref(self, i):
         return self.strategy.ref(self, i)
     def set(self, i, v):
@@ -79,6 +80,9 @@ class W_Vector(W_MVector):
         self.strategy = new_strategy
         self.storage = new_strategy.create_storage_for_elements(old_list)
 
+    def immutable(self):
+        return self.is_immutable
+
     def equal(self, other):
         # XXX could be optimized using strategies
         if not isinstance(other, W_MVector):
@@ -91,7 +95,6 @@ class W_Vector(W_MVector):
             if not self.ref(i).equal(other.ref(i)):
                 return False
         return True
-
 
 class SingletonMeta(type):
     def __new__(cls, name, bases, dct):
@@ -138,7 +141,6 @@ class VectorStrategy(object):
     def dehomogenize(self, w_vector):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
 
-
 class UnwrappedVectorStrategyMixin(object):
     # the concrete class needs to implement:
     # erase, unerase, is_correct_type, wrap, unwrap
@@ -181,8 +183,6 @@ class UnwrappedVectorStrategyMixin(object):
         for i in range(1, len(elements_w)):
             l[i] = self.unwrap(elements_w[i])
         return self.erase(l)
-
-
 
 class ObjectVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)

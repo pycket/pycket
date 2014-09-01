@@ -8,6 +8,12 @@ from pycket import values
 from pycket import values_struct
 from rpython.rlib import jit
 
+@jit.unroll_safe
+def get_base_object(x):
+    while x.is_proxy():
+        x = x.get_proxied()
+    return x
+
 def make_proxy(proxied="inner", properties="properties"):
     def wrapper(cls):
         def get_proxied(self):
@@ -16,9 +22,12 @@ def make_proxy(proxied="inner", properties="properties"):
             return True
         def get_properties(self):
             return getattr(self, properties)
+        def immutable(self):
+            return get_base_object(self).immutable()
         setattr(cls, "get_proxied", get_proxied)
         setattr(cls, "is_proxy", is_proxy)
         setattr(cls, "get_properties", get_properties)
+        setattr(cls, "immutable", immutable)
         return cls
     return wrapper
 
@@ -363,12 +372,6 @@ def valid_struct_proc(x):
     v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
             isinstance(v, values_struct.W_StructFieldMutator))
-
-@jit.unroll_safe
-def get_base_object(x):
-    while x.is_proxy():
-        x = x.get_proxied()
-    return x
 
 @continuation
 def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):

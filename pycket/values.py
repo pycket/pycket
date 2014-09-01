@@ -232,6 +232,9 @@ class W_Cons(W_List):
         # Must be an improper list
         return "(%s . %s)" % (" ".join(acc), cur.tostring())
 
+    def immutable(self):
+        return True
+
     def equal(self, other):
         if not isinstance(other, W_Cons):
             return False
@@ -401,6 +404,9 @@ class W_Number(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+    def immutable(self):
+        return True
+
     def eqv(self, other):
         return self.equal(other)
 
@@ -486,6 +492,9 @@ class W_Character(W_Object):
     def tostring(self):
         return "#\\%s" % runicode.unicode_encode_utf_8(
                 self.value, len(self.value), "strict")
+
+    def immutable(self):
+        return True
 
     def equal(self, other):
         if not isinstance(other, W_Character):
@@ -662,12 +671,12 @@ class W_Bytes(W_Object):
     def immutable(self):
         return True
 
-
 class W_String(W_Object):
     errorname = "string"
-    def __init__(self, val):
+    def __init__(self, val, immutable=False):
         assert val is not None
         self.value = val
+        self.imm   = immutable
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
         #return string_escape_encode(self.value, '"')
@@ -677,7 +686,7 @@ class W_String(W_Object):
             return False
         return self.value == other.value
     def immutable(self):
-        return True
+        return self.imm
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value", "unreadable"]
@@ -740,7 +749,6 @@ class W_Keyword(W_Object):
     def tostring(self):
         return "'#:%s" % self.value
 
-
 # FIXME: this should really be a struct
 class W_ArityAtLeast(W_Object):
     _immutable_fields_ = ["val"]
@@ -752,6 +760,8 @@ class W_Procedure(W_Object):
     def __init__(self):
         raise NotImplementedError("Abstract base class")
     def iscallable(self):
+        return True
+    def immutable(self):
         return True
     def tostring(self):
         return "#<procedure>"

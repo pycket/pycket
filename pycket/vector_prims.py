@@ -15,7 +15,7 @@ def vector(args):
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):
-    return values_vector.W_Vector.fromelements(args)
+    return values_vector.W_Vector.fromelements(args, immutable=True)
 
 @expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
 def make_vector(w_size, w_val):
@@ -37,6 +37,8 @@ def vector_ref(v, i, env, cont):
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
+    if v.immutable():
+        raise SchemeException("vector-set!: given immutable vector")
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
@@ -47,6 +49,8 @@ def vector_set(v, i, new, env, cont):
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)],
         simple=False)
 def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
+    if dest.immutable():
+        raise SchemeException("vector-copy!: given an immutable destination")
     src_start  = _src_start.value if _src_start is not None else 0
     src_end    = _src_end.value if _src_end is not None else src.length()
     dest_start = _dest_start.value
