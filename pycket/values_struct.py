@@ -585,8 +585,8 @@ class W_StructPropertyAccessor(values.W_Procedure):
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (self.property.name, self.property.name, arg.tostring()))
 
-def struct2vector(struct):
+def struct2vector(struct, immutable=False):
     struct_desc = struct.struct_type().name
     first_el = values.W_Symbol.make("struct:" + struct_desc)
-    return values_vector.W_Vector.fromelements([first_el] + struct.vals())
+    return values_vector.W_Vector.fromelements([first_el] + struct.vals(), immutable=immutable)
 
