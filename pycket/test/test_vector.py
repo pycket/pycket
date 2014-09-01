@@ -87,7 +87,7 @@ def test_unsafe_impersonators():
 
 def test_vec_imp():
     assert isinstance(run('(impersonate-vector (vector 1) values values)'), W_ImpVector)
-    run('(vector? (impersonate-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
+    run('(vector? (chaperone-vector \'#(0 (2 2 2 2) "Anna") values values))', w_true)
     run_fix("(let ([v (impersonate-vector (vector 1 2 3) values values)]) (vector-length v))", 3)
     run("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0))", w_void)
     run_fix("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (vector-set! v 0 0) (vector-length v))", 3)
