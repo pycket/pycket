@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 import operator as op
-from pycket            import values
-from pycket.exposeprim import default, expose
-from pycket.error      import SchemeException
+from ..       import values
+from ..error  import SchemeException
+from .expose  import default, expose
 
 def define_string_comp(name, op):
     @expose(name)

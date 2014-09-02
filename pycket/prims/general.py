@@ -2,24 +2,24 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-import pycket.impersonators as imp
-from pycket            import values
-from pycket.cont       import continuation, label, call_cont
-from pycket            import cont
-from pycket            import values_struct
-from pycket            import vector as values_vector
-from pycket.exposeprim import unsafe, default, expose, expose_val, procedure
-from pycket.error      import SchemeException
+from ..      import impersonators as imp
+from ..      import values
+from ..cont  import continuation, label, call_cont
+from ..      import cont
+from ..      import values_struct
+from ..      import vector as values_vector
+from ..error import SchemeException
+from .expose import unsafe, default, expose, expose_val, procedure
 from rpython.rlib      import jit
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
-import pycket.equal_prims as eq_prims
-import pycket.impersonator_prims
-import pycket.numeric_prims
-import pycket.random_prims
-import pycket.string_prims
-import pycket.vector_prims
+from . import equal as eq_prims
+from . import impersonator
+from . import numeric
+from . import random
+from . import string
+from . import vector
 
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
@@ -151,7 +151,7 @@ expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
+    from ..interpreter import check_one_val, return_value
     val = check_one_val(_vals)
     if val is not values.w_false:
         return return_value(v._ref(1), env, cont)
@@ -159,7 +159,7 @@ def check_cont(proc, v, v1, v2, env, cont, _vals):
 
 @continuation
 def receive_first_field(proc, v, v1, v2, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     first_field = check_one_val(_vals)
     return first_field.call([v1, v2], env, check_cont(proc, v, v1, v2, env, cont))
 
@@ -461,14 +461,14 @@ def find_main_config():
 
 @expose("version", [])
 def version():
-    from pycket import interpreter
+    from .. import interpreter
     version = interpreter.GlobalConfig.lookup("version")
     return values.W_String("unknown version" if version is None else version)
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
     sem.post()
-    from interpreter import return_multi_vals
+    from ..interpreter import return_multi_vals
     return return_multi_vals(vals, env, cont)
 
 @expose("call-with-semaphore", simple=False)
@@ -548,7 +548,7 @@ def procedure_arity_includes(p, n):
 
 @expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
 def varref_const(varref, env, cont):
-    from interpreter import return_value
+    from ..interpreter import return_value
     return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))), env, cont)
 
 @expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
@@ -585,7 +585,7 @@ def call_with_values (producer, consumer, env, cont):
 
 @continuation
 def time_apply_cont(initial, env, cont, vals):
-    from pycket.interpreter import return_multi_vals
+    from ..interpreter import return_multi_vals
     final = time.clock()
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_l = vals._get_full_list()
@@ -765,19 +765,19 @@ def do_set_mcdr(a, b):
 
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     return return_value(values.w_void, env, for_each_cont(f, l, env, cont))
 
 @continuation
 def for_each_cont(f, l, env, cont, vals):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
 
 @expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     return return_value(values.w_void, env, hash_for_each_cont(f,
                                                                h.data.keys(),
                                                                h.data, 0,
@@ -785,7 +785,7 @@ def hash_for_each(h, f, env, cont):
 
 @continuation
 def hash_for_each_cont(f, keys, data, n, env, cont, _vals):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if n == len(keys):
         return return_value(values.w_void, env, cont)
     return f.call([keys[n], data[keys[n]]], env,
@@ -890,7 +890,7 @@ def expose_struct2vector(struct):
 
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
-    from pycket.interpreter import return_multi_vals
+    from ..interpreter import return_multi_vals
     from pycket.values import W_SimplePrim
     name = sym.value
     prop = imp.W_ImpPropertyDescriptor(name)
@@ -1052,7 +1052,7 @@ def vector2immutablevector(v):
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
 def current_command_line_arguments(env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     w_v = values_vector.W_Vector.fromelements(
             env.toplevel_env.commandline_arguments)
     return return_value(w_v, env, cont)
@@ -1122,7 +1122,7 @@ def hash_set(ht, k, v):
 
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     val = ht.ref(k)
     if val:
         return return_value(val, env, cont)
@@ -1327,7 +1327,7 @@ def current_preserved_thread_cell_values(v):
 
 @expose("current-continuation-marks", [], simple=False)
 def current_cont_marks(env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
@@ -1336,7 +1336,7 @@ def cms_list(cms, mark):
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_list(cms, mark, missing, env, con):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if cms is values.w_false:
         the_cont = con
     elif isinstance(cms, values.W_ContinuationMarkSet):
@@ -1358,19 +1358,19 @@ def extend_paramz(paramz, key, val):
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):
-    from pycket.interpreter import Gensym
+    from ..interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
-    from pycket.interpreter import Gensym
+    from ..interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
-    from pycket.interpreter import Gensym
+    from ..interpreter import Gensym
     return Gensym.gensym(init.value)
 
 @expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking

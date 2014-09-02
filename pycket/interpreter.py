@@ -1,6 +1,6 @@
 from pycket                   import values
 from pycket                   import vector
-from pycket.exposeprim        import prim_env
+from pycket.prims.expose      import prim_env
 from pycket.error             import SchemeException
 from pycket.cont              import Cont
 from rpython.rlib             import jit, debug, objectmodel
@@ -8,7 +8,7 @@ from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
 
 # imported for side effects
-import pycket.prims
+import pycket.prims.general
 
 class GlobalConfig(object):
     config = {}

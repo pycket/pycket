@@ -1,7 +1,7 @@
 
-from pycket.exposeprim import default, expose
-from pycket            import values
-from pycket            import vector as values_vector
+from .expose import default, expose
+from ..      import values
+from ..      import vector as values_vector
 
 # FIXME : Make the random functions actually do what they are supposed to do
 # random things

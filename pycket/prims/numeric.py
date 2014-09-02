@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 import math
 import operator
-from pycket               import values
-from pycket.error         import SchemeException
-from pycket.exposeprim    import expose, unsafe
+from ..      import values
+from ..error import SchemeException
+from .expose import expose, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit
 
 # imported for side effects
-import pycket.arithmetic
+from .. import arithmetic
 
 def make_cmp(name, op, con):
-    from values import W_Number, W_Fixnum, W_Flonum, W_Bignum
+    from ..values import W_Number, W_Fixnum, W_Flonum, W_Bignum
     from rpython.rlib.rbigint import rbigint
     @expose(name, [W_Number, W_Number], simple=True)
     def do(w_a, w_b):

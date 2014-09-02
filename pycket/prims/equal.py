@@ -1,10 +1,10 @@
 
 import pycket.impersonators as imp
 import pycket.vector        as values_vector
-from pycket            import values
-from pycket            import values_struct
-from pycket.cont       import continuation, label
-from pycket.exposeprim import expose, procedure
+from ..      import values
+from ..      import values_struct
+from ..cont  import continuation, label
+from .expose import expose, procedure
 
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
@@ -18,7 +18,7 @@ def eqp_recur(v1, v2, recur_proc):
 
 @continuation
 def equal_car_cont(a, b, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
+    from ..interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
@@ -26,20 +26,20 @@ def equal_car_cont(a, b, env, cont, _vals):
 
 @continuation
 def equal_unbox_right_cont(r, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     l = check_one_val(_vals)
     return r.unbox(env, equal_unbox_done_cont(l, env, cont))
 
 @continuation
 def equal_unbox_done_cont(l, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     r = check_one_val(_vals)
     return equal_func(l, r, env, cont)
 
 # This function assumes that a and b have the same length
 @label
 def equal_vec_func(a, b, idx, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if idx.value >= a.length():
         return return_value(values.w_true, env, cont)
     return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, env, cont))
@@ -47,7 +47,7 @@ def equal_vec_func(a, b, idx, env, cont):
 # Receive the first value for a given index
 @continuation
 def equal_vec_left_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     l = check_one_val(_vals)
     return b.vector_ref(idx, env,
                 equal_vec_right_cont(a, b, idx, l, env, cont))
@@ -55,14 +55,14 @@ def equal_vec_left_cont(a, b, idx, env, cont, _vals):
 # Receive the second value for a given index
 @continuation
 def equal_vec_right_cont(a, b, idx, l, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     r = check_one_val(_vals)
     return equal_func(l, r, env, equal_vec_done_cont(a, b, idx, env, cont))
 
 # Receive the comparison of the two elements and decide what to do
 @continuation
 def equal_vec_done_cont(a, b, idx, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
+    from ..interpreter import check_one_val, return_value
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
@@ -71,7 +71,7 @@ def equal_vec_done_cont(a, b, idx, env, cont, _vals):
 
 @label
 def equal_func(a, b, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if imp.is_impersonator_of(a, b) or imp.is_impersonator_of(b, a):
         return return_value(values.w_true, env, cont)
     if isinstance(a, values.W_String) and isinstance(b, values.W_String):

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pycket.cont import continuation, label, call_cont
-from pycket.exposeprim import make_call_method
+from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket import values
 from pycket import values_struct
