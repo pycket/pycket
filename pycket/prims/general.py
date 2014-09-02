@@ -1212,7 +1212,7 @@ def path2bytes(p):
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
-    from interpreter import return_multi_vals
+    from ..interpreter import return_multi_vals
     return return_multi_vals(values.Values.make([values.w_false] * 3), env, cont)
 
 @expose("port-writes-special?", [values.W_Object])
@@ -1416,7 +1416,7 @@ def raise_arg_err(sym, str, val):
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
-    from pycket import interpreter
+    from .. import interpreter
     v = interpreter.GlobalConfig.lookup(sym.value)
     if v:
         return values.W_Path(v)
