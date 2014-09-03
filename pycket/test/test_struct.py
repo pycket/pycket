@@ -61,7 +61,7 @@ def test_struct_copying_and_update(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-def test_struct_subtypes(source):
+def test_struct_inheritance(source):
     """
     (struct posn (x y))
     (struct 3d-posn posn (z))
@@ -74,6 +74,24 @@ def test_struct_subtypes(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
+def test_struct_inheritance2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (struct posn (x y))
+        (define (raven-constructor super-type)
+        (struct raven ()
+                #:super super-type
+                #:transparent
+                #:property prop:procedure (lambda (self) 'nevermore)) raven)
+    (define r ((raven-constructor struct:posn) 1 2))
+    (define x (posn-x r))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 1
 
 def test_struct_comparison(source):
     """
@@ -178,7 +196,7 @@ def test_struct_prop_procedure():
     assert m.defs[W_Symbol.make("xval")].value == 1
     assert m.defs[W_Symbol.make("yval")].value == 2
 
-def test_struct_procedure_inheritance():
+def test_struct_prop_procedure_inheritance():
     m = run_mod(
     """
     #lang racket/base
@@ -219,20 +237,6 @@ def test_struct_prop_procedure_with_self_arg():
     """)
     ov = m.defs[W_Symbol.make("greeting")]
     assert ov.value == "Hi Mary, I'm Joe"
-
-def test_struct_super_prop_procedure():
-    m = run_mod(
-    """
-    #lang pycket
-    (require racket/private/kw)
-    (require (prefix-in k: '#%kernel))
-
-    (struct x() #:property prop:procedure (lambda _ 1))
-    (struct y x())
-
-    (define yval ((y)))
-    """)
-    assert m.defs[W_Symbol.make("yval")].value == 1
 
 def test_struct_prop_arity():
     m = run_mod(
@@ -290,24 +294,6 @@ def test_checked_procedure_check_and_extract(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
-
-def test_struct_super():
-    m = run_mod(
-    """
-    #lang pycket
-    (require racket/private/kw)
-
-    (struct posn (x y))
-        (define (raven-constructor super-type)
-        (struct raven ()
-                #:super super-type
-                #:transparent
-                #:property prop:procedure (lambda (self) 'nevermore)) raven)
-    (define r ((raven-constructor struct:posn) 1 2))
-    (define x (posn-x r))
-    """)
-    ov = m.defs[W_Symbol.make("x")]
-    assert ov.value == 1
 
 def test_struct_prefab():
     m = run_mod(
