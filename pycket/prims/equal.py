@@ -157,3 +157,8 @@ def eqp_logic(a, b):
 def eqp(a, b):
     return values.W_Bool.make(eqp_logic(a, b))
 
+@expose("procedure-closure-contents-eq?", [values.W_Object] * 2)
+def procedure_closure_contents_eq(a, b):
+    # FIXME: provide actual information
+    return values.W_Bool.make((a is b) and a.iscallable())
+

@@ -892,16 +892,6 @@ def do_make_struct_field_mutator(mutator, field, field_name):
 def expose_struct2vector(struct):
     return values_struct.struct2vector(struct)
 
-@expose("make-impersonator-property", [values.W_Symbol], simple=False)
-def make_imp_prop(sym, env, cont):
-    from ..interpreter import return_multi_vals
-    from pycket.values import W_SimplePrim
-    name = sym.value
-    prop = imp.W_ImpPropertyDescriptor(name)
-    pred = imp.W_ImpPropertyPredicate(name)
-    accs = imp.W_ImpPropertyAccessor(name)
-    return return_multi_vals(values.Values.make([prop, pred, accs]), env, cont)
-
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
@@ -1460,4 +1450,3 @@ def load(lib, env, cont):
         raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
-
