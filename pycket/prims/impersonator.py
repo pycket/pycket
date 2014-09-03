@@ -65,6 +65,19 @@ def unpack_box_args(args, name):
         raise SchemeException(name + ": supplied set-box! handler is not callable")
     return box, unboxh, seth, prop_keys, prop_vals
 
+def unpack_cmk_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    if len(args) != 3:
+        raise SchemeException(name + ": not give three required arguments")
+    key, get, set = args
+    if not isinstance(key, values.W_ContinuationMarkKey):
+        raise SchemeException(name + ": supplied key is not a continuation-mark-key")
+    if not get.iscallable():
+        raise SchemeException(name + ": supplied get-proc is not callable")
+    if not set.iscallable():
+        raise SchemeException(name + ": supplied set-proc is not callable")
+    return key, get, set, prop_keys, prop_vals
+
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
     proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
@@ -186,13 +199,13 @@ def chaperone_hash(args):
     # FIXME: not implemented
     return args[0]
 
-@expose("chaperone-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
-def ccmk(cmk, f):
-    return cmk
+@expose("chaperone-continuation-mark-key")
+def ccmk(args):
+    return args[0]
 
-@expose("impersonate-continuation-mark-key", [values.W_ContinuationMarkKey, values.W_Object])
-def icmk(cmk, f):
-    return cmk
+@expose("impersonate-continuation-mark-key")
+def icmk(args):
+    return args[0]
 
 # TODO: This is not correct, based on Racket's internal implementation.
 # The addition checking for immutablity should be done recursively, rather

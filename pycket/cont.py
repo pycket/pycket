@@ -1,5 +1,4 @@
 
-from rpython.rlib.objectmodel import specialize
 from rpython.rlib import unroll
 
 # these aren't methods so that can handle empty conts
@@ -34,10 +33,6 @@ class Link(object):
         self.key = k
         self.val = v
         self.next = next
-
-class Done(Exception):
-    def __init__(self, vals):
-        self.values = vals
 
 class BaseCont(object):
 
@@ -81,6 +76,7 @@ class BaseCont(object):
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
     def plug_reduce(self, vals, env):
+        from pycket.interpreter import Done
         raise Done(vals)
 
 nil_continuation = NilCont()

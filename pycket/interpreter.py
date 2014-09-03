@@ -2,7 +2,7 @@ from pycket                   import values
 from pycket                   import vector
 from pycket.prims.expose      import prim_env
 from pycket.error             import SchemeException
-from pycket.cont              import Cont, Done, nil_continuation
+from pycket.cont              import Cont, nil_continuation
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
@@ -31,6 +31,9 @@ class ModuleCache(object):
 
 ModuleCache.instance = ModuleCache()
 
+class Done(Exception):
+    def __init__(self, vals):
+        self.values = vals
 
 def var_eq(a, b):
     if isinstance(a, LexicalVar) and isinstance(b, LexicalVar):
