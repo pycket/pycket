@@ -538,8 +538,9 @@ def arity_at_least_p(n):
         return values.w_true
     return values.w_false
 
-@expose("procedure-arity-includes?", [procedure, values.W_Number])
-def procedure_arity_includes(p, n):
+@expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
+def procedure_arity_includes(p, n, w_kw_ok):
+    # for now, ignore kw_ok
     if not(isinstance(n, values.W_Fixnum)):
         return values.w_false # valid arities are always small integers
     n_val = n.value
@@ -891,16 +892,6 @@ def do_make_struct_field_mutator(mutator, field, field_name):
 @expose("struct->vector", [values_struct.W_RootStruct])
 def expose_struct2vector(struct):
     return values_struct.struct2vector(struct)
-
-@expose("make-impersonator-property", [values.W_Symbol], simple=False)
-def make_imp_prop(sym, env, cont):
-    from ..interpreter import return_multi_vals
-    from pycket.values import W_SimplePrim
-    name = sym.value
-    prop = imp.W_ImpPropertyDescriptor(name)
-    pred = imp.W_ImpPropertyPredicate(name)
-    accs = imp.W_ImpPropertyAccessor(name)
-    return return_multi_vals(values.Values.make([prop, pred, accs]), env, cont)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
@@ -1379,12 +1370,16 @@ def gensym(init):
     from ..interpreter import Gensym
     return Gensym.gensym(init.value)
 
-@expose("regexp-match", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
+@expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     return values.w_false # Back to one problem
 
-@expose("regexp-match?", [values.W_AnyRegexp, values.W_Object]) # FIXME: more error checking
+@expose("regexp-match?", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_matchp(r, o):
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
 
@@ -1456,4 +1451,3 @@ def load(lib, env, cont):
         raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
-

@@ -38,3 +38,16 @@ class TestRegressions(object):
         w_list = to_list([W_Fixnum(i) for i in range(10)])
         ret = run_mod_expr(source, wrap=True)
         assert ret.equal(w_list)
+
+    def test_regexp_args(self, doctest):
+        """
+        > (regexp-match #rx"^-$" "/")
+        #f
+        > (regexp-match #"^-$" "/")
+        #f
+        > (regexp-match? #rx"^-$" "/")
+        #t
+        > (regexp-match? #"^-$" "/")
+        #t
+        """
+        assert doctest

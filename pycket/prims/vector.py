@@ -132,3 +132,4 @@ def unsafe_vector_length(v):
 @expose("unsafe-vector*-length", [unsafe(values_vector.W_Vector)])
 def unsafe_vector_star_length(v):
     return values.W_Fixnum(v.length())
+

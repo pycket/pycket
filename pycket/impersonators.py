@@ -518,3 +518,4 @@ class W_ImpPropertyAccessor(W_ImpPropertyFunction):
     def call(self, obj):
         return lookup_property(obj, self.name)
 
+w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")

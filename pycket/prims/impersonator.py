@@ -3,7 +3,7 @@ from ..      import impersonators as imp
 from ..      import values
 from ..      import values_struct
 from ..error import SchemeException
-from .expose import expose
+from .expose import expose, expose_val
 from .equal  import equal_func, EqualInfo
 
 # Used to find the first impersonator-property
@@ -218,3 +218,13 @@ def impersonator(x):
 def chaperone(x):
     return values.W_Bool.make(x.is_chaperone())
 
+@expose("make-impersonator-property", [values.W_Symbol], simple=False)
+def make_imp_prop(sym, env, cont):
+    from ..interpreter import return_multi_vals
+    name = sym.value
+    prop = imp.W_ImpPropertyDescriptor(name)
+    pred = imp.W_ImpPropertyPredicate(name)
+    accs = imp.W_ImpPropertyAccessor(name)
+    return return_multi_vals(values.Values.make([prop, pred, accs]), env, cont)
+
+expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)

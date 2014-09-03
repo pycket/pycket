@@ -1008,8 +1008,6 @@ def free_vars_lambda(body, args):
             del x[v]
     return x
 
-
-
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "w_closure_if_no_frees?"]
     simple = True
