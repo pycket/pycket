@@ -434,7 +434,6 @@ for args in [ ("subprocess?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
-              ("complete-path?",),
               ("internal-definition-context?",),
               ("set!-transformer?",),
               ("rename-transformer?",),
@@ -769,30 +768,38 @@ def do_set_mcdr(a, b):
 
 @expose("map", simple=False)
 def do_map(args, env, cont):
+    from ..interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn = args.pop(0)
     if not fn.iscallable():
         raise SchemeException("map expected a procedure, got something else")
 
+    # FIXME: more errorchecking
     assert len(args) >= 0
-    assert len(args) == 1 # for now :(
-    lst = args[0]
-    return jump(env, map_cont(fn, lst, env, cont))
+    return jump(env, map_cont(fn, args, env, cont))
 
 @continuation
 def cons_cont(env, cont, vals):
     from ..interpreter import return_value
+    if vals._get_size_list() == 1:
+        return return_value(vals._get_list(0), env, cont)
+
     assert vals._get_size_list() == 2
     w_car, w_cdr = vals._get_list(0), vals._get_list(1)
     return return_value(do_cons(w_car, w_cdr), env, cont)
 
 @continuation
-def map_cont(f, l, env, cont, vals):
+def map_cont(f, ls, env, cont, vals):
     from ..interpreter import return_value
-    if l is values.w_null:
+    if ls[0] is values.w_null:
         return return_value(values.w_null, env, cont)
-    return f.call([l.car()], env, map_cont(f, l.cdr(), env, cons_cont(env, cont)))
+    # FIXME: more errorchecking
+    cars, cdrs = [None] * len(ls), [None] * len(ls)
+    for index, l in enumerate(ls):
+        cars[index], cdrs[index] = l.car(), l.cdr()
+
+    return f.call(cars, env, map_cont(f, cdrs, env, cons_cont(env, cont)))
 
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
@@ -1227,6 +1234,11 @@ def equal_hash_code(v):
 def path_stringp(v):
     # FIXME: handle zeros in string
     return values.W_Bool.make(isinstance(v, values.W_String) or isinstance(v, values.W_Path))
+
+@expose("complete-path?", [values.W_Object])
+def complete_path(v):
+    # FIXME: stub
+    return values.w_false
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
