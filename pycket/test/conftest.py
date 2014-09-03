@@ -67,6 +67,8 @@ def pytest_funcarg__doctest(request):
         elif line[0] == "!":
             extra.append(line[2:])
         elif line[0] == ">":
+            if current_expr:
+                extra.append(current_expr)
             current_expr = line[2:]
         elif line[0] in " \t":
             current_expr += "\n" + line[2:]
