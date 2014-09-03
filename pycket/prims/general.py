@@ -538,8 +538,10 @@ def arity_at_least_p(n):
         return values.w_true
     return values.w_false
 
-@expose("procedure-arity-includes?", [procedure, values.W_Number])
-def procedure_arity_includes(p, n):
+@expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
+def procedure_arity_includes(p, n, w_kw_ok):
+    # for now, ignore kw_ok
+    import pdb; pdb.set_trace()
     if not(isinstance(n, values.W_Fixnum)):
         return values.w_false # valid arities are always small integers
     n_val = n.value
