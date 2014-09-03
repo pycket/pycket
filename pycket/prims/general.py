@@ -1382,13 +1382,13 @@ def gensym(init):
 @expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
     assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
-    assert isinstance(o, values.W_String) #....
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     return values.w_false # Back to one problem
 
 @expose("regexp-match?", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_matchp(r, o):
     assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
-    assert isinstance(o, values.W_String) #....
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
 
