@@ -434,7 +434,6 @@ for args in [ ("subprocess?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
-              ("complete-path?",),
               ("internal-definition-context?",),
               ("set!-transformer?",),
               ("rename-transformer?",),
@@ -1235,6 +1234,11 @@ def equal_hash_code(v):
 def path_stringp(v):
     # FIXME: handle zeros in string
     return values.W_Bool.make(isinstance(v, values.W_String) or isinstance(v, values.W_Path))
+
+@expose("complete-path?", [values.W_Object])
+def complete_path(v):
+    # FIXME: stub
+    return values.w_false
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
