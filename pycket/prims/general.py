@@ -767,6 +767,33 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
+@expose("map", simple=False)
+def do_map(args, env, cont):
+    if not args:
+        raise SchemeException("map expected at least two argument, got 0")
+    fn = args.pop(0)
+    if not fn.iscallable():
+        raise SchemeException("map expected a procedure, got something else")
+
+    assert len(args) >= 0
+    assert len(args) == 1 # for now :(
+    lst = args[0]
+    return jump(env, map_cont(fn, lst, env, cont))
+
+@continuation
+def cons_cont(env, cont, vals):
+    from ..interpreter import return_value
+    assert vals._get_size_list() == 2
+    w_car, w_cdr = vals._get_list(0), vals._get_list(1)
+    return return_value(do_cons(w_car, w_cdr), env, cont)
+
+@continuation
+def map_cont(f, l, env, cont, vals):
+    from ..interpreter import return_value
+    if l is values.w_null:
+        return return_value(values.w_null, env, cont)
+    return f.call([l.car()], env, map_cont(f, l.cdr(), env, cons_cont(env, cont)))
+
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
     from ..interpreter import return_value
@@ -778,6 +805,7 @@ def for_each_cont(f, l, env, cont, vals):
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+
 
 @expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):

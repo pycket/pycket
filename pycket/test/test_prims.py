@@ -101,3 +101,24 @@ def test_for_each_vararg(doctest):
     271
     """
     assert doctest
+
+def test_map_single(doctest):
+    """
+    ! (require racket/private/map)
+    > (map (lambda (number)
+             (+ 1 number))
+           '(1 2 3 4))
+    '(2 3 4 5)
+    """
+    assert doctest
+
+@pytest.mark.xfail
+def test_map_vararg(doctest):
+    """
+    > (map (lambda (number1 number2)
+             (+ number1 number2))
+           '(1 2 3 4)
+           '(10 100 1000 10000))
+    '(11 102 1003 10004)
+    """
+    assert doctest
