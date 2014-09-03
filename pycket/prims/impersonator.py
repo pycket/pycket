@@ -4,7 +4,7 @@ from ..      import values
 from ..      import values_struct
 from ..error import SchemeException
 from .expose import expose
-from .equal  import equal_func
+from .equal  import equal_func, EqualInfo
 
 # Used to find the first impersonator-property
 def find_prop_start_index(args):
