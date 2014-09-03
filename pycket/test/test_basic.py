@@ -5,7 +5,7 @@ from pycket.values import *
 from pycket.prims import *
 
 from pycket.test.testhelper import (run, run_fix, run_flo, run_top, execute,
-        run_values, check_equal)
+        run_values, check_equal, run_mod)
 
 
 def test_constant():
@@ -396,6 +396,23 @@ def test_varref():
     run("(let ([x 0]) (#%variable-reference x))")
     run("(let ([x 0]) (variable-reference-constant? (#%variable-reference x)))", w_true)
     run("(let ([x 0]) (set! x 1) (variable-reference-constant? (#%variable-reference x)))", w_false)
+
+def test_with_continuation_mark():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define key (make-continuation-mark-key))
+    (define result
+      (with-continuation-mark key "quiche"
+        (with-continuation-mark key "ham"
+           (continuation-mark-set-first
+            (current-continuation-marks)
+            key))))
+    """)
+    sym = W_Symbol.make("result")
+    assert isinstance(m.defs[sym], W_String)
+    assert m.defs[sym].value == "ham"
+
 
 def test_arity():
     run("(procedure-arity-includes? add1 1)", w_true)

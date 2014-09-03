@@ -541,7 +541,7 @@ def arity_at_least_p(n):
 @expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
 def procedure_arity_includes(p, n, w_kw_ok):
     # for now, ignore kw_ok
-    if not(isinstance(n, values.W_Fixnum)):
+    if not isinstance(n, values.W_Fixnum):
         return values.w_false # valid arities are always small integers
     n_val = n.value
     (ls, at_least) = p.get_arity()
@@ -742,7 +742,6 @@ def do_cadddr(args):
 @expose("cdr", [values.W_Cons])
 def do_cdr(a):
     return a.cdr()
-
 
 @expose("mlist")
 def do_mlist(args):
@@ -1322,14 +1321,19 @@ def current_preserved_thread_cell_values(v):
         cell.value = val
     return values.w_void
 
-@expose("current-continuation-marks", [], simple=False)
-def current_cont_marks(env, cont):
+#@expose("continuation-marks",
+        #[values.W_Continuation, default(values.W_ContinuationPromptTag, None)])
+#def continuation_marks(cont, prompt_tag):
+    #return values.W_ContinuationPromptTag(cont.cont)
+
+@expose("current-continuation-marks", [default(values.W_ContinuationPromptTag, None)], simple=False)
+def current_cont_marks(prompt_tag, env, cont):
     from ..interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
 def cms_list(cms, mark):
-    return cont.get_marks(cms.cont, mark)
+    return cms.cont.get_marks(mark)
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_list(cms, mark, missing, env, con):
@@ -1341,17 +1345,10 @@ def cms_list(cms, mark, missing, env, con):
     else:
         raise SchemeException("Expected #f or a continuation-mark-set")
     v = cont.get_mark_first(the_cont, mark)
-    if v:
+    if v is not None:
         return return_value(v, env, con)
     else:
         return return_value(missing, env, con)
-
-@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
-def extend_paramz(paramz, key, val):
-    if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend(key, val)
-    else:
-        return paramz # This really is the Racket behavior
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):
@@ -1364,6 +1361,13 @@ def mcpt(s):
     from ..interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
+
+@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
+def extend_paramz(paramz, key, val):
+    if isinstance(paramz, values.W_Parameterization):
+        return paramz.extend(key, val)
+    else:
+        return paramz # This really is the Racket behavior
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):

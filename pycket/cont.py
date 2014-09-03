@@ -5,14 +5,13 @@ from rpython.rlib import unroll
 # these aren't methods so that can handle empty conts
 def get_mark_first(cont, key):
     p = cont
-    while p:
+    while isinstance(p, Cont):
         v = p.find_cm(key)
         if v:
             return v
         elif p.prev:
             p = p.prev
-        else:
-            return None
+    return p.find_cm(key)
 
 def get_marks(cont, key):
     from pycket import values
@@ -22,7 +21,7 @@ def get_marks(cont, key):
     # it would be much more convenient to write this with mutable pairs
     v = cont.find_cm(key)
     if v:
-        return values.W_Cons(v, get_marks(cont.prev, key))
+        return values.W_Cons.make(v, get_marks(cont.prev, key))
     else:
         return get_marks(cont.prev, key)
 
@@ -31,38 +30,46 @@ class Link(object):
         from pycket.values import W_Object
         assert isinstance(k, W_Object)
         assert isinstance(v, W_Object)
-        assert (d is None) or isinstance(d, Link)
+        assert (next is None) or isinstance(next, Link)
         self.key = k
         self.val = v
         self.next = next
 
-class Cont(object):
-    # Racket also keeps a separate stack for continuation marks
-    # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = ['env', 'prev', 'marks']
-    def __init__(self, env, prev):
-        self.env = env
-        self.prev = prev
+class Done(Exception):
+    def __init__(self, vals):
+        self.values = vals
+
+class BaseCont(object):
+
+    def __init__(self):
         self.marks = None
 
     def find_cm(self, k):
-        l = self.marks
         from pycket.prims.equal import eqp_logic
-        while l:
+        l = self.marks
+        while l is not None:
             if eqp_logic(l.key, k):
                 return l.val
-            else:
-                l = l.rest
+            l = l.next
         return None
 
     def update_cm(self, k, v):
         from pycket.prims.equal import eqp_logic
         l = self.marks
-        while l:
+        while l is not None:
             if eqp_logic(l.key, k):
                 l.val = v
-            else:
-                l = l.rest
+                return
+            l = l.next
+        self.marks = Link(k, v, self.marks)
+
+    def get_marks(self, key):
+        from pycket import values
+        v = self.find_cm(key)
+        return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
+
+    def plug_reduce(self, _vals, env):
+        raise NotImplementedError("abstract method")
 
     def tostring(self):
         "NOT_RPYTHON"
@@ -70,6 +77,31 @@ class Cont(object):
             return "%s(%s)"%(self.__class__.__name__,self.prev.tostring())
         else:
             return "%s()"%(self.__class__.__name__)
+
+# Continuation used to signal that the computation is done.
+class NilCont(BaseCont):
+    def plug_reduce(self, vals, env):
+        raise Done(vals)
+
+nil_continuation = NilCont()
+
+class Cont(BaseCont):
+    # Racket also keeps a separate stack for continuation marks
+    # so that they can be saved without saving the whole continuation.
+    _immutable_fields_ = ['env', 'prev']
+    def __init__(self, env, prev):
+        # TODO: Consider using a dictionary to store the marks
+        BaseCont.__init__(self)
+        self.env = env
+        self.prev = prev
+
+    def get_marks(self, key):
+        from pycket import values
+        v = self.find_cm(key)
+        if v is not None:
+            return values.W_Cons.make(v, self.prev.get_marks(key))
+        else:
+            return self.prev.get_marks(key)
 
 # Not used yet, but maybe if there's a continuation whose prev isn't named `cont`
 def continuation_named(name="cont"):
