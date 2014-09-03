@@ -47,7 +47,7 @@ class Cont(object):
 
     def find_cm(self, k):
         l = self.marks
-        from pycket.equal_prims import eqp_logic
+        from pycket.prims.equal import eqp_logic
         while l:
             if eqp_logic(l.key, k):
                 return l.val
@@ -56,7 +56,7 @@ class Cont(object):
         return None
 
     def update_cm(self, k, v):
-        from pycket.equal_prims import eqp_logic
+        from pycket.prims.equal import eqp_logic
         l = self.marks
         while l:
             if eqp_logic(l.key, k):

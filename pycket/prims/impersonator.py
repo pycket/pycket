@@ -1,10 +1,10 @@
 
-import pycket.impersonators as imp
-from pycket             import values
-from pycket             import values_struct
-from pycket.error       import SchemeException
-from pycket.exposeprim  import expose
-from pycket.equal_prims import equal_func, EqualInfo
+from ..      import impersonators as imp
+from ..      import values
+from ..      import values_struct
+from ..error import SchemeException
+from .expose import expose
+from .equal  import equal_func
 
 # Used to find the first impersonator-property
 def find_prop_start_index(args):
@@ -200,18 +200,13 @@ def icmk(cmk, f):
 # See: https://github.com/plt/racket/blob/106cd16d359c7cb594f4def8f427c55992d41a6d/racket/src/racket/src/bool.c
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
-    from pycket.interpreter import return_value
-    # If there are no interposing structures, we can do regular equality
-    #if a.is_impersonator() or b.is_impersonator():
-        #return return_value(values.W_Bool.make(imp.is_chaperone_of(a, b)), env, cont)
-    #if not a.immutable() or not b.immutable():
-        #return return_value(values.w_false, env, cont)
+    from ..interpreter import return_value
     config = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
     return equal_func(a, b, config, env, cont)
 
 @expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
 def impersonator_of(a, b, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     config = EqualInfo(for_chaperone=EqualInfo.IMPERSONATOR)
     return equal_func(a, b, config, env, cont)
 

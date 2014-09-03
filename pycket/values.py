@@ -625,7 +625,7 @@ def eq_hash(k):
 class W_HashTable(W_Object):
     errorname = "hash"
     def __init__(self, keys, vals, cmp=None, hash=eq_hash):
-        from pycket.equal_prims import eqp_logic
+        from pycket.prims.equal import eqp_logic
         if not cmp:
             cmp = eqp_logic
         assert len(keys) == len(vals)

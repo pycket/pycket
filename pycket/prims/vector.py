@@ -1,12 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import pycket.impersonators as imp
-from pycket            import values
-from pycket            import vector as values_vector
-from pycket.cont       import continuation, label
-from pycket.error      import SchemeException
-from pycket.exposeprim import unsafe, default, expose
+from ..      import impersonators as imp
+from ..      import values
+from ..      import vector as values_vector
+from ..cont  import continuation, label
+from ..error import SchemeException
+from .expose import unsafe, default, expose
 
 @expose("vector")
 def vector(args):
@@ -70,7 +70,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
 
 @label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     src_idx = i.value + src_start
     if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
@@ -86,7 +86,7 @@ def goto_vector_copy_loop(src, src_start, src_end, dest, dest_start, next, env, 
 
 @continuation
 def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+    from ..interpreter import check_one_val
     val  = check_one_val(_vals)
     idx  = values.W_Fixnum(i.value + dest_start)
     next = values.W_Fixnum(i.value + 1)
@@ -97,7 +97,7 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
 # FIXME: Chaperones
 @expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
         return v.vector_ref(i, env, cont)
     else:
@@ -113,7 +113,7 @@ def unsafe_vector_star_ref(v, i):
 # FIXME: Chaperones
 @expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
-    from pycket.interpreter import return_value
+    from ..interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
         return v.vector_set(i, new, env, cont)
     else:

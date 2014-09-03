@@ -2,7 +2,7 @@ from pycket import values
 from pycket import vector as values_vector
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
-from pycket.exposeprim import make_call_method
+from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
 from rpython.rlib import jit
 
