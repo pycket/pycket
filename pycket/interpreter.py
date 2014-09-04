@@ -305,8 +305,9 @@ class WCMValCont(Cont):
         self.key = key
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
-        prev = self if self.prev is None else self.prev
-        prev.update_cm(self.key, val)
+        if isinstance(self.key, values.W_ContinuationMarkKey):
+            return self.key.set_cmk(self.ast.body, val, env, self.prev)
+        self.prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
 
 

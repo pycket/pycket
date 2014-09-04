@@ -507,6 +507,34 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
             assert isinstance(k, W_ImpPropertyDescriptor)
             self.properties[k.name] = prop_vals[i]
 
+    def post_set_cont(self, body, key, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def get_cmk(self, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def set_cmk(self, body, value, env, cont):
+        return self.set_proc.call(value, env,
+                self.post_set_cont(body, value, env, cont))
+
+@continuation
+def imp_cmk_post_set_cont(body, inner, value, env, cont, _val):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_val)
+    return inner.set_cmk(val, body, env, cont)
+
+@make_chaperone
+class W_ChaperoneContinuationMarkKey(W_InterposeContinuationMarkKey):
+    def post_set_cont(self, body, key, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+@make_impersonator
+class W_ImpersonateContinuationMarkKey(W_InterposeContinuationMarkKey):
+    def post_set_cont(self, body, key, value, env, cont):
+        return imp_cmk_post_set_cont(body, self.inner, key, value, env, cont)
+
 class W_ImpPropertyDescriptor(values.W_Object):
     errorname = "chaperone-property"
     _immutable_fields_ = ["name"]

@@ -174,9 +174,15 @@ class W_ContinuationMarkKey(W_Object):
         self.name = name
 
     @label
-    def get(self, value, env, cont):
+    def get_cmk(self, value, env, cont):
         from pycket.interpreter import return_value
         return return_value(value, env, cont)
+
+    @label
+    def set_cmk(self, body, value, env, cont):
+        from pycket.interpreter import return_value
+        cont.update_cm(self, value)
+        return body, env, cont
 
     def tostring(self):
         return "#<continuation-mark-name>"
