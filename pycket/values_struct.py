@@ -6,6 +6,8 @@ from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
 from rpython.rlib import jit
 
+PREFAB = values.W_Symbol.make("prefab")
+
 # TODO: inspector currently does nothing
 class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
@@ -59,7 +61,7 @@ class W_StructType(values.W_Object):
              inspector=values.w_false, proc_spec=values.w_false,
              immutables=values.w_null, guard=values.w_false,
              constr_name=values.w_false):
-        if inspector is values.W_Symbol.make("prefab"):
+        if inspector is PREFAB:
             field_cnt = init_field_cnt.value
             struct_type = super_type
             while isinstance(struct_type, W_StructType):
@@ -75,6 +77,9 @@ class W_StructType(values.W_Object):
     def make_prefab(name, super_type, super_type_field_cnt, init_field_cnt):
         assert isinstance(name, values.W_Symbol)
         assert isinstance(init_field_cnt, values.W_Fixnum)
+        # TODO: the key should contain the name, supertype, field count,
+        # automatic field count, automatic field value (when there is at least one automatic field),
+        # and field mutability
         key = (name.value, init_field_cnt.value)
         if key in W_StructType.unbound_prefab_types:
             w_struct_type = W_StructType.unbound_prefab_types[key]
@@ -82,7 +87,8 @@ class W_StructType(values.W_Object):
             auto_field_cnt = values.W_Fixnum(0)
             if super_type:
                 super_type = W_StructType.make_prefab(super_type, None, None, super_type_field_cnt)
-            w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt, auto_field_cnt)
+            w_struct_type = W_StructType.make_simple(name, super_type, init_field_cnt,
+                auto_field_cnt, values.w_false, values.w_null, PREFAB)
             W_StructType.unbound_prefab_types[key] = w_struct_type
         return w_struct_type
 
@@ -191,7 +197,7 @@ class W_StructType(values.W_Object):
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.offsets = self.calculate_offsets()
-        self.isprefab = self.inspector is values.W_Symbol.make("prefab")
+        self.isprefab = self.inspector is PREFAB
         if self.isprefab:
             self.isopaque = False
         else:
@@ -230,6 +236,10 @@ class W_StructType(values.W_Object):
         skipped = values.w_false
         return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut,
                 immutable_k_list, super, skipped]
+
+    # TODO: 
+    def make_short_key(self):
+        return [self.name, self.super.name if self.super else None, self.init_field_cnt]
 
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
