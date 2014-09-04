@@ -4,7 +4,7 @@ import math
 import operator
 from ..      import values
 from ..error import SchemeException
-from .expose import expose, unsafe
+from .expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit
 
@@ -184,10 +184,22 @@ def make_unary_arith(name, methname):
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
 
+@expose("atan", [values.W_Number, default(values.W_Number, None)])
+def atan(y, x):
+    if x:
+        # FIXME: signs determine the quadrant of the result
+        # and care about NaNs and precision
+        if x != 0:
+            z = values.W_Fixnum(y.value / x.value)
+        else:
+            raise SchemeException(values.exn_fail_contract_divide_by_zero)
+    else:
+        z = y
+    return getattr(z, "arith_atan")()
+
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
-        ("atan", "arith_atan"),
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
