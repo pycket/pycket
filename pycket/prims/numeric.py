@@ -190,7 +190,7 @@ def atan(y, x):
         # FIXME: signs determine the quadrant of the result
         # and care about NaNs and precision
         if x != 0:
-            z = values.W_Fixnum(y.value / x.value)
+            z = values.W_Flonum(y.value / x.value)
         else:
             raise SchemeException(values.exn_fail_contract_divide_by_zero)
     else:
