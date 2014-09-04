@@ -76,7 +76,6 @@ def test_append_vararg(doctest):
     """
     assert doctest
 
-
 def test_for_each_single(doctest):
     """
     ! (require racket/private/map)
@@ -99,5 +98,20 @@ def test_for_each_vararg(doctest):
                   '(1 2 3) '(4 5 6) '(7 8 9))
         x)
     271
+    """
+    assert doctest
+
+def test_map(doctest):
+    """
+    ! (require (only-in '#%kernel map))
+    > (map (lambda (number)
+             (+ 1 number))
+           '(1 2 3 4))
+    '(2 3 4 5)
+    > (map (lambda (number1 number2)
+             (+ number1 number2))
+           '(1 2 3 4)
+           '(10 100 1000 10000))
+    '(11 102 1003 10004)
     """
     assert doctest

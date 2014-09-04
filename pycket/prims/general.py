@@ -434,7 +434,6 @@ for args in [ ("subprocess?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
-              ("complete-path?",),
               ("internal-definition-context?",),
               ("set!-transformer?",),
               ("rename-transformer?",),
@@ -541,7 +540,7 @@ def arity_at_least_p(n):
 @expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
 def procedure_arity_includes(p, n, w_kw_ok):
     # for now, ignore kw_ok
-    if not(isinstance(n, values.W_Fixnum)):
+    if not isinstance(n, values.W_Fixnum):
         return values.w_false # valid arities are always small integers
     n_val = n.value
     (ls, at_least) = p.get_arity()
@@ -743,7 +742,6 @@ def do_cadddr(args):
 def do_cdr(a):
     return a.cdr()
 
-
 @expose("mlist")
 def do_mlist(args):
     return values.to_mlist(args)
@@ -768,6 +766,45 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
+@expose("map", simple=False)
+def do_map(args, env, cont):
+    from ..interpreter import jump
+    if not args:
+        raise SchemeException("map expected at least two argument, got 0")
+    fn, lists = args[0], args[1:]
+    if not fn.iscallable():
+        raise SchemeException("map expected a procedure, got something else")
+
+    # FIXME: more errorchecking
+    assert len(args) >= 0
+    return map_loop(fn, lists, env, cont)
+
+@label
+def map_loop(f, lists, env, cont):
+    from ..interpreter import return_value
+    lists_new = []
+    args =[]
+    for l in lists:
+        if not isinstance(l, values.W_Cons):
+            if l is not values.w_null:
+                raise SchemeException("map: not given a proper list")
+            return return_value(values.w_null, env, cont)
+        args.append(l.car())
+        lists_new.append(l.cdr())
+    return f.call(args, env, map_first_cont(f, lists_new, env, cont))
+
+@continuation
+def map_first_cont(f, lists, env, cont, _vals):
+    from ..interpreter import check_one_val
+    val = check_one_val(_vals)
+    return map_loop(f, lists, env, map_cons_cont(f, lists, val, env, cont))
+
+@continuation
+def map_cons_cont(f, lists, val, env, cont, _vals):
+    from ..interpreter import check_one_val, return_value
+    rest = check_one_val(_vals)
+    return return_value(values.W_Cons.make(val, rest), env, cont)
+
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
     from ..interpreter import return_value
@@ -779,6 +816,7 @@ def for_each_cont(f, l, env, cont, vals):
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+
 
 @expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
@@ -1201,6 +1239,11 @@ def path_stringp(v):
     # FIXME: handle zeros in string
     return values.W_Bool.make(isinstance(v, values.W_String) or isinstance(v, values.W_Path))
 
+@expose("complete-path?", [values.W_Object])
+def complete_path(v):
+    # FIXME: stub
+    return values.w_false
+
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
     return values.W_Bytes(p.path)
@@ -1322,14 +1365,19 @@ def current_preserved_thread_cell_values(v):
         cell.value = val
     return values.w_void
 
-@expose("current-continuation-marks", [], simple=False)
-def current_cont_marks(env, cont):
+#@expose("continuation-marks",
+        #[values.W_Continuation, default(values.W_ContinuationPromptTag, None)])
+#def continuation_marks(cont, prompt_tag):
+    #return values.W_ContinuationPromptTag(cont.cont)
+
+@expose("current-continuation-marks", [default(values.W_ContinuationPromptTag, None)], simple=False)
+def current_cont_marks(prompt_tag, env, cont):
     from ..interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
 def cms_list(cms, mark):
-    return cont.get_marks(cms.cont, mark)
+    return cms.cont.get_marks(mark)
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_list(cms, mark, missing, env, con):
@@ -1341,17 +1389,10 @@ def cms_list(cms, mark, missing, env, con):
     else:
         raise SchemeException("Expected #f or a continuation-mark-set")
     v = cont.get_mark_first(the_cont, mark)
-    if v:
+    if v is not None:
         return return_value(v, env, con)
     else:
         return return_value(missing, env, con)
-
-@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
-def extend_paramz(paramz, key, val):
-    if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend(key, val)
-    else:
-        return paramz # This really is the Racket behavior
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):
@@ -1364,6 +1405,13 @@ def mcpt(s):
     from ..interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
+
+@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
+def extend_paramz(paramz, key, val):
+    if isinstance(paramz, values.W_Parameterization):
+        return paramz.extend(key, val)
+    else:
+        return paramz # This really is the Racket behavior
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):

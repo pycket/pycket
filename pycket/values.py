@@ -172,6 +172,18 @@ class W_ContinuationMarkKey(W_Object):
     _immutable_fields_ = ["name"]
     def __init__(self, name):
         self.name = name
+
+    @label
+    def get_cmk(self, value, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(value, env, cont)
+
+    @label
+    def set_cmk(self, body, value, env, cont):
+        from pycket.interpreter import return_value
+        cont.update_cm(self, value)
+        return body, env, cont
+
     def tostring(self):
         return "#<continuation-mark-name>"
 
@@ -830,6 +842,7 @@ def from_list(w_curr):
         raise SchemeException("Expected list, but got something else")
 
 class W_Continuation(W_Procedure):
+    errorname = "continuation"
     _immutable_fields_ = ["cont"]
     def __init__ (self, cont):
         self.cont = cont
@@ -921,7 +934,6 @@ class W_Closure(W_Procedure):
             cont)
 
 inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
-
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and

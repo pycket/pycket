@@ -491,6 +491,50 @@ class W_ChpStruct(W_InterposeStructBase):
     def post_set_cont(self, op, val, env, cont):
         return chp_struct_set_cont(self.inner, op, val, env, cont)
 
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
+    errorname = "interpose-continuation-mark-key"
+    _immutable_fields_ = ["inner", "get_proc", "set_proc", "properties"]
+    def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
+        assert get_proc.iscallable()
+        assert set_proc.iscallable()
+        assert len(prop_keys) == len(prop_vals)
+        self.inner    = mark
+        self.get_proc = get_proc
+        self.set_proc = set_proc
+        self.properties = {}
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k.name] = prop_vals[i]
+
+    def post_set_cont(self, body, key, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def get_cmk(self, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def set_cmk(self, body, value, env, cont):
+        return self.set_proc.call(value, env,
+                self.post_set_cont(body, value, env, cont))
+
+@continuation
+def imp_cmk_post_set_cont(body, inner, value, env, cont, _val):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_val)
+    return inner.set_cmk(val, body, env, cont)
+
+@make_chaperone
+class W_ChaperoneContinuationMarkKey(W_InterposeContinuationMarkKey):
+    def post_set_cont(self, body, key, value, env, cont):
+        raise NotImplementedError("abstract method")
+
+@make_impersonator
+class W_ImpersonateContinuationMarkKey(W_InterposeContinuationMarkKey):
+    def post_set_cont(self, body, key, value, env, cont):
+        return imp_cmk_post_set_cont(body, self.inner, key, value, env, cont)
+
 class W_ImpPropertyDescriptor(values.W_Object):
     errorname = "chaperone-property"
     _immutable_fields_ = ["name"]
@@ -519,3 +563,4 @@ class W_ImpPropertyAccessor(W_ImpPropertyFunction):
         return lookup_property(obj, self.name)
 
 w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")
+

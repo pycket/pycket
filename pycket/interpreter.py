@@ -2,7 +2,7 @@ from pycket                   import values
 from pycket                   import vector
 from pycket.prims.expose      import prim_env
 from pycket.error             import SchemeException
-from pycket.cont              import Cont
+from pycket.cont              import Cont, nil_continuation
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from small_list               import inline_small_list
@@ -30,6 +30,10 @@ class ModuleCache(object):
     modules = {}
 
 ModuleCache.instance = ModuleCache()
+
+class Done(Exception):
+    def __init__(self, vals):
+        self.values = vals
 
 def var_eq(a, b):
     if isinstance(a, LexicalVar) and isinstance(b, LexicalVar):
@@ -161,7 +165,6 @@ class TrampolineCont(Cont):
 
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("unreachable")
-
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "i"]
@@ -302,15 +305,11 @@ class WCMValCont(Cont):
         self.key = key
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
-        prev = self.prev
-        if not prev:
-            prev = self
-        prev.update_cm(self.key, val)
+        if isinstance(self.key, values.W_ContinuationMarkKey):
+            return self.key.set_cmk(self.ast.body, val, env, self.prev)
+        self.prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
 
-class Done(Exception):
-    def __init__(self, vals):
-        self.values = vals
 
 class AST(object):
     _attrs_ = ["should_enter", "mvars"]
@@ -467,8 +466,6 @@ def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
 def return_multi_vals(vals, env, cont):
-    if cont is None:
-        raise Done(vals)
     return the_trampoline, env, TrampolineCont(vals, cont)
 
 class Cell(AST):
@@ -1378,7 +1375,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
 def interpret_one(ast, env=None):
     #import pdb
     #pdb.set_trace()
-    cont = None
+    cont = nil_continuation
     if not env:
         env = ToplevelEnv()
     try:
