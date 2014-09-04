@@ -289,7 +289,6 @@ class W_RootStruct(values.W_Object):
         args = [self] + args
         return self.checked_call(proc, args, env, cont)
 
-    @jit.elidable
     def struct_type(self):
         raise NotImplementedError("abstract base class")
 
@@ -326,7 +325,6 @@ class W_Struct(W_RootStruct):
     def vals(self):
         return self._get_full_list()
 
-    @jit.elidable
     def struct_type(self):
         return self._type
 

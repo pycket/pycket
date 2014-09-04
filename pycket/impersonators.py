@@ -121,7 +121,6 @@ class W_InterposeProcedure(values.W_Procedure):
 class W_ImpProcedure(W_InterposeProcedure):
     errorname = "imp-procedure"
 
-    @jit.elidable
     def post_call_cont(self, args, env, cont):
         return imp_proc_cont(args, self.inner, env, cont)
 
@@ -169,7 +168,6 @@ class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
     _immutable_fields_ = ["inner", "check"]
 
-    @jit.elidable
     def post_call_cont(self, args, env, cont):
         return chp_proc_cont(args, self.inner, env, cont)
 
@@ -240,11 +238,9 @@ class W_ChpBox(W_InterposeBox):
     errorname = "chp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
-    @jit.elidable
     def post_unbox_cont(self, env, cont):
         return chp_unbox_cont(self.unboxh, self.inner, env, cont)
 
-    @jit.elidable
     def post_set_box_cont(self, val, env, cont):
         return chp_box_set_cont(self.inner, val, env, cont)
 
@@ -266,11 +262,9 @@ class W_ImpBox(W_InterposeBox):
     errorname = "imp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
-    @jit.elidable
     def post_unbox_cont(self, env, cont):
         return imp_unbox_cont(self.unboxh, self.inner, env, cont)
 
-    @jit.elidable
     def post_set_box_cont(self, val, env, cont):
         return imp_box_set_cont(self.inner, val, env, cont)
 
@@ -346,11 +340,9 @@ class W_InterposeVector(values.W_MVector):
 class W_ImpVector(W_InterposeVector):
     errorname = "impersonate-vector"
 
-    @jit.elidable
     def post_set_cont(self, new, i, env, cont):
         return imp_vec_set_cont(new, self.inner, i, env, cont)
 
-    @jit.elidable
     def post_ref_cont(self, i, env, cont):
         return imp_vec_ref_cont(self.refh, i, self.inner, env, cont)
 
@@ -358,11 +350,9 @@ class W_ImpVector(W_InterposeVector):
 class W_ChpVector(W_InterposeVector):
     errorname = "chaperone-vector"
 
-    @jit.elidable
     def post_set_cont(self, new, i, env, cont):
         return chp_vec_set_cont(new, self.inner, i, env, cont)
 
-    @jit.elidable
     def post_ref_cont(self, i, env, cont):
         return chp_vec_ref_cont(self.refh, i, self.inner, env, cont)
 
@@ -418,8 +408,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_set_cont(self, op, val, env, cont):
         raise NotImplementedError("abstract method")
 
-    @jit.elidable
     def struct_type(self):
+        return self._struct_type()
+
+    @jit.elidable
+    def _struct_type(self):
         struct = get_base_object(self.inner)
         assert isinstance(struct, values_struct.W_Struct)
         return struct.struct_type()
@@ -448,11 +441,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 @make_impersonator
 class W_ImpStruct(W_InterposeStructBase):
 
-    @jit.elidable
     def post_ref_cont(self, interp, env, cont):
         return imp_struct_ref_cont(interp, self.inner, env, cont)
 
-    @jit.elidable
     def post_set_cont(self, op, val, env, cont):
         return imp_struct_set_cont(self.inner, op, val, env, cont)
 
@@ -483,11 +474,9 @@ def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
 
-    @jit.elidable
     def post_ref_cont(self, interp, env, cont):
         return chp_struct_ref_cont(interp, self.inner, env, cont)
 
-    @jit.elidable
     def post_set_cont(self, op, val, env, cont):
         return chp_struct_set_cont(self.inner, op, val, env, cont)
 
