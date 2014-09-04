@@ -126,13 +126,23 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     code = []
     tail = []
     assert len(pairs_of_equal_stuff) % 2 == 0
+    ind = 0
     for i in range(len(pairs_of_equal_stuff) // 2):
         a = pairs_of_equal_stuff[i * 2]
         b = pairs_of_equal_stuff[i * 2 + 1]
-        snippet = "(equal? %s %s)" % (a, b)
-        code.append("  " * i + "(if %s" % snippet)
-        tail.append("  " * (i + 1) + "%s)" % i)
-    code.append("  " * (i + 1) + "#t")
+        ind += 1
+        if isinstance(a, list):
+            code.append("  " * ind + "(let ()")
+            ind += 1
+            code.extend(["  " * ind + x for x in a[:-1]])
+            code.append( "  " * ind + ("(if (equal? %s %s)" % (a[-1], b)))
+            ind += 1
+            tail.append("  " * ind + "%s))" % i)
+        else:
+            snippet = "(equal? %s %s)" % (a, b)
+            code.append("  " * ind + "(if %s" % snippet)
+            tail.append("  " * (ind + 1) + "%s)" % i)
+    code.append("  " * (ind + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
     res = execute(code, extra=kwargs.get("extra", ""))

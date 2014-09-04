@@ -57,7 +57,7 @@ def pytest_funcarg__doctest(request):
     extra = []
     exprs = []
     expect = []
-    current_expr = ""
+    current_let = []
     for line in lines:
         if ";" in line: # strip comments
             line = line[:line.find(";")]
@@ -67,14 +67,12 @@ def pytest_funcarg__doctest(request):
         elif line[0] == "!":
             extra.append(line[2:])
         elif line[0] == ">":
-            if current_expr:
-                extra.append(current_expr)
-            current_expr = line[2:]
+            current_let.append(line[2:])
         elif line[0] in " \t":
-            current_expr += "\n" + line[2:]
+            current_let[-1] += "\n" + line[2:]
         else:
-            exprs.append(current_expr)
-            current_expr = ""
+            exprs.append(current_let[0] if len(current_let) == 1 else current_let)
+            current_let = []
             expect.append(line)
     pairs = []
     for pair in zip(exprs,expect):
