@@ -771,35 +771,39 @@ def do_map(args, env, cont):
     from ..interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
-    fn = args.pop(0)
+    fn, lists = args[0], args[1:]
     if not fn.iscallable():
         raise SchemeException("map expected a procedure, got something else")
 
     # FIXME: more errorchecking
     assert len(args) >= 0
-    return jump(env, map_cont(fn, args, env, cont))
+    return map_loop(fn, lists, env, cont)
+
+@label
+def map_loop(f, lists, env, cont):
+    from ..interpreter import return_value
+    lists_new = []
+    args =[]
+    for l in lists:
+        if not isinstance(l, values.W_Cons):
+            if l is not values.w_null:
+                raise SchemeException("map: not given a proper list")
+            return return_value(values.w_null, env, cont)
+        args.append(l.car())
+        lists_new.append(l.cdr())
+    return f.call(args, env, map_first_cont(f, lists_new, env, cont))
 
 @continuation
-def cons_cont(env, cont, vals):
-    from ..interpreter import return_value
-    if vals._get_size_list() == 1:
-        return return_value(vals._get_list(0), env, cont)
-
-    assert vals._get_size_list() == 2
-    w_car, w_cdr = vals._get_list(0), vals._get_list(1)
-    return return_value(do_cons(w_car, w_cdr), env, cont)
+def map_first_cont(f, lists, env, cont, _vals):
+    from ..interpreter import check_one_val
+    val = check_one_val(_vals)
+    return map_loop(f, lists, env, map_cons_cont(f, lists, val, env, cont))
 
 @continuation
-def map_cont(f, ls, env, cont, vals):
-    from ..interpreter import return_value
-    if ls[0] is values.w_null:
-        return return_value(values.w_null, env, cont)
-    # FIXME: more errorchecking
-    cars, cdrs = [None] * len(ls), [None] * len(ls)
-    for index, l in enumerate(ls):
-        cars[index], cdrs[index] = l.car(), l.cdr()
-
-    return f.call(cars, env, map_cont(f, cdrs, env, cons_cont(env, cont)))
+def map_cons_cont(f, lists, val, env, cont, _vals):
+    from ..interpreter import check_one_val, return_value
+    rest = check_one_val(_vals)
+    return return_value(values.W_Cons.make(val, rest), env, cont)
 
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):

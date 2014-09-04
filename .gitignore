@@ -6,3 +6,4 @@ pycket-c*
 *.json
 *pypylog
 *.exe
+*.swp
