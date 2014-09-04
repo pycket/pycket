@@ -397,6 +397,8 @@ class __extend__(values.W_Fixnum):
         return values.W_Flonum(math.sin(self.value))
     def arith_sqrt(self):
         assert 0
+    def arith_log(self):
+        return values.W_Flonum(math.log(self.value))
     def arith_cos(self):
         return values.W_Flonum(math.cos(self.value))
     def arith_atan(self):
@@ -584,6 +586,8 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(math.sin(self.value))
     def arith_sqrt(self):
         return values.W_Flonum(math.sqrt(self.value))
+    def arith_log(self):
+        return values.W_Flonum(math.log(self.value))
     def arith_cos(self):
         return values.W_Flonum(math.cos(self.value))
     def arith_atan(self):

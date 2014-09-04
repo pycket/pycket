@@ -201,6 +201,7 @@ for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
         ("sqrt", "arith_sqrt"),
+        ("log", "arith_log"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
