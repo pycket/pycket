@@ -203,6 +203,7 @@ for args in [
         ("sqrt", "arith_sqrt"),
         ("log", "arith_log"),
         ("sub1", "arith_sub1"),
+        ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
         ("negative?", "arith_negativep"),
