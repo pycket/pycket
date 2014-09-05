@@ -743,7 +743,10 @@ class Var(AST):
         self.sym = sym
         self.env_structure = env_structure
     def interpret_simple(self, env):
-        return self._lookup(env)
+        val = self._lookup(env)
+        if val is None:
+            raise SchemeException("%s: undefined" % self.sym.value)
+        return val
     def _mutated_vars(self):
         return variable_set()
     def free_vars(self):
