@@ -187,7 +187,6 @@ def add1(v):
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
-        ("log", "arith_log"),
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
