@@ -9,7 +9,7 @@ from ..      import cont
 from ..      import values_struct
 from ..      import vector as values_vector
 from ..error import SchemeException
-from .expose import unsafe, default, expose, expose_val, procedure
+from .expose import unsafe, default, expose, expose_val, procedure, make_call_method
 from rpython.rlib      import jit
 from rpython.rlib.rsre import rsre_re as re
 
@@ -783,7 +783,7 @@ def do_map(args, env, cont):
 def map_loop(f, lists, env, cont):
     from ..interpreter import return_value
     lists_new = []
-    args =[]
+    args = []
     for l in lists:
         if not isinstance(l, values.W_Cons):
             if l is not values.w_null:
@@ -1375,9 +1375,28 @@ def current_cont_marks(prompt_tag, env, cont):
     from ..interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
-@expose("continuation-mark-set->list", [values.W_ContinuationMarkSet, values.W_Object])
-def cms_list(cms, mark):
-    return cms.cont.get_marks(mark)
+class CMKSetToListHandler(values.W_Procedure):
+    _immutable_fields_ = ["cmk"]
+    def __init__(self, cmk):
+        self.cmk = cmk
+
+    @make_call_method([values.W_Object], simple=False)
+    def call(self, value, env, cont):
+        return self.cmk.get_cmk(value, env, cont)
+
+    def tostring(self):
+        return "#<procedure>"
+
+@expose("continuation-mark-set->list",
+        [values.W_ContinuationMarkSet, values.W_Object], simple=False)
+def cms_list(cms, mark, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(mark, values.W_ContinuationMarkKey):
+        func  = CMKSetToListHandler(mark)
+        marks = cms.cont.get_marks(imp.get_base_object(mark))
+        return map_loop(func, [marks], env, cont)
+    marks = cms.cont.get_marks(mark)
+    return return_value(marks, env, cont)
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_list(cms, mark, missing, env, con):
@@ -1388,11 +1407,13 @@ def cms_list(cms, mark, missing, env, con):
         the_cont = cms.cont
     else:
         raise SchemeException("Expected #f or a continuation-mark-set")
-    v = cont.get_mark_first(the_cont, mark)
-    if v is not None:
-        return return_value(v, env, con)
-    else:
-        return return_value(missing, env, con)
+    is_cmk = isinstance(mark, values.W_ContinuationMarkKey)
+    m = imp.get_base_object(mark) if is_cmk else mark
+    v = cont.get_mark_first(the_cont, m)
+    val = v if v is not None else missing
+    if is_cmk:
+        return mark.get_cmk(val, env, con)
+    return return_value(val, env, con)
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):

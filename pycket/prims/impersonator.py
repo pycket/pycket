@@ -201,11 +201,17 @@ def chaperone_hash(args):
 
 @expose("chaperone-continuation-mark-key")
 def ccmk(args):
-    return args[0]
+    key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "chaperone-continuation-mark-key")
+    getter.mark_non_loop()
+    setter.mark_non_loop()
+    return imp.W_ChpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
 
 @expose("impersonate-continuation-mark-key")
 def icmk(args):
-    return args[0]
+    key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "impersonate-continuation-mark-key")
+    getter.mark_non_loop()
+    setter.mark_non_loop()
+    return imp.W_ImpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
 
 # TODO: This is not correct, based on Racket's internal implementation.
 # The addition checking for immutablity should be done recursively, rather

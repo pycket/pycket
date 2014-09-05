@@ -35,7 +35,8 @@ class Link(object):
         self.next = next
 
 class BaseCont(object):
-
+    # Racket also keeps a separate stack for continuation marks
+    # so that they can be saved without saving the whole continuation.
     def __init__(self):
         self.marks = None
 
@@ -82,8 +83,6 @@ class NilCont(BaseCont):
 nil_continuation = NilCont()
 
 class Cont(BaseCont):
-    # Racket also keeps a separate stack for continuation marks
-    # so that they can be saved without saving the whole continuation.
     _immutable_fields_ = ['env', 'prev']
     def __init__(self, env, prev):
         # TODO: Consider using a dictionary to store the marks
