@@ -144,6 +144,26 @@ def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
         return _make_result_handling_func(func_arg_unwrap, simple)
     return wrapper
 
+# Facility to convert a label into a callable object
+def make_callable_label(argstypes=None, arity=None, name="<label>"):
+    class LabelFunction(values.W_Procedure):
+        _immutable_fields_ = ["label"]
+        def __init__(self, label):
+            self.label = label
+
+        @make_call_method(argstypes=argstypes, arity=arity, simple=False)
+        def call(self, *rest):
+            return self.label(*rest)
+
+        def tostring(self):
+            return "#<procedure>"
+
+    def wrapper(label):
+        return LabelFunction(label)
+
+    return wrapper
+
+
 def expose_val(name, w_v):
     sym = values.W_Symbol.make(name)
     if sym in prim_env:

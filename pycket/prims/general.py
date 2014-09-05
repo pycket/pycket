@@ -14,6 +14,7 @@ from rpython.rlib      import jit
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
+from . import continuation_marks
 from . import equal as eq_prims
 from . import impersonator
 from . import numeric
@@ -71,6 +72,7 @@ for args in [
         ("char?", values.W_Character),
         ("continuation?", values.W_Continuation),
         ("continuation-mark-set?", values.W_ContinuationMarkSet),
+        ("continuation-mark-key?", values.W_ContinuationMarkKey),
         ("primitive?", values.W_Prim),
         ("keyword?", values.W_Keyword),
         ("weak-box?", values.W_WeakBox),
@@ -1364,62 +1366,6 @@ def current_preserved_thread_cell_values(v):
         assert cell.preserved.value
         cell.value = val
     return values.w_void
-
-#@expose("continuation-marks",
-        #[values.W_Continuation, default(values.W_ContinuationPromptTag, None)])
-#def continuation_marks(cont, prompt_tag):
-    #return values.W_ContinuationPromptTag(cont.cont)
-
-@expose("current-continuation-marks", [default(values.W_ContinuationPromptTag, None)], simple=False)
-def current_cont_marks(prompt_tag, env, cont):
-    from ..interpreter import return_value
-    return return_value(values.W_ContinuationMarkSet(cont), env, cont)
-
-class CMKSetToListHandler(values.W_Procedure):
-    _immutable_fields_ = ["cmk"]
-    def __init__(self, cmk):
-        self.cmk = cmk
-
-    @make_call_method([values.W_Object], simple=False)
-    def call(self, value, env, cont):
-        return self.cmk.get_cmk(value, env, cont)
-
-    def tostring(self):
-        return "#<procedure>"
-
-@expose("continuation-mark-set->list",
-        [values.W_ContinuationMarkSet, values.W_Object], simple=False)
-def cms_list(cms, mark, env, cont):
-    from pycket.interpreter import return_value
-    if isinstance(mark, values.W_ContinuationMarkKey):
-        func  = CMKSetToListHandler(mark)
-        marks = cms.cont.get_marks(imp.get_base_object(mark))
-        return map_loop(func, [marks], env, cont)
-    marks = cms.cont.get_marks(mark)
-    return return_value(marks, env, cont)
-
-@expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
-def cms_list(cms, mark, missing, env, con):
-    from ..interpreter import return_value
-    if cms is values.w_false:
-        the_cont = con
-    elif isinstance(cms, values.W_ContinuationMarkSet):
-        the_cont = cms.cont
-    else:
-        raise SchemeException("Expected #f or a continuation-mark-set")
-    is_cmk = isinstance(mark, values.W_ContinuationMarkKey)
-    m = imp.get_base_object(mark) if is_cmk else mark
-    v = cont.get_mark_first(the_cont, m)
-    val = v if v is not None else missing
-    if is_cmk:
-        return mark.get_cmk(val, env, con)
-    return return_value(val, env, con)
-
-@expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
-def mk_cmk(s):
-    from ..interpreter import Gensym
-    s = Gensym.gensym("cm") if s is None else s
-    return values.W_ContinuationMarkKey(s)
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
