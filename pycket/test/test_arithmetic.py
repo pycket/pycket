@@ -5,6 +5,7 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std
 from pycket.error import SchemeException
 
+skip = pytest.mark.skipif("True")
 
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
@@ -134,5 +135,21 @@ def test_string_to_number(doctest):
     -10000000000000000000000000001000000000000000000000000000
     > (string->number "10000000000000000000000000001000000000000000000000000000")
     10000000000000000000000000001000000000000000000000000000
+    """
+    assert doctest
+
+@skip
+def test_atan(doctest):
+    """
+    > (atan 0.5)
+    0.4636476090008061
+    > (atan 2 1)
+    1.1071487177940904
+    > (atan -2 -1)
+    -2.0344439357957027
+    ;> (atan 1.0+5.0i)
+    ;1.530881333938778+0.19442614214700213i
+    ;> (atan +inf.0 -inf.0)
+    ;2.356194490192345
     """
     assert doctest

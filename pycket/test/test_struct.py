@@ -4,34 +4,46 @@ import pytest
 
 skip = pytest.mark.skipif("True")
 
-def test_current_inspector(source):
-    """
-    (inspector? (current-inspector))
-    """
-    result = run_mod_expr(source, wrap=True)
-    assert result == w_true
 
-def test_make_struct_type(source):
-    """
-    (define-values (struct:p0 make-p0 p0? p0-ref p0-set!) (make-struct-type 'p0 #f 3 0 #f null 'prefab #f '(0 1 2)))
-    (and 
-      (struct-type? struct:p0) 
-      (struct-constructor-procedure? make-p0) 
-      (struct-predicate-procedure? p0?) 
-      (struct-accessor-procedure? p0-ref) 
-      (struct-mutator-procedure? p0-set!))
-    """
-    result = run_mod_expr(source, wrap=True)
-    assert result == w_true
+# Creating Structure Types
 
-def test_make_struct_field_accessor(source):
+def test_make_struct_type(doctest):
     """
-    (define-values (struct:p1 make-p1 p1? p1-ref p1-set!) (make-struct-type 'p1 #f 3 0 #f null 'prefab #f '(0 1 2)))
-    (define accessor (make-struct-field-accessor p1-ref 0))
-    (procedure? accessor)
+    > (define-values (struct:a make-a a? a-ref a-set!)
+        (make-struct-type 'a #f 2 1 'uninitialized))
+    > (define an-a (make-a 'x 'y))
+    > (a-ref an-a 1)
+    'y
+    > (a-ref an-a 2)
+    'uninitialized
+    > (define a-first (make-struct-field-accessor a-ref 0))
+    > (a-first an-a)
+    'x
+    > (define-values (struct:b make-b b? b-ref b-set!)
+        (make-struct-type 'b struct:a 1 2 'b-uninitialized))
+    > (define a-b (make-b 'x 'y 'z))
+    > (a-ref a-b 1)
+    'y
+    > (a-ref a-b 2)
+    'uninitialized
+    > (b-ref a-b 0)
+    'z
+    > (b-ref a-b 1)
+    'b-uninitialized
+    > (b-ref a-b 2)
+    'b-uninitialized
+    ;;;;;;;;;;;;;;;;
+    > (define p1 #s(p a b c))
+    > (define-values (struct:p make-p p? p-ref p-set!)
+        (make-struct-type 'p #f 3 0 #f null 'prefab #f '(0 1 2)))
+    > (p? p1)
+    #t
+    > (p-ref p1 0)
+    'a
+    > (make-p 'x 'y 'z)
+    '#s(p x y z)
     """
-    result = run_mod_expr(source, wrap=True)
-    assert result == w_true
+    assert doctest
 
 def test_struct_main_functions(source):
     """
@@ -43,20 +55,6 @@ def test_struct_main_functions(source):
            [x (posn-x p)]
            [y (posn-y p)])
     (and p? (not notp?) (= x 1) (= y 2)))
-    """
-    result = run_mod_expr(source, wrap=True)
-    assert result == w_true
-
-def test_struct_copying_and_update(source):
-    """
-    (struct posn (x y))
-
-    (let* ([p1 (posn 1 2)]
-           [p2 (struct-copy posn p1 [x 3])]
-           [x1 (posn-x p1)]
-           [x2 (posn-x p2)]
-           [y2 (posn-y p2)])
-    (and (= x1 1) (= x2 3) (= y2 2)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
@@ -180,6 +178,53 @@ def test_struct_guard():
     """)
     assert "bad name" in e.value.msg
 
+def test_struct_prefab():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (define lunch '#s(sprout bean))
+    (struct sprout (kind) #:prefab)
+    (define t (sprout? lunch))
+    (define f (sprout? #s(sprout bean #f 17)))
+
+    (define result (and (not f) t))
+    """)
+    assert m.defs[W_Symbol.make("result")] == w_true
+
+def test_unsafe():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
+    (struct 3dposn posn ([z #:mutable]))
+
+    (define p (3dposn 1 2 3))
+    (unsafe-struct*-set! p 2 4)
+    (define x (unsafe-struct*-ref p 2))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 4
+
+def test_unsafe_impersonators():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
+    (define a (posn 1 1))
+    (define b (impersonate-struct a))
+    (unsafe-struct-set! b 1 2)
+    (define x (unsafe-struct-ref b 1))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 2
+
+
+# Structure Type Properties
+
 def test_struct_prop_procedure():
     m = run_mod(
     """
@@ -295,20 +340,62 @@ def test_checked_procedure_check_and_extract(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-def test_struct_prefab():
-    m = run_mod(
+
+# Generic Interfaces
+
+def test_current_inspector(source):
     """
-    #lang pycket
-    (require racket/private/kw)
+    (inspector? (current-inspector))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
 
-    (define lunch '#s(sprout bean))
-    (struct sprout (kind) #:prefab)
-    (define t (sprout? lunch))
-    (define f (sprout? #s(sprout bean #f 17)))
 
-    (define result (and (not f) t))
-    """)
-    assert m.defs[W_Symbol.make("result")] == w_true
+# Copying and Updating Structures
+
+def test_struct_copying_and_update(doctest):
+    """
+    > (struct fish (color weight) #:transparent)
+    > (define marlin (fish 'orange-and-white 11))
+    > (define dory (struct-copy fish marlin
+                                [color 'blue]))
+    > dory
+    (fish 'blue 11)
+    > (struct shark fish (weeks-since-eating-fish) #:transparent)
+    > (define bruce (shark 'grey 110 3))
+    > (define chum (struct-copy shark bruce
+                                [weight #:parent fish 90]
+                                [weeks-since-eating-fish 0]))
+    > chum
+    (shark 'grey 90 0)
+    ; subtypes can be copied as if they were supertypes,
+    ; but the result is an instance of the supertype
+    > (define not-really-chum
+        (struct-copy fish bruce
+                     [weight 90]))
+    > not-really-chum
+    (fish 'grey 90)
+    """
+    assert doctest
+
+
+# Structure Utilities
+
+@skip
+def test_struct_utils(doctest):
+    """
+    > (prefab-struct-key #s(cat "Garfield"))
+    'cat
+    > (struct cat (name) #:prefab)
+    > (struct cute-cat cat (shipping-dest) #:prefab)
+    > (cute-cat "Nermel" "Abu Dhabi")
+    '#s((cute-cat cat 1) "Nermel" "Abu Dhabi")
+    > (prefab-struct-key (cute-cat "Nermel" "Abu Dhabi"))
+    '(cute-cat cat 1)
+    """
+    assert doctest
+
+# Other
 
 @skip
 def test_procedure():
@@ -324,32 +411,3 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
-
-def test_unsafe():
-    m = run_mod(
-    """
-    #lang pycket
-
-    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
-    (struct 3dposn posn ([z #:mutable]))
-
-    (define p (3dposn 1 2 3))
-    (unsafe-struct*-set! p 2 4)
-    (define x (unsafe-struct*-ref p 2))
-    """)
-    ov = m.defs[W_Symbol.make("x")]
-    assert ov.value == 4
-
-def test_unsafe_impersonators():
-    m = run_mod(
-    """
-    #lang pycket
-
-    (struct posn ([x #:mutable] [y #:mutable]) #:transparent)
-    (define a (posn 1 1))
-    (define b (impersonate-struct a))
-    (unsafe-struct-set! b 1 2)
-    (define x (unsafe-struct-ref b 1))
-    """)
-    ov = m.defs[W_Symbol.make("x")]
-    assert ov.value == 2

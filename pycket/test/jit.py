@@ -420,3 +420,25 @@ class TestLLtype(LLJitMixin):
 
     def test_binarytree(self):
         self.run_file("binarytree.rkt")
+
+    def test_mappy(self):
+        ast = parse_module(expand_string("""#lang racket/base
+        ;(require (only-in '#%kernel map))
+        (letrec
+            ([inc      (lambda (x) (+ 1 x))]
+             [makelist (lambda (a) 
+                         (if (zero? a)
+                             '()
+                             (cons (modulo a 20) (makelist (- a 1)))))]
+             [l        (makelist 10000)])
+          (map inc l))
+        """))
+
+        def interp_w():
+            val = interpret_module(ast)
+            return val
+
+        # assert interp_w()
+
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+

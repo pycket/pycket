@@ -78,7 +78,7 @@ def test_append_vararg(doctest):
 
 def test_for_each_single(doctest):
     """
-    ! (require racket/private/map)
+    ! (require (only-in '#%kernel for-each))
     > (let ([x 0])
         (for-each (lambda (y)
                     (set! x (+ x y)))
@@ -91,7 +91,7 @@ def test_for_each_single(doctest):
 @pytest.mark.xfail
 def test_for_each_vararg(doctest):
     """
-    ! (require racket/private/map)
+    ! (require (only-in '#%kernel for-each))
     > (let ([x 1])
         (for-each (lambda (a b c)
                     (set! x (+ x (* a b c))))
