@@ -460,7 +460,7 @@ def tailcall(code, args, env, cont):
     return jump(env, tailcall_cont(code, args, env, cont))
 
 def jump(env, cont):
-    return the_trampoline, env, TrampolineCont(empty_vals, cont)
+    return return_multi_vals(empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
