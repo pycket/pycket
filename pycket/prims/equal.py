@@ -124,31 +124,30 @@ def equal_func(a, b, info, env, cont):
             return return_value(values.w_false, env, cont)
         return equal_vec_func(a, b, values.W_Fixnum(0), info, env, cont)
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
-        if not a.eqv(b):
-            a_type = a.struct_type()
-            b_type = b.struct_type()
-            for w_car, w_prop in a_type.props:
-                if w_car.isinstance(values_struct.w_prop_equal_hash):
-                    for w_car, w_prop in b_type.props:
-                        if w_car.isinstance(values_struct.w_prop_equal_hash):
-                            assert isinstance(w_prop, values_vector.W_Vector)
-                            w_equal_proc, w_hash_proc, w_hash2_proc = \
-                                w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
-                            # FIXME: it should work with cycles properly and be an equal?-recur
-                            w_equal_recur = values.W_Prim("equal?-recur", equalp)
-                            return w_equal_proc.call([a, b, w_equal_recur], env, cont)
-            if not a.struct_type().isopaque and not b.struct_type().isopaque:
-                # This is probably not correct even if struct2vector were done
-                # correct, due to side effects, but it is close enough for now.
-                a_imm = len(a_type.immutables) == a_type.total_field_cnt
-                b_imm = len(b_type.immutables) == b_type.total_field_cnt
-                l = values_struct.struct2vector(a, immutable=a_imm)
-                r = values_struct.struct2vector(b, immutable=b_imm)
-                return equal_func(l, r, info, env, cont)
-        else:
-            return return_value(values.w_true, env, cont)
+        a_type = a.struct_type()
+        b_type = b.struct_type()
+        for w_car, w_prop in a_type.props:
+            if w_car.isinstance(values_struct.w_prop_equal_hash):
+                for w_car, w_prop in b_type.props:
+                    if w_car.isinstance(values_struct.w_prop_equal_hash):
+                        assert isinstance(w_prop, values_vector.W_Vector)
+                        w_equal_proc, w_hash_proc, w_hash2_proc = \
+                            w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+                        # FIXME: it should work with cycles properly and be an equal?-recur
+                        w_equal_recur = values.W_Prim("equal?-recur", equalp)
+                        return w_equal_proc.call([a, b, w_equal_recur], env, cont)
+        if not a.struct_type().isopaque and not b.struct_type().isopaque:
+            # This is probably not correct even if struct2vector were done
+            # correct, due to side effects, but it is close enough for now.
+            # Though the racket documentation says that `equal?` can elide
+            # impersonator/chaperone handlers.
+            a_imm = len(a_type.immutables) == a_type.total_field_cnt
+            b_imm = len(b_type.immutables) == b_type.total_field_cnt
+            l = values_struct.struct2vector(a, immutable=a_imm)
+            r = values_struct.struct2vector(b, immutable=b_imm)
+            return equal_func(l, r, info, env, cont)
 
-    return return_value(values.W_Bool.make(a.eqv(b)), env, cont)
+    return return_value(values.w_false, env, cont)
 
 def eqp_logic(a, b):
     if a is b:
