@@ -4,7 +4,7 @@ import math
 import operator
 from ..      import values
 from ..error import SchemeException
-from .expose import expose, unsafe
+from .expose import expose, unsafe, default
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit
 
@@ -187,7 +187,7 @@ def add1(v):
 for args in [
         ("sin", "arith_sin"),
         ("cos", "arith_cos"),
-        ("atan", "arith_atan"),
+        ("log", "arith_log"),
         ("sqrt", "arith_sqrt"),
         ("sub1", "arith_sub1"),
         ("exact->inexact", "arith_exact_inexact"),
@@ -199,6 +199,11 @@ for args in [
         ("abs", "arith_abs")
         ]:
     make_unary_arith(*args)
+
+@expose("atan", [values.W_Number, default(values.W_Number, None)])
+def atan(y, x):
+    # FIXME: Don't ignore second argument
+    return y.arith_atan()
 
 ## Unsafe Fixnum ops
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
