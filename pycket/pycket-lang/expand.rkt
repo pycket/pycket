@@ -15,6 +15,18 @@
   (parameterize ([current-namespace (make-base-namespace)])
     (namespace-syntax-introduce (expand stx))))
 
+(define (do-post-expand stx in-path)
+  (define m `(module mod racket/base
+               (define stx (quote-syntax ,stx))
+               (provide stx)))
+  (if in-path
+      (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
+                     [current-module-declare-source in-path]
+                     [current-namespace (make-base-namespace)])
+        (eval m)
+        (dynamic-require in-path 'stx))
+      stx))
+
 (define current-module (make-parameter #f))
 
 (define (index->path i)
@@ -161,7 +173,7 @@
                           'syntax-original       (syntax-original? v)
                           'syntax-source-module  (syntax-source-module->hash
                                                   (syntax-source-module v #f))
-                          'syntax-source-moulde* (syntax-source-module->hash
+                          'syntax-source-module* (syntax-source-module->hash
                                                   (syntax-source-module v #t)))))))
 
 (define (to-json* v)
@@ -357,6 +369,7 @@
   (read-accept-reader #t)
   (read-accept-lang #t)
 
+  (define in-path (and in (build-path (current-directory) in)))
   (let loop ()
     (define mod
       ;; hack b/c I can't write EOF from Python
@@ -377,7 +390,7 @@
              ;(eprintf "starting read-syntax\n")
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
-    (define expanded (do-expand mod))
+    (define expanded (do-post-expand (do-expand mod) in-path))
     (write-json (convert expanded) out)
     (newline out)
     (flush-output out)
