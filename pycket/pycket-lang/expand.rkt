@@ -15,6 +15,18 @@
   (parameterize ([current-namespace (make-base-namespace)])
     (namespace-syntax-introduce (expand stx))))
 
+(define (do-post-expand stx in-path)
+  (define m `(module mod racket/base
+               (define stx (quote-syntax ,stx))
+               (provide stx)))
+  (if in-path
+      (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
+                     [current-module-declare-source in-path]
+                     [current-namespace (make-base-namespace)])
+        (eval m)
+        (dynamic-require in-path 'stx))
+      stx))
+
 (define current-module (make-parameter #f))
 
 (define (index->path i)
@@ -100,14 +112,14 @@
     (if (eq? 'lexical (identifier-binding id))
         (dict-ref! table id (λ _ (gen-name id)))
         sym))
-  (symbol->string 
+  (symbol->string
    (if (quoted?)
        (syntax-e id)
        sym*)))
 
 (define (flatten s)
   (let loop ([s s])
-    (cond 
+    (cond
       [(and (syntax? s) (pair? (syntax-e s)))
        (loop (syntax-e s))]
       [(pair? s)
@@ -137,6 +149,34 @@
              'imag-part (num (imag-part n)))]))
 
 (define (to-json v)
+  (define (path/symbol/list->string o)
+    (cond [(path-string? o) (hash 'path (path->string o))]
+          [(symbol? o)      (hash 'quote (symbol->string o))]
+          [(list? o)        (map path/symbol/list->string o)]
+          [else o]))
+  (define (syntax-source-module->hash m)
+    (cond [(module-path-index? m)
+           (hash 'module-path-index
+                 (let ((rm (resolved-module-path-name (module-path-index-resolve m))))
+                   (path/symbol/list->string rm)))]
+          [else (path/symbol/list->string m)]))
+  (let ([r (to-json* v)])
+    (if (not (hash? r))
+        r
+        (hash-set r 'stx (hash
+                          'syntax-source         (path/symbol/list->string
+                                                  (syntax-source v))
+                          'syntax-line           (syntax-line v)
+                          'syntax-column         (syntax-column v)
+                          'syntax-position       (syntax-position v)
+                          'syntax-span           (syntax-span v)
+                          'syntax-original       (syntax-original? v)
+                          'syntax-source-module  (syntax-source-module->hash
+                                                  (syntax-source-module v #f))
+                          'syntax-source-module* (syntax-source-module->hash
+                                                  (syntax-source-module v #t)))))))
+
+(define (to-json* v)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
@@ -145,7 +185,7 @@
                               module* module #%plain-app quote #%require quote-syntax
                               with-continuation-mark #%declare #%provide)
     [v:str (hash 'string (syntax-e #'v))]
-    [v 
+    [v
      #:when (path? (syntax-e #'v))
      (hash 'path (path->string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
@@ -166,7 +206,7 @@
      (let ([key (prefab-struct-key (syntax-e v))]
            [pats (cdr (vector->list (struct->vector (syntax-e v))))])
        (parameterize ([quoted? #t])
-         (hash 
+         (hash
           'prefab-key (to-json (datum->syntax #f key))
           'struct (map to-json pats))))]
     [(#%plain-app e0 e ...)
@@ -214,7 +254,7 @@
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
-    [(a . b) 
+    [(a . b)
      (let-values ([(s r) (flatten v)])
        (if r
            (hash 'improper (list (map to-json s) (to-json r)))
@@ -329,6 +369,7 @@
   (read-accept-reader #t)
   (read-accept-lang #t)
 
+  (define in-path (and in (build-path (current-directory) in)))
   (let loop ()
     (define mod
       ;; hack b/c I can't write EOF from Python
@@ -349,7 +390,7 @@
              ;(eprintf "starting read-syntax\n")
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
-    (define expanded (do-expand mod))
+    (define expanded (do-post-expand (do-expand mod) in-path))
     (write-json (convert expanded) out)
     (newline out)
     (flush-output out)
