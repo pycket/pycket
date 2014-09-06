@@ -20,6 +20,7 @@ from . import impersonator
 from . import numeric
 from . import random
 from . import string
+from . import undefined
 from . import vector
 
 def make_pred(name, cls):
@@ -138,7 +139,6 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
-expose_val("unsafe-undefined", values.w_unsafe_undefined)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",

@@ -379,16 +379,17 @@ def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors", "mutators", "handlers", "properties"]
+    _immutable_fields = ["inner", "accessors", "mutators", "struct_props", "handlers", "properties"]
 
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
-        self.inner = inner
-        self.accessors = {}
-        self.mutators = {}
-        self.properties = {}
+        self.inner        = inner
+        self.accessors    = {}
+        self.mutators     = {}
+        self.struct_props = {}
+        self.properties   = {}
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
@@ -396,6 +397,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 self.accessors[base.field.value] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 self.mutators[base.field.value] = (op, handlers[i])
+            elif isinstance(base, values_struct.W_StructPropertyAccessor):
+                self.struct_props[base] = (op, handlers[i])
             else:
                 assert False
         for i, k in enumerate(prop_keys):
@@ -430,8 +433,16 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         (op, interp) = self.mutators.get(field, (None, None))
         if interp is None or op is None:
             return self.inner.set(struct_id, field, val, env, cont)
-        return interp.call([self.inner, val], env,
-                self.post_set_cont(op, val, env, cont))
+        after = self.post_set_cont(op, val, env, cont)
+        return interp.call([self.inner, val], env, after)
+
+    @label
+    def get_prop(self, property, env, cont):
+        (op, interp) = self.struct_props.get(property, (None, None))
+        if interp is None or op is None:
+            return self.inner.get_prop(property, env, cont)
+        after = self.post_ref_cont(interp, env, cont)
+        return op.call([self.inner], env, after)
 
     # FIXME: This is incorrect
     def vals(self):

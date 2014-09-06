@@ -108,6 +108,22 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     else:
         return func_arg_unwrap
 
+# FIXME: Abstract away the common operations between this and expose
+def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
+    def wrapper(func):
+        names = [n] if isinstance(n, str) else n
+        name = names[0]
+        if argstypes is not None:
+            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
+            if arity is not None:
+                _arity = arity
+        else:
+            func_arg_unwrap = func
+            _arity = arity or ([], 0)
+        func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
+        return values.W_Prim(name, func_result_handling, _arity)
+    return wrapper
+
 def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
     def wrapper(func):
         names = [n] if isinstance(n, str) else n

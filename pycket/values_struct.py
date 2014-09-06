@@ -300,6 +300,10 @@ class W_RootStruct(values.W_Object):
     def set(self, struct_type, field, val, env, cont):
         raise NotImplementedError("abstract base class")
 
+    @label
+    def get_prop(self, property, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def vals(self):
         raise NotImplementedError("abstract base class")
 
@@ -354,6 +358,17 @@ class W_Struct(W_RootStruct):
         else:
             self._set_list(field + offset, values.W_Cell(val))
         return return_value(values.w_void, env, cont)
+
+    # We provide a method to get properties from a struct rather than a struct_type,
+    # since impersonators can override struct properties.
+    @label
+    def get_prop(self, property, env, cont):
+        from pycket.interpreter import return_value
+        for p, val in self._type.props:
+            if p is property:
+                return return_value(val, env, cont)
+        raise SchemeException("%s-accessor: expected %s? but got %s" %
+            (property.name, property.name, self.tostring()))
 
     # unsafe versions
     def _ref(self, k):
@@ -580,18 +595,13 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    @make_call_method([values.W_Object])
-    def _call(self, arg):
-        if isinstance(arg, W_Struct):
-            props = arg.struct_type().props
-        else:
-            raise SchemeException("%s-accessor: expected %s? but got %s" %
-                (self.property.name, self.property.name, arg.tostring()))
-        for (p, val) in props:
-            if p is self.property:
-                return val
+    @make_call_method([values.W_Object], simple=False)
+    def _call(self, arg, env, cont):
+        from pycket.interpreter import return_value
+        if isinstance(arg, W_RootStruct):
+            return arg.get_prop(self.property, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
-            (self.property.name, self.property.name, arg.tostring()))
+                (self.property.name, self.property.name, arg.tostring()))
 
 def struct2vector(struct, immutable=False):
     struct_desc = struct.struct_type().name
