@@ -361,6 +361,7 @@
 
   ;; If the given input is a file name, then chdir to its containing
   ;; directory so the expand function works properly
+  (define in-path (and in (build-path (current-directory) in)))
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
     (current-module (object-name input))
@@ -369,7 +370,6 @@
   (read-accept-reader #t)
   (read-accept-lang #t)
 
-  (define in-path (and in (build-path (current-directory) in)))
   (let loop ()
     (define mod
       ;; hack b/c I can't write EOF from Python
