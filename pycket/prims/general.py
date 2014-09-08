@@ -154,6 +154,7 @@ expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
 expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
+expose_val("prop:chaperone-unsafe-undefined", values_struct.w_prop_chaperone_unsafe_undefined)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
