@@ -14,8 +14,7 @@ env:
     - TEST_TYPE=translate
     - TEST_TYPE=translate-nojit
 before_install:
-#  - sudo add-apt-repository -y ppa:plt/racket
-  - sudo add-apt-repository -y ppa:plt/racket-nightly
+  - sudo add-apt-repository -y ppa:plt/racket
   - sudo apt-get update
   - sudo apt-get install -qq racket
 install:
