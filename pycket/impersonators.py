@@ -101,7 +101,7 @@ class W_InterposeProcedure(values.W_Procedure):
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k.name] = prop_vals[i]
+            self.properties[k] = prop_vals[i]
 
     def get_arity(self):
         return self.inner.get_arity()
@@ -110,8 +110,16 @@ class W_InterposeProcedure(values.W_Procedure):
         raise NotImplementedError("abstract method")
 
     def _call(self, args, env, cont):
+        from pycket.interpreter import W_ThunkProcCMK
         jit.promote(self)
         after = self.post_call_cont(args, env, cont)
+        prop = self.properties.get(w_impersonator_prop_application_mark, None)
+        if isinstance(prop, values.W_Cons):
+            key, val = prop.car(), prop.cdr()
+            if isinstance(key, values.W_ContinuationMarkKey):
+                body = W_ThunkProcCMK(self.check, args)
+                return key.set_cmk(body, val, cont, env, after)
+            cont.update_cm(key, val)
         return self.check.call(args, env, after)
 
     def tostring(self):
@@ -209,7 +217,7 @@ class W_InterposeBox(values.W_Box):
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k.name] = prop_vals[i]
+            self.properties[k] = prop_vals[i]
 
     def immutable(self):
         return self.inner.immutable()
@@ -314,7 +322,7 @@ class W_InterposeVector(values.W_MVector):
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k.name] = prop_vals[i]
+            self.properties[k] = prop_vals[i]
 
     def length(self):
         return self.inner.length()
@@ -403,7 +411,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 assert False
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k.name] = prop_vals[i]
+            self.properties[k] = prop_vals[i]
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -505,13 +513,13 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k.name] = prop_vals[i]
+            self.properties[k] = prop_vals[i]
 
     def post_set_cont(self, body, value, env, cont):
         raise NotImplementedError("abstract method")
 
     def post_get_cont(self, value, env, cont):
-        return chp_cmk_post_get_cont(self.inner, value, env, cont)
+        raise NotImplementedError("abstract method")
 
     @label
     def get_cmk(self, value, env, cont):
@@ -519,7 +527,7 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
                 self.post_get_cont(value, env, cont))
 
     @label
-    def set_cmk(self, body, value, env, cont):
+    def set_cmk(self, body, value, update, env, cont):
         return self.set_proc.call([value], env,
                 self.post_set_cont(body, value, env, cont))
 
@@ -527,7 +535,7 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
 def imp_cmk_post_set_cont(body, inner, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    return inner.set_cmk(body, val, env, cont)
+    return inner.set_cmk(body, val, cont, env, cont)
 
 @continuation
 def chp_cmk_post_set_cont(body, inner, value, env, cont, _vals):
@@ -537,7 +545,7 @@ def chp_cmk_post_set_cont(body, inner, value, env, cont, _vals):
     # using the equal? implementation.
     if not is_chaperone_of(val, value):
         raise SchemeException("chaperone handlers must produce chaperone of original value")
-    return inner.set_cmk(body, val, env, cont)
+    return inner.set_cmk(body, val, cont, env, cont)
 
 @continuation
 def imp_cmk_post_get_cont(key, value, env, cont, _vals):
@@ -579,23 +587,23 @@ class W_ImpPropertyDescriptor(values.W_Object):
         return "#<chaperone-property>"
 
 class W_ImpPropertyFunction(values.W_Procedure):
-    _immutable_fields_ = ["name"]
-    def __init__(self, name):
-        self.name = name
+    _immutable_fields_ = ["descriptor"]
+    def __init__(self, descriptor):
+        self.descriptor = descriptor
 
 class W_ImpPropertyPredicate(W_ImpPropertyFunction):
     errorname = "impersonator-property-predicate"
 
     @make_call_method([values.W_Object])
     def call(self, obj):
-        return values.W_Bool.make(lookup_property(obj, self.name) is not None)
+        return values.W_Bool.make(lookup_property(obj, self.descriptor) is not None)
 
 class W_ImpPropertyAccessor(W_ImpPropertyFunction):
     errorname = "impersonator-property-accessor"
 
     @make_call_method([values.W_Object])
     def call(self, obj):
-        return lookup_property(obj, self.name)
+        return lookup_property(obj, self.descriptor)
 
 w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")
 

@@ -6,6 +6,8 @@ from ..error import SchemeException
 from .expose import expose, expose_val
 from .equal  import equal_func, EqualInfo
 
+expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
+
 # Used to find the first impersonator-property
 def find_prop_start_index(args):
     for i, v in enumerate(args):
@@ -242,8 +244,7 @@ def make_imp_prop(sym, env, cont):
     from ..interpreter import return_multi_vals
     name = sym.value
     prop = imp.W_ImpPropertyDescriptor(name)
-    pred = imp.W_ImpPropertyPredicate(name)
-    accs = imp.W_ImpPropertyAccessor(name)
+    pred = imp.W_ImpPropertyPredicate(prop)
+    accs = imp.W_ImpPropertyAccessor(prop)
     return return_multi_vals(values.Values.make([prop, pred, accs]), env, cont)
 
-expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)

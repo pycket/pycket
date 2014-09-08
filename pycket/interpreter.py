@@ -1,6 +1,6 @@
 from pycket                   import values
 from pycket                   import vector
-from pycket.prims.expose      import prim_env
+from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
 from pycket.cont              import Cont, nil_continuation
 from rpython.rlib             import jit, debug, objectmodel
@@ -297,6 +297,32 @@ class WCMKeyCont(Cont):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
+# These next two classes allow for a uniform input to the `set_cmk` operation.
+# They are procedures which do the appropriate processing after `set_cmk` is done
+# computing.
+# This is needed because with-continuation-mark operates over the AST while
+# W_InterposeProcedure can do a `set_cmk` with a closure.
+class W_ThunkBodyCMK(values.W_Procedure):
+    _immutable_fields_ = ["body"]
+
+    def __init__(self, body):
+        self.body = body
+
+    @make_call_method([], simple=False)
+    def call(self, env, cont):
+        return self.body, env, cont
+
+class W_ThunkProcCMK(values.W_Procedure):
+    _immutable_fields_ = ["proc", "args"]
+
+    def __init__(self, proc, args):
+        self.proc = proc
+        self.args = args
+
+    @make_call_method([], simple=False)
+    def _call(self, env, cont):
+        return self.proc.call(self.args, env, cont)
+
 class WCMValCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "key"]
     def __init__(self, ast, key, env, prev):
@@ -306,10 +332,10 @@ class WCMValCont(Cont):
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         if isinstance(self.key, values.W_ContinuationMarkKey):
-            return self.key.set_cmk(self.ast.body, val, env, self.prev)
+            body = W_ThunkBodyCMK(self.ast.body)
+            return self.key.set_cmk(body, val, self.prev, env, self.prev)
         self.prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
-
 
 class AST(object):
     _attrs_ = ["should_enter", "mvars"]
