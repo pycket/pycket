@@ -16,9 +16,9 @@
     (namespace-syntax-introduce (expand stx))))
 
 (define (do-post-expand stx in-path)
-  (define m `(module mod racket/base
-               (define stx (quote-syntax ,stx))
-               (provide stx)))
+  (define m `(module mod '#%kernel
+               (define-values (stx) (quote-syntax ,stx))
+               (#%provide stx)))
   (if in-path
       (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
                      [current-module-declare-source in-path]
