@@ -14,9 +14,11 @@ env:
     - TEST_TYPE=translate
     - TEST_TYPE=translate-nojit
 before_install:
-  - sudo add-apt-repository -y ppa:plt/racket
-  - sudo apt-get update
-  - sudo apt-get install -qq racket
+#  - sudo add-apt-repository -y ppa:plt/racket
+#  - sudo apt-get update
+#  - sudo apt-get install -qq racket
+  - wget http://plt.eecs.northwestern.edu/snapshots/current/installers/racket-test-current-x86_64-linux-precise.sh
+  - sudo sh racket-test-current-x86_64-linux-precise.sh --unix-style --dest /usr --create-dir
 install:
   - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
   - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
