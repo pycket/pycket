@@ -48,16 +48,18 @@ def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
 def execute(p, stdlib=False, extra=""):
     return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
-def run_fix(p, v, stdlib=False, extra=""):
+def run_fix(p, v=None, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Fixnum)
-    assert ov.value == v
+    if v is not None:
+        assert ov.value == v
     return ov.value
 
-def run_flo(p, v, stdlib=False, extra=""):
+def run_flo(p, v=None, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Flonum)
-    assert ov.value == v
+    if v is not None:
+        assert ov.value == v
     return ov.value
 
 def run(p, v=None, stdlib=False, extra=""):

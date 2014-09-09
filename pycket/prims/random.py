@@ -1,16 +1,25 @@
+from rpython.rlib import rrandom, rarithmetic
 
 from pycket.prims.expose import default, expose
 from pycket import values
 from pycket import vector as values_vector
 
-# FIXME : Make the random functions actually do what they are supposed to do
-# random things
-@expose("random")
-def random(args):
-    return values.W_Fixnum(1)
+# XXX for now just always use a global rng
+
+rng = rrandom.Random()
+
+@expose("random", [default(values.W_Fixnum, None)])
+def random(w_k):
+    if w_k is None:
+        # random flonum
+        return values.W_Flonum(rng.random())
+    upper = w_k.value
+    return values.W_Fixnum(int(rng.random() * upper))
 
 @expose("random-seed", [values.W_Fixnum])
 def random_seed(seed):
+    key = [rarithmetic.r_uint(seed.value)]
+    rng.init_by_array(key)
     return values.w_void
 
 @expose("make-pseudo-random-generator", [])
