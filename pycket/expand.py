@@ -51,7 +51,7 @@ def expand_string(s, reuse=True):
     from subprocess import Popen, PIPE
 
     cmd = "racket %s --loop --stdin --stdout " % (fn)
-    if current_racket_proc and reuse:
+    if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
     else:
         process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
@@ -74,7 +74,6 @@ def expand_string(s, reuse=True):
     # if err:
     #     raise ExpandException("Racket produced an error")
     return data
-
 
 def expand_file(fname):
     "NON_RPYTHON"
