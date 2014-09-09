@@ -45,12 +45,12 @@ fn = "-l pycket/expand --"
 
 current_racket_proc = None
 
-def expand_string(s, reuse=True):
+def expand_string(s, reuse=True, srcloc=True):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --loop --stdin --stdout " % (fn)
+    cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
     else:

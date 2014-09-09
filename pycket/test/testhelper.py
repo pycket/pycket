@@ -17,10 +17,10 @@ from pycket import values
 
 # This is where all the work happens
 
-def run_mod(m, stdlib=False):
+def run_mod(m, stdlib=False, srcloc=True):
     assert (not stdlib)
     ModTable.reset()
-    mod = interpret_module(parse_module(expand_string(m)))
+    mod = interpret_module(parse_module(expand_string(m, srcloc=srcloc)))
     return mod
 
 def format_pycket_mod(s, stdlib=False, extra=""):
@@ -28,17 +28,17 @@ def format_pycket_mod(s, stdlib=False, extra=""):
     str = "#lang pycket%s\n%s\n%s"%(" #:stdlib" if stdlib else "", extra, s)
     return str
 
-def run_mod_defs(m, extra="",stdlib=False):
+def run_mod_defs(m, extra="",stdlib=False, srcloc=True):
     str = format_pycket_mod(m, extra=extra, stdlib=stdlib)
-    mod = run_mod(str)
+    mod = run_mod(str, srcloc=srcloc)
     return mod
 
-def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra=""):
+def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
     defn = "(define #%%pycket-expr %s)"%expr
-    mod = run_mod_defs(defn, stdlib=stdlib, extra=extra)
+    mod = run_mod_defs(defn, stdlib=stdlib, extra=extra, srcloc=srcloc)
     ov = mod.defs[values.W_Symbol.make("#%pycket-expr")]
     if v:
         assert ov.equal(v)
