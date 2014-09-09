@@ -35,6 +35,10 @@ class JsonBase(object):
     def value_float(self):
         raise TypeError
 
+    def value_int(self):
+        raise TypeError
+
+
 class JsonPrimitive(JsonBase):
     def __init__(self):
         pass
@@ -80,6 +84,9 @@ class JsonInt(JsonPrimitive):
         return str(self.value)
 
     def _unpack_deep(self):
+        return self.value
+
+    def value_int(self):
         return self.value
 
 class JsonFloat(JsonPrimitive):
