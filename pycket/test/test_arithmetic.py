@@ -164,6 +164,14 @@ def test_flonum_special(doctest):
     1.0
     > (fl/ 2.0 0.5)
     4.0
+    > (flmin 1.0 2.0)
+    1.0
+    > (flmin 2.0 1.0)
+    1.0
+    > (flmax 1.0 2.0)
+    2.0
+    > (flmax 2.0 1.0)
+    2.0
     """
 
 def test_fixnum_special(doctest):
@@ -175,4 +183,12 @@ def test_fixnum_special(doctest):
     1
     > (fx* 2 5)
     10
+    > (fxmin 1 2)
+    1
+    > (fxmin 2 1)
+    1
+    > (fxmax 1 2)
+    2
+    > (fxmax 2 1)
+    2
     """

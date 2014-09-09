@@ -192,6 +192,8 @@ for args in [
         ("-", "arith_sub"),
         ("*", "arith_mul"),
         ("/", "arith_div", False),
+        ("max", "arith_max"),
+        ("min", "arith_min"),
         ]:
     make_fixedtype_arith(*args)
 
