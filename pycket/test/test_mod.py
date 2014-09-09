@@ -56,7 +56,7 @@ def test_set_mod2():
 def test_set_mod_other():
     m = run_mod("""
 #lang pycket
-(require "set-export.rkt")
+    (require pycket/set-export)
 (define y (not x))
 """)
     assert m.defs[W_Symbol.make("y")]

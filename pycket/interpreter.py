@@ -875,7 +875,7 @@ class ModuleVar(Var):
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:
-                raise SchemeException("can't find module %s" % (self.srcmod, ))
+                raise SchemeException("can't find module %s for %s" % (self.srcmod, self.sym.tostring()))
         return mod.lookup(self.srcsym)
 
 
