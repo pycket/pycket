@@ -49,7 +49,7 @@ def test_imp_box():
     run_file("imp-box.rkt")
 
 def test_imp_vector():
-    run_file("imp-vector.rkt")
+    run_file("imp-vector.rkt", ("my-len 100", "my-len 2"), ("max-val 100", "max-val 2"))
 
 def test_imp_struct():
     run_file("imp-struct.rkt")

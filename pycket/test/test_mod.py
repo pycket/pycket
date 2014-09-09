@@ -56,8 +56,8 @@ def test_set_mod2():
 def test_set_mod_other():
     m = run_mod("""
 #lang pycket
-(require racket/private/runtime-path-table)
-(define y (not table))
+(require "set-export.rkt")
+(define y (not x))
 """)
     assert m.defs[W_Symbol.make("y")]
 

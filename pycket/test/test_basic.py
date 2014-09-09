@@ -400,7 +400,7 @@ def test_varref():
 def test_with_continuation_mark():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
     (define key (make-continuation-mark-key))
     (define result
       (with-continuation-mark key "quiche"
@@ -416,7 +416,7 @@ def test_with_continuation_mark():
 def test_with_continuation_mark_impersonator():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
     (define mark-key
       (impersonate-continuation-mark-key
        (make-continuation-mark-key)
@@ -435,7 +435,7 @@ def test_with_continuation_mark_impersonator():
 def test_impersonator_application_mark():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
     (define key (make-continuation-mark-key))
     (define proc
       (lambda ()
