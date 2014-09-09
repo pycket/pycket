@@ -374,12 +374,12 @@ def test_caselambda():
     run("(case-lambda [() 0])")
     run("(case-lambda [() 0] [(x) x])")
     run("(case-lambda [x 0])")
-    run("((case-lambda [() #f]))", w_false) 
-    run("((case-lambda [(x) #f]) 0)", w_false) 
-    run("((case-lambda [() 0] [(x) x]) #f)", w_false) 
-    run("((case-lambda [x #t] [(x) x]) #f)", w_true) 
-    run("((case-lambda [x (car x)] [(x) x]) #f #t 17)", w_false) 
-    run("((case-lambda [(x) x] [x (car x)]) #f #t 17)", w_false) 
+    run("((case-lambda [() #f]))", w_false)
+    run("((case-lambda [(x) #f]) 0)", w_false)
+    run("((case-lambda [() 0] [(x) x]) #f)", w_false)
+    run("((case-lambda [x #t] [(x) x]) #f)", w_true)
+    run("((case-lambda [x (car x)] [(x) x]) #f #t 17)", w_false)
+    run("((case-lambda [(x) x] [x (car x)]) #f #t 17)", w_false)
 
 def test_begin0():
     run_fix("(begin0 1 2)", 1)
@@ -412,6 +412,44 @@ def test_with_continuation_mark():
     sym = W_Symbol.make("result")
     assert isinstance(m.defs[sym], W_String)
     assert m.defs[sym].value == "ham"
+
+def test_with_continuation_mark_impersonator():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define mark-key
+      (impersonate-continuation-mark-key
+       (make-continuation-mark-key)
+       (lambda (l) (car l))
+       (lambda (s) (string->list s))))
+    (define result
+      (with-continuation-mark mark-key "quiche"
+        (continuation-mark-set-first
+         (current-continuation-marks)
+         mark-key)))
+    """)
+    sym = W_Symbol.make("result")
+    assert isinstance(m.defs[sym], W_Character)
+    assert m.defs[sym].value == 'q'
+
+def test_impersonator_application_mark():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define key (make-continuation-mark-key))
+    (define proc
+      (lambda ()
+        (continuation-mark-set-first
+          (current-continuation-marks)
+          key)))
+    (define wrapped
+      (impersonate-procedure proc (lambda () (values))
+                             impersonator-prop:application-mark (cons key 42)))
+    (define result (wrapped))
+    """)
+    sym = W_Symbol.make("result")
+    assert isinstance(m.defs[sym], W_Fixnum)
+    assert m.defs[sym].value == 42
 
 
 def test_arity():
