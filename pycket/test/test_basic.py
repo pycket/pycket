@@ -436,6 +436,7 @@ def test_impersonator_application_mark():
     m = run_mod(
     """
     #lang pycket
+    (require racket/private/kw)
     (define key (make-continuation-mark-key))
     (define proc
       (lambda ()
