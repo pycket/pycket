@@ -909,25 +909,41 @@ class W_Closure(W_Procedure):
                 if len(self.caselam.lams) == 1:
                     raise
         raise SchemeException("No matching arity in case-lambda")
+
     def call(self, args, env, cont):
         from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         (actuals, new_env, lam) = self._find_lam(args)
+        return lam.make_begin_cont(
+            ConsEnv.make(actuals, new_env, new_env.toplevel_env),
+            cont)
+
+    @jit.unroll_safe
+    def _call_with_speculation(self, args, env, cont, env_structure):
+        from pycket.interpreter import ConsEnv
+        jit.promote(self.caselam)
+        jit.promote(env_structure)
+        (actuals, new_env, lam) = self._find_lam(args)
         # specialize on the fact that often we end up executing in the
-        # same environment. we try the current environment and its
-        # parent -- perhaps a more principled approach is needed
+        # same environment. we use the env structure to check for candidates of
+        # sharing. Only if the env structure that the lambda is defined in
+        # matches some outer env structure where it is called does it make
+        # sense to check if the *actual* envs match. this means that the
+        # speculation is essentially free:
+        # the env structures are known, so checking for sharing inside them is
+        # computed by the JIT. thus only an environment identity check that is
+        # very likely to succeed is executed.
         prev = new_env
-        if isinstance(env, ConsEnv):
-            e = env.prev
-            if e is new_env:
-                prev = e
-            elif isinstance(e, ConsEnv):
-                e_prev = e.prev
-                if e_prev is new_env:
-                    prev = e_prev
-                # Uncomment to speculate more; doesn't help sumloop
-                # elif isinstance(e_prev, ConsEnv) and e_prev.prev is new_env:
-                #     prev = e_prev.prev
+        i = 0
+        while env_structure is not None:
+            if env_structure is lam.env_structure.prev:
+                if env is new_env:
+                    prev = env
+                    break
+            env_structure = env_structure.prev
+            assert isinstance(env, ConsEnv)
+            env = env.prev
+            i += 1
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)

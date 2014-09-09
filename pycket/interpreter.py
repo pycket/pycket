@@ -614,15 +614,16 @@ class WithContinuationMark(AST):
         return self.key, env, WCMKeyCont(self, env, cont)
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]", "remove_env"]
+    _immutable_fields_ = ["rator", "rands[*]", "remove_env", "env_structure"]
 
-    def __init__ (self, rator, rands, remove_env=False):
+    def __init__ (self, rator, rands, remove_env=False, env_structure=None):
         assert rator.simple
         for r in rands:
             assert r.simple
         self.rator = rator
         self.rands = rands
         self.remove_env = remove_env
+        self.env_structure = env_structure
         self.should_enter = isinstance(rator, ModuleVar)
 
     @staticmethod
@@ -658,7 +659,8 @@ class App(AST):
     def assign_convert(self, vars, env_structure):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
-                   remove_env=self.remove_env)
+                   remove_env=self.remove_env,
+                   env_structure=env_structure)
     def _mutated_vars(self):
         x = self.rator.mutated_vars()
         for r in self.rands:
@@ -676,6 +678,7 @@ class App(AST):
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
         args_w = [rand.interpret_simple(env) for rand in self.rands]
+        env_structure = self.env_structure
         if self.remove_env:
             # remove the env created by the let introduced by let_convert
             # it's no longer needed nor accessible
@@ -686,6 +689,9 @@ class App(AST):
             # breaks otherwise
             assert isinstance(env, ConsEnv)
             env = env.prev
+            env_structure = env_structure.prev
+        if isinstance(w_callable, values.W_Closure):
+            return w_callable._call_with_speculation(args_w, env, cont, env_structure)
         return w_callable.call(args_w, env, cont)
 
     def tostring(self):
@@ -930,6 +936,11 @@ class SymList(object):
         self.elems = elems
         self.prev = prev
 
+    def check_plausibility(self, env):
+        assert len(self.elems) == env._get_size_list()
+        if self.prev:
+            self.prev.check_plausibility(env.prev)
+
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
@@ -1086,16 +1097,17 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure",
+                          "frees", "enclosing_env_structure", 'env_structure'
                           ]
     simple = True
-    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None):
+    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.formals = formals
         self.rest = rest
         self.args = args
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
+        self.env_structure = env_structure
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
@@ -1130,7 +1142,7 @@ class Lambda(SequencedBodyAST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure)
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, sub_env_structure)
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
