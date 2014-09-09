@@ -244,7 +244,7 @@ def test_struct_prop_procedure():
 def test_struct_prop_procedure_inheritance():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
 
     (struct x (proc) #:property prop:procedure 0)
     (struct y x ())
