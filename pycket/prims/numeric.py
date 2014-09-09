@@ -174,6 +174,28 @@ for args in [
         ]:
     make_arith(*args)
 
+def make_fixedtype_arith(name, methname, intversion=True):
+    @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
+    def do(a, b):
+        return getattr(a, methname)(b)
+    do.__name__ = "fl_" + methname
+
+    if intversion:
+        @expose("fx" + name, [values.W_Fixnum] * 2, simple=True)
+        def do(a, b):
+            return getattr(a, methname)(b)
+        do.__name__ = "fx_" + methname
+
+
+for args in [
+        ("+", "arith_add"),
+        ("-", "arith_sub"),
+        ("*", "arith_mul"),
+        ("/", "arith_div", False),
+        ]:
+    make_fixedtype_arith(*args)
+
+
 def make_unary_arith(name, methname):
     @expose(name, [values.W_Number], simple=True)
     def do(a):

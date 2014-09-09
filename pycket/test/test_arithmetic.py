@@ -2,7 +2,7 @@ import pytest
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
-from pycket.test.testhelper import run_fix, run, run_top, run_std
+from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
 skip = pytest.mark.skipif("True")
@@ -152,4 +152,27 @@ def test_atan(doctest):
     ;> (atan +inf.0 -inf.0)
     ;2.356194490192345
     """
-    assert doctest
+
+def test_flonum_special(doctest):
+    """
+    ! (require '#%flfxnum)
+    > (fl+ 1.0 2.0)
+    3.0
+    > (fl- 2.0 1.0)
+    1.0
+    > (fl* 2.0 0.5)
+    1.0
+    > (fl/ 2.0 0.5)
+    4.0
+    """
+
+def test_fixnum_special(doctest):
+    """
+    ! (require '#%flfxnum)
+    > (fx+ 1 2)
+    3
+    > (fx- 2 1)
+    1
+    > (fx* 2 5)
+    10
+    """
