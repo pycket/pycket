@@ -2,26 +2,26 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-from ..      import impersonators as imp
-from ..      import values
-from ..cont  import continuation, label, call_cont
-from ..      import cont
-from ..      import values_struct
-from ..      import vector as values_vector
-from ..error import SchemeException
-from .expose import unsafe, default, expose, expose_val, procedure, make_call_method
-from rpython.rlib      import jit
+from pycket import impersonators as imp
+from pycket import values
+from pycket.cont import continuation, label, call_cont
+from pycket import cont
+from pycket import values_struct
+from pycket import vector as values_vector
+from pycket.error import SchemeException
+from pycket.prims.expose import unsafe, default, expose, expose_val, procedure, make_call_method
+from rpython.rlib import jit
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
-from . import continuation_marks
-from . import equal as eq_prims
-from . import impersonator
-from . import numeric
-from . import random
-from . import string
-from . import undefined
-from . import vector
+from pycket.prims import continuation_marks
+from pycket.prims import equal as eq_prims
+from pycket.prims import impersonator
+from pycket.prims import numeric
+from pycket.prims import random
+from pycket.prims import string
+from pycket.prims import undefined
+from pycket.prims import vector
 
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
@@ -158,7 +158,7 @@ expose_val("prop:chaperone-unsafe-undefined", values_struct.w_prop_chaperone_uns
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
-    from ..interpreter import check_one_val, return_value
+    from pycket.interpreter import check_one_val, return_value
     val = check_one_val(_vals)
     if val is not values.w_false:
         return return_value(v._ref(1), env, cont)
@@ -166,7 +166,7 @@ def check_cont(proc, v, v1, v2, env, cont, _vals):
 
 @continuation
 def receive_first_field(proc, v, v1, v2, env, cont, _vals):
-    from ..interpreter import check_one_val
+    from pycket.interpreter import check_one_val
     first_field = check_one_val(_vals)
     return first_field.call([v1, v2], env, check_cont(proc, v, v1, v2, env, cont))
 
@@ -474,7 +474,7 @@ def version():
 @continuation
 def sem_post_cont(sem, env, cont, vals):
     sem.post()
-    from ..interpreter import return_multi_vals
+    from pycket.interpreter import return_multi_vals
     return return_multi_vals(vals, env, cont)
 
 @expose("call-with-semaphore", simple=False)
@@ -555,7 +555,7 @@ def procedure_arity_includes(p, n, w_kw_ok):
 
 @expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
 def varref_const(varref, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))), env, cont)
 
 @expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
@@ -592,7 +592,7 @@ def call_with_values (producer, consumer, env, cont):
 
 @continuation
 def time_apply_cont(initial, env, cont, vals):
-    from ..interpreter import return_multi_vals
+    from pycket.interpreter import return_multi_vals
     final = time.clock()
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_l = vals._get_full_list()
@@ -771,7 +771,7 @@ def do_set_mcdr(a, b):
 
 @expose("map", simple=False)
 def do_map(args, env, cont):
-    from ..interpreter import jump
+    from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn, lists = args[0], args[1:]
@@ -784,7 +784,7 @@ def do_map(args, env, cont):
 
 @label
 def map_loop(f, lists, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     lists_new = []
     args = []
     for l in lists:
@@ -798,24 +798,24 @@ def map_loop(f, lists, env, cont):
 
 @continuation
 def map_first_cont(f, lists, env, cont, _vals):
-    from ..interpreter import check_one_val
+    from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     return map_loop(f, lists, env, map_cons_cont(f, lists, val, env, cont))
 
 @continuation
 def map_cons_cont(f, lists, val, env, cont, _vals):
-    from ..interpreter import check_one_val, return_value
+    from pycket.interpreter import check_one_val, return_value
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
 @expose("for-each", [procedure, values.W_List], simple=False)
 def for_each(f, l, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     return return_value(values.w_void, env, for_each_cont(f, l, env, cont))
 
 @continuation
 def for_each_cont(f, l, env, cont, vals):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     if l is values.w_null:
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
@@ -823,7 +823,7 @@ def for_each_cont(f, l, env, cont, vals):
 
 @expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     return return_value(values.w_void, env, hash_for_each_cont(f,
                                                                h.data.keys(),
                                                                h.data, 0,
@@ -831,7 +831,7 @@ def hash_for_each(h, f, env, cont):
 
 @continuation
 def hash_for_each_cont(f, keys, data, n, env, cont, _vals):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     if n == len(keys):
         return return_value(values.w_void, env, cont)
     return f.call([keys[n], data[keys[n]]], env,
@@ -1088,7 +1088,7 @@ def vector2immutablevector(v):
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
 def current_command_line_arguments(env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     w_v = values_vector.W_Vector.fromelements(
             env.toplevel_env.commandline_arguments)
     return return_value(w_v, env, cont)
@@ -1158,7 +1158,7 @@ def hash_set(ht, k, v):
 
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     val = ht.ref(k)
     if val:
         return return_value(val, env, cont)
@@ -1253,7 +1253,7 @@ def path2bytes(p):
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
-    from ..interpreter import return_multi_vals
+    from pycket.interpreter import return_multi_vals
     return return_multi_vals(values.Values.make([values.w_false] * 3), env, cont)
 
 @expose("port-writes-special?", [values.W_Object])
@@ -1370,7 +1370,7 @@ def current_preserved_thread_cell_values(v):
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
-    from ..interpreter import Gensym
+    from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
 
@@ -1383,7 +1383,7 @@ def extend_paramz(paramz, key, val):
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
-    from ..interpreter import Gensym
+    from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
 
 @expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking

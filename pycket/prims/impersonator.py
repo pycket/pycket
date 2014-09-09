@@ -1,10 +1,10 @@
 
-from ..      import impersonators as imp
-from ..      import values
-from ..      import values_struct
-from ..error import SchemeException
-from .expose import expose, expose_val
-from .equal  import equal_func, CHPOF_EQUAL_INFO, IMPOF_EQUAL_INFO
+from pycket import impersonators as imp
+from pycket import values
+from pycket import values_struct
+from pycket.error import SchemeException
+from pycket.prims.expose import expose, expose_val
+from pycket.prims.equal import equal_func, CHPOF_EQUAL_INFO, IMPOF_EQUAL_INFO
 
 expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
 
@@ -237,7 +237,7 @@ def chaperone(x):
 
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
-    from ..interpreter import return_multi_vals
+    from pycket.interpreter import return_multi_vals
     name = sym.value
     prop = imp.W_ImpPropertyDescriptor(name)
     pred = imp.W_ImpPropertyPredicate(prop)

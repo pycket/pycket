@@ -1,6 +1,6 @@
-from rpython.rlib  import jit, unroll
-from ..error import SchemeException
-from .. import values
+from rpython.rlib import jit, unroll
+from pycket.error import SchemeException
+from pycket import values
 
 prim_env = {}
 
@@ -93,7 +93,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
 def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
-            from ..interpreter import return_multi_vals, return_value
+            from pycket.interpreter import return_multi_vals, return_value
             env = args[-2]
             cont = args[-1]
             args = args[:-2]

@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from .expose import expose, expose_val, make_call_method, make_procedure
-from ..error import SchemeException
-from ..      import impersonators as imp
-from ..      import values
-from ..      import values_struct
+from pycket.prims.expose import expose, expose_val, make_call_method, make_procedure
+from pycket.error import SchemeException
+from pycket import impersonators as imp
+from pycket import values
+from pycket import values_struct
 
 expose_val("unsafe-undefined", values.w_unsafe_undefined)
 

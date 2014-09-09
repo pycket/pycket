@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from ..      import impersonators as imp
-from ..      import values
-from ..cont  import get_mark_first
-from ..error import SchemeException
-from .expose import default, expose, make_callable_label
+from pycket import impersonators as imp
+from pycket import values
+from pycket.cont import get_mark_first
+from pycket.error import SchemeException
+from pycket.prims.expose import default, expose, make_callable_label
 
 # Can use this to promote a get_cmk operation to a callable function.
 CMKSetToListHandler = make_callable_label([values.W_Object])
@@ -16,14 +16,14 @@ CMKSetToListHandler = make_callable_label([values.W_Object])
 
 @expose("current-continuation-marks", [default(values.W_ContinuationPromptTag, None)], simple=False)
 def current_cont_marks(prompt_tag, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list",
         [values.W_ContinuationMarkSet, values.W_Object], simple=False)
 def cms_list(cms, mark, env, cont):
-    from ..interpreter import return_value
-    from .general      import map_loop
+    from pycket.interpreter import return_value
+    from pycket.prims.general      import map_loop
     if isinstance(mark, values.W_ContinuationMarkKey):
         func  = CMKSetToListHandler(mark.get_cmk)
         marks = cms.cont.get_marks(imp.get_base_object(mark))
@@ -33,7 +33,7 @@ def cms_list(cms, mark, env, cont):
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_list(cms, mark, missing, env, cont):
-    from ..interpreter import return_value
+    from pycket.interpreter import return_value
     if cms is values.w_false:
         the_cont = cont
     elif isinstance(cms, values.W_ContinuationMarkSet):
@@ -50,7 +50,7 @@ def cms_list(cms, mark, missing, env, cont):
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])
 def mk_cmk(s):
-    from ..interpreter import Gensym
+    from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
 
