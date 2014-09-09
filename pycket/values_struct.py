@@ -32,35 +32,35 @@ class W_StructType(values.W_Object):
         "immutables", "guard", "constr_name", "auto_values[:]", "offsets[:]"]
     unbound_prefab_types = {}
 
-    """
-    This method returns five instances:
-        W_StructType
-        W_StructConstructor
-        W_StructPredicate
-        W_StructAccessor
-        W_StructMutator
-    """
     @staticmethod
     def make(name, super_type, init_field_cnt, auto_field_cnt,
              auto_v=values.w_false, props=values.w_null,
              inspector=values.w_false, proc_spec=values.w_false,
              immutables=values.w_null, guard=values.w_false,
              constr_name=values.w_false, env=None, cont=None):
+        """
+        This method returns five instances:
+            W_StructType
+            W_StructConstructor
+            W_StructPredicate
+            W_StructAccessor
+            W_StructMutator
+        """
         w_struct_type = W_StructType.make_simple(name, super_type,
             init_field_cnt, auto_field_cnt, auto_v, props, inspector,
             proc_spec, immutables, guard, constr_name)
         return w_struct_type.initialize_props(props, proc_spec, env, cont)
 
-    """
-    This method returns an instance of W_StructType only.
-    It does not support properties.
-    """
     @staticmethod
     def make_simple(name, super_type, init_field_cnt, auto_field_cnt,
-             auto_v=values.w_false, props=values.w_null,
-             inspector=values.w_false, proc_spec=values.w_false,
-             immutables=values.w_null, guard=values.w_false,
-             constr_name=values.w_false):
+                    auto_v=values.w_false, props=values.w_null,
+                    inspector=values.w_false, proc_spec=values.w_false,
+                    immutables=values.w_null, guard=values.w_false,
+                    constr_name=values.w_false):
+        """
+        This method returns an instance of W_StructType only.
+        It does not support properties.
+        """
         if inspector is PREFAB:
             field_cnt = init_field_cnt.value
             struct_type = super_type
@@ -146,21 +146,21 @@ class W_StructType(values.W_Object):
         for super_p in prop.supers:
             self.initialize_prop(props, super_p, prop)
 
-    """
-    Properties initialisation contains few steps:
-        1. call initialize_prop for each property from the input list,
-           it extracts all super values and stores them into props array
-           with a flat structure
-        2. recursively call attach_prop for each property from props and
-           prepare the value:
-           * if the current property has a subproperty, the value is the result
-             of calling value procedure with a sub value as an argument
-           * if the current property has a guard, the value is the result of
-             calling guard with a value and struct type info as arguments
-           * in other case just keep the current value
-    """
     @jit.unroll_safe
     def initialize_props(self, props, proc_spec, env, cont):
+        """
+        Properties initialisation contains few steps:
+            1. call initialize_prop for each property from the input list,
+               it extracts all super values and stores them into props array
+               with a flat structure
+            2. recursively call attach_prop for each property from props and
+               prepare the value:
+               * if the current property has a subproperty, the value is the result
+                 of calling value procedure with a sub value as an argument
+               * if the current property has a guard, the value is the result of
+                 calling guard with a value and struct type info as arguments
+               * in other case just keep the current value
+        """
         proplist = values.from_list(props)
         props = []
         for p in proplist:
