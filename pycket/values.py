@@ -421,15 +421,6 @@ class W_Number(W_Object):
     def eqv(self, other):
         return self.equal(other)
 
-class W_Complex(W_Number):
-    _immutable_fields_ = ["real", "imag"]
-    errorname = "complex"
-    def __init__(self, r, i):
-        self.real = r
-        self.imag = i
-    def tostring(self):
-        return "%s+%si" % (self.real.tostring(), self.imag.tostring())
-
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
     errorname = "rational"
