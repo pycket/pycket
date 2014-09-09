@@ -120,27 +120,64 @@ w_unsafe_undefined = W_Undefined()
 
 # FIXME: not a real implementation
 class W_Syntax(W_Object):
-    _immutable_fields_ = ["val"]
+    _immutable_fields_ = ["val", "ast"]
     errorname = "syntax"
-    def __init__(self, o):
+    def __init__(self, o, ast=None):
         self.val = o
+        self.ast = ast
     def tostring(self):
         return "#'%s" % self.val.tostring()
 
 class W_ModulePathIndex(W_Object):
     errorname = "module-path-index"
-    def __init__(self):
-        pass
+    _immutable_fields_ = ['resolved']
+    def __init__(self, resolved=None):
+        self.resolved = resolved
     def tostring(self):
         return "#<module-path-index>"
 
+
 class W_ResolvedModulePath(W_Object):
-    _immutable_fields_ = ["name"]
+    _immutable_fields_ = ["name", "path", "subs"]
     errorname = "resolved-module-path"
-    def __init__(self, name):
+    all_rmps = {}
+    def __init__(self, name=None, path=None, subs=None):
         self.name = name
+        self.path = path
+        self.subs = subs
     def tostring(self):
-        return "#<resolved-module-path:%s>" % self.name
+        if self.name is not None:
+            return "#<resolved-module-path:%s>" % self.name.value
+        elif self.path is not None:
+            return "#<resolved-module-path:%s>" % self.path.path
+        elif self.subs is not None:
+            assert 0, "FIXME" # submodules
+        else:
+            return "#<resolved-module-path>"
+
+    def resolved_module_path_name(self):
+        if self.name is not None:
+            return self.name
+        elif self.path is not None:
+            return self.path
+        elif self.subs is not None:
+            assert 0, "FIXME"
+        else:
+            return w_false
+
+    @staticmethod
+    @jit.elidable
+    def get(name=None, path=None, subs=None):
+        k = ("" if name is None else name.value,
+             "" if path is None else path.path,
+             "") # FIXME: submodules
+        if k in W_ResolvedModulePath.all_rmps:
+            return W_ResolvedModulePath.all_rmps[k]
+        else:
+            rmp = W_ResolvedModulePath(name, path, subs)
+            W_ResolvedModulePath.all_rmps[k] = rmp
+            return rmp
+
 
 class W_Logger(W_Object):
     errorname = "logger"
@@ -689,6 +726,7 @@ class W_String(W_Object):
         return self.value == other.value
     def immutable(self):
         return self.imm
+
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value", "unreadable"]

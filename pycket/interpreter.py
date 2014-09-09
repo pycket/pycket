@@ -539,7 +539,7 @@ class QuoteSyntax(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
     def interpret_simple(self, env):
-        return values.W_Syntax(self.w_val)
+        return values.W_Syntax(self.w_val, self)
     def assign_convert(self, vars, env_structure):
         return self
     def _mutated_vars(self):

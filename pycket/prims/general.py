@@ -18,6 +18,7 @@ from pycket.prims import continuation_marks
 from pycket.prims import equal as eq_prims
 from pycket.prims import impersonator
 from pycket.prims import numeric
+from pycket.prims import module_syntax
 from pycket.prims import random
 from pycket.prims import string
 from pycket.prims import undefined
@@ -118,21 +119,6 @@ def byte_huh(val):
 def procedurep(n):
     return values.W_Bool.make(n.iscallable())
 
-@expose("syntax-original?", [values.W_Syntax])
-def syntax_original(v):
-    return values.w_false
-
-@expose("syntax-tainted?", [values.W_Syntax])
-def syntax_tainted(v):
-    return values.w_false
-
-@expose("syntax->datum", [values.W_Syntax])
-def syntax_to_datum(v):
-    return v.val
-
-@expose("compiled-module-expression?", [values.W_Object])
-def compiled_module_expression(v):
-    return values.w_false
 
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
@@ -551,34 +537,6 @@ def procedure_arity_includes(p, n, w_kw_ok):
         if n_val == i: return values.w_true
     if at_least != -1 and n_val >= at_least:
         return values.w_true
-    return values.w_false
-
-@expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
-def varref_const(varref, env, cont):
-    from pycket.interpreter import return_value
-    return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))), env, cont)
-
-@expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
-def varref_rmp(varref):
-    return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
-
-@expose("variable-reference->module-source",  [values.W_VariableReference])
-def varref_ms(varref):
-    # FIXME: not implemented
-    return values.W_Symbol.make("dummy_module")
-
-@expose("resolved-module-path-name", [values.W_ResolvedModulePath])
-def rmp_name(rmp):
-    return rmp.name
-
-@expose("module-path?", [values.W_Object])
-def module_pathp(v):
-    if isinstance(v, values.W_Symbol):
-        # FIXME: not always right
-        return values.w_true
-    if isinstance(v, values.W_Path):
-        return values.w_true
-    # FIXME
     return values.w_false
 
 @expose("values")
@@ -1251,6 +1209,62 @@ def complete_path(v):
 def path2bytes(p):
     return values.W_Bytes(p.path)
 
+@expose("bytes->path", [values.W_Bytes])
+def bytes2path(b):
+    return values.W_Path(b.value)
+
+@expose("split-path", [values.W_Path], simple=False)
+@jit.unroll_safe
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    # FIXME: handle other cases too.
+    # FIXME: WINDOWS???
+    path = w_path.path
+    end = len(path)
+    found = False
+    while not found and end > 0:
+        split = path.rfind("/", 0, end)
+        if split >= 0:
+            if split != 0 and path[split - 1] == "\\":
+                found = False
+            else:
+                f = values.W_Path(path[split:])
+                found = True
+                if split == 0:
+                    d = values.w_false
+                else:
+                    d = values.W_Path(path[:split + 1])
+        else:
+            end = split - 1
+    if not found:
+        d = values.W_Symbol.make("relative")
+        f = w_path
+    vals = [d, f, values.w_false]
+    return return_multi_vals(values.Values.make(vals), env, cont)
+
+
+@expose("path->complete-path")
+def path2complete_path(args):
+    if len(args) == 0 or len(args) > 2:
+        raise SchemeException("path->complete-path expected one or two arguments, got %s" % len(args))
+    w_p = args[0]
+    if isinstance(w_p, values.W_Path):
+        p = w_p.path
+        #FIXME: WINDOWS??
+        if p[0] == "/":
+            return w_p
+    elif isinstance(w_p, values.W_String):
+        p = w_p.value
+    else:
+        raise SchemeException("path->complete-path first argument was no path-ish")
+
+    assert len(args) > 1
+    w_base = args[1]
+    assert isinstance(w_base, values.W_Path)
+    base = w_base.path
+    return values.W_Path(base + p)
+
+
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -1450,10 +1464,6 @@ def system_type(sym):
 @expose("find-main-collects", [])
 def find_main_collects():
     return values.w_false
-
-@expose("module-path-index-join", [values.W_Object, values.W_Object])
-def mpi_join(a, b):
-    return values.W_ModulePathIndex()
 
 # Loading
 

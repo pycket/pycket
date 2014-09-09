@@ -12,6 +12,7 @@ from rpython.rlib.rarithmetic import string_to_int
 from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
+from pycket.prims.module_syntax import SyntaxInfo
 from pycket import values
 from pycket import vector
 from pycket import values_struct
@@ -346,6 +347,47 @@ def to_lambda(arr):
     fmls, rest = to_formals(arr[0])
     return make_lambda(fmls, rest, [_to_ast(x) for x in arr[1:]])
 
+######################## Syntax Information ##################################
+def get_module_path_or_symbol(json):
+    from pycket.prims.module_syntax import rmp_make
+    if json.is_object:
+        o = json.value_object()
+        if '%p' in o:
+            return rmp_make([values.W_Path(o['%p'].value_string())])
+        elif 'quote' in o:
+            return rmp_make([values.W_Symbol.make(o['quote'].value_string())])
+    else:
+        assert 0, "FIXME: submodules"
+        # arr = [s['quote'].value_string() for s in json.value_array()]
+
+def make_syntax_info(o):
+    def i(x, f):
+        if not f in x or x[f] is pycket_json.json_false:
+            return -1
+        return x[f].value_int()
+    line = i(o, 'l')
+    column = i(o, 'c')
+    position = i(o, 'p')
+    span = i(o, 's')
+    original = o['o'] is pycket_json.json_false if 'o' in o else False
+    if 'src' in o and o['src'] is not pycket_json.json_false:
+        sysource = o['src'].value_object()
+        # For now
+        # FIXME: non-path source
+        w_source = values.W_Path(sysource['%p'].value_string())
+    else:
+        w_source = values.w_false
+    if 'mod' in o and o['mod'] is not pycket_json.json_false:
+        mod = o['mod'].value_object()
+        # assume MPI.
+        assert '%mpi' in mod
+        rmp = get_module_path_or_symbol(mod['%mpi'])
+        w_source_module = values.W_ModulePathIndex(rmp)
+    else:
+        w_source_module = values.w_false
+    return SyntaxInfo(line, column, position, span, original,
+                      w_source, w_source_module)
+
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
@@ -453,7 +495,15 @@ def _to_ast(json):
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
         if "quote-syntax" in obj:
-            return QuoteSyntax(to_value(obj["quote-syntax"]))
+            o = obj["quote-syntax"]
+            if o.is_object and '%stx' in o.value_object():
+                json_stx = o.value_object()['%stx'].value_object()
+                stx = make_syntax_info(json_stx)
+                res = QuoteSyntax(to_value(o))
+                SyntaxInfo.set(res, stx)
+                return res
+            else:
+                return QuoteSyntax(to_value(o))
         if "module" in obj:
             return ModuleVar(values.W_Symbol.make(obj["module"].value_string()),
                              obj["source-module"].value_string()
