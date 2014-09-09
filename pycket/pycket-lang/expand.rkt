@@ -150,31 +150,37 @@
 
 (define (to-json v)
   (define (path/symbol/list->string o)
-    (cond [(path-string? o) (hash 'path (path->string o))]
+    (cond [(path-string? o) (hash '%p (path->string o))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
           [(list? o)        (map path/symbol/list->string o)]
           [else o]))
   (define (syntax-source-module->hash m)
     (cond [(module-path-index? m)
-           (hash 'module-path-index
+           (hash '%mpi
                  (let ((rm (resolved-module-path-name (module-path-index-resolve m))))
                    (path/symbol/list->string rm)))]
           [else (path/symbol/list->string m)]))
-  (let ([r (to-json* v)])
+  (let ([r        (to-json* v)]
+        [line     (syntax-line v)]
+        [column   (syntax-column v)]
+        [position (syntax-position v)]
+        [span     (syntax-span v)]
+        [original (syntax-original? v)]
+        [source   (path/symbol/list->string (syntax-source v))]
+        [module   (syntax-source-module->hash
+                   (syntax-source-module v #f))])
     (if (not (hash? r))
         r
-        (hash-set r 'stx (hash
-                          'syntax-source         (path/symbol/list->string
-                                                  (syntax-source v))
-                          'syntax-line           (syntax-line v)
-                          'syntax-column         (syntax-column v)
-                          'syntax-position       (syntax-position v)
-                          'syntax-span           (syntax-span v)
-                          'syntax-original       (syntax-original? v)
-                          'syntax-source-module  (syntax-source-module->hash
-                                                  (syntax-source-module v #f))
-                          'syntax-source-module* (syntax-source-module->hash
-                                                  (syntax-source-module v #t)))))))
+        (let* ([stx0 (hash)]
+               [stx1 (if line     (hash-set stx0 'l   line)     stx0)]
+               [stx2 (if column   (hash-set stx1 'c   column)   stx1)]
+               [stx3 (if position (hash-set stx2 'p   position) stx2)]
+               [stx4 (if span     (hash-set stx3 's   span)     stx3)]
+               [stx5 (if original (hash-set stx4 'o   original) stx4)]
+               [stx6 (if source   (hash-set stx5 'src source)   stx5)]
+               [stx7 (if module   (hash-set stx6 'mod module)   stx6)]
+               [res  (if (hash-empty? stx7) r (hash-set r '%stx stx7))])
+               res))))
 
 (define (to-json* v)
   (define (proper l)
