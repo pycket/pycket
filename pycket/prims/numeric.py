@@ -14,41 +14,66 @@ from pycket import arithmetic
 def make_cmp(name, op, con):
     from pycket.values import W_Number, W_Fixnum, W_Flonum, W_Bignum
     from rpython.rlib.rbigint import rbigint
-    @expose(name, [W_Number, W_Number], simple=True)
-    def do(w_a, w_b):
-        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Fixnum):
-            return con(getattr(operator, op)(w_a.value, w_b.value))
-        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Bignum):
-            return con(getattr(w_a.value, op)(w_b.value))
-        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Flonum):
-            return con(getattr(operator, op)(w_a.value, w_b.value))
 
-        # Upcast float
-        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Flonum):
-            a = float(w_a.value)
-            return con(getattr(operator, op)(a, w_b.value))
-        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Fixnum):
-            b = float(w_b.value)
-            return con(getattr(operator, op)(w_a.value, b))
+    @expose(name, simple=True)
+    @jit.unroll_safe
+    def do(args):
+        assert len(args) >= 2
+        idx = 2
+        truth = True
+        while idx <= len(args):
+            start = idx - 1
+            assert start >= 0
+            w_a, w_b = args[start:idx]
+            assert isinstance(w_a, W_Number)
+            assert isinstance(w_b, W_Number)
+            idx += 1
 
-        # Upcast bignum
-        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Fixnum):
-            b = rbigint.fromint(w_b.value)
-            return con(getattr(w_a.value, op)(b))
-        if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Bignum):
-            a = rbigint.fromint(w_a.value)
-            return con(getattr(a, op)(w_b.value))
+            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Fixnum):
+                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
+                continue
+            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Bignum):
+                truth = truth and (getattr(w_a.value, op)(w_b.value))
+                continue
+            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Flonum):
+                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
+                continue
 
-        # Upcast bignum/float
-        if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
-            b = rbigint.fromfloat(w_b.value)
-            return con(getattr(w_a.value, op)(b))
-        if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
-            a = rbigint.fromfloat(w_a.value)
-            return con(getattr(a, op)(w_b.value))
+            # Upcast float
+            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Flonum):
+                a = float(w_a.value)
+                truth = truth and (getattr(operator, op)(a, w_b.value))
+                continue
+            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Fixnum):
+                b = float(w_b.value)
+                truth = truth and (getattr(operator, op)(w_a.value, b))
+                continue
 
-        raise SchemeException("unsupported operation %s on %s %s" % (
-            name, w_a.tostring(), w_b.tostring()))
+            # Upcast bignum
+            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Fixnum):
+                b = rbigint.fromint(w_b.value)
+                truth = truth and (getattr(w_a.value, op)(b))
+                continue
+            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Bignum):
+                a = rbigint.fromint(w_a.value)
+                truth = truth and (getattr(a, op)(w_b.value))
+                continue
+
+            # Upcast bignum/float
+            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
+                b = rbigint.fromfloat(w_b.value)
+                truth = truth and (getattr(w_a.value, op)(b))
+                continue
+            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
+                a = rbigint.fromfloat(w_a.value)
+                truth = truth and (getattr(a, op)(w_b.value))
+                continue
+
+            #FIXME: Complex. Rationals
+
+            raise SchemeException("unsupported operation %s on %s %s" % (
+                name, w_a.tostring(), w_b.tostring()))
+        return con(truth)
     do.__name__ = op
 
 for args in [
