@@ -198,12 +198,6 @@ for args in [
     make_fixedtype_arith(*args)
 
 
-def make_unary_arith(name, methname):
-    @expose(name, [values.W_Number], simple=True)
-    def do(a):
-        return getattr(a, methname)()
-    do.__name__ = methname
-
 @expose("add1", [values.W_Number])
 def add1(v):
     return v.arith_add(values.W_Fixnum(1))
@@ -221,6 +215,13 @@ def atan(y, x):
     else:
         z = y
     return getattr(z, "arith_atan")()
+
+
+def make_unary_arith(name, methname):
+    @expose(name, [values.W_Number], simple=True)
+    def do(a):
+        return getattr(a, methname)()
+    do.__name__ = methname
 
 for args in [
         ("sin", "arith_sin"),
