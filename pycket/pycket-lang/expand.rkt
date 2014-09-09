@@ -2,6 +2,8 @@
 
 (require syntax/parse syntax/modresolve)
 
+(define keep-srcloc (make-parameter #t))
+
 (define (do-expand stx)
   ;; error checking
   (syntax-parse stx #:literals ()
@@ -160,18 +162,18 @@
                  (let ((rm (resolved-module-path-name (module-path-index-resolve m))))
                    (path/symbol/list->string rm)))]
           [else (path/symbol/list->string m)]))
-  (let ([r        (to-json* v)]
-        [line     (syntax-line v)]
-        [column   (syntax-column v)]
-        [position (syntax-position v)]
-        [span     (syntax-span v)]
-        [original (syntax-original? v)]
-        [source   (path/symbol/list->string (syntax-source v))]
-        [module   (syntax-source-module->hash
-                   (syntax-source-module v #f))])
-    (if (not (hash? r))
+  (let ([r        (to-json* v)])
+    (if (or (not (keep-srcloc)) (not (hash? r)))
         r
-        (let* ([stx0 (hash)]
+        (let* ([line     (syntax-line v)]
+               [column   (syntax-column v)]
+               [position (syntax-position v)]
+               [span     (syntax-span v)]
+               [original (syntax-original? v)]
+               [source   (path/symbol/list->string (syntax-source v))]
+               [module   (syntax-source-module->hash
+                          (syntax-source-module v #f))]
+               [stx0 (hash)]
                [stx1 (if line     (hash-set stx0 'l   line)     stx0)]
                [stx2 (if column   (hash-set stx1 'c   column)   stx1)]
                [stx3 (if position (hash-set stx2 'p   position) stx2)]
@@ -332,6 +334,8 @@
 
   (define logging? #f)
 
+  (define srcloc? #t)
+
   (command-line
    #:once-any
    [("--output") file "write output to output <file>"
@@ -339,6 +343,7 @@
    [("--stdout") "write output to standard out"
     (set! out (current-output-port))]
    #:once-each
+   [("--omit-srcloc") "don't include src location info" (set! srcloc? #f)]
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    [("--loop") "keep process alive" (set! loop? #t)]
@@ -398,7 +403,8 @@
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
     (define expanded (do-post-expand (do-expand mod) in-path))
-    (write-json (convert expanded) out)
+    (parameterize ([keep-srcloc srcloc?])
+      (write-json (convert expanded) out))
     (newline out)
     (flush-output out)
     (when loop? (loop))))
