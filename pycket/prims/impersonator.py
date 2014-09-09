@@ -4,7 +4,7 @@ from ..      import values
 from ..      import values_struct
 from ..error import SchemeException
 from .expose import expose, expose_val
-from .equal  import equal_func, EqualInfo
+from .equal  import equal_func, CHPOF_EQUAL_INFO, IMPOF_EQUAL_INFO
 
 expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
 
@@ -221,15 +221,11 @@ def icmk(args):
 # See: https://github.com/plt/racket/blob/106cd16d359c7cb594f4def8f427c55992d41a6d/racket/src/racket/src/bool.c
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
-    from ..interpreter import return_value
-    config = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
-    return equal_func(a, b, config, env, cont)
+    return equal_func(a, b, CHPOF_EQUAL_INFO, env, cont)
 
 @expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
 def impersonator_of(a, b, env, cont):
-    from ..interpreter import return_value
-    config = EqualInfo(for_chaperone=EqualInfo.IMPERSONATOR)
-    return equal_func(a, b, config, env, cont)
+    return equal_func(a, b, IMPOF_EQUAL_INFO, env, cont)
 
 @expose("impersonator?", [values.W_Object])
 def impersonator(x):

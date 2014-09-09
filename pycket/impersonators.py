@@ -132,44 +132,39 @@ class W_ImpProcedure(W_InterposeProcedure):
     def post_call_cont(self, args, env, cont):
         return imp_proc_cont(args, self.inner, env, cont)
 
-# Check that the results of che call to check are all chaperones of
-# the original function outputs.
-@continuation
-def chp_proc_ret_cont(orig, env, cont, _vals):
-    from pycket.interpreter import return_multi_vals
-    vals = _vals._get_full_list()
-    assert len(vals) == len(orig)
-    for i in range(len(vals)):
-        if not is_chaperone_of(vals[i], orig[i]):
-            raise SchemeException("Expecting original value or chaperone")
-    return return_multi_vals(_vals, env, cont)
-
 # Capture the original output of the function to compare agains the result of
 # the check operation
 @continuation
 def chp_proc_call_check_cont(check, env, cont, _vals):
     vals = _vals._get_full_list()
-    return check.call(vals, env, chp_proc_ret_cont(vals, env, cont))
+    return check.call(vals, env, check_chaperone_results(vals, env, cont))
 
-# Continuation used when calling a chaperone of a procedure.
 @continuation
-def chp_proc_cont(args, proc, env, cont, _vals):
-    vals = _vals._get_full_list()
-    assert len(vals) >= len(args)
-    if len(vals) == len(args):
-        for i in range(len(args)):
-            if not is_chaperone_of(vals[i], args[i]):
-                raise SchemeException("Expecting original value or chaperone")
-        return proc.call(vals, env, cont)
-    elif len(vals) == len(args) + 1:
-        vals, check = vals[1:], vals[0]
-        for i in range(len(args)):
-            if not is_chaperone_of(vals[i], args[i]):
-                raise SchemeException("Expecting original value or chaperone")
-        return proc.call(vals, env,
-                chp_proc_call_check_cont(check, env, cont))
-    else:
-        assert False
+def check_chaperone_results(args, env, cont, vals):
+    # We are allowed to receive more values than arguments to compare them to.
+    # Additional ones are ignored for this checking routine.
+    assert vals._get_size_list() >= len(args)
+    return check_chaperone_results_loop(vals, args, 0, env, cont)
+
+# TODO: This would likely be nicer as a continuation, as the current uses are from
+# a continuation which captures the values and invokes this label with a, possibly
+# new, continuation.
+@label
+def check_chaperone_results_loop(vals, args, idx, env, cont):
+    from .interpreter import return_multi_vals
+    from .prims.equal import equal_func, CHPOF_EQUAL_INFO
+    if idx >= len(args):
+        return return_multi_vals(vals, env, cont)
+    return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
+            catch_equal_cont(vals, args, idx, env, cont))
+
+@continuation
+def catch_equal_cont(vals, args, idx, env, cont, _vals):
+    from .interpreter import check_one_val
+    val = check_one_val(_vals)
+    if val is values.w_false:
+        raise SchemeException("Expecting original value or chaperone")
+    return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
 @make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
@@ -177,31 +172,15 @@ class W_ChpProcedure(W_InterposeProcedure):
     _immutable_fields_ = ["inner", "check"]
 
     def post_call_cont(self, args, env, cont):
-        return chp_proc_cont(args, self.inner, env, cont)
+        return check_chaperone_results(args, env,
+                imp_proc_cont(args, self.inner, env, cont))
 
 # Boxes
 @continuation
 def chp_unbox_cont(f, box, env, cont, vals):
     from pycket.interpreter import check_one_val
     old = check_one_val(vals)
-    return f.call([box, old], env, chp_unbox_cont_ret(old, env, cont))
-
-@continuation
-def chp_unbox_cont_ret(old, env, cont, vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    new = check_one_val(vals)
-    if is_chaperone_of(new, old):
-        return return_multi_vals(vals, env, cont)
-    else:
-        raise SchemeException("Expecting original value or chaperone of thereof")
-
-@continuation
-def chp_box_set_cont(b, orig, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(vals)
-    if not is_chaperone_of(val, orig):
-        raise SchemeException("Expecting original value or chaperone")
-    return b.set_box(val, env, cont)
+    return f.call([box, old], env, check_chaperone_results([old], env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
@@ -250,7 +229,8 @@ class W_ChpBox(W_InterposeBox):
         return chp_unbox_cont(self.unboxh, self.inner, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
-        return chp_box_set_cont(self.inner, val, env, cont)
+        return check_chaperone_results([val], env,
+                imp_box_set_cont(self.inner, env, cont))
 
     def immutable(self):
         return self.inner.immutable()
@@ -261,7 +241,7 @@ def imp_unbox_cont(f, box, env, cont, vals):
     return f.call([box, check_one_val(vals)], env, cont)
 
 @continuation
-def imp_box_set_cont(b, val, env, cont, vals):
+def imp_box_set_cont(b, env, cont, vals):
     from pycket.interpreter import check_one_val
     return b.set_box(check_one_val(vals), env, cont)
 
@@ -274,20 +254,12 @@ class W_ImpBox(W_InterposeBox):
         return imp_unbox_cont(self.unboxh, self.inner, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
-        return imp_box_set_cont(self.inner, val, env, cont)
+        return imp_box_set_cont(self.inner, env, cont)
 
 @continuation
-def imp_vec_set_cont(orig, v, i, env, cont, vals):
+def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return v.vector_set(i, check_one_val(vals), env, cont)
-
-@continuation
-def chp_vec_set_cont(orig, v, i, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(vals)
-    if not is_chaperone_of(val, orig):
-        raise SchemeException("Expecting original value or chaperone")
-    return v.vector_set(i, val, env, cont)
 
 @continuation
 def imp_vec_ref_cont(f, i, v, env, cont, vals):
@@ -298,16 +270,7 @@ def imp_vec_ref_cont(f, i, v, env, cont, vals):
 def chp_vec_ref_cont(f, i, v, env, cont, vals):
     from pycket.interpreter import check_one_val
     old = check_one_val(vals)
-    return f.call([v, i, old], env, chp_vec_ref_cont_ret(old, env, cont))
-
-@continuation
-def chp_vec_ref_cont_ret(old, env, cont, vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    new = check_one_val(vals)
-    if is_chaperone_of(new, old):
-        return return_multi_vals(vals, env, cont)
-    else:
-        raise SchemeException("Expecting original value or chaperone of thereof")
+    return f.call([v, i, old], env, check_chaperone_results([old], env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeVector(values.W_MVector):
@@ -349,7 +312,7 @@ class W_ImpVector(W_InterposeVector):
     errorname = "impersonate-vector"
 
     def post_set_cont(self, new, i, env, cont):
-        return imp_vec_set_cont(new, self.inner, i, env, cont)
+        return imp_vec_set_cont(self.inner, i, env, cont)
 
     def post_ref_cont(self, i, env, cont):
         return imp_vec_ref_cont(self.refh, i, self.inner, env, cont)
@@ -359,7 +322,8 @@ class W_ChpVector(W_InterposeVector):
     errorname = "chaperone-vector"
 
     def post_set_cont(self, new, i, env, cont):
-        return chp_vec_set_cont(new, self.inner, i, env, cont)
+        return check_chaperone_results([new], env,
+                imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
         return chp_vec_ref_cont(self.refh, i, self.inner, env, cont)
@@ -378,7 +342,7 @@ def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
     return interp.call([orig_struct, field_v], env, cont)
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     return setter.call([orig_struct, val], env, cont)
@@ -464,31 +428,14 @@ class W_ImpStruct(W_InterposeStructBase):
         return imp_struct_ref_cont(interp, self.inner, env, cont)
 
     def post_set_cont(self, op, val, env, cont):
-        return imp_struct_set_cont(self.inner, op, val, env, cont)
+        return imp_struct_set_cont(self.inner, op, env, cont)
 
 @continuation
 def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
     from pycket.interpreter import check_one_val
     field_v = check_one_val(_vals)
     return interp.call([orig_struct, field_v], env,
-            chp_struct_ref_post_cont(field_v, env, cont))
-
-@continuation
-def chp_struct_ref_post_cont(field_v, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_multi_vals
-    val = check_one_val(_vals)
-    if not is_chaperone_of(val, field_v):
-        raise SchemeException("chaperone handlers must produce chaperone of original value")
-    return return_multi_vals(_vals, env, cont)
-
-# called after interp function
-@continuation
-def chp_struct_set_cont(orig_struct, setter, orig_val, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(_vals)
-    if not is_chaperone_of(val, orig_val):
-        raise SchemeException("chaperone handlers must produce chaperone of original value")
-    return setter.call([orig_struct, val], env, cont)
+            check_chaperone_results([field_v], env, cont))
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
@@ -497,7 +444,8 @@ class W_ChpStruct(W_InterposeStructBase):
         return chp_struct_ref_cont(interp, self.inner, env, cont)
 
     def post_set_cont(self, op, val, env, cont):
-        return chp_struct_set_cont(self.inner, op, val, env, cont)
+        return check_chaperone_results([val], env,
+                imp_struct_set_cont(self.inner, op, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):

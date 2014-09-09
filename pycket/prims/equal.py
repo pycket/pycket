@@ -21,6 +21,8 @@ class EqualInfo(object):
         self.for_chaperone = for_chaperone
 
 EQUALP_EQUAL_INFO = EqualInfo(for_chaperone=EqualInfo.BASIC)
+CHPOF_EQUAL_INFO  = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
+IMPOF_EQUAL_INFO  = EqualInfo(for_chaperone=EqualInfo.IMPERSONATOR)
 
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
