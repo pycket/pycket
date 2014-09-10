@@ -933,31 +933,15 @@ class W_Closure(W_Procedure):
             ConsEnv.make(actuals, new_env, new_env.toplevel_env),
             cont)
 
-    @jit.unroll_safe
     def _call_with_speculation(self, args, env, cont, env_structure):
         from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, new_env, lam) = self._find_lam(args)
         # specialize on the fact that often we end up executing in the
-        # same environment. we use the env structure to check for candidates of
-        # sharing. Only if the env structure that the lambda is defined in
-        # matches some outer env structure where it is called does it make
-        # sense to check if the *actual* envs match. this means that the
-        # speculation is essentially free:
-        # the env structures are known, so checking for sharing inside them is
-        # computed by the JIT. thus only an environment identity check that is
-        # very likely to succeed is executed.
-        prev = new_env
-        i = 0
-        while env_structure is not None:
-            if env_structure is lam.env_structure.prev:
-                if env is new_env:
-                    prev = env
-                    break
-            env = env.get_prev(env_structure)
-            env_structure = env_structure.prev
-            i += 1
+        # same environment.
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                new_env, env_structure, env)
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)

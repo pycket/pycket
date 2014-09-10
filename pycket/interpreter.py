@@ -962,6 +962,29 @@ class SymList(object):
         if self.prev:
             self.prev.check_plausibility(env.get_prev(self))
 
+    @jit.unroll_safe
+    def find_env_in_chain_speculate(self, target, env_structure, env):
+        """
+        find env 'target' of shape 'self' in environment chain 'env', described
+        by 'env_structure'. We use the env structures to check for candidates
+        of sharing. Only if the env structure that the lambda is defined in
+        matches some outer env structure where it is called does it make sense
+        to check if the *actual* envs match. this means that the speculation is
+        essentially free:
+        the env structures are known, so checking for sharing inside them is
+        computed by the JIT. thus only an environment identity check that is
+        very likely to succeed is executed.
+        """
+        jit.promote(self)
+        jit.promote(env_structure)
+        while env_structure is not None:
+            if env_structure is self:
+                if env is target:
+                    return env
+            env = env.get_prev(env_structure)
+            env_structure = env_structure.prev
+        return target
+
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
