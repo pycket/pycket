@@ -714,21 +714,39 @@ class W_EqHashTable(W_SimpleHashTable):
         from pycket.prims.equal import eqp_logic
         return eqp_logic(a, b)
 
-def equal_hash_loop(data, idx, key, env, cont):
+def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
     return equal_func(k, key, EQUALP_EQUAL_INFO, env,
-            catch_is_equal_cont(data, idx, key, v, env, cont))
+            catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
 @continuation
-def catch_is_equal_cont(data, idx, key, v, env, cont, _vals):
-    from pycket.interpreter import check_one_val
+def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
     val = check_one_val(_vals)
-    if val is not values.w_false:
+    if val is not w_false:
         return return_value(v, env, cont)
-    return equal_hash_loop(data, idx + 1, key, env, cont)
+    return equal_hash_ref_loop(data, idx + 1, key, env, cont)
+
+def equal_hash_set_loop(data, idx, key, val, env, cont):
+    from pycket.interpreter import check_one_val
+    if idx >= len(data):
+        data.append((key, val))
+        return return_value(w_void, env, cont)
+    k, _ = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_set_is_equal_cont(data, idx, key, val, env, cont))
+
+@continuation
+def catch_set_is_equal_cont(data, idx, key, val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    cmp = check_one_val(_vals)
+    if cmp is not w_false:
+        data[idx] = (key, val)
+        return return_value(w_void, env, cont)
+    return equal_hash_set_loop(data, idx + 1, key, val, env, cont)
 
 class W_EqualHashTable(W_HashTable):
     def __init__(self, keys, vals):
@@ -737,9 +755,12 @@ class W_EqualHashTable(W_HashTable):
     def hash_keys(self):
         return [k for k, _ in self.data]
 
+    def hash_set(self, key, val, env, cont):
+        return equal_hash_set_loop(self.data, 0, key, val, env, cont)
+
     @label
     def hash_ref(self, key, env, cont):
-        return equal_hash_loop(self.data, 0, key, env, cont)
+        return equal_hash_ref_loop(self.data, 0, key, env, cont)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
