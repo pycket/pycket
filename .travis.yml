@@ -28,7 +28,7 @@ script:
   - export PYTHONPATH=$PYTHONPATH:../pypy:pycket
   - "case \"$TEST_TYPE\" in
        tests)
-         ../pypy/pytest.py
+         ../pypy/pytest.py --duration 20
          ;;
       translate)
         python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
