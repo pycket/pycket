@@ -98,7 +98,7 @@ class W_Vector(W_MVector):
 
 class W_FlVector(W_Object):
     _immutable_fields_ = ["elems", "len", "strategy"]
-    errorname = "vector"
+    errorname = "flvector"
     def __init__(self, storage, len):
         self.strategy = FlonumVectorStrategy()
         self.storage = storage
@@ -115,7 +115,7 @@ class W_FlVector(W_Object):
         if times == 0:
             check_list = []
         storage = strategy.create_storage_for_element(elem, times)
-        return W_Vector(storage, times)
+        return W_FlVector(storage, times)
     def ref(self, i):
         return self.strategy.ref(self, i)
     def set(self, i, v):
@@ -144,9 +144,6 @@ class W_FlVector(W_Object):
     def tostring(self):
         l = self.strategy.ref_all(self)
         return "(flvector %s)" % " ".join([obj.tostring() for obj in l])
-
-    def immutable(self):
-        return False
 
     def equal(self, other):
         # XXX could be optimized more
@@ -296,6 +293,11 @@ class FlonumVectorStrategy(VectorStrategy):
     erase, unerase = rerased.new_erasing_pair("flonum-vector-strategry")
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
+
+    def set(self, w_vector, i, w_val, check=True):
+        if check:
+            self.indexcheck(w_vector, i)
+        self._set(w_vector, i, w_val)
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, W_Flonum)
