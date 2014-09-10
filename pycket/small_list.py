@@ -1,20 +1,21 @@
 from rpython.rlib  import jit, debug
 
 def inline_small_list(sizemax=5, sizemin=0, immutable=False, attrname="list", factoryname="make"):
-    """ This function is helpful if you have a class with a field storing a
-list and the list is often very small. Calling this function will inline
-the list into instances for the small sizes. This works by adding the
-following methods to the class:
+    """
+    This function is helpful if you have a class with a field storing a
+    list and the list is often very small. Calling this function will inline
+    the list into instances for the small sizes. This works by adding the
+    following methods to the class:
 
-_get_list(self, i): return ith element of the list
+    _get_list(self, i): return ith element of the list
 
-_set_list(self, i, val): set ith element of the list
+    _set_list(self, i, val): set ith element of the list
 
-_get_full_list(self): returns a copy of the full list
+    _get_full_list(self): returns a copy of the full list
 
-@staticmethod
-make(listcontent, *args): makes a new instance with the list's content set to listcontent
-        """
+    @staticmethod
+    make(listcontent, *args): makes a new instance with the list's content set to listcontent
+    """
     def wrapper(cls):
         from rpython.rlib.unroll import unrolling_iterable
         classes = []
