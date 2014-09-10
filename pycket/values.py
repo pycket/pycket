@@ -670,7 +670,7 @@ class W_SimpleHashTable(W_HashTable):
     def cmp_value(a, b):
         raise NotImplementedError("abstract method")
 
-    def __init__(self, keys, vals, cmp=None, hash=eq_hash):
+    def __init__(self, keys, vals):
         from pycket.prims.equal import eqp_logic
         assert len(keys) == len(vals)
         self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
@@ -713,6 +713,33 @@ class W_EqHashTable(W_SimpleHashTable):
     def cmp_value(a, b):
         from pycket.prims.equal import eqp_logic
         return eqp_logic(a, b)
+
+def equal_hash_loop(data, idx, key, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(data):
+        return return_value(None, env, cont)
+    k, v = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_is_equal_cont(data, idx, key, v, env, cont))
+
+@continuation
+def catch_is_equal_cont(data, idx, key, v, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_vals)
+    if val is not values.w_false:
+        return return_value(v, env, cont)
+    return equal_hash_loop(data, idx + 1, key, env, cont)
+
+class W_EqualHashTable(W_HashTable):
+    def __init__(self, keys, vals):
+        self.data = [(k, vals[i]) for i, k in enumerate(keys)]
+
+    def hash_keys(self):
+        return [k for k, _ in self.data]
+
+    @label
+    def hash_ref(self, key, env, cont):
+        return equal_hash_loop(self.data, 0, key, env, cont)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
