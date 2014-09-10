@@ -435,7 +435,8 @@ def test_with_continuation_mark_impersonator():
 def test_impersonator_application_mark():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
+    (require racket/private/kw)
     (define key (make-continuation-mark-key))
     (define proc
       (lambda ()
@@ -454,7 +455,7 @@ def test_impersonator_application_mark():
 def test_string_set_bang():
     m = run_mod(
     """
-    #lang racket/base
+    #lang pycket
     (define str (substring "hello world" 0 5))
     (string-set! str 0 #\\x)
     """)
