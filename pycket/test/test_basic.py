@@ -435,8 +435,7 @@ def test_with_continuation_mark_impersonator():
 def test_impersonator_application_mark():
     m = run_mod(
     """
-    #lang pycket
-    (require racket/private/kw)
+    #lang racket/base
     (define key (make-continuation-mark-key))
     (define proc
       (lambda ()
@@ -452,6 +451,18 @@ def test_impersonator_application_mark():
     assert isinstance(m.defs[sym], W_Fixnum)
     assert m.defs[sym].value == 42
 
+def test_string_set_bang():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define str (substring "hello world" 0 5))
+    (string-set! str 0 #\\x)
+    """)
+    sym = W_Symbol.make("str")
+    res = m.defs[sym]
+    assert isinstance(res, W_String)
+    assert not res.immutable()
+    assert res.value == "xello"
 
 def test_arity():
     run("(procedure-arity-includes? add1 1)", w_true)

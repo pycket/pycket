@@ -93,3 +93,14 @@ def string_ref(s, n):
         raise SchemeException("string-ref: index out of range")
     return values.W_Character(st[idx])
 
+@expose("string-set!", [values.W_String, values.W_Fixnum, values.W_Character])
+def string_set(str, k, char):
+    if str.immutable():
+        raise SchemeException("string-set!: given immutable string")
+    idx = k.value
+    v = [i for i in str.value]
+    if not (0 <= idx < len(v)):
+        raise SchemeException("string-set!: given index is out of range")
+    v[idx] = char.value
+    str.value = "".join(v)
+    return values.w_void
