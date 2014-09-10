@@ -475,11 +475,11 @@ def _to_num(json):
     obj = json.value_object()
     if "real" in obj:
         r = obj["real"]
-        return values.W_Flonum(float(r.value_float()))
+        return values.W_Flonum.make(r.value_float())
     if "real-part" in obj:
         r = obj["real-part"]
         i = obj["imag-part"]
-        return values.W_Complex(_to_num(r), _to_num(i))
+        return values.W_Complex.make(_to_num(r), _to_num(i))
     if "numerator" in obj:
         n = obj["numerator"]
         d = obj["denominator"]
@@ -495,7 +495,7 @@ def _to_num(json):
     if "integer" in obj:
         rs = obj["integer"].value_string()
         try:
-            return values.W_Fixnum(string_to_int(rs))
+            return values.W_Fixnum.make(string_to_int(rs))
         except ParseStringOverflowError:
             val = rbigint.fromdecimalstr(rs)
             return values.W_Bignum(val)
@@ -523,7 +523,7 @@ def to_value(json):
         if "path" in obj:
             return values.W_Path(obj["path"].value_string())
         if "char" in obj:
-            return values.W_Character(unichr(int(obj["char"].value_string())))
+            return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
             return values.W_HashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
