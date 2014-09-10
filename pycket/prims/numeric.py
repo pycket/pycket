@@ -222,6 +222,13 @@ for args in [
         ]:
     make_fixedtype_arith(*args)
 
+@expose("flsqrt", [values.W_Flonum])
+def flsqrt(f):
+    return f.arith_sqrt()
+
+@expose("unsafe-flsqrt", [unsafe(values.W_Flonum)])
+def flsqrt(f):
+    return f.arith_sqrt()
 
 @expose("add1", [values.W_Number])
 def add1(v):
