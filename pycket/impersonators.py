@@ -482,42 +482,26 @@ def imp_cmk_post_set_cont(body, inner, env, cont, _vals):
     return inner.set_cmk(body, val, cont, env, cont)
 
 @continuation
-def chp_cmk_post_set_cont(body, inner, value, env, cont, _vals):
+def imp_cmk_post_get_cont(key, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    # FIXME: This should use the proper implementation of is_chaperone_of
-    # using the equal? implementation.
-    if not is_chaperone_of(val, value):
-        raise SchemeException("chaperone handlers must produce chaperone of original value")
-    return inner.set_cmk(body, val, cont, env, cont)
-
-@continuation
-def imp_cmk_post_get_cont(key, value, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(_vals)
-    return key.get_cmk(val, env, cont)
-
-@continuation
-def chp_cmk_post_get_cont(key, value, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    val = check_one_val(_vals)
-    if not is_chaperone_of(val, value):
-        raise SchemeException("chaperone handlers must produce chaperone of original value")
     return key.get_cmk(val, env, cont)
 
 @make_chaperone
 class W_ChpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_get_cont(self, value, env, cont):
-        return chp_cmk_post_get_cont(self.inner, value, env, cont)
+        return check_chaperone_results([value], env,
+                imp_cmk_post_get_cont(self.inner, env, cont))
 
     def post_set_cont(self, body, value, env, cont):
-        return chp_cmk_post_set_cont(body, self.inner, value, env, cont)
+        return check_chaperone_results([value], env,
+                imp_cmk_post_set_cont(body, self.inner, env, cont))
 
 @make_impersonator
 class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
 
     def post_get_cont(self, value, env, cont):
-        return imp_cmk_post_get_cont(self.inner, value, env, cont)
+        return imp_cmk_post_get_cont(self.inner, env, cont)
 
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
