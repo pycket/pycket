@@ -648,27 +648,71 @@ def eq_hash(k):
 
 class W_HashTable(W_Object):
     errorname = "hash"
+
+    def hash_keys(self):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_set(self, k, v, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_ref(self, k, env, cont):
+        raise NotImplementedError("abstract method")
+
+class W_SimpleHashTable(W_HashTable):
+
+    @staticmethod
+    def hash_value(v):
+        raise NotImplementedError("abstract method")
+
+    @staticmethod
+    def cmp_value(a, b):
+        raise NotImplementedError("abstract method")
+
     def __init__(self, keys, vals, cmp=None, hash=eq_hash):
         from pycket.prims.equal import eqp_logic
-        if not cmp:
-            cmp = eqp_logic
         assert len(keys) == len(vals)
-        self.data = r_dict(cmp, hash, force_non_null=True)
-        for (i, k) in enumerate(keys):
+        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
+        for i, k in enumerate(keys):
             self.data[k] = vals[i]
 
+    def hash_keys(self):
+        return self.data.keys()
+
     def tostring(self):
-        lst = [W_Cons.make(k, v).tostring() for (k,v) in self.data.iteritems()]
+        lst = [W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
-    def set(self, k, v):
+    @label
+    def hash_set(self, k, v, env, cont):
+        from pycket.interpreter import return_value
         self.data[k] = v
+        return return_value(w_void, env, cont)
 
-    def ref(self, k):
-        if k in self.data:
-            return self.data[k]
-        else:
-            return None
+    @label
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.data.get(k, None), env, cont)
+
+class W_EqvHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        return a.eqv(b)
+
+class W_EqHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        from pycket.prims.equal import eqp_logic
+        return eqp_logic(a, b)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]

@@ -16,6 +16,7 @@ from rpython.rlib.rsre import rsre_re as re
 # import for side effects
 from pycket.prims import continuation_marks
 from pycket.prims import equal as eq_prims
+from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import numeric
 from pycket.prims import random
@@ -289,16 +290,6 @@ def current_logger():
 @expose("make-logger", [values.W_Symbol, values.W_Logger])
 def make_logger(name, parent):
     return values.W_Logger()
-
-@expose("make-weak-hasheq", [])
-def make_weak_hasheq():
-    # FIXME: not actually weak
-    return values.W_HashTable([], [])
-
-@expose("make-immutable-hash", [default(values.W_Object, None)])
-def make_immutable_hash(assocs):
-    # FIXME: not impelemented
-    return values.W_HashTable([], [])
 
 @expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
 def make_parameter(init, guard):
@@ -675,10 +666,6 @@ def printf(args):
             os.write(1,fmt[i])
             i += 1
 
-@expose("eqv?", [values.W_Object] * 2)
-def eqvp(a, b):
-    return values.W_Bool.make(a.eqv(b))
-
 @expose("not", [values.W_Object])
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
@@ -820,22 +807,6 @@ def for_each_cont(f, l, env, cont, vals):
         return return_value(values.w_void, env, cont)
     return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
 
-
-@expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
-def hash_for_each(h, f, env, cont):
-    from pycket.interpreter import return_value
-    return return_value(values.w_void, env, hash_for_each_cont(f,
-                                                               h.data.keys(),
-                                                               h.data, 0,
-                                                               env, cont))
-
-@continuation
-def hash_for_each_cont(f, keys, data, n, env, cont, _vals):
-    from pycket.interpreter import return_value
-    if n == len(keys):
-        return return_value(values.w_void, env, cont)
-    return f.call([keys[n], data[keys[n]]], env,
-                  hash_for_each_cont(f, keys, data, n+1, env, cont))
 
 @expose("append")
 def append(lists):
@@ -1128,114 +1099,6 @@ def unsafe_car(p):
 @expose("unsafe-cdr", [values.W_Cons])
 def unsafe_cdr(p):
     return p.cdr()
-
-@expose("hash")
-def hash(args):
-    return values.W_HashTable([], [])
-
-@expose("hasheq")
-def hasheq(args):
-    return values.W_HashTable([], [])
-
-@expose("make-hash")
-def make_hash(args):
-    return values.W_HashTable([], [])
-
-@expose("make-hasheq")
-def make_hasheq(args):
-    return values.W_HashTable([], [])
-
-@expose("hash-set!", [values.W_HashTable, values.W_Object, values.W_Object])
-def hash_set_bang(ht, k, v):
-    ht.set(k, v)
-    return values.w_void
-
-@expose("hash-set", [values.W_HashTable, values.W_Object, values.W_Object])
-def hash_set(ht, k, v):
-    # FIXME: implementation
-    ht.set(k, v)
-    return ht
-
-@expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
-def hash_ref(ht, k, default, env, cont):
-    from pycket.interpreter import return_value
-    val = ht.ref(k)
-    if val:
-        return return_value(val, env, cont)
-    elif isinstance(default, procedure):
-        return val.call([], env, cont)
-    elif default:
-        return return_value(default, env, cont)
-    else:
-        raise SchemeException("key not found")
-
-@expose("hash-remove!", [values.W_HashTable, values.W_Object])
-def hash_remove_bang(hash, key):
-    # FIXME: not implemented
-    return hash
-
-@expose("hash-remove", [values.W_HashTable, values.W_Object])
-def hash_remove(hash, key):
-    # FIXME: not implemented
-    return hash
-
-@expose("hash-clear!", [values.W_HashTable])
-def hash_clear_bang(hash):
-    # FIXME: not implemented
-    return values.W_HashTable([], [])
-
-@expose("hash-clear", [values.W_HashTable])
-def hash_clear(hash):
-    # FIXME: not implemented
-    return values.W_HashTable([], [])
-
-@expose("hash-map", [values.W_HashTable, values.W_Object])
-def hash_map(hash, proc):
-    # FIXME: not implemented
-    return hash
-
-@expose("hash-count", [values.W_HashTable])
-def hash_count(hash):
-    # FIXME: implementation
-    return values.W_Fixnum(len(hash.data))
-
-@expose("hash-iterate-first", [values.W_HashTable])
-def hash_iterate_first(hash):
-    # FIXME: implementation
-    # if not hash.data:
-    #     return values.w_false
-    # else:
-    #     return hash.ref(0)
-    return values.w_false
-
-@expose("hash-iterate-next", [values.W_HashTable, values.W_Fixnum])
-def hash_iterate_next(hash, pos):
-    # FIXME: implementation
-    # next_pos = pos.value + 1
-    # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
-    return values.w_false
-
-@expose("hash-iterate-key", [values.W_HashTable, values.W_Fixnum])
-def hash_iterate_key(hash, pos):
-    # FIXME: implementation
-    # return hash.ref(pos.value)
-    return values.w_false
-
-@expose("hash-iterate-value", [values.W_HashTable, values.W_Fixnum])
-def hash_iterate_value(hash, pos):
-    # FIXME: implementation
-    # return hash.ref(pos.value)
-    return values.w_false
-
-@expose("hash-copy", [values.W_HashTable])
-def hash_iterate_value(hash):
-    # FIXME: implementation
-    return hash
-
-@expose("equal-hash-code", [values.W_Object])
-def equal_hash_code(v):
-    # FIXME: not implemented
-    return values.W_Fixnum(0)
 
 @expose("path-string?", [values.W_Object])
 def path_stringp(v):
