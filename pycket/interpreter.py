@@ -891,11 +891,11 @@ class ModuleVar(Var):
             try:
                 return prim_env[self.srcsym]
             except KeyError:
-                raise SchemeException("can't find primitive %s" % (self.sym.tostring()))
+                raise SchemeException("can't find primitive %s" % (self.srcsym.tostring()))
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:
-                raise SchemeException("can't find module %s for %s" % (self.srcmod, self.sym.tostring()))
+                raise SchemeException("can't find module %s for %s" % (self.srcmod, self.srcsym.tostring()))
         return mod.lookup(self.srcsym)
 
 
