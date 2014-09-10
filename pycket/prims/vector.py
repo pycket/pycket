@@ -12,6 +12,10 @@ from pycket.prims.expose import unsafe, default, expose
 def vector(args):
     return values_vector.W_Vector.fromelements(args)
 
+@expose("flvector")
+def flvector(args):
+    return values_vector.W_FlVector.fromelements(args)
+
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):
@@ -28,8 +32,19 @@ def make_vector(w_size, w_val):
 def vector_length(v):
     return values.W_Fixnum(v.length())
 
+@expose("flvector-length", [values_vector.W_FlVector])
+def flvector_length(v):
+    return values.W_Fixnum(v.length())
+
 @expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
 def vector_ref(v, i, env, cont):
+    idx = i.value
+    if not (0 <= idx < v.length()):
+        raise SchemeException("vector-ref: index out of bounds")
+    return v.vector_ref(i, env, cont)
+
+@expose("flvector-ref", [values_vector.W_FlVector, values.W_Fixnum], simple=False)
+def flvector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
@@ -42,6 +57,13 @@ def vector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
+    return v.vector_set(i, new, env, cont)
+
+@expose("flvector-set!", [values_vector.W_FlVector, values.W_Fixnum, values.W_Flonum], simple=False)
+def flvector_set(v, i, new, env, cont):
+    idx = i.value
+    if not (0 <= idx < v.length()):
+        raise SchemeException("flvector-set!: index out of bounds")
     return v.vector_set(i, new, env, cont)
 
 @expose("vector-copy!",
@@ -106,6 +128,10 @@ def unsafe_vector_ref(v, i, env, cont):
         assert val >= 0
         return return_value(v._ref(val), env, cont)
 
+@expose("unsafe-flvector-ref", [unsafe(values_vector.W_FlVector), unsafe(values.W_Fixnum)])
+def unsafe_flvector_ref(v, i):
+    return v._ref(i.value)
+
 @expose("unsafe-vector*-ref", [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum)])
 def unsafe_vector_star_ref(v, i):
     return v._ref(i.value)
@@ -125,11 +151,20 @@ def unsafe_vector_set(v, i, new, env, cont):
 def unsafe_vector_star_set(v, i, new):
     return v._set(i.value, new)
 
+@expose("unsafe-flvector-set!",
+        [unsafe(values_vector.W_FlVector), unsafe(values.W_Fixnum), unsafe(values.W_Flonum)])
+def unsafe_flvector_set(v, i, new):
+    return v._set(i.value, new)
+
 @expose("unsafe-vector-length", [values.W_MVector])
 def unsafe_vector_length(v):
     return values.W_Fixnum(v.length())
 
 @expose("unsafe-vector*-length", [unsafe(values_vector.W_Vector)])
 def unsafe_vector_star_length(v):
+    return values.W_Fixnum(v.length())
+
+@expose("unsafe-flvector-length", [unsafe(values_vector.W_FlVector)])
+def unsafe_flvector_length(v):
     return values.W_Fixnum(v.length())
 
