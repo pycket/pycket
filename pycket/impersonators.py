@@ -52,34 +52,6 @@ def lookup_property(obj, prop):
         obj = obj.get_proxied()
     return None
 
-@jit.unroll_safe
-def is_impersonator_of(a, b):
-    while True:
-        if a is b:
-            return True
-        elif a.is_impersonator():
-            a = a.get_proxied()
-        else:
-            return is_chaperone_of(a, b)
-
-# Check that one value is a chaperone of the other
-@jit.unroll_safe
-def is_chaperone_of(a, b):
-    while True:
-        if a is b:
-            return True
-        elif a.is_chaperone():
-            a = a.get_proxied()
-        else:
-            return False
-
-# Capture the original output of the function to compare agains the result of
-# the check operation
-@continuation
-def chp_proc_call_check_cont(check, env, cont, _vals):
-    vals = _vals._get_full_list()
-    return check.call(vals, env, check_chaperone_results(vals, env, cont))
-
 @continuation
 def check_chaperone_results(args, env, cont, vals):
     # We are allowed to receive more values than arguments to compare them to.
@@ -316,7 +288,8 @@ class W_ChpVector(W_InterposeVector):
 def valid_struct_proc(x):
     v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
-            isinstance(v, values_struct.W_StructFieldMutator))
+            isinstance(v, values_struct.W_StructFieldMutator) or
+            isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
 def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
