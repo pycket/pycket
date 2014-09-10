@@ -724,10 +724,10 @@ class W_Symbol(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        val = W_Symbol.all_symbols.get(string, None)
-        if val is None:
-            W_Symbol.all_symbols[string] = val = W_Symbol(string)
-        return val
+        w_result = W_Symbol.all_symbols.get(string, None)
+        if w_result is None:
+            W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
+        return w_result
 
     @staticmethod
     def make_unreadable(string):
@@ -763,10 +763,10 @@ class W_Keyword(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        val = W_Keyword.all_symbols.get(string, None)
-        if val is None:
-            W_Keyword.all_symbols[string] = val = W_Keyword(string)
-        return val
+        w_result = W_Keyword.all_symbols.get(string, None)
+        if w_result is None:
+            W_Keyword.all_symbols[string] = w_result = W_Keyword(string)
+        return w_result
     def __repr__(self):
         return self.value
     def __init__(self, val):
