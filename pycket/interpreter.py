@@ -89,6 +89,10 @@ class Env(object):
     _immutable_fields_ = ["toplevel_env", "module_env"]
     _attrs_ = ['toplevel_env']
 
+    def get_prev(self, env_structure):
+        assert env_structure.elems == []
+        return self
+
 class Version(object):
     pass
 
@@ -125,12 +129,18 @@ class ToplevelEnv(Env):
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
 
-@inline_small_list(immutable=True, attrname="vals")
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class ConsEnv(Env):
-    _immutable_fields_ = ["prev", "toplevel_env"]
+    _immutable_fields_ = ["_prev", "toplevel_env"]
     def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
-        self.prev = prev
+        self._prev = prev
+
+    @staticmethod
+    def make(vals, prev, toplevel):
+        if vals:
+            return ConsEnv._make(vals, prev, toplevel)
+        return prev
 
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
@@ -140,7 +150,8 @@ class ConsEnv(Env):
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym, env_structure.prev)
+        prev = self.get_prev(env_structure)
+        return prev.lookup(sym, env_structure.prev)
 
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
@@ -149,7 +160,14 @@ class ConsEnv(Env):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val, env_structure.prev)
+        prev = self.get_prev(env_structure)
+        return prev.set(sym, val, env_structure.prev)
+
+    def get_prev(self, env_structure):
+        jit.promote(env_structure)
+        if env_structure.elems:
+            return self._prev
+        return self
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
@@ -686,7 +704,7 @@ class App(AST):
             # the closed over env is the same as the passed in one, which
             # breaks otherwise
             assert isinstance(env, ConsEnv)
-            env = env.prev
+            env = env._prev # XXX
             env_structure = env_structure.prev
         if isinstance(w_callable, values.W_Closure):
             return w_callable._call_with_speculation(args_w, env, cont, env_structure)
@@ -935,9 +953,10 @@ class SymList(object):
         self.prev = prev
 
     def check_plausibility(self, env):
-        assert len(self.elems) == env._get_size_list()
+        if self.elems:
+            assert len(self.elems) == env._get_size_list()
         if self.prev:
-            self.prev.check_plausibility(env.prev)
+            self.prev.check_plausibility(env.get_prev(self))
 
 # rewritten version for caching
 def to_modvar(m):
@@ -999,7 +1018,7 @@ class If(AST):
             # it's no longer needed nor accessible
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
-            env = env.prev
+            env = env._prev # XXX
         if w_val is values.w_false:
             return self.els, env, cont
         else:

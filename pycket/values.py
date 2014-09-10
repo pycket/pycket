@@ -955,9 +955,8 @@ class W_Closure(W_Procedure):
                 if env is new_env:
                     prev = env
                     break
+            env = env.get_prev(env_structure)
             env_structure = env_structure.prev
-            assert isinstance(env, ConsEnv)
-            env = env.prev
             i += 1
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
