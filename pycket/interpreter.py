@@ -125,6 +125,7 @@ class ToplevelEnv(Env):
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
 
+@inline_small_list(immutable=True, attrname="vals")
 class ConsEnv(Env):
     _immutable_fields_ = ["prev", "toplevel_env"]
     def __init__ (self, prev, toplevel):
@@ -149,7 +150,6 @@ class ConsEnv(Env):
                 self._set_list(i, val)
                 return
         return self.prev.set(sym, val, env_structure.prev)
-inline_small_list(ConsEnv, immutable=True, attrname="vals")
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
@@ -190,6 +190,7 @@ class LetrecCont(Cont):
                     LetrecCont(ast, self.i + 1,
                                self.env, self.prev))
 
+@inline_small_list(immutable=True, attrname="vals_w")
 class LetCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
 
@@ -228,9 +229,6 @@ class LetCont(Cont):
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast,
                                  rhsindex + 1, self.env, self.prev))
-
-inline_small_list(LetCont, attrname="vals_w", immutable=True)
-
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]

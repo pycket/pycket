@@ -307,6 +307,7 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
+@inline_small_list(immutable=False, attrname="values")
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type", "values"]
@@ -403,7 +404,6 @@ class W_Struct(W_RootStruct):
             result = "(%s %s)" % (self._type.name, ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-inline_small_list(W_Struct, immutable=False, attrname="values")
 
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type"]

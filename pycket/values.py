@@ -13,6 +13,7 @@ import rpython.rlib.rweakref as weakref
 UNROLLING_CUTOFF = 5
 
 # This is not a real value, so it's not a W_Object
+@inline_small_list(immutable=True, attrname="vals")
 class Values(object):
     def tostring(self):
         vals = self._get_full_list()
@@ -25,8 +26,6 @@ class Values(object):
     @jit.unroll_safe
     def __init__(self):
         pass
-
-inline_small_list(Values, immutable=True, attrname="vals")
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -845,6 +844,7 @@ class W_Continuation(W_Procedure):
     def tostring(self):
         return "#<continuation>"
 
+@inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
@@ -939,7 +939,6 @@ class W_Closure(W_Procedure):
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)
 
-inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
