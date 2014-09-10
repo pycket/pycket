@@ -73,6 +73,36 @@ def is_chaperone_of(a, b):
         else:
             return False
 
+# Capture the original output of the function to compare agains the result of
+# the check operation
+@continuation
+def chp_proc_call_check_cont(check, env, cont, _vals):
+    vals = _vals._get_full_list()
+    return check.call(vals, env, check_chaperone_results(vals, env, cont))
+
+@continuation
+def check_chaperone_results(args, env, cont, vals):
+    # We are allowed to receive more values than arguments to compare them to.
+    # Additional ones are ignored for this checking routine.
+    assert vals._get_size_list() >= len(args)
+    return check_chaperone_results_loop(vals, args, 0, env, cont)
+
+def check_chaperone_results_loop(vals, args, idx, env, cont):
+    from .interpreter import return_multi_vals
+    from .prims.equal import equal_func, CHPOF_EQUAL_INFO
+    if idx >= len(args):
+        return return_multi_vals(vals, env, cont)
+    return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
+            catch_equal_cont(vals, args, idx, env, cont))
+
+@continuation
+def catch_equal_cont(vals, args, idx, env, cont, _vals):
+    from .interpreter import check_one_val
+    val = check_one_val(_vals)
+    if val is values.w_false:
+        raise SchemeException("Expecting original value or chaperone")
+    return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
+
 # Procedures
 
 # Continuation used when calling an impersonator of a procedure.
@@ -131,40 +161,6 @@ class W_ImpProcedure(W_InterposeProcedure):
 
     def post_call_cont(self, args, env, cont):
         return imp_proc_cont(args, self.inner, env, cont)
-
-# Capture the original output of the function to compare agains the result of
-# the check operation
-@continuation
-def chp_proc_call_check_cont(check, env, cont, _vals):
-    vals = _vals._get_full_list()
-    return check.call(vals, env, check_chaperone_results(vals, env, cont))
-
-@continuation
-def check_chaperone_results(args, env, cont, vals):
-    # We are allowed to receive more values than arguments to compare them to.
-    # Additional ones are ignored for this checking routine.
-    assert vals._get_size_list() >= len(args)
-    return check_chaperone_results_loop(vals, args, 0, env, cont)
-
-# TODO: This would likely be nicer as a continuation, as the current uses are from
-# a continuation which captures the values and invokes this label with a, possibly
-# new, continuation.
-@label
-def check_chaperone_results_loop(vals, args, idx, env, cont):
-    from .interpreter import return_multi_vals
-    from .prims.equal import equal_func, CHPOF_EQUAL_INFO
-    if idx >= len(args):
-        return return_multi_vals(vals, env, cont)
-    return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
-            catch_equal_cont(vals, args, idx, env, cont))
-
-@continuation
-def catch_equal_cont(vals, args, idx, env, cont, _vals):
-    from .interpreter import check_one_val
-    val = check_one_val(_vals)
-    if val is values.w_false:
-        raise SchemeException("Expecting original value or chaperone")
-    return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
 @make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
