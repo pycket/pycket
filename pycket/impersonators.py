@@ -88,8 +88,8 @@ def check_chaperone_results(args, env, cont, vals):
     return check_chaperone_results_loop(vals, args, 0, env, cont)
 
 def check_chaperone_results_loop(vals, args, idx, env, cont):
-    from .interpreter import return_multi_vals
-    from .prims.equal import equal_func, CHPOF_EQUAL_INFO
+    from pycket.interpreter import return_multi_vals
+    from pycket.prims.equal import equal_func, CHPOF_EQUAL_INFO
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
     return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
@@ -97,7 +97,7 @@ def check_chaperone_results_loop(vals, args, idx, env, cont):
 
 @continuation
 def catch_equal_cont(vals, args, idx, env, cont, _vals):
-    from .interpreter import check_one_val
+    from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     if val is values.w_false:
         raise SchemeException("Expecting original value or chaperone")
