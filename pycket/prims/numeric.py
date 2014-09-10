@@ -22,7 +22,7 @@ def make_cmp(name, op, con):
         idx = 2
         truth = True
         while idx <= len(args):
-            start = idx - 1
+            start = idx - 2
             assert start >= 0
             w_a, w_b = args[start:idx]
             assert isinstance(w_a, W_Number)
