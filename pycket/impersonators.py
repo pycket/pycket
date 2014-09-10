@@ -103,6 +103,16 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
         raise SchemeException("Expecting original value or chaperone")
     return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
+@continuation
+def chaperone_reference_cont(f, args, env, cont, _vals):
+    old = _vals._get_full_list()
+    return f.call(args + old, env, check_chaperone_results(old, env, cont))
+
+@continuation
+def impersonate_reference_cont(f, args, env, cont, _vals):
+    old = _vals._get_full_list()
+    return f.call(args + old, env, cont)
+
 # Procedures
 
 # Continuation used when calling an impersonator of a procedure.
@@ -171,13 +181,6 @@ class W_ChpProcedure(W_InterposeProcedure):
         return check_chaperone_results(args, env,
                 imp_proc_cont(args, self.inner, env, cont))
 
-# Boxes
-@continuation
-def chp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    old = check_one_val(vals)
-    return f.call([box, old], env, check_chaperone_results([old], env, cont))
-
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
@@ -222,7 +225,7 @@ class W_ChpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return chp_unbox_cont(self.unboxh, self.inner, env, cont)
+        return chaperone_reference_cont(self.unboxh, [self.inner], env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return check_chaperone_results([val], env,
@@ -230,11 +233,6 @@ class W_ChpBox(W_InterposeBox):
 
     def immutable(self):
         return self.inner.immutable()
-
-@continuation
-def imp_unbox_cont(f, box, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return f.call([box, check_one_val(vals)], env, cont)
 
 @continuation
 def imp_box_set_cont(b, env, cont, vals):
@@ -247,7 +245,7 @@ class W_ImpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return imp_unbox_cont(self.unboxh, self.inner, env, cont)
+        return impersonate_reference_cont(self.unboxh, [self.inner], env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return imp_box_set_cont(self.inner, env, cont)
@@ -256,17 +254,6 @@ class W_ImpBox(W_InterposeBox):
 def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return v.vector_set(i, check_one_val(vals), env, cont)
-
-@continuation
-def imp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    return f.call([v, i, check_one_val(vals)], env, cont)
-
-@continuation
-def chp_vec_ref_cont(f, i, v, env, cont, vals):
-    from pycket.interpreter import check_one_val
-    old = check_one_val(vals)
-    return f.call([v, i, old], env, check_chaperone_results([old], env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeVector(values.W_MVector):
@@ -311,7 +298,7 @@ class W_ImpVector(W_InterposeVector):
         return imp_vec_set_cont(self.inner, i, env, cont)
 
     def post_ref_cont(self, i, env, cont):
-        return imp_vec_ref_cont(self.refh, i, self.inner, env, cont)
+        return impersonate_reference_cont(self.refh, [i, self.inner], env, cont)
 
 @make_chaperone
 class W_ChpVector(W_InterposeVector):
@@ -322,7 +309,7 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
-        return chp_vec_ref_cont(self.refh, i, self.inner, env, cont)
+        return chaperone_reference_cont(self.refh, [i, self.inner], env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -330,12 +317,6 @@ def valid_struct_proc(x):
     v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
             isinstance(v, values_struct.W_StructFieldMutator))
-
-@continuation
-def imp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    field_v = check_one_val(_vals)
-    return interp.call([orig_struct, field_v], env, cont)
 
 @continuation
 def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
@@ -421,23 +402,16 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 class W_ImpStruct(W_InterposeStructBase):
 
     def post_ref_cont(self, interp, env, cont):
-        return imp_struct_ref_cont(interp, self.inner, env, cont)
+        return impersonate_reference_cont(interp, [self.inner], env, cont)
 
     def post_set_cont(self, op, val, env, cont):
         return imp_struct_set_cont(self.inner, op, env, cont)
-
-@continuation
-def chp_struct_ref_cont(interp, orig_struct, env, cont, _vals):
-    from pycket.interpreter import check_one_val
-    field_v = check_one_val(_vals)
-    return interp.call([orig_struct, field_v], env,
-            check_chaperone_results([field_v], env, cont))
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
 
     def post_ref_cont(self, interp, env, cont):
-        return chp_struct_ref_cont(interp, self.inner, env, cont)
+        return chaperone_reference_cont(interp, [self.inner], env, cont)
 
     def post_set_cont(self, op, val, env, cont):
         return check_chaperone_results([val], env,
