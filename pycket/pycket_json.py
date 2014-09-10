@@ -56,7 +56,7 @@ class JsonNull(JsonPrimitive):
         return None
 
 class JsonFalse(JsonPrimitive):
-    is_false = True
+    is_bool = True
 
     def tostring(self):
         return "false"
@@ -66,7 +66,7 @@ class JsonFalse(JsonPrimitive):
 
 
 class JsonTrue(JsonPrimitive):
-    is_true = True
+    is_bool = True
 
     def tostring(self):
         return "true"

@@ -4,6 +4,17 @@
 
 (define keep-srcloc (make-parameter #t))
 
+(define (hash-set* h . kvs)
+  (let loop ([kvs kvs] [h h])
+    (if (null? kvs)
+        h
+        (let* ([k (car kvs)]
+               [v (cadr kvs)]
+               [h (if v (hash-set h k v) h)])
+          (loop (cddr kvs) h)))))
+
+(define (hash* . kvs) (apply hash-set* (hash) kvs))
+
 (define (do-expand stx)
   ;; error checking
   (syntax-parse stx #:literals ()
@@ -150,6 +161,12 @@
        (hash 'real-part (num (real-part n))
              'imag-part (num (imag-part n)))]))
 
+(define (save-source-here? r)
+  (or (hash-has-key? r 'quote-syntax)
+      (hash-has-key? r 'variable-reference)
+      (hash-has-key? r 'lambda)
+      (hash-has-key? r 'case-lambda)))
+
 (define (to-json v)
   (define (path/symbol/list->string o)
     (cond [(path-string? o) (hash '%p (path->string o))]
@@ -163,26 +180,19 @@
                    (path/symbol/list->string rm)))]
           [else (path/symbol/list->string m)]))
   (let ([r        (to-json* v)])
-    (if (or (not (keep-srcloc)) (not (hash? r)))
+    (if (or (not (keep-srcloc))
+            (not (hash? r))
+            (not (save-source-here? r)))
         r
-        (let* ([line     (syntax-line v)]
-               [column   (syntax-column v)]
-               [position (syntax-position v)]
-               [span     (syntax-span v)]
-               [original (syntax-original? v)]
-               [source   (path/symbol/list->string (syntax-source v))]
-               [module   (syntax-source-module->hash
-                          (syntax-source-module v #f))]
-               [stx0 (hash)]
-               [stx1 (if line     (hash-set stx0 'l   line)     stx0)]
-               [stx2 (if column   (hash-set stx1 'c   column)   stx1)]
-               [stx3 (if position (hash-set stx2 'p   position) stx2)]
-               [stx4 (if span     (hash-set stx3 's   span)     stx3)]
-               [stx5 (if original (hash-set stx4 'o   original) stx4)]
-               [stx6 (if source   (hash-set stx5 'src source)   stx5)]
-               [stx7 (if module   (hash-set stx6 'mod module)   stx6)]
-               [res  (if (hash-empty? stx7) r (hash-set r '%stx stx7))])
-               res))))
+        (hash-set* r
+                   'line     (syntax-line v)
+                   'column   (syntax-column v)
+                   'position (syntax-position v)
+                   'span     (syntax-span v)
+                   'original (syntax-original? v)
+                   'source   (path/symbol/list->string (syntax-source v))
+                   'module   (syntax-source-module->hash
+                              (syntax-source-module v #f))))))
 
 (define (to-json* v)
   (define (proper l)
@@ -191,7 +201,7 @@
       [_ null]))
   (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
                               module* module #%plain-app quote #%require quote-syntax
-                              with-continuation-mark #%declare #%provide)
+                              with-continuation-mark #%declare #%provide case-lambda #%variable-reference)
     [v:str (hash 'string (syntax-e #'v))]
     [v
      #:when (path? (syntax-e #'v))
@@ -236,6 +246,15 @@
                                     [e (syntax->list #'(es ...))])
                            (list (to-json x) (to-json e)))
            'let-body (map to-json (syntax->list #'(b ...))))]
+    [(#%plain-lambda fmls . b)
+     (hash 'lambda (to-json #'fmls)
+           'body (map to-json (syntax->list #'b)))]
+    [(case-lambda (fmls . b) ...)
+     (hash 'case-lambda
+           (for/list ([fmls (syntax->list #'(fmls ...))]
+                      [b (syntax->list #'(b ...))])
+             (hash 'lambda (to-json fmls)
+                   'body (map to-json (syntax->list b)))))]
     [(letrec-values ([xs es] ...) b ...)
      (hash 'letrec-bindings (for/list ([x (syntax->list #'(xs ...))]
                                        [e (syntax->list #'(es ...))])
@@ -259,6 +278,10 @@
 
     [(#%require x ...)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
+    [(#%variable-reference)
+     (hash 'variable-reference #f)]
+    [(#%variable-reference id)
+     (hash 'variable-reference (to-json #'id))]
     [(_ ...)
      (map to-json (syntax->list v))]
     [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
@@ -273,15 +296,18 @@
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id _ nom-src-id
                    src-phase import-phase nominal-export-phase)
-        (hash 'module (symbol->string (syntax-e v))
-              'source-module (if (path? src)
-                                 (path->string src)
-                                 (and src (symbol->string src)))
-              'source-name (id->sym #'i)
-              ;; currently ignored
-              #;#;
-              'phases (list src-phase import-phase nominal-export-phase))])]
-    [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
+        (define idsym (id->sym #'i))
+        (define modsym (symbol->string (syntax-e v)))
+        (hash* 'source-module (cond [(path? src) (path->string src)]
+                                    [(eq? src '#%kernel) #f] ;; omit these
+                                    [src (symbol->string src)]
+                                    [else 'null])
+               'module (if (string=? idsym modsym) #f modsym)
+               'source-name (id->sym #'i)
+               ;; currently ignored
+               #;#;
+               'phases (list src-phase import-phase nominal-export-phase))])]
+     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
     [_ #:when (box? (syntax-e v))
        (hash 'box (to-json (unbox (syntax-e v))))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]

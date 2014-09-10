@@ -4,7 +4,7 @@ from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
 from pycket.cont              import Cont, nil_continuation
 from rpython.rlib             import jit, debug, objectmodel
-from rpython.rlib.objectmodel import r_dict, compute_hash
+from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
 # imported for side effects
@@ -89,6 +89,10 @@ class Env(object):
     _immutable_fields_ = ["toplevel_env", "module_env"]
     _attrs_ = ['toplevel_env']
 
+    def get_prev(self, env_structure):
+        assert env_structure.elems == []
+        return self
+
 class Version(object):
     pass
 
@@ -125,11 +129,18 @@ class ToplevelEnv(Env):
             self.bindings[sym] = values.W_Cell(w_val)
             self.version = Version()
 
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class ConsEnv(Env):
-    _immutable_fields_ = ["prev", "toplevel_env"]
+    _immutable_fields_ = ["_prev", "toplevel_env"]
     def __init__ (self, prev, toplevel):
         self.toplevel_env = toplevel
-        self.prev = prev
+        self._prev = prev
+
+    @staticmethod
+    def make(vals, prev, toplevel):
+        if vals:
+            return ConsEnv._make(vals, prev, toplevel)
+        return prev
 
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
@@ -139,7 +150,8 @@ class ConsEnv(Env):
                 v = self._get_list(i)
                 assert v is not None
                 return v
-        return self.prev.lookup(sym, env_structure.prev)
+        prev = self.get_prev(env_structure)
+        return prev.lookup(sym, env_structure.prev)
 
     @jit.unroll_safe
     def set(self, sym, val, env_structure):
@@ -148,8 +160,14 @@ class ConsEnv(Env):
             if s is sym:
                 self._set_list(i, val)
                 return
-        return self.prev.set(sym, val, env_structure.prev)
-inline_small_list(ConsEnv, immutable=True, attrname="vals")
+        prev = self.get_prev(env_structure)
+        return prev.set(sym, val, env_structure.prev)
+
+    def get_prev(self, env_structure):
+        jit.promote(env_structure)
+        if env_structure.elems:
+            return self._prev
+        return self
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
@@ -167,36 +185,35 @@ class TrampolineCont(Cont):
         raise NotImplementedError("unreachable")
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev", "i"]
-    def __init__(self, ast, i, env, prev):
+    _immutable_fields_ = ["counting_ast", "env", "prev"]
+    def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
-        self.ast = ast
-        self.i = i
+        self.counting_ast = counting_ast
 
     @jit.unroll_safe
     def plug_reduce(self, _vals, env):
         vals = _vals._get_full_list()
-        ast = jit.promote(self.ast)
-        if ast.counts[self.i] != _vals._get_size_list():
+        ast, i = self.counting_ast.unpack(Letrec)
+        if ast.counts[i] != _vals._get_size_list():
             raise SchemeException("wrong number of values")
         for j, w_val in enumerate(vals):
-            v = self.env.lookup(ast.args.elems[ast.total_counts[self.i] + j], ast.args)
+            v = self.env.lookup(ast.args.elems[ast.total_counts[i] + j], ast.args)
             assert isinstance(v, values.W_Cell)
             v.set_val(w_val)
-        if self.i >= (len(ast.rhss) - 1):
+        if i >= (len(ast.rhss) - 1):
             return ast.make_begin_cont(self.env, self.prev)
         else:
-            return (ast.rhss[self.i + 1], self.env,
-                    LetrecCont(ast, self.i + 1,
+            return (ast.rhss[i + 1], self.env,
+                    LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
+@inline_small_list(immutable=True, attrname="vals_w")
 class LetCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
+    _immutable_fields_ = ["counting_ast", "env", "prev"]
 
-    def __init__(self, ast, rhsindex, env, prev):
+    def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
-        self.ast  = ast
-        self.rhsindex = rhsindex
+        self.counting_ast  = counting_ast
 
     @jit.unroll_safe
     def plug_reduce(self, _vals, _env):
@@ -212,8 +229,8 @@ class LetCont(Cont):
         for w_val in vals:
             vals_w[i] = w_val
             i += 1
-        ast = jit.promote(self.ast)
-        rhsindex = jit.promote(self.rhsindex)
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
@@ -226,11 +243,8 @@ class LetCont(Cont):
             return ast.make_begin_cont(env, self.prev)
         else:
             return (ast.rhss[rhsindex + 1], self.env,
-                    LetCont.make(vals_w, ast,
-                                 rhsindex + 1, self.env, self.prev))
-
-inline_small_list(LetCont, attrname="vals_w", immutable=True)
-
+                    LetCont.make(vals_w, ast.counting_asts[rhsindex + 1],
+                                 self.env, self.prev))
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
@@ -261,14 +275,14 @@ class SetBangCont(Cont):
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev", "i"]
-    def __init__(self, ast, i, env, prev):
+    _immutable_fields_ = ["counting_ast", "env", "prev"]
+    def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
-        self.ast = ast
-        self.i = i
+        self.counting_ast = counting_ast
 
     def plug_reduce(self, vals, env):
-        return jit.promote(self.ast).make_begin_cont(self.env, self.prev, self.i)
+        ast, i = self.counting_ast.unpack(SequencedBodyAST)
+        return ast.make_begin_cont(self.env, self.prev, i)
 
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
@@ -688,7 +702,7 @@ class App(AST):
             # the closed over env is the same as the passed in one, which
             # breaks otherwise
             assert isinstance(env, ConsEnv)
-            env = env.prev
+            env = env._prev # XXX
             env_structure = env_structure.prev
         if isinstance(w_callable, values.W_Closure):
             return w_callable._call_with_speculation(args_w, env, cont, env_structure)
@@ -698,11 +712,16 @@ class App(AST):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]"]
-    def __init__(self, body):
+    _immutable_fields_ = ["body[*]", "counting_asts[*]"]
+    def __init__(self, body, counts_needed=-1):
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+        if counts_needed < len(self.body) + 1:
+            counts_needed = len(self.body) + 1
+        self.counting_asts = [
+            CombinedAstAndIndex(self, i)
+                for i in range(counts_needed)]
 
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
@@ -710,7 +729,8 @@ class SequencedBodyAST(AST):
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
-            return self.body[i], env, BeginCont(self, i + 1, env, prev)
+            return self.body[i], env, BeginCont(
+                    self.counting_asts[i + 1], env, prev)
 
 
 class Begin0(AST):
@@ -937,9 +957,10 @@ class SymList(object):
         self.prev = prev
 
     def check_plausibility(self, env):
-        assert len(self.elems) == env._get_size_list()
+        if self.elems:
+            assert len(self.elems) == env._get_size_list()
         if self.prev:
-            self.prev.check_plausibility(env.prev)
+            self.prev.check_plausibility(env.get_prev(self))
 
 # rewritten version for caching
 def to_modvar(m):
@@ -1001,7 +1022,7 @@ class If(AST):
             # it's no longer needed nor accessible
             assert env._get_size_list() == 1
             assert isinstance(env, ConsEnv)
-            env = env.prev
+            env = env._prev # XXX
         if w_val is values.w_false:
             return self.els, env, cont
         else:
@@ -1180,13 +1201,26 @@ class Lambda(SequencedBodyAST):
                                        self.body[0].tostring() if len(self.body) == 1 else
                                        " ".join([b.tostring() for b in self.body]))
 
+class CombinedAstAndIndex(AST):
+    _immutable_fields_ = ["ast", "index"]
+
+    def __init__(self, ast, index):
+        self.ast = ast
+        self.index = index
+
+    @specialize.arg(1)
+    def unpack(self, cls):
+        jit.promote(self)
+        ast = self.ast
+        assert isinstance(ast, cls)
+        return ast, self.index
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
     def __init__(self, args, counts, rhss, body):
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
-        SequencedBodyAST.__init__(self, body)
+        SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         self.counts = counts
         total_counts = []
         total_count = 0
@@ -1196,10 +1230,11 @@ class Letrec(SequencedBodyAST):
         self.total_counts = total_counts[:] # copy to make fixed-size
         self.rhss = rhss
         self.args = args
+
     @jit.unroll_safe
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
-        return self.rhss[0], env_new, LetrecCont(self, 0, env_new, cont)
+        return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body + self.rhss:
@@ -1288,11 +1323,10 @@ def make_letrec(varss, rhss, body):
     symlist, counts = _make_symlist_counts(varss)
     return Letrec(symlist, counts, rhss, body)
 
-
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
     def __init__(self, args, counts, rhss, body):
-        SequencedBodyAST.__init__(self, body)
+        SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         self.counts = counts
@@ -1300,7 +1334,8 @@ class Let(SequencedBodyAST):
         self.args = args
 
     def interpret(self, env, cont):
-        return self.rhss[0], env, LetCont.make([], self, 0, env, cont)
+        return self.rhss[0], env, LetCont.make(
+                [], self.counting_asts[0], env, cont)
 
     def _mutated_vars(self):
         x = variable_set()

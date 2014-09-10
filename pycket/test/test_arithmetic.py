@@ -192,3 +192,39 @@ def test_fixnum_special(doctest):
     > (fxmax 2 1)
     2
     """
+
+def test_all_comparators(doctest):
+    """
+    ; http://docs.racket-lang.org/reference/generic-numbers.html
+    > (= 1 1.0)
+    #t
+    > (= 1 2)
+    #f
+    ; fixme complex
+    ;> (= 2+3i 2+3i 2+3i)
+    ;#t
+    > (< 1 1)
+    #f
+    > (< 1 2 3)
+    #t
+    > (< 1 +inf.0)
+    #t
+    > (< 1 +nan.0)
+    #f
+    > (<= 1 1)
+    #t
+    > (<= 1 2 1)
+    #f
+    > (> 1 1)
+    #f
+    > (> 3 2 1)
+    #t
+    > (> +inf.0 1)
+    #t
+    > (> +nan.0 1)
+    #f
+    > (>= 1 1)
+    #t
+    > (>= 1 2 1)
+    #f
+    """

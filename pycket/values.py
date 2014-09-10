@@ -12,7 +12,23 @@ import rpython.rlib.rweakref as weakref
 
 UNROLLING_CUTOFF = 5
 
+def memoize(f):
+    cache = {}
+    def wrapper(*val):
+        lup = cache.get(val, None)
+        if lup is None:
+            lup = f(*val)
+            cache[val] = lup
+        return lup
+    return wrapper
+
+# Add a `make` method to a given class which memoizes constructor invocations.
+def memoize_constructor(cls):
+    setattr(cls, "make", staticmethod(memoize(cls)))
+    return cls
+
 # This is not a real value, so it's not a W_Object
+@inline_small_list(immutable=True, attrname="vals")
 class Values(object):
     def tostring(self):
         vals = self._get_full_list()
@@ -25,8 +41,6 @@ class Values(object):
     @jit.unroll_safe
     def __init__(self):
         pass
-
-inline_small_list(Values, immutable=True, attrname="vals")
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -466,12 +480,19 @@ class W_Rational(W_Number):
         assert isinstance(d, W_Integer)
         self.num = n
         self.den = d
+
+    @staticmethod
+    @memoize
+    def make(n, d):
+        return W_Rational(n, d)
+
     def tostring(self):
         return "%s/%s" % (self.num.tostring(), self.den.tostring())
 
 class W_Integer(W_Number):
     errorname = "integer"
 
+@memoize_constructor
 class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
@@ -486,6 +507,7 @@ class W_Fixnum(W_Integer):
             return False
         return self.value == other.value
 
+@memoize_constructor
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
@@ -511,6 +533,7 @@ class W_Bignum(W_Integer):
             return False
         return self.value.eq(other.value)
 
+@memoize_constructor
 class W_Complex(W_Number):
     _immutable_fields_ = ["real", "imag"]
     def __init__(self, re, im):
@@ -522,6 +545,7 @@ class W_Complex(W_Number):
     def tostring(self):
         return "%s+%si" % (self.real.tostring(), self.imag.tostring())
 
+@memoize_constructor
 class W_Character(W_Object):
     _immutable_fields_ = ["value"]
     errorname = "char"
@@ -612,24 +636,23 @@ w_void = W_Void()
 w_null = W_Null()
 
 class W_Bool(W_Object):
-    _immutable_fields_ = ["value"]
     errorname = "boolean"
     @staticmethod
     def make(b):
         if b: return w_true
         else: return w_false
 
-    def __init__(self, val):
+    def __init__(self):
         """ NOT_RPYTHON """
+        pass
         # the previous line produces an error if somebody makes new bool
         # objects from primitives
-        self.value = val
+        #self.value = val
     def tostring(self):
-        if self.value: return "#t"
-        else: return "#f"
+        return "#t" if self is w_true else "#f"
 
-w_false = W_Bool(False)
-w_true = W_Bool(True)
+w_false = W_Bool()
+w_true = W_Bool()
 
 class W_ThreadCellValues(W_Object):
     _immutable_fields_ = ["assoc"]
@@ -637,7 +660,7 @@ class W_ThreadCellValues(W_Object):
     def __init__(self):
         self.assoc = {}
         for c in W_ThreadCell._table:
-            if c.preserved.value:
+            if c.preserved is w_true:
                 self.assoc[c] = c.value
 
 class W_ThreadCell(W_Object):
@@ -654,7 +677,6 @@ class W_ThreadCell(W_Object):
 
         W_ThreadCell._table.append(self)
 
-
 def eq_hash(k):
     if isinstance(k, W_Fixnum):
         return compute_hash(k.value)
@@ -663,27 +685,71 @@ def eq_hash(k):
 
 class W_HashTable(W_Object):
     errorname = "hash"
+
+    def hash_keys(self):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_set(self, k, v, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_ref(self, k, env, cont):
+        raise NotImplementedError("abstract method")
+
+class W_SimpleHashTable(W_HashTable):
+
+    @staticmethod
+    def hash_value(v):
+        raise NotImplementedError("abstract method")
+
+    @staticmethod
+    def cmp_value(a, b):
+        raise NotImplementedError("abstract method")
+
     def __init__(self, keys, vals, cmp=None, hash=eq_hash):
         from pycket.prims.equal import eqp_logic
-        if not cmp:
-            cmp = eqp_logic
         assert len(keys) == len(vals)
-        self.data = r_dict(cmp, hash, force_non_null=True)
-        for (i, k) in enumerate(keys):
+        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
+        for i, k in enumerate(keys):
             self.data[k] = vals[i]
 
+    def hash_keys(self):
+        return self.data.keys()
+
     def tostring(self):
-        lst = [W_Cons.make(k, v).tostring() for (k,v) in self.data.iteritems()]
+        lst = [W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
-    def set(self, k, v):
+    @label
+    def hash_set(self, k, v, env, cont):
+        from pycket.interpreter import return_value
         self.data[k] = v
+        return return_value(w_void, env, cont)
 
-    def ref(self, k):
-        if k in self.data:
-            return self.data[k]
-        else:
-            return None
+    @label
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.data.get(k, None), env, cont)
+
+class W_EqvHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        return a.eqv(b)
+
+class W_EqHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        from pycket.prims.equal import eqp_logic
+        return eqp_logic(a, b)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
@@ -696,6 +762,7 @@ class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass
 class W_BytePRegexp(W_AnyRegexp): pass
 
+@memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
     _immutable_fields_ = ["value"]
@@ -703,6 +770,7 @@ class W_Bytes(W_Object):
         self.value = val
     def tostring(self):
         return "#%s" % self.value
+
     def equal(self, other):
         if not isinstance(other, W_Bytes):
             return False
@@ -738,11 +806,11 @@ class W_Symbol(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        if string in W_Symbol.all_symbols:
-            return W_Symbol.all_symbols[string]
-        else:
+        w_result = W_Symbol.all_symbols.get(string, None)
+        if w_result is None:
             W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
-            return w_result
+        return w_result
+
     @staticmethod
     def make_unreadable(string):
         if string in W_Symbol.unreadable_symbols:
@@ -777,11 +845,10 @@ class W_Keyword(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        if string in W_Keyword.all_symbols:
-            return W_Keyword.all_symbols[string]
-        else:
+        w_result = W_Keyword.all_symbols.get(string, None)
+        if w_result is None:
             W_Keyword.all_symbols[string] = w_result = W_Keyword(string)
-            return w_result
+        return w_result
     def __repr__(self):
         return self.value
     def __init__(self, val):
@@ -883,6 +950,7 @@ class W_Continuation(W_Procedure):
     def tostring(self):
         return "#<continuation>"
 
+@inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
@@ -969,15 +1037,13 @@ class W_Closure(W_Procedure):
                 if env is new_env:
                     prev = env
                     break
+            env = env.get_prev(env_structure)
             env_structure = env_structure.prev
-            assert isinstance(env, ConsEnv)
-            env = env.prev
             i += 1
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)
 
-inline_small_list(W_Closure, immutable=True, attrname="envs", factoryname="_make")
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
