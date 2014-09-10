@@ -245,9 +245,12 @@ class LetCont(Cont):
             env = ConsEnv.make(vals_w, prev, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
+            env = self.env
+            if rhsindex == len(ast.rhss) - 2 and not ast.body_needs_env:
+                env = env.toplevel_env
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast.counting_asts[rhsindex + 1],
-                                 self.env, self.prev))
+                                 env, self.prev))
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
@@ -394,6 +397,9 @@ class AST(object):
         raise NotImplementedError("abstract base class")
     def tostring(self):
         return "UNKNOWN AST: "
+
+    def __str__(self):
+        return self.tostring()
 
 class Module(AST):
     _immutable_fields_ = ["name", "body"]
@@ -1350,8 +1356,8 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?"]
-    def __init__(self, args, counts, rhss, body):
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "body_needs_env"]
+    def __init__(self, args, counts, rhss, body, body_needs_env=True):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
@@ -1359,6 +1365,7 @@ class Let(SequencedBodyAST):
         self.rhss = rhss
         self.args = args
         self.env_speculation_works = True
+        self.body_needs_env = body_needs_env
 
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make(
@@ -1402,8 +1409,20 @@ class Let(SequencedBodyAST):
         for k, v in local_muts.iteritems():
             new_vars[k] = v
         sub_env_structure = SymList(self.args.elems, env_structure)
-        new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
-        return Let(sub_env_structure, self.counts, new_rhss, new_body)
+        free_vars = {}
+        for b in self.body:
+            free_vars.update(b.free_vars())
+        for x in sub_env_structure.elems:
+            try:
+                del free_vars[x]
+            except KeyError:
+                pass
+        if not free_vars:
+            body_env_structure = SymList(self.args.elems)
+        else:
+            body_env_structure = sub_env_structure
+        new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
+        return Let(sub_env_structure, self.counts, new_rhss, new_body, bool(free_vars))
 
     def tostring(self):
         result = ["(let ("]
