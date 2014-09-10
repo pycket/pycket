@@ -234,11 +234,14 @@ class LetCont(Cont):
         if ast.counts[rhsindex] != len(vals):
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
-            # speculate moar!
-            if _env is self.env:
-                prev = _env
-            else:
-                prev = self.env
+            prev = self.env
+            if ast.env_speculation_works:
+                # speculate moar!
+                if _env is self.env:
+                    prev = _env
+                else:
+                    if not jit.we_are_jitted():
+                        ast.env_speculation_works = False
             env = ConsEnv.make(vals_w, prev, self.env.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
@@ -1347,7 +1350,7 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?"]
     def __init__(self, args, counts, rhss, body):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
@@ -1355,6 +1358,7 @@ class Let(SequencedBodyAST):
         self.counts = counts
         self.rhss = rhss
         self.args = args
+        self.env_speculation_works = True
 
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make(
