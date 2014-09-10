@@ -342,32 +342,32 @@ def _to_require(fname):
     ModTable.pop()
     return Require(fname, module)
 
-def to_lambda(arr):
-    fmls, rest = to_formals(arr[0])
-    return make_lambda(fmls, rest, [_to_ast(x) for x in arr[1:]])
+def to_lambda(o):
+    fmls, rest = to_formals(o["lambda"])
+    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()])
 
 def _to_ast(json):
     dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array()
         rator = arr[0].value_object()
-        if "module" in rator and rator["source-module"].value_string() == "#%kernel":
+        if "source-name" in rator and (("source-module" not in rator) or (rator["source-module"].value_string() == "#%kernel")):
             ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([_to_ast(x) for x in arr[1:]])
             if ast_elem == "#%expression":
                 return _to_ast(arr[1])
-            if ast_elem == "lambda":
-                return CaseLambda([to_lambda(arr[1:])])
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
-                if "module" in target:
-                    var = ModuleVar(values.W_Symbol.make(target["module"].value_string()),
-                                    target["source-module"].value_string()
-                                    if target["source-module"].is_string else
-                                    None,
-                                    values.W_Symbol.make(target["source-name"].value_string()))
+                if "source-name" in target:
+                    srcname = values.W_Symbol.make(target["source-name"].value_string())
+                    if "source-module" in target:
+                        srcmod = target["source-module"].value_string() if target["source-module"].is_string else None
+                    else:
+                        srcmod = "#%kernel"
+                    modname = values.W_Symbol.make(target["module"].value_string()) if "module" in target else srcname
+                    var = ModuleVar(modname, srcmod, srcname)
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 elif "toplevel" in target:
@@ -378,14 +378,6 @@ def _to_ast(json):
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "begin-for-syntax":
                 return Quote(values.w_void)
-            if ast_elem == "#%variable-reference":
-                if len(arr) == 1:
-                    return VariableReference(None, ModTable.current_mod())
-                else:
-                    return VariableReference(_to_ast(arr[1]), ModTable.current_mod())
-            if ast_elem == "case-lambda":
-                lams = [to_lambda(v.value_array()) for v in arr[1:]]
-                return CaseLambda(lams)
             if ast_elem == "define-syntaxes":
                 return Quote(values.w_void)
             # The parser now ignores `#%require` AST nodes.
@@ -446,6 +438,16 @@ def _to_ast(json):
                         assert isinstance(var, values.W_Symbol)
                 assert isinstance(rhss[0], AST)
                 return make_let(list(vs), list(rhss), body)
+        if "variable-reference" in obj:
+            if obj["variable-reference"].is_bool: # assumes that only boolean here is #f
+                return VariableReference(None, ModTable.current_mod())
+            else:
+                return VariableReference(_to_ast(obj["variable-reference"]), ModTable.current_mod())
+        if "lambda" in obj:
+                return CaseLambda([to_lambda(obj)])
+        if "case-lambda" in obj:
+                lams = [to_lambda(v.value_object()) for v in obj["case-lambda"].value_array()]
+                return CaseLambda(lams)
         if "operator" in obj:
             return App.make_let_converted(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()])
         if "test" in obj:
@@ -454,12 +456,19 @@ def _to_ast(json):
             return Quote(to_value(obj["quote"]))
         if "quote-syntax" in obj:
             return QuoteSyntax(to_value(obj["quote-syntax"]))
-        if "module" in obj:
-            return ModuleVar(values.W_Symbol.make(obj["module"].value_string()),
-                             obj["source-module"].value_string()
-                             if obj["source-module"].is_string else
-                             None,
-                             values.W_Symbol.make(obj["source-name"].value_string()))
+        if "source-name" in obj:
+            srcname = obj["source-name"].value_string()
+            modname = obj["module"].value_string() if "module" in obj else None
+            srcsym = values.W_Symbol.make(srcname)
+            modsym = values.W_Symbol.make(modname) if modname else srcsym
+            if "source-module" in obj:
+                if obj["source-module"].is_string:
+                    srcmod = obj["source-module"].value_string()
+                else:
+                    srcmod = None
+            else:
+                srcmod = "#%kernel"
+            return ModuleVar(modsym, srcmod, srcsym)
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
@@ -543,7 +552,7 @@ def to_value(json):
         if "improper" in obj:
             improper = obj["improper"].value_array()
             return values.to_improper([to_value(v) for v in improper[0].value_array()], to_value(improper[1]))
-        for i in ["toplevel", "lexical", "module"]:
+        for i in ["toplevel", "lexical", "module", "source-name"]:
             if i in obj:
                 return values.W_Symbol.make(obj[i].value_string())
     if json.is_array:
