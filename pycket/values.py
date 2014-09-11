@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pycket.env import ConsEnv
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
@@ -972,7 +973,6 @@ class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
     def __init__ (self, caselam, env):
-        from pycket.interpreter import ConsEnv
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             for s in lam.frees.elems:
@@ -988,7 +988,7 @@ class W_Closure(W_Procedure):
     @staticmethod
     @jit.unroll_safe
     def make(caselam, env):
-        from pycket.interpreter import ConsEnv, CaseLambda
+        from pycket.interpreter import CaseLambda
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
         return W_Closure._make(envs, caselam, env)
@@ -1025,7 +1025,6 @@ class W_Closure(W_Procedure):
         raise SchemeException("No matching arity in case-lambda")
 
     def call(self, args, env, cont):
-        from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         (actuals, new_env, lam) = self._find_lam(args)
         return lam.make_begin_cont(
@@ -1033,7 +1032,6 @@ class W_Closure(W_Procedure):
             cont)
 
     def _call_with_speculation(self, args, env, cont, env_structure):
-        from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, new_env, lam) = self._find_lam(args)
@@ -1053,7 +1051,6 @@ class W_PromotableClosure(W_Procedure):
     _immutable_fields_ = ["closure"]
 
     def __init__(self, caselam, toplevel_env):
-        from pycket.interpreter import ConsEnv
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
 
     def mark_non_loop(self):
@@ -1102,3 +1099,7 @@ class W_Parameter(W_Object):
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
+
+
+
+
