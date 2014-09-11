@@ -993,6 +993,17 @@ class W_Closure(W_Procedure):
                     vals[j] = env.lookup(v, lam.enclosing_env_structure)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env, env.toplevel_env))
 
+    def tostring(self):
+        if len(self.caselam.lams) == 0:
+            return "#<procedure>"
+        lam = self.caselam.lams[0]
+        file, pos = lam.srcfile, lam.srcpos
+        if file and (pos >= 0):
+            return "#<procedure:%s:%s>"%(lam.srcfile, lam.srcpos)
+        if file:
+            return "#<procedure:%s>"%(lam.srcfile)
+        return "#<procedure>"
+
     @staticmethod
     @jit.unroll_safe
     def make(caselam, env):

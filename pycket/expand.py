@@ -342,9 +342,27 @@ def _to_require(fname):
     ModTable.pop()
     return Require(fname, module)
 
+def get_srcloc(o):
+    pos = o["position"].value_int() if "position" in o else -1
+    source = o["source"] if "source" in o else None
+    if source and source.is_object:
+        v = source.value_object()
+        if "%p" in v:
+            sourcefile = v["%p"].value_string()
+        elif "quote" in v:
+            sourcefile = v["quote"].value_string()
+        else:
+            assert 0
+    else:
+        sourcefile = None
+    return (pos, sourcefile)
+
 def to_lambda(o):
     fmls, rest = to_formals(o["lambda"])
-    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()])
+    pos, sourcefile = get_srcloc(o)
+    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()],
+                       pos, sourcefile)
+    
 
 def _to_ast(json):
     dbgprint("_to_ast", json)

@@ -147,6 +147,7 @@ for name in ["prop:evt",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:exn:srclocs",
+             "prop:custom-print-quotable",
              "prop:incomplete-arity"]:
     expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
 
@@ -1330,3 +1331,10 @@ def load(lib, env, cont):
         raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
     return ast, env, cont
+@expose("current-load-relative-directory", [])
+def cur_load_rel_dir():
+    return values.w_false
+
+@expose("current-directory", [])
+def cur_dir():
+    return values.W_Path(os.getcwd())

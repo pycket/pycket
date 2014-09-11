@@ -938,11 +938,11 @@ class If(AST):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 
-def make_lambda(formals, rest, body):
+def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
     args = SymList(args.elems, frees)
-    return Lambda(formals, rest, args, frees, body)
+    return Lambda(formals, rest, args, frees, body, srcpos, srcfile)
 
 def free_vars_lambda(body, args):
     x = {}
@@ -1008,8 +1008,10 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure'
                           ]
     simple = True
-    def __init__ (self, formals, rest, args, frees, body, enclosing_env_structure=None, env_structure=None):
+    def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
+        self.srcpos = srcpos
+        self.srcfile = srcfile
         self.formals = formals
         self.rest = rest
         self.args = args
@@ -1050,7 +1052,8 @@ class Lambda(SequencedBodyAST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, env_structure, sub_env_structure)
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, 
+                      self.srcpos, self.srcfile, env_structure, sub_env_structure)
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
