@@ -421,6 +421,9 @@ class TestLLtype(LLJitMixin):
     def test_binarytree(self):
         self.run_file("binarytree.rkt")
 
+    def test_binarytree(self):
+        self.run_file("church-simple.rkt")
+
     def test_mappy(self):
         ast = parse_module(expand_string("""#lang racket/base
         ;(require (only-in '#%kernel map))
