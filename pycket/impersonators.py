@@ -479,27 +479,29 @@ class W_InterposeHashTable(values.W_HashTable):
             assert isinstance(k, W_ImpPropertyDescriptor)
             self.properties[k] = prop_vals[i]
 
-    def post_ref_cont(self, key, env, cont):
+    def post_ref_cont(self, env, cont):
         raise NotImplementedError("abstract method")
 
     def post_set_cont(self, key, val, env, cont):
         raise NotImplementedError("abstract method")
 
     def hash_keys(self):
-        return get_base_object(self.inner).get_keys()
+        return get_base_object(self.inner).hash_keys()
 
     @label
     def hash_set(self, key, val, env, cont):
-        pass
+        raise NotImplementedError("abstract method")
 
     @label
     def hash_ref(self, key, env, cont):
-        after = self.post_ref_cont(key, env, cont)
+        after = self.post_ref_cont(env, cont)
         return self.ref_proc.call([self.inner, key], env, after)
 
 @continuation
 def imp_hash_table_ref_cont(ht, env, cont, _vals):
+    from pycket.interpreter import return_value
     if _vals._get_size_list() != 2:
+        return return_value(None, env, cont)
         raise SchemeException("hash-ref handler produced the wrong number of results")
     key, post = _vals._get_full_list()
     after = imp_hash_table_post_ref_cont(post, env, cont)
@@ -511,7 +513,7 @@ def imp_hash_table_post_ref_cont(post, env, cont, _vals):
     val = check_one_val(_vals)
     if val is None:
         return return_multi_vals(_vals, env, cont)
-    return post.call(val, env, cont)
+    return post.call([val], env, cont)
 
 @continuation
 def chp_hash_table_ref_cont(ht, env, cont, _vals):
@@ -537,7 +539,7 @@ class W_ChpHashTable(W_InterposeHashTable):
     def post_set_cont(self, key, val, env, cont):
         pass
 
-    def post_ref_cont(self, key, env, cont):
+    def post_ref_cont(self, env, cont):
         return chp_hash_table_ref_cont(self.inner, env, cont)
 
 class W_ImpPropertyDescriptor(values.W_Object):
