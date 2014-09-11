@@ -640,7 +640,10 @@ class __extend__(values.W_Flonum):
         return values.W_Fixnum(val)
 
     def arith_inexact_exact(self):
-        return values.W_Fixnum(int(self.value))
+        fractional_part = self.arith_float_fractional_part()
+        if fractional_part.value == 0:
+            return values.W_Fixnum(int(self.value))
+        raise SchemeException("rationals not implemented")
     def arith_exact_inexact(self):
         return self
 
@@ -932,7 +935,7 @@ class __extend__(values.W_Bignum):
         return make_int(self)
 
     def arith_inexact_exact(self):
-        return values.W_Fixnum(self.value.toint())
+        return make_int(self)
     def arith_exact_inexact(self):
         return values.W_Flonum(self.value.tofloat())
 
