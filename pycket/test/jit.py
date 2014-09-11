@@ -421,8 +421,14 @@ class TestLLtype(LLJitMixin):
     def test_binarytree(self):
         self.run_file("binarytree.rkt")
 
-    def test_binarytree(self):
+    def test_church(self):
         self.run_file("church-simple.rkt")
+
+    def test_spectral_norm(self):
+        self.run_file("spectral-norm.rkt")
+
+    def test_fannkuch(self):
+        self.run_file("fannkuch-redux.rkt")
 
     def test_mappy(self):
         ast = parse_module(expand_string("""#lang racket/base

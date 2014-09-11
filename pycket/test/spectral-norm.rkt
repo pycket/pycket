@@ -18,7 +18,7 @@
 
 ;; the big let improves performance by about 20%
 (let* ()
-  (define N (command-line #:args (n) (string->number n)))
+  (define N (command-line #:args ([n "5"]) (string->number n)))
   (define (A i j)
     (let ([ij (fx+ i j)])
       (fl/ 1.0 (fl+ (fl* (fl* (fx->fl ij)

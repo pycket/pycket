@@ -86,7 +86,7 @@ class Env(object):
     _attrs_ = ['toplevel_env']
 
     def get_prev(self, env_structure):
-        assert env_structure.elems == []
+        assert len(env_structure.elems) == 0
         return self
 
 

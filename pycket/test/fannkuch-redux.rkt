@@ -101,7 +101,7 @@
     (unsafe-vector-set! v i (unsafe-vector-ref v j))
     (unsafe-vector-set! v j t)))
 
-(command-line #:args (n)
+(command-line #:args ([n "4"])
               (define-values (answer checksum)
                 (fannkuch (string->number n)))
               (printf "~a\nPfannkuchen(~a) = ~a\n" 
