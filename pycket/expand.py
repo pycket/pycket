@@ -534,7 +534,7 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return values.W_HashTable(
+            return values.W_EqvHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()])
         if "regexp" in obj:

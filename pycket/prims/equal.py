@@ -169,3 +169,7 @@ def procedure_closure_contents_eq(a, b):
     # FIXME: provide actual information
     return values.W_Bool.make((a is b))
 
+@expose("eqv?", [values.W_Object] * 2)
+def eqvp(a, b):
+    return values.W_Bool.make(a.eqv(b))
+

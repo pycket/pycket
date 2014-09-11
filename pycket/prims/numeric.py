@@ -163,6 +163,7 @@ def make_binary_arith(name, methname):
 
 for args in [
         ("quotient", "arith_quotient"),
+        ("remainder", "arith_mod"), # FIXME
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
         ("max",      "arith_max"),
@@ -222,6 +223,13 @@ for args in [
         ]:
     make_fixedtype_arith(*args)
 
+@expose("flsqrt", [values.W_Flonum])
+def flsqrt(f):
+    return f.arith_sqrt()
+
+@expose("unsafe-flsqrt", [unsafe(values.W_Flonum)])
+def flsqrt(f):
+    return f.arith_sqrt()
 
 @expose("add1", [values.W_Number])
 def add1(v):
@@ -261,7 +269,8 @@ for args in [
         ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
-        ("abs", "arith_abs")
+        ("abs", "arith_abs"),
+        ("round", "arith_round")
         ]:
     make_unary_arith(*args)
 
