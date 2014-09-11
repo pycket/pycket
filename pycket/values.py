@@ -755,6 +755,7 @@ class W_EqualHashTable(W_HashTable):
     def hash_keys(self):
         return [k for k, _ in self.data]
 
+    @label
     def hash_set(self, key, val, env, cont):
         return equal_hash_set_loop(self.data, 0, key, val, env, cont)
 
