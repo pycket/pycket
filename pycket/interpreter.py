@@ -63,8 +63,6 @@ def variables_equal(a, b):
              return False
     return True
 
-def variable_name(v):
-    return v.value
 
 def check_one_val(vals):
     if vals._get_size_list() != 1:
@@ -712,14 +710,14 @@ class Var(AST):
         x[self.sym] = None
         return x
     def tostring(self):
-        return "%s"%variable_name(self.sym)
+        return "%s"% self.sym.variable_name()
 
 
 class CellRef(Var):
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
     def tostring(self):
-        return "CellRef(%s)"%variable_name(self.sym)
+        return "CellRef(%s)"% Var.tostring(self)
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
@@ -882,7 +880,7 @@ class SetBang(AST):
             x[self.var.sym] = None
         return x
     def tostring(self):
-        return "(set! %s %s)"%(variable_name(self.var.sym), self.rhs.tostring())
+        return "(set! %s %s)"%(self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
@@ -1086,7 +1084,7 @@ class Lambda(SequencedBodyAST):
         if self.rest:
             return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
         else:
-            return "(lambda (%s) %s)"%(" ".join([variable_name(v) for v in self.formals]),
+            return "(lambda (%s) %s)"%(" ".join([v.variable_name() for v in self.formals]),
                                        self.body[0].tostring() if len(self.body) == 1 else
                                        " ".join([b.tostring() for b in self.body]))
 
@@ -1155,7 +1153,7 @@ class Letrec(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
     def tostring(self):
-        return "(letrec (%s) %s)"%([(variable_name(v),self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+        return "(letrec (%s) %s)"%([(v.variable_name(), self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
 
 def _make_symlist_counts(varss):
@@ -1289,7 +1287,7 @@ class Let(SequencedBodyAST):
             if count > 1:
                 result.append("(")
             for _ in range(count):
-                result.append(variable_name(self.args.elems[j]))
+                result.append(self.args.elems[j].variable_name())
                 j += 1
             if count > 1:
                 result.append(")")

@@ -819,6 +819,12 @@ class W_Symbol(W_Object):
     errorname = "symbol"
     all_symbols = {}
     unreadable_symbols = {}
+
+
+    def __init__(self, val, unreadable=False):
+        self.value = val
+        self.unreadable = unreadable
+
     @staticmethod
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
@@ -836,11 +842,10 @@ class W_Symbol(W_Object):
         else:
             W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(string, True)
             return w_result
+
     def __repr__(self):
         return self.value
-    def __init__(self, val, unreadable=False):
-        self.value = val
-        self.unreadable = unreadable
+
     def is_interned(self):
         string = self.value
         if string in W_Symbol.all_symbols:
@@ -848,8 +853,12 @@ class W_Symbol(W_Object):
         if string in W_Symbol.unreadable_symbols:
             return W_Symbol.unreadable_symbols[string] is self
         return False
+
     def tostring(self):
         return "'%s" % self.value
+
+    def variable_name(self):
+        return self.value
 
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
