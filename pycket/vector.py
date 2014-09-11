@@ -1,6 +1,6 @@
 
 from pycket.cont import label
-from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_VectorSuper, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit
@@ -96,13 +96,14 @@ class W_Vector(W_MVector):
                 return False
         return True
 
-class W_FlVector(W_Object):
-    _immutable_fields_ = ["elems", "len", "strategy"]
+class W_FlVector(W_VectorSuper):
+    _immutable_fields_ = ["elems", "len", "strategy", "is_immutable"]
     errorname = "flvector"
     def __init__(self, storage, len):
         self.strategy = FlonumVectorStrategy()
         self.storage = storage
         self.len = len
+        self.is_immutable = True
     @staticmethod
     def fromelements(elems):
         strategy = FlonumVectorStrategy()

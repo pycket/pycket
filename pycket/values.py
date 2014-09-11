@@ -207,8 +207,10 @@ class W_VariableReference(W_Object):
     def tostring(self):
         return "#<#%variable-reference>"
 
-class W_MVector(W_Object):
+# A super class for both fl/fx/regular vectors
+class W_VectorSuper(W_Object):
     errorname = "vector"
+    _immutable_fields_ = ["len"]
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -222,6 +224,10 @@ class W_MVector(W_Object):
 
     def length(self):
         raise NotImplementedError("abstract base class")
+
+# Things that are vector?
+class W_MVector(W_VectorSuper):
+    errorname = "vector"
 
 class W_List(W_Object):
     errorname = "list"
