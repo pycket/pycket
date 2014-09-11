@@ -1272,19 +1272,10 @@ class Let(SequencedBodyAST):
                 del free_vars[x]
             except KeyError:
                 pass
-        print "__________________________________________________________"
         if not free_vars:
             body_env_structure = SymList(self.args.elems)
-            print "excising env"
-            print self.tostring()
         else:
             body_env_structure = sub_env_structure
-            print "need env"
-            print sub_env_structure
-            for b in self.body:
-                print b.tostring()
-            for var in free_vars:
-                print var.tostring(), sub_env_structure.depth_of_var(var)
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         return Let(sub_env_structure, self.counts, new_rhss, new_body, bool(free_vars))
 
