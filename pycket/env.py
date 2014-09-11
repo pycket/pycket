@@ -1,5 +1,6 @@
 from rpython.rlib             import jit
 from small_list               import inline_small_list
+from pycket.error             import SchemeException
 
 
 class SymList(object):
@@ -84,7 +85,7 @@ class ToplevelEnv(Env):
         self.commandline_arguments = []
 
     def lookup(self, sym, env_structure):
-        raise SchemeException("variable %s is unbound" % variable_name(sym))
+        raise SchemeException("variable %s is unbound" % sym.variable_name())
 
     def toplevel_lookup(self, sym):
         from pycket.values import W_Cell
@@ -99,7 +100,7 @@ class ToplevelEnv(Env):
         try:
             return self.bindings[sym]
         except KeyError:
-            raise SchemeException("toplevel variable %s not found" % variable_name(sym))
+            raise SchemeException("toplevel variable %s not found" % sym.variable_name())
 
     def toplevel_set(self, sym, w_val):
         from pycket.values import W_Cell
