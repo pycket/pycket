@@ -849,26 +849,6 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env.toplevel_set(self.sym, w_val)
 
-    def depth(self):
-        res = 1
-        while self is not None:
-            self = self.prev
-            res += 1
-        return res
-
-    def depth_of_var(self, var):
-        depth = 0
-        while self is not None:
-            for i, x in enumerate(self.elems):
-                if x is var:
-                    return i, depth
-            self = self.prev
-            depth += 1
-        return -1, -1
-
-    def __repr__(self):
-        return "SymList(%r, %r)" % (self.elems, self.prev)
-
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
