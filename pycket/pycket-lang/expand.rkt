@@ -1,6 +1,10 @@
-#lang racket
+#lang racket/base
 
-(require syntax/parse syntax/modresolve)
+(require syntax/parse syntax/modresolve
+         (only-in racket/list append-map last-pair filter-map first add-between)
+         racket/path
+         racket/dict racket/match
+         racket/format)
 
 (define keep-srcloc (make-parameter #t))
 
@@ -15,7 +19,7 @@
 
 (define (hash* . kvs) (apply hash-set* (hash) kvs))
 
-(define (do-expand stx)
+(define (do-expand stx in-path)
   ;; error checking
   (syntax-parse stx #:literals ()
     [((~and mod-datum (~datum module)) n:id lang:expr . rest)
@@ -26,7 +30,7 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (parameterize ([current-namespace (make-base-namespace)])
-    (namespace-syntax-introduce (expand stx))))
+    (do-post-expand (namespace-syntax-introduce (expand stx)) in-path)))
 
 (define (do-post-expand stx in-path)
   (define m `(module mod '#%kernel
@@ -34,8 +38,7 @@
                (#%provide stx)))
   (if in-path
       (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
-                     [current-module-declare-source in-path]
-                     [current-namespace (make-base-namespace)])
+                     [current-module-declare-source in-path])
         (eval m)
         (dynamic-require in-path 'stx))
       stx))
@@ -428,7 +431,7 @@
              ;(eprintf "starting read-syntax\n")
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
-    (define expanded (do-post-expand (do-expand mod) in-path))
+    (define expanded (do-expand mod in-path))
     (parameterize ([keep-srcloc srcloc?])
       (write-json (convert expanded) out))
     (newline out)
