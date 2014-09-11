@@ -833,17 +833,13 @@ class CellRef(Var):
         return v.get_val()
 
 class Gensym(object):
-
-    class Counter(object):
-        value = 0
-
-    _counter = Counter()
+    _counter = {}
 
     @staticmethod
     def gensym(hint="g"):
-        Gensym._counter.value += 1
+        count = Gensym._counter[hint] = Gensym._counter.get(hint, -1) +  1
         # not using `make` so that it's really gensym
-        return values.W_Symbol(hint + str(Gensym._counter.value))
+        return values.W_Symbol(hint + str(count))
 
 
 class LexicalVar(Var):
