@@ -1,6 +1,6 @@
 from rpython.rlib  import jit, debug
 
-def inline_small_list(sizemax=5, sizemin=0, immutable=False, attrname="list", factoryname="make"):
+def inline_small_list(sizemax=5, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_fixnum=False):
     """
     This function is helpful if you have a class with a field storing a
     list and the list is often very small. Calling this function will inline
@@ -66,13 +66,129 @@ def inline_small_list(sizemax=5, sizemin=0, immutable=False, attrname="list", fa
             meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
 
-        @staticmethod
         def make(elems, *args):
             if sizemin <= len(elems) < sizemax:
                 cls = classes[len(elems) - sizemin]
             else:
                 cls = cls_arbitrary
             return cls(elems, *args)
-        setattr(cls, factoryname, make)
+        if unbox_fixnum:
+            make = _add_fixnum_classes(cls, make)
+        setattr(cls, factoryname, staticmethod(make))
         return cls
     return wrapper
+
+def _add_fixnum_classes(cls, orig_make):
+    # XXX quite brute force
+    def make(vals, *args):
+        from pycket.values import W_Fixnum
+        if len(vals) == 1:
+            w_a, = vals
+            if isinstance(w_a, W_Fixnum):
+                return Size1Fixed(w_a.value, *args)
+        if len(vals) == 2:
+            w_a, w_b = vals
+            if isinstance(w_a, W_Fixnum):
+                if isinstance(w_b, W_Fixnum):
+                    return Size2Fixed11(w_a.value, w_b.value, *args)
+                else:
+                    return Size2Fixed10(w_a.value, w_b, *args)
+            elif isinstance(w_b, W_Fixnum):
+                return Size2Fixed01(w_a, w_b.value, *args)
+        return orig_make(vals, *args)
+
+    class Size1Fixed(cls):
+        def __init__(self, vals_fixed_0, *args):
+            self.vals_fixed_0 = vals_fixed_0
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 1
+
+        def _get_full_list(self):
+            return [self._get_list(0)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Fixnum
+            assert i == 0
+            return W_Fixnum(self.vals_fixed_0)
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
+
+
+    class Size2Fixed10(cls):
+        def __init__(self, vals_fixed_0, w_val1, *args):
+            self.vals_fixed_0 = vals_fixed_0
+            self.w_val1 = w_val1
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 2
+
+        def _get_full_list(self):
+            return [self._get_list(0), self._get_list(1)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Fixnum
+            if i == 0:
+                return W_Fixnum(self.vals_fixed_0)
+            else:
+                assert i == 1
+                return self.w_val1
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size2Fixed10.__name__ = cls.__name__ + Size2Fixed10.__name__
+
+
+    class Size2Fixed01(cls):
+        def __init__(self, w_val0, vals_fixed_1, *args):
+            self.w_val0 = w_val0
+            self.vals_fixed_1 = vals_fixed_1
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 2
+
+        def _get_full_list(self):
+            return [self._get_list(0), self._get_list(1)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Fixnum
+            if i == 0:
+                return self.w_val0
+            else:
+                assert i == 1
+                return W_Fixnum(self.vals_fixed_1)
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size2Fixed01.__name__ = cls.__name__ + Size2Fixed01.__name__
+
+    class Size2Fixed11(cls):
+        def __init__(self, vals_fixed_0, vals_fixed_1, *args):
+            self.vals_fixed_0 = vals_fixed_0
+            self.vals_fixed_1 = vals_fixed_1
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 2
+
+        def _get_full_list(self):
+            return [self._get_list(0), self._get_list(1)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Fixnum
+            if i == 0:
+                return W_Fixnum(self.vals_fixed_0)
+            else:
+                assert i == 1
+                return W_Fixnum(self.vals_fixed_1)
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
+
+    return make

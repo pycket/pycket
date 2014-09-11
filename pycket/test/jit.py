@@ -213,6 +213,11 @@ class TestLLtype(LLJitMixin):
     def test_treerec(self):
         self.run_file("treerec.rkt")
 
+    def test_nqueens(self):
+        self.run_file("nqueens.rkt")
+
+    def test_ack(self):
+        self.run_file("ack.rkt")
 
     def test_pseudoknot(self):
         fname = "nucleic2.sch"

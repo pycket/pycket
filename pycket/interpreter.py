@@ -102,7 +102,7 @@ class LetrecCont(Cont):
                     LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
-@inline_small_list(immutable=True, attrname="vals_w")
+@inline_small_list(immutable=True, attrname="vals_w", unbox_fixnum=True)
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
 
@@ -137,7 +137,7 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = ConsEnv.make(vals_w, prev, self.env.toplevel_env)
+            env = ConsEnv.make(vals_w, prev, prev.toplevel_env)
             return ast.make_begin_cont(env, self.prev)
         else:
             env = self.env
@@ -849,6 +849,26 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env.toplevel_set(self.sym, w_val)
 
+    def depth(self):
+        res = 1
+        while self is not None:
+            self = self.prev
+            res += 1
+        return res
+
+    def depth_of_var(self, var):
+        depth = 0
+        while self is not None:
+            for i, x in enumerate(self.elems):
+                if x is var:
+                    return i, depth
+            self = self.prev
+            depth += 1
+        return -1, -1
+
+    def __repr__(self):
+        return "SymList(%r, %r)" % (self.elems, self.prev)
+
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
@@ -1272,10 +1292,19 @@ class Let(SequencedBodyAST):
                 del free_vars[x]
             except KeyError:
                 pass
+        print "__________________________________________________________"
         if not free_vars:
             body_env_structure = SymList(self.args.elems)
+            print "excising env"
+            print self.tostring()
         else:
             body_env_structure = sub_env_structure
+            print "need env"
+            print sub_env_structure
+            for b in self.body:
+                print b.tostring()
+            for var in free_vars:
+                print var.tostring(), sub_env_structure.depth_of_var(var)
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         return Let(sub_env_structure, self.counts, new_rhss, new_body, bool(free_vars))
 

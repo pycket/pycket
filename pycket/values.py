@@ -39,7 +39,6 @@ class Values(object):
             return "(values)"
         else: #fixme
             return "MULTIPLE VALUES"
-    @jit.unroll_safe
     def __init__(self):
         pass
 

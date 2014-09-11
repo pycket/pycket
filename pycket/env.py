@@ -39,6 +39,25 @@ class SymList(object):
             env_structure = env_structure.prev
         return target
 
+    def depth(self):
+        res = 1
+        while self is not None:
+            self = self.prev
+            res += 1
+        return res
+
+    def depth_of_var(self, var):
+        depth = 0
+        while self is not None:
+            for i, x in enumerate(self.elems):
+                if x is var:
+                    return i, depth
+            self = self.prev
+            depth += 1
+        return -1, -1
+
+    def __repr__(self):
+        return "SymList(%r, %r)" % (self.elems, self.prev)
 
 class ModuleEnv(object):
     _immutable_fields_ = ["modules", "toplevel_env"]
@@ -111,7 +130,7 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make")
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
 class ConsEnv(Env):
     _immutable_fields_ = ["_prev", "toplevel_env"]
     def __init__ (self, prev, toplevel):
@@ -134,16 +153,6 @@ class ConsEnv(Env):
                 return v
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
-
-    @jit.unroll_safe
-    def set(self, sym, val, env_structure):
-        jit.promote(env_structure)
-        for i, s in enumerate(env_structure.elems):
-            if s is sym:
-                self._set_list(i, val)
-                return
-        prev = self.get_prev(env_structure)
-        return prev.set(sym, val, env_structure.prev)
 
     def get_prev(self, env_structure):
         jit.promote(env_structure)
