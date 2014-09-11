@@ -7,6 +7,9 @@ from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
+                                        UnsignedLongLong
 
 # imported for side effects
 from pycket import arithmetic
@@ -153,7 +156,7 @@ def inexactp(n):
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
+    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -287,6 +290,10 @@ def unsafe_fxminus(a, b):
 def unsafe_fxtimes(a, b):
     return values.W_Fixnum(a.value * b.value)
 
+@expose("unsafe-fxmin", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxmin(a, b):
+    return values.W_Fixnum(min(a.value, b.value))
+
 @expose("unsafe-fx<", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxlt(a, b):
     return values.W_Bool.make(a.value < b.value)
@@ -298,6 +305,10 @@ def unsafe_fxgt(a, b):
 @expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxeq(a, b):
     return values.W_Bool.make(a.value == b.value)
+
+@expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxquotient(a, b):
+    return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
 
 @expose("unsafe-fx->fl", [unsafe(values.W_Fixnum)])
 def unsafe_fxfl(a):
@@ -339,4 +350,6 @@ def unsafe_flgte(a, b):
 @expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fleq(a, b):
     return values.W_Bool.make(a.value == b.value)
+
+
 

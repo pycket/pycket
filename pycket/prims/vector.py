@@ -28,6 +28,13 @@ def make_vector(w_size, w_val):
         raise SchemeException("make-vector: expected a positive fixnum")
     return values_vector.W_Vector.fromelement(w_val, size)
 
+@expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum(0.0))])
+def make_vector(w_size, w_val):
+    size = w_size.value
+    if size < 0:
+        raise SchemeException("make-flvector: expected a positive fixnum")
+    return values_vector.W_FlVector.fromelement(w_val, size)
+
 @expose("vector-length", [values_vector.W_MVector])
 def vector_length(v):
     return values.W_Fixnum(v.length())
