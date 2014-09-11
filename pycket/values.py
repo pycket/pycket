@@ -207,8 +207,10 @@ class W_VariableReference(W_Object):
     def tostring(self):
         return "#<#%variable-reference>"
 
-class W_MVector(W_Object):
+# A super class for both fl/fx/regular vectors
+class W_VectorSuper(W_Object):
     errorname = "vector"
+    _immutable_fields_ = ["len"]
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -222,6 +224,10 @@ class W_MVector(W_Object):
 
     def length(self):
         raise NotImplementedError("abstract base class")
+
+# Things that are vector?
+class W_MVector(W_VectorSuper):
+    errorname = "vector"
 
 class W_List(W_Object):
     errorname = "list"
@@ -648,27 +654,120 @@ def eq_hash(k):
 
 class W_HashTable(W_Object):
     errorname = "hash"
-    def __init__(self, keys, vals, cmp=None, hash=eq_hash):
+
+    def hash_keys(self):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_set(self, k, v, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_ref(self, k, env, cont):
+        raise NotImplementedError("abstract method")
+
+class W_SimpleHashTable(W_HashTable):
+
+    @staticmethod
+    def hash_value(v):
+        raise NotImplementedError("abstract method")
+
+    @staticmethod
+    def cmp_value(a, b):
+        raise NotImplementedError("abstract method")
+
+    def __init__(self, keys, vals):
         from pycket.prims.equal import eqp_logic
-        if not cmp:
-            cmp = eqp_logic
         assert len(keys) == len(vals)
-        self.data = r_dict(cmp, hash, force_non_null=True)
-        for (i, k) in enumerate(keys):
+        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
+        for i, k in enumerate(keys):
             self.data[k] = vals[i]
 
+    def hash_keys(self):
+        return self.data.keys()
+
     def tostring(self):
-        lst = [W_Cons.make(k, v).tostring() for (k,v) in self.data.iteritems()]
+        lst = [W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
-    def set(self, k, v):
+    @label
+    def hash_set(self, k, v, env, cont):
+        from pycket.interpreter import return_value
         self.data[k] = v
+        return return_value(w_void, env, cont)
 
-    def ref(self, k):
-        if k in self.data:
-            return self.data[k]
-        else:
-            return None
+    @label
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.data.get(k, None), env, cont)
+
+class W_EqvHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        return a.eqv(b)
+
+class W_EqHashTable(W_SimpleHashTable):
+    @staticmethod
+    def hash_value(k):
+        return eq_hash(k)
+
+    @staticmethod
+    def cmp_value(a, b):
+        from pycket.prims.equal import eqp_logic
+        return eqp_logic(a, b)
+
+def equal_hash_ref_loop(data, idx, key, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(data):
+        return return_value(None, env, cont)
+    k, v = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_ref_is_equal_cont(data, idx, key, v, env, cont))
+
+@continuation
+def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if val is not w_false:
+        return return_value(v, env, cont)
+    return equal_hash_ref_loop(data, idx + 1, key, env, cont)
+
+def equal_hash_set_loop(data, idx, key, val, env, cont):
+    from pycket.interpreter import check_one_val
+    if idx >= len(data):
+        data.append((key, val))
+        return return_value(w_void, env, cont)
+    k, _ = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_set_is_equal_cont(data, idx, key, val, env, cont))
+
+@continuation
+def catch_set_is_equal_cont(data, idx, key, val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    cmp = check_one_val(_vals)
+    if cmp is not w_false:
+        data[idx] = (key, val)
+        return return_value(w_void, env, cont)
+    return equal_hash_set_loop(data, idx + 1, key, val, env, cont)
+
+class W_EqualHashTable(W_HashTable):
+    def __init__(self, keys, vals):
+        self.data = [(k, vals[i]) for i, k in enumerate(keys)]
+
+    def hash_keys(self):
+        return [k for k, _ in self.data]
+
+    @label
+    def hash_set(self, key, val, env, cont):
+        return equal_hash_set_loop(self.data, 0, key, val, env, cont)
+
+    @label
+    def hash_ref(self, key, env, cont):
+        return equal_hash_ref_loop(self.data, 0, key, env, cont)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]

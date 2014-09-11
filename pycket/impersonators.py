@@ -52,34 +52,6 @@ def lookup_property(obj, prop):
         obj = obj.get_proxied()
     return None
 
-@jit.unroll_safe
-def is_impersonator_of(a, b):
-    while True:
-        if a is b:
-            return True
-        elif a.is_impersonator():
-            a = a.get_proxied()
-        else:
-            return is_chaperone_of(a, b)
-
-# Check that one value is a chaperone of the other
-@jit.unroll_safe
-def is_chaperone_of(a, b):
-    while True:
-        if a is b:
-            return True
-        elif a.is_chaperone():
-            a = a.get_proxied()
-        else:
-            return False
-
-# Capture the original output of the function to compare agains the result of
-# the check operation
-@continuation
-def chp_proc_call_check_cont(check, env, cont, _vals):
-    vals = _vals._get_full_list()
-    return check.call(vals, env, check_chaperone_results(vals, env, cont))
-
 @continuation
 def check_chaperone_results(args, env, cont, vals):
     # We are allowed to receive more values than arguments to compare them to.
@@ -90,6 +62,8 @@ def check_chaperone_results(args, env, cont, vals):
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     from pycket.prims.equal import equal_func, CHPOF_EQUAL_INFO
+    while idx < len(args) and vals._get_list(idx) is None and args[idx] is None:
+        idx += 1
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
     return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
@@ -316,7 +290,8 @@ class W_ChpVector(W_InterposeVector):
 def valid_struct_proc(x):
     v = get_base_object(x)
     return (isinstance(v, values_struct.W_StructFieldAccessor) or
-            isinstance(v, values_struct.W_StructFieldMutator))
+            isinstance(v, values_struct.W_StructFieldMutator) or
+            isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
 def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
@@ -479,6 +454,93 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
 
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
+
+@make_proxy(proxied="inner", properties="properties")
+class W_InterposeHashTable(values.W_HashTable):
+    errorname = "interpose-hash-table"
+    _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc",
+                          "key_proc", "clear_proc", "properties"]
+    def __init__(self, inner, set_proc, ref_proc, remove_proc, key_proc,
+                 clear_proc, prop_keys, prop_vals):
+        assert isinstance(inner, values.W_HashTable)
+        assert set_proc.iscallable()
+        assert ref_proc.iscallable()
+        assert remove_proc.iscallable()
+        assert key_proc.iscallable()
+        assert clear_proc is values.w_false or clear_proc.iscallable()
+        self.inner       = inner
+        self.set_proc    = set_proc
+        self.ref_proc    = ref_proc
+        self.remove_proc = remove_proc
+        self.key_proc    = key_proc
+        self.clear_proc  = clear_proc
+        self.properties  = {}
+        for i, k in enumerate(prop_keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            self.properties[k] = prop_vals[i]
+
+    def post_ref_cont(self, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def post_set_cont(self, key, val, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def hash_keys(self):
+        return get_base_object(self.inner).hash_keys()
+
+    @label
+    def hash_set(self, key, val, env, cont):
+        raise NotImplementedError("abstract method")
+
+    @label
+    def hash_ref(self, key, env, cont):
+        after = self.post_ref_cont(env, cont)
+        return self.ref_proc.call([self.inner, key], env, after)
+
+@continuation
+def imp_hash_table_ref_cont(ht, env, cont, _vals):
+    from pycket.interpreter import return_value
+    if _vals._get_size_list() != 2:
+        return return_value(None, env, cont)
+        raise SchemeException("hash-ref handler produced the wrong number of results")
+    key, post = _vals._get_full_list()
+    after = imp_hash_table_post_ref_cont(post, env, cont)
+    return ht.hash_ref(key, env, after)
+
+@continuation
+def imp_hash_table_post_ref_cont(post, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_multi_vals
+    val = check_one_val(_vals)
+    if val is None:
+        return return_multi_vals(_vals, env, cont)
+    return post.call([val], env, cont)
+
+@continuation
+def chp_hash_table_ref_cont(ht, env, cont, _vals):
+    if _vals._get_size_list() != 2:
+        raise SchemeException("hash-ref handler produced the wrong number of results")
+    key, post = _vals._get_full_list()
+    after = check_chaperone_results([key], env,
+                imp_hash_table_post_ref_cont(post, env, cont))
+    return ht.hash_ref(key, env, after)
+
+@make_impersonator
+class W_ImpHashTable(W_InterposeHashTable):
+
+    def post_set_cont(self, key, val, env, cont):
+        pass
+
+    def post_ref_cont(self, env, cont):
+        return imp_hash_table_ref_cont(self.inner, env, cont)
+
+@make_chaperone
+class W_ChpHashTable(W_InterposeHashTable):
+
+    def post_set_cont(self, key, val, env, cont):
+        pass
+
+    def post_ref_cont(self, env, cont):
+        return chp_hash_table_ref_cont(self.inner, env, cont)
 
 class W_ImpPropertyDescriptor(values.W_Object):
     errorname = "chaperone-property"
