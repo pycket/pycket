@@ -294,6 +294,10 @@ def unsafe_fxtimes(a, b):
 def unsafe_fxmin(a, b):
     return values.W_Fixnum(min(a.value, b.value))
 
+@expose("unsafe-fxmax", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxmax(a, b):
+    return values.W_Fixnum(max(a.value, b.value))
+
 @expose("unsafe-fx<", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxlt(a, b):
     return values.W_Bool.make(a.value < b.value)
