@@ -8,6 +8,8 @@ from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
+import sys
+
 # imported for side effects
 import pycket.prims.general
 
@@ -1376,9 +1378,9 @@ class Let(SequencedBodyAST):
             body_env_structure = SymList(self.args.elems)
             remove_num_envs = -1 # remove all
         else:
-            depths = [sub_env_structure.prev.depth_of_var(v)[1]
-                        for v in free_vars_not_from_let]
-            remove_num_envs = min(depths)
+            remove_num_envs = sys.maxint
+            for v in free_vars_not_from_let:
+                remove_num_envs = min(remove_num_envs, sub_env_structure.prev.depth_of_var(v)[1])
             body_env_structure = sub_env_structure
             if remove_num_envs:
                 next_structure = sub_env_structure.prev
