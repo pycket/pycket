@@ -134,7 +134,7 @@ def test_flvector(doctest):
     ! (require racket/flonum racket/unsafe/ops)
     > (flvector-ref (flvector 0.0) 0)
     0.0
-    ! (define v (flvector 0.0 1.0))
+    > (define v (flvector 0.0 1.0))
     > (flvector-ref v 0)
     0.0
     > (flvector-ref v 1)
@@ -152,7 +152,7 @@ def test_flvector(doctest):
     > (define v2 (make-flvector 5))
     > (flvector-ref v2 4)
     0.0
-    ! (define v3 (make-flvector 5 3.0))
+    > (define v3 (make-flvector 5 3.0))
     > (flvector-ref v3 4)
     3.0
     """
