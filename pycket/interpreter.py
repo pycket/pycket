@@ -296,7 +296,7 @@ class AST(object):
     def __str__(self):
         return self.tostring()
 
-class Module(AST):
+class Module(object):
     _immutable_fields_ = ["name", "body"]
     def __init__(self, name, body, config):
         self.name = name
@@ -317,11 +317,6 @@ class Module(AST):
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
-    # these are both empty and irrelevant for modules
-    # this will change when we handle submodules
-    def _mutated_vars(self): return variable_set()
-    def free_vars(self): return {}
-
     # all the module-bound variables that are mutated
     def mod_mutated_vars(self):
         x = variable_set()
@@ -329,13 +324,11 @@ class Module(AST):
             x.update(r.mutated_vars())
         return x
 
-    def assign_convert(self, vars, env_structure):
+    def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
-        new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
+        new_body = [b.assign_convert(local_muts, None) for b in self.body]
         return Module(self.name, new_body, self.config)
+
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
