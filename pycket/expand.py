@@ -113,7 +113,7 @@ def expand_file_cached(rkt_file):
 # Expand and load the module without generating intermediate JSON files.
 def expand_to_ast(fname):
     data = expand_file_rpython(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
+    return _to_module(pycket_json.loads(data)).assign_convert_module()
 
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
@@ -202,11 +202,11 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
+    return _to_module(pycket_json.loads(data)).assign_convert_module()
 
 def load_json_ast_rpython(fname):
     data = readfile_rpython(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert(variable_set(), None)
+    return _to_module(pycket_json.loads(data)).assign_convert_module()
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
@@ -214,7 +214,7 @@ def parse_ast(json_string):
 
 def parse_module(json_string):
     json = pycket_json.loads(json_string)
-    return _to_module(json).assign_convert(variable_set(), None)
+    return _to_module(json).assign_convert_module()
 
 
 def to_ast(json):
@@ -343,9 +343,27 @@ def _to_require(fname):
     ModTable.pop()
     return Require(fname, module)
 
+def get_srcloc(o):
+    pos = o["position"].value_int() if "position" in o else -1
+    source = o["source"] if "source" in o else None
+    if source and source.is_object:
+        v = source.value_object()
+        if "%p" in v:
+            sourcefile = v["%p"].value_string()
+        elif "quote" in v:
+            sourcefile = v["quote"].value_string()
+        else:
+            assert 0
+    else:
+        sourcefile = None
+    return (pos, sourcefile)
+
 def to_lambda(o):
     fmls, rest = to_formals(o["lambda"])
-    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()])
+    pos, sourcefile = get_srcloc(o)
+    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()],
+                       pos, sourcefile)
+    
 
 ######################## Syntax Information ##################################
 def get_module_path_or_symbol(json):

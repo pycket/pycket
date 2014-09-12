@@ -127,3 +127,33 @@ def test_random():
 
 def test_random_seed():
     run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
+
+
+def test_flvector(doctest):
+    """
+    ! (require racket/flonum racket/unsafe/ops)
+    > (flvector-ref (flvector 0.0) 0)
+    0.0
+    > (define v (flvector 0.0 1.0))
+    > (flvector-ref v 0)
+    0.0
+    > (flvector-ref v 1)
+    1.0
+    > (flvector-set! v 0 2.0)
+    (void)
+    > (flvector-ref v 0)
+    2.0
+    > (unsafe-flvector-ref v 0)
+    2.0
+    > (unsafe-flvector-set! v 0 3.0)
+    (void)
+    > (flvector-ref v 0)
+    3.0
+    > (define v2 (make-flvector 5))
+    > (flvector-ref v2 4)
+    0.0
+    > (define v3 (make-flvector 5 3.0))
+    > (flvector-ref v3 4)
+    3.0
+    """
+    assert doctest

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pycket.env import ConsEnv
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.small_list import inline_small_list
@@ -38,7 +39,6 @@ class Values(object):
             return "(values)"
         else: #fixme
             return "MULTIPLE VALUES"
-    @jit.unroll_safe
     def __init__(self):
         pass
 
@@ -244,8 +244,10 @@ class W_VariableReference(W_Object):
     def tostring(self):
         return "#<#%variable-reference>"
 
-class W_MVector(W_Object):
+# A super class for both fl/fx/regular vectors
+class W_VectorSuper(W_Object):
     errorname = "vector"
+    _immutable_fields_ = ["len"]
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -259,6 +261,10 @@ class W_MVector(W_Object):
 
     def length(self):
         raise NotImplementedError("abstract base class")
+
+# Things that are vector?
+class W_MVector(W_VectorSuper):
+    errorname = "vector"
 
 class W_List(W_Object):
     errorname = "list"
@@ -707,7 +713,7 @@ class W_SimpleHashTable(W_HashTable):
     def cmp_value(a, b):
         raise NotImplementedError("abstract method")
 
-    def __init__(self, keys, vals, cmp=None, hash=eq_hash):
+    def __init__(self, keys, vals):
         from pycket.prims.equal import eqp_logic
         assert len(keys) == len(vals)
         self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
@@ -750,6 +756,55 @@ class W_EqHashTable(W_SimpleHashTable):
     def cmp_value(a, b):
         from pycket.prims.equal import eqp_logic
         return eqp_logic(a, b)
+
+def equal_hash_ref_loop(data, idx, key, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(data):
+        return return_value(None, env, cont)
+    k, v = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_ref_is_equal_cont(data, idx, key, v, env, cont))
+
+@continuation
+def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if val is not w_false:
+        return return_value(v, env, cont)
+    return equal_hash_ref_loop(data, idx + 1, key, env, cont)
+
+def equal_hash_set_loop(data, idx, key, val, env, cont):
+    from pycket.interpreter import check_one_val
+    if idx >= len(data):
+        data.append((key, val))
+        return return_value(w_void, env, cont)
+    k, _ = data[idx]
+    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+            catch_set_is_equal_cont(data, idx, key, val, env, cont))
+
+@continuation
+def catch_set_is_equal_cont(data, idx, key, val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    cmp = check_one_val(_vals)
+    if cmp is not w_false:
+        data[idx] = (key, val)
+        return return_value(w_void, env, cont)
+    return equal_hash_set_loop(data, idx + 1, key, val, env, cont)
+
+class W_EqualHashTable(W_HashTable):
+    def __init__(self, keys, vals):
+        self.data = [(k, vals[i]) for i, k in enumerate(keys)]
+
+    def hash_keys(self):
+        return [k for k, _ in self.data]
+
+    @label
+    def hash_set(self, key, val, env, cont):
+        return equal_hash_set_loop(self.data, 0, key, val, env, cont)
+
+    @label
+    def hash_ref(self, key, env, cont):
+        return equal_hash_ref_loop(self.data, 0, key, env, cont)
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["str"]
@@ -801,6 +856,12 @@ class W_Symbol(W_Object):
     errorname = "symbol"
     all_symbols = {}
     unreadable_symbols = {}
+
+
+    def __init__(self, val, unreadable=False):
+        self.value = val
+        self.unreadable = unreadable
+
     @staticmethod
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
@@ -818,11 +879,10 @@ class W_Symbol(W_Object):
         else:
             W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(string, True)
             return w_result
+
     def __repr__(self):
         return self.value
-    def __init__(self, val, unreadable=False):
-        self.value = val
-        self.unreadable = unreadable
+
     def is_interned(self):
         string = self.value
         if string in W_Symbol.all_symbols:
@@ -830,8 +890,12 @@ class W_Symbol(W_Object):
         if string in W_Symbol.unreadable_symbols:
             return W_Symbol.unreadable_symbols[string] is self
         return False
+
     def tostring(self):
         return "'%s" % self.value
+
+    def variable_name(self):
+        return self.value
 
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
@@ -955,7 +1019,6 @@ class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
     def __init__ (self, caselam, env):
-        from pycket.interpreter import ConsEnv
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             for s in lam.frees.elems:
@@ -968,10 +1031,21 @@ class W_Closure(W_Procedure):
                     vals[j] = env.lookup(v, lam.enclosing_env_structure)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env, env.toplevel_env))
 
+    def tostring(self):
+        if len(self.caselam.lams) == 0:
+            return "#<procedure>"
+        lam = self.caselam.lams[0]
+        file, pos = lam.srcfile, lam.srcpos
+        if file and (pos >= 0):
+            return "#<procedure:%s:%s>"%(lam.srcfile, lam.srcpos)
+        if file:
+            return "#<procedure:%s>"%(lam.srcfile)
+        return "#<procedure>"
+
     @staticmethod
     @jit.unroll_safe
     def make(caselam, env):
-        from pycket.interpreter import ConsEnv, CaseLambda
+        from pycket.interpreter import CaseLambda
         assert isinstance(caselam, CaseLambda)
         envs = [None] * len(caselam.lams)
         return W_Closure._make(envs, caselam, env)
@@ -1008,38 +1082,20 @@ class W_Closure(W_Procedure):
         raise SchemeException("No matching arity in case-lambda")
 
     def call(self, args, env, cont):
-        from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         (actuals, new_env, lam) = self._find_lam(args)
         return lam.make_begin_cont(
             ConsEnv.make(actuals, new_env, new_env.toplevel_env),
             cont)
 
-    @jit.unroll_safe
     def _call_with_speculation(self, args, env, cont, env_structure):
-        from pycket.interpreter import ConsEnv
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, new_env, lam) = self._find_lam(args)
         # specialize on the fact that often we end up executing in the
-        # same environment. we use the env structure to check for candidates of
-        # sharing. Only if the env structure that the lambda is defined in
-        # matches some outer env structure where it is called does it make
-        # sense to check if the *actual* envs match. this means that the
-        # speculation is essentially free:
-        # the env structures are known, so checking for sharing inside them is
-        # computed by the JIT. thus only an environment identity check that is
-        # very likely to succeed is executed.
-        prev = new_env
-        i = 0
-        while env_structure is not None:
-            if env_structure is lam.env_structure.prev:
-                if env is new_env:
-                    prev = env
-                    break
-            env = env.get_prev(env_structure)
-            env_structure = env_structure.prev
-            i += 1
+        # same environment.
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                new_env, env_structure, env)
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev, new_env.toplevel_env),
             cont)
@@ -1052,7 +1108,6 @@ class W_PromotableClosure(W_Procedure):
     _immutable_fields_ = ["closure"]
 
     def __init__(self, caselam, toplevel_env):
-        from pycket.interpreter import ConsEnv
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
 
     def mark_non_loop(self):
@@ -1101,3 +1156,7 @@ class W_Parameter(W_Object):
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
+
+
+
+

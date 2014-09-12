@@ -74,3 +74,19 @@ def test_reclambda():
     assert isinstance(p, Let)
     assert isinstance(p.rhss[0], CaseLambda)
     assert p.rhss[0].recursive_sym is not None
+
+def test_asts_know_surrounding_lambda():
+    from pycket.interpreter import ToplevelEnv
+    from pycket.values import W_PromotableClosure
+    caselam = expr_ast("(lambda (y a b) (if y a b))")
+    lam = caselam.lams[0]
+    assert lam.body[0].surrounding_lambda is lam
+
+    caselam = expr_ast("(lambda (y) (lambda (z) (+ y z)))")
+    lam = caselam.lams[0]
+
+    inner_caselam = lam.body[0]
+    assert inner_caselam.surrounding_lambda is lam
+
+    inner_lam = inner_caselam.lams[0]
+    assert inner_lam.body[0].surrounding_lambda is inner_lam

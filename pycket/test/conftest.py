@@ -54,10 +54,11 @@ def pytest_funcarg__doctest(request):
     assert request.function.__doc__ is not None
     code = dedent(request.function.__doc__)
     lines = [lin for lin in code.splitlines() if lin]
-    extra = []
+    setup = []
     exprs = []
     expect = []
     current_let = []
+    setup_done = False
     for line in lines:
         if ";" in line: # strip comments
             line = line[:line.find(";")]
@@ -65,8 +66,11 @@ def pytest_funcarg__doctest(request):
         if len(line.strip()) == 0:
             continue
         elif line[0] == "!":
-            extra.append(line[2:])
+            if setup_done:
+                raise RuntimeError("Don't use ! in midst of other doctest cmds")
+            setup.append(line[2:])
         elif line[0] == ">":
+            setup_done = True
             current_let.append(line[2:])
         elif line[0] in " \t":
             current_let[-1] += "\n" + line[2:]
@@ -77,5 +81,5 @@ def pytest_funcarg__doctest(request):
     pairs = []
     for pair in zip(exprs,expect):
         pairs.extend(pair)
-    check_equal(*pairs, extra="\n".join(extra))
+    check_equal(*pairs, extra="\n".join(setup))
     return True

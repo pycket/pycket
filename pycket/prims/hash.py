@@ -91,9 +91,11 @@ def hash_ref_cont(default, env, cont, _vals):
     val = check_one_val(_vals)
     if val is not None:
         return return_value(val, env, cont)
-    if default is not None and default.iscallable():
+    if default is None:
+        raise SchemeException("key not found")
+    if default.iscallable():
         return default.call([], env, cont)
-    raise SchemeException("key not found")
+    return return_value(default, env, cont)
 
 @expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):

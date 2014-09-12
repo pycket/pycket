@@ -80,6 +80,42 @@ def unpack_cmk_args(args, name):
         raise SchemeException(name + ": supplied set-proc is not callable")
     return key, get, set, prop_keys, prop_vals
 
+def unpack_hash_args(args, name):
+    args, prop_keys, prop_vals = unpack_properties(args, name)
+    clear_proc = values.w_false
+    if len(args) == 5:
+        hash, ref_proc, set_proc, remove_proc, key_proc = args
+    elif len(args) == 6:
+        hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc = args
+    else:
+        raise SchemeException(name + ": wrong number of arguments")
+    if not isinstance(hash, values.W_HashTable):
+        raise SchemeException(name + ": first argument is not a hash")
+    if not ref_proc.iscallable():
+        raise SchemeException(name + ": ref-proc is not callable")
+    if not set_proc.iscallable():
+        raise SchemeException(name + ": set-proc is not callable")
+    if not remove_proc.iscallable():
+        raise SchemeException(name + ": remove-proc is not callable")
+    if not key_proc.iscallable():
+        raise SchemeException(name + ": key-proc is not callable")
+    if clear_proc is not values.w_false and not clear_proc.iscallable():
+        raise SchemeException(name + ": clear-proc is not callable")
+    return hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals
+
+@expose("impersonate-hash")
+def impersonate_hash(args):
+    hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
+            unpack_hash_args(args, "impersonate-hash")
+    ref_proc.mark_non_loop()
+    ref_proc.mark_non_loop()
+    set_proc.mark_non_loop()
+    remove_proc.mark_non_loop()
+    key_proc.mark_non_loop()
+    clear_proc.mark_non_loop()
+    return imp.W_ImpHashTable(hash, ref_proc, set_proc, remove_proc,
+                              key_proc, clear_proc, prop_keys, prop_vals)
+
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
     proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
@@ -192,11 +228,6 @@ def impersonate_box(args):
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
 @expose("chaperone-hash")
-def chaperone_hash(args):
-    # FIXME: not implemented
-    return args[0]
-
-@expose("impersonate-hash")
 def chaperone_hash(args):
     # FIXME: not implemented
     return args[0]

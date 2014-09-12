@@ -1,6 +1,6 @@
 
 from pycket.cont import label
-from pycket.values import W_MVector, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_VectorSuper, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit
@@ -86,6 +86,69 @@ class W_Vector(W_MVector):
     def equal(self, other):
         # XXX could be optimized using strategies
         if not isinstance(other, W_MVector):
+            return False
+        if self is other:
+            return True
+        if self.length() != other.length():
+            return False
+        for i in range(self.length()):
+            if not self.ref(i).equal(other.ref(i)):
+                return False
+        return True
+
+class W_FlVector(W_VectorSuper):
+    _immutable_fields_ = ["elems", "len", "strategy", "is_immutable"]
+    errorname = "flvector"
+    def __init__(self, storage, len):
+        self.strategy = FlonumVectorStrategy()
+        self.storage = storage
+        self.len = len
+        self.is_immutable = True
+    @staticmethod
+    def fromelements(elems):
+        strategy = FlonumVectorStrategy()
+        storage = strategy.create_storage_for_elements(elems)
+        return W_FlVector(storage, len(elems))
+    @staticmethod
+    def fromelement(elem, times):
+        strategy = FlonumVectorStrategy()
+        check_list = [elem]
+        if times == 0:
+            check_list = []
+        storage = strategy.create_storage_for_element(elem, times)
+        return W_FlVector(storage, times)
+    def ref(self, i):
+        return self.strategy.ref(self, i)
+    def set(self, i, v):
+        self.strategy.set(self, i, v)
+
+    @label
+    def vector_set(self, i, new, env, cont):
+        from pycket.interpreter import return_value
+        from pycket.values import w_void
+        self.set(i.value, new)
+        return return_value(w_void, env, cont)
+
+    @label
+    def vector_ref(self, i, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(self.ref(i.value), env, cont)
+
+    # unsafe versions
+    def _ref(self, i):
+        return self.strategy.ref(self, i, check=False)
+    def _set(self, i, v):
+        self.strategy.set(self, i, v, check=False)
+
+    def length(self):
+        return self.len
+    def tostring(self):
+        l = self.strategy.ref_all(self)
+        return "(flvector %s)" % " ".join([obj.tostring() for obj in l])
+
+    def equal(self, other):
+        # XXX could be optimized more
+        if not isinstance(other, W_FlVector):
             return False
         if self is other:
             return True
@@ -231,6 +294,11 @@ class FlonumVectorStrategy(VectorStrategy):
     erase, unerase = rerased.new_erasing_pair("flonum-vector-strategry")
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
+
+    def set(self, w_vector, i, w_val, check=True):
+        if check:
+            self.indexcheck(w_vector, i)
+        self._set(w_vector, i, w_val)
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, W_Flonum)

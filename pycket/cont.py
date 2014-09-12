@@ -69,7 +69,7 @@ class BaseCont(object):
 
     def tostring(self):
         "NOT_RPYTHON"
-        if self.prev:
+        if not isinstance(self, NilCont) and self.prev:
             return "%s(%s)"%(self.__class__.__name__,self.prev.tostring())
         else:
             return "%s()"%(self.__class__.__name__)

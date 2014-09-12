@@ -606,41 +606,44 @@ class __extend__(values.W_Flonum):
 
         fval = fval * factor
         try:
-            val = ovfcheck_float_to_int(math.floor(fval + 0.5) * factor)
+            val = rarithmetic.ovfcheck_float_to_int(math.floor(fval + 0.5) * factor)
         except OverflowError:
             return values.W_Bignum(rbigint.fromfloat(math.floor(self.value + 0.5) * factor))
         return values.W_Fixnum(val)
 
     def arith_floor(self):
         try:
-            val = ovfcheck_float_to_int(math.floor(self.value))
+            val = rarithmetic.ovfcheck_float_to_int(math.floor(self.value))
         except OverflowError:
             return values.W_Bignum(rbigint.fromfloat(math.floor(self.value)))
         return values.W_Fixnum(val)
 
     def arith_ceiling(self):
         try:
-            val = ovfcheck_float_to_int(math.ceil(self.value))
+            val = rarithmetic.ovfcheck_float_to_int(math.ceil(self.value))
         except OverflowError:
             return values.W_Bignum(rbigint.fromfloat(math.ceil(self.value)))
         return values.W_Fixnum(val)
 
     def arith_float_fractional_part(self):
         try:
-            val = ovfcheck_float_to_int(self.value)
+            val = rarithmetic.ovfcheck_float_to_int(self.value)
         except OverflowError:
             val = rbigint.fromfloat(self.value).tofloat()
         return values.W_Flonum(float(self.value - val))
 
     def arith_float_integer_part(self):
         try:
-            val = ovfcheck_float_to_int(self.value)
+            val = rarithmetic.ovfcheck_float_to_int(self.value)
         except OverflowError:
             return values.W_Bignum(rbigint.fromfloat(self.value))
         return values.W_Fixnum(val)
 
     def arith_inexact_exact(self):
-        return values.W_Fixnum(int(self.value))
+        fractional_part = self.arith_float_fractional_part()
+        if fractional_part.value == 0:
+            return values.W_Fixnum(int(self.value))
+        raise SchemeException("rationals not implemented")
     def arith_exact_inexact(self):
         return self
 
@@ -932,7 +935,7 @@ class __extend__(values.W_Bignum):
         return make_int(self)
 
     def arith_inexact_exact(self):
-        return values.W_Fixnum(self.value.toint())
+        return make_int(self)
     def arith_exact_inexact(self):
         return values.W_Flonum(self.value.tofloat())
 

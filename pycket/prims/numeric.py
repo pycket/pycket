@@ -7,6 +7,9 @@ from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
+                                        UnsignedLongLong
 
 # imported for side effects
 from pycket import arithmetic
@@ -153,7 +156,7 @@ def inexactp(n):
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)])
+    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -163,6 +166,7 @@ def make_binary_arith(name, methname):
 
 for args in [
         ("quotient", "arith_quotient"),
+        ("remainder", "arith_mod"), # FIXME
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
         ("max",      "arith_max"),
@@ -222,6 +226,13 @@ for args in [
         ]:
     make_fixedtype_arith(*args)
 
+@expose("flsqrt", [values.W_Flonum])
+def flsqrt(f):
+    return f.arith_sqrt()
+
+@expose("unsafe-flsqrt", [unsafe(values.W_Flonum)])
+def flsqrt(f):
+    return f.arith_sqrt()
 
 @expose("add1", [values.W_Number])
 def add1(v):
@@ -261,7 +272,8 @@ for args in [
         ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
-        ("abs", "arith_abs")
+        ("abs", "arith_abs"),
+        ("round", "arith_round")
         ]:
     make_unary_arith(*args)
 
@@ -278,6 +290,14 @@ def unsafe_fxminus(a, b):
 def unsafe_fxtimes(a, b):
     return values.W_Fixnum(a.value * b.value)
 
+@expose("unsafe-fxmin", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxmin(a, b):
+    return values.W_Fixnum(min(a.value, b.value))
+
+@expose("unsafe-fxmax", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxmax(a, b):
+    return values.W_Fixnum(max(a.value, b.value))
+
 @expose("unsafe-fx<", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxlt(a, b):
     return values.W_Bool.make(a.value < b.value)
@@ -289,6 +309,10 @@ def unsafe_fxgt(a, b):
 @expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxeq(a, b):
     return values.W_Bool.make(a.value == b.value)
+
+@expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxquotient(a, b):
+    return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
 
 @expose("unsafe-fx->fl", [unsafe(values.W_Fixnum)])
 def unsafe_fxfl(a):
@@ -330,4 +354,6 @@ def unsafe_flgte(a, b):
 @expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fleq(a, b):
     return values.W_Bool.make(a.value == b.value)
+
+
 
