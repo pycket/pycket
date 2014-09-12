@@ -45,7 +45,7 @@ def hash(args):
         raise SchemeException("hash: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return values.W_EqvHashTable(keys, vals)
+    return values.W_EqualHashTable(keys, vals)
 
 @expose("hasheq")
 def hasheq(args):
@@ -65,15 +65,27 @@ def hasheqv(args):
 
 @expose("make-hash")
 def make_hash(args):
-    return values.W_EqvHashTable([], [])
+    if len(args) % 2 != 0:
+        raise SchemeException("hasheq: key does not have a corresponding value")
+    keys = [args[i] for i in range(0, len(args), 2)]
+    vals = [args[i] for i in range(1, len(args), 2)]
+    return values.W_EqualHashTable(keys, vals)
 
 @expose("make-hasheq")
 def make_hasheq(args):
-    return values.W_EqHashTable([], [])
+    if len(args) % 2 != 0:
+        raise SchemeException("hasheqv: key does not have a corresponding value")
+    keys = [args[i] for i in range(0, len(args), 2)]
+    vals = [args[i] for i in range(1, len(args), 2)]
+    return values.W_EqHashTable(keys, vals)
 
 @expose("make-hasheqv")
 def make_hasheqv(args):
-    return values.W_EqvHashTable([], [])
+    if len(args) % 2 != 0:
+        raise SchemeException("hasheqv: key does not have a corresponding value")
+    keys = [args[i] for i in range(0, len(args), 2)]
+    vals = [args[i] for i in range(1, len(args), 2)]
+    return values.W_EqvHashTable(keys, vals)
 
 @expose("hash-set!", [values.W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):

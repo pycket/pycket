@@ -24,10 +24,13 @@ def make_proxy(proxied="inner", properties="properties"):
             return getattr(self, properties)
         def immutable(self):
             return get_base_object(self).immutable()
+        def tostring(self):
+            return get_base_object(getattr(self, proxied)).tostring()
         setattr(cls, "get_proxied", get_proxied)
         setattr(cls, "is_proxy", is_proxy)
         setattr(cls, "get_properties", get_properties)
         setattr(cls, "immutable", immutable)
+        setattr(cls, "tostring", tostring)
         return cls
     return wrapper
 
@@ -136,9 +139,6 @@ class W_InterposeProcedure(values.W_Procedure):
             cont.update_cm(key, val)
         return self.check.call(args, env, after)
 
-    def tostring(self):
-        return self.inner.tostring()
-
 @make_impersonator
 class W_ImpProcedure(W_InterposeProcedure):
     errorname = "imp-procedure"
@@ -189,9 +189,6 @@ class W_InterposeBox(values.W_Box):
     def set_box(self, val, env, cont):
         after = self.post_set_box_cont(val, env, cont)
         return self.seth.call([self.inner, val], env, after)
-
-    def tostring(self):
-        return self.inner.tostring()
 
 @make_chaperone
 class W_ChpBox(W_InterposeBox):
@@ -460,7 +457,7 @@ class W_InterposeHashTable(values.W_HashTable):
     errorname = "interpose-hash-table"
     _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc",
                           "key_proc", "clear_proc", "properties"]
-    def __init__(self, inner, set_proc, ref_proc, remove_proc, key_proc,
+    def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
         assert isinstance(inner, values.W_HashTable)
         assert set_proc.iscallable()

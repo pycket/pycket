@@ -116,6 +116,19 @@ def impersonate_hash(args):
     return imp.W_ImpHashTable(hash, ref_proc, set_proc, remove_proc,
                               key_proc, clear_proc, prop_keys, prop_vals)
 
+@expose("chaperone-hash")
+def chaperone_hash(args):
+    hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
+            unpack_hash_args(args, "chaperone-hash")
+    ref_proc.mark_non_loop()
+    ref_proc.mark_non_loop()
+    set_proc.mark_non_loop()
+    remove_proc.mark_non_loop()
+    key_proc.mark_non_loop()
+    clear_proc.mark_non_loop()
+    return imp.W_ChpHashTable(hash, ref_proc, set_proc, remove_proc,
+                              key_proc, clear_proc, prop_keys, prop_vals)
+
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
     proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
@@ -226,11 +239,6 @@ def impersonate_box(args):
     unbox.mark_non_loop()
     set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
-
-@expose("chaperone-hash")
-def chaperone_hash(args):
-    # FIXME: not implemented
-    return args[0]
 
 @expose("chaperone-continuation-mark-key")
 def ccmk(args):
