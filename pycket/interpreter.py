@@ -253,12 +253,13 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars"]
-    _immutable_fields_ = ["should_enter?"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda"]
+    _immutable_fields_ = ["should_enter?", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     mvars = None
+    surrounding_lambda = None
 
     simple = False
 
@@ -268,11 +269,25 @@ class AST(object):
         # default implementation for simple AST forms
         assert self.simple
         return return_value(self.interpret_simple(env), env, cont)
+
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
 
+    def set_surrounding_lambda(self, lam):
+        assert isinstance(lam, Lambda)
+        self.surrounding_lambda = lam
+        for child in self.direct_children():
+            child.set_surrounding_lambda(lam)
+
+    def direct_children(self):
+        return []
+
     def free_vars(self):
-        return {}
+        free_vars = {}
+        for child in self.direct_children():
+            free_vars.update(child.free_vars())
+        return free_vars
+
     def assign_convert(self, vars, env_structure):
         """ make a copy of the AST that converts all writable variables into
         using cells. In addition, compute the state of the environment for
@@ -283,20 +298,23 @@ class AST(object):
         environment at that AST node.
         """
         raise NotImplementedError("abstract base class")
+
     def mutated_vars(self):
         if self.mvars is not None:
             return self.mvars
         self.mvars = self._mutated_vars()
         return self.mvars
+
     def _mutated_vars(self):
         raise NotImplementedError("abstract base class")
+
     def tostring(self):
         return "UNKNOWN AST: "
 
     def __str__(self):
         return self.tostring()
 
-class Module(AST):
+class Module(object):
     _immutable_fields_ = ["name", "body"]
     def __init__(self, name, body, config):
         self.name = name
@@ -317,11 +335,6 @@ class Module(AST):
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
-    # these are both empty and irrelevant for modules
-    # this will change when we handle submodules
-    def _mutated_vars(self): return variable_set()
-    def free_vars(self): return {}
-
     # all the module-bound variables that are mutated
     def mod_mutated_vars(self):
         x = variable_set()
@@ -329,13 +342,11 @@ class Module(AST):
             x.update(r.mutated_vars())
         return x
 
-    def assign_convert(self, vars, env_structure):
+    def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
-        new_body = [b.assign_convert(new_vars, env_structure) for b in self.body]
+        new_body = [b.assign_convert(local_muts, None) for b in self.body]
         return Module(self.name, new_body, self.config)
+
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
@@ -369,9 +380,6 @@ class Require(AST):
 
     def _mutated_vars(self):
         return variable_set()
-
-    def free_vars(self):
-        return {}
 
     def assign_convert(self, vars, env_structure):
         return self
@@ -425,24 +433,35 @@ class Cell(AST):
 
     def assign_convert(self, vars, env_structure):
         return Cell(self.expr.assign_convert(vars, env_structure))
+
+    def direct_children(self):
+        return [self.expr]
+
     def _mutated_vars(self):
         return self.expr.mutated_vars()
-    def free_vars(self):
-        return self.expr.free_vars()
+
     def tostring(self):
         return "Cell(%s)"%self.expr.tostring()
+
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
     simple = True
     def __init__ (self, w_val):
         self.w_val = w_val
+
     def interpret_simple(self, env):
         return self.w_val
+
     def assign_convert(self, vars, env_structure):
         return self
+
+    def direct_children(self):
+        return []
+
     def _mutated_vars(self):
         return variable_set()
+
     def tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
                 isinstance(self.w_val, values.W_Number) or
@@ -456,12 +475,19 @@ class QuoteSyntax(AST):
     simple = True
     def __init__ (self, w_val):
         self.w_val = w_val
+
     def interpret_simple(self, env):
         return values.W_Syntax(self.w_val)
+
     def assign_convert(self, vars, env_structure):
         return self
+
+    def direct_children(self):
+        return []
+
     def _mutated_vars(self):
         return variable_set()
+
     def tostring(self):
         return "#'%s" % self.w_val.tostring()
 
@@ -495,11 +521,15 @@ class VariableReference(AST):
         else:
             return self
 
+    def direct_children(self):
+        return []
+
     def _mutated_vars(self):
         return variable_set()
 
     def tostring(self):
         return "#<#%variable-reference>"
+
 
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
@@ -518,18 +548,19 @@ class WithContinuationMark(AST):
         return WithContinuationMark(self.key.assign_convert(vars, env_structure),
                                     self.value.assign_convert(vars, env_structure),
                                     self.body.assign_convert(vars, env_structure))
+
+    def direct_children(self):
+        return [self.key, self.value, self.body]
+
     def _mutated_vars(self):
         x = self.key.mutated_vars()
         for r in [self.value, self.body]:
             x.update(r.mutated_vars())
         return x
-    def free_vars(self):
-        x = self.key.free_vars()
-        for r in [self.value, self.body]:
-            x.update(r.free_vars())
-        return x
+
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
+
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env", "env_structure"]
@@ -579,15 +610,14 @@ class App(AST):
                    [e.assign_convert(vars, env_structure) for e in self.rands],
                    remove_env=self.remove_env,
                    env_structure=env_structure)
+
+    def direct_children(self):
+        return [self.rator] + self.rands
+
     def _mutated_vars(self):
         x = self.rator.mutated_vars()
         for r in self.rands:
             x.update(r.mutated_vars())
-        return x
-    def free_vars(self):
-        x = self.rator.free_vars()
-        for r in self.rands:
-            x.update(r.free_vars())
         return x
 
     # Let conversion ensures that all the participants in an application
@@ -639,30 +669,34 @@ class SequencedBodyAST(AST):
 
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
+
     @staticmethod
     def make(fst, rst):
         if rst:
             return Begin0(fst, Begin.make(rst))
         return fst
+
     def __init__(self, fst, rst):
         assert isinstance(rst, AST)
         self.first = fst
         self.body = rst
+
     def assign_convert(self, vars, env_structure):
         return Begin0(self.first.assign_convert(vars, env_structure),
                       self.body.assign_convert(vars, env_structure))
-    def free_vars(self):
-        x = {}
-        for r in [self.first, self.body]:
-            x.update(r.free_vars())
-        return x
+
+    def direct_children(self):
+        return [self.first, self.body]
+
     def _mutated_vars(self):
         x = variable_set()
         for r in [self.first, self.body]:
             x.update(r.mutated_vars())
         return x
+
     def tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
@@ -674,41 +708,49 @@ class Begin(SequencedBodyAST):
             return body[0]
         else:
             return Begin(body)
+
     def assign_convert(self, vars, env_structure):
         return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
+
+    def direct_children(self):
+        return self.body
+
     def _mutated_vars(self):
         x = variable_set()
         for r in self.body:
             x.update(r.mutated_vars())
         return x
-    def free_vars(self):
-        x = {}
-        for r in self.body:
-            x.update(r.free_vars())
-        return x
+
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
+
     def tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
+
     def __init__ (self, sym, env_structure=None):
         assert isinstance(sym, values.W_Symbol)
         self.sym = sym
         self.env_structure = env_structure
+
     def interpret_simple(self, env):
         val = self._lookup(env)
         if val is None:
             raise SchemeException("%s: undefined" % self.sym.value)
         return val
+
+    def direct_children(self):
+        return []
+
     def _mutated_vars(self):
         return variable_set()
+
     def free_vars(self):
-        x = {}
-        x[self.sym] = None
-        return x
+        return {self.sym: None}
+
     def tostring(self):
         return "%s"% self.sym.variable_name()
 
@@ -716,12 +758,15 @@ class Var(AST):
 class CellRef(Var):
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
+
     def tostring(self):
         return "CellRef(%s)"% Var.tostring(self)
+
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
+
     def _lookup(self, env):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
@@ -740,8 +785,10 @@ class Gensym(object):
 class LexicalVar(Var):
     def _lookup(self, env):
         return env.lookup(self.sym, self.env_structure)
+
     def _set(self, w_val, env):
         assert 0
+
     def assign_convert(self, vars, env_structure):
         #assert isinstance(vars, r_dict)
         if self in vars:
@@ -757,7 +804,9 @@ class ModuleVar(Var):
         self.srcsym = srcsym
         self.env_structure = env_structure
         self.modenv = None
-    def free_vars(self): return {}
+
+    def free_vars(self):
+        return {}
 
     def _lookup(self, env):
         if self.modenv is None:
@@ -798,7 +847,6 @@ class ModuleVar(Var):
                 raise SchemeException("can't find module %s for %s" % (self.srcmod, self.srcsym.tostring()))
         return mod.lookup(self.srcsym)
 
-
     def assign_convert(self, vars, env_structure):
         return self
         # # we use None here for hashing because we don't have the module name in the
@@ -807,6 +855,7 @@ class ModuleVar(Var):
         #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
         # else:
         #     return self
+
     def _set(self, w_val, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env.module_env
@@ -844,8 +893,10 @@ class ModuleVar(Var):
 class ToplevelVar(Var):
     def _lookup(self, env):
         return env.toplevel_env.toplevel_lookup(self.sym)
+
     def assign_convert(self, vars, env_structure):
         return self
+
     def _set(self, w_val, env):
         env.toplevel_env.toplevel_set(self.sym, w_val)
 
@@ -858,11 +909,14 @@ class SetBang(AST):
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
+
     def interpret(self, env, cont):
         return self.rhs, env, SetBangCont(self, env, cont)
+
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
                        self.rhs.assign_convert(vars, env_structure))
+
     def _mutated_vars(self):
         x = self.rhs.mutated_vars()
         var = self.var
@@ -874,11 +928,10 @@ class SetBang(AST):
             x[to_modvar(var)] = None
         # do nothing for top-level vars, they're all mutated
         return x
-    def free_vars(self):
-        x = self.rhs.free_vars()
-        if isinstance(self.var, CellRef):
-            x[self.var.sym] = None
-        return x
+
+    def direct_children(self):
+        return [self.var, self.rhs]
+
     def tostring(self):
         return "(set! %s %s)"%(self.var.sym.variable_name(), self.rhs.tostring())
 
@@ -924,16 +977,16 @@ class If(AST):
                   self.thn.assign_convert(vars, sub_env_structure),
                   self.els.assign_convert(vars, sub_env_structure),
                   remove_env=self.remove_env)
+
+    def direct_children(self):
+        return [self.tst, self.thn, self.els]
+
     def _mutated_vars(self):
         x = variable_set()
         for b in [self.tst, self.els, self.thn]:
             x.update(b.mutated_vars())
         return x
-    def free_vars(self):
-        x = {}
-        for b in [self.tst, self.els, self.thn]:
-            x.update(b.free_vars())
-        return x
+
     def tostring(self):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
@@ -983,21 +1036,27 @@ class CaseLambda(AST):
                 assert w_closure.closure._get_list(0).toplevel_env is env.toplevel_env
             return w_closure
         return values.W_Closure.make(self, env)
+
     def free_vars(self):
-        result = {}
-        for l in self.lams:
-            result.update(l.free_vars())
+        result = AST.free_vars(self)
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
+
+    def direct_children(self):
+        # the copy is needed for weird annotator reasons that I don't understand :-(
+        return [l for l in self.lams]
+
     def _mutated_vars(self):
         x = variable_set()
         for l in self.lams:
             x.update(l.mutated_vars())
         return x
+
     def assign_convert(self, vars, env_structure):
         ls = [l.assign_convert(vars, env_structure) for l in self.lams]
         return CaseLambda(ls, recursive_sym=self.recursive_sym)
+
     def tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
@@ -1018,6 +1077,8 @@ class Lambda(SequencedBodyAST):
         self.frees = frees
         self.enclosing_env_structure = enclosing_env_structure
         self.env_structure = env_structure
+        for b in self.body:
+            b.set_surrounding_lambda(self)
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
@@ -1054,6 +1115,14 @@ class Lambda(SequencedBodyAST):
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body, 
                       self.srcpos, self.srcfile, env_structure, sub_env_structure)
+
+    def direct_children(self):
+        return self.body[:]
+
+    def set_surrounding_lambda(self, lam):
+        self.surrounding_lambda = lam
+        # don't recurse
+
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
@@ -1063,6 +1132,7 @@ class Lambda(SequencedBodyAST):
             if lv in x:
                 del x[lv]
         return x
+
     def free_vars(self):
         result = free_vars_lambda(self.body, self.args)
         return result
@@ -1080,7 +1150,6 @@ class Lambda(SequencedBodyAST):
             actuals = args
         return actuals
 
-
     def tostring(self):
         if self.rest and (not self.formals):
             return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
@@ -1090,6 +1159,7 @@ class Lambda(SequencedBodyAST):
             return "(lambda (%s) %s)"%(" ".join([v.variable_name() for v in self.formals]),
                                        self.body[0].tostring() if len(self.body) == 1 else
                                        " ".join([b.tostring() for b in self.body]))
+
 
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
@@ -1104,6 +1174,7 @@ class CombinedAstAndIndex(AST):
         ast = self.ast
         assert isinstance(ast, cls)
         return ast, self.index
+
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
@@ -1125,6 +1196,10 @@ class Letrec(SequencedBodyAST):
     def interpret(self, env, cont):
         env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
+
+    def direct_children(self):
+        return self.body + self.rhss
+
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body + self.rhss:
@@ -1133,14 +1208,14 @@ class Letrec(SequencedBodyAST):
             lv = LexicalVar(v)
             x[lv] = None
         return x
+
     def free_vars(self):
-        x = {}
-        for b in self.body + self.rhss:
-            x.update(b.free_vars())
+        x = AST.free_vars(self)
         for v in self.args.elems:
             if v in x:
                 del x[v]
         return x
+
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
         for b in self.body + self.rhss:
@@ -1155,6 +1230,7 @@ class Letrec(SequencedBodyAST):
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+
     def tostring(self):
         return "(letrec (%s) %s)"%([(v.variable_name(), self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
                                    [b.tostring() for b in self.body])
@@ -1215,6 +1291,7 @@ def make_letrec(varss, rhss, body):
 
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "body_needs_env"]
+
     def __init__(self, args, counts, rhss, body, body_needs_env=True):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
@@ -1229,6 +1306,9 @@ class Let(SequencedBodyAST):
         return self.rhss[0], env, LetCont.make(
                 [], self.counting_asts[0], env, cont)
 
+    def direct_children(self):
+        return self.body + self.rhss
+
     def _mutated_vars(self):
         x = variable_set()
         for b in self.body:
@@ -1240,6 +1320,7 @@ class Let(SequencedBodyAST):
         for b in self.rhss:
             x.update(b.mutated_vars())
         return x
+
     def free_vars(self):
         x = {}
         for b in self.body:
@@ -1250,6 +1331,7 @@ class Let(SequencedBodyAST):
         for b in self.rhss:
             x.update(b.free_vars())
         return x
+
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
         for b in self.body:
@@ -1334,12 +1416,18 @@ class DefineValues(AST):
             return DefineValues(self.names,
                                 self.rhs.assign_convert(vars, env_structure),
                                 self.display_names)
+
+    def direct_children(self):
+        return [self.rhs]
+
     def _mutated_vars(self):
         return self.rhs.mutated_vars()
+
     def free_vars(self):
         # free_vars doesn't contain module-bound variables
         # which is the only thing defined by define-values
         return self.rhs.free_vars()
+
     def tostring(self):
         return "(define-values %s %s)"%(self.display_names, self.rhs.tostring())
 

@@ -1330,7 +1330,9 @@ def load(lib, env, cont):
     if json_ast is None:
         raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
-    return ast, env, cont
+    raise NotImplementedError("would crash anyway when trying to interpret the Module")
+    #return ast, env, cont
+    
 @expose("current-load-relative-directory", [])
 def cur_load_rel_dir():
     return values.w_false
