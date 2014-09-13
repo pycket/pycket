@@ -131,7 +131,7 @@ def test_random_seed():
 
 def test_flvector(doctest):
     """
-    ! (require racket/flonum racket/unsafe/ops)
+    ! (require '#%flfxnum '#%unsafe)
     > (flvector-ref (flvector 0.0) 0)
     0.0
     > (define v (flvector 0.0 1.0))
