@@ -1057,7 +1057,7 @@ class W_Closure(W_Procedure):
                     vals[j] = self
                 else:
                     vals[j] = env.lookup(v, lam.enclosing_env_structure)
-            self._set_list(i, ConsEnv.make(vals, env.toplevel_env, env.toplevel_env))
+            self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
 
     def tostring(self):
         if len(self.caselam.lams) == 0:
@@ -1113,7 +1113,7 @@ class W_Closure(W_Procedure):
         jit.promote(self.caselam)
         (actuals, new_env, lam) = self._find_lam(args)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, new_env, new_env.toplevel_env),
+            ConsEnv.make(actuals, new_env),
             cont)
 
     def _call_with_speculation(self, args, env, cont, env_structure):
@@ -1125,7 +1125,7 @@ class W_Closure(W_Procedure):
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 new_env, env_structure, env)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev, new_env.toplevel_env),
+            ConsEnv.make(actuals, prev),
             cont)
 
 
@@ -1136,7 +1136,7 @@ class W_PromotableClosure(W_Procedure):
     _immutable_fields_ = ["closure"]
 
     def __init__(self, caselam, toplevel_env):
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env, toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
 
     def mark_non_loop(self):
         self.closure.mark_non_loop()

@@ -128,12 +128,12 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = ConsEnv.make(vals_w, prev, prev.toplevel_env)
+            env = ConsEnv.make(vals_w, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             env = self.env
             if rhsindex == len(ast.rhss) - 2 and not ast.body_needs_env:
-                env = env.toplevel_env
+                env = env.toplevel_env() # XXX too much walking?
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast.counting_asts[rhsindex + 1],
                                  env, self.prev))
@@ -255,8 +255,9 @@ class Module(object):
 
     def interpret_mod(self, env):
         self.env = env
-        old = env.module_env.current_module
-        env.module_env.current_module = self
+        module_env = env.toplevel_env().module_env
+        old = module_env.current_module
+        module_env.current_module = self
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
@@ -271,7 +272,7 @@ class Module(object):
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
-        env.module_env.current_module = old
+        module_env.current_module = old
 
 class Require(AST):
     _immutable_fields_ = ["modname", "module"]
@@ -289,7 +290,7 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
-        top = env.toplevel_env
+        top = env.toplevel_env()
         top.module_env.add_module(self.modname, self.module)
         self.module.interpret_mod(top)
         return values.w_void
@@ -698,7 +699,7 @@ class ModuleVar(Var):
 
     def _lookup(self, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         w_res = self._elidable_lookup()
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
@@ -708,7 +709,7 @@ class ModuleVar(Var):
     @jit.elidable
     def is_mutable(self, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         v = self._elidable_lookup()
         return isinstance(v, values.W_Cell)
 
@@ -746,7 +747,7 @@ class ModuleVar(Var):
 
     def _set(self, w_val, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
@@ -780,13 +781,13 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     def _lookup(self, env):
-        return env.toplevel_env.toplevel_lookup(self.sym)
+        return env.toplevel_env().toplevel_lookup(self.sym)
 
     def assign_convert(self, vars, env_structure):
         return self
 
     def _set(self, w_val, env):
-        env.toplevel_env.toplevel_set(self.sym, w_val)
+        env.toplevel_env().toplevel_set(self.sym, w_val)
 
 # rewritten version for caching
 def to_modvar(m):
@@ -918,10 +919,11 @@ class CaseLambda(AST):
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
             if w_closure is None:
-                w_closure = values.W_PromotableClosure(self, env.toplevel_env)
+                w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
             else:
-                assert w_closure.closure._get_list(0).toplevel_env is env.toplevel_env
+                if not jit.we_are_jitted():
+                    assert w_closure.closure._get_list(0).toplevel_env() is env.toplevel_env()
             return w_closure
         return values.W_Closure.make(self, env)
 
@@ -1083,7 +1085,7 @@ class Letrec(SequencedBodyAST):
 
     @jit.unroll_safe
     def interpret(self, env, cont):
-        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
+        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env)
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
@@ -1353,7 +1355,7 @@ def interpret_toplevel(a, env):
         return x
     elif isinstance(a, DefineValues):
         assert 0 # FIXME
-        env.toplevel_env.toplevel_set(a.name, interpret_one(a.rhs, env))
+        env.toplevel_env().toplevel_set(a.name, interpret_one(a.rhs, env))
         return values.Values.make([values.w_void])
     else:
         return interpret_one(a, env)

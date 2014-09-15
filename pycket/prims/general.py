@@ -1065,7 +1065,7 @@ def vector2immutablevector(v):
 def current_command_line_arguments(env, cont):
     from pycket.interpreter import return_value
     w_v = values_vector.W_Vector.fromelements(
-            env.toplevel_env.commandline_arguments)
+            env.toplevel_env().commandline_arguments)
     return return_value(w_v, env, cont)
 
 # Unsafe struct ops
