@@ -203,11 +203,12 @@ for args in [
         ]:
     make_arith(*args)
 
-def make_fixedtype_arith(name, methname, intversion=True):
-    @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
-    def do(a, b):
-        return getattr(a, methname)(b)
-    do.__name__ = "fl_" + methname
+def make_fixedtype_arith(name, methname, intversion=True, floatversion=True):
+    if floatversion:
+        @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
+        def do(a, b):
+            return getattr(a, methname)(b)
+        do.__name__ = "fl_" + methname
 
     if intversion:
         @expose("fx" + name, [values.W_Fixnum] * 2, simple=True)
@@ -218,6 +219,7 @@ def make_fixedtype_arith(name, methname, intversion=True):
 
 for args in [
         ("+", "arith_add"),
+        ("quotient", "arith_quotient", True, False),
         ("-", "arith_sub"),
         ("*", "arith_mul"),
         ("/", "arith_div", False),
@@ -309,6 +311,14 @@ def unsafe_fxgt(a, b):
 @expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxeq(a, b):
     return values.W_Bool.make(a.value == b.value)
+
+@expose("fx=", [values.W_Fixnum] * 2)
+def fxeq(a, b):
+    return values.W_Bool.make(a.value == b.value)
+
+@expose("fx->fl", [values.W_Fixnum])
+def fxfl(a):
+    return values.W_Flonum(float(a.value))
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
