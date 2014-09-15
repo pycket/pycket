@@ -178,9 +178,12 @@ class TestLLtype(LLJitMixin):
 
     def run_file(self, fname):
         ast = parse_file(fname)
+        GlobalConfig.load(ast)
         def interp_w():
             val = interpret_module(ast)
             return val
+
+        interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
         

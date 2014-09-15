@@ -214,7 +214,7 @@ class W_VariableReference(W_Object):
 # A super class for both fl/fx/regular vectors
 class W_VectorSuper(W_Object):
     errorname = "vector"
-    _immutable_fields_ = ["len"]
+    _attrs_ = []
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -229,6 +229,8 @@ class W_VectorSuper(W_Object):
     def length(self):
         raise NotImplementedError("abstract base class")
 
+    def immutable(self):
+        raise NotImplementedError("abstract base class")
 
     # abstract methods for vector implementations that use strategies
     # we would really not like to have them here, but would need multiple
