@@ -133,7 +133,7 @@ class W_FlVector(W_VectorSuper):
     def get_strategy(self):
         return FlonumVectorStrategy.singleton
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         from pycket.error import SchemeError
         raise SchemeError("not a float")
 
@@ -297,7 +297,6 @@ class FixnumVectorStrategy(VectorStrategy):
         return isinstance(w_obj, W_Fixnum)
 
     def wrap(self, val):
-        # TODO what primitive datatype is represented by Fixnum?
         assert isinstance(val, int)
         return W_Fixnum(val)
 
@@ -312,15 +311,11 @@ class FlonumVectorStrategy(VectorStrategy):
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
 
-    def set(self, w_vector, i, w_val, check=True):
-        if check:
-            self.indexcheck(w_vector, i)
-        self._set(w_vector, i, w_val)
-
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, W_Flonum)
 
     def wrap(self, val):
+        assert isinstance(val, float)
         return W_Flonum(val)
 
     def unwrap(self, w_val):
