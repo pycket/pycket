@@ -51,10 +51,10 @@ class StrategyVectorMixin(object):
         return return_value(self.ref(i.value), env, cont)
 
     # unsafe versions
-    def _ref(self, i):
+    def unsafe_ref(self, i):
         return self.get_strategy().ref(self, i, check=False)
 
-    def _set(self, i, v):
+    def unsafe_set(self, i, v):
         self.get_strategy().set(self, i, v, check=False)
 
     def change_strategy(self, new_strategy):
@@ -197,7 +197,7 @@ class VectorStrategy(object):
             self.dehomogenize(w_vector)
             # Now, try again. no need to use the safe version, we already
             # checked the index
-            w_vector._set(i, w_val)
+            w_vector.unsafe_set(i, w_val)
         else:
             self._set(w_vector, i, w_val)
     def indexcheck(self, w_vector, i):
