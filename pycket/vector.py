@@ -134,8 +134,7 @@ class W_FlVector(W_VectorSuper):
         return FlonumVectorStrategy.singleton
 
     def set_strategy(self, strategy):
-        from pycket.error import SchemeError
-        raise SchemeError("not a float")
+        assert 0, "unreachable"
 
     @staticmethod
     def fromelements(elems):

@@ -6,7 +6,8 @@
 
 import pytest
 from pycket.values import w_true
-from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run
+from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod
+from pycket.error import SchemeException
 
 def test_equal():
     check_all(
@@ -157,3 +158,11 @@ def test_flvector(doctest):
     3.0
     """
     assert doctest
+
+def test_flvector_set_wrong_type():
+    with pytest.raises(SchemeException):
+        run_mod("""
+            #lang pycket
+            (require '#%flfxnum '#%unsafe)
+            (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
+        """)
