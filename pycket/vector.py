@@ -8,22 +8,29 @@ from rpython.rlib import debug, jit
 # Setting this to True will break the tests. Used to compare performance.
 _always_use_object_strategy = False
 
-@jit.look_inside_iff(lambda elements:
+@jit.look_inside_iff(lambda elements, immutable:
         jit.loop_unrolling_heuristic(
                 elements, len(elements), UNROLLING_CUTOFF))
-def _find_strategy_class(elements):
+def _find_strategy_class(elements, immutable):
     if _always_use_object_strategy or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
         return ObjectVectorStrategy.singleton
     single_class = type(elements[0])
     for elem in elements:
         if not isinstance(elem, single_class):
+            if immutable:
+                return ObjectImmutableVectorStrategy.singleton
             return ObjectVectorStrategy.singleton
     if single_class is W_Fixnum:
+        if immutable:
+            return FixnumImmutableVectorStrategy.singleton
         return FixnumVectorStrategy.singleton
     if single_class is W_Flonum:
+        if immutable:
+            return FlonumImmutableVectorStrategy.singleton
         return FlonumVectorStrategy.singleton
     return ObjectVectorStrategy.singleton
+
 
 class StrategyVectorMixin(object):
     def get_storage(self):
@@ -37,6 +44,9 @@ class StrategyVectorMixin(object):
 
     def set(self, i, v):
         self.get_strategy().set(self, i, v)
+
+    def immutable(self):
+        return self.get_strategy().immutable(self)
 
     @label
     def vector_set(self, i, new, env, cont):
@@ -64,16 +74,15 @@ class StrategyVectorMixin(object):
 
 
 class W_Vector(W_MVector):
-    _immutable_fields_ = ["len", "is_immutable"]
+    _immutable_fields_ = ["len"]
     errorname = "vector"
 
     import_from_mixin(StrategyVectorMixin)
 
-    def __init__(self, strategy, storage, len, immutable):
+    def __init__(self, strategy, storage, len):
         self.strategy = strategy
         self.storage = storage
         self.len = len
-        self.is_immutable = immutable
 
     def get_strategy(self):
         return self.strategy
@@ -83,18 +92,18 @@ class W_Vector(W_MVector):
 
     @staticmethod
     def fromelements(elems, immutable=False):
-        strategy = _find_strategy_class(elems)
+        strategy = _find_strategy_class(elems, immutable)
         storage = strategy.create_storage_for_elements(elems)
-        return W_Vector(strategy, storage, len(elems), immutable)
+        return W_Vector(strategy, storage, len(elems))
 
     @staticmethod
     def fromelement(elem, times, immutable=False):
         check_list = [elem]
         if times == 0:
             check_list = []
-        strategy = _find_strategy_class(check_list)
+        strategy = _find_strategy_class(check_list, immutable)
         storage = strategy.create_storage_for_element(elem, times)
-        return W_Vector(strategy, storage, times, immutable)
+        return W_Vector(strategy, storage, times)
 
     def length(self):
         return self.len
@@ -102,9 +111,6 @@ class W_Vector(W_MVector):
     def tostring(self):
         l = self.strategy.ref_all(self)
         return "#(%s)" % " ".join([obj.tostring() for obj in l])
-
-    def immutable(self):
-        return self.is_immutable
 
     def equal(self, other):
         # XXX could be optimized using strategies
@@ -120,7 +126,7 @@ class W_Vector(W_MVector):
         return True
 
 class W_FlVector(W_VectorSuper):
-    _immutable_fields_ = ["is_immutable"]
+    _immutable_fields_ = ["len"]
     errorname = "flvector"
 
     import_from_mixin(StrategyVectorMixin)
@@ -128,7 +134,6 @@ class W_FlVector(W_VectorSuper):
     def __init__(self, storage, len):
         self.storage = storage
         self.len = len
-        self.is_immutable = False
 
     def get_strategy(self):
         return FlonumVectorStrategy.singleton
@@ -185,6 +190,9 @@ class VectorStrategy(object):
     def is_correct_type(self, w_obj):
         raise NotImplementedError("abstract base class")
 
+    def immutable(self, w_vector):
+        return False
+
     def ref(self, w_vector, i, check=True):
         if check:
             self.indexcheck(w_vector, i)
@@ -200,7 +208,7 @@ class VectorStrategy(object):
         else:
             self._set(w_vector, i, w_val)
     def indexcheck(self, w_vector, i):
-        assert 0 <= i < w_vector.len
+        assert 0 <= i < w_vector.length()
 
     def _ref(self, w_vector, i):
         raise NotImplementedError("abstract base class")
@@ -219,6 +227,15 @@ class VectorStrategy(object):
 
     def dehomogenize(self, w_vector):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
+
+
+class ImmutableVectorStrategyMixin(object):
+    def immutable(self, w_vector):
+        return True
+
+    def _set(self, w_vector, i, w_val):
+        assert 0, "unreachable"
+
 
 class UnwrappedVectorStrategyMixin(object):
     # the concrete class needs to implement:
@@ -263,6 +280,7 @@ class UnwrappedVectorStrategyMixin(object):
             l[i] = self.unwrap(elements_w[i])
         return self.erase(l)
 
+
 class ObjectVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
@@ -285,6 +303,11 @@ class ObjectVectorStrategy(VectorStrategy):
     def dehomogenize(self, w_vector):
         assert 0 # should be unreachable because is_correct_type is always True
 
+
+class ObjectImmutableVectorStrategy(ObjectVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
+
+
 class FixnumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
@@ -303,6 +326,11 @@ class FixnumVectorStrategy(VectorStrategy):
         assert isinstance(w_val, W_Fixnum)
         return w_val.value
 
+
+class FixnumImmutableVectorStrategy(FixnumVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
+
+
 class FlonumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
@@ -320,3 +348,7 @@ class FlonumVectorStrategy(VectorStrategy):
     def unwrap(self, w_val):
         assert isinstance(w_val, W_Flonum)
         return w_val.value
+
+
+class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
