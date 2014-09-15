@@ -193,9 +193,11 @@ class VectorStrategy(object):
     def set(self, w_vector, i, w_val, check=True):
         if check:
             self.indexcheck(w_vector, i)
-        if not (self.is_correct_type(w_val)):
+        if not self.is_correct_type(w_val):
             self.dehomogenize(w_vector)
-            w_vector.set(i, w_val) # Now, try again.
+            # Now, try again. no need to use the safe version, we already
+            # checked the index
+            w_vector._set(i, w_val)
         else:
             self._set(w_vector, i, w_val)
     def indexcheck(self, w_vector, i):
