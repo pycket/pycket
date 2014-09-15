@@ -259,13 +259,13 @@ class W_Cons(W_List):
         cur = self
         acc = []
         while isinstance(cur, W_Cons):
-            acc.append(cur.car().tostring())
+            acc.append(cur.car().tostring().replace("'", ""))
             cur = cur.cdr()
         # Are we a dealing with a proper list?
         if isinstance(cur, W_Null):
-            return "(%s)" % " ".join(acc)
+            return "'(%s)" % " ".join(acc)
         # Must be an improper list
-        return "(%s . %s)" % (" ".join(acc), cur.tostring())
+        return "'(%s . %s)" % (" ".join(acc), cur.tostring())
 
     def immutable(self):
         return True
