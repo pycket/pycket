@@ -967,6 +967,7 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+            b.should_enter = True
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
