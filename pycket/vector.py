@@ -25,31 +25,18 @@ def _find_strategy_class(elements):
         return FlonumVectorStrategy.singleton
     return ObjectVectorStrategy.singleton
 
-class W_Vector(W_MVector):
-    _immutable_fields_ = ["elems", "len", "is_immutable"]
-    errorname = "vector"
-    def __init__(self, strategy, storage, len, immutable):
-        self.strategy = strategy
+class StrategyVectorMixin(object):
+    def get_storage(self):
+        return self.storage
+
+    def set_storage(self, storage):
         self.storage = storage
-        self.len = len
-        self.is_immutable = immutable
-    @staticmethod
-    def fromelements(elems, immutable=False):
-        strategy = _find_strategy_class(elems)
-        storage = strategy.create_storage_for_elements(elems)
-        return W_Vector(strategy, storage, len(elems), immutable)
-    @staticmethod
-    def fromelement(elem, times, immutable=False):
-        check_list = [elem]
-        if times == 0:
-            check_list = []
-        strategy = _find_strategy_class(check_list)
-        storage = strategy.create_storage_for_element(elem, times)
-        return W_Vector(strategy, storage, times, immutable)
+
     def ref(self, i):
-        return self.strategy.ref(self, i)
+        return self.get_strategy().ref(self, i)
+
     def set(self, i, v):
-        self.strategy.set(self, i, v)
+        self.get_strategy().set(self, i, v)
 
     @label
     def vector_set(self, i, new, env, cont):
@@ -65,20 +52,56 @@ class W_Vector(W_MVector):
 
     # unsafe versions
     def _ref(self, i):
-        return self.strategy.ref(self, i, check=False)
+        return self.get_strategy().ref(self, i, check=False)
+
     def _set(self, i, v):
-        self.strategy.set(self, i, v, check=False)
+        self.get_strategy().set(self, i, v, check=False)
+
+    def change_strategy(self, new_strategy):
+        old_list = self.get_strategy().ref_all(self)
+        self.set_strategy(new_strategy)
+        self.set_storage(new_strategy.create_storage_for_elements(old_list))
+
+
+class W_Vector(W_MVector):
+    _immutable_fields_ = ["len", "is_immutable"]
+    errorname = "vector"
+
+    import_from_mixin(StrategyVectorMixin)
+
+    def __init__(self, strategy, storage, len, immutable):
+        self.strategy = strategy
+        self.storage = storage
+        self.len = len
+        self.is_immutable = immutable
+
+    def get_strategy(self):
+        return self.strategy
+
+    def set_strategy(self, strategy):
+        self.strategy = strategy
+
+    @staticmethod
+    def fromelements(elems, immutable=False):
+        strategy = _find_strategy_class(elems)
+        storage = strategy.create_storage_for_elements(elems)
+        return W_Vector(strategy, storage, len(elems), immutable)
+
+    @staticmethod
+    def fromelement(elem, times, immutable=False):
+        check_list = [elem]
+        if times == 0:
+            check_list = []
+        strategy = _find_strategy_class(check_list)
+        storage = strategy.create_storage_for_element(elem, times)
+        return W_Vector(strategy, storage, times, immutable)
 
     def length(self):
         return self.len
+
     def tostring(self):
         l = self.strategy.ref_all(self)
         return "#(%s)" % " ".join([obj.tostring() for obj in l])
-
-    def change_strategy(self, new_strategy):
-        old_list = self.strategy.ref_all(self)
-        self.strategy = new_strategy
-        self.storage = new_strategy.create_storage_for_elements(old_list)
 
     def immutable(self):
         return self.is_immutable
@@ -97,53 +120,42 @@ class W_Vector(W_MVector):
         return True
 
 class W_FlVector(W_VectorSuper):
-    _immutable_fields_ = ["elems", "len", "strategy", "is_immutable"]
+    _immutable_fields_ = ["is_immutable"]
     errorname = "flvector"
+
+    import_from_mixin(StrategyVectorMixin)
+
     def __init__(self, storage, len):
-        self.strategy = FlonumVectorStrategy()
         self.storage = storage
         self.len = len
-        self.is_immutable = True
+        self.is_immutable = False
+
+    def get_strategy(self):
+        return FlonumVectorStrategy.singleton
+
+    def set_strategy(self):
+        from pycket.error import SchemeError
+        raise SchemeError("not a float")
+
     @staticmethod
     def fromelements(elems):
-        strategy = FlonumVectorStrategy()
+        strategy = FlonumVectorStrategy.singleton
         storage = strategy.create_storage_for_elements(elems)
         return W_FlVector(storage, len(elems))
+
     @staticmethod
     def fromelement(elem, times):
-        strategy = FlonumVectorStrategy()
         check_list = [elem]
         if times == 0:
             check_list = []
+        strategy = FlonumVectorStrategy.singleton
         storage = strategy.create_storage_for_element(elem, times)
         return W_FlVector(storage, times)
-    def ref(self, i):
-        return self.strategy.ref(self, i)
-    def set(self, i, v):
-        self.strategy.set(self, i, v)
-
-    @label
-    def vector_set(self, i, new, env, cont):
-        from pycket.interpreter import return_value
-        from pycket.values import w_void
-        self.set(i.value, new)
-        return return_value(w_void, env, cont)
-
-    @label
-    def vector_ref(self, i, env, cont):
-        from pycket.interpreter import return_value
-        return return_value(self.ref(i.value), env, cont)
-
-    # unsafe versions
-    def _ref(self, i):
-        return self.strategy.ref(self, i, check=False)
-    def _set(self, i, v):
-        self.strategy.set(self, i, v, check=False)
 
     def length(self):
         return self.len
     def tostring(self):
-        l = self.strategy.ref_all(self)
+        l = self.get_strategy().ref_all(self)
         return "(flvector %s)" % " ".join([obj.tostring() for obj in l])
 
     def equal(self, other):
@@ -166,6 +178,9 @@ class SingletonMeta(type):
         return result
 
 class VectorStrategy(object):
+    """ works for any W_VectorSuper that has
+    get/set_strategy, get/set_storage
+    """
     __metaclass__ = SingletonMeta
 
     def is_correct_type(self, w_obj):
@@ -209,7 +224,7 @@ class UnwrappedVectorStrategyMixin(object):
     # erase, unerase, is_correct_type, wrap, unwrap
 
     def _storage(self, w_vector):
-        l = self.unerase(w_vector.storage)
+        l = self.unerase(w_vector.get_storage())
         debug.make_sure_not_resized(l)
         return l
 

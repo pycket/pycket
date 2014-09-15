@@ -229,6 +229,24 @@ class W_VectorSuper(W_Object):
     def length(self):
         raise NotImplementedError("abstract base class")
 
+
+    # abstract methods for vector implementations that use strategies
+    # we would really not like to have them here, but would need multiple
+    # inheritance to express that
+    # impersonators can just not implement them
+
+    def get_storage(self):
+        raise NotImplementedError
+
+    def set_storage(self):
+        raise NotImplementedError
+
+    def get_strategy(self):
+        raise NotImplementedError
+
+    def set_strategy(self):
+        raise NotImplementedError
+
 # Things that are vector?
 class W_MVector(W_VectorSuper):
     errorname = "vector"
