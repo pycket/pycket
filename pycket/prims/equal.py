@@ -55,7 +55,7 @@ def equal_unbox_done_cont(l, info, env, cont, _vals):
     return equal_func(l, r, info, env, cont)
 
 # This function assumes that a and b have the same length
-@label
+@loop_label
 def equal_vec_func(a, b, idx, info, env, cont):
     from pycket.interpreter import return_value
     if idx.value >= a.length():

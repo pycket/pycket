@@ -147,11 +147,14 @@ def make_label(func, enter=False):
     from pycket.AST import AST
 
     class Args(BaseCont):
+        _immutable_fields_ = ["args"]
         def __init__(self, args):
             self.args = args
 
-    # The @label decorator will produce a new Label per each use, as an @label is often
-    # used to encode a loop (as they act in a manner similar to an assembly level label.
+    func = jit.unroll_safe(func)
+
+    # The @label decorator will produce a new Label per each use, as an @label can be
+    # used to encode a loop (as they act in a manner similar to an assembly label).
     class Label(AST):
         should_enter = enter
         def interpret(self, env, cont):
