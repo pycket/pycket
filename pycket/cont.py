@@ -1,5 +1,5 @@
 
-from rpython.rlib import unroll
+from rpython.rlib import jit, unroll
 
 # these aren't methods so that can handle empty conts
 def get_mark_first(cont, key):
@@ -143,20 +143,41 @@ def continuation(func, prev_name="cont"):
     make_continuation.func_name = func.func_name + "_make_continuation"
     return make_continuation
 
+def make_label(func, enter=False):
+    from pycket.AST import AST
+
+    class Args(BaseCont):
+        def __init__(self, args):
+            self.args = args
+
+    # The @label decorator will produce a new Label per each use, as an @label is often
+    # used to encode a loop (as they act in a manner similar to an assembly level label.
+    class Label(AST):
+        should_enter = enter
+        def interpret(self, env, cont):
+            from pycket.interpreter import empty_vals
+            assert type(cont) is Args
+            return func(*cont.args)
+        def tostring(self):
+            if self.should_enter:
+                return "LoopLabel(%s)" % func.__name__
+            return "Label(%s)" % func.__name__
+
+    the_label = Label()
+
+    def make(*args):
+        env = args[-2]
+        return the_label, env, Args(args) #invoke_func(func, args)
+
+    return make
+
+def loop_label(func):
+    return make_label(func, enter=True)
+
 # A label is function wrapped by some extra logic to hand back control to the
 # CEK loop before invocation.
 def label(func):
-
-    @continuation
-    def invoke_func(func, args, _vals):
-        return func(*args)
-
-    def make_label(*args):
-        from pycket.interpreter import jump
-        env = args[-2]
-        return jump(env, invoke_func(func, args))
-
-    return make_label
+    return make_label(func, enter=False)
 
 # A useful continuation constructor. This invokes the given procedure with
 # the enviroment and continuation when values are supplied.
@@ -165,10 +186,3 @@ def label(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
-# A continuation that simply invokes the code given with the args, env, and
-# continuation. Typically, the code corresponds to the `_call` method used
-# for implementing function calls. This continuation is used to return control
-# to the CEK machine's dispatch loop before actually invoking the code.
-@continuation
-def tailcall_cont(code, args, env, cont, _vals):
-    return code(args, env, cont)

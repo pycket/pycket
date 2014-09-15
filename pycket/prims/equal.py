@@ -3,7 +3,7 @@ import pycket.impersonators as imp
 import pycket.vector        as values_vector
 from pycket import values
 from pycket import values_struct
-from pycket.cont import continuation, label
+from pycket.cont import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
 
 # All of my hate...
@@ -87,7 +87,7 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = values.W_Fixnum(idx.value + 1)
     return equal_vec_func(a, b, inc, info, env, cont)
 
-@label
+@loop_label
 def equal_func(a, b, info, env, cont):
     from pycket.interpreter import return_value
 

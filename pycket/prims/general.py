@@ -4,7 +4,7 @@ import os
 import time
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import continuation, label, call_cont
+from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -770,7 +770,7 @@ def do_map(args, env, cont):
     assert len(args) >= 0
     return map_loop(fn, lists, env, cont)
 
-@label
+@loop_label
 def map_loop(f, lists, env, cont):
     from pycket.interpreter import return_value
     lists_new = []

@@ -1,8 +1,9 @@
+from pycket.AST               import AST
 from pycket                   import values
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
-from pycket.cont              import Cont, nil_continuation
+from pycket.cont              import Cont, nil_continuation, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
@@ -63,21 +64,11 @@ def variables_equal(a, b):
              return False
     return True
 
-
 def check_one_val(vals):
     if vals._get_size_list() != 1:
         raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
     w_val = vals._get_list(0)
     return w_val
-
-class TrampolineCont(Cont):
-    _immutable_fields_ = ["values"]
-    def __init__(self, vals, prev):
-        Cont.__init__(self, None, prev)
-        self.values = vals
-
-    def plug_reduce(self, _vals, env):
-        raise NotImplementedError("unreachable")
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
@@ -212,32 +203,6 @@ class WCMKeyCont(Cont):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
-# These next two classes allow for a uniform input to the `set_cmk` operation.
-# They are procedures which do the appropriate processing after `set_cmk` is done
-# computing.
-# This is needed because with-continuation-mark operates over the AST while
-# W_InterposeProcedure can do a `set_cmk` with a closure.
-class W_ThunkBodyCMK(values.W_Procedure):
-    _immutable_fields_ = ["body"]
-
-    def __init__(self, body):
-        self.body = body
-
-    @make_call_method([], simple=False)
-    def call(self, env, cont):
-        return self.body, env, cont
-
-class W_ThunkProcCMK(values.W_Procedure):
-    _immutable_fields_ = ["proc", "args"]
-
-    def __init__(self, proc, args):
-        self.proc = proc
-        self.args = args
-
-    @make_call_method([], simple=False)
-    def _call(self, env, cont):
-        return self.proc.call(self.args, env, cont)
-
 class WCMValCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "key"]
     def __init__(self, ast, key, env, prev):
@@ -247,72 +212,10 @@ class WCMValCont(Cont):
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         if isinstance(self.key, values.W_ContinuationMarkKey):
-            body = W_ThunkBodyCMK(self.ast.body)
+            body = values.W_ThunkBodyCMK(self.ast.body)
             return self.key.set_cmk(body, val, self.prev, env, self.prev)
         self.prev.update_cm(self.key, val)
         return self.ast.body, self.env, self.prev
-
-class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda"]
-    _immutable_fields_ = ["should_enter?", "surrounding_lambda"]
-    _settled_ = True
-
-    should_enter = False # default value
-    mvars = None
-    surrounding_lambda = None
-
-    simple = False
-
-    def defined_vars(self): return {}
-
-    def interpret(self, env, cont):
-        # default implementation for simple AST forms
-        assert self.simple
-        return return_value(self.interpret_simple(env), env, cont)
-
-    def interpret_simple(self, env):
-        raise NotImplementedError("abstract base class")
-
-    def set_surrounding_lambda(self, lam):
-        assert isinstance(lam, Lambda)
-        self.surrounding_lambda = lam
-        for child in self.direct_children():
-            child.set_surrounding_lambda(lam)
-
-    def direct_children(self):
-        return []
-
-    def free_vars(self):
-        free_vars = {}
-        for child in self.direct_children():
-            free_vars.update(child.free_vars())
-        return free_vars
-
-    def assign_convert(self, vars, env_structure):
-        """ make a copy of the AST that converts all writable variables into
-        using cells. In addition, compute the state of the environment for
-        every AST node that needs to know.
-
-        The vars argument contains the variables that need to use cells.
-        The env_structure is an instance of SymList (or None) describing the
-        environment at that AST node.
-        """
-        raise NotImplementedError("abstract base class")
-
-    def mutated_vars(self):
-        if self.mvars is not None:
-            return self.mvars
-        self.mvars = self._mutated_vars()
-        return self.mvars
-
-    def _mutated_vars(self):
-        raise NotImplementedError("abstract base class")
-
-    def tostring(self):
-        return "UNKNOWN AST: "
-
-    def __str__(self):
-        return self.tostring()
 
 class Module(object):
     _immutable_fields_ = ["name", "body"]
@@ -394,22 +297,7 @@ class Require(AST):
     def tostring(self):
         return "(require %s)"%self.modname
 
-class Trampoline(AST):
-    _immutable_fields_ = []
-    def __init__(self):
-        pass
-    def interpret(self, env, cont):
-        assert isinstance(cont, TrampolineCont)
-        return cont.prev.plug_reduce(cont.values, env)
-    def tostring(self):
-        return "TRAMPOLINE"
-
-the_trampoline = Trampoline()
 empty_vals = values.Values.make([])
-
-def tailcall(code, args, env, cont):
-    from pycket.cont import tailcall_cont
-    return jump(env, tailcall_cont(code, args, env, cont))
 
 def jump(env, cont):
     return return_multi_vals(empty_vals, env, cont)
@@ -417,8 +305,9 @@ def jump(env, cont):
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make([w_val]), env, cont)
 
+@label
 def return_multi_vals(vals, env, cont):
-    return the_trampoline, env, TrampolineCont(vals, cont)
+    return cont.plug_reduce(vals, env)
 
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
@@ -442,7 +331,6 @@ class Cell(AST):
 
     def tostring(self):
         return "Cell(%s)"%self.expr.tostring()
-
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]

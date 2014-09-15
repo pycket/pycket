@@ -1,6 +1,5 @@
 from rpython.rlib import jit, unroll
 from pycket.error import SchemeException
-from pycket import values
 
 prim_env = {}
 
@@ -55,6 +54,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
         assert typ.__dict__.get("errorname"), str(typ)
     _arity = range(min_arg, max_arity+1), -1
     def func_arg_unwrap(*allargs):
+        from pycket import values
         if has_self:
             self = allargs[0]
             args = allargs[1]
@@ -94,6 +94,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
             from pycket.interpreter import return_multi_vals, return_value
+            from pycket             import values
             env = args[-2]
             cont = args[-1]
             args = args[:-2]
@@ -111,6 +112,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
 # FIXME: Abstract away the common operations between this and expose
 def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
     def wrapper(func):
+        from pycket import values
         names = [n] if isinstance(n, str) else n
         name = names[0]
         if argstypes is not None:
@@ -126,6 +128,7 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
 
 def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
     def wrapper(func):
+        from pycket import values
         names = [n] if isinstance(n, str) else n
         name = names[0]
         if nyi:
@@ -162,6 +165,7 @@ def make_call_method(argstypes=None, arity=None, simple=True, name="<method>"):
 
 # Facility to convert a label into a callable object
 def make_callable_label(argstypes=None, arity=None, name="<label>"):
+    from pycket import values
     class LabelFunction(values.W_Procedure):
         _immutable_fields_ = ["label"]
         def __init__(self, label):
@@ -181,6 +185,7 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
 
 
 def expose_val(name, w_v):
+    from pycket import values
     sym = values.W_Symbol.make(name)
     if sym in prim_env:
         raise Error("name %s already defined"%name)

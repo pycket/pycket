@@ -1,17 +1,22 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.env import ConsEnv
-from pycket.cont import continuation, label
-from pycket.error import SchemeException
-from pycket.small_list import inline_small_list
-from rpython.tool.pairtype import extendabletype
-from rpython.rlib  import jit, runicode
+from pycket.env               import ConsEnv
+from pycket.cont              import continuation, label
+from pycket.error             import SchemeException
+from pycket.small_list        import inline_small_list
+from rpython.tool.pairtype    import extendabletype
+from rpython.rlib             import jit, runicode
 from rpython.rlib.objectmodel import r_dict, compute_hash
+from pycket.prims.expose      import make_call_method
 
 import rpython.rlib.rweakref as weakref
 
 UNROLLING_CUTOFF = 5
+
+@label
+def tailcall(func, args, env, cont):
+    return func(args, env, cont)
 
 def memoize(f):
     cache = {}
@@ -63,7 +68,6 @@ class W_Object(object):
 
     def call(self, args, env, cont):
         if self.iscallable():
-            from pycket.interpreter import tailcall
             return tailcall(self._call, args, env, cont)
         raise SchemeException("%s is not callable" % self.tostring())
 
@@ -904,6 +908,32 @@ class W_Procedure(W_Object):
         return True
     def tostring(self):
         return "#<procedure>"
+
+# These next two classes allow for a uniform input to the `set_cmk` operation.
+# They are procedures which do the appropriate processing after `set_cmk` is done
+# computing.
+# This is needed because with-continuation-mark operates over the AST while
+# W_InterposeProcedure can do a `set_cmk` with a closure.
+class W_ThunkBodyCMK(W_Procedure):
+    _immutable_fields_ = ["body"]
+
+    def __init__(self, body):
+        self.body = body
+
+    @make_call_method([], simple=False)
+    def call(self, env, cont):
+        return self.body, env, cont
+
+class W_ThunkProcCMK(W_Procedure):
+    _immutable_fields_ = ["proc", "args"]
+
+    def __init__(self, proc, args):
+        self.proc = proc
+        self.args = args
+
+    @make_call_method([], simple=False)
+    def _call(self, env, cont):
+        return self.proc.call(self.args, env, cont)
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
