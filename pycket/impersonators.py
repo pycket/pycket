@@ -127,7 +127,7 @@ class W_InterposeProcedure(values.W_Procedure):
         raise NotImplementedError("abstract method")
 
     def _call(self, args, env, cont):
-        from pycket.interpreter import W_ThunkProcCMK
+        from pycket.values import W_ThunkProcCMK
         jit.promote(self)
         after = self.post_call_cont(args, env, cont)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
@@ -476,7 +476,7 @@ class W_InterposeHashTable(values.W_HashTable):
             assert isinstance(k, W_ImpPropertyDescriptor)
             self.properties[k] = prop_vals[i]
 
-    def post_ref_cont(self, env, cont):
+    def post_ref_cont(self, key, env, cont):
         raise NotImplementedError("abstract method")
 
     def post_set_cont(self, key, val, env, cont):
@@ -491,34 +491,34 @@ class W_InterposeHashTable(values.W_HashTable):
 
     @label
     def hash_ref(self, key, env, cont):
-        after = self.post_ref_cont(env, cont)
+        after = self.post_ref_cont(key, env, cont)
         return self.ref_proc.call([self.inner, key], env, after)
 
 @continuation
-def imp_hash_table_ref_cont(ht, env, cont, _vals):
+def imp_hash_table_ref_cont(ht, old, env, cont, _vals):
     from pycket.interpreter import return_value
     if _vals._get_size_list() != 2:
         return return_value(None, env, cont)
         raise SchemeException("hash-ref handler produced the wrong number of results")
     key, post = _vals._get_full_list()
-    after = imp_hash_table_post_ref_cont(post, env, cont)
+    after = imp_hash_table_post_ref_cont(post, ht, old, env, cont)
     return ht.hash_ref(key, env, after)
 
 @continuation
-def imp_hash_table_post_ref_cont(post, env, cont, _vals):
+def imp_hash_table_post_ref_cont(post, ht, old, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_multi_vals
     val = check_one_val(_vals)
     if val is None:
         return return_multi_vals(_vals, env, cont)
-    return post.call([val], env, cont)
+    return post.call([ht, old, val], env, cont)
 
 @continuation
-def chp_hash_table_ref_cont(ht, env, cont, _vals):
+def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
     if _vals._get_size_list() != 2:
         raise SchemeException("hash-ref handler produced the wrong number of results")
     key, post = _vals._get_full_list()
     after = check_chaperone_results([key], env,
-                imp_hash_table_post_ref_cont(post, env, cont))
+                imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)
 
 @make_impersonator
@@ -527,8 +527,8 @@ class W_ImpHashTable(W_InterposeHashTable):
     def post_set_cont(self, key, val, env, cont):
         pass
 
-    def post_ref_cont(self, env, cont):
-        return imp_hash_table_ref_cont(self.inner, env, cont)
+    def post_ref_cont(self, key, env, cont):
+        return imp_hash_table_ref_cont(self.inner, key, env, cont)
 
 @make_chaperone
 class W_ChpHashTable(W_InterposeHashTable):
@@ -536,8 +536,8 @@ class W_ChpHashTable(W_InterposeHashTable):
     def post_set_cont(self, key, val, env, cont):
         pass
 
-    def post_ref_cont(self, env, cont):
-        return chp_hash_table_ref_cont(self.inner, env, cont)
+    def post_ref_cont(self, key, env, cont):
+        return chp_hash_table_ref_cont(self.inner, key, env, cont)
 
 class W_ImpPropertyDescriptor(values.W_Object):
     errorname = "chaperone-property"

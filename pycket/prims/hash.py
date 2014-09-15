@@ -63,28 +63,40 @@ def hasheqv(args):
     vals = [args[i] for i in range(1, len(args), 2)]
     return values.W_EqvHashTable(keys, vals)
 
-@expose("make-hash")
-def make_hash(args):
-    if len(args) % 2 != 0:
-        raise SchemeException("hasheq: key does not have a corresponding value")
-    keys = [args[i] for i in range(0, len(args), 2)]
-    vals = [args[i] for i in range(1, len(args), 2)]
+@expose("make-hash", [default(values.W_List, values.w_null)])
+def make_hash(pairs):
+    lsts = values.from_list(pairs)
+    keys = []
+    vals = []
+    for lst in lsts:
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("make-hash: expected list of pairs")
+        keys.append(lst.car())
+        vals.append(lst.cdr())
     return values.W_EqualHashTable(keys, vals)
 
-@expose("make-hasheq")
-def make_hasheq(args):
-    if len(args) % 2 != 0:
-        raise SchemeException("hasheqv: key does not have a corresponding value")
-    keys = [args[i] for i in range(0, len(args), 2)]
-    vals = [args[i] for i in range(1, len(args), 2)]
+@expose("make-hasheq", [default(values.W_List, values.w_null)])
+def make_hasheq(pairs):
+    lsts = values.from_list(pairs)
+    keys = []
+    vals = []
+    for lst in lsts:
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("make-hash: expected list of pairs")
+        keys.append(lst.car())
+        vals.append(lst.cdr())
     return values.W_EqHashTable(keys, vals)
 
-@expose("make-hasheqv")
-def make_hasheqv(args):
-    if len(args) % 2 != 0:
-        raise SchemeException("hasheqv: key does not have a corresponding value")
-    keys = [args[i] for i in range(0, len(args), 2)]
-    vals = [args[i] for i in range(1, len(args), 2)]
+@expose("make-hasheqv", [default(values.W_List, values.w_null)])
+def make_hasheqv(pairs):
+    lsts = values.from_list(pairs)
+    keys = []
+    vals = []
+    for lst in lsts:
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("make-hash: expected list of pairs")
+        keys.append(lst.car())
+        vals.append(lst.cdr())
     return values.W_EqvHashTable(keys, vals)
 
 @expose("hash-set!", [values.W_HashTable, values.W_Object, values.W_Object], simple=False)
