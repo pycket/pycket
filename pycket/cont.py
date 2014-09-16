@@ -146,12 +146,13 @@ def continuation(func, prev_name="cont"):
 def make_label(func, enter=False):
     from pycket.AST import AST
 
+    func = jit.unroll_safe(func)
+
     class Args(BaseCont):
         _immutable_fields_ = ["args"]
         def __init__(self, args):
             self.args = args
 
-    func = jit.unroll_safe(func)
 
     # The @label decorator will produce a new Label per each use, as an @label can be
     # used to encode a loop (as they act in a manner similar to an assembly label).
@@ -170,7 +171,7 @@ def make_label(func, enter=False):
 
     def make(*args):
         env = args[-2]
-        return the_label, env, Args(args) #invoke_func(func, args)
+        return the_label, env, Args(args)
 
     return make
 
