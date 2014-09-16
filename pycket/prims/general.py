@@ -924,7 +924,7 @@ def do_make_prefab_struct(args):
 
 @expose("prefab-key->struct-type", [values.W_Object, values.W_Fixnum])
 def expose_prefab_key2struct_type(key, field_count):
-    return W_StructType.make_prefab(W_PrefabKey.make(w_key, field_count))
+    return values_struct.W_StructType.make_prefab(values_struct.W_PrefabKey.make(key, field_count.value))
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
