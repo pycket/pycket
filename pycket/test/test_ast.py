@@ -89,3 +89,28 @@ def test_asts_know_surrounding_lambda():
 
     inner_lam = inner_caselam.lams[0]
     assert inner_lam.body[0].surrounding_lambda is inner_lam
+
+def test_cont_fusion():
+    from pycket.env import SymList
+    from pycket.interpreter import (
+        LetCont, BeginCont,
+        FusedLet0Let0Cont, FusedLet0BeginCont,
+    )
+    args = SymList([])
+    counts = [1]
+    rhss = 1
+    letast1 = Let(args, counts, [1], [2])
+    letast2 = Let(args, counts, [1], [2])
+    env = object()
+    prev = object()
+    let2 = LetCont.make([], letast2, 0, env, prev)
+    let1 = LetCont.make([], letast1, 0, env, let2)
+    assert isinstance(let1, FusedLet0Let0Cont)
+    assert let1.prev is prev
+    assert let1.env is env
+
+    let2 = BeginCont(letast2.counting_asts[0], env, prev)
+    let1 = LetCont.make([], letast1, 0, env, let2)
+    assert isinstance(let1, FusedLet0BeginCont)
+    assert let1.prev is prev
+    assert let1.env is env

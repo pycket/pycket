@@ -95,7 +95,9 @@ class LetrecCont(Cont):
                     LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
-@inline_small_list(immutable=True, attrname="vals_w", unbox_fixnum=True, factoryname="_make")
+
+@inline_small_list(immutable=True, attrname="vals_w",
+                   unbox_fixnum=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
 
@@ -105,8 +107,27 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True):
         counting_ast = ast.counting_asts[rhsindex]
+
+        # try to fuse the two Conts
+        if fuse and not vals_w:
+            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
+                prev_counting_ast = prev.counting_ast
+                prev_ast, _ = prev_counting_ast.unpack(Let)
+                # check whether envs are the same:
+                if prev_ast.args.prev is ast.args.prev and env is prev.env:
+                    combined_ast = counting_ast.combine(prev_counting_ast)
+                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
+            elif isinstance(prev, BeginCont):
+                prev_counting_ast = prev.counting_ast
+                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
+                # check whether envs are the same:
+                if env is prev.env: # XXX could use structure to check plausibility
+                    combined_ast = counting_ast.combine(prev_counting_ast)
+                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
+
+        # prune the env
         if rhsindex == len(ast.rhss) - 1:
             if ast.remove_num_envs == -1:
                 env = env.toplevel_env()
@@ -115,8 +136,8 @@ class LetCont(Cont):
                 for i in range(ast.remove_num_envs):
                     env = env.get_prev(env_structure)
                     env_structure = env_structure.prev
-        return LetCont._make(vals_w, counting_ast, env, prev)
 
+        return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
     def plug_reduce(self, _vals, _env):
@@ -151,6 +172,40 @@ class LetCont(Cont):
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast, rhsindex + 1,
                                  self.env, self.prev))
+
+
+class FusedLet0Let0Cont(Cont):
+    def __init__(self, combined_ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.combined_ast = combined_ast
+
+    def plug_reduce(self, vals, env):
+        ast1, ast2 = self.combined_ast.unpack()
+        ast1, index1 = ast1.unpack(Let)
+        ast2, index2 = ast2.unpack(Let)
+        actual_cont = LetCont.make(
+                [], ast1, index1, self.env,
+                LetCont.make(
+                    [], ast2, index2, self.env, self.prev, fuse=False),
+                fuse=False)
+        return actual_cont.plug_reduce(vals, env)
+
+
+class FusedLet0BeginCont(Cont):
+    def __init__(self, combined_ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.combined_ast = combined_ast
+
+
+    def plug_reduce(self, vals, env):
+        ast1, ast2 = self.combined_ast.unpack()
+        ast1, index1 = ast1.unpack(Let)
+        actual_cont = LetCont.make(
+                [], ast1, index1, self.env,
+                BeginCont(ast2, self.env, self.prev),
+                fuse=False)
+        return actual_cont.plug_reduce(vals, env)
+
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
@@ -1073,6 +1128,7 @@ class CombinedAstAndIndex(AST):
     def __init__(self, ast, index):
         self.ast = ast
         self.index = index
+        self.combinations = None
 
     @specialize.arg(1)
     def unpack(self, cls):
@@ -1080,6 +1136,34 @@ class CombinedAstAndIndex(AST):
         ast = self.ast
         assert isinstance(ast, cls)
         return ast, self.index
+
+    @jit.elidable
+    def combine(self, other):
+        key = (self, other)
+        if self.combinations is None:
+            self.combinations = {}
+        result = self.combinations.get(key, None)
+        if result is None:
+            result = CombinedAstAndAst(self, other)
+            self.combinations[key] = result
+        return result
+
+    def tostring(self):
+        return "<%s of %s>" % (self.index, self.ast.tostring())
+
+
+class CombinedAstAndAst(AST):
+    _immutable_fields_ = ["ast1", "ast2"]
+
+    def __init__(self, ast1, ast2):
+        self.ast1 = ast1
+        self.ast2 = ast2
+
+    def unpack(self):
+        jit.promote(self)
+        ast1 = self.ast1
+        ast2 = self.ast2
+        return ast1, ast2
 
 
 class Letrec(SequencedBodyAST):
