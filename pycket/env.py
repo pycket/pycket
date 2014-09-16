@@ -39,12 +39,14 @@ class SymList(object):
             env_structure = env_structure.prev
         return target
 
-    def depth(self):
+    def depth_and_size(self):
         res = 1
+        size = 0
         while self is not None:
+            size += len(self.elems)
             self = self.prev
             res += 1
-        return res
+        return res, size
 
     def depth_of_var(self, var):
         depth = 0
@@ -82,11 +84,17 @@ class ModuleEnv(object):
 
 
 class Env(object):
-    _immutable_fields_ = ["toplevel_env", "module_env"]
-    _attrs_ = ['toplevel_env']
+    _attrs_ = []
 
     def get_prev(self, env_structure):
         assert len(env_structure.elems) == 0
+        return self
+
+    @jit.unroll_safe
+    def toplevel_env(self):
+        while isinstance(self, ConsEnv):
+            self = self._prev
+        assert isinstance(self, ToplevelEnv)
         return self
 
 
@@ -95,11 +103,10 @@ class Version(object):
 
 
 class ToplevelEnv(Env):
-    _immutable_fields_ = ["version?", "module_env", "toplevel_env"]
+    _immutable_fields_ = ["version?", "module_env"]
     def __init__(self):
         self.bindings = {}
         self.version = Version()
-        self.toplevel_env = self # bit silly
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
 
@@ -132,15 +139,15 @@ class ToplevelEnv(Env):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
 class ConsEnv(Env):
-    _immutable_fields_ = ["_prev", "toplevel_env"]
-    def __init__ (self, prev, toplevel):
-        self.toplevel_env = toplevel
+    _immutable_fields_ = ["_prev"]
+    def __init__ (self, prev):
+        assert isinstance(prev, Env)
         self._prev = prev
 
     @staticmethod
-    def make(vals, prev, toplevel):
+    def make(vals, prev):
         if vals:
-            return ConsEnv._make(vals, prev, toplevel)
+            return ConsEnv._make(vals, prev)
         return prev
 
     @jit.unroll_safe
@@ -160,3 +167,5 @@ class ConsEnv(Env):
             return self._prev
         return self
 
+    def __repr__(self):
+        return "<ConsEnv %r %r>" % ([x.tostring() for  x in self._get_full_list()], self._prev)

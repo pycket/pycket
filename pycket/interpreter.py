@@ -9,6 +9,8 @@ from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
+import sys
+
 # imported for side effects
 import pycket.prims.general
 
@@ -93,13 +95,28 @@ class LetrecCont(Cont):
                     LetrecCont(ast.counting_asts[i + 1],
                                self.env, self.prev))
 
-@inline_small_list(immutable=True, attrname="vals_w", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals_w", unbox_fixnum=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
 
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
+
+    @staticmethod
+    @jit.unroll_safe
+    def make(vals_w, ast, rhsindex, env, prev):
+        counting_ast = ast.counting_asts[rhsindex]
+        if rhsindex == len(ast.rhss) - 1:
+            if ast.remove_num_envs == -1:
+                env = env.toplevel_env()
+            elif ast.remove_num_envs:
+                env_structure = ast.args.prev
+                for i in range(ast.remove_num_envs):
+                    env = env.get_prev(env_structure)
+                    env_structure = env_structure.prev
+        return LetCont._make(vals_w, counting_ast, env, prev)
+
 
     @jit.unroll_safe
     def plug_reduce(self, _vals, _env):
@@ -128,15 +145,12 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = ConsEnv.make(vals_w, prev, prev.toplevel_env)
+            env = ConsEnv.make(vals_w, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
-            env = self.env
-            if rhsindex == len(ast.rhss) - 2 and not ast.body_needs_env:
-                env = env.toplevel_env
             return (ast.rhss[rhsindex + 1], self.env,
-                    LetCont.make(vals_w, ast.counting_asts[rhsindex + 1],
-                                 env, self.prev))
+                    LetCont.make(vals_w, ast, rhsindex + 1,
+                                 self.env, self.prev))
 
 class CellCont(Cont):
     _immutable_fields_ = ["env", "prev"]
@@ -255,8 +269,9 @@ class Module(object):
 
     def interpret_mod(self, env):
         self.env = env
-        old = env.module_env.current_module
-        env.module_env.current_module = self
+        module_env = env.toplevel_env().module_env
+        old = module_env.current_module
+        module_env.current_module = self
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
@@ -271,7 +286,7 @@ class Module(object):
             else: # FIXME modules can have other things, assuming expression
                 vs = interpret_one(f, self.env)
                 continue
-        env.module_env.current_module = old
+        module_env.current_module = old
 
 class Require(AST):
     _immutable_fields_ = ["modname", "module"]
@@ -289,7 +304,7 @@ class Require(AST):
 
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
-        top = env.toplevel_env
+        top = env.toplevel_env()
         top.module_env.add_module(self.modname, self.module)
         self.module.interpret_mod(top)
         return values.w_void
@@ -672,6 +687,7 @@ class Gensym(object):
 
 class LexicalVar(Var):
     def _lookup(self, env):
+        self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
@@ -698,7 +714,7 @@ class ModuleVar(Var):
 
     def _lookup(self, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         w_res = self._elidable_lookup()
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
@@ -708,7 +724,7 @@ class ModuleVar(Var):
     @jit.elidable
     def is_mutable(self, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         v = self._elidable_lookup()
         return isinstance(v, values.W_Cell)
 
@@ -746,7 +762,7 @@ class ModuleVar(Var):
 
     def _set(self, w_val, env):
         if self.modenv is None:
-            self.modenv = env.toplevel_env.module_env
+            self.modenv = env.toplevel_env().module_env
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
@@ -780,13 +796,13 @@ class ModuleVar(Var):
 
 class ToplevelVar(Var):
     def _lookup(self, env):
-        return env.toplevel_env.toplevel_lookup(self.sym)
+        return env.toplevel_env().toplevel_lookup(self.sym)
 
     def assign_convert(self, vars, env_structure):
         return self
 
     def _set(self, w_val, env):
-        env.toplevel_env.toplevel_set(self.sym, w_val)
+        env.toplevel_env().toplevel_set(self.sym, w_val)
 
 # rewritten version for caching
 def to_modvar(m):
@@ -918,10 +934,11 @@ class CaseLambda(AST):
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
             if w_closure is None:
-                w_closure = values.W_PromotableClosure(self, env.toplevel_env)
+                w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
             else:
-                assert w_closure.closure._get_list(0).toplevel_env is env.toplevel_env
+                if not jit.we_are_jitted():
+                    assert w_closure.closure._get_list(0).toplevel_env() is env.toplevel_env()
             return w_closure
         return values.W_Closure.make(self, env)
 
@@ -1083,7 +1100,7 @@ class Letrec(SequencedBodyAST):
 
     @jit.unroll_safe
     def interpret(self, env, cont):
-        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env, env.toplevel_env)
+        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env)
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
@@ -1179,9 +1196,9 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "body_needs_env"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs"]
 
-    def __init__(self, args, counts, rhss, body, body_needs_env=True):
+    def __init__(self, args, counts, rhss, body, remove_num_envs=0):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
@@ -1189,11 +1206,11 @@ class Let(SequencedBodyAST):
         self.rhss = rhss
         self.args = args
         self.env_speculation_works = True
-        self.body_needs_env = body_needs_env
+        self.remove_num_envs = remove_num_envs
 
     def interpret(self, env, cont):
         return self.rhss[0], env, LetCont.make(
-                [], self.counting_asts[0], env, cont)
+                [], self, 0, env, cont)
 
     def direct_children(self):
         return self.body + self.rhss
@@ -1238,20 +1255,40 @@ class Let(SequencedBodyAST):
         for k, v in local_muts.iteritems():
             new_vars[k] = v
         sub_env_structure = SymList(self.args.elems, env_structure)
-        free_vars = {}
+
+        # find out whether a smaller environment is sufficient for the body
+        free_vars_not_from_let = {}
         for b in self.body:
-            free_vars.update(b.free_vars())
+            free_vars_not_from_let.update(b.free_vars())
         for x in sub_env_structure.elems:
             try:
-                del free_vars[x]
+                del free_vars_not_from_let[x]
             except KeyError:
                 pass
-        if not free_vars:
+        if not free_vars_not_from_let:
             body_env_structure = SymList(self.args.elems)
+            remove_num_envs = -1 # remove all
         else:
+            remove_num_envs = sys.maxint
+            for v in free_vars_not_from_let:
+                remove_num_envs = min(remove_num_envs, sub_env_structure.prev.depth_of_var(v)[1])
             body_env_structure = sub_env_structure
+            if remove_num_envs:
+                next_structure = sub_env_structure.prev
+                for i in range(remove_num_envs):
+                    next_structure = next_structure.prev
+                body_env_structure = SymList(self.args.elems, next_structure)
+
+                #print "__________________________________________________________"
+                #print "need env", len(free_vars_not_from_let)
+                #print sub_env_structure.depth_and_size(), sub_env_structure
+                #print min(depths), max(depths)
+                #for b in self.body:
+                #    print b.tostring()
+                #for var in free_vars_not_from_let:
+                #    print var.tostring(), sub_env_structure.depth_of_var(var)
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        return Let(sub_env_structure, self.counts, new_rhss, new_body, bool(free_vars))
+        return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
 
     def tostring(self):
         result = ["(let ("]
@@ -1330,8 +1367,6 @@ driver = jit.JitDriver(reds=["env", "cont"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
-    #import pdb
-    #pdb.set_trace()
     cont = nil_continuation
     if not env:
         env = ToplevelEnv()
@@ -1353,7 +1388,7 @@ def interpret_toplevel(a, env):
         return x
     elif isinstance(a, DefineValues):
         assert 0 # FIXME
-        env.toplevel_env.toplevel_set(a.name, interpret_one(a.rhs, env))
+        env.toplevel_env().toplevel_set(a.name, interpret_one(a.rhs, env))
         return values.Values.make([values.w_void])
     else:
         return interpret_one(a, env)
