@@ -261,8 +261,7 @@ def to_bindings(arr):
     rhss = []
     for v in arr:
         varr = v.value_array()
-        fmls, rest = to_formals(varr[0])
-        assert not rest
+        fmls = [values.W_Symbol.make(x.value_string()) for x in varr[0].value_array()]
         rhs = _to_ast(varr[1])
         varss.append(fmls)
         rhss.append(rhs)

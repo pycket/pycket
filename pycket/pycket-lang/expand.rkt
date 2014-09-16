@@ -267,7 +267,7 @@
                                     [x* (syntax->list #'(xs* ...))]
                                     [e (syntax->list #'(es ...))]
                                     [e* (syntax->list #'(es* ...))])
-                           (list (to-json x x*) (to-json e e*)))
+                           (list (map id->sym (syntax->list x)) (to-json e e*)))
            'let-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
     [((#%plain-lambda fmls . b)
       (#%plain-lambda fmls* . b*))
@@ -290,7 +290,7 @@
                                        [e (syntax->list #'(es ...))]
                                        [x* (syntax->list #'(xs* ...))]
                                        [e* (syntax->list #'(es* ...))])
-                              (list (to-json x x*) (to-json e e*)))
+                              (list (map id->sym (syntax->list x)) (to-json e e*)))
            'letrec-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
     [((quote e) (quote e*))
      (hash 'quote
