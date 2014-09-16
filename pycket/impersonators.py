@@ -64,12 +64,13 @@ def check_chaperone_results(args, env, cont, vals):
 
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
-    from pycket.prims.equal import equal_func, CHPOF_EQUAL_INFO
+    from pycket.prims.equal import equal_func, EqualInfo
     while idx < len(args) and vals._get_list(idx) is None and args[idx] is None:
         idx += 1
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
-    return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
+    info = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
+    return equal_func(vals._get_list(idx), args[idx], info, env,
             catch_equal_cont(vals, args, idx, env, cont))
 
 @continuation

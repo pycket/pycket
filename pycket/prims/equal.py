@@ -1,9 +1,9 @@
 
 import pycket.impersonators as imp
 import pycket.vector        as values_vector
-from pycket import values
-from pycket import values_struct
-from pycket.cont import continuation, label, loop_label
+from pycket              import values
+from pycket              import values_struct
+from pycket.cont         import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
 
 # All of my hate...
@@ -20,14 +20,11 @@ class EqualInfo(object):
     def __init__(self, for_chaperone=0):
         self.for_chaperone = for_chaperone
 
-EQUALP_EQUAL_INFO = EqualInfo(for_chaperone=EqualInfo.BASIC)
-CHPOF_EQUAL_INFO  = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
-IMPOF_EQUAL_INFO  = EqualInfo(for_chaperone=EqualInfo.IMPERSONATOR)
-
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     # FIXME: broken for cycles, etc
-    return equal_func(a, b, EQUALP_EQUAL_INFO, env, cont)
+    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    return equal_func(a, b, info, env, cont)
 
 @expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
 def eqp_recur(v1, v2, recur_proc):
