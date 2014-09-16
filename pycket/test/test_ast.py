@@ -77,7 +77,6 @@ def test_reclambda():
 
 def test_asts_know_surrounding_lambda():
     from pycket.interpreter import ToplevelEnv
-    from pycket.values import W_PromotableClosure
     caselam = expr_ast("(lambda (y a b) (if y a b))")
     lam = caselam.lams[0]
     assert lam.body[0].surrounding_lambda is lam
