@@ -564,7 +564,7 @@ def to_value(json):
         if "byte-regexp" in obj:
             return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "string" in obj:
-            return values.W_String(str(obj["string"].value_string()), immutable=True)
+            return values.W_String.make(str(obj["string"].value_string()))
         if "keyword" in obj:
             return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:

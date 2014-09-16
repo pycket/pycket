@@ -746,11 +746,12 @@ class W_EqHashTable(W_SimpleHashTable):
 
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
-    from pycket.prims.equal import equal_func, EQUALP_EQUAL_INFO
+    from pycket.prims.equal import equal_func, EqualInfo
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
-    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    return equal_func(k, key, info, env,
             catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
 @continuation
@@ -763,12 +764,13 @@ def catch_ref_is_equal_cont(data, idx, key, v, env, cont, _vals):
 
 def equal_hash_set_loop(data, idx, key, val, env, cont):
     from pycket.interpreter import check_one_val, return_value
-    from pycket.prims.equal import equal_func, EQUALP_EQUAL_INFO
+    from pycket.prims.equal import equal_func, EqualInfo
     if idx >= len(data):
         data.append((key, val))
         return return_value(w_void, env, cont)
     k, _ = data[idx]
-    return equal_func(k, key, EQUALP_EQUAL_INFO, env,
+    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    return equal_func(k, key, info, env,
             catch_set_is_equal_cont(data, idx, key, val, env, cont))
 
 @continuation
@@ -828,6 +830,7 @@ class W_Bytes(W_Object):
 
 class W_String(W_Object):
     errorname = "string"
+    cache = {}
     def __init__(self, val, immutable=False):
         assert val is not None
         self.value = val
@@ -836,6 +839,13 @@ class W_String(W_Object):
         from pypy.objspace.std.bytesobject import string_escape_encode
         #return string_escape_encode(self.value, '"')
         return self.value
+    @staticmethod
+    def make(val):
+        lup = W_String.cache.get(val, None)
+        if lup is None:
+            lup = W_String(val, immutable=True)
+            W_String.cache[val] = lup
+        return lup
     def equal(self, other):
         if not isinstance(other, W_String):
             return False
