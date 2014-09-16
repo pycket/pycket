@@ -64,12 +64,13 @@ def check_chaperone_results(args, env, cont, vals):
 
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
-    from pycket.prims.equal import equal_func, CHPOF_EQUAL_INFO
+    from pycket.prims.equal import equal_func, EqualInfo
     while idx < len(args) and vals._get_list(idx) is None and args[idx] is None:
         idx += 1
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
-    return equal_func(vals._get_list(idx), args[idx], CHPOF_EQUAL_INFO, env,
+    info = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
+    return equal_func(vals._get_list(idx), args[idx], info, env,
             catch_equal_cont(vals, args, idx, env, cont))
 
 @continuation
@@ -94,9 +95,8 @@ def impersonate_reference_cont(f, args, env, cont, _vals):
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
-def imp_proc_cont(args, proc, env, cont, _vals):
+def imp_proc_cont(arg_count, proc, env, cont, _vals):
     vals = _vals._get_full_list()
-    arg_count = len(args)
     if len(vals) == arg_count:
         return proc.call(vals, env, cont)
     elif len(vals) == arg_count + 1:
@@ -128,7 +128,6 @@ class W_InterposeProcedure(values.W_Procedure):
 
     def _call(self, args, env, cont):
         from pycket.values import W_ThunkProcCMK
-        jit.promote(self)
         after = self.post_call_cont(args, env, cont)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):
@@ -144,7 +143,7 @@ class W_ImpProcedure(W_InterposeProcedure):
     errorname = "imp-procedure"
 
     def post_call_cont(self, args, env, cont):
-        return imp_proc_cont(args, self.inner, env, cont)
+        return imp_proc_cont(len(args), self.inner, env, cont)
 
 @make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
@@ -153,7 +152,7 @@ class W_ChpProcedure(W_InterposeProcedure):
 
     def post_call_cont(self, args, env, cont):
         return check_chaperone_results(args, env,
-                imp_proc_cont(args, self.inner, env, cont))
+                imp_proc_cont(len(args), self.inner, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
@@ -269,7 +268,7 @@ class W_ImpVector(W_InterposeVector):
         return imp_vec_set_cont(self.inner, i, env, cont)
 
     def post_ref_cont(self, i, env, cont):
-        return impersonate_reference_cont(self.refh, [i, self.inner], env, cont)
+        return impersonate_reference_cont(self.refh, [self.inner, i], env, cont)
 
 @make_chaperone
 class W_ChpVector(W_InterposeVector):
@@ -280,7 +279,7 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
-        return chaperone_reference_cont(self.refh, [i, self.inner], env, cont)
+        return chaperone_reference_cont(self.refh, [self.inner, i], env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
