@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import get_mark_first
+from pycket.cont import get_mark_first, call_cont
 from pycket.error import SchemeException
-from pycket.prims.expose import default, expose, make_callable_label
+from pycket.prims.expose import default, expose, make_callable_label, procedure
 
 # Can use this to promote a get_cmk operation to a callable function.
 CMKSetToListHandler = make_callable_label([values.W_Object])
@@ -53,4 +53,14 @@ def mk_cmk(s):
     from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationMarkKey(s)
+
+@expose("call-with-immediate-continuation-mark",
+        [values.W_Object, procedure, default(values.W_Object, values.w_false)],
+        simple=False)
+def cwicm(key, proc, default, env, cont):
+    lup = cont.find_cm(key)
+    val = default if lup is None else lup
+    if isinstance(key, values.W_ContinuationMarkKey):
+        return key.get_cmk(val, env, call_cont(proc, env, cont))
+    return proc.call([val], env, cont)
 
