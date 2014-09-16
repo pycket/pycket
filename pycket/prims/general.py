@@ -913,7 +913,7 @@ def expose_struct2vector(struct):
 def do_prefab_struct_key(v):
     if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
         return values.w_false
-    return v._type.make_prefab_key()
+    return v._type.make_short_prefab_key()
 
 @expose("make-prefab-struct")
 def do_make_prefab_struct(args):
@@ -922,9 +922,9 @@ def do_make_prefab_struct(args):
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)
 
-@expose("prefab-key->struct-type", [values.W_Object])
-def expose_prefab_key2struct_type(v):
-    return values.w_void
+@expose("prefab-key->struct-type", [values.W_Object, values.W_Fixnum])
+def expose_prefab_key2struct_type(key, field_count):
+    return W_StructType.make_prefab(W_PrefabKey.make(w_key, field_count))
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
