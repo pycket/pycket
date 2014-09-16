@@ -45,6 +45,19 @@ def test_make_struct_type(doctest):
     """
     assert doctest
 
+def test_make_struct_type2(doctest):
+    """
+    ! (require racket/private/generic-interfaces)
+    > (struct color (r g b) #:constructor-name -color)
+    > (struct rectangle (w h color) #:extra-constructor-name rect)
+    > (rectangle 13 50 (-color 192 157 235))
+    > (rect 50 37 (-color 35 183 252))
+    > (struct circle (radius) #:reflection-name '<circle>)
+    > (circle 15)
+    ;#<|<circle>|>
+    """
+    assert doctest
+
 def test_struct_main_functions(source):
     """
     (struct posn (x y))
@@ -381,8 +394,21 @@ def test_struct_copying_and_update(doctest):
 
 # Structure Utilities
 
+def test_struct2vector(source):
+    """
+    (struct posn (x y) #:transparent)
+
+    (let* ([d (posn 1 2)]
+           [v (struct->vector d)]
+           [v0 (vector-ref v 0)]
+           [v1 (vector-ref v 1)])
+    (and (eq? v0 'struct:posn) (= v1 1)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
 @skip
-def test_struct_utils(doctest):
+def test_prefab_struct_key(doctest):
     """
     > (prefab-struct-key #s(cat "Garfield"))
     'cat
@@ -394,6 +420,23 @@ def test_struct_utils(doctest):
     '(cute-cat cat 1)
     """
     assert doctest
+
+@skip
+def test_make_prefab_struct(doctest):
+    """
+    > (make-prefab-struct 'clown "Binky" "pie")
+    '#s(clown "Binky" "pie")
+    > (make-prefab-struct '(clown 2) "Binky" "pie")
+    '#s(clown "Binky" "pie")
+    > (make-prefab-struct '(clown 2 (0 #f) #()) "Binky" "pie")
+    '#s(clown "Binky" "pie")
+    > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
+    '#s((clown (1 #f)) "Binky" "pie")
+    > (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
+    '#s((clown (1 #f) #(0)) "Binky" "pie")
+    """
+    assert doctest
+
 
 # Other
 
