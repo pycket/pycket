@@ -30,13 +30,14 @@
      (error 'do-expand "got something that isn't a module: ~a\n" (syntax->datum #'rest))])
   ;; work
   (parameterize ([current-namespace (make-base-namespace)])
-    (do-post-expand (namespace-syntax-introduce (expand stx)) in-path)))
+    (define stx* (namespace-syntax-introduce (expand stx)))
+    (values stx* (do-post-expand stx* in-path))))
 
 (define (do-post-expand stx in-path)
   (define m `(module mod '#%kernel
                (define-values (stx) (quote-syntax ,stx))
                (#%provide stx)))
-  (if in-path
+  (if (and in-path (keep-srcloc))
       (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
                      [current-module-declare-source in-path])
         (eval m)
@@ -126,25 +127,28 @@
   (define sym (identifier-binding-symbol id))
   (define sym*
     (if (eq? 'lexical (identifier-binding id))
-        (dict-ref! table id (λ _ (gen-name id)))
+        (dict-ref! table id (λ _
+                               ;(printf ">>> miss: ~a\n" id)
+                               (gen-name id)))
         sym))
+  ;(printf ">>> id sym sym*: ~a ~a ~a\n" id sym sym*)
   (symbol->string
    (if (quoted?)
        (syntax-e id)
        sym*)))
 
-(define (flatten s)
-  (let loop ([s s])
+(define (flatten s s/loc)
+  (let loop ([s s] [s/loc s/loc])
     (cond
       [(and (syntax? s) (pair? (syntax-e s)))
-       (loop (syntax-e s))]
+       (loop (syntax-e s) (syntax-e s/loc))]
       [(pair? s)
-       (define-values (s* r*) (loop (cdr s)))
-       (values (cons (car s) s*) r*)]
+       (define-values (s* r* s*/loc r*/loc) (loop (cdr s) (cdr s/loc)))
+       (values (cons (car s) s*)  r* (cons (car s/loc) s*/loc) r*/loc)]
       [(null? s)
-       (values null #f)]
+       (values null #f null #f)]
       [else
-       (values null s)])))
+       (values null s null s/loc)])))
 
 (define (num n)
   (match n
@@ -170,7 +174,7 @@
       (hash-has-key? r 'lambda)
       (hash-has-key? r 'case-lambda)))
 
-(define (to-json v)
+(define (to-json v v/loc)
   (define (path/symbol/list->string o)
     (cond [(path-string? o) (hash '%p (path->string o))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
@@ -182,118 +186,146 @@
                  (let ((rm (resolved-module-path-name (module-path-index-resolve m))))
                    (path/symbol/list->string rm)))]
           [else (path/symbol/list->string m)]))
-  (let ([r        (to-json* v)])
+  (let ([r (to-json* v v/loc)])
     (if (or (not (keep-srcloc))
             (not (hash? r))
             (not (save-source-here? r)))
         r
         (hash-set* r
-                   'line     (syntax-line v)
-                   'column   (syntax-column v)
-                   'position (syntax-position v)
-                   'span     (syntax-span v)
-                   'original (syntax-original? v)
-                   'source   (path/symbol/list->string (syntax-source v))
+                   'line     (syntax-line v/loc)
+                   'column   (syntax-column v/loc)
+                   'position (syntax-position v/loc)
+                   'span     (syntax-span v/loc)
+                   'original (syntax-original? v/loc)
+                   'source   (path/symbol/list->string (syntax-source v/loc))
                    'module   (syntax-source-module->hash
-                              (syntax-source-module v #f))))))
+                              (syntax-source-module v/loc #f))))))
 
-(define (to-json* v)
+(define (to-json* v v/loc)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
-  (syntax-parse v #:literals (let-values letrec-values begin0 if #%plain-lambda #%top
-                              module* module #%plain-app quote #%require quote-syntax
-                              with-continuation-mark #%declare #%provide case-lambda #%variable-reference)
-    [v:str (hash 'string (syntax-e #'v))]
-    [v
+  (syntax-parse (list v v/loc)
+                #:literals
+                (let-values letrec-values begin0 if #%plain-lambda #%top
+                            module* module #%plain-app quote #%require quote-syntax
+                            with-continuation-mark #%declare #%provide case-lambda
+                            #%variable-reference)
+    [(v:str _) (hash 'string (syntax-e #'v))]
+    [(v _)
      #:when (path? (syntax-e #'v))
      (hash 'path (path->string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
-    [(_ ...)
+    [((_ ...) _)
      #:when (quoted?)
-     (map to-json (syntax->list v))]
-    [(_ . _)
+     (map to-json (syntax->list v) (syntax->list v/loc))]
+    [((_ . _) _)
      #:when (quoted?)
-     (hash 'improper (list (map to-json (proper (syntax-e v)))
-                           (to-json (cdr (last-pair (syntax-e v))))))]
-    [(module _ ...) #f] ;; ignore these
-    [(module* _ ...) #f] ;; ignore these
-    [(#%declare _) #f] ;; ignore these
+     (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
+                           (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
+    [((module _ ...) _) #f] ;; ignore these
+    [((module* _ ...) _) #f] ;; ignore these
+    [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
      #:when (prefab-struct-key (syntax-e v))
      (let ([key (prefab-struct-key (syntax-e v))]
-           [pats (cdr (vector->list (struct->vector (syntax-e v))))])
+           [pats (cdr (vector->list (struct->vector (syntax-e v))))]
+           [key* (prefab-struct-key (syntax-e v/loc))]
+           [pats* (cdr (vector->list (struct->vector (syntax-e v/loc))))])
        (parameterize ([quoted? #t])
          (hash
-          'prefab-key (to-json (datum->syntax #f key))
-          'struct (map to-json pats))))]
-    [(#%plain-app e0 e ...)
-     (hash 'operator (to-json #'e0)
-           'operands (map to-json (syntax->list #'(e ...))))]
-    [((~literal with-continuation-mark) e0 e1 e2)
-     (hash 'wcm-key (to-json #'e0)
-           'wcm-val (to-json #'e1)
-           'wcm-body (to-json #'e2))]
-    [(begin0 e0 e ...)
-     (hash 'begin0 (to-json #'e0)
-           'begin0-rest (map to-json (syntax->list #'(e ...))))]
-    [(if e0 e1 e2)
-     (hash 'test (to-json #'e0)
-           'then (to-json #'e1)
-           'else (to-json #'e2))]
-    [(let-values ([xs es] ...) b ...)
+          'prefab-key (to-json (datum->syntax #f key) (datum->syntax #f key*))
+          'struct (map to-json pats pats*))))]
+    [((#%plain-app e0 e ...)
+      (#%plain-app e0* e* ...))
+     (hash 'operator (to-json #'e0 #'e0*)
+           'operands (map to-json
+                          (syntax->list #'(e ...))
+                          (syntax->list #'(e* ...))))]
+    [(((~literal with-continuation-mark) e0 e1 e2)
+      ((~literal with-continuation-mark) e0* e1* e2*))
+     (hash 'wcm-key (to-json #'e0 #'e0*)
+           'wcm-val (to-json #'e1 #'e1*)
+           'wcm-body (to-json #'e2 #'e2*))]
+    [((begin0 e0 e ...)
+      (begin0 e0* e* ...))
+     (hash 'begin0 (to-json #'e0 #'e0*)
+           'begin0-rest (map to-json
+                             (syntax->list #'(e ...))
+                             (syntax->list #'(e* ...))))]
+    [((if e0 e1 e2)
+      (if e0* e1* e2*))
+     (hash 'test (to-json #'e0 #'e0*)
+           'then (to-json #'e1 #'e1*)
+           'else (to-json #'e2 #'e2*))]
+    [((let-values ([xs es] ...) b ...)
+      (let-values ([xs* es*] ...) b* ...))
      (hash 'let-bindings (for/list ([x (syntax->list #'(xs ...))]
-                                    [e (syntax->list #'(es ...))])
-                           (list (to-json x) (to-json e)))
-           'let-body (map to-json (syntax->list #'(b ...))))]
-    [(#%plain-lambda fmls . b)
-     (hash 'lambda (to-json #'fmls)
-           'body (map to-json (syntax->list #'b)))]
-    [(case-lambda (fmls . b) ...)
+                                    [x* (syntax->list #'(xs* ...))]
+                                    [e (syntax->list #'(es ...))]
+                                    [e* (syntax->list #'(es* ...))])
+                           (list (to-json x x*) (to-json e e*)))
+           'let-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
+    [((#%plain-lambda fmls . b)
+      (#%plain-lambda fmls* . b*))
+     (hash 'lambda (to-json #'fmls #'fmls*)
+           'body (map to-json
+                      (syntax->list #'b)
+                      (syntax->list #'b*)))]
+    [((case-lambda (fmls . b) ...)
+      (case-lambda (fmls* . b*) ...))
      (hash 'case-lambda
            (for/list ([fmls (syntax->list #'(fmls ...))]
-                      [b (syntax->list #'(b ...))])
-             (hash 'lambda (to-json fmls)
-                   'body (map to-json (syntax->list b)))))]
-    [(letrec-values ([xs es] ...) b ...)
+                      [b (syntax->list #'(b ...))]
+                      [fmls* (syntax->list #'(fmls* ...))]
+                      [b* (syntax->list #'(b* ...))])
+             (hash 'lambda (to-json fmls fmls*)
+                   'body (map to-json (syntax->list b) (syntax->list b*)))))]
+    [((letrec-values ([xs es] ...) b ...)
+      (letrec-values ([xs* es*] ...) b* ...))
      (hash 'letrec-bindings (for/list ([x (syntax->list #'(xs ...))]
-                                       [e (syntax->list #'(es ...))])
-                              (list (to-json x) (to-json e)))
-           'letrec-body (map to-json (syntax->list #'(b ...))))]
-    [(quote e) (hash 'quote
-                     (parameterize ([quoted? #t])
-                       (to-json #'e)))]
-    [(quote-syntax e) (hash 'quote-syntax
-                            (parameterize ([quoted? #t])
-                              (to-json #'e)))]
-    [((~literal define-values) (i ...) b)
+                                       [e (syntax->list #'(es ...))]
+                                       [x* (syntax->list #'(xs* ...))]
+                                       [e* (syntax->list #'(es* ...))])
+                              (list (to-json x x*) (to-json e e*)))
+           'letrec-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
+    [((quote e) (quote e*))
+     (hash 'quote
+           (parameterize ([quoted? #t])
+             (to-json #'e #'e*)))]
+    [((quote-syntax e) (quote e*)) 
+     (hash 'quote-syntax
+           (parameterize ([quoted? #t])
+             (to-json #'e #'e*)))]
+    [(((~literal define-values) (i ...) b)
+      ((~literal define-values) (i* ...) b*))
      (hash 'define-values (map id->sym (syntax->list #'(i ...)))
-           'define-values-body (to-json #'b)
+           'define-values-body (to-json #'b #'b*)
            ;; keep these separately because the real symbols
            ;; may be unreadable extra symbols
            'define-values-names (map (compose symbol->string syntax-e)
                                      (syntax->list #'(i ...))))]
-    [((~literal define-syntaxes) (i ...) b) #f]
-    [((~literal begin-for-syntax) b ...) #f]
+    [(((~literal define-syntaxes) (i ...) b) _) #f]
+    [(((~literal begin-for-syntax) b ...) _) #f]
 
-    [(#%require x ...)
+    [((#%require x ...) _)
      (hash 'require (append-map require-json (syntax->list #'(x ...))))]
-    [(#%variable-reference)
+    [((#%variable-reference) _)
      (hash 'variable-reference #f)]
-    [(#%variable-reference id)
-     (hash 'variable-reference (to-json #'id))]
-    [(_ ...)
-     (map to-json (syntax->list v))]
-    [(#%top . x) (hash 'toplevel (symbol->string (syntax-e #'x)))]
-    [(a . b)
-     (let-values ([(s r) (flatten v)])
+    [((#%variable-reference id) (#%variable-reference id*))
+     (hash 'variable-reference (to-json #'id #'id*))]
+    [((_ ...) _)
+     (map to-json (syntax->list v) (syntax->list v/loc))]
+    [((#%top . x) _) (hash 'toplevel (symbol->string (syntax-e #'x)))]
+    [((a . b) _)
+     (let-values ([(s r s* r*) (flatten v v/loc)])
        (if r
-           (hash 'improper (list (map to-json s) (to-json r)))
-           (map to-json s)))]
-    [i:identifier
+           (hash 'improper (list (map to-json s s*) (to-json r r*)))
+           (map to-json s s*)))]
+    [(i:identifier _)
      (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
@@ -310,9 +342,9 @@
                ;; currently ignored
                #;#;
                'phases (list src-phase import-phase nominal-export-phase))])]
-     [#(_ ...) (hash 'vector (map to-json (vector->list (syntax-e v))))]
+    [(#(_ ...) _) (hash 'vector (map to-json (vector->list (syntax-e v)) (vector->list (syntax-e v/loc))))]
     [_ #:when (box? (syntax-e v))
-       (hash 'box (to-json (unbox (syntax-e v))))]
+       (hash 'box (to-json (unbox (syntax-e v)) (unbox (syntax-e v/loc))))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
     [_ #:when (number? (syntax-e v))
@@ -330,23 +362,29 @@
     [_ #:when (bytes? (syntax-e v))
        (hash 'string (bytes->string/locale (syntax-e v)))]
     [_ #:when (hash? (syntax-e v))
-       (let ([ht (syntax-e v)])
+       (let ([ht (syntax-e v)]
+             [ht* (syntax-e v/loc)])
          (parameterize ([quoted? #t])
-           (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht)))
-                 'hash-vals (to-json (datum->syntax #'lex (hash-values ht))))))]
+           (hash 'hash-keys (to-json (datum->syntax #'lex (hash-keys ht))
+                                     (datum->syntax #'lex (hash-keys ht*)))
+                 'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
+                                     (datum->syntax #'lex (hash-values ht*))))))]
     ))
 
-(define (convert mod)
-  (syntax-parse mod #:literals (module #%plain-module-begin)
-    [(module name:id lang:expr (#%plain-module-begin forms ...))
+(define (convert mod mod/loc [config? #t])
+  (syntax-parse (list mod mod/loc) #:literals (module #%plain-module-begin)
+    [((module name:id lang:expr (#%plain-module-begin forms ...))
+      (_ _ _                    (#%plain-module-begin forms* ...)))
      (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
                          (require-json #'lang))])
-       (hash 'module-name (symbol->string (syntax-e #'name))
-             'body-forms (filter-map to-json (syntax->list #'(forms ...)))
-             'language (first lang-req)
-             'config global-config))]
+       (hash* 'module-name (symbol->string (syntax-e #'name))
+              'body-forms (filter-map to-json
+                                      (syntax->list #'(forms ...))
+                                      (syntax->list #'(forms* ...)))
+              'language (first lang-req)
+              'config (and config? global-config)))]
     [_ (error 'convert)]))
 
 
@@ -364,6 +402,7 @@
   (define logging? #f)
 
   (define srcloc? #t)
+  (define config? #t)
 
   (command-line
    #:once-any
@@ -373,6 +412,7 @@
     (set! out (current-output-port))]
    #:once-each
    [("--omit-srcloc") "don't include src location info" (set! srcloc? #f)]
+   [("--omit-config") "don't include config info" (set! config? #f)]
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
    [("--loop") "keep process alive" (set! loop? #t)]
@@ -388,7 +428,7 @@
                                         #:exists 'replace)))
           (when logging?
             (fprintf (open-output-file #:exists 'append "/tmp/expand.log")
-                     ">>> expanding ~a\n" source ))
+                     ">>> expanding ~a\n" source))
           (set! in source)]))
 
   (define input (if (input-port? in) in (open-input-file in)))
@@ -431,9 +471,9 @@
              ;(eprintf "starting read-syntax\n")
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
-    (define expanded (do-expand mod in-path))
+    (define-values  (expanded expanded-srcloc) (do-expand mod in-path))
     (parameterize ([keep-srcloc srcloc?])
-      (write-json (convert expanded) out))
+      (write-json (convert expanded expanded-srcloc config?) out))
     (newline out)
     (flush-output out)
     (when loop? (loop))))
