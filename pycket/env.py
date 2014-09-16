@@ -39,12 +39,14 @@ class SymList(object):
             env_structure = env_structure.prev
         return target
 
-    def depth(self):
+    def depth_and_size(self):
         res = 1
+        size = 0
         while self is not None:
+            size += len(self.elems)
             self = self.prev
             res += 1
-        return res
+        return res, size
 
     def depth_of_var(self, var):
         depth = 0
@@ -165,3 +167,5 @@ class ConsEnv(Env):
             return self._prev
         return self
 
+    def __repr__(self):
+        return "<ConsEnv %r %r>" % ([x.tostring() for  x in self._get_full_list()], self._prev)
