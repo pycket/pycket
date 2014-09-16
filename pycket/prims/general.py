@@ -906,6 +906,27 @@ def do_make_struct_field_mutator(mutator, field, field_name):
 def expose_struct2vector(struct):
     return values_struct.struct2vector(struct)
 
+@expose("prefab-struct-key", [values.W_Object])
+def do_prefab_struct_key(v):
+    if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
+        return values.w_false
+    return v._type.make_prefab_key()
+
+@expose("make-prefab-struct")
+def do_make_prefab_struct(args):
+    assert len(args) > 1
+    key = args[0]
+    vals = args[1:]
+    return values_struct.W_Struct.make_prefab(key, vals)
+
+@expose("prefab-key->struct-type", [values.W_Object])
+def expose_prefab_key2struct_type(v):
+    return values.w_void
+
+@expose("prefab-key?", [values.W_Object])
+def do_prefab_key(v):
+    return values_struct.W_PrefabKey.test(v)
+
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
