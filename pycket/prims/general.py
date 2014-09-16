@@ -24,6 +24,8 @@ from pycket.prims import string
 from pycket.prims import undefined
 from pycket.prims import vector
 
+from rpython.rlib import jit
+
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
     def predicate_(a):
@@ -533,6 +535,7 @@ def arity_at_least_p(n):
     return values.w_false
 
 @expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
+@jit.unroll_safe
 def procedure_arity_includes(p, n, w_kw_ok):
     # for now, ignore kw_ok
     if not isinstance(n, values.W_Fixnum):
