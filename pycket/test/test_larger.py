@@ -60,10 +60,5 @@ def test_thread_cells():
 def test_impersonator_properties():
     run_file("impersonator-properties.rkt")
 
-@pytest.mark.xfail
-def test_reverse():
-    # might be a regression
-    run_file("test_reverse.rkt")
-
 #def test_minikanren():
 #    run_file("minikanren.sch")
