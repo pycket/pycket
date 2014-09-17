@@ -742,7 +742,8 @@ class Gensym(object):
 
 class LexicalVar(Var):
     def _lookup(self, env):
-        self.env_structure.check_plausibility(env)
+        if not jit.we_are_jitted():
+            self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
