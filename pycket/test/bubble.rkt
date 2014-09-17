@@ -1,6 +1,6 @@
-#lang pycket
+#lang racket/base
 ;; The Bubble sort benchmark from Strickland et al 2012
-(define SIZE 20000)
+(define SIZE 10000)
 
 (define vec (make-vector SIZE))
 
