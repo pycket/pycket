@@ -1079,19 +1079,7 @@ class W_Closure(W_Procedure):
         return W_Closure._make(envs, caselam, env)
 
     def get_arity(self):
-        arities = []
-        rest = -1
-        for l in self.caselam.lams:
-            n = l.get_arity()
-            if n < 0:
-                r = (-n - 1)
-                if rest >= 0:
-                    rest = min(r, rest)
-                else:
-                    rest = r
-            else:
-                arities = arities + [n]
-        return (arities, rest)
+        return self.caselam.get_arity()
 
     def mark_non_loop(self):
         for l in self.caselam.lams:

@@ -1022,6 +1022,22 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
 
+    def get_arity(self):
+        arities = []
+        rest = -1
+        for l in self.lams:
+            n = l.get_arity()
+            if n < 0:
+                r = (-n - 1)
+                if rest >= 0:
+                    rest = min(r, rest)
+                else:
+                    rest = r
+            else:
+                arities = arities + [n]
+        return (arities, rest)
+
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure'
