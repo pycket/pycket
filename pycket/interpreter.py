@@ -1022,6 +1022,17 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
 
+    def tostring_as_closure(self):
+        if len(self.lams) == 0:
+            return "#<procedure>"
+        lam = self.lams[0]
+        file, pos = lam.srcfile, lam.srcpos
+        if file and (pos >= 0):
+            return "#<procedure:%s:%s>"%(lam.srcfile, lam.srcpos)
+        if file:
+            return "#<procedure:%s>"%(lam.srcfile)
+        return "#<procedure>"
+
     def get_arity(self):
         arities = []
         rest = -1
@@ -1126,6 +1137,17 @@ class Lambda(SequencedBodyAST):
         else:
             actuals = args
         return actuals
+
+    def collect_frees(self, recursive_sym, env, closure):
+        for s in self.frees.elems:
+            assert isinstance(s, values.W_Symbol)
+        vals = [None] * len(self.frees.elems)
+        for j, v in enumerate(self.frees.elems):
+            if v is recursive_sym:
+                vals[j] = closure
+            else:
+                vals[j] = env.lookup(v, self.enclosing_env_structure)
+        return vals
 
     def tostring(self):
         if self.rest and (not self.formals):

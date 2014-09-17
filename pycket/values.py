@@ -1049,26 +1049,11 @@ class W_Closure(W_Procedure):
     def __init__ (self, caselam, env):
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
-            for s in lam.frees.elems:
-                assert isinstance(s, W_Symbol)
-            vals = [None] * len(lam.frees.elems)
-            for j, v in enumerate(lam.frees.elems):
-                if v is caselam.recursive_sym:
-                    vals[j] = self
-                else:
-                    vals[j] = env.lookup(v, lam.enclosing_env_structure)
+            vals = lam.collect_frees(caselam.recursive_sym, env, self)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
 
     def tostring(self):
-        if len(self.caselam.lams) == 0:
-            return "#<procedure>"
-        lam = self.caselam.lams[0]
-        file, pos = lam.srcfile, lam.srcpos
-        if file and (pos >= 0):
-            return "#<procedure:%s:%s>"%(lam.srcfile, lam.srcpos)
-        if file:
-            return "#<procedure:%s>"%(lam.srcfile)
-        return "#<procedure>"
+        return self.caselam.tostring_as_closure()
 
     @staticmethod
     @jit.unroll_safe
@@ -1090,28 +1075,29 @@ class W_Closure(W_Procedure):
         for (i, lam) in enumerate(self.caselam.lams):
             try:
                 actuals = lam.match_args(args)
-                new_env = self._get_list(i)
-                return (actuals, new_env, lam)
             except SchemeException:
                 if len(self.caselam.lams) == 1:
                     raise
+            else:
+                frees = self._get_list(i)
+                return (actuals, frees, lam)
         raise SchemeException("No matching arity in case-lambda")
 
     def call(self, args, env, cont):
         jit.promote(self.caselam)
-        (actuals, new_env, lam) = self._find_lam(args)
+        (actuals, frees, lam) = self._find_lam(args)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, new_env),
+            ConsEnv.make(actuals, frees),
             cont)
 
     def _call_with_speculation(self, args, env, cont, env_structure):
         jit.promote(self.caselam)
         jit.promote(env_structure)
-        (actuals, new_env, lam) = self._find_lam(args)
+        (actuals, frees, lam) = self._find_lam(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
-                new_env, env_structure, env)
+                frees, env_structure, env)
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
