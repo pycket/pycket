@@ -744,7 +744,7 @@ class Gensym(object):
 
 class LexicalVar(Var):
     def _lookup(self, env):
-        if not objectmodel.we_are_translated()
+        if not objectmodel.we_are_translated():
             self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
