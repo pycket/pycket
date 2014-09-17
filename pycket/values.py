@@ -1004,7 +1004,13 @@ class W_Closure(W_Procedure):
     def make(caselam, env):
         from pycket.interpreter import CaseLambda
         assert isinstance(caselam, CaseLambda)
-        envs = [None] * len(caselam.lams)
+        num_lams = len(caselam.lams)
+        if num_lams == 1 and caselam.any_frees:
+            env_size = len(caselam.lams[0].frees.elems)
+            vals = caselam.lams[0].collect_frees_without_recursive(
+                    caselam.recursive_sym, env)
+            return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env())
+        envs = [None] * num_lams
         return W_Closure._make(envs, caselam, env)
 
     def get_arity(self):
@@ -1013,6 +1019,7 @@ class W_Closure(W_Procedure):
     def mark_non_loop(self):
         for l in self.caselam.lams:
             l.body[0].should_enter = False
+
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
@@ -1045,6 +1052,104 @@ class W_Closure(W_Procedure):
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
+
+
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+class W_Closure1AsEnv(ConsEnv):
+    _immutable_fields_ = ['caselam']
+
+    def __init__(self, caselam, prev):
+        ConsEnv.__init__(self, prev)
+        self.caselam = caselam
+
+    @staticmethod
+    @jit.unroll_safe
+    def make(vals, caselam, prev):
+        recursive_sym = caselam.recursive_sym
+        if not vals:
+            for s in caselam.lams[0].frees.elems:
+                assert s is recursive_sym
+        return W_Closure1AsEnv._make(vals, caselam, prev)
+
+    def iscallable(self):
+        return True
+
+    def immutable(self):
+        return True
+
+    def tostring(self):
+        return self.caselam.tostring_as_closure()
+
+    def get_arity(self):
+        return self.caselam.get_arity()
+
+    def mark_non_loop(self):
+        self.caselam.lams[0].body[0].should_enter = False
+
+    @jit.unroll_safe
+    def _find_lam(self, args):
+        jit.promote(self.caselam)
+        for (i, lam) in enumerate(self.caselam.lams):
+            try:
+                actuals = lam.match_args(args)
+            except SchemeException:
+                if len(self.caselam.lams) == 1:
+                    raise
+            else:
+                frees = self._get_list(i)
+                return (actuals, frees, lam)
+        raise SchemeException("No matching arity in case-lambda")
+
+    def call(self, args, env, cont):
+        jit.promote(self.caselam)
+        lam = self.caselam.lams[0]
+        actuals = lam.match_args(args)
+        return lam.make_begin_cont(
+            ConsEnv.make(actuals, self),
+            cont)
+
+    def _call_with_speculation(self, args, env, cont, env_structure):
+        jit.promote(self.caselam)
+        jit.promote(env_structure)
+        lam = self.caselam.lams[0]
+        actuals = lam.match_args(args)
+        # specialize on the fact that often we end up executing in the
+        # same environment.
+        prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                self, env_structure, env)
+        return lam.make_begin_cont(
+            ConsEnv.make(actuals, prev),
+            cont)
+
+    # ____________________________________________________________
+    # methods as a ConsEnv
+
+    @jit.unroll_safe
+    def consenv_get_size(self):
+        result = self._get_size_list()
+        for s in self.caselam.lams[0].frees.elems:
+            result += s is self.caselam.recursive_sym
+        return result
+
+    @jit.unroll_safe
+    def lookup(self, sym, env_structure):
+        jit.promote(env_structure)
+        if len(env_structure.elems) == self._get_size_list():
+            return ConsEnv.lookup(self, sym, env_structure)
+        recursive_sym = jit.promote(self.caselam).recursive_sym
+        if sym is recursive_sym:
+            return self
+        i = 0
+        for s in env_structure.elems:
+            if s is recursive_sym:
+                continue
+            if s is sym:
+                v = self._get_list(i)
+                assert v is not None
+                return v
+            i += 1 # only count non-self references
+        prev = self.get_prev(env_structure)
+        return prev.lookup(sym, env_structure.prev)
 
 
 class W_PromotableClosure(W_Procedure):

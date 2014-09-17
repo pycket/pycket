@@ -598,6 +598,8 @@ class App(AST):
             env_structure = env_structure.prev
         if isinstance(w_callable, values.W_Closure):
             return w_callable._call_with_speculation(args_w, env, cont, env_structure)
+        if isinstance(w_callable, values.W_Closure1AsEnv):
+            return w_callable._call_with_speculation(args_w, env, cont, env_structure)
         return w_callable.call(args_w, env, cont)
 
     def tostring(self):
@@ -1139,6 +1141,7 @@ class Lambda(SequencedBodyAST):
             actuals = args
         return actuals
 
+    @jit.unroll_safe
     def collect_frees(self, recursive_sym, env, closure):
         for s in self.frees.elems:
             assert isinstance(s, values.W_Symbol)
@@ -1149,6 +1152,14 @@ class Lambda(SequencedBodyAST):
             else:
                 vals[j] = env.lookup(v, self.enclosing_env_structure)
         return vals
+
+    @jit.unroll_safe
+    def collect_frees_without_recursive(self, recursive_sym, env):
+        vals = []
+        for v in self.frees.elems:
+            if v is not recursive_sym:
+                vals.append(env.lookup(v, self.enclosing_env_structure))
+        return vals[:]
 
     def tostring(self):
         if self.rest and (not self.formals):

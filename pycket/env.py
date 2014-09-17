@@ -1,6 +1,7 @@
 from rpython.rlib             import jit
 from small_list               import inline_small_list
 from pycket.error             import SchemeException
+from pycket.base              import W_Object
 
 
 class SymList(object):
@@ -12,7 +13,7 @@ class SymList(object):
 
     def check_plausibility(self, env):
         if self.elems:
-            assert len(self.elems) == env._get_size_list()
+            assert len(self.elems) == env.consenv_get_size()
         if self.prev:
             self.prev.check_plausibility(env.get_prev(self))
 
@@ -83,7 +84,7 @@ class ModuleEnv(object):
         return self.modules.get(name, None)
 
 
-class Env(object):
+class Env(W_Object):
     _attrs_ = []
 
     def get_prev(self, env_structure):
@@ -143,6 +144,9 @@ class ConsEnv(Env):
     def __init__ (self, prev):
         assert isinstance(prev, Env)
         self._prev = prev
+
+    def consenv_get_size(self):
+        return self._get_size_list()
 
     @staticmethod
     def make(vals, prev):
