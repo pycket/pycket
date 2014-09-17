@@ -102,8 +102,22 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     elif len(vals) == arg_count + 1:
         args, check = vals[1:], vals[0]
         return proc.call(args, env, call_cont(check, env, cont))
-    else:
-        assert False
+    assert False
+
+# Continuation used when calling an impersonator of a procedure.
+# Have to examine the results before checking
+@continuation
+def chp_proc_cont(orig, proc, env, cont, _vals):
+    vals = _vals._get_full_list()
+    arg_count = len(orig)
+    if len(vals) == arg_count:
+        return proc.call(vals, env, cont)
+    elif len(vals) == arg_count + 1:
+        args, check = values.Values.make(vals[1:]), vals[0]
+        return check_chaperone_results_loop(args, orig, 0, env,
+                call_cont(proc, env, call_cont(check, env, cont)))
+    assert False
+
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
@@ -148,11 +162,9 @@ class W_ImpProcedure(W_InterposeProcedure):
 @make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
-    _immutable_fields_ = ["inner", "check"]
 
     def post_call_cont(self, args, env, cont):
-        return check_chaperone_results(args, env,
-                imp_proc_cont(len(args), self.inner, env, cont))
+        return chp_proc_cont(args, self.inner, env, cont)
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
