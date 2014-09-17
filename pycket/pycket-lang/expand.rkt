@@ -59,7 +59,7 @@
   (define (to-path v)
     (path->string
       (simplify-path
-        (resolve-module-path v #f))))
+        (resolve-module-path v #f) #f)))
   (define (translate v)
     (let* ([str (symbol->string v)]
            [pre (substring str 0 (min 2 (string-length str)))])
@@ -107,7 +107,7 @@
       (for/hash ([k '(collects-dir temp-dir init-dir pref-dir home-dir
                                    pref-file init-file config-dir addon-dir
                                    exec-file run-file sys-dir doc-dir orig-dir)])
-        (values k (path->string (find-system-path k)))))
+        (values k (path->string (simplify-path (find-system-path k) #f)))))
     (hash-set* sysconfig
                'version (version))))
 
@@ -176,7 +176,7 @@
 
 (define (to-json v v/loc)
   (define (path/symbol/list->string o)
-    (cond [(path-string? o) (hash '%p (path->string o))]
+    (cond [(path-string? o) (hash '%p (path->string (simplify-path o #f)))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
           [(list? o)        (map path/symbol/list->string o)]
           [else o]))
@@ -215,7 +215,7 @@
     [(v:str _) (hash 'string (syntax-e #'v))]
     [(v _)
      #:when (path? (syntax-e #'v))
-     (hash 'path (path->string (syntax-e #'v)))]
+     (hash 'path (path->string (simplify-path (syntax-e #'v) #f)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
     [((_ ...) _)
@@ -333,7 +333,7 @@
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
         (define modsym (symbol->string (syntax-e v)))
-        (hash* 'source-module (cond [(path? src) (path->string src)]
+        (hash* 'source-module (cond [(path? src) (path->string (simplify-path src #f))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [src (symbol->string src)]
                                     [else 'null])
