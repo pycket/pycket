@@ -1,11 +1,10 @@
 #lang racket/base
+(require racket/contract)
 ;; The Bubble sort benchmark from Strickland et al 2012
 ;;(let ()
 (define SIZE 10000)
 
-(define vec (impersonate-vector (make-vector SIZE)
-                                (lambda (x y z) z)
-                                (lambda (x y z) z)))
+(define/contract vec (vectorof integer?) (make-vector SIZE))
 
 (define (bubble-sort vec)
   (define SIZE-1 (- SIZE 1))
