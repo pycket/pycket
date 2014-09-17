@@ -296,7 +296,7 @@
      (hash 'quote
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
-    [((quote-syntax e) (quote e*)) 
+    [((quote-syntax e) (quote-syntax e*))
      (hash 'quote-syntax
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
