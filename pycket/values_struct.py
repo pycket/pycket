@@ -271,7 +271,7 @@ class W_PrefabKey(values.W_Object):
     all_keys = []
 
     @staticmethod
-    def test(v):
+    def isprefabkey(v):
         if isinstance(v, values.W_Symbol):
             return values.w_true
         elif isinstance(v, values.W_Cons):

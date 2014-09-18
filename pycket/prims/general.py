@@ -928,7 +928,7 @@ def expose_prefab_key2struct_type(key, field_count):
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
-    return values_struct.W_PrefabKey.test(v)
+    return values_struct.W_PrefabKey.isprefabkey(v)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
