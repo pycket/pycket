@@ -41,8 +41,8 @@
   (define u (make-vector N 1.0))
   (define v (make-vector N))
   (define t (make-vector N))
-  (for ([i (in-range 10)])
-    (AtAv u v t N) (AtAv v u t N))
+  (time (for ([i (in-range 10)])
+    (AtAv u v t N) (AtAv v u t N)))
   (displayln  (sqrt 
                (let L ([vBv 0.0] [vv 0.0] [i 0])
                  (if (= i N) (/ vBv vv)

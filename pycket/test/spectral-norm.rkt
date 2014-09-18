@@ -45,8 +45,8 @@
   (define u (make-flvector N 1.0))
   (define v (make-flvector N))
   (define t (make-flvector N))
-  (for ([i (in-range 10)])
-    (AtAv u v t N) (AtAv v u t N))
+  (time (for ([i (in-range 10)])
+    (AtAv u v t N) (AtAv v u t N)))
   (displayln  (flsqrt 
                (let L ([vBv 0.0] [vv 0.0] [i 0])
                  (if (fx= i N) (fl/ vBv vv)
