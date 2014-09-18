@@ -534,30 +534,25 @@ class App(AST):
 
     @staticmethod
     def make_let_converted(rator, rands):
+        all_args = [rator] + rands
         fresh_vars = []
         fresh_rhss = []
-        new_rator = rator
         new_rands = []
 
-        if not rator.simple:
-            fresh_rator = Gensym.gensym("AppRator_")
-            fresh_rator_var = LexicalVar(fresh_rator)
-            fresh_rhss.append(rator)
-            fresh_vars.append(fresh_rator)
-            new_rator = fresh_rator_var
-
-        for i, rand in enumerate(rands):
+        name = "AppRator_"
+        for i, rand in enumerate(all_args):
             if rand.simple:
                 new_rands.append(rand)
             else:
-                fresh_rand = Gensym.gensym("AppRand%s_"%i)
+                fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
                 new_rands.append(fresh_rand_var)
+            name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rator, new_rands[:], remove_env=True)]
+            fresh_body = [App(new_rands[0], new_rands[1:], remove_env=True)]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
