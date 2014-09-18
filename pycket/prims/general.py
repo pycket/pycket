@@ -143,8 +143,6 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
-expose_val("print-mpair-curly-braces", 
-           values.W_Parameter(values.w_false, values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -283,6 +281,22 @@ def port_display_handler(p):
 @expose("port-write-handler", [values.W_OutputPort])
 def port_write_handler(p):
     return values.W_SimplePrim("pretty-printer", cur_print_proc)
+
+# FIXME: this is a parameter
+@expose("print-pair-curly-braces")
+def print_pair_curly_braces(args):
+    if len(args):
+        return values.w_void
+    else:
+        return values.w_false
+
+# FIXME: this is a parameter
+@expose("print-mpair-curly-braces")
+def print_mpair_curly_braces(args):
+    if len(args):
+        return values.w_void
+    else:
+        return values.w_true
 
 # FIXME: this is a parameter
 @expose("current-print", [])
