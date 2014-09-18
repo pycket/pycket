@@ -24,58 +24,38 @@ from pycket.expand import expand, to_ast, expand_string, parse_module
 class TestLLtype(LLJitMixin):
 
     def test_countdown_x(self):
-        ast = parse_module(expand_string("""
+        self.run_string("""
 #lang pycket
         (letrec ([countdown (lambda (n m) (if (< n 0) m (countdown (- n 1) (+ 1 m))))])
         (countdown 1000 1000))
-"""))
-
-
-        def interp_w():
-            val = interpret_module(ast)
-            return val
-
-        assert interp_w()
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+""")
 
     def test_countdown_nested(self):
-        ast = to_ast(expand("""
+        self.run_string("""
+#lang pycket
 (let ([sub 1])
   (define (nested n)
     (let countdown ([n n]) (if (< n 0) 1 (countdown (- n sub))))
     (if (< n 0) 1 (nested (- n sub))))
   (nested 10))
-"""))
-        def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
+""")
 
-        assert interp_w() == 1
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_countdown_loop(self):
-        ast = to_ast(expand("""
+        self.run_string("""
 #lang pycket
 (let countdown ([n 1000]) (if (< n 0) 1 (countdown (- n 1))))
-"""))
+""")
 
-
-        def interp_w():
-            val = interpret_one(ast)
-            ov = check_one_val(val)
-            assert isinstance(ov, W_Fixnum)
-            return ov.value
-
-        assert interp_w() == 1
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+    def test_countdown_many_lets(self):
+        self.run_string("""
+#lang pycket
+(define (id x) x)
+(let countdown ([n 1000]) (if (< n 0) 1 (id (id (id (id (countdown (- n 1))))))))
+""")
 
     def test_bistable_loop(self):
-        ast = parse_module(expand_string("""
+        self.run_string("""
 #lang pycket
 (let ()
     (define (countdown n sub2?)
@@ -86,20 +66,8 @@ class TestLLtype(LLJitMixin):
                 )))
     (countdown 1000 #f)
 )
-"""))
+""")
 
-
-        def interp_w():
-            val = interpret_module(ast)
-            return val
-
-        #     val = interpret_one(ast)
-        #     ov = check_one_val(val)
-        #     assert isinstance(ov, W_Fixnum)
-        #     return ov.value
-        # assert interp_w() == 1
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_setbang(self):
 
@@ -139,14 +107,14 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-        
+
     # needs to be fixed to use modules
     def run_string(self, str):
-        ast = to_ast(expand(str))
+        ast = parse_module(expand_string(str))
+        env = ToplevelEnv()
 
         def interp_w():
-            val = interpret_one(ast)
-            return val
+            interpret_module(ast, env)
 
         interp_w() # check that it runs
 
@@ -154,39 +122,29 @@ class TestLLtype(LLJitMixin):
 
     def test_imp_vec(self):
 
-        ast = parse_module(expand_string("""#lang pycket
+        self.run_string("""#lang pycket
  (let ([v (impersonate-vector (make-vector 1000 5)
                               (lambda (x y z) (unless (integer? z) (error 'fail)) z)
                               (lambda (x y z) z))])
       (let lp ([n 0] [i 0])
         (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))
-"""))
-
-        def interp_w():
-            interpret_module(ast)
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-
-    def test_puzzle(self):
-        fname = "puzzle.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret_one(ast)
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+""")
 
     def run_file(self, fname):
         ast = parse_file(fname)
         GlobalConfig.load(ast)
+        env = ToplevelEnv()
         def interp_w():
-            val = interpret_module(ast)
+            val = interpret_module(ast, env)
             return val
 
         interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-        
+
+
+    def test_puzzle(self):
+        self.run_file("puzzle.rkt")
 
 
     def test_bubble_safe(self):
@@ -268,23 +226,14 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_append(self):
-        ast = parse_module(expand_string("""
+        self.run_string("""
 #lang pycket
 (let () (define (append a b)
   (if (null? a) 
       b
       (cons (car a) (append (cdr a) b))))
  (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
-"""
-))
-
-        def interp_w():
-            interpret_module(ast)
-
-        interp_w()
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-
+""")
 
     def test_let_append(self):
         ast = to_ast(expand("""
@@ -337,13 +286,8 @@ class TestLLtype(LLJitMixin):
                 1
                 (f (- x 1)))))
      """
-        ast = parse_module(expand_string("#lang pycket ((%s %s) 1000)"%(Y,countdown)))
 
-        def interp_w():
-            val = interpret_module(ast)
-            return
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_string("#lang pycket ((%s %s) 1000)"%(Y,countdown))
 
 
     def test_vector_get_set(self):
@@ -434,7 +378,7 @@ class TestLLtype(LLJitMixin):
         self.run_file("fannkuch-redux.rkt")
 
     def test_mappy(self):
-        ast = parse_module(expand_string("""#lang racket/base
+        self.run_string("""#lang racket/base
         ;(require (only-in '#%kernel map))
         (letrec
             ([inc      (lambda (x) (+ 1 x))]
@@ -444,13 +388,4 @@ class TestLLtype(LLJitMixin):
                              (cons (modulo a 20) (makelist (- a 1)))))]
              [l        (makelist 10000)])
           (map inc l))
-        """))
-
-        def interp_w():
-            val = interpret_module(ast)
-            return val
-
-        # assert interp_w()
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-
+        """)
