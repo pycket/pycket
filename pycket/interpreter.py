@@ -576,12 +576,7 @@ class App(AST):
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
         args_w = [rand.interpret_simple(env) for rand in self.rands]
-        env_structure = self.env_structure
-        if isinstance(w_callable, values.W_Closure):
-            return w_callable._call_with_speculation(args_w, env, cont, env_structure)
-        if isinstance(w_callable, values.W_Closure1AsEnv):
-            return w_callable._call_with_speculation(args_w, env, cont, env_structure)
-        return w_callable.call(args_w, env, cont)
+        return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))

@@ -1034,14 +1034,14 @@ class W_Closure(W_Procedure):
                 return (actuals, frees, lam)
         raise SchemeException("No matching arity in case-lambda")
 
-    def call(self, args, env, cont):
-        jit.promote(self.caselam)
-        (actuals, frees, lam) = self._find_lam(args)
-        return lam.make_begin_cont(
-            ConsEnv.make(actuals, frees),
-            cont)
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        return self._call_with_env_structure(
+                args, env, cont, calling_app.env_structure)
 
-    def _call_with_speculation(self, args, env, cont, env_structure):
+    def call(self, args, env, cont):
+        return self._call_with_env_structure(args, env, cont, None)
+
+    def _call_with_env_structure(self, args, env, cont, env_structure):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
@@ -1086,15 +1086,14 @@ class W_Closure1AsEnv(ConsEnv):
     def mark_non_loop(self):
         self.caselam.lams[0].body[0].should_enter = False
 
-    def call(self, args, env, cont):
-        jit.promote(self.caselam)
-        lam = self.caselam.lams[0]
-        actuals = lam.match_args(args)
-        return lam.make_begin_cont(
-            ConsEnv.make(actuals, self),
-            cont)
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        return self._call_with_env_structure(
+                args, env, cont, calling_app.env_structure)
 
-    def _call_with_speculation(self, args, env, cont, env_structure):
+    def call(self, args, env, cont):
+        return self._call_with_env_structure(args, env, cont, None)
+
+    def _call_with_env_structure(self, args, env, cont, env_structure):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
@@ -1154,11 +1153,16 @@ class W_PromotableClosure(W_Procedure):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        jit.promote(self)
+        return self.closure.call_with_extra_info(args, env, cont, calling_app)
+
     def get_arity(self):
         return self.closure.get_arity()
 
     def tostring(self):
         return self.closure.tostring()
+
 
 class W_Parameterization(W_Object):
     errorname = "parameterization"
@@ -1166,6 +1170,7 @@ class W_Parameterization(W_Object):
     def extend(self, param, val): return self
     def tostring(self):
         return "#<parameterization>"
+
 
 class W_Parameter(W_Object):
     errorname = "parameter"

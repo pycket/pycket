@@ -30,6 +30,9 @@ class W_Object(object):
             return tailcall(self._call, args, env, cont)
         raise SchemeException("%s is not callable" % self.tostring())
 
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        return self.call(args, env, cont)
+
     def mark_non_loop(self):
         pass
 
