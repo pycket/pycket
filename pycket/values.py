@@ -1086,20 +1086,6 @@ class W_Closure1AsEnv(ConsEnv):
     def mark_non_loop(self):
         self.caselam.lams[0].body[0].should_enter = False
 
-    @jit.unroll_safe
-    def _find_lam(self, args):
-        jit.promote(self.caselam)
-        for (i, lam) in enumerate(self.caselam.lams):
-            try:
-                actuals = lam.match_args(args)
-            except SchemeException:
-                if len(self.caselam.lams) == 1:
-                    raise
-            else:
-                frees = self._get_list(i)
-                return (actuals, frees, lam)
-        raise SchemeException("No matching arity in case-lambda")
-
     def call(self, args, env, cont):
         jit.promote(self.caselam)
         lam = self.caselam.lams[0]
