@@ -519,7 +519,6 @@ class WithContinuationMark(AST):
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
-
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "remove_env", "env_structure"]
 
@@ -531,7 +530,7 @@ class App(AST):
         self.rands = rands
         self.remove_env = remove_env
         self.env_structure = env_structure
-        self.should_enter = isinstance(rator, ModuleVar)
+        self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
 
     @staticmethod
     def make_let_converted(rator, rands):
@@ -787,16 +786,16 @@ class ModuleVar(Var):
         return isinstance(v, values.W_Cell)
 
     @jit.elidable
+    def is_primitive(self):
+        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils"]
+
+    @jit.elidable
     def _elidable_lookup(self):
         assert self.modenv
         modenv = self.modenv
         if self.srcmod is None:
             mod = modenv.current_module
-        elif (self.srcmod == "#%kernel" or
-             self.srcmod == "#%unsafe" or
-             self.srcmod == "#%paramz" or
-             self.srcmod == "#%flfxnum" or
-             self.srcmod == "#%utils"):
+        elif self.is_primitive():
             # we don't separate these the way racket does
             # but maybe we should
             try:
