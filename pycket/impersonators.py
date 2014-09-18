@@ -6,6 +6,7 @@ from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket import values
 from pycket import values_struct
+from rpython.rlib import jit
 
 @jit.unroll_safe
 def get_base_object(x):
