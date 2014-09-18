@@ -45,14 +45,15 @@
   (define u (make-flvector N 1.0))
   (define v (make-flvector N))
   (define t (make-flvector N))
-  (for ([i (in-range 10)])
-    (AtAv u v t N) (AtAv v u t N))
-  (displayln  (flsqrt 
-               (let L ([vBv 0.0] [vv 0.0] [i 0])
-                 (if (fx= i N) (fl/ vBv vv)
-                     (let ([ui (flvector-ref u i)] [vi (flvector-ref v i)])
-                       (L (fl+ vBv (fl* ui vi))
-                          (fl+ vv (fl* vi vi))
-                          (fx+ i 1))))))
-              ))
+  (time (begin
+    (for ([i (in-range 10)])
+      (AtAv u v t N) (AtAv v u t N))
+    (displayln  (flsqrt 
+                 (let L ([vBv 0.0] [vv 0.0] [i 0])
+                   (if (fx= i N) (fl/ vBv vv)
+                       (let ([ui (flvector-ref u i)] [vi (flvector-ref v i)])
+                         (L (fl+ vBv (fl* ui vi))
+                            (fl+ vv (fl* vi vi))
+                            (fx+ i 1))))))
+                ))))
 

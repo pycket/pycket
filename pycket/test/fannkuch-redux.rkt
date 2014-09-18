@@ -103,7 +103,7 @@
 
 (command-line #:args ([n "4"])
               (define-values (answer checksum)
-                (fannkuch (string->number n)))
+                (time (fannkuch (string->number n))))
               (printf "~a\nPfannkuchen(~a) = ~a\n" 
                       checksum
                       n 
