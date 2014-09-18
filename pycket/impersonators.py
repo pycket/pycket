@@ -6,7 +6,6 @@ from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket import values
 from pycket import values_struct
-from rpython.rlib import jit
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -118,7 +117,6 @@ def chp_proc_cont(orig, proc, env, cont, _vals):
                 call_cont(proc, env, call_cont(check, env, cont)))
     assert False
 
-
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
     errorname = "interpose-procedure"
@@ -140,7 +138,8 @@ class W_InterposeProcedure(values.W_Procedure):
     def post_call_cont(self, args, env, cont):
         raise NotImplementedError("abstract method")
 
-    def _call(self, args, env, cont):
+    @label
+    def call(self, args, env, cont):
         from pycket.values import W_ThunkProcCMK
         after = self.post_call_cont(args, env, cont)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
