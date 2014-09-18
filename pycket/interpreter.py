@@ -520,15 +520,14 @@ class WithContinuationMark(AST):
         return self.key, env, WCMKeyCont(self, env, cont)
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]", "remove_env", "env_structure"]
+    _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
-    def __init__ (self, rator, rands, remove_env=False, env_structure=None):
+    def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
         for r in rands:
             assert r.simple
         self.rator = rator
         self.rands = rands
-        self.remove_env = remove_env
         self.env_structure = env_structure
         self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
 
@@ -552,7 +551,7 @@ class App(AST):
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rands[0], new_rands[1:], remove_env=True)]
+            fresh_body = [App(new_rands[0], new_rands[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
@@ -560,7 +559,6 @@ class App(AST):
     def assign_convert(self, vars, env_structure):
         return App(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
-                   remove_env=self.remove_env,
                    env_structure=env_structure)
 
     def direct_children(self):
@@ -579,17 +577,6 @@ class App(AST):
         w_callable = self.rator.interpret_simple(env)
         args_w = [rand.interpret_simple(env) for rand in self.rands]
         env_structure = self.env_structure
-        if self.remove_env:
-            # remove the env created by the let introduced by let_convert
-            # it's no longer needed nor accessible
-            # this whole stuff about the env seems useless in the App case,
-            # because the callable will just ignore the passed in env. However,
-            # we have a speculation in place in W_Procedure that checks whether
-            # the closed over env is the same as the passed in one, which
-            # breaks otherwise
-            assert isinstance(env, ConsEnv)
-            env = env._prev # XXX
-            env_structure = env_structure.prev
         if isinstance(w_callable, values.W_Closure):
             return w_callable._call_with_speculation(args_w, env, cont, env_structure)
         if isinstance(w_callable, values.W_Closure1AsEnv):
@@ -1301,7 +1288,6 @@ def make_let_singlevar(sym, rhs, body):
             if (isinstance(rator, LexicalVar) and
                     sym is rator.sym and
                     rator.sym not in x):
-                assert not b.remove_env
                 return App.make_let_converted(rhs, b.rands)
         elif isinstance(b, If):
             tst = b.tst
