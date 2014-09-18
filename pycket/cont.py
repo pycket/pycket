@@ -153,19 +153,20 @@ def make_label(func, enter=False):
         def __init__(self, args):
             self.args = args
 
-
     # The @label decorator will produce a new Label per each use, as an @label can be
     # used to encode a loop (as they act in a manner similar to an assembly label).
     class Label(AST):
         should_enter = enter
         def interpret(self, env, cont):
-            from pycket.interpreter import empty_vals
             assert type(cont) is Args
             return func(*cont.args)
         def tostring(self):
+            name   = func.func_name
+            module = func.__module__
+            lineno = func.__code__.co_firstlineno
             if self.should_enter:
-                return "LoopLabel(%s)" % func.__name__
-            return "Label(%s)" % func.__name__
+                return "LoopLabel(%s:%s:%d)" % (name, module, lineno)
+            return "Label(%s:%s:%d)" % (name, module, lineno)
 
     the_label = Label()
 
