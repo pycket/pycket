@@ -130,7 +130,7 @@ class TestLLtype(LLJitMixin):
         (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))
 """)
 
-    def run_file(self, fname):
+    def run_file(self, fname, run_untranslated=True):
         ast = parse_file(fname)
         GlobalConfig.load(ast)
         env = ToplevelEnv()
@@ -138,7 +138,8 @@ class TestLLtype(LLJitMixin):
             val = interpret_module(ast, env)
             return val
 
-        interp_w()
+        if run_untranslated:
+            interp_w()
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
@@ -217,13 +218,7 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_triangle(self):
-        fname = "triangle.sch"
-        ast = parse_file(fname)
-        def interp_w():
-            val = interpret_one(ast)
-            return val
-
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+        self.run_file("triangle.rkt", run_untranslated=False)
 
     def test_append(self):
         self.run_string("""
