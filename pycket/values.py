@@ -905,8 +905,9 @@ class W_ThunkProcCMK(W_Procedure):
         self.proc = proc
         self.args = args
 
+    @label
     @make_call_method([], simple=False)
-    def _call(self, env, cont):
+    def call(self, env, cont):
         return self.proc.call(self.args, env, cont)
 
 class W_SimplePrim(W_Procedure):
@@ -937,7 +938,7 @@ class W_Prim(W_Procedure):
     def get_arity(self):
         return self.arity
 
-    def _call(self, args, env, cont):
+    def call(self, args, env, cont):
         jit.promote(self)
         return self.code(args, env, cont)
 
@@ -1149,7 +1150,8 @@ class W_PromotableClosure(W_Procedure):
     def mark_non_loop(self):
         self.closure.mark_non_loop()
 
-    def _call(self, args, env, cont):
+    @label
+    def call(self, args, env, cont):
         jit.promote(self)
         return self.closure.call(args, env, cont)
 
