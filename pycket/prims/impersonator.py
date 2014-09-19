@@ -121,7 +121,6 @@ def chaperone_hash(args):
     hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
             unpack_hash_args(args, "chaperone-hash")
     ref_proc.mark_non_loop()
-    ref_proc.mark_non_loop()
     set_proc.mark_non_loop()
     remove_proc.mark_non_loop()
     key_proc.mark_non_loop()
