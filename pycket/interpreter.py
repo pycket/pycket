@@ -529,7 +529,8 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
-        self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
+        self.should_enter = False
+        #self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
 
     @staticmethod
     def make_let_converted(rator, rands):
@@ -947,7 +948,7 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
-    should_enter = True
+    should_enter = False
 
     def __init__(self, lams, recursive_sym=None):
         ## TODO: drop lams whose arity is redundant
@@ -957,7 +958,12 @@ class CaseLambda(AST):
         for l in lams:
             if l.frees.elems:
                 self.any_frees = True
-                break
+                #break
+            if recursive_sym in l.frees.elems:
+                for b in l.body:
+                    b.should_enter = False
+                l.body[0].should_enter = True
+                print "Can enter: %s \n\n" % l.body[0].tostring()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
 
@@ -1029,7 +1035,6 @@ class CaseLambda(AST):
                 arities = arities + [n]
         return (arities, rest)
 
-
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure'
@@ -1047,7 +1052,7 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
-            b.should_enter = True
+            b.should_enter = False
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
