@@ -78,6 +78,15 @@ class LetrecCont(Cont):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
 
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Letrec)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
+
     @jit.unroll_safe
     def plug_reduce(self, _vals, env):
         vals = _vals._get_full_list()
@@ -104,6 +113,15 @@ class LetCont(Cont):
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
 
     @staticmethod
     @jit.unroll_safe
@@ -179,6 +197,9 @@ class FusedLet0Let0Cont(Cont):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
 
+    def get_ast(self):
+        return self.combined_ast.ast1.ast
+
     def plug_reduce(self, vals, env):
         ast1, ast2 = self.combined_ast.unpack()
         ast1, index1 = ast1.unpack(Let)
@@ -196,6 +217,8 @@ class FusedLet0BeginCont(Cont):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
 
+    def get_ast(self):
+        return self.combined_ast.ast1.ast
 
     def plug_reduce(self, vals, env):
         ast1, ast2 = self.combined_ast.unpack()
@@ -214,6 +237,12 @@ class CellCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
 
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.prev.get_next_executed_ast()
+
     @jit.unroll_safe
     def plug_reduce(self, vals, env):
         ast = jit.promote(self.ast)
@@ -230,6 +259,13 @@ class SetBangCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.prev.get_next_executed_ast()
+
     def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
@@ -241,6 +277,13 @@ class BeginCont(Cont):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
 
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, i = self.counting_ast.unpack(SequencedBodyAST)
+        return ast.body[i]
+
     def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
         return ast.make_begin_cont(self.env, self.prev, i)
@@ -251,6 +294,13 @@ class Begin0Cont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast
+
     def plug_reduce(self, vals, env):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
@@ -268,6 +318,13 @@ class WCMKeyCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast.value
+
     def plug_reduce(self, vals, env):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
@@ -278,6 +335,13 @@ class WCMValCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.key = key
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast.body
+
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         if isinstance(self.key, values.W_ContinuationMarkKey):
@@ -947,7 +1011,7 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
-    should_enter = True
+    should_enter = True # XXX maybe
 
     def __init__(self, lams, recursive_sym=None):
         ## TODO: drop lams whose arity is redundant
@@ -1047,6 +1111,10 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+
+    def enable_jitting(self):
+        print "enabling jitting", self.tostring()
+        for b in self.body:
             b.should_enter = True
 
     # returns n for fixed arity, -(n+1) for arity-at-least n

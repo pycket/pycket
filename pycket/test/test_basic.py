@@ -499,3 +499,22 @@ def test_tostring_of_list():
     assert l.tostring() == "(0 1 5)"
     l = to_improper([W_Fixnum(0), W_Fixnum(1)], W_Fixnum(5))
     assert l.tostring() == "(0 1 . 5)"
+
+def test_callgraph_reconstruction():
+    from pycket.expand import expand_string, parse_module
+    str = """
+        #lang pycket
+        (define (f x) (g (+ x 1)))
+        (define (g x) (if (= x 0) (g 5) (h x)))
+        (define (h x) x)
+        (f 5)
+        (f -1)
+        """
+
+    ast = parse_module(expand_string(str))
+    env = ToplevelEnv()
+    m = interpret_module(ast, env)
+    f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
+    g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
+    h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
+    assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}

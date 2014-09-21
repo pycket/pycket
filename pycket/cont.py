@@ -40,6 +40,12 @@ class BaseCont(object):
     def __init__(self):
         self.marks = None
 
+    def get_ast(self):
+        return None # best effort
+
+    def get_next_executed_ast(self):
+        return None # best effort
+
     def find_cm(self, k):
         from pycket.prims.equal import eqp_logic
         l = self.marks

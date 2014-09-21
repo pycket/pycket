@@ -2,9 +2,11 @@ from pycket.error             import SchemeException
 from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
 
+
 @label
 def tailcall(func, args, env, cont):
     return func(args, env, cont)
+
 
 class W_Object(object):
     __metaclass__ = extendabletype
