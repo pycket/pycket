@@ -999,6 +999,7 @@ def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, srcpos, srcfile)
 
+
 def free_vars_lambda(body, args):
     x = {}
     for b in body:
@@ -1007,6 +1008,7 @@ def free_vars_lambda(body, args):
         if v in x:
             del x[v]
     return x
+
 
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
