@@ -14,6 +14,20 @@ import sys
 # imported for side effects
 import pycket.prims.general
 
+def preorder_traversal(asts):
+    todo = [i for i in reversed(asts)]
+    while todo:
+        top = todo.pop()
+        rev = [i for i in reversed(top.direct_children())]
+        todo.extend(rev)
+        yield top
+
+def enumerate_source_indices(asts):
+    i = 0
+    for node in preorder_traversal(asts):
+        node.source_index = i
+        i += 1
+
 class GlobalConfig(object):
     config = {}
     loaded = False
@@ -327,6 +341,7 @@ class Module(object):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
+        #enumerate_source_indices(self.body)
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
@@ -564,6 +579,14 @@ class App(AST):
 
     def direct_children(self):
         return [self.rator] + self.rands
+
+    def traceworthy(self):
+        for c in self.direct_children():
+            if c.traceworthy():
+                return True
+        rator = self.rator
+        return not (isinstance(rator, ModuleVar) and rator.is_primitive())
+        #return not isinstance(rator, ModuleVar) or rator.is_primitive()
 
     def _mutated_vars(self):
         x = self.rator.mutated_vars()
@@ -929,7 +952,6 @@ class If(AST):
     def tostring(self):
         return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-
 def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
@@ -958,17 +980,26 @@ class CaseLambda(AST):
         for l in lams:
             if l.frees.elems:
                 self.any_frees = True
-                #break
-            if recursive_sym in l.frees.elems:
-                for b in l.body:
-                    b.should_enter = False
-                l.body[0].should_enter = True
-                print "Can enter: %s \n\n" % l.body[0].tostring()
+                break
+            # If we have a recursive lambda, then the start of the body is a good
+            # location to start a trace.
+            # This is not particularly general at the moment (only works for letrec
+            # defined functions).
+            # An opt-out policy would probably be better rather than an opt-in
+            # policy.
+            #if recursive_sym in l.frees.elems:
+                #for b in l.body:
+                    #b.should_enter = False
+                #l.body[0].should_enter = True
+                #print "Can enter: %s \n\n" % l.body[0].tostring()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
 
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym)
+
+    def traceworthy(self):
+        return False
 
     def interpret_simple(self, env):
         if not self.any_frees:
@@ -1053,6 +1084,7 @@ class Lambda(SequencedBodyAST):
         for b in self.body:
             b.set_surrounding_lambda(self)
             b.should_enter = False
+        self.body[0].should_enter = True
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
@@ -1064,6 +1096,9 @@ class Lambda(SequencedBodyAST):
 
     def interpret_simple(self, env):
         assert False # unreachable
+
+    def traceworthy(self):
+        return False
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
@@ -1087,7 +1122,7 @@ class Lambda(SequencedBodyAST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, 
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body,
                       self.srcpos, self.srcfile, env_structure, sub_env_structure)
 
     def direct_children(self):
@@ -1145,7 +1180,7 @@ class Lambda(SequencedBodyAST):
         return vals[:]
 
     def tostring(self):
-        if self.rest and (not self.formals):
+        if self.rest and not self.formals:
             return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
         if self.rest:
             return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
@@ -1153,7 +1188,6 @@ class Lambda(SequencedBodyAST):
             return "(lambda (%s) %s)"%(" ".join([v.variable_name() for v in self.formals]),
                                        self.body[0].tostring() if len(self.body) == 1 else
                                        " ".join([b.tostring() for b in self.body]))
-
 
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
@@ -1184,7 +1218,6 @@ class CombinedAstAndIndex(AST):
     def tostring(self):
         return "<%s of %s>" % (self.index, self.ast.tostring())
 
-
 class CombinedAstAndAst(AST):
     _immutable_fields_ = ["ast1", "ast2"]
 
@@ -1197,7 +1230,6 @@ class CombinedAstAndAst(AST):
         ast1 = self.ast1
         ast2 = self.ast2
         return ast1, ast2
-
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
@@ -1221,7 +1253,8 @@ class Letrec(SequencedBodyAST):
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
-        return self.body + self.rhss
+        return self.rhss + self.body
+        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1329,7 +1362,8 @@ class Let(SequencedBodyAST):
                 [], self, 0, env, cont)
 
     def direct_children(self):
-        return self.body + self.rhss
+        return self.rhss + self.body
+        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1426,7 +1460,6 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
-
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
     names = []
@@ -1473,26 +1506,28 @@ class DefineValues(AST):
     def tostring(self):
         return "(define-values %s %s)"%(self.display_names, self.rhs.tostring())
 
-def get_printable_location(green_ast):
+def get_printable_location(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     return green_ast.tostring()
 
 driver = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast"],
+                       greens=["ast", "came_from"],
                        get_printable_location=get_printable_location)
 
 def interpret_one(ast, env=None):
     cont = nil_continuation
-    if not env:
+    came_from = ast
+    if env is None:
         env = ToplevelEnv()
     try:
         while True:
-            driver.jit_merge_point(ast=ast, env=env, cont=cont)
+            driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+            came_from = ast
             ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter:
+            if ast.should_enter: # and ast.source_index < came_from.source_index:
                 #print ast.tostring()
-                driver.can_enter_jit(ast=ast, env=env, cont=cont)
+                driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
     except Done, e:
         return e.values
 

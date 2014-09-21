@@ -1,7 +1,7 @@
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda"]
-    _immutable_fields_ = ["should_enter?", "surrounding_lambda"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "source_index"]
+    _immutable_fields_ = ["should_enter?", "surrounding_lambda", "source_index?"]
     _settled_ = True
 
     should_enter = False # default value
@@ -9,6 +9,7 @@ class AST(object):
     surrounding_lambda = None
 
     simple = False
+    #source_index = 1000000000
 
     def defined_vars(self): return {}
 
@@ -27,6 +28,12 @@ class AST(object):
         self.surrounding_lambda = lam
         for child in self.direct_children():
             child.set_surrounding_lambda(lam)
+
+    def traceworthy(self):
+        for c in self.direct_children():
+            if c.traceworthy():
+                return True
+        return False
 
     def direct_children(self):
         return []
