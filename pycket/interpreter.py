@@ -341,7 +341,6 @@ class Module(object):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
-        #enumerate_source_indices(self.body)
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
@@ -537,6 +536,8 @@ class WithContinuationMark(AST):
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
+    should_enter = False
+
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
         for r in rands:
@@ -544,8 +545,6 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
-        self.should_enter = False
-        #self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
 
     @staticmethod
     def make_let_converted(rator, rands):
@@ -586,7 +585,6 @@ class App(AST):
                 return True
         rator = self.rator
         return not (isinstance(rator, ModuleVar) and rator.is_primitive())
-        #return not isinstance(rator, ModuleVar) or rator.is_primitive()
 
     def _mutated_vars(self):
         x = self.rator.mutated_vars()
@@ -981,17 +979,6 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
-            # If we have a recursive lambda, then the start of the body is a good
-            # location to start a trace.
-            # This is not particularly general at the moment (only works for letrec
-            # defined functions).
-            # An opt-out policy would probably be better rather than an opt-in
-            # policy.
-            #if recursive_sym in l.frees.elems:
-                #for b in l.body:
-                    #b.should_enter = False
-                #l.body[0].should_enter = True
-                #print "Can enter: %s \n\n" % l.body[0].tostring()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
 
@@ -1071,6 +1058,7 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure'
                           ]
     simple = True
+    should_enter = False
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.srcpos = srcpos
@@ -1525,7 +1513,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
             came_from = ast
             ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter: # and ast.source_index < came_from.source_index:
+            if ast.should_enter and type(came_from) is App:
                 #print ast.tostring()
                 driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
     except Done, e:
