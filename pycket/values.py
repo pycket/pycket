@@ -1017,8 +1017,7 @@ class W_Closure(W_Procedure):
         return self.caselam.get_arity()
 
     def mark_non_loop(self):
-        for l in self.caselam.lams:
-            l.body[0].should_enter = False
+        return
 
     @jit.unroll_safe
     def _find_lam(self, args):
