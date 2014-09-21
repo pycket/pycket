@@ -1011,7 +1011,6 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
-    should_enter = True # XXX maybe
 
     def __init__(self, lams, recursive_sym=None):
         ## TODO: drop lams whose arity is redundant
