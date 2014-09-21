@@ -1513,7 +1513,7 @@ def interpret_one(ast, env=None):
             driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
             came_from = ast
             ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter and type(came_from) is App:
+            if ast.should_enter:
                 #print ast.tostring()
                 driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
     except Done, e:
