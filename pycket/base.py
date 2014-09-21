@@ -19,7 +19,6 @@ class W_Object(object):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
-    @jit.elidable
     def mark_non_loop(self):
         pass
 
