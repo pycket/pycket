@@ -129,13 +129,10 @@ class LetCont(Cont):
 
         # prune the env
         if rhsindex == len(ast.rhss) - 1:
-            if ast.remove_num_envs == -1:
-                env = env.toplevel_env()
-            elif ast.remove_num_envs:
-                env_structure = ast.args.prev
-                for i in range(ast.remove_num_envs):
-                    env = env.get_prev(env_structure)
-                    env_structure = env_structure.prev
+            env_structure = ast.args.prev
+            for i in range(ast.remove_num_envs):
+                env = env.get_prev(env_structure)
+                env_structure = env_structure.prev
 
         return LetCont._make(vals_w, counting_ast, env, prev)
 
@@ -1366,40 +1363,33 @@ class Let(SequencedBodyAST):
         for k, v in local_muts.iteritems():
             new_vars[k] = v
         sub_env_structure = SymList(self.args.elems, env_structure)
+        body_env_structure, remove_num_envs = self._compute_remove_num_envs(sub_env_structure)
 
+        new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
+        return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+
+    def _compute_remove_num_envs(self, sub_env_structure):
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = {}
         for b in self.body:
             free_vars_not_from_let.update(b.free_vars())
-        for x in sub_env_structure.elems:
+        for x in self.args.elems:
             try:
                 del free_vars_not_from_let[x]
             except KeyError:
                 pass
-        if not free_vars_not_from_let:
-            body_env_structure = SymList(self.args.elems)
-            remove_num_envs = -1 # remove all
-        else:
-            remove_num_envs = sys.maxint
-            for v in free_vars_not_from_let:
-                remove_num_envs = min(remove_num_envs, sub_env_structure.prev.depth_of_var(v)[1])
+        # at most, we can remove all envs, apart from the one introduced by let
+        remove_num_envs = sub_env_structure.depth_and_size()[0] - 1
+        for v in free_vars_not_from_let:
+            remove_num_envs = min(remove_num_envs, sub_env_structure.depth_of_var(v)[1] - 1)
+        if not remove_num_envs:
             body_env_structure = sub_env_structure
-            if remove_num_envs:
-                next_structure = sub_env_structure.prev
-                for i in range(remove_num_envs):
-                    next_structure = next_structure.prev
-                body_env_structure = SymList(self.args.elems, next_structure)
-
-                #print "__________________________________________________________"
-                #print "need env", len(free_vars_not_from_let)
-                #print sub_env_structure.depth_and_size(), sub_env_structure
-                #print min(depths), max(depths)
-                #for b in self.body:
-                #    print b.tostring()
-                #for var in free_vars_not_from_let:
-                #    print var.tostring(), sub_env_structure.depth_of_var(var)
-        new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+        else:
+            next_structure = sub_env_structure.prev
+            for i in range(remove_num_envs):
+                next_structure = next_structure.prev
+            body_env_structure = SymList(self.args.elems, next_structure)
+        return body_env_structure, remove_num_envs
 
     def tostring(self):
         result = ["(let ("]
