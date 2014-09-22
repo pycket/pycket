@@ -56,6 +56,12 @@ def test_remove_let():
     p = expr_ast("(let ([a 1]) (if a + -))")
     assert isinstance(p, If)
 
+def test_let_remove_num_envs():
+    p = expr_ast("(let ([b 1]) (let ([a (b + 1)]) (sub1 a)))")
+    assert isinstance(p, Let)
+    assert p.remove_num_envs == 0
+    assert p.body[0].remove_num_envs == 1
+
 
 def test_reclambda():
     # simple case:
