@@ -57,11 +57,13 @@ def test_remove_let():
     assert isinstance(p, If)
 
 def test_let_remove_num_envs():
-    p = expr_ast("(let ([b 1]) (let ([a (b + 1)]) (sub1 a)))")
+    p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
     assert isinstance(p, Let)
-    assert p.remove_num_envs == 0
-    assert p.body[0].remove_num_envs == 1
+    assert p.remove_num_envs == [0, 0]
+    assert p.body[0].remove_num_envs == [0, 1]
 
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a d))))")
+    assert p.body[0].body[0].remove_num_envs == [0, 1, 2]
 
 def test_reclambda():
     # simple case:
@@ -102,7 +104,7 @@ def test_asts_know_surrounding_lambda():
     assert inner_lam.body[0].surrounding_lambda is inner_lam
 
 def test_cont_fusion():
-    from pycket.env import SymList
+    from pycket.env import SymList, ToplevelEnv
     from pycket.interpreter import (
         LetCont, BeginCont,
         FusedLet0Let0Cont, FusedLet0BeginCont,
@@ -112,7 +114,7 @@ def test_cont_fusion():
     rhss = 1
     letast1 = Let(args, counts, [1], [2])
     letast2 = Let(args, counts, [1], [2])
-    env = object()
+    env = ToplevelEnv()
     prev = object()
     let2 = LetCont.make([], letast2, 0, env, prev)
     let1 = LetCont.make([], letast1, 0, env, let2)

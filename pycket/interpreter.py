@@ -127,13 +127,7 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        # prune the env
-        if rhsindex == len(ast.rhss) - 1:
-            env_structure = ast.args.prev
-            for i in range(ast.remove_num_envs):
-                env = env.get_prev(env_structure)
-                env_structure = env_structure.prev
-
+        env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -1304,9 +1298,9 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
 
-    def __init__(self, args, counts, rhss, body, remove_num_envs=0):
+    def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
@@ -1314,9 +1308,32 @@ class Let(SequencedBodyAST):
         self.rhss = rhss
         self.args = args
         self.env_speculation_works = True
+        if remove_num_envs is None:
+            remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
 
+    @jit.unroll_safe
+    def _prune_env(self, env, i):
+        env_structure = self.args.prev
+        if i:
+            # that many were pruned already:
+            already_pruned = self.remove_num_envs[i - 1]
+            for j in range(already_pruned):
+                env_structure = env_structure.prev
+        else:
+            already_pruned = 0
+        if not objectmodel.we_are_translated():
+            if env_structure is None:
+                assert isinstance(env, ToplevelEnv)
+            else:
+                env_structure.check_plausibility(env)
+        for i in range(self.remove_num_envs[i] - already_pruned):
+            env = env.get_prev(env_structure)
+            env_structure = env_structure.prev
+        return env
+
     def interpret(self, env, cont):
+        env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
                 [], self, 0, env, cont)
 
@@ -1347,12 +1364,15 @@ class Let(SequencedBodyAST):
         return x
 
     def assign_convert(self, vars, env_structure):
+        sub_env_structure = SymList(self.args.elems, env_structure)
+        env_structures, remove_num_envs = self._compute_remove_num_envs(sub_env_structure)
+
         local_muts = variable_set()
         for b in self.body:
             local_muts.update(b.mutated_vars())
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
-            new_rhs = rhs.assign_convert(vars, env_structure)
+            new_rhs = rhs.assign_convert(vars, env_structures[i])
             need_cell_flags = [(LexicalVar(self.args.elems[i + j]) in local_muts)
                                for j in range(self.counts[i])]
             if True in need_cell_flags:
@@ -1362,8 +1382,7 @@ class Let(SequencedBodyAST):
         new_vars = vars.copy()
         for k, v in local_muts.iteritems():
             new_vars[k] = v
-        sub_env_structure = SymList(self.args.elems, env_structure)
-        body_env_structure, remove_num_envs = self._compute_remove_num_envs(sub_env_structure)
+        body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
@@ -1379,17 +1398,32 @@ class Let(SequencedBodyAST):
             except KeyError:
                 pass
         # at most, we can remove all envs, apart from the one introduced by let
-        remove_num_envs = sub_env_structure.depth_and_size()[0] - 1
+        curr_remove = sub_env_structure.depth_and_size()[0] - 1
         for v in free_vars_not_from_let:
-            remove_num_envs = min(remove_num_envs, sub_env_structure.depth_of_var(v)[1] - 1)
-        if not remove_num_envs:
+            curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+        if not curr_remove:
             body_env_structure = sub_env_structure
         else:
             next_structure = sub_env_structure.prev
-            for i in range(remove_num_envs):
+            for i in range(curr_remove):
                 next_structure = next_structure.prev
             body_env_structure = SymList(self.args.elems, next_structure)
-        return body_env_structure, remove_num_envs
+
+        env_structures = [body_env_structure]
+        remove_num_envs = [curr_remove]
+        for i in range(len(self.rhss) - 1, -1, -1):
+            rhs = self.rhss[i]
+            free_vars = rhs.free_vars()
+            for v in free_vars:
+                curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+            next_structure = sub_env_structure.prev
+            for i in range(curr_remove):
+                next_structure = next_structure.prev
+            env_structures.append(next_structure)
+            remove_num_envs.append(curr_remove)
+        env_structures.reverse()
+        remove_num_envs.reverse()
+        return env_structures, remove_num_envs
 
     def tostring(self):
         result = ["(let ("]
