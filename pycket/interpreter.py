@@ -1423,7 +1423,7 @@ class Let(SequencedBodyAST):
             remove_num_envs.append(curr_remove)
         env_structures.reverse()
         remove_num_envs.reverse()
-        return env_structures, remove_num_envs
+        return env_structures, remove_num_envs[:]
 
     def tostring(self):
         result = ["(let ("]
