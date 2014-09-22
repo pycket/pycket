@@ -18,6 +18,11 @@ def expr_ast(s):
     m = parse_module(expand_string(format_pycket_mod(s, extra="(define x 0)")))
     return m.body[-1]
 
+def test_symlist_depth():
+    from pycket.env import SymList
+    s = SymList([1, 2, 3, 4], SymList([], None))
+    assert s.depth_and_size() == (2, 4)
+
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")
     assert len(p.mutated_vars()) == 0

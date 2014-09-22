@@ -41,7 +41,7 @@ class SymList(object):
         return target
 
     def depth_and_size(self):
-        res = 1
+        res = 0
         size = 0
         while self is not None:
             size += len(self.elems)
