@@ -1,11 +1,8 @@
 from pycket.error             import SchemeException
 from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
+from rpython.rlib import jit
 
-
-@label
-def tailcall(func, args, env, cont):
-    return func(args, env, cont)
 
 
 class W_Object(object):
@@ -18,18 +15,7 @@ class W_Object(object):
     def iscallable(self):
         return False
 
-    # The general `call` method is setup to return control to the CEK machine
-    # before executing the body of the function being called. Unless you know
-    # what you are doing, please override the `_call` method. This is needed to
-    # get around (R)Python's lack of tail call elimination.
-    # `_call` should always be safe to override, but `call` is safe to override
-    # if it implements a simple primitive.
-    def _call(self, args, env, cont):
-        raise NotImplementedError("abstract base class")
-
     def call(self, args, env, cont):
-        if self.iscallable():
-            return tailcall(self._call, args, env, cont)
         raise SchemeException("%s is not callable" % self.tostring())
 
     def call_with_extra_info(self, args, env, cont, calling_app):

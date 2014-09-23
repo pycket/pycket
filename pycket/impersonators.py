@@ -99,8 +99,9 @@ def imp_proc_cont(arg_count, proc, env, cont, _vals):
     vals = _vals._get_full_list()
     if len(vals) == arg_count:
         return proc.call(vals, env, cont)
-    elif len(vals) == arg_count + 1:
+    if len(vals) == arg_count + 1:
         args, check = vals[1:], vals[0]
+        check.mark_non_loop()
         return proc.call(args, env, call_cont(check, env, cont))
     assert False
 
@@ -112,8 +113,9 @@ def chp_proc_cont(orig, proc, env, cont, _vals):
     arg_count = len(orig)
     if len(vals) == arg_count:
         return proc.call(vals, env, cont)
-    elif len(vals) == arg_count + 1:
+    if len(vals) == arg_count + 1:
         args, check = values.Values.make(vals[1:]), vals[0]
+        check.mark_non_loop()
         return check_chaperone_results_loop(args, orig, 0, env,
                 call_cont(proc, env, call_cont(check, env, cont)))
     assert False

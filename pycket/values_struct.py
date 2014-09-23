@@ -401,9 +401,10 @@ class W_RootStruct(values.W_Object):
         return proc.call(args, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
-    # struct_type for _call and iscallable to work properly.
+    # struct_type for call and iscallable to work properly.
+    @label
     @make_call_method(simple=False)
-    def _call(self, args, env, cont):
+    def call(self, args, env, cont):
         typ = self.struct_type()
         proc = typ.prop_procedure
         if isinstance(proc, values.W_Fixnum):
@@ -584,8 +585,9 @@ class W_StructConstructor(values.W_Procedure):
             return self.type.guard.call(guard_args, env,
                 self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
 
+    @label
     @make_call_method(simple=False)
-    def _call(self, args, env, cont):
+    def call(self, args, env, cont):
         return self.code(args, False, env, cont)
 
     def tostring(self):
@@ -619,8 +621,9 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field = field
         self.field_name = field_name
 
+    @label
     @make_call_method([W_RootStruct], simple=False)
-    def _call(self, struct, env, cont):
+    def call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
 
     def tostring(self):
@@ -635,7 +638,7 @@ class W_StructAccessor(values.W_Procedure):
     def access(self, struct, field, env, cont):
         return struct.ref(self.type, field.value, env, cont)
 
-    _call = make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access)
+    call = label(make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access))
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -649,8 +652,9 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field
         self.field_name = field_name
 
+    @label
     @make_call_method([W_RootStruct, values.W_Object], simple=False)
-    def _call(self, struct, val, env, cont):
+    def call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
     def tostring(self):
@@ -665,7 +669,7 @@ class W_StructMutator(values.W_Procedure):
     def mutate(self, struct, field, val, env, cont):
         return struct.set(self.type, field.value, val, env, cont)
 
-    _call = make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate)
+    call = label(make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate))
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
@@ -717,8 +721,9 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
+    @label
     @make_call_method([values.W_Object], simple=False)
-    def _call(self, arg, env, cont):
+    def call(self, arg, env, cont):
         from pycket.interpreter import return_value
         if isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
