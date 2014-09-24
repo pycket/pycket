@@ -13,10 +13,14 @@ class AST(object):
     def defined_vars(self): return {}
 
     def interpret(self, env, cont):
-        from pycket.interpreter import return_value
+        from pycket.interpreter import values
         # default implementation for simple AST forms
         assert self.simple
-        return return_value(self.interpret_simple(env), env, cont)
+        # interpret should only be called from interpret_one, therefore it's
+        # safe to not use the Label implementation of return_value here
+        w_val = self.interpret_simple(env)
+        val = values.Values.make1(w_val)
+        return cont.plug_reduce(val, env)
 
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
