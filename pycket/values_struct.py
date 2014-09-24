@@ -295,7 +295,7 @@ class W_PrefabKey(values.W_Object):
                     return values.w_false
                 idx += 1
             if len(key) > idx:
-                return W_PrefabKey.test(key[idx])
+                return W_PrefabKey.isprefabkey(key[idx])
             return values.w_true
         else:
             return values.w_false
