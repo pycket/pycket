@@ -364,7 +364,7 @@ def jump(env, cont):
     return return_multi_vals(empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
-    return return_multi_vals(values.Values.make([w_val]), env, cont)
+    return return_multi_vals(values.Values.make1(w_val), env, cont)
 
 @label
 def return_multi_vals(vals, env, cont):
