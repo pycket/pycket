@@ -131,22 +131,22 @@ class LetCont(Cont):
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals, _env):
-        vals = _vals._get_full_list()
-        jit.promote(len(vals))
-        previous_vals = self._get_full_list()
-        jit.promote(len(previous_vals))
-        vals_w = [None] * (len(previous_vals) + len(vals))
+    def plug_reduce(self, vals, _env):
+        len_vals = vals._get_size_list()
+        jit.promote(len_vals)
+        len_self = self._get_size_list()
+        jit.promote(len_self)
+        vals_w = [None] * (len_self + len_vals)
         i = 0
-        for w_val in previous_vals:
-            vals_w[i] = w_val
+        for j in range(len_self):
+            vals_w[i] = self._get_list(j)
             i += 1
-        for w_val in vals:
-            vals_w[i] = w_val
+        for j in range(len_vals):
+            vals_w[i] = vals._get_list(j)
             i += 1
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
-        if ast.counts[rhsindex] != len(vals):
+        if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
