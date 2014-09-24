@@ -566,7 +566,9 @@ class App(AST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
-        args_w = [rand.interpret_simple(env) for rand in self.rands]
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def tostring(self):
