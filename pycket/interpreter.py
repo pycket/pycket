@@ -726,21 +726,24 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "env_structure"]
-    def __init__(self, sym, srcmod, srcsym, env_structure=None):
-        self.sym = sym
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?"]
+    def __init__(self, sym, srcmod, srcsym):
+        Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.env_structure = env_structure
         self.modenv = None
+        self.w_value = None
 
     def free_vars(self):
         return {}
 
     def _lookup(self, env):
-        if self.modenv is None:
-            self.modenv = env.toplevel_env().module_env
-        w_res = self._elidable_lookup()
+        w_res = self.w_value
+        if w_res is None:
+            if self.modenv is None:
+                self.modenv = env.toplevel_env().module_env
+            self.w_value = w_res = self._elidable_lookup()
+
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
         else:
