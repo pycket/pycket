@@ -1,4 +1,4 @@
-#lang racket/base
+#lang pycket
 ;; The Bubble sort benchmark from Strickland et al 2012
 (define SIZE 10000)
 
