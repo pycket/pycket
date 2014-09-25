@@ -142,6 +142,8 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
+expose_val("print-mpair-curly-braces", 
+           values.W_Parameter(values.w_false, values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
