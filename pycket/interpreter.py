@@ -366,6 +366,12 @@ def jump(env, cont):
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make1(w_val), env, cont)
 
+def return_value_direct(w_val, env, cont):
+    """ like return_value, but without using a label. only safe to use in
+    AST.interpret and (automatically) by simple primitives """
+    val = values.Values.make1(w_val)
+    return cont.plug_reduce(val, env)
+
 @label
 def return_multi_vals(vals, env, cont):
     return cont.plug_reduce(vals, env)
