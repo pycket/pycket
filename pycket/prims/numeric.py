@@ -304,9 +304,17 @@ def unsafe_fxmax(a, b):
 def unsafe_fxlt(a, b):
     return values.W_Bool.make(a.value < b.value)
 
+@expose("unsafe-fx<=", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxlt(a, b):
+    return values.W_Bool.make(a.value <= b.value)
+
 @expose("unsafe-fx>", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxgt(a, b):
     return values.W_Bool.make(a.value > b.value)
+
+@expose("unsafe-fx>=", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxgt(a, b):
+    return values.W_Bool.make(a.value >= b.value)
 
 @expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxeq(a, b):
