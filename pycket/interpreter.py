@@ -540,6 +540,11 @@ class App(AST):
             if rand.simple:
                 new_rands.append(rand)
             else:
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    new_symbol = Gensym.gensym(name)
+                    all_args[i] = LexicalVar(new_symbol)
+                    return rand.replace_innermost_with_app(new_symbol, all_args[0], all_args[1:])
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
                 fresh_rhss.append(rand)
@@ -1322,6 +1327,16 @@ class Let(SequencedBodyAST):
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
+
+    def replace_innermost_with_app(self, newsym, rator, rands):
+        assert len(self.body) == 1
+        body = self.body[0]
+        if isinstance(body, Let) and len(body.body) == 1:
+            new_body = body.replace_innermost_with_app(newsym, rator, rands)
+        else:
+            app_body = [App.make_let_converted(rator, rands)]
+            new_body = Let(SymList([newsym]), [1], [body], app_body)
+        return Let(self.args, self.counts, self.rhss, [new_body])
 
     @jit.unroll_safe
     def _prune_env(self, env, i):
