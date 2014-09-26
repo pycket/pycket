@@ -1,35 +1,39 @@
-#lang racket
-;;(require (except-in racket/tcp tcp-listen))
-;;(require "./imp-vector.rkt")
-;;(require (only-in "./imp-vector.rkt" check))
-;;(require (rename-in "./imp-vector.rkt" [check check^]))
-;;(require racket/unsafe/ops)
-;;(require (prefix-in check "pycket/test/imp-vector.rkt"))
+#lang pycket
 
-(define key (make-continuation-mark-key))
+(define v1 (make-vector 10000 0))
+(define v2 (make-vector 10000 0))
 
-(define key-imp
-  (impersonate-continuation-mark-key
-    key
-    (lambda (x) (printf "called getter~n") x)
-    (lambda (x) (printf "called setter~n") x)))
+(define count 0)
 
-(define result
-  (with-continuation-mark key-imp "quiche"
-    (with-continuation-mark key-imp "ham"
-       (continuation-mark-set->list
-        (current-continuation-marks)
-        key-imp))))
+(define (increment v)
+  (impersonate-vector v
+    (lambda (a b c) (add1 c))
+    (lambda (a b c) c)))
 
-result
-;;(letrec ([x x]) x)
+(define v1*
+  (increment
+    (increment
+      (increment
+        (impersonate-vector v1
+          (lambda (a b c) (set! count (+ count 1)) b)
+          (lambda (a b c) b))))))
 
-;;(struct wrapper (x) #:property prop:procedure 0)
-;;
-;;(define proc (lambda (x) x))
-;;
-;;(for ([i (in-range 100)])
-;;  (set! proc (chaperone-struct (wrapper proc) wrapper-x (lambda (a b) b))))
-;;
-;;(proc 1)
+(define v2*
+  (increment
+    (increment
+      (increment
+        (impersonate-vector v2
+          (lambda (a b c) (set! count (+ count 1)) b)
+          (lambda (a b c) b))))))
+
+(define v1^ (make-vector 10000 v1*))
+(define v2^ (make-vector 10000 v2*))
+
+(time (void (equal? v1^ v2^)))
+
+;;;(equal? v1 v2)
+;;;;(printf "Called handlers: ~sx~n" count)
+;;(time (void (equal? l1 l2)))
+;;;;(equal? v1^^ v2^^)
+
 

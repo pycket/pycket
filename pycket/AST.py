@@ -28,6 +28,12 @@ class AST(object):
         for child in self.direct_children():
             child.set_surrounding_lambda(lam)
 
+    def traceworthy(self):
+        for c in self.direct_children():
+            if c.traceworthy():
+                return True
+        return False
+
     def direct_children(self):
         return []
 
