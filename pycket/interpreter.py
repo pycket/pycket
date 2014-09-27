@@ -591,8 +591,6 @@ class WithContinuationMark(AST):
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
-    should_enter = False
-
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
         for r in rands:
@@ -1021,7 +1019,6 @@ def free_vars_lambda(body, args):
             del x[v]
     return x
 
-
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
@@ -1114,7 +1111,6 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure'
                           ]
     simple = True
-    should_enter = False
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.srcpos = srcpos
