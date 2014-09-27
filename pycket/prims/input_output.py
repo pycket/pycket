@@ -1,35 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
-import time
-from rpython.rlib import streamio as sio
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib.objectmodel import specialize
-from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+from rpython.rlib             import streamio as sio
+from rpython.rlib.rbigint     import rbigint
+from rpython.rlib.rstring     import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
-from pycket import impersonators as imp
-from pycket import values
-from pycket.cont import continuation, loop_label, call_cont
-from pycket import cont
-from pycket import values_struct
-from pycket import vector as values_vector
-from pycket.error import SchemeException
-from pycket.prims.expose import unsafe, default, expose, expose_val, procedure, make_call_method
-from rpython.rlib import jit
-from rpython.rlib.rsre import rsre_re as re
-
-# import for side effects
-from pycket.prims import continuation_marks
-from pycket.prims import equal as eq_prims
-from pycket.prims import hash
-from pycket.prims import impersonator
-from pycket.prims import numeric
-from pycket.prims import random
-from pycket.prims import string
-from pycket.prims import undefined
-from pycket.prims import vector
-
-from rpython.rlib import jit
+from pycket                   import values
+from pycket.error             import SchemeException
+from pycket.prims.expose      import default, expose, expose_val
 
 class Token(object):
     def __init__(self, v):
@@ -69,12 +46,12 @@ def read_number_or_id(f, init):
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
-        if c == " " or c == "\n" or c == "\t":
+        if c in [" ", "\n", "\t"]:
             continue
-        if c == "(" or c == "[" or c == "{":
-            return LParenToken(c)
-        if c == ")" or c == "]" or c == "}":
-            return RParenToken(c)
+        if c in ["(", "[", "{"]:
+            return LParenToken(values.W_String.make(c))
+        if c in [")", "]", "}"]:
+            return RParenToken(values.W_String.make(c))
         if c.isalnum():
             return read_number_or_id(f, c)
         if c == "#":
@@ -83,13 +60,10 @@ def read_token(f):
                 return BooleanToken(values.w_true)
             if c2 == "f":
                 return BooleanToken(values.w_false)
-            if c2 == "(" or c2 == "[" or c2 == "{":
-                return LVecToken(c2)
-            raise SchemeException("bad token in read: %"%c2)
-        raise SchemeException("bad token in read: %"%c)
-            
-        
-        
+            if c2 in ["(", "[", "{"]:
+                return LVecToken(values.W_String.make(c2))
+            raise SchemeException("bad token in read: %s" % c2)
+        raise SchemeException("bad token in read: %s" % c)
 
 @expose("read", [default(values.W_InputPort, None)])
 def read(port):
@@ -116,12 +90,12 @@ def read(port):
         stream = port.file
     return values.W_String(stream.readline())
 
-text_sym = values.W_Symbol.make("text")
+text_sym   = values.W_Symbol.make("text")
 binary_sym = values.W_Symbol.make("binary")
-none_sym = values.W_Symbol.make("none")
-error_sym = values.W_Symbol.make("error")
+none_sym   = values.W_Symbol.make("none")
+error_sym  = values.W_Symbol.make("error")
 
-@expose("open-input-file", [values.W_String, 
+@expose("open-input-file", [values.W_String,
                             default(values.W_Symbol, binary_sym),
                             default(values.W_Symbol, none_sym)])
 def open_input_file(str, mode, mod_mode):
@@ -129,10 +103,11 @@ def open_input_file(str, mode, mod_mode):
     f = str.value
     return values.W_FileInputPort(sio.open_file_as_stream(f, mode=m))
 
-@expose("open-output-file", [values.W_String, 
-                            default(values.W_Symbol, binary_sym),
-                            default(values.W_Symbol, error_sym)])
-def open_output_file(str):
+@expose("open-output-file", [values.W_String,
+                             default(values.W_Symbol, binary_sym),
+                             default(values.W_Symbol, error_sym)])
+def open_output_file(str, mode, exists):
     m = "w" if mode is text_sym else "wb"
     f = str.value
     return values.W_FileOutputPort(sio.open_file_as_stream(f, mode=m))
+
