@@ -23,6 +23,7 @@ from pycket.prims import random
 from pycket.prims import string
 from pycket.prims import undefined
 from pycket.prims import vector
+from pycket.prims import input_output
 
 from rpython.rlib import jit
 
