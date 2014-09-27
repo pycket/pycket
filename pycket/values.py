@@ -1201,6 +1201,23 @@ class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
 
+class W_InputPort(W_Object):
+    errorname = "input-port"
+    pass
+class W_OutputPort(W_Object):
+    errorname = "output-port"
+    pass
 
+class W_FileInputPort(W_InputPort):
+    errorname = "input-port"
+    def tostring(self):
+        return "#<input-port>"
+    def __init__(self, f):
+        self.file = f
 
-
+class W_FileOutputPort(W_OutputPort):
+    errorname = "output-port"
+    def tostring(self):
+        return "#<output-port>"
+    def __init__(self, f):
+        self.file = f
