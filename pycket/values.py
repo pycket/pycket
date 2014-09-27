@@ -1204,9 +1204,6 @@ class W_EnvVarSet(W_Object):
 class W_InputPort(W_Object):
     errorname = "input-port"
     pass
-class W_OutputPort(W_Object):
-    errorname = "output-port"
-    pass
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
