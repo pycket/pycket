@@ -145,22 +145,22 @@ class LetCont(Cont):
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals, _env):
-        vals = _vals._get_full_list()
-        jit.promote(len(vals))
-        previous_vals = self._get_full_list()
-        jit.promote(len(previous_vals))
-        vals_w = [None] * (len(previous_vals) + len(vals))
+    def plug_reduce(self, vals, _env):
+        len_vals = vals._get_size_list()
+        jit.promote(len_vals)
+        len_self = self._get_size_list()
+        jit.promote(len_self)
+        vals_w = [None] * (len_self + len_vals)
         i = 0
-        for w_val in previous_vals:
-            vals_w[i] = w_val
+        for j in range(len_self):
+            vals_w[i] = self._get_list(j)
             i += 1
-        for w_val in vals:
-            vals_w[i] = w_val
+        for j in range(len_vals):
+            vals_w[i] = vals._get_list(j)
             i += 1
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
-        if ast.counts[rhsindex] != len(vals):
+        if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -378,7 +378,13 @@ def jump(env, cont):
     return return_multi_vals(empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
-    return return_multi_vals(values.Values.make([w_val]), env, cont)
+    return return_multi_vals(values.Values.make1(w_val), env, cont)
+
+def return_value_direct(w_val, env, cont):
+    """ like return_value, but without using a label. only safe to use in
+    AST.interpret and (automatically) by simple primitives """
+    val = values.Values.make1(w_val)
+    return cont.plug_reduce(val, env)
 
 @label
 def return_multi_vals(vals, env, cont):
@@ -549,6 +555,11 @@ class App(AST):
             if rand.simple:
                 new_rands.append(rand)
             else:
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    new_symbol = Gensym.gensym(name)
+                    all_args[i] = LexicalVar(new_symbol)
+                    return rand.replace_innermost_with_app(new_symbol, all_args[0], all_args[1:])
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
                 fresh_rhss.append(rand)
@@ -588,7 +599,9 @@ class App(AST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
-        args_w = [rand.interpret_simple(env) for rand in self.rands]
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def tostring(self):
@@ -748,21 +761,24 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "env_structure"]
-    def __init__(self, sym, srcmod, srcsym, env_structure=None):
-        self.sym = sym
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?"]
+    def __init__(self, sym, srcmod, srcsym):
+        Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.env_structure = env_structure
         self.modenv = None
+        self.w_value = None
 
     def free_vars(self):
         return {}
 
     def _lookup(self, env):
-        if self.modenv is None:
-            self.modenv = env.toplevel_env().module_env
-        w_res = self._elidable_lookup()
+        w_res = self.w_value
+        if w_res is None:
+            if self.modenv is None:
+                self.modenv = env.toplevel_env().module_env
+            self.w_value = w_res = self._elidable_lookup()
+
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
         else:
@@ -1337,6 +1353,16 @@ class Let(SequencedBodyAST):
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
+
+    def replace_innermost_with_app(self, newsym, rator, rands):
+        assert len(self.body) == 1
+        body = self.body[0]
+        if isinstance(body, Let) and len(body.body) == 1:
+            new_body = body.replace_innermost_with_app(newsym, rator, rands)
+        else:
+            app_body = [App.make_let_converted(rator, rands)]
+            new_body = Let(SymList([newsym]), [1], [body], app_body)
+        return Let(self.args, self.counts, self.rhss, [new_body])
 
     @jit.unroll_safe
     def _prune_env(self, env, i):
