@@ -1,4 +1,4 @@
-from rpython.rlib  import jit, debug
+from rpython.rlib  import jit, debug, objectmodel
 
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_fixnum=False):
     """
@@ -37,7 +37,8 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             def _set_list(self, i, val):
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
-                        return setattr(self, attr, val)
+                        setattr(self, attr, val)
+                        return
                 raise IndexError
             def _init(self, elems, *args):
                 assert len(elems) == size
@@ -72,20 +73,26 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             else:
                 cls = cls_arbitrary
             return cls(elems, *args)
+        def make1(elem, *args):
+            # XXX could be done more nicely
+            w_result = objectmodel.instantiate(classes[1])
+            w_result._set_list(0, elem)
+            cls.__init__(w_result, *args)
+            return w_result
+
         if unbox_fixnum:
-            make = _add_fixnum_classes(cls, make)
+            make, make1 = _add_fixnum_classes(cls, make, make1)
         setattr(cls, factoryname, staticmethod(make))
+        setattr(cls, factoryname + "1", staticmethod(make1))
         return cls
     return wrapper
 
-def _add_fixnum_classes(cls, orig_make):
+def _add_fixnum_classes(cls, orig_make, orig_make1):
     # XXX quite brute force
     def make(vals, *args):
         from pycket.values import W_Fixnum
         if len(vals) == 1:
-            w_a, = vals
-            if isinstance(w_a, W_Fixnum):
-                return Size1Fixed(w_a.value, *args)
+            return make1(vals[0], *args)
         if len(vals) == 2:
             w_a, w_b = vals
             if isinstance(w_a, W_Fixnum):
@@ -96,6 +103,11 @@ def _add_fixnum_classes(cls, orig_make):
             elif isinstance(w_b, W_Fixnum):
                 return Size2Fixed01(w_a, w_b.value, *args)
         return orig_make(vals, *args)
+    def make1(w_a, *args):
+        from pycket.values import W_Fixnum
+        if isinstance(w_a, W_Fixnum):
+            return Size1Fixed(w_a.value, *args)
+        return orig_make1(w_a, *args)
 
     class Size1Fixed(cls):
         def __init__(self, vals_fixed_0, *args):
@@ -191,4 +203,4 @@ def _add_fixnum_classes(cls, orig_make):
             raise NotImplementedError()
     Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
 
-    return make
+    return make, make1
