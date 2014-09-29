@@ -42,7 +42,7 @@ def target(driver, args):
         import subprocess
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
-        base_name = 'pycket-'
+        base_name = 'pycket'
     if driver.config.translation.jit:
         driver.exe_name = base_name + '-%(backend)s'
     else:
