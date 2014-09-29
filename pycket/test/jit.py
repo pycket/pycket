@@ -118,6 +118,7 @@ class TestLLtype(LLJitMixin):
 
         interp_w() # check that it runs
 
+        ast = parse_module(expand_string(str))
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_imp_vec(self):

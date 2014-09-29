@@ -93,7 +93,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
 def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
-            from pycket.interpreter import return_multi_vals, return_value
+            from pycket.interpreter import return_multi_vals, return_value_direct
             from pycket             import values
             env = args[-2]
             cont = args[-1]
@@ -104,7 +104,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
             if isinstance(result, values.Values):
                 return return_multi_vals(result, env, cont)
             else:
-                return return_value(result, env, cont)
+                return return_value_direct(result, env, cont)
         return func_result_handling
     else:
         return func_arg_unwrap

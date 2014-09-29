@@ -1,3 +1,4 @@
+import inspect
 
 from rpython.rlib import jit, unroll
 
@@ -104,43 +105,52 @@ class Cont(BaseCont):
         else:
             return self.prev.get_marks(key)
 
-# Not used yet, but maybe if there's a continuation whose prev isn't named `cont`
-def continuation_named(name="cont"):
-    def wrap(f):
-        return continuation(f, prev_name=name)
-    return wrap
 
-def continuation(func, prev_name="cont"):
+def _make_args_class(base, argnames):
+    unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
+
+    class Args(base):
+        def _init_args(self, *args):
+            for i, name in unroll_argnames:
+                setattr(self, name, args[i])
+
+        def _get_args(self):
+            args = ()
+            for i, name in unroll_argnames:
+                args += (getattr(self, name), )
+            return args
+    return Args
+
+
+def continuation(func):
     """ workaround for the lack of closures in RPython. use to decorate a
     function that is supposed to be usable as a continuation. When the
     continuation triggers, the original function is called with one extra
     argument, the computed vals. """
 
-    import inspect
     argspec = inspect.getargspec(func)
     assert argspec.varargs is None
     assert argspec.keywords is None
     assert argspec.defaults is None
     argnames = argspec.args[:-1]
+    assert argnames[-1] == "cont"
+    assert argnames[-2] == "env"
+    argnames = argnames[:-2]
 
-    unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
+    PrimCont = _make_args_class(Cont, argnames)
+    def __init__(self, *args):
+        env = args[-2]
+        cont = args[-1]
+        Cont.__init__(self, env, cont)
+        args = args[:-2]
+        self._init_args(*args)
+    PrimCont.__init__ = __init__
 
-    class PrimCont(Cont):
-        _immutable_fields_ = argnames
-
-        def __init__(self, *args):
-            self.marks = None
-            for i, name in unroll_argnames:
-                if name == prev_name:
-                    self.prev = args[i]
-                setattr(self, name, args[i])
-
-        def plug_reduce(self, vals, env):
-            args = ()
-            for i, name in unroll_argnames:
-                args += (getattr(self, name), )
-            args += (vals,)
-            return func(*args)
+    def plug_reduce(self, vals, env):
+        args = self._get_args()
+        args += (self.env, self.prev, vals,)
+        return func(*args)
+    PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
     def make_continuation(*args):
@@ -149,36 +159,52 @@ def continuation(func, prev_name="cont"):
     make_continuation.func_name = func.func_name + "_make_continuation"
     return make_continuation
 
+
 def make_label(func, enter=False):
     from pycket.AST import AST
 
     func = jit.unroll_safe(func)
+    func_argnames, varargs, varkw, defaults = inspect.getargspec(func)
+    assert not varkw and not defaults
+    if varargs: # grrr, bad
+        class Args(BaseCont):
+            def __init__(self, *args):
+                BaseCont.__init__(self)
+                self.args = args
 
-    class Args(BaseCont):
-        _immutable_fields_ = ["args"]
-        def __init__(self, args):
-            self.args = args
+            def _get_args(self):
+                return self.args
+    else:
+        assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
+
+        Args = _make_args_class(BaseCont, func_argnames)
+        def __init__(self, *args):
+            BaseCont.__init__(self)
+            self._init_args(*args)
+        Args.__init__ = __init__
 
     # The @label decorator will produce a new Label per each use, as an @label can be
     # used to encode a loop (as they act in a manner similar to an assembly label).
+    if enter:
+        clsname = "LoopLabel"
+    else:
+        clsname = "Label"
+    strrepr = "%s(%s:%s:%s)" % (clsname, func.func_name, func.__module__,
+                                func.__code__.co_firstlineno)
     class Label(AST):
         should_enter = enter
         def interpret(self, env, cont):
             assert type(cont) is Args
-            return func(*cont.args)
+            return func(*cont._get_args())
         def tostring(self):
-            name   = func.func_name
-            module = func.__module__
-            lineno = func.__code__.co_firstlineno
-            if self.should_enter:
-                return "LoopLabel(%s:%s:%d)" % (name, module, lineno)
-            return "Label(%s:%s:%d)" % (name, module, lineno)
+            return strrepr
+    Label.__name__ = clsname
 
     the_label = Label()
 
     def make(*args):
         env = args[-2]
-        return the_label, env, Args(args)
+        return the_label, env, Args(*args)
 
     return make
 

@@ -23,6 +23,7 @@ from pycket.prims import random
 from pycket.prims import string
 from pycket.prims import undefined
 from pycket.prims import vector
+from pycket.prims import input_output
 
 from rpython.rlib import jit
 
@@ -142,6 +143,8 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
+expose_val("print-mpair-curly-braces", 
+           values.W_Parameter(values.w_false, values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -928,7 +931,7 @@ def expose_prefab_key2struct_type(key, field_count):
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
-    return values_struct.W_PrefabKey.test(v)
+    return values_struct.W_PrefabKey.isprefabkey(v)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),

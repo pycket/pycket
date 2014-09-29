@@ -27,7 +27,7 @@ def make_cmp(name, op, con):
         while idx <= len(args):
             start = idx - 2
             assert start >= 0
-            w_a, w_b = args[start:idx]
+            w_a, w_b = args[start], args[start + 1]
             assert isinstance(w_a, W_Number)
             assert isinstance(w_b, W_Number)
             idx += 1
@@ -304,9 +304,17 @@ def unsafe_fxmax(a, b):
 def unsafe_fxlt(a, b):
     return values.W_Bool.make(a.value < b.value)
 
+@expose("unsafe-fx<=", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxlt(a, b):
+    return values.W_Bool.make(a.value <= b.value)
+
 @expose("unsafe-fx>", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxgt(a, b):
     return values.W_Bool.make(a.value > b.value)
+
+@expose("unsafe-fx>=", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxgt(a, b):
+    return values.W_Bool.make(a.value >= b.value)
 
 @expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxeq(a, b):
