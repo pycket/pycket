@@ -1529,6 +1529,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
 
 def interpret_one(ast, env=None):
     cont = nil_continuation
+    cont.update_cm(values.parameterization_key, values.top_level_config)
     if not env:
         env = ToplevelEnv()
     try:

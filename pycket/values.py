@@ -1272,6 +1272,8 @@ class W_OutputPort(W_Port):
         pass
     def write(self, str):
         assert 0, "abstract class"
+    def flush(self):
+        assert 0, "abstract class"
     def tostring(self):
         return "#<output-port>"
 
@@ -1302,6 +1304,9 @@ class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     def write(self, str):
         self.file.write(str)
+        self.file.flush() # flushes too often
+    def flush(self):
+        self.file.flush()
     def close(self):
         self.closed = True
         self.file.close()
