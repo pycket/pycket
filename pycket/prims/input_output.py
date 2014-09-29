@@ -10,6 +10,7 @@ from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
 from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val
+import os
 
 class Token(object):
     def __init__(self, v):
