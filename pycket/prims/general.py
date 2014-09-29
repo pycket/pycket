@@ -934,7 +934,7 @@ def error(args):
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values.W_String)
-            raise SchemeException("%s: %s"%(src.tostring(), format(form, v)))
+            raise SchemeException("%s: %s"%(src.tostring(), input_output.format(form, v)))
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
