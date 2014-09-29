@@ -509,19 +509,6 @@ class W_Thread(W_Object):
     def tostring(self):
         return "#<thread>"
 
-class W_OutputPort(W_Object):
-    errorname = "output-port"
-    def __init__(self):
-        pass
-    def tostring(self):
-        return "#<output-port>"
-
-class W_StringOutputPort(W_OutputPort):
-    errorname = "output-port"
-    def __init__(self):
-        self.str = ""
-
-
 class W_Semaphore(W_Object):
     errorname = "semaphore"
     def __init__(self, n):
@@ -613,6 +600,13 @@ class W_ThreadCell(W_Object):
         self.preserved = preserved
 
         W_ThreadCell._table.append(self)
+
+    def set(self, val):
+        self.value = val
+
+    def get(self):
+        return self.value
+
 
 def eq_hash(k):
     if isinstance(k, W_Fixnum):
@@ -1166,55 +1160,152 @@ class W_PromotableClosure(W_Procedure):
         return self.closure.tostring()
 
 
+# This is a Scheme_Parameterization in Racket
+class RootParameterization(object):
+    def __init__(self):
+        # This table maps ParamKey -> W_ThreadCell
+        self.table = {}
+
+# This is a Scheme_Config in Racket
+# Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
     errorname = "parameterization"
-    def __init__(self): pass
-    def extend(self, param, val): return self
+    def __init__(self, root, params, vals):
+        assert len(params) == len(vals)
+        self.keys = [param.key for param in params]
+        self.vals = vals
+        self.root = root
+    def extend(self, params, vals): 
+        assert len(params) == len(vals)
+        return W_Parameterization(self.root, params + self.params , vals + self.vals)
+    def get(self, param):
+        k = param.key
+        for (i, key) in enumerate(self.keys):
+            if key is k:
+                return self.vals[i]
+        val = self.root.table[k]
+        assert val
+        return val
     def tostring(self):
         return "#<parameterization>"
 
+# This will need to be thread-specific
+top_level_config = W_Parameterization(RootParameterization(), [], [])
+
+# a token
+class ParamKey(object):
+    pass
+
+def find_param_cell(cont, param):
+    from pycket.cont import get_mark_first
+    p = get_mark_first(cont, parameterization_key)
+    return p.get(param)
+
+@continuation
+def param_set_cont(cell, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_value
+    v = check_one_val(vals)
+    cell.set(v)
+    return return_value(w_void, env, cont)
 
 class W_Parameter(W_Object):
     errorname = "parameter"
-    _immutable_fields_ = ["guard"]
-    def __init__(self, val, guard):
-        self.val = val
-        self.guard = guard
+    _immutable_fields_ = ["guard", "key"]
+    def __init__(self, val, guard=None):
+        self.key = ParamKey()
+        if guard is w_false:
+            self.guard = None
+        else:
+            self.guard = guard
+        cell = W_ThreadCell(val, True)
+        top_level_config.root.table[self.key] = cell
 
     def iscallable(self):
         return True
 
+    def get(self, cont):
+        cell = find_param_cell(cont, self)
+        return cell.get()
+
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         if len(args) == 0:
-            return return_value(self.val, env, cont)
+            return return_value(self.get(cont), env, cont)
         elif len(args) == 1:
-            self.val = args[0]
-            return return_value(w_void, env, cont)
+            cell = find_param_cell(cont, self)
+            if self.guard:
+                self.guard.call(args[0], env, param_set_cont(cell, env, cont))
+            else:
+                cell.set(args[0])
+                return return_value(w_void, env, cont)
         else:
             raise SchemeException("wrong number of arguments to parameter")
 
     def tostring(self):
-        return "#<parameter>"
+        return "#<parameter-procedure>"
+
 
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
 
-class W_InputPort(W_Object):
-    errorname = "input-port"
-    pass
+class W_EOF(W_Object):
+    errorname = "eof"
+    def __init__(self): pass
+    def tostring(self):
+        return "#<eof>"
 
-class W_FileInputPort(W_InputPort):
+eof_object = W_EOF()
+
+class W_Port(W_Object):
+    errorname = "port"
+    def tostring(self):
+        assert 0, "abstract class"
+    def close(self):
+        self.closed = True
+    def __init__(self):
+        self.closed = False
+
+class W_OutputPort(W_Port):
+    errorname = "output-port"
+    def __init__(self):
+        pass
+    def write(self, str):
+        assert 0, "abstract class"
+    def tostring(self):
+        return "#<output-port>"
+
+class W_StringOutputPort(W_OutputPort):
+    errorname = "output-port"
+    def write(self, str):
+        self.str += str
+    def __init__(self):
+        self.closed = False
+        self.str = ""
+
+class W_InputPort(W_Port):
     errorname = "input-port"
     def tostring(self):
         return "#<input-port>"
+
+class W_FileInputPort(W_InputPort):
+    errorname = "input-port"
+    def close(self):
+        self.closed = True
+        self.file.close()
+        self.file = None
     def __init__(self, f):
+        self.closed = False
         self.file = f
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
-    def tostring(self):
-        return "#<output-port>"
+    def write(self, str):
+        self.file.write(str)
+    def close(self):
+        self.closed = True
+        self.file.close()
+        self.file = None
     def __init__(self, f):
+        self.closed = False
         self.file = f

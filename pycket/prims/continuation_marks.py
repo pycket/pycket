@@ -32,7 +32,7 @@ def cms_list(cms, mark, env, cont):
     return return_value(marks, env, cont)
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
-def cms_list(cms, mark, missing, env, cont):
+def cms_first(cms, mark, missing, env, cont):
     from pycket.interpreter import return_value
     if cms is values.w_false:
         the_cont = cont

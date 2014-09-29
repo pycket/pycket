@@ -41,6 +41,7 @@ def make_pred_eq(name, val):
 
 for args in [
         ("output-port?", values.W_OutputPort),
+        ("input-port?", values.W_InputPort),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -191,104 +192,6 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
 ################################################################
 # printing
 
-@expose("display", [values.W_Object, default(values.W_OutputPort, None)])
-def display(datum, out):
-    os.write(1, datum.tostring())
-    return values.w_void
-
-@expose("newline", [default(values.W_OutputPort, None)])
-def newline(out):
-    os.write(1, "\n")
-
-@expose("write", [values.W_Object])
-def write(s):
-    os.write(1, s.tostring())
-
-@expose("print", [values.W_Object])
-def do_print(o):
-    os.write(1, o.tostring())
-
-format_dict = {
-    '~n': '\n',
-    '~%': '\n',
-    '~a': None,
-    '~e': None,
-    '~s': None
-}
-format_regex = re.compile("|".join(format_dict.keys()))
-
-@jit.unroll_safe
-def format(form, v):
-    from rpython.rlib.rstring import StringBuilder
-    text = form.value
-    result = StringBuilder()
-    pos = 0
-    for match in format_regex.finditer(text):
-        match_start = match.start()
-        assert match_start >= 0
-        result.append(text[pos : match_start])
-        val = format_dict[match.group()]
-        if val is None:
-            val, v = v[0].tostring(), v[1:]
-        result.append(val)
-        pos = match.end()
-        assert pos >= 0
-    result.append(text[pos:])
-    return result.build()
-
-@expose("fprintf")
-def do_fprintf(args):
-    out, form, v = args[0], args[1], args[2:]
-    assert isinstance(out, values.W_OutputPort)
-    assert isinstance(form, values.W_String)
-    # FIXME: it should print formatted output to _out_
-    os.write(1, format(form, v))
-    return values.w_void
-
-@expose("print-struct", [default(values.W_Object, None)])
-def do_print_struct(on):
-    return values.w_true
-
-@expose("current-output-port", [default(values.W_OutputPort, None)])
-def current_output_port(port):
-    # FIXME: Not a real implementation
-    return values.w_void if port is not None else values.W_OutputPort()
-
-@expose("flush-output", [default(values.W_OutputPort, None)])
-def flush_output(port):
-    # FIXME: Not a real implementation
-    return values.w_void
-
-@expose("format")
-def do_format(args):
-    form, v = args[0], args[1:]
-    assert isinstance(form, values.W_String)
-    return values.W_String(format(form, v))
-
-def cur_print_proc(args):
-    v, = args
-    if v is not values.w_void:
-        os.write(1, v.tostring())
-        os.write(1, "\n")
-    return values.w_void
-
-@expose("open-output-string", [])
-def open_output_string():
-    return values.W_StringOutputPort()
-
-@expose("port-display-handler", [values.W_OutputPort])
-def port_display_handler(p):
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
-
-@expose("port-write-handler", [values.W_OutputPort])
-def port_write_handler(p):
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
-
-# FIXME: this is a parameter
-@expose("current-print", [])
-def current_print():
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
-
 @expose("current-logger", [])
 def current_logger():
     return values.current_logger
@@ -384,13 +287,10 @@ def define_nyi(name, args=None):
         pass
 
 for args in [ ("subprocess?",),
-              ("input-port?",),
               ("file-stream-port?",),
               ("terminal-port?",),
-              ("port-closed?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("eof-object?",),
               ("bytes-converter?",),
               ("char-alphabetic?",),
               ("char-numeric?",),
@@ -641,37 +541,6 @@ def make_semaphore(n):
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
 
-@expose("printf")
-def printf(args):
-    if not args:
-        raise SchemeException("printf expected at least one argument, got 0")
-    fmt = args[0]
-    if not isinstance(fmt, values.W_String):
-        raise SchemeException("printf expected a format string, got something else")
-    fmt = fmt.value
-    vals = args[1:]
-    i = 0
-    j = 0
-    while i < len(fmt):
-        if fmt[i] == '~':
-            if i+1 == len(fmt):
-                raise SchemeException("bad format string")
-            s = fmt[i+1]
-            if s == 'a' or s == 'v' or s == 's':
-                # print a value
-                # FIXME: different format chars
-                if j >= len(vals):
-                    raise SchemeException("not enough arguments for format string")
-                os.write(1, vals[j].tostring())
-                j += 1
-            elif s == 'n':
-                os.write(1,"\n") # newline
-            else:
-                raise SchemeException("unexpected format character")
-            i += 2
-        else:
-            os.write(1,fmt[i])
-            i += 1
 
 @expose("not", [values.W_Object])
 def notp(a):
@@ -1271,6 +1140,21 @@ def extend_paramz(paramz, key, val):
         return paramz.extend(key, val)
     else:
         return paramz # This really is the Racket behavior
+
+def call_with_parameterization(f, args, paramz, env, cont):
+    cont.update_cm(values.parameterization_key, paramz)
+    return f.call(args, env, cont)
+
+@expose("call-with-parameterization", [values.W_Object, values.W_Parameterization], simple=False)
+def call_w_paramz(f, paramz, env, cont):
+    return call_with_parameterization(f, [], paramz, env, cont)
+
+def call_with_extended_paramz(f, args, keys, vals, env, cont):
+    paramz = get_mark_first(cont, parameterization_key)
+    paraz_new = paramz.extend(keys, vals)
+    call_with_parameterization(f, args, paramz_new, env, cont)
+
+
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
