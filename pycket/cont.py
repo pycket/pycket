@@ -99,11 +99,11 @@ class Cont(BaseCont):
         else:
             return self.prev.get_marks(key)
 
-
 def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
     class Args(base):
+        _immutable_fields_ = getattr(base, '_immutable_fields_', []) + argnames
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
@@ -114,7 +114,6 @@ def _make_args_class(base, argnames):
                 args += (getattr(self, name), )
             return args
     return Args
-
 
 def continuation(func):
     """ workaround for the lack of closures in RPython. use to decorate a
@@ -152,7 +151,6 @@ def continuation(func):
 
     make_continuation.func_name = func.func_name + "_make_continuation"
     return make_continuation
-
 
 def make_label(func, enter=False):
     from pycket.AST import AST
