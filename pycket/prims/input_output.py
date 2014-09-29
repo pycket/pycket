@@ -70,7 +70,7 @@ def read_token(f):
 
 @expose("read", [default(values.W_InputPort, None)], simple=False)
 def read(port, env, cont):
-    from pycket.interpreter import return_val
+    from pycket.interpreter import return_value
     if port is None:
         port = current_in_param.get(cont)
     stream = port.file
@@ -165,7 +165,7 @@ def display(datum, out, env, cont):
 
 @expose("newline", [default(values.W_OutputPort, None)], simple=False)
 def newline(out, env, cont):
-    do_print("\n", out, env, cont)
+    return do_print("\n", out, env, cont)
 
 @expose("write", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def write(o, p, env, cont):
@@ -176,11 +176,10 @@ def _print(o, p, env, cont):
     return do_print(o, p, env, cont)
 
 def do_print(str, port, env, cont):
-    from pycket.interpreter import return_value
     if port is None:
         port = current_out_param.get(cont)
-    port.write(o)
-    return return_value(values.w_void, env, cont)
+    port.write(str)
+    return return_void(env, cont)
 
 format_dict = {
     '~n': '\n',
@@ -251,12 +250,11 @@ def do_format(args):
 
 @expose("fprintf", simple=False)
 def do_fprintf(args, env, cont):
-    from pycket.interpreter import return_value
     out, form, v = args[0], args[1], args[2:]
     assert isinstance(out, values.W_OutputPort)
     assert isinstance(form, values.W_String)
     out.write(format(form, v))
-    return return_value(values.w_void, env, cont)
+    return return_void(env, cont)
 
 # Why is this different than format/fprintf?
 # @expose("printf", simple=False)
@@ -264,10 +262,17 @@ def do_fprintf(args, env, cont):
 #     port = current_out_param.get(cont)
 #     return do_fprintf([port] + args, env, cont)
 
-@expose("flush-output", [default(values.W_OutputPort, None)])
-def flush_output(port):
-    # FIXME: Not a real implementation
-    return values.w_void
+def return_void(env, cont):
+    from pycket.interpreter import return_value
+    return return_value(values.w_void, env, cont)
+
+@expose("flush-output", [default(values.W_OutputPort, None)], simple=False)
+def flush_output(port, env, cont):
+    if port is None:
+        port = current_out_param.get(cont)
+    port.flush()
+    return return_void(env, cont)
+    
 
 def cur_print_proc(args, env, cont):
     from pycket.interpreter import return_value
@@ -276,7 +281,7 @@ def cur_print_proc(args, env, cont):
     if v is not values.w_void:
         port.write(v.tostring())
         port.write("\n")
-    return return_value(values.w_void, env, cont)
+    return return_void(env, cont)
 
 standard_printer = values.W_Prim("current-print", cur_print_proc)
 
@@ -295,7 +300,9 @@ def port_write_handler(p):
 current_print_param = values.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 
-current_out_param = values.W_Parameter(values.W_FileOutputPort(sio.fdopen_as_stream(0, "wb")))
-current_in_param = values.W_Parameter(values.W_FileInputPort(sio.fdopen_as_stream(1, "rb")))
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "wb"))
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "rb"))
+current_out_param = values.W_Parameter(stdout_port)
+current_in_param = values.W_Parameter(stdin_port)
 expose_val("current-output-port", current_out_param)
 expose_val("current-input-port", current_in_param)
