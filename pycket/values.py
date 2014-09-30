@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pycket.env               import ConsEnv
-from pycket.cont              import continuation, label
+from pycket.cont              import continuation, label, BaseCont
 from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
@@ -584,7 +584,7 @@ class W_ThreadCellValues(W_Object):
     def __init__(self):
         self.assoc = {}
         for c in W_ThreadCell._table:
-            if c.preserved is w_true:
+            if c.preserved:
                 self.assoc[c] = c.value
 
 class W_ThreadCell(W_Object):
@@ -1169,15 +1169,30 @@ class RootParameterization(object):
 # This is a Scheme_Config in Racket
 # Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
+    _immutable_fields_ = ["root", "keys", "vals"]
     errorname = "parameterization"
-    def __init__(self, root, params, vals):
-        assert len(params) == len(vals)
-        self.keys = [param.key for param in params]
+    def __init__(self, root, keys, vals):
+        #assert len(params) == len(vals)
+        self.keys = keys
         self.vals = vals
         self.root = root
     def extend(self, params, vals): 
-        assert len(params) == len(vals)
-        return W_Parameterization(self.root, params + self.params , vals + self.vals)
+        # why doesn't it like this assert?
+        # assert len(params) == len(vals)
+        # FIXME this is awful
+        total = len(params) + len(self.keys)
+        keys = [p.key for p in params]
+        new_keys = [None] * total
+        new_vals = [None] * total
+        for i in range(total):
+            if i < len(params):
+                new_keys[i] = keys[i]
+                new_vals[i] = vals[i]
+            else:
+                new_keys[i] = self.keys[i-len(params)]
+                new_vals[i] = self.vals[i-len(params)]
+                
+        return W_Parameterization(self.root, new_keys, new_vals)
     def get(self, param):
         k = param.key
         for (i, key) in enumerate(self.keys):
@@ -1198,7 +1213,10 @@ class ParamKey(object):
 
 def find_param_cell(cont, param):
     from pycket.cont import get_mark_first
+    assert isinstance(cont, BaseCont)
     p = get_mark_first(cont, parameterization_key)
+    assert isinstance(p, W_Parameterization)
+    assert isinstance(param, W_Parameter)
     return p.get(param)
 
 @continuation
@@ -1225,6 +1243,7 @@ class W_Parameter(W_Object):
 
     def get(self, cont):
         cell = find_param_cell(cont, self)
+        assert isinstance(cell, W_ThreadCell)
         return cell.get()
 
     def call(self, args, env, cont):
@@ -1233,8 +1252,9 @@ class W_Parameter(W_Object):
             return return_value(self.get(cont), env, cont)
         elif len(args) == 1:
             cell = find_param_cell(cont, self)
+            assert isinstance(cell, W_ThreadCell)
             if self.guard:
-                self.guard.call(args[0], env, param_set_cont(cell, env, cont))
+                return self.guard.call([args[0]], env, param_set_cont(cell, env, cont))
             else:
                 cell.set(args[0])
                 return return_value(w_void, env, cont)

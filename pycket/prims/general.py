@@ -4,7 +4,7 @@ import os
 import time
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import continuation, loop_label, call_cont
+from pycket.cont import continuation, loop_label, call_cont, get_mark_first
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -1105,7 +1105,7 @@ def jit_enabled():
 
 @expose("make-thread-cell", [values.W_Object, default(values.W_Bool, values.w_false)])
 def make_thread_cell(v, pres):
-    return values.W_ThreadCell(v, pres)
+    return values.W_ThreadCell(v, False if pres is values.w_false else True)
 
 @expose("thread-cell-ref", [values.W_ThreadCell])
 def thread_cell_ref(cell):
@@ -1124,7 +1124,7 @@ def current_preserved_thread_cell_values(v):
 
     # Otherwise, we restore the values
     for cell, val in v.assoc.items():
-        assert cell.preserved is values.w_true
+        assert cell.preserved
         cell.value = val
     return values.w_void
 
@@ -1136,8 +1136,10 @@ def mcpt(s):
 
 @expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
 def extend_paramz(paramz, key, val):
+    if not isinstance(key, values.W_Parameter):
+        raise SchemeException("Not a parameter")
     if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend(key, val)
+        return paramz.extend([key], [val])
     else:
         return paramz # This really is the Racket behavior
 
@@ -1150,9 +1152,9 @@ def call_w_paramz(f, paramz, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
-    paramz = get_mark_first(cont, parameterization_key)
-    paraz_new = paramz.extend(keys, vals)
-    call_with_parameterization(f, args, paramz_new, env, cont)
+    paramz = get_mark_first(cont, values.parameterization_key)
+    paramz_new = paramz.extend(keys, vals)
+    return call_with_parameterization(f, args, paramz_new, env, cont)
 
 
 
