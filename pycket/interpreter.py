@@ -533,27 +533,27 @@ class App(AST):
         all_args = [rator] + rands
         fresh_vars = []
         fresh_rhss = []
-        new_rands = []
 
         name = "AppRator_"
         for i, rand in enumerate(all_args):
-            if rand.simple:
-                new_rands.append(rand)
-            else:
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    new_symbol = Gensym.gensym(name)
-                    all_args[i] = LexicalVar(new_symbol)
-                    return rand.replace_innermost_with_app(new_symbol, all_args[0], all_args[1:])
+            if not rand.simple:
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    if not fresh_vars:
+                        all_args[i] = fresh_rand_var
+                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
+                    else:
+                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
+                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+                all_args[i] = fresh_rand_var
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
-                new_rands.append(fresh_rand_var)
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rands[0], new_rands[1:])]
+            fresh_body = [App(all_args[0], all_args[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
