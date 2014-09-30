@@ -16,6 +16,9 @@ def make_int(w_value):
     return w_value
 
 class __extend__(values.W_Number):
+    def arith_unaryadd(self):
+        return self
+
     def arith_quotient(self, other):
         raise SchemeException("quotient is not fully implemented")
 
@@ -43,9 +46,6 @@ class __extend__(values.W_Complex):
     def arith_add_complex(self, real, imag):
         return values.W_Complex(real.arith_add(self.real),
                                 imag.arith_add(self.imag))
-
-    def arith_unaryadd(self):
-        return self
 
     # ------------------ subtraction ------------------
     def arith_sub(self, other):
@@ -138,8 +138,6 @@ class __extend__(values.W_Fixnum):
     def arith_add_complex(self, real, imag):
         return values.W_Complex(real.arith_add(self), imag)
 
-    def arith_unaryadd(self):
-        return self
 
     # ------------------ subtraction ------------------
     def arith_sub(self, other):
@@ -454,9 +452,6 @@ class __extend__(values.W_Flonum):
 
     def arith_add_complex(self, real, imag):
         return values.W_Complex(real.arith_add(self), imag)
-
-    def arith_unaryadd(self):
-        return self
 
     # ------------------ subtraction ------------------
     def arith_sub(self, other):
