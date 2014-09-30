@@ -73,7 +73,8 @@ def read_token(f):
 def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
-        port = current_in_param.get(cont)
+        port = current_out_param.get(cont)
+    assert isinstance(port, values.W_InputPort)
     stream = port.file
     token = read_token(stream)
     if isinstance(token, NumberToken):
@@ -88,13 +89,14 @@ def read(port, env, cont):
         v = values.w_false # fail!
     return return_value(v, env, cont)
 
-@expose("read-line", [default(values.W_InputPort, None)])
-def read(port):
+@expose("read-line", [default(values.W_InputPort, None)], simple=False)
+def read(port, env, cont):
+    from pycket.interpreter import return_value
     if port is None:
-        stream = sio.fdopen_as_stream(0, "rb")
-    else:
-        stream = port.file
-    return values.W_String(stream.readline())
+        port = current_in_param.get(cont)
+    assert isinstance(port, values.W_InputPort)
+    stream = port.file
+    return return_value(values.W_String(stream.readline()), env, cont)
 
 text_sym   = values.W_Symbol.make("text")
 binary_sym = values.W_Symbol.make("binary")
@@ -106,16 +108,14 @@ error_sym  = values.W_Symbol.make("error")
                             default(values.W_Symbol, none_sym)])
 def open_input_file(str, mode, mod_mode):
     m = "r" if mode is text_sym else "rb"
-    f = str.value
-    return values.W_FileInputPort(sio.open_file_as_stream(f, mode=m))
+    return open_infile(str, m)
 
 @expose("open-output-file", [values.W_String,
                              default(values.W_Symbol, binary_sym),
                              default(values.W_Symbol, error_sym)])
 def open_output_file(str, mode, exists):
     m = "w" if mode is text_sym else "wb"
-    f = str.value
-    return values.W_FileOutputPort(sio.open_file_as_stream(f, mode=m))
+    return open_outfile(str, m)
 
 @expose("port-closed?", [values.W_Port])
 def port_closedp(p):
@@ -131,29 +131,37 @@ def close_cont(port, env, cont, vals):
     port.file.close()
     return return_multi_vals(vals, env, cont)    
 
+def open_infile(str, mode):
+    s = str.value
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
+
+def open_outfile(str, mode):
+    s = str.value
+    return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
+
 @expose("call-with-input-file", [values.W_String, values.W_Object], simple=False)
 def call_with_input_file(s, proc, env, cont):
-    port = values.W_FileInputPort(sio.open_file_as_stream(f, mode="rb"))
-    proc.call([port], env, close_cont(port, env, cont))
+    port = open_infile(s, "rb")
+    return proc.call([port], env, close_cont(port, env, cont))
 
 @expose("call-with-output-file", [values.W_String, values.W_Object], simple=False)
 def call_with_output_file(s, proc, env, cont):
-    port = values.W_FileInputPort(sio.open_file_as_stream(f, mode="wb"))
-    proc.call([port], env, close_cont(port, env, cont))
+    port = open_outfile(s, "wb")
+    return proc.call([port], env, close_cont(port, env, cont))
 
 @expose("with-input-from-file", [values.W_String, values.W_Object], simple=False)
 def with_input_from_file(s, proc, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
-    port = values.W_FileInputPort(sio.open_file_as_stream(f, mode="rb"))
-    call_with_extended_paramz(proc, [], [current_in_param], [port], 
-                              env, close_cont(port, env, cont))
+    port = open_infile(s, "rb")
+    return call_with_extended_paramz(proc, [], [current_in_param], [port], 
+                                     env, close_cont(port, env, cont))
 
 @expose("with-output-to-file", [values.W_String, values.W_Object], simple=False)
-def with_input_from_file(s, proc, env, cont):
+def with_output_to_file(s, proc, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
-    port = values.W_FileInputPort(sio.open_file_as_stream(f, mode="wb"))
-    call_with_extended_paramz(proc, [], [current_out_param], [port], 
-                              env, close_cont(port, env, cont))
+    port = open_outfile(s, "wb")
+    return call_with_extended_paramz(proc, [], [current_out_param], [port], 
+                                     env, close_cont(port, env, cont))
 
 
 @expose("print-struct", [default(values.W_Object, None)])
@@ -174,7 +182,7 @@ def write(o, p, env, cont):
 
 @expose("print", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def _print(o, p, env, cont):
-    return do_print(o, p, env, cont)
+    return do_print(o.tostring(), p, env, cont)
 
 def do_print(str, port, env, cont):
     if port is None:
