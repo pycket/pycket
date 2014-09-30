@@ -107,7 +107,7 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -127,7 +127,8 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        env = ast._prune_env(env, rhsindex + 1)
+        if not pruning_done:
+            env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -177,7 +178,8 @@ class FusedLet0Let0Cont(Cont):
         actual_cont = LetCont.make(
                 [], ast1, index1, self.env,
                 LetCont.make(
-                    [], ast2, index2, self.env, self.prev, fuse=False),
+                    [], ast2, index2, self.env, self.prev, fuse=False,
+                    pruning_done=True),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
