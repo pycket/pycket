@@ -1187,7 +1187,7 @@ class W_Parameterization(W_Object):
         for i in range(total):
             if i < len(params):
                 new_keys[i] = keys[i]
-                new_vals[i] = vals[i]
+                new_vals[i] = W_ThreadCell(vals[i], True)
             else:
                 new_keys[i] = self.keys[i-len(params)]
                 new_vals[i] = self.vals[i-len(params)]
@@ -1217,7 +1217,9 @@ def find_param_cell(cont, param):
     p = get_mark_first(cont, parameterization_key)
     assert isinstance(p, W_Parameterization)
     assert isinstance(param, W_Parameter)
-    return p.get(param)
+    v = p.get(param)
+    assert isinstance(v, W_ThreadCell)
+    return v
 
 @continuation
 def param_set_cont(cell, env, cont, vals):
@@ -1242,9 +1244,12 @@ class W_Parameter(W_Object):
         return True
 
     def get(self, cont):
+        return self.get_cell(cont).get()
+
+    def get_cell(self, cont):
         cell = find_param_cell(cont, self)
         assert isinstance(cell, W_ThreadCell)
-        return cell.get()
+        return cell
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
