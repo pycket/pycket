@@ -1,9 +1,52 @@
-from rpython.rlib.rbigint import rbigint, NULLRBIGINT
+from rpython.rlib.rbigint import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rlib import rarithmetic
 from rpython.rtyper.raisingops import int_floordiv_ovf
 from pycket import values, error
 from pycket.error import SchemeException
 import math
+
+def gcd(u, v):
+    # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
+    if not u.tobool():
+        return v
+    if not v.tobool():
+        return u
+    if v.ge(NULLRBIGINT):
+        sign = 1
+    else:
+        sign = -1
+        v = v.abs()
+    u = u.abs()
+
+    shift = 0
+    while (not u.and_(ONERBIGINT).toint() and
+           not v.and_(ONERBIGINT).toint()):
+        shift += 1
+        u = u.rshift(1)
+        v = v.rshift(1)
+    while not u.and_(ONERBIGINT).toint():
+        u = u.rshift(1)
+
+    # From here on, u is always odd.
+    while True:
+        # remove all factors of 2 in v -- they are not common
+        # note: v is not zero, so while will terminate
+        while not v.and_(ONERBIGINT).toint():
+            v = v.rshift(1)
+
+        # Now u and v are both odd. Swap if necessary so u <= v,
+        # then set v = v - u (which is even).
+        if u.gt(v):
+            u, v, = v, u
+        v = v.sub(u)
+        if not v.tobool():
+            break
+    # restore common factors of 2
+    result = u.lshift(shift)
+    if sign == -1:
+        result = result.neg()
+    return result
+
 
 def make_int(w_value):
     # XXX is this ever called with a non-bignum?
@@ -139,8 +182,7 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        # XXX
-        raise SchemeException("rationals not implemented")
+        return values.W_Rational.fromint(self.value, other.value)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -546,6 +588,48 @@ class __extend__(values.W_Bignum):
     def arith_oddp(self):
         return values.W_Bool.make(
             self.value.mod(rbigint.fromint(2)).tobool())
+
+
+class __extend__(values.W_Rational):
+    def same_numeric_class(self, other):
+        # nb: intentionally use the direct constructor
+        if isinstance(other, values.W_Fixnum):
+            return self, values.W_Rational(rbigint.fromint(other.value), ONERBIGINT)
+        if isinstance(other, values.W_Bignum):
+            return self, values.W_Rational(other.value, ONERBIGINT)
+        if isinstance(other, values.W_Rational):
+            return self, other
+        return other.same_numeric_class_reversed(self)
+
+    def arith_add_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        return values.W_Rational.frombigint(
+                self._numerator.mul(other._denominator).add(other._numerator.mul(self._denominator)),
+                self._denominator.mul(other._denominator))
+
+    def arith_sub_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        return values.W_Rational.frombigint(
+                self._numerator.mul(other._denominator).sub(other._numerator.mul(self._denominator)),
+                self._denominator.mul(other._denominator))
+
+    def arith_sub1(self):
+        return values.W_Rational.frombigint(
+                self._numerator.sub(self._denominator),
+                self._denominator)
+
+    def arith_mul_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        return values.W_Rational.frombigint(
+            self._numerator.mul(other._numerator),
+            self._denominator.mul(other._denominator))
+
+    def arith_div_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        return values.W_Rational.frombigint(
+            self._numerator.mul(other._denominator),
+            self._denominator.mul(other._numerator))
+        return self.arith_mul(factor)
 
 
 class __extend__(values.W_Complex):

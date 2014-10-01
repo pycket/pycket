@@ -12,6 +12,7 @@ from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
 
 import rpython.rlib.rweakref as weakref
+from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 
 UNROLLING_CUTOFF = 5
 
@@ -412,19 +413,51 @@ class W_Number(W_Object):
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
     errorname = "rational"
-    def __init__(self, n, d):
-        assert isinstance(n, W_Integer)
-        assert isinstance(d, W_Integer)
-        self.num = n
-        self.den = d
+    def __init__(self, num, den):
+        assert isinstance(num, rbigint)
+        assert isinstance(den, rbigint)
+        self._numerator = num
+        self._denominator = den
+        assert den.gt(NULLRBIGINT)
 
     @staticmethod
-    @memoize
-    def make(n, d):
+    def make(num, den):
+        if isinstance(num, W_Fixnum):
+            num = rbigint.fromint(num.value)
+        else:
+            assert isinstance(num, W_Bignum)
+            num = num.value
+        if isinstance(den, W_Fixnum):
+            den = rbigint.fromint(den.value)
+        else:
+            assert isinstance(den, W_Bignum)
+            den = den.value
+        return W_Rational.frombigint(num, den)
+
+    @staticmethod
+    def fromint(n, d=1):
+        assert isinstance(n, int)
+        assert isinstance(d, int)
+        return W_Rational.frombigint(rbigint.fromint(n), rbigint.fromint(d))
+
+    @staticmethod
+    def frombigint(n, d=rbigint.fromint(1)):
+        from pycket.arithmetic import gcd, make_int
+        g = gcd(n, d)
+        n = n.floordiv(g)
+        d = d.floordiv(g)
+        if d.eq(rbigint.fromint(1)):
+            return make_int(W_Bignum(n))
         return W_Rational(n, d)
 
     def tostring(self):
-        return "%s/%s" % (self.num.tostring(), self.den.tostring())
+        return "%s/%s" % (self._numerator.str(), self._denominator.str())
+
+    def equal(self, other):
+        if not isinstance(other, W_Rational):
+            return False
+        return (self._numerator.eq(other._numerator) and
+                self._denominator.eq(other._denominator))
 
 class W_Integer(W_Number):
     errorname = "integer"
