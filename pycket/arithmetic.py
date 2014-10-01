@@ -84,49 +84,6 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
-class __extend__(values.W_Complex):
-    def same_numeric_class(self, other):
-        if isinstance(other, values.W_Complex):
-            return self, other
-        return self, values.W_Complex(other, values.W_Fixnum(0))
-
-    def arith_add_same(self, other):
-        assert isinstance(other, values.W_Complex)
-        return values.W_Complex(self.real.arith_add(other.real),
-                                self.imag.arith_add(other.imag))
-
-    def arith_sub_same(self, other):
-        assert isinstance(other, values.W_Complex)
-        return values.W_Complex(self.real.arith_sub(other.real),
-                                self.imag.arith_sub(other.imag))
-
-    def arith_sub1(self):
-        return values.W_Complex(self.real.arith_sub1(), self.imag)
-
-    def arith_mul_same(self, other):
-        assert isinstance(other, values.W_Complex)
-        re1 = self.real.arith_mul(other.real)
-        re2 = self.imag.arith_mul(other.imag)
-        im1 = self.real.arith_mul(other.imag)
-        im2 = self.imag.arith_mul(other.real)
-        return values.W_Complex(re1.arith_sub(re2), im1.arith_add(im2))
-
-    def arith_div_same(self, other):
-        assert isinstance(other, values.W_Complex)
-        factor = other.reciprocal()
-        return self.arith_mul(factor)
-
-    # Useful complex number operations
-    def complex_conjugate(self):
-        # XXX
-        return values.W_Complex(self.real, self.imag.arith_mul(values.W_Fixnum(-1)))
-
-    def reciprocal(self):
-        re2 = self.real.arith_mul(self.real)
-        im2 = self.imag.arith_mul(self.imag)
-        denom = re2.arith_add(im2)
-        return self.complex_conjugate().arith_div(denom)
-
 
 class __extend__(values.W_Fixnum):
 
@@ -589,3 +546,48 @@ class __extend__(values.W_Bignum):
     def arith_oddp(self):
         return values.W_Bool.make(
             self.value.mod(rbigint.fromint(2)).tobool())
+
+
+class __extend__(values.W_Complex):
+    def same_numeric_class(self, other):
+        if isinstance(other, values.W_Complex):
+            return self, other
+        return self, values.W_Complex(other, values.W_Fixnum(0))
+
+    def arith_add_same(self, other):
+        assert isinstance(other, values.W_Complex)
+        return values.W_Complex(self.real.arith_add(other.real),
+                                self.imag.arith_add(other.imag))
+
+    def arith_sub_same(self, other):
+        assert isinstance(other, values.W_Complex)
+        return values.W_Complex(self.real.arith_sub(other.real),
+                                self.imag.arith_sub(other.imag))
+
+    def arith_sub1(self):
+        return values.W_Complex(self.real.arith_sub1(), self.imag)
+
+    def arith_mul_same(self, other):
+        assert isinstance(other, values.W_Complex)
+        re1 = self.real.arith_mul(other.real)
+        re2 = self.imag.arith_mul(other.imag)
+        im1 = self.real.arith_mul(other.imag)
+        im2 = self.imag.arith_mul(other.real)
+        return values.W_Complex(re1.arith_sub(re2), im1.arith_add(im2))
+
+    def arith_div_same(self, other):
+        assert isinstance(other, values.W_Complex)
+        factor = other.reciprocal()
+        return self.arith_mul(factor)
+
+    # Useful complex number operations
+    def complex_conjugate(self):
+        # XXX
+        return values.W_Complex(self.real, self.imag.arith_mul(values.W_Fixnum(-1)))
+
+    def reciprocal(self):
+        re2 = self.real.arith_mul(self.real)
+        im2 = self.imag.arith_mul(self.imag)
+        denom = re2.arith_add(im2)
+        return self.complex_conjugate().arith_div(denom)
+
