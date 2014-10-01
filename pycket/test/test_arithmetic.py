@@ -5,8 +5,6 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
-skip = pytest.mark.skipif("True")
-
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)
@@ -36,6 +34,43 @@ def test_quotient():
     run_fix("(quotient %s %s)" % (-(big+1), big), -1)
     res = run(str(big / 2))
     run("(quotient %s 2)" % (big, ), res)
+
+@pytest.mark.xfail
+def test_remainder(doctest):
+    """
+    > (remainder 0 1)
+    0
+    > (remainder 0 -1)
+    0
+    > (remainder 0 2)
+    0
+    > (remainder 0 -2)
+    0
+    > (remainder 1 1)
+    0
+    > (remainder -1 1)
+    0
+    > (remainder 1 -1)
+    0
+    > (remainder 2 1)
+    0
+    > (remainder 2 -1)
+    0
+    > (remainder 4 3)
+    1
+    > (remainder 4 -3)
+    1
+    > (remainder -4 3)
+    -1
+    > (remainder 10 3)
+    1
+    > (remainder -10.0 3)
+    -1.0
+    > (remainder 10.0 -3)
+    1.0
+    > (remainder -10 -3)
+    -1
+    """
 
 def test_div_fix():
     run_fix("(/ 6 3)", 2)
@@ -138,7 +173,7 @@ def test_string_to_number(doctest):
     """
     assert doctest
 
-@skip
+@pytest.mark.xfail
 def test_atan(doctest):
     """
     > (atan 0.5)
@@ -147,10 +182,10 @@ def test_atan(doctest):
     1.1071487177940904
     > (atan -2 -1)
     -2.0344439357957027
-    ;> (atan 1.0+5.0i)
-    ;1.530881333938778+0.19442614214700213i
-    ;> (atan +inf.0 -inf.0)
-    ;2.356194490192345
+    > (atan 1.0+5.0i)
+    1.530881333938778+0.19442614214700213i
+    > (atan +inf.0 -inf.0)
+    2.356194490192345
     """
 
 def test_flonum_special(doctest):
@@ -227,4 +262,29 @@ def test_all_comparators(doctest):
     #t
     > (>= 1 2 1)
     #f
+    """
+
+@pytest.mark.xfail
+def test_edge_cases(doctest):
+    """
+    > (* 0.0 1)
+    0.0
+    > (* 0 0.1)
+    0
+    > (* 0.0 0)
+    0
+    > (+ -0.1 0.1)
+    0.0
+    > (complex? (+ 1+1i 1-1i))
+    #t
+    > (complex? 2)
+    #t
+    > (+ 1+0.5i 1-0.5i)
+    2.0+0.0i
+    > (real? (+ 1+0.5i 1-0.5i))
+    #f
+    > (integer? (+ 1+1i 1-1i))
+    #t
+    > (+ 1+1i 1-1i)
+    2
     """
