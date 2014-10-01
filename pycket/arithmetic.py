@@ -119,6 +119,10 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
+class __extend__(values.W_Integer):
+    def arith_round(self):
+        return self
+
 
 class __extend__(values.W_Fixnum):
 
@@ -599,6 +603,23 @@ class __extend__(values.W_Rational):
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
         return self.arith_mul(factor)
+
+    def arith_round(self):
+        res1 = self._numerator.floordiv(self._denominator)
+        diff1 = res1.mul(self._denominator).sub(self._numerator)
+        diff2 = diff1.add(self._denominator).abs()
+        diff1 = diff1.abs()
+        if diff1.gt(diff2):
+            res2 = res1.add(ONERBIGINT)
+            return values.W_Bignum.frombigint(res2)
+        elif diff1.eq(diff2):
+            if res1.and_(ONERBIGINT).tobool():
+                res2 = res1.add(ONERBIGINT)
+                return values.W_Bignum.frombigint(res2)
+            else:
+                return values.W_Bignum.frombigint(res1)
+        else:
+            return values.W_Bignum.frombigint(res1)
 
 
 class __extend__(values.W_Complex):
