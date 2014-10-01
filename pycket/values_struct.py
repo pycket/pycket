@@ -63,10 +63,10 @@ class W_StructType(values.W_Object):
         It does not support properties.
         """
         if inspector is PREFAB:
-            # FIXME: mutables and super
-            key = W_PrefabKey.make_from_params(name.value, init_field_cnt.value, auto_field_cnt.value, auto_v, [], None)
-            if key in W_StructType.unbound_prefab_types:
-                return W_StructType.unbound_prefab_types.pop(key)
+            prefab_key = W_PrefabKey.from_raw_params(name, init_field_cnt,\
+                auto_field_cnt, auto_v, immutables, super_type)
+            if prefab_key in W_StructType.unbound_prefab_types:
+                return W_StructType.unbound_prefab_types.pop(prefab_key)
         return W_StructType(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
@@ -75,12 +75,10 @@ class W_StructType(values.W_Object):
         if prefab_key in W_StructType.unbound_prefab_types:
             w_struct_type = W_StructType.unbound_prefab_types[prefab_key]
         else:
-            name, init_field_cnt, auto_field_cnt, auto_v, mutables,\
-                super_key = prefab_key.make_key_tuple()
-            if super_key:
-                super_type = W_StructType.make_prefab(super_key)
-            else:
-                super_type = values.w_false
+            name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key =\
+                prefab_key.make_key_tuple()
+            super_type = W_StructType.make_prefab(super_key) if super_key else\
+                values.w_false
             immutables = []
             for i in range(init_field_cnt):
                 if i not in mutables:
@@ -237,42 +235,118 @@ class W_StructType(values.W_Object):
         return [name, init_field_cnt, auto_field_cnt, self.acc, self.mut,
                 immutable_k_list, super, skipped]
 
-    def make_short_prefab_key(self):
-        key = self.make_prefab_key()
-        short_key = key[:1] + key[1:]
-        return values.to_list(short_key) if len(short_key) > 1 else key[0]
-
-    def make_prefab_key(self):
-        key = []
-        key.append(values.W_Symbol.make(self.name))
-        key.append(values.W_Fixnum(self.init_field_cnt))
-        if self.auto_field_cnt > 0:
-            key.append(values.to_list([values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
-        mutable_fields = []
-        for i in range(self.init_field_cnt):
-            if i not in self.immutables:
-                mutable_fields.append(values.W_Fixnum(i))
-        if mutable_fields:
-            key.append(values_vector.W_Vector.fromelements(mutable_fields))
-        if self.super is not values.w_false:
-            super_key = self.super.make_prefab_key()
-            key.extend(super_key)
-        return key
-
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
-# FIXME: this implementation is ugly
 class W_PrefabKey(values.W_Object):
     _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",\
-        "auto_v", "mutables"]
+        "auto_v", "mutables", "super_key"]
     all_keys = []
 
     @staticmethod
-    def isprefabkey(v):
+    def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
+        for key in W_PrefabKey.all_keys:
+            if key.equal((name, init_field_cnt, auto_field_cnt, auto_v,\
+                mutables, super_key)):
+                return key
+        key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v,\
+            mutables, super_key)
+        W_PrefabKey.all_keys.append(key)
+        return key
+
+    @staticmethod
+    def from_struct_type(struct_type):
+        assert isinstance(struct_type, W_StructType)
+        name = struct_type.name
+        init_field_cnt = struct_type.init_field_cnt
+        auto_field_cnt = struct_type.auto_field_cnt
+        auto_v = struct_type.auto_v
+        mutables = []
+        prev_idx = 1
+        for i in struct_type.immutables:
+            for j in range(prev_idx, i):
+                mutables.append(j)
+            prev_idx = i + 1
+        super_key = W_PrefabKey.from_struct_type(struct_type.super) if\
+            struct_type.super is not values.w_false else None
+        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
+            mutables, super_key)
+
+    @staticmethod
+    def from_raw_params(w_name, w_init_field_cnt, w_auto_field_cnt, auto_v,\
+        w_immutables, super_type):
+        assert isinstance(w_name, values.W_Symbol)
+        name = w_name.value
+        assert isinstance(w_init_field_cnt, values.W_Fixnum)
+        init_field_cnt = w_init_field_cnt.value
+        assert isinstance(w_auto_field_cnt, values.W_Fixnum)
+        auto_field_cnt = w_auto_field_cnt.value
+        mutables = []
+        prev_idx = 1
+        for i in values.from_list(w_immutables):
+            assert isinstance(i, values.W_Fixnum)
+            for j in range(prev_idx, i.value):
+                mutables.append(j)
+            prev_idx = i.value + 1
+        super_key = W_PrefabKey.from_struct_type(super_type) if\
+            super_type is not values.w_false else None
+        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
+            mutables, super_key)
+
+    @staticmethod
+    def from_raw_key(w_key, total_field_cnt=0):
+        init_field_cnt = -1
+        auto_field_cnt = 0
+        auto_v = values.w_false
+        super_key = None
+        mutables = []
+        if isinstance(w_key, values.W_Symbol):
+            name = w_key.value
+            init_field_cnt = total_field_cnt
+        else:
+            key = values.from_list(w_key)
+            w_name = key[0]
+            assert isinstance(w_name, values.W_Symbol)
+            name = w_name.value
+            idx = 1
+            w_init_field_cnt = key[idx]
+            if isinstance(w_init_field_cnt, values.W_Fixnum):
+                init_field_cnt = w_init_field_cnt.value
+                idx += 1
+            if len(key) > idx:
+                w_auto = key[idx]
+                if isinstance(w_auto, values.W_Cons):
+                    auto = values.from_list(w_auto)
+                    w_auto_field_cnt = auto[0]
+                    assert isinstance(w_auto_field_cnt, values.W_Fixnum)
+                    auto_field_cnt = w_auto_field_cnt.value
+                    auto_v = auto[1]
+                    idx += 1
+            if len(key) > idx:
+                v = key[idx]
+                if isinstance(v, values_vector.W_Vector):
+                    for i in range(v.len):
+                        mutable = v.ref(i)
+                        assert isinstance(mutable, values.W_Fixnum)
+                        mutables.append(mutable.value)
+                    idx += 1
+            if len(key) > idx:
+                w_super_key = values.to_list(key[idx:])
+                # super_key = W_PrefabKey.from_raw_key(values.W_Symbol.make("abc"), 0)
+        if init_field_cnt == -1:
+            init_field_cnt = total_field_cnt
+            while super_key:
+                super_name, super_init_field_cnt, super_auto_field_cnt,\
+                    super_auto_v, super_mutables, super_key = super_key
+                init_field_cnt -= super_init_field_cnt
+        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
+            mutables, super_key)
+
+    @staticmethod
+    def is_prefab_key(v):
         if isinstance(v, values.W_Symbol):
             return values.w_true
         elif isinstance(v, values.W_Cons):
@@ -295,71 +369,13 @@ class W_PrefabKey(values.W_Object):
                     return values.w_false
                 idx += 1
             if len(key) > idx:
-                return W_PrefabKey.isprefabkey(key[idx])
+                return W_PrefabKey.is_prefab_key(key[idx])
             return values.w_true
         else:
             return values.w_false
 
-    @staticmethod
-    def make(w_key, total_field_cnt):
-        auto_field_cnt = 0
-        auto_v = values.w_false
-        super_key = None
-        mutables = []
-        if isinstance(w_key, values.W_Symbol):
-            name = w_key.value
-            init_field_cnt = total_field_cnt
-        else:
-            key = values.from_list(w_key)
-            w_name = key[0]
-            assert isinstance(w_name, values.W_Symbol)
-            name = w_name.value
-            idx = 1
-            w_init_field_cnt = key[idx]
-            if isinstance(w_init_field_cnt, values.W_Fixnum):
-                init_field_cnt = w_init_field_cnt.value
-                idx += 1
-            else:
-                # FIXME: 
-                init_field_cnt = total_field_cnt
-            if len(key) > idx:
-                w_auto = key[idx]
-                if isinstance(w_auto, values.W_Cons):
-                    auto = values.from_list(w_auto)
-                    w_auto_field_cnt = auto[0]
-                    assert isinstance(w_auto_field_cnt, values.W_Fixnum)
-                    auto_field_cnt = w_auto_field_cnt.value
-                    auto_v = auto[1]
-                    idx += 1
-            if len(key) > idx:
-                v = key[idx]
-                if isinstance(v, values_vector.W_Vector):
-                    for i in range(v.len):
-                        mutable = v.ref(i)
-                        assert isinstance(mutable, values.W_Fixnum)
-                        mutables.append(mutable.value)
-                    idx += 1
-            if len(key) > idx:
-                super_key = W_PrefabKey.make(key[idx], total_field_cnt - init_field_cnt)
-            else:
-                super_key = None
-        for key in W_PrefabKey.all_keys:
-            if key.make_key_tuple() == (name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
-                return key
-        prefab_key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key)
-        W_PrefabKey.all_keys.append(prefab_key)
-        return prefab_key
-
-    @staticmethod
-    def make_from_params(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
-        for key in W_PrefabKey.all_keys:
-            if key.make_key_tuple() == (name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
-                return key
-        prefab_key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key)
-        W_PrefabKey.all_keys.append(prefab_key)
-        return prefab_key
-
-    def __init__(self, name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
+    def __init__(self, name, init_field_cnt, auto_field_cnt, auto_v,\
+        mutables, super_key):
         self.name = name
         self.init_field_cnt = init_field_cnt
         self.auto_field_cnt = auto_field_cnt
@@ -367,8 +383,37 @@ class W_PrefabKey(values.W_Object):
         self.mutables = mutables
         self.super_key = super_key
 
+    def equal(self, other):
+        if isinstance(other, W_PrefabKey):
+            return self.make_key_tuple() == other.make_key_tuple()
+        elif isinstance(other, tuple):
+            return self.make_key_tuple() == other
+        return False
+
+    def key(self):
+        key = []
+        key.append(values.W_Symbol.make(self.name))
+        key.append(values.W_Fixnum(self.init_field_cnt))
+        if self.auto_field_cnt > 0:
+            key.append(values.to_list(\
+                [values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
+        mutables = []
+        for i in self.mutables:
+            mutables.append(values.W_Fixnum(i))
+        if mutables:
+            key.append(values_vector.W_Vector.fromelements(mutables))
+        if self.super_key:
+            key.extend(self.super_key.key())
+        return key
+
+    def short_key(self):
+        key = self.key()
+        short_key = key[:1] + key[1:]
+        return values.to_list(short_key) if len(short_key) > 1 else key[0]
+
     def make_key_tuple(self):
-        return self.name, self.init_field_cnt, self.auto_field_cnt, self.auto_v, self.mutables, self.super_key
+        return self.name, self.init_field_cnt, self.auto_field_cnt,\
+            self.auto_v, self.mutables, self.super_key
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
@@ -441,7 +486,7 @@ class W_Struct(W_RootStruct):
 
     @staticmethod
     def make_prefab(w_key, w_values):
-        w_struct_type = W_StructType.make_prefab(W_PrefabKey.make(w_key, len(w_values)))
+        w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
         return W_Struct.make(w_values, w_struct_type)
 
     def vals(self):
@@ -477,17 +522,6 @@ class W_Struct(W_RootStruct):
             self._set_list(field + offset, values.W_Cell(val))
         return return_value(values.w_void, env, cont)
 
-    # We provide a method to get properties from a struct rather than a struct_type,
-    # since impersonators can override struct properties.
-    @label
-    def get_prop(self, property, env, cont):
-        from pycket.interpreter import return_value
-        for p, val in self._type.props:
-            if p is property:
-                return return_value(val, env, cont)
-        raise SchemeException("%s-accessor: expected %s? but got %s" %
-            (property.name, property.name, self.tostring()))
-
     # unsafe versions
     def _ref(self, k):
         value = self._get_list(k)
@@ -500,6 +534,17 @@ class W_Struct(W_RootStruct):
             value.set_val(val)
         else:
             self._set_list(k, values.W_Cell(val))
+
+    # We provide a method to get properties from a struct rather than a struct_type,
+    # since impersonators can override struct properties.
+    @label
+    def get_prop(self, property, env, cont):
+        from pycket.interpreter import return_value
+        for p, val in self._type.props:
+            if p is property:
+                return return_value(val, env, cont)
+        raise SchemeException("%s-accessor: expected %s? but got %s" %
+            (property.name, property.name, self.tostring()))
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):
@@ -520,8 +565,8 @@ class W_Struct(W_RootStruct):
         else:
             if self._type.isprefab:
                 result = "#s(%s %s)" %\
-                    (self._type.make_short_prefab_key().tostring(),\
-                    ' '.join([val.tostring() for val in self.vals()]))
+                    (W_PrefabKey.from_struct_type(self._type).short_key()\
+                        .tostring(), ' '.join([val.tostring() for val in self.vals()]))
             else:
                 result = "(%s %s)" % (self._type.name,\
                     ' '.join([val.tostring() for val in self.vals()]))
