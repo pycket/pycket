@@ -655,8 +655,7 @@ class __extend__(values.W_Complex):
 
     # Useful complex number operations
     def complex_conjugate(self):
-        # XXX
-        return values.W_Complex(self.real, self.imag.arith_mul(values.W_Fixnum(-1)))
+        return values.W_Complex(self.real, self.imag.arith_unarysub())
 
     def reciprocal(self):
         re2 = self.real.arith_mul(self.real)
