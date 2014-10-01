@@ -242,11 +242,11 @@ def add1(v):
 
 @expose("atan", [values.W_Number, default(values.W_Number, None)])
 def atan(y, x):
-    if isinstance(x, values.W_Number):
+    if x is not None:
         # FIXME: signs determine the quadrant of the result
         # and care about NaNs and precision
-        if getattr(x, "arith_zerop")() is values.w_false:
-            z = getattr(y, "arith_div")(x)
+        if x.arith_zerop() is values.w_false:
+            z = y.arith_div(x)
         else:
             # we should raise exn_fail_contract_divide_by_zero
             raise SchemeException("zero_divisor")
