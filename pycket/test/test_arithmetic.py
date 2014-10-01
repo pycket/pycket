@@ -360,3 +360,19 @@ def test_sub1(doctest):
     w_x = W_Fixnum(-sys.maxint-1).arith_sub1()
     assert isinstance(w_x, W_Bignum)
 
+def test_round(doctest):
+    """
+    > (round 0.1)
+    0.0
+    > (round 0.0)
+    0.0
+    > (round 0.5)
+    0.0
+    > (round 0.51)
+    1.0
+    > (round -0.5)
+    -0.0
+    > (round -0.5001)
+    -1.0
+    """
+

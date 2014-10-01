@@ -359,19 +359,8 @@ class __extend__(values.W_Flonum):
 
     # ------------------ miscellanous ------------------
     def arith_round(self):
-        fval = self.value
-        if fval >= 0:
-            factor = 1
-        else:
-            factor = -1
-
-        fval = fval * factor
-        try:
-            val = rarithmetic.ovfcheck_float_to_int(math.floor(fval + 0.5) * factor)
-        except OverflowError:
-            # XXX is this correct?
-            return values.W_Bignum(rbigint.fromfloat(math.floor(self.value + 0.5) * factor))
-        return values.W_Fixnum(val)
+        from rpython.rlib.rfloat import round_double
+        return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
     def arith_floor(self):
         # XXX factor out conversion to fix or bignum
