@@ -442,12 +442,12 @@ class W_Rational(W_Number):
 
     @staticmethod
     def frombigint(n, d=rbigint.fromint(1)):
-        from pycket.arithmetic import gcd, make_int
+        from pycket.arithmetic import gcd
         g = gcd(n, d)
         n = n.floordiv(g)
         d = d.floordiv(g)
         if d.eq(rbigint.fromint(1)):
-            return make_int(W_Bignum(n))
+            return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
     def tostring(self):
@@ -497,6 +497,16 @@ class W_Bignum(W_Integer):
         return str(self.value)
     def __init__(self, val):
         self.value = val
+
+    @staticmethod
+    def frombigint(value):
+        try:
+            num = value.toint()
+        except OverflowError:
+            pass
+        else:
+            return W_Fixnum(num)
+        return W_Bignum(value)
 
     def equal(self, other):
         if not isinstance(other, W_Bignum):
