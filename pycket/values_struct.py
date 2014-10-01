@@ -335,12 +335,12 @@ class W_PrefabKey(values.W_Object):
                     idx += 1
             if len(key) > idx:
                 w_super_key = values.to_list(key[idx:])
-                # super_key = W_PrefabKey.from_raw_key(values.W_Symbol.make("abc"), 0)
+                super_key = W_PrefabKey.from_raw_key(w_super_key)
         if init_field_cnt == -1:
             init_field_cnt = total_field_cnt
             while super_key:
                 super_name, super_init_field_cnt, super_auto_field_cnt,\
-                    super_auto_v, super_mutables, super_key = super_key
+                    super_auto_v, super_mutables, super_key = super_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
             mutables, super_key)
