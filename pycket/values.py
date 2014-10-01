@@ -522,6 +522,12 @@ class W_Complex(W_Number):
         self.real = re
         self.imag = im
 
+    def equal(self, other):
+        if not isinstance(other, W_Complex):
+            return False
+        return (self.real.equal(other.real) and
+                self.imag.equal(other.imag))
+
     def tostring(self):
         return "%s+%si" % (self.real.tostring(), self.imag.tostring())
 
