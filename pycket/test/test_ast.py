@@ -156,3 +156,13 @@ def test_bottom_up_let_conversion():
         let = let.body[0]
     assert let.rator.sym is f
 
+
+def test_bottom_up_let_conversion_bug_append():
+    caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")
+    lam = caselam.lams[0]
+    cons, car, cdr, a, b, append = lam.args.elems
+    let = lam.body[0]
+    for fn in [car, cdr, append]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is cons

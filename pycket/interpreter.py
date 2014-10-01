@@ -121,7 +121,7 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -141,7 +141,8 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        env = ast._prune_env(env, rhsindex + 1)
+        if not pruning_done:
+            env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -191,7 +192,8 @@ class FusedLet0Let0Cont(Cont):
         actual_cont = LetCont.make(
                 [], ast1, index1, self.env,
                 LetCont.make(
-                    [], ast2, index2, self.env, self.prev, fuse=False),
+                    [], ast2, index2, self.env, self.prev, fuse=False,
+                    pruning_done=True),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
@@ -548,27 +550,27 @@ class App(AST):
         all_args = [rator] + rands
         fresh_vars = []
         fresh_rhss = []
-        new_rands = []
 
         name = "AppRator_"
         for i, rand in enumerate(all_args):
-            if rand.simple:
-                new_rands.append(rand)
-            else:
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    new_symbol = Gensym.gensym(name)
-                    all_args[i] = LexicalVar(new_symbol)
-                    return rand.replace_innermost_with_app(new_symbol, all_args[0], all_args[1:])
+            if not rand.simple:
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    if not fresh_vars:
+                        all_args[i] = fresh_rand_var
+                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
+                    else:
+                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
+                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+                all_args[i] = fresh_rand_var
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
-                new_rands.append(fresh_rand_var)
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rands[0], new_rands[1:])]
+            fresh_body = [App(all_args[0], all_args[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
@@ -1556,6 +1558,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
 def interpret_one(ast, env=None):
     cont = nil_continuation
     came_from = ast
+    cont.update_cm(values.parameterization_key, values.top_level_config)
     if env is None:
         env = ToplevelEnv()
     try:

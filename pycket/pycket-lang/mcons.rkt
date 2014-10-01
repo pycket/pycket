@@ -1,13 +1,15 @@
 #lang racket/base
+(provide (except-out (all-from-out racket/base) #%module-begin))
 (require racket/unsafe/ops (for-syntax racket/base racket/runtime-path)
          racket/include
          compatibility/mlist)
-(require (prefix-in r5: r5rs) (prefix-in k: '#%kernel))
+(require (prefix-in r5: r5rs) (prefix-in k: '#%kernel) racket/contract)
+(provide (all-from-out racket/unsafe/ops))
 ;; for now, white-listed for benchmarks.
 (provide k:call-with-output-file)
 (provide (rename-out [modbeg #%module-begin]))
 
-(provide include time)
+(provide include time contract)
 
 ;------------------------------------------------------------------------------
 ; customized timer

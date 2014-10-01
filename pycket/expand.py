@@ -509,7 +509,7 @@ def _to_num(json):
     if "numerator" in obj:
         n = obj["numerator"]
         d = obj["denominator"]
-        return values.W_Rational(_to_num(n), _to_num(d))
+        return values.W_Rational.make(_to_num(n), _to_num(d))
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
