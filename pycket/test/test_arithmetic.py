@@ -423,3 +423,25 @@ def test_max(doctest):
     > (max 1 3 -17 2.0)
     3.0
     """
+
+def test_bitwise(doctest):
+    """
+    > (bitwise-ior 1 2)
+    3
+    > (bitwise-ior -32 1)
+    -31
+    > (bitwise-ior)
+    0
+    > (bitwise-and 1 2)
+    0
+    > (bitwise-and -32 -1)
+    -32
+    > (bitwise-and)
+    -1
+    > (bitwise-xor 1 5)
+    4
+    > (bitwise-xor -32 -1)
+    31
+    > (bitwise-xor)
+    0
+    """
