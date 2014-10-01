@@ -341,3 +341,22 @@ def test_gcd():
             assert gcd_long(-b, a) == r
         else:
             assert gcd_long(-b, a) == -r
+
+def test_sub1(doctest):
+    """
+    > (sub1 1)
+    0
+    > (sub1 -11111111111111111111111111111111112)
+    -11111111111111111111111111111111113
+    > (sub1 1.4)
+    0.3999999999999999
+    > (sub1 1.5)
+    0.5
+    > (sub1 1+1i)
+    0+1i
+    > (sub1 1/2)
+    -1/2
+    """
+    w_x = W_Fixnum(-sys.maxint-1).arith_sub1()
+    assert isinstance(w_x, W_Bignum)
+

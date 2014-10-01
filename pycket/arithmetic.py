@@ -60,6 +60,9 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return self.arith_sub_same(other)
 
+    def arith_sub1(self):
+        return self.arith_sub(values.W_Fixnum(1))
+
     def arith_mul(self, other):
         if isinstance(self, values.W_Fixnum) and not self.value:
             return self
@@ -146,10 +149,6 @@ class __extend__(values.W_Fixnum):
         except OverflowError:
             return values.W_Bignum(rbigint.fromint(self.value).neg())
         return values.W_Fixnum(res)
-
-    def arith_sub1(self):
-        # XXX ovf check
-        return values.W_Fixnum(self.value - 1)
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -311,9 +310,6 @@ class __extend__(values.W_Flonum):
 
     def arith_unarysub(self):
         return values.W_Flonum(-self.value)
-
-    def arith_sub1(self):
-        return values.W_Flonum(self.value - 1)
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Flonum)
@@ -602,11 +598,6 @@ class __extend__(values.W_Rational):
                 self._numerator.mul(other._denominator).sub(other._numerator.mul(self._denominator)),
                 self._denominator.mul(other._denominator))
 
-    def arith_sub1(self):
-        return values.W_Rational.frombigint(
-                self._numerator.sub(self._denominator),
-                self._denominator)
-
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Rational)
         return values.W_Rational.frombigint(
@@ -636,9 +627,6 @@ class __extend__(values.W_Complex):
         assert isinstance(other, values.W_Complex)
         return values.W_Complex(self.real.arith_sub(other.real),
                                 self.imag.arith_sub(other.imag))
-
-    def arith_sub1(self):
-        return values.W_Complex(self.real.arith_sub1(), self.imag)
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Complex)
