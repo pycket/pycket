@@ -112,6 +112,7 @@ def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
     if isinstance(val, values.W_Bignum):
+        # XXX this should never be reachable
         try:
             v = val.value.toint()
             return values.W_Bool.make(0 <= v <= 255)

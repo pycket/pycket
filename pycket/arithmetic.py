@@ -48,17 +48,6 @@ def gcd(u, v):
     return result
 
 
-def make_int(w_value):
-    # XXX is this ever called with a non-bignum?
-    if isinstance(w_value, values.W_Bignum):
-        try:
-            num = w_value.value.toint()
-        except OverflowError:
-            pass
-        else:
-            return values.W_Fixnum(num)
-    return w_value
-
 class __extend__(values.W_Number):
     def arith_unaryadd(self):
         return self
@@ -70,6 +59,9 @@ class __extend__(values.W_Number):
     def arith_sub(self, other):
         self, other = self.same_numeric_class(other)
         return self.arith_sub_same(other)
+
+    def arith_sub1(self):
+        return self.arith_sub(values.W_Fixnum(1))
 
     def arith_mul(self, other):
         if isinstance(self, values.W_Fixnum) and not self.value:
@@ -127,6 +119,10 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
+class __extend__(values.W_Integer):
+    def arith_round(self):
+        return self
+
 
 class __extend__(values.W_Fixnum):
 
@@ -157,10 +153,6 @@ class __extend__(values.W_Fixnum):
         except OverflowError:
             return values.W_Bignum(rbigint.fromint(self.value).neg())
         return values.W_Fixnum(res)
-
-    def arith_sub1(self):
-        # XXX ovf check
-        return values.W_Fixnum(self.value - 1)
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -323,9 +315,6 @@ class __extend__(values.W_Flonum):
     def arith_unarysub(self):
         return values.W_Flonum(-self.value)
 
-    def arith_sub1(self):
-        return values.W_Flonum(self.value - 1)
-
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Flonum)
         return values.W_Flonum(self.value * other.value)
@@ -374,19 +363,8 @@ class __extend__(values.W_Flonum):
 
     # ------------------ miscellanous ------------------
     def arith_round(self):
-        fval = self.value
-        if fval >= 0:
-            factor = 1
-        else:
-            factor = -1
-
-        fval = fval * factor
-        try:
-            val = rarithmetic.ovfcheck_float_to_int(math.floor(fval + 0.5) * factor)
-        except OverflowError:
-            # XXX is this correct?
-            return values.W_Bignum(rbigint.fromfloat(math.floor(self.value + 0.5) * factor))
-        return values.W_Fixnum(val)
+        from rpython.rlib.rfloat import round_double
+        return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
     def arith_floor(self):
         # XXX factor out conversion to fix or bignum
@@ -449,11 +427,11 @@ class __extend__(values.W_Bignum):
     # ------------------ addition ------------------
     def arith_add_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.add(other.value)))
+        return values.W_Bignum.frombigint(self.value.add(other.value))
 
     def arith_sub_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.sub(other.value)))
+        return values.W_Bignum.frombigint(self.value.sub(other.value))
 
     def arith_unarysub(self):
         # XXX fix the sys.maxint + 1 case
@@ -461,7 +439,7 @@ class __extend__(values.W_Bignum):
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.mul(other.value)))
+        return values.W_Bignum.frombigint(self.value.mul(other.value))
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -471,12 +449,12 @@ class __extend__(values.W_Bignum):
             raise SchemeException("zero_divisor")
         if mod.tobool():
             raise SchemeException("rationals not implemented")
-        return make_int(values.W_Bignum(res))
+        return values.W_Bignum.frombigint(res)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Bignum)
         try:
-            return make_int(values.W_Bignum(self.value.mod(other.value)))
+            return values.W_Bignum.frombigint(self.value.mod(other.value))
         except ZeroDivisionError:
             raise Exception("zero_divisor")
 
@@ -489,12 +467,12 @@ class __extend__(values.W_Bignum):
             div, rem = _divrem(x, y)
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
-        return make_int(values.W_Bignum(div))
+        return values.W_Bignum.frombigint(div)
 
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.pow(other.value)))
+        return values.W_Bignum.frombigint(self.value.pow(other.value))
 
     def arith_shr_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -503,7 +481,7 @@ class __extend__(values.W_Bignum):
         except OverflowError:
             # XXX raise a Racket-level error!
             raise ValueError('Right operand too big')
-        return make_int(values.W_Bignum(self.value.rshift(num)))
+        return values.W_Bignum.frombigint(self.value.rshift(num))
 
     def arith_shl_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -512,26 +490,26 @@ class __extend__(values.W_Bignum):
         except OverflowError:
             # XXX raise a Racket-level error!
             raise ValueError('Right operand too big')
-        return make_int(values.W_Bignum(self.value.lshift(num)))
+        return values.W_Bignum.frombigint(self.value.lshift(num))
 
     def arith_or_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.or_(other.value)))
+        return values.W_Bignum.frombigint(self.value.or_(other.value))
 
     def arith_and_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.and_(other.value)))
+        return values.W_Bignum.frombigint(self.value.and_(other.value))
 
     def arith_xor_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return make_int(values.W_Bignum(self.value.xor(other.value)))
+        return values.W_Bignum.frombigint(self.value.xor(other.value))
 
     def arith_not(self):
-        return make_int(values.W_Bignum(self.value.invert()))
+        return values.W_Bignum.frombigint(self.value.invert())
 
 
     def arith_abs(self):
-        return make_int(values.W_Bignum(self.value.abs()))
+        return values.W_Bignum.frombigint(self.value.abs())
 
 
     # ------------------ max ------------------
@@ -539,34 +517,34 @@ class __extend__(values.W_Bignum):
         assert isinstance(other, values.W_Bignum)
         # XXX is this tested?
         if self.value.lt(other.value):
-            return make_int(other)
-        return make_int(self)
+            return values.W_Bignum.frombigint(other.value)
+        return values.W_Bignum.frombigint(self.value)
 
     def arith_min_same(self, other):
         assert isinstance(other, values.W_Bignum)
         if self.value.lt(other.value):
-            return make_int(self)
-        return make_int(other)
+            return values.W_Bignum.frombigint(self.value)
+        return values.W_Bignum.frombigint(other.value)
 
 
     # ------------------ miscellanous ------------------
     def arith_round(self):
-        return make_int(self)
+        return self
 
     def arith_floor(self):
-        return make_int(self)
+        return self
 
     def arith_ceiling(self):
-        return make_int(self)
+        return self
 
     def arith_arith_fractional_part(self):
         return values.W_Fixnum(0)
 
     def arith_arith_integer_part(self):
-        return make_int(self)
+        return self
 
     def arith_inexact_exact(self):
-        return make_int(self)
+        return self
     def arith_exact_inexact(self):
         return values.W_Flonum(self.value.tofloat())
 
@@ -613,11 +591,6 @@ class __extend__(values.W_Rational):
                 self._numerator.mul(other._denominator).sub(other._numerator.mul(self._denominator)),
                 self._denominator.mul(other._denominator))
 
-    def arith_sub1(self):
-        return values.W_Rational.frombigint(
-                self._numerator.sub(self._denominator),
-                self._denominator)
-
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Rational)
         return values.W_Rational.frombigint(
@@ -630,6 +603,23 @@ class __extend__(values.W_Rational):
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
         return self.arith_mul(factor)
+
+    def arith_round(self):
+        res1 = self._numerator.floordiv(self._denominator)
+        diff1 = res1.mul(self._denominator).sub(self._numerator)
+        diff2 = diff1.add(self._denominator).abs()
+        diff1 = diff1.abs()
+        if diff1.gt(diff2):
+            res2 = res1.add(ONERBIGINT)
+            return values.W_Bignum.frombigint(res2)
+        elif diff1.eq(diff2):
+            if res1.and_(ONERBIGINT).tobool():
+                res2 = res1.add(ONERBIGINT)
+                return values.W_Bignum.frombigint(res2)
+            else:
+                return values.W_Bignum.frombigint(res1)
+        else:
+            return values.W_Bignum.frombigint(res1)
 
 
 class __extend__(values.W_Complex):
@@ -648,9 +638,6 @@ class __extend__(values.W_Complex):
         return values.W_Complex(self.real.arith_sub(other.real),
                                 self.imag.arith_sub(other.imag))
 
-    def arith_sub1(self):
-        return values.W_Complex(self.real.arith_sub1(), self.imag)
-
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Complex)
         re1 = self.real.arith_mul(other.real)
@@ -666,8 +653,7 @@ class __extend__(values.W_Complex):
 
     # Useful complex number operations
     def complex_conjugate(self):
-        # XXX
-        return values.W_Complex(self.real, self.imag.arith_mul(values.W_Fixnum(-1)))
+        return values.W_Complex(self.real, self.imag.arith_unarysub())
 
     def reciprocal(self):
         re2 = self.real.arith_mul(self.real)
