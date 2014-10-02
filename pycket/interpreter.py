@@ -1393,11 +1393,15 @@ class Let(SequencedBodyAST):
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
-        env_structures, remove_num_envs = self._compute_remove_num_envs(sub_env_structure)
-
         local_muts = variable_set()
         for b in self.body:
             local_muts.update(b.mutated_vars())
+        new_vars = vars.copy()
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
+        self, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
+            new_vars, sub_env_structure)
+
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structures[i])
@@ -1407,15 +1411,15 @@ class Let(SequencedBodyAST):
                 new_rhs = Cell(new_rhs, need_cell_flags)
             new_rhss.append(new_rhs)
 
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
         body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+        self.tostring()
+        result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+        result.tostring()
+        return result
 
-    def _compute_remove_num_envs(self, sub_env_structure):
+    def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = {}
         for b in self.body:
@@ -1426,9 +1430,16 @@ class Let(SequencedBodyAST):
             except KeyError:
                 pass
         # at most, we can remove all envs, apart from the one introduced by let
-        curr_remove = sub_env_structure.depth_and_size()[0] - 1
+        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
+        max_needed = 0
+        free_vars_not_mutated = True
         for v in free_vars_not_from_let:
-            curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+            depth = sub_env_structure.depth_of_var(v)[1] - 1
+            curr_remove = min(curr_remove, depth)
+            max_needed = max(max_needed, depth)
+            if LexicalVar(v) in new_vars:
+                free_vars_not_mutated = False
+        remove_num_envs = [curr_remove]
         if not curr_remove:
             body_env_structure = sub_env_structure
         else:
@@ -1436,14 +1447,33 @@ class Let(SequencedBodyAST):
             for i in range(curr_remove):
                 next_structure = next_structure.prev
             body_env_structure = SymList(self.args.elems, next_structure)
+        if (free_vars_not_mutated and max_needed == curr_remove and
+                max_depth > max_needed):
+            before_max_needed = sub_env_structure.prev.prev
+            for i in range(max_needed):
+                before_max_needed = before_max_needed.prev
+            body = self.body[0]
+            if (before_max_needed and before_max_needed.depth_and_size()[1]
+                    and not (isinstance(body, If) and body.remove_env)):
+                # there is unneeded local env storage that we will never need
+                # in the body. thus, make a copy of all local variables into
+                # the current let, *before* the last rhs is evaluated
+                # we can reuse the var names
+                copied_vars = free_vars_not_from_let.keys()
+                new_rhss = self.rhss[:-1] + [LexicalVar(v) for v in copied_vars] + [self.rhss[-1]]
+                new_lhs_vars = body_env_structure.elems[:-1] + copied_vars + [body_env_structure.elems[-1]]
+                counts = self.counts[:-1] + [1] * len(copied_vars) + [self.counts[-1]]
+                body_env_structure = SymList(new_lhs_vars)
+                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
+                self = Let(body_env_structure, counts, new_rhss, self.body)
+                return self._compute_remove_num_envs(new_vars, sub_env_structure)
 
         env_structures = [body_env_structure]
-        remove_num_envs = [curr_remove]
         for i in range(len(self.rhss) - 1, -1, -1):
             rhs = self.rhss[i]
             free_vars = rhs.free_vars()
             for v in free_vars:
-                curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+                curr_remove = min(curr_remove, sub_env_structure.prev.depth_of_var(v)[1])
             next_structure = sub_env_structure.prev
             for i in range(curr_remove):
                 next_structure = next_structure.prev
@@ -1451,7 +1481,7 @@ class Let(SequencedBodyAST):
             remove_num_envs.append(curr_remove)
         env_structures.reverse()
         remove_num_envs.reverse()
-        return env_structures, remove_num_envs[:]
+        return self, sub_env_structure, env_structures, remove_num_envs[:]
 
     def tostring(self):
         result = ["(let ("]
