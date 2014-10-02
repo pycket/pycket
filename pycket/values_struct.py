@@ -408,7 +408,7 @@ class W_PrefabKey(values.W_Object):
 
     def short_key(self):
         key = self.key()
-        short_key = key[:1] + key[1:]
+        short_key = key[:1] + key[2:]
         return values.to_list(short_key) if len(short_key) > 1 else key[0]
 
     def make_key_tuple(self):
