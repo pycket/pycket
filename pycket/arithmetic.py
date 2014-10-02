@@ -400,11 +400,7 @@ class __extend__(values.W_Flonum):
         if fractional_part.value == 0:
             return values.W_Fixnum(int(self.value))
         else:
-            # raise SchemeException("rationals not implemented")
-            # FIXME: implementation
-            from fractions import Fraction
-            frac = Fraction(self.value)
-            return values.W_Rational.fromint(frac.numerator, frac.denominator)
+            return values.W_Rational.fromfloat(self.value)
 
     def arith_exact_inexact(self):
         return self

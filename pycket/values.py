@@ -450,6 +450,16 @@ class W_Rational(W_Number):
             return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
+    @staticmethod
+    def fromfloat(f):
+        # FIXME: this is the temporary not exact implementation
+        assert isinstance(f, float)
+        d = 1000000
+        n = int(f * d)
+        from fractions import gcd
+        _gcd = gcd(n, d)
+        return W_Rational.fromint(n/_gcd, d/_gcd)
+
     def tostring(self):
         return "%s/%s" % (self._numerator.str(), self._denominator.str())
 
