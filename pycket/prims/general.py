@@ -344,7 +344,6 @@ for args in [ ("subprocess?",),
               ("namespace-anchor?",),
               ("chaperone-channel",),
               ("impersonate-channel",),
-              ("keyword<?", [values.W_Keyword, values.W_Keyword]),
               ]:
     define_nyi(*args)
 
@@ -1209,6 +1208,10 @@ def current_preserved_thread_cell_values(v):
         cell.value = val
     return values.w_void
 
+@expose("place-enabled?")
+def do_is_place_enabled(args):
+    return values.w_false
+
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
     from pycket.interpreter import Gensym
@@ -1256,6 +1259,10 @@ def regexp_matchp(r, o):
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
+
+@expose("keyword<?", [values.W_Keyword, values.W_Keyword])
+def keyword_less_than(a_keyword, b_keyword):
+    return values.W_Bool.make(a_keyword.value < b_keyword.value)
 
 @expose("build-path")
 def build_path(args):
