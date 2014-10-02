@@ -172,4 +172,4 @@ class ConsEnv(Env):
         return self
 
     def __repr__(self):
-        return "<ConsEnv %r %r>" % ([x.tostring() for  x in self._get_full_list()], self._prev)
+        return "<%s %r %r>" % (self.__class__.__name__, [x.tostring() for  x in self._get_full_list()], self._prev)
