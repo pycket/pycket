@@ -112,6 +112,7 @@ def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
     if isinstance(val, values.W_Bignum):
+        # XXX this should never be reachable
         try:
             v = val.value.toint()
             return values.W_Bool.make(0 <= v <= 255)
@@ -343,7 +344,6 @@ for args in [ ("subprocess?",),
               ("namespace-anchor?",),
               ("chaperone-channel",),
               ("impersonate-channel",),
-              ("keyword<?", [values.W_Keyword, values.W_Keyword]),
               ]:
     define_nyi(*args)
 
@@ -726,6 +726,84 @@ def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
                               not v.struct_type().isopaque)
 
+def is_struct_info(v):
+    if isinstance(v, values.W_Cons):
+        struct_info = values.from_list(v)
+        if len(struct_info) == 6:
+            if not isinstance(struct_info[0], values_struct.W_StructType) and\
+                struct_info[0] is not values.w_false:
+                return False
+            if not isinstance(struct_info[1], values_struct.W_StructConstructor) and\
+                struct_info[1] is not values.w_false:
+                return False
+            if not isinstance(struct_info[2], values_struct.W_StructPredicate) and\
+                struct_info[2] is not values.w_false:
+                return False
+            accessors = struct_info[3]
+            if isinstance(accessors, values.W_Cons):
+                for accessor in values.from_list(accessors):
+                    if not isinstance(accessor, values_struct.W_StructFieldAccessor):
+                        if accessor is not values.w_false and\
+                            accessor is values.from_list(accessors)[-1]:
+                            return False
+            else:
+                return False
+            mutators = struct_info[4]
+            if isinstance(mutators, values.W_Cons):
+                for mutator in values.from_list(mutators):
+                    if not isinstance(mutator, values_struct.W_StructFieldAccessor):
+                        if mutator is not values.w_false and\
+                          mutator is values.from_list(mutators)[-1]:
+                          return False
+            else:
+                return False
+            if not isinstance(struct_info[5], values_struct.W_StructType) and\
+                not isinstance(struct_info[5], values.W_Bool):
+                return False
+            return True
+        return False
+    elif isinstance(v, values.W_Prim):
+        if v.name == "make-struct-info":
+            return True
+    # TODO: it can be also:
+    # 1. a structure with the prop:struct-info property
+    # 2. a structure type derived from struct:struct-info or
+    # with prop:struct-info and wrapped with make-set!-transformer
+    return False
+
+@expose("struct-info?", [values.W_Object])
+def do_is_struct_info(v):
+    return values.W_Bool.make(is_struct_info(v))
+
+@expose("checked-struct-info?", [values.W_Object])
+def do_is_checked_struct_info(v):
+    if isinstance(v, values.W_Prim):
+        if v.name == "make-struct-info":
+            # TODO: only when no parent type is specified or
+            # the parent type is also specified through a transformer binding to such a value
+            return values.w_true
+    return values.w_false
+
+@expose("make-struct-info", [procedure])
+def do_make_struct_info(thunk):
+    # FIXME: return values.W_Prim("make-struct-info", thunk.call)
+    return values.w_void
+
+@expose("extract-struct-info", [values.W_Object], simple=False)
+def do_extract_struct_info(v, env, cont):
+    assert is_struct_info(v)
+    from pycket.interpreter import return_value
+    if isinstance(v, values.W_Cons):
+        return return_value(v, env, cont)
+    elif isinstance(v, values.W_Prim):
+        return v.call([], env, cont)
+    else:
+        # TODO: it can be also:
+        # 1. a structure with the prop:struct-info property
+        # 2. a structure type derived from struct:struct-info or
+        # with prop:struct-info and wrapped with make-set!-transformer
+        return return_value(values.w_void, env, cont)
+
 @expose("struct-info", [values_struct.W_RootStruct])
 def do_struct_info(struct):
     # TODO: if the current inspector does not control any
@@ -785,7 +863,8 @@ def expose_struct2vector(struct):
 def do_prefab_struct_key(v):
     if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
         return values.w_false
-    return v._type.make_short_prefab_key()
+    prefab_key = values_struct.W_PrefabKey.from_struct_type(v._type)
+    return prefab_key.short_key()
 
 @expose("make-prefab-struct")
 def do_make_prefab_struct(args):
@@ -795,12 +874,13 @@ def do_make_prefab_struct(args):
     return values_struct.W_Struct.make_prefab(key, vals)
 
 @expose("prefab-key->struct-type", [values.W_Object, values.W_Fixnum])
-def expose_prefab_key2struct_type(key, field_count):
-    return values_struct.W_StructType.make_prefab(values_struct.W_PrefabKey.make(key, field_count.value))
+def expose_prefab_key2struct_type(w_key, field_count):
+    return values_struct.W_StructType.make_prefab(
+      values_struct.W_PrefabKey.from_raw_key(w_key, field_count.value))
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
-    return values_struct.W_PrefabKey.isprefabkey(v)
+    return values_struct.W_PrefabKey.is_prefab_key(v)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
@@ -1128,6 +1208,10 @@ def current_preserved_thread_cell_values(v):
         cell.value = val
     return values.w_void
 
+@expose("place-enabled?")
+def do_is_place_enabled(args):
+    return values.w_false
+
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
     from pycket.interpreter import Gensym
@@ -1175,6 +1259,10 @@ def regexp_matchp(r, o):
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
+
+@expose("keyword<?", [values.W_Keyword, values.W_Keyword])
+def keyword_less_than(a_keyword, b_keyword):
+    return values.W_Bool.make(a_keyword.value < b_keyword.value)
 
 @expose("build-path")
 def build_path(args):

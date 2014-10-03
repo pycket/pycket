@@ -167,7 +167,7 @@ def impersonate_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if not isinstance(struct, values_struct.W_Struct):
+    if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("impersonate-struct: not given struct")
 
     struct_type = struct.struct_type()
@@ -206,7 +206,7 @@ def chaperone_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if not isinstance(struct, values_struct.W_Struct):
+    if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("chaperone-struct: not given struct")
 
     # Slicing would be nicer

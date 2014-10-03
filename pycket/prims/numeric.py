@@ -169,8 +169,6 @@ for args in [
         ("remainder", "arith_mod"), # FIXME
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
-        ("max",      "arith_max"),
-        ("min",      "arith_min"),
         ]:
     make_binary_arith(*args)
 
@@ -184,7 +182,9 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
                 raise SchemeException("expected at least 1 argument to %s" % name)
             return neutral_element
         if len(args) == 1:
-            return getattr(neutral_element, methname)(args[0])
+            if neutral_element is not None:
+                return getattr(neutral_element, methname)(args[0])
+            return args[0]
         else:
             init = args[0]
             for i in range(1, jit.promote(len(args))):
@@ -193,13 +193,15 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum(0), "arith_add", True),
-        ("-", values.W_Fixnum(0), "arith_sub", False),
-        ("*", values.W_Fixnum(1), "arith_mul", True),
-        ("/", values.W_Fixnum(1), "arith_div", False),
-        ("bitwise-and", values.W_Fixnum(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum(0), "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum(0), "arith_xor", True),
+        ("+", values.W_Fixnum.make(0), "arith_add", True),
+        ("-", values.W_Fixnum.make(0), "arith_sub", False),
+        ("*", values.W_Fixnum.make(1), "arith_mul", True),
+        ("/", values.W_Fixnum.make(1), "arith_div", False),
+        ("max", None, "arith_max", False),
+        ("min", None, "arith_min", False),
+        ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
+        ("bitwise-ior", values.W_Fixnum.make(0), "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum.make(0), "arith_xor", True),
         ]:
     make_arith(*args)
 
