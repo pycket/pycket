@@ -80,14 +80,14 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             cls.__init__(w_result, *args)
             return w_result
 
-        if unbox_fixnum:
-            make, make1 = _add_fixnum_classes(cls, make, make1)
+        if unbox_num:
+            make, make1 = _add_num_classes(cls, make, make1)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "1", staticmethod(make1))
         return cls
     return wrapper
 
-def _add_fixnum_classes(cls, orig_make, orig_make1):
+def _add_num_classes(cls, orig_make, orig_make1):
     # XXX quite brute force
     def make(vals, *args):
         from pycket.values import W_Fixnum
@@ -104,9 +104,11 @@ def _add_fixnum_classes(cls, orig_make, orig_make1):
                 return Size2Fixed01(w_a, w_b.value, *args)
         return orig_make(vals, *args)
     def make1(w_a, *args):
-        from pycket.values import W_Fixnum
+        from pycket.values import W_Fixnum, W_Flonum
         if isinstance(w_a, W_Fixnum):
             return Size1Fixed(w_a.value, *args)
+        if isinstance(w_a, W_Flonum):
+            return Size1Flo(w_a.value, *args)
         return orig_make1(w_a, *args)
 
     class Size1Fixed(cls):
@@ -129,6 +131,25 @@ def _add_fixnum_classes(cls, orig_make, orig_make1):
             raise NotImplementedError()
     Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
 
+    class Size1Flo(cls):
+        def __init__(self, vals_flo_0, *args):
+            self.vals_flo_0 = vals_flo_0
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 1
+
+        def _get_full_list(self):
+            return [self._get_list(0)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Flonum
+            assert i == 0
+            return W_Flonum(self.vals_flo_0)
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
 
     class Size2Fixed10(cls):
         def __init__(self, vals_fixed_0, w_val1, *args):
