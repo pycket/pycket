@@ -301,6 +301,10 @@ standard_printer = values.W_Prim("current-print", cur_print_proc)
 def open_output_string():
     return values.W_StringOutputPort()
 
+@expose("get-output-string", [values.W_StringOutputPort])
+def open_output_string(w_port):
+    return values.W_String.make(w_port.str)
+
 @expose("port-display-handler", [values.W_OutputPort])
 def port_display_handler(p):
     return standard_printer
@@ -309,6 +313,60 @@ def port_display_handler(p):
 def port_write_handler(p):
     return standard_printer
 
+@expose("read-bytes-avail!", [values.W_Bytes, default(values.W_InputPort, None),
+                              default(values.W_Fixnum, values.W_Fixnum(0)),
+                              default(values.W_Fixnum, None)], simple=False)
+def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
+    from pycket.interpreter import return_value
+
+    # FIXME: custom ports
+    if w_bstr.immutable():
+        raise SchemeException("read-bytes-avail!: given immutable byte string")
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+    start = w_start.value
+    stop = len(w_bstr.value) - 1 if w_end is None else w_end.value
+    # FIXME: assert something on indices
+    assert start >= 0 and stop < len(w_bstr.value)
+    n = stop - start
+    
+    if n == 0:
+        return return_value(values.W_Fixnum(0), env, cont)
+
+    res = w_port.read(n)
+    reslen = len(res)
+    
+    if reslen == 0:
+        return return_value(values.eof_object, env, cont)
+
+    newval = "".join([w_bstr.value[:start], res, w_bstr.value[start+reslen:]])
+    w_bstr.value = newval
+    return return_value(values.W_Fixnum(reslen), env, cont)
+
+@expose("write-bytes-avail", [values.W_Bytes, default(values.W_OutputPort, None),
+                               default(values.W_Fixnum, values.W_Fixnum(0)),
+                               default(values.W_Fixnum, None)], simple=False)
+def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
+
+    from pycket.interpreter import return_value
+
+    # FIXME: custom ports
+    if w_port is None:
+        w_port = current_out_param.get(cont)
+    start = w_start.value
+    stop = len(w_bstr.value) if w_end is None else w_end.value
+    
+    if start == stop:
+        w_port.flush()
+        return return_value(values.W_Fixnum(0), env, cont)
+
+    assert start >= 0 and stop < len(w_bstr.value)
+    to_write = w_bstr.value[start:stop]
+
+    # FIXME: we fake here
+    w_port.write(to_write)
+    return return_value(values.W_Fixnum(stop - start), env, cont)
+    
 current_print_param = values.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 

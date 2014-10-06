@@ -1379,14 +1379,16 @@ class W_OutputPort(W_Port):
 
 class W_StringOutputPort(W_OutputPort):
     errorname = "output-port"
-    def write(self, str):
-        self.str += str
     def __init__(self):
         self.closed = False
         self.str = ""
+    def write(self, str):
+        self.str += str
 
 class W_InputPort(W_Port):
     errorname = "input-port"
+    def read(self, n):
+        assert 0, "abstract class"
     def tostring(self):
         return "#<input-port>"
 
@@ -1396,6 +1398,8 @@ class W_FileInputPort(W_InputPort):
         self.closed = True
         self.file.close()
         self.file = None
+    def read(self, n):
+        return self.file.read(n)
     def __init__(self, f):
         self.closed = False
         self.file = f
