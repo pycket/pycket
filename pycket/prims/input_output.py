@@ -149,10 +149,13 @@ def call_with_output_file(s, proc, env, cont):
     port = open_outfile(s, "wb")
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values.W_String, values.W_Object], simple=False)
-def with_input_from_file(s, proc, env, cont):
+@expose("with-input-from-file", [values.W_String, values.W_Object, 
+                                 default(values.W_Symbol, binary_sym)], 
+        simple=False)
+def with_input_from_file(s, proc, mode, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
-    port = open_infile(s, "rb")
+    m = "rb" if mode is binary_sym else "r"
+    port = open_infile(s, m)
     return call_with_extended_paramz(proc, [], [current_in_param], [port], 
                                      env, close_cont(port, env, cont))
 
