@@ -1085,9 +1085,6 @@ class W_Closure(W_Procedure):
     def get_arity(self):
         return self.caselam.get_arity()
 
-    def mark_non_loop(self):
-        return
-
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
@@ -1151,9 +1148,6 @@ class W_Closure1AsEnv(ConsEnv):
     def get_arity(self):
         return self.caselam.get_arity()
 
-    def mark_non_loop(self):
-        self.caselam.lams[0].body[0].should_enter = False
-
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
         if calling_app is not None:
@@ -1214,9 +1208,6 @@ class W_PromotableClosure(W_Procedure):
 
     def __init__(self, caselam, toplevel_env):
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
-
-    def mark_non_loop(self):
-        self.closure.mark_non_loop()
 
     @label
     def call(self, args, env, cont):
