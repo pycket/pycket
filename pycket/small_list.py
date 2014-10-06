@@ -1,6 +1,6 @@
 from rpython.rlib  import jit, debug, objectmodel
 
-def inline_small_list(sizemax=5, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_fixnum=False):
+def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_fixnum=False):
     """
     This function is helpful if you have a class with a field storing a
     list and the list is often very small. Calling this function will inline

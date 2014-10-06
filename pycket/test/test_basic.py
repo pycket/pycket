@@ -502,3 +502,60 @@ def test_tostring_of_list():
     assert l.tostring() == "(0 1 5)"
     l = to_improper([W_Fixnum(0), W_Fixnum(1)], W_Fixnum(5))
     assert l.tostring() == "(0 1 . 5)"
+
+def test_callgraph_reconstruction():
+    from pycket.expand import expand_string, parse_module
+    str = """
+        #lang pycket
+        (define (f x) (g (+ x 1)))
+        (define (g x) (if (= x 0) (g 5) (h x)))
+        (define (h x) x)
+        (f 5)
+        (f -1)
+        """
+
+    ast = parse_module(expand_string(str))
+    env = ToplevelEnv()
+    m = interpret_module(ast, env)
+    f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
+    g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
+    h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
+    assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
+    assert g.body[0].should_enter
+
+def test_should_enter_downrecursion():
+    from pycket.expand import expand_string, parse_module
+    str = """
+        #lang pycket
+
+        (define (append a b)
+          (if (null? a) 
+              b
+              (cons (car a) (append (cdr a) b))))
+        (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6))
+
+        (define (n->f n)
+          (cond
+           [(zero? n) (lambda (f) (lambda (x) x))]
+           [else
+            (define n-1 (n->f (- n 1)))
+            (lambda (f)
+               (define fn-1 (n-1 f))
+               (lambda (x) (f (fn-1 x))))]))
+        (n->f 10)
+
+
+    """
+
+    ast = parse_module(expand_string(str))
+    env = ToplevelEnv()
+    m = interpret_module(ast, env)
+    append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]
+    f = m.defs[W_Symbol.make("n->f")].closure.caselam.lams[0]
+    assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
+
+    assert append.body[0].should_enter
+    assert append.body[0].body[0].els.body[0].should_enter
+
+    assert f.body[0].should_enter
+    assert f.body[0].body[0].els.body[0].should_enter

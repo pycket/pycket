@@ -1071,8 +1071,7 @@ class W_Closure(W_Procedure):
         return self.caselam.get_arity()
 
     def mark_non_loop(self):
-        for l in self.caselam.lams:
-            l.body[0].should_enter = False
+        return
 
     @jit.unroll_safe
     def _find_lam(self, args):
@@ -1089,16 +1088,14 @@ class W_Closure(W_Procedure):
         raise SchemeException("No matching arity in case-lambda")
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        return self._call_with_env_structure(
-                args, env, cont, calling_app.env_structure)
-
-    def call(self, args, env, cont):
-        return self._call_with_env_structure(args, env, cont, None)
-
-    def _call_with_env_structure(self, args, env, cont, env_structure):
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
+        if not jit.we_are_jitted():
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
@@ -1107,6 +1104,8 @@ class W_Closure(W_Procedure):
             ConsEnv.make(actuals, prev),
             cont)
 
+    def call(self, args, env, cont):
+        return self.call_with_extra_info(args, env, cont, None)
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
 class W_Closure1AsEnv(ConsEnv):
@@ -1141,16 +1140,14 @@ class W_Closure1AsEnv(ConsEnv):
         self.caselam.lams[0].body[0].should_enter = False
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        return self._call_with_env_structure(
-                args, env, cont, calling_app.env_structure)
-
-    def call(self, args, env, cont):
-        return self._call_with_env_structure(args, env, cont, None)
-
-    def _call_with_env_structure(self, args, env, cont, env_structure):
+        env_structure = None
+        if calling_app is not None:
+            env_structure = calling_app.env_structure
         jit.promote(self.caselam)
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
+        if not jit.we_are_jitted():
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
         actuals = lam.match_args(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
@@ -1159,6 +1156,9 @@ class W_Closure1AsEnv(ConsEnv):
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
+
+    def call(self, args, env, cont):
+        return self.call_with_extra_info(args, env, cont, None)
 
     # ____________________________________________________________
     # methods as a ConsEnv

@@ -2,6 +2,7 @@ from rpython.rlib             import jit
 from small_list               import inline_small_list
 from pycket.error             import SchemeException
 from pycket.base              import W_Object
+from pycket.callgraph         import CallGraph
 
 
 class SymList(object):
@@ -110,6 +111,7 @@ class ToplevelEnv(Env):
         self.version = Version()
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
+        self.callgraph = CallGraph()
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())

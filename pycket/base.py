@@ -3,6 +3,8 @@ from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib import jit
 
+
+
 class W_Object(object):
     __metaclass__ = extendabletype
     _attrs_ = []
