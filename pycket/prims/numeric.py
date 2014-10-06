@@ -177,6 +177,7 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
+        # XXX so far (+ '()) returns '(). need better type checking here
         if not args:
             if not supports_zero_args:
                 raise SchemeException("expected at least 1 argument to %s" % name)
