@@ -747,7 +747,7 @@ def equal_hash_ref_loop(data, idx, key, env, cont):
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
@@ -766,7 +766,7 @@ def equal_hash_set_loop(data, idx, key, val, env, cont):
         data.append((key, val))
         return return_value(w_void, env, cont)
     k, _ = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_set_is_equal_cont(data, idx, key, val, env, cont))
 
