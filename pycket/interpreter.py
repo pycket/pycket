@@ -199,6 +199,7 @@ class LetCont(Cont):
 
 
 class FusedLet0Let0Cont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -220,6 +221,7 @@ class FusedLet0Let0Cont(Cont):
 
 
 class FusedLet0BeginCont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -247,9 +249,6 @@ class CellCont(Cont):
     def get_ast(self):
         return self.ast
 
-    def get_next_executed_ast(self):
-        return self.prev.get_next_executed_ast()
-
     @jit.unroll_safe
     def plug_reduce(self, vals, env):
         ast = jit.promote(self.ast)
@@ -269,9 +268,6 @@ class SetBangCont(Cont):
 
     def get_ast(self):
         return self.ast
-
-    def get_next_executed_ast(self):
-        return self.prev.get_next_executed_ast()
 
     def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
@@ -1633,7 +1629,8 @@ class DefineValues(AST):
 def get_printable_location(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
-    if green_ast.surrounding_lambda is not None and green_ast is green_ast.surrounding_lambda.body[0]:
+    surrounding = green_ast.surrounding_lambda
+    if surrounding is not None and green_ast is surrounding.body[0]:
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
