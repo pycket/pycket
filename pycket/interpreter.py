@@ -1615,6 +1615,8 @@ class DefineValues(AST):
 def get_printable_location(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
+    if green_ast.surrounding_lambda is not None and green_ast is green_ast.surrounding_lambda.body[0]:
+        return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
 driver = jit.JitDriver(reds=["env", "cont"],
