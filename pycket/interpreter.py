@@ -125,7 +125,7 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -145,26 +145,27 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        env = ast._prune_env(env, rhsindex + 1)
+        if not pruning_done:
+            env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals, _env):
-        vals = _vals._get_full_list()
-        jit.promote(len(vals))
-        previous_vals = self._get_full_list()
-        jit.promote(len(previous_vals))
-        vals_w = [None] * (len(previous_vals) + len(vals))
+    def plug_reduce(self, vals, _env):
+        len_vals = vals._get_size_list()
+        jit.promote(len_vals)
+        len_self = self._get_size_list()
+        jit.promote(len_self)
+        vals_w = [None] * (len_self + len_vals)
         i = 0
-        for w_val in previous_vals:
-            vals_w[i] = w_val
+        for j in range(len_self):
+            vals_w[i] = self._get_list(j)
             i += 1
-        for w_val in vals:
-            vals_w[i] = w_val
+        for j in range(len_vals):
+            vals_w[i] = vals._get_list(j)
             i += 1
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
-        if ast.counts[rhsindex] != len(vals):
+        if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")
         if rhsindex == (len(ast.rhss) - 1):
             prev = self.env
@@ -198,7 +199,8 @@ class FusedLet0Let0Cont(Cont):
         actual_cont = LetCont.make(
                 [], ast1, index1, self.env,
                 LetCont.make(
-                    [], ast2, index2, self.env, self.prev, fuse=False),
+                    [], ast2, index2, self.env, self.prev, fuse=False,
+                    pruning_done=True),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
@@ -428,7 +430,13 @@ def jump(env, cont):
     return return_multi_vals(empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
-    return return_multi_vals(values.Values.make([w_val]), env, cont)
+    return return_multi_vals(values.Values.make1(w_val), env, cont)
+
+def return_value_direct(w_val, env, cont):
+    """ like return_value, but without using a label. only safe to use in
+    AST.interpret and (automatically) by simple primitives """
+    val = values.Values.make1(w_val)
+    return cont.plug_reduce(val, env)
 
 @label
 def return_multi_vals(vals, env, cont):
@@ -591,22 +599,27 @@ class App(AST):
         all_args = [rator] + rands
         fresh_vars = []
         fresh_rhss = []
-        new_rands = []
 
         name = "AppRator_"
         for i, rand in enumerate(all_args):
-            if rand.simple:
-                new_rands.append(rand)
-            else:
+            if not rand.simple:
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    if not fresh_vars:
+                        all_args[i] = fresh_rand_var
+                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
+                    else:
+                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
+                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+                all_args[i] = fresh_rand_var
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
-                new_rands.append(fresh_rand_var)
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rands[0], new_rands[1:])]
+            fresh_body = [App(all_args[0], all_args[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
@@ -630,7 +643,9 @@ class App(AST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         w_callable = self.rator.interpret_simple(env)
-        args_w = [rand.interpret_simple(env) for rand in self.rands]
+        args_w = [None] * len(self.rands)
+        for i, rand in enumerate(self.rands):
+            args_w[i] = rand.interpret_simple(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def tostring(self):
@@ -790,21 +805,24 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "env_structure"]
-    def __init__(self, sym, srcmod, srcsym, env_structure=None):
-        self.sym = sym
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?"]
+    def __init__(self, sym, srcmod, srcsym):
+        Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.env_structure = env_structure
         self.modenv = None
+        self.w_value = None
 
     def free_vars(self):
         return {}
 
     def _lookup(self, env):
-        if self.modenv is None:
-            self.modenv = env.toplevel_env().module_env
-        w_res = self._elidable_lookup()
+        w_res = self.w_value
+        if w_res is None:
+            if self.modenv is None:
+                self.modenv = env.toplevel_env().module_env
+            self.w_value = w_res = self._elidable_lookup()
+
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
         else:
@@ -819,7 +837,7 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils"]
+        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils", "#%place"]
 
     @jit.elidable
     def _elidable_lookup(self):
@@ -1381,6 +1399,16 @@ class Let(SequencedBodyAST):
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
 
+    def replace_innermost_with_app(self, newsym, rator, rands):
+        assert len(self.body) == 1
+        body = self.body[0]
+        if isinstance(body, Let) and len(body.body) == 1:
+            new_body = body.replace_innermost_with_app(newsym, rator, rands)
+        else:
+            app_body = [App.make_let_converted(rator, rands)]
+            new_body = Let(SymList([newsym]), [1], [body], app_body)
+        return Let(self.args, self.counts, self.rhss, [new_body])
+
     @jit.unroll_safe
     def _prune_env(self, env, i):
         env_structure = self.args.prev
@@ -1572,6 +1600,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
 
 def interpret_one(ast, env=None):
     cont = nil_continuation
+    cont.update_cm(values.parameterization_key, values.top_level_config)
     if not env:
         env = ToplevelEnv()
     try:

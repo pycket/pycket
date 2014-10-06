@@ -4,7 +4,7 @@ import os
 import time
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import continuation, loop_label, call_cont
+from pycket.cont import continuation, loop_label, call_cont, get_mark_first
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -23,6 +23,7 @@ from pycket.prims import random
 from pycket.prims import string
 from pycket.prims import undefined
 from pycket.prims import vector
+from pycket.prims import input_output
 
 from rpython.rlib import jit
 
@@ -40,6 +41,7 @@ def make_pred_eq(name, val):
 
 for args in [
         ("output-port?", values.W_OutputPort),
+        ("input-port?", values.W_InputPort),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -110,6 +112,7 @@ def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
     if isinstance(val, values.W_Bignum):
+        # XXX this should never be reachable
         try:
             v = val.value.toint()
             return values.W_Bool.make(0 <= v <= 255)
@@ -142,6 +145,8 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
+expose_val("print-mpair-curly-braces", values.W_Parameter(values.w_false))
+expose_val("print-pair-curly-braces", values.W_Parameter(values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -187,104 +192,6 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
 
 ################################################################
 # printing
-
-@expose("display", [values.W_Object, default(values.W_OutputPort, None)])
-def display(datum, out):
-    os.write(1, datum.tostring())
-    return values.w_void
-
-@expose("newline", [default(values.W_OutputPort, None)])
-def newline(out):
-    os.write(1, "\n")
-
-@expose("write", [values.W_Object])
-def write(s):
-    os.write(1, s.tostring())
-
-@expose("print", [values.W_Object])
-def do_print(o):
-    os.write(1, o.tostring())
-
-format_dict = {
-    '~n': '\n',
-    '~%': '\n',
-    '~a': None,
-    '~e': None,
-    '~s': None
-}
-format_regex = re.compile("|".join(format_dict.keys()))
-
-@jit.unroll_safe
-def format(form, v):
-    from rpython.rlib.rstring import StringBuilder
-    text = form.value
-    result = StringBuilder()
-    pos = 0
-    for match in format_regex.finditer(text):
-        match_start = match.start()
-        assert match_start >= 0
-        result.append(text[pos : match_start])
-        val = format_dict[match.group()]
-        if val is None:
-            val, v = v[0].tostring(), v[1:]
-        result.append(val)
-        pos = match.end()
-        assert pos >= 0
-    result.append(text[pos:])
-    return result.build()
-
-@expose("fprintf")
-def do_fprintf(args):
-    out, form, v = args[0], args[1], args[2:]
-    assert isinstance(out, values.W_OutputPort)
-    assert isinstance(form, values.W_String)
-    # FIXME: it should print formatted output to _out_
-    os.write(1, format(form, v))
-    return values.w_void
-
-@expose("print-struct", [default(values.W_Object, None)])
-def do_print_struct(on):
-    return values.w_true
-
-@expose("current-output-port", [default(values.W_OutputPort, None)])
-def current_output_port(port):
-    # FIXME: Not a real implementation
-    return values.w_void if port is not None else values.W_OutputPort()
-
-@expose("flush-output", [default(values.W_OutputPort, None)])
-def flush_output(port):
-    # FIXME: Not a real implementation
-    return values.w_void
-
-@expose("format")
-def do_format(args):
-    form, v = args[0], args[1:]
-    assert isinstance(form, values.W_String)
-    return values.W_String(format(form, v))
-
-def cur_print_proc(args):
-    v, = args
-    if v is not values.w_void:
-        os.write(1, v.tostring())
-        os.write(1, "\n")
-    return values.w_void
-
-@expose("open-output-string", [])
-def open_output_string():
-    return values.W_StringOutputPort()
-
-@expose("port-display-handler", [values.W_OutputPort])
-def port_display_handler(p):
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
-
-@expose("port-write-handler", [values.W_OutputPort])
-def port_write_handler(p):
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
-
-# FIXME: this is a parameter
-@expose("current-print", [])
-def current_print():
-    return values.W_SimplePrim("pretty-printer", cur_print_proc)
 
 @expose("current-logger", [])
 def current_logger():
@@ -381,13 +288,10 @@ def define_nyi(name, args=None):
         pass
 
 for args in [ ("subprocess?",),
-              ("input-port?",),
               ("file-stream-port?",),
               ("terminal-port?",),
-              ("port-closed?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("eof-object?",),
               ("bytes-converter?",),
               ("char-alphabetic?",),
               ("char-numeric?",),
@@ -440,7 +344,6 @@ for args in [ ("subprocess?",),
               ("namespace-anchor?",),
               ("chaperone-channel",),
               ("impersonate-channel",),
-              ("keyword<?", [values.W_Keyword, values.W_Keyword]),
               ]:
     define_nyi(*args)
 
@@ -638,37 +541,6 @@ def make_semaphore(n):
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
 
-@expose("printf")
-def printf(args):
-    if not args:
-        raise SchemeException("printf expected at least one argument, got 0")
-    fmt = args[0]
-    if not isinstance(fmt, values.W_String):
-        raise SchemeException("printf expected a format string, got something else")
-    fmt = fmt.value
-    vals = args[1:]
-    i = 0
-    j = 0
-    while i < len(fmt):
-        if fmt[i] == '~':
-            if i+1 == len(fmt):
-                raise SchemeException("bad format string")
-            s = fmt[i+1]
-            if s == 'a' or s == 'v' or s == 's':
-                # print a value
-                # FIXME: different format chars
-                if j >= len(vals):
-                    raise SchemeException("not enough arguments for format string")
-                os.write(1, vals[j].tostring())
-                j += 1
-            elif s == 'n':
-                os.write(1,"\n") # newline
-            else:
-                raise SchemeException("unexpected format character")
-            i += 2
-        else:
-            os.write(1,fmt[i])
-            i += 1
 
 @expose("not", [values.W_Object])
 def notp(a):
@@ -854,6 +726,84 @@ def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
                               not v.struct_type().isopaque)
 
+def is_struct_info(v):
+    if isinstance(v, values.W_Cons):
+        struct_info = values.from_list(v)
+        if len(struct_info) == 6:
+            if not isinstance(struct_info[0], values_struct.W_StructType) and\
+                struct_info[0] is not values.w_false:
+                return False
+            if not isinstance(struct_info[1], values_struct.W_StructConstructor) and\
+                struct_info[1] is not values.w_false:
+                return False
+            if not isinstance(struct_info[2], values_struct.W_StructPredicate) and\
+                struct_info[2] is not values.w_false:
+                return False
+            accessors = struct_info[3]
+            if isinstance(accessors, values.W_Cons):
+                for accessor in values.from_list(accessors):
+                    if not isinstance(accessor, values_struct.W_StructFieldAccessor):
+                        if accessor is not values.w_false and\
+                            accessor is values.from_list(accessors)[-1]:
+                            return False
+            else:
+                return False
+            mutators = struct_info[4]
+            if isinstance(mutators, values.W_Cons):
+                for mutator in values.from_list(mutators):
+                    if not isinstance(mutator, values_struct.W_StructFieldAccessor):
+                        if mutator is not values.w_false and\
+                          mutator is values.from_list(mutators)[-1]:
+                          return False
+            else:
+                return False
+            if not isinstance(struct_info[5], values_struct.W_StructType) and\
+                not isinstance(struct_info[5], values.W_Bool):
+                return False
+            return True
+        return False
+    elif isinstance(v, values.W_Prim):
+        if v.name == "make-struct-info":
+            return True
+    # TODO: it can be also:
+    # 1. a structure with the prop:struct-info property
+    # 2. a structure type derived from struct:struct-info or
+    # with prop:struct-info and wrapped with make-set!-transformer
+    return False
+
+@expose("struct-info?", [values.W_Object])
+def do_is_struct_info(v):
+    return values.W_Bool.make(is_struct_info(v))
+
+@expose("checked-struct-info?", [values.W_Object])
+def do_is_checked_struct_info(v):
+    if isinstance(v, values.W_Prim):
+        if v.name == "make-struct-info":
+            # TODO: only when no parent type is specified or
+            # the parent type is also specified through a transformer binding to such a value
+            return values.w_true
+    return values.w_false
+
+@expose("make-struct-info", [procedure])
+def do_make_struct_info(thunk):
+    # FIXME: return values.W_Prim("make-struct-info", thunk.call)
+    return values.w_void
+
+@expose("extract-struct-info", [values.W_Object], simple=False)
+def do_extract_struct_info(v, env, cont):
+    assert is_struct_info(v)
+    from pycket.interpreter import return_value
+    if isinstance(v, values.W_Cons):
+        return return_value(v, env, cont)
+    elif isinstance(v, values.W_Prim):
+        return v.call([], env, cont)
+    else:
+        # TODO: it can be also:
+        # 1. a structure with the prop:struct-info property
+        # 2. a structure type derived from struct:struct-info or
+        # with prop:struct-info and wrapped with make-set!-transformer
+        return return_value(values.w_void, env, cont)
+
 @expose("struct-info", [values_struct.W_RootStruct])
 def do_struct_info(struct):
     # TODO: if the current inspector does not control any
@@ -913,7 +863,8 @@ def expose_struct2vector(struct):
 def do_prefab_struct_key(v):
     if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
         return values.w_false
-    return v._type.make_short_prefab_key()
+    prefab_key = values_struct.W_PrefabKey.from_struct_type(v._type)
+    return prefab_key.short_key()
 
 @expose("make-prefab-struct")
 def do_make_prefab_struct(args):
@@ -923,12 +874,13 @@ def do_make_prefab_struct(args):
     return values_struct.W_Struct.make_prefab(key, vals)
 
 @expose("prefab-key->struct-type", [values.W_Object, values.W_Fixnum])
-def expose_prefab_key2struct_type(key, field_count):
-    return values_struct.W_StructType.make_prefab(values_struct.W_PrefabKey.make(key, field_count.value))
+def expose_prefab_key2struct_type(w_key, field_count):
+    return values_struct.W_StructType.make_prefab(
+      values_struct.W_PrefabKey.from_raw_key(w_key, field_count.value))
 
 @expose("prefab-key?", [values.W_Object])
 def do_prefab_key(v):
-    return values_struct.W_PrefabKey.test(v)
+    return values_struct.W_PrefabKey.is_prefab_key(v)
 
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
@@ -1062,7 +1014,7 @@ def error(args):
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values.W_String)
-            raise SchemeException("%s: %s"%(src.tostring(), format(form, v)))
+            raise SchemeException("%s: %s"%(src.tostring(), input_output.format(form, v)))
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
@@ -1233,7 +1185,7 @@ def jit_enabled():
 
 @expose("make-thread-cell", [values.W_Object, default(values.W_Bool, values.w_false)])
 def make_thread_cell(v, pres):
-    return values.W_ThreadCell(v, pres)
+    return values.W_ThreadCell(v, False if pres is values.w_false else True)
 
 @expose("thread-cell-ref", [values.W_ThreadCell])
 def thread_cell_ref(cell):
@@ -1252,9 +1204,13 @@ def current_preserved_thread_cell_values(v):
 
     # Otherwise, we restore the values
     for cell, val in v.assoc.items():
-        assert cell.preserved is values.w_true
+        assert cell.preserved
         cell.value = val
     return values.w_void
+
+@expose("place-enabled?")
+def do_is_place_enabled(args):
+    return values.w_false
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def mcpt(s):
@@ -1264,10 +1220,27 @@ def mcpt(s):
 
 @expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
 def extend_paramz(paramz, key, val):
+    if not isinstance(key, values.W_Parameter):
+        raise SchemeException("Not a parameter")
     if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend(key, val)
+        return paramz.extend([key], [val])
     else:
         return paramz # This really is the Racket behavior
+
+def call_with_parameterization(f, args, paramz, env, cont):
+    cont.update_cm(values.parameterization_key, paramz)
+    return f.call(args, env, cont)
+
+@expose("call-with-parameterization", [values.W_Object, values.W_Parameterization], simple=False)
+def call_w_paramz(f, paramz, env, cont):
+    return call_with_parameterization(f, [], paramz, env, cont)
+
+def call_with_extended_paramz(f, args, keys, vals, env, cont):
+    paramz = get_mark_first(cont, values.parameterization_key)
+    paramz_new = paramz.extend(keys, vals)
+    return call_with_parameterization(f, args, paramz_new, env, cont)
+
+
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
@@ -1286,6 +1259,10 @@ def regexp_matchp(r, o):
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
+
+@expose("keyword<?", [values.W_Keyword, values.W_Keyword])
+def keyword_less_than(a_keyword, b_keyword):
+    return values.W_Bool.make(a_keyword.value < b_keyword.value)
 
 @expose("build-path")
 def build_path(args):

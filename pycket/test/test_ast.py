@@ -127,3 +127,42 @@ def test_cont_fusion():
     assert isinstance(let1, FusedLet0BeginCont)
     assert let1.prev is prev
     assert let1.env is env
+
+def test_bottom_up_let_conversion():
+    caselam = expr_ast("(lambda (f1 f2 f3 x) (f1 (f2 (f3 x))))")
+    lam = caselam.lams[0]
+    f1, f2, f3, x = lam.args.elems
+    let = lam.body[0]
+    for fn in [f3, f2]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is f1
+
+    caselam = expr_ast("(lambda (f g1 g2 h1 h2 a b) (f (g1 (g2 a)) (h1 (h2 b))))")
+    lam = caselam.lams[0]
+    f, g1, g2, h1, h2, a, b = lam.args.elems
+    let = lam.body[0]
+    for fn in [g2, g1, h2, h1]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is f
+
+    caselam = expr_ast("(lambda (f f2 x) %s x %s)" % ("(f (f2 " * 10, "))" * 10))
+    lam = caselam.lams[0]
+    f, f2, x = lam.args.elems
+    let = lam.body[0]
+    for fn in [f2, f] * 9 + [f2]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is f
+
+
+def test_bottom_up_let_conversion_bug_append():
+    caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")
+    lam = caselam.lams[0]
+    cons, car, cdr, a, b, append = lam.args.elems
+    let = lam.body[0]
+    for fn in [car, cdr, append]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is cons
