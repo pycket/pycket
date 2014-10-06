@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, label, call_cont
+from pycket.cont import continuation, label, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket import values
@@ -95,14 +95,14 @@ def impersonate_reference_cont(f, args, env, cont, _vals):
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
-def imp_proc_cont(arg_count, proc, env, cont, _vals):
+def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
     vals = _vals._get_full_list()
     if len(vals) == arg_count:
-        return proc.call(vals, env, cont)
+        return proc.call_with_extra_info(vals, env, cont, calling_app)
     if len(vals) == arg_count + 1:
         args, check = vals[1:], vals[0]
-        check.mark_non_loop()
-        return proc.call(args, env, call_cont(check, env, cont))
+        return proc.call_with_extra_info(args, env,
+                call_extra_cont(check, calling_app, env, cont), calling_app)
     assert False
 
 # Continuation used when calling an impersonator of a procedure.
@@ -115,7 +115,6 @@ def chp_proc_cont(orig, proc, env, cont, _vals):
         return proc.call(vals, env, cont)
     if len(vals) == arg_count + 1:
         args, check = values.Values.make(vals[1:]), vals[0]
-        check.mark_non_loop()
         return check_chaperone_results_loop(args, orig, 0, env,
                 call_cont(proc, env, call_cont(check, env, cont)))
     assert False
@@ -138,13 +137,16 @@ class W_InterposeProcedure(values.W_Procedure):
     def get_arity(self):
         return self.inner.get_arity()
 
-    def post_call_cont(self, args, env, cont):
+    def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
     @label
     def call(self, args, env, cont):
+        return self.call_with_extra_info(args, env, cont, None)
+
+    def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.values import W_ThunkProcCMK
-        after = self.post_call_cont(args, env, cont)
+        after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):
             key, val = prop.car(), prop.cdr()
@@ -152,20 +154,20 @@ class W_InterposeProcedure(values.W_Procedure):
                 body = W_ThunkProcCMK(self.check, args)
                 return key.set_cmk(body, val, cont, env, after)
             cont.update_cm(key, val)
-        return self.check.call(args, env, after)
+        return self.check.call_with_extra_info(args, env, after, calling_app)
 
 @make_impersonator
 class W_ImpProcedure(W_InterposeProcedure):
     errorname = "imp-procedure"
 
-    def post_call_cont(self, args, env, cont):
-        return imp_proc_cont(len(args), self.inner, env, cont)
+    def post_call_cont(self, args, env, cont, calling_app):
+        return imp_proc_cont(len(args), self.inner, calling_app, env, cont)
 
 @make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
 
-    def post_call_cont(self, args, env, cont):
+    def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, env, cont)
 
 @make_proxy(proxied="inner", properties="properties")
