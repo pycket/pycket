@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pycket.env               import ConsEnv
-from pycket.cont              import continuation, label
+from pycket.cont              import continuation, label, BaseCont
 from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
@@ -12,6 +12,7 @@ from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
 
 import rpython.rlib.rweakref as weakref
+from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 
 UNROLLING_CUTOFF = 5
 
@@ -212,6 +213,8 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             return W_UnwrappedFixnumCons(car, cdr)
+        elif isinstance(car, W_Flonum):
+            return W_UnwrappedFlonumCons(car, cdr)
         else:
             return W_WrappedCons(car, cdr)
 
@@ -363,6 +366,19 @@ class W_UnwrappedFixnumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+class W_UnwrappedFlonumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Flonum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Flonum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -412,19 +428,61 @@ class W_Number(W_Object):
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
     errorname = "rational"
-    def __init__(self, n, d):
-        assert isinstance(n, W_Integer)
-        assert isinstance(d, W_Integer)
-        self.num = n
-        self.den = d
+    def __init__(self, num, den):
+        assert isinstance(num, rbigint)
+        assert isinstance(den, rbigint)
+        self._numerator = num
+        self._denominator = den
+        assert den.gt(NULLRBIGINT)
 
     @staticmethod
-    @memoize
-    def make(n, d):
+    def make(num, den):
+        if isinstance(num, W_Fixnum):
+            num = rbigint.fromint(num.value)
+        else:
+            assert isinstance(num, W_Bignum)
+            num = num.value
+        if isinstance(den, W_Fixnum):
+            den = rbigint.fromint(den.value)
+        else:
+            assert isinstance(den, W_Bignum)
+            den = den.value
+        return W_Rational.frombigint(num, den)
+
+    @staticmethod
+    def fromint(n, d=1):
+        assert isinstance(n, int)
+        assert isinstance(d, int)
+        return W_Rational.frombigint(rbigint.fromint(n), rbigint.fromint(d))
+
+    @staticmethod
+    def frombigint(n, d=rbigint.fromint(1)):
+        from pycket.arithmetic import gcd
+        g = gcd(n, d)
+        n = n.floordiv(g)
+        d = d.floordiv(g)
+        if d.eq(rbigint.fromint(1)):
+            return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
+    @staticmethod
+    def fromfloat(f):
+        # FIXME: this is the temporary not exact implementation
+        assert isinstance(f, float)
+        d = 1000000
+        n = int(f * d)
+        from fractions import gcd
+        _gcd = gcd(n, d)
+        return W_Rational.fromint(n/_gcd, d/_gcd)
+
     def tostring(self):
-        return "%s/%s" % (self.num.tostring(), self.den.tostring())
+        return "%s/%s" % (self._numerator.str(), self._denominator.str())
+
+    def equal(self, other):
+        if not isinstance(other, W_Rational):
+            return False
+        return (self._numerator.eq(other._numerator) and
+                self._denominator.eq(other._denominator))
 
 class W_Integer(W_Number):
     errorname = "integer"
@@ -465,6 +523,16 @@ class W_Bignum(W_Integer):
     def __init__(self, val):
         self.value = val
 
+    @staticmethod
+    def frombigint(value):
+        try:
+            num = value.toint()
+        except OverflowError:
+            pass
+        else:
+            return W_Fixnum(num)
+        return W_Bignum(value)
+
     def equal(self, other):
         if not isinstance(other, W_Bignum):
             return False
@@ -478,6 +546,12 @@ class W_Complex(W_Number):
         assert isinstance(im, W_Number)
         self.real = re
         self.imag = im
+
+    def equal(self, other):
+        if not isinstance(other, W_Complex):
+            return False
+        return (self.real.equal(other.real) and
+                self.imag.equal(other.imag))
 
     def tostring(self):
         return "%s+%si" % (self.real.tostring(), self.imag.tostring())
@@ -508,19 +582,6 @@ class W_Thread(W_Object):
         pass
     def tostring(self):
         return "#<thread>"
-
-class W_OutputPort(W_Object):
-    errorname = "output-port"
-    def __init__(self):
-        pass
-    def tostring(self):
-        return "#<output-port>"
-
-class W_StringOutputPort(W_OutputPort):
-    errorname = "output-port"
-    def __init__(self):
-        self.str = ""
-
 
 class W_Semaphore(W_Object):
     errorname = "semaphore"
@@ -597,7 +658,7 @@ class W_ThreadCellValues(W_Object):
     def __init__(self):
         self.assoc = {}
         for c in W_ThreadCell._table:
-            if c.preserved is w_true:
+            if c.preserved:
                 self.assoc[c] = c.value
 
 class W_ThreadCell(W_Object):
@@ -613,6 +674,13 @@ class W_ThreadCell(W_Object):
         self.preserved = preserved
 
         W_ThreadCell._table.append(self)
+
+    def set(self, val):
+        self.value = val
+
+    def get(self):
+        return self.value
+
 
 def eq_hash(k):
     if isinstance(k, W_Fixnum):
@@ -694,7 +762,7 @@ def equal_hash_ref_loop(data, idx, key, env, cont):
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
@@ -713,7 +781,7 @@ def equal_hash_set_loop(data, idx, key, val, env, cont):
         data.append((key, val))
         return return_value(w_void, env, cont)
     k, _ = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_set_is_equal_cont(data, idx, key, val, env, cont))
 
@@ -1054,7 +1122,7 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_fields_ = ['caselam']
 
@@ -1166,55 +1234,181 @@ class W_PromotableClosure(W_Procedure):
         return self.closure.tostring()
 
 
+# This is a Scheme_Parameterization in Racket
+class RootParameterization(object):
+    def __init__(self):
+        # This table maps ParamKey -> W_ThreadCell
+        self.table = {}
+
+# This is a Scheme_Config in Racket
+# Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
+    _immutable_fields_ = ["root", "keys", "vals"]
     errorname = "parameterization"
-    def __init__(self): pass
-    def extend(self, param, val): return self
+    def __init__(self, root, keys, vals):
+        #assert len(params) == len(vals)
+        self.keys = keys
+        self.vals = vals
+        self.root = root
+    def extend(self, params, vals): 
+        # why doesn't it like this assert?
+        # assert len(params) == len(vals)
+        # FIXME this is awful
+        total = len(params) + len(self.keys)
+        keys = [p.key for p in params]
+        new_keys = [None] * total
+        new_vals = [None] * total
+        for i in range(total):
+            if i < len(params):
+                new_keys[i] = keys[i]
+                new_vals[i] = W_ThreadCell(vals[i], True)
+            else:
+                new_keys[i] = self.keys[i-len(params)]
+                new_vals[i] = self.vals[i-len(params)]
+                
+        return W_Parameterization(self.root, new_keys, new_vals)
+    def get(self, param):
+        k = param.key
+        for (i, key) in enumerate(self.keys):
+            if key is k:
+                return self.vals[i]
+        val = self.root.table[k]
+        assert val
+        return val
     def tostring(self):
         return "#<parameterization>"
 
+# This will need to be thread-specific
+top_level_config = W_Parameterization(RootParameterization(), [], [])
+
+# a token
+class ParamKey(object):
+    pass
+
+def find_param_cell(cont, param):
+    assert isinstance(cont, BaseCont)
+    p = cont.get_mark_first(parameterization_key)
+    assert isinstance(p, W_Parameterization)
+    assert isinstance(param, W_Parameter)
+    v = p.get(param)
+    assert isinstance(v, W_ThreadCell)
+    return v
+
+@continuation
+def param_set_cont(cell, env, cont, vals):
+    from pycket.interpreter import check_one_val, return_value
+    v = check_one_val(vals)
+    cell.set(v)
+    return return_value(w_void, env, cont)
 
 class W_Parameter(W_Object):
     errorname = "parameter"
-    _immutable_fields_ = ["guard"]
-    def __init__(self, val, guard):
-        self.val = val
-        self.guard = guard
+    _immutable_fields_ = ["guard", "key"]
+    def __init__(self, val, guard=None):
+        self.key = ParamKey()
+        if guard is w_false:
+            self.guard = None
+        else:
+            self.guard = guard
+        cell = W_ThreadCell(val, True)
+        top_level_config.root.table[self.key] = cell
 
     def iscallable(self):
         return True
 
+    def get(self, cont):
+        return self.get_cell(cont).get()
+
+    def get_cell(self, cont):
+        cell = find_param_cell(cont, self)
+        assert isinstance(cell, W_ThreadCell)
+        return cell
+
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         if len(args) == 0:
-            return return_value(self.val, env, cont)
+            return return_value(self.get(cont), env, cont)
         elif len(args) == 1:
-            self.val = args[0]
-            return return_value(w_void, env, cont)
+            cell = find_param_cell(cont, self)
+            assert isinstance(cell, W_ThreadCell)
+            if self.guard:
+                return self.guard.call([args[0]], env, param_set_cont(cell, env, cont))
+            else:
+                cell.set(args[0])
+                return return_value(w_void, env, cont)
         else:
             raise SchemeException("wrong number of arguments to parameter")
 
     def tostring(self):
-        return "#<parameter>"
+        return "#<parameter-procedure>"
+
 
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"
     def __init__(self): pass
 
-class W_InputPort(W_Object):
-    errorname = "input-port"
-    pass
+class W_EOF(W_Object):
+    errorname = "eof"
+    def __init__(self): pass
+    def tostring(self):
+        return "#<eof>"
 
-class W_FileInputPort(W_InputPort):
+eof_object = W_EOF()
+
+class W_Port(W_Object):
+    errorname = "port"
+    def tostring(self):
+        assert 0, "abstract class"
+    def close(self):
+        self.closed = True
+    def __init__(self):
+        self.closed = False
+
+class W_OutputPort(W_Port):
+    errorname = "output-port"
+    def __init__(self):
+        pass
+    def write(self, str):
+        assert 0, "abstract class"
+    def flush(self):
+        assert 0, "abstract class"
+    def tostring(self):
+        return "#<output-port>"
+
+class W_StringOutputPort(W_OutputPort):
+    errorname = "output-port"
+    def write(self, str):
+        self.str += str
+    def __init__(self):
+        self.closed = False
+        self.str = ""
+
+class W_InputPort(W_Port):
     errorname = "input-port"
     def tostring(self):
         return "#<input-port>"
+
+class W_FileInputPort(W_InputPort):
+    errorname = "input-port"
+    def close(self):
+        self.closed = True
+        self.file.close()
+        self.file = None
     def __init__(self, f):
+        self.closed = False
         self.file = f
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
-    def tostring(self):
-        return "#<output-port>"
+    def write(self, str):
+        self.file.write(str)
+        self.file.flush() # flushes too often
+    def flush(self):
+        self.file.flush()
+    def close(self):
+        self.closed = True
+        self.file.close()
+        self.file = None
     def __init__(self, f):
+        self.closed = False
         self.file = f

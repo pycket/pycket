@@ -106,7 +106,7 @@ class LetrecCont(Cont):
 
 
 @inline_small_list(immutable=True, attrname="vals_w",
-                   unbox_fixnum=True, factoryname="_make")
+                   unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
 
@@ -125,7 +125,7 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -145,7 +145,8 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        env = ast._prune_env(env, rhsindex + 1)
+        if not pruning_done:
+            env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -198,7 +199,8 @@ class FusedLet0Let0Cont(Cont):
         actual_cont = LetCont.make(
                 [], ast1, index1, self.env,
                 LetCont.make(
-                    [], ast2, index2, self.env, self.prev, fuse=False),
+                    [], ast2, index2, self.env, self.prev, fuse=False,
+                    pruning_done=True),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
@@ -597,27 +599,27 @@ class App(AST):
         all_args = [rator] + rands
         fresh_vars = []
         fresh_rhss = []
-        new_rands = []
 
         name = "AppRator_"
         for i, rand in enumerate(all_args):
-            if rand.simple:
-                new_rands.append(rand)
-            else:
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    new_symbol = Gensym.gensym(name)
-                    all_args[i] = LexicalVar(new_symbol)
-                    return rand.replace_innermost_with_app(new_symbol, all_args[0], all_args[1:])
+            if not rand.simple:
                 fresh_rand = Gensym.gensym(name)
                 fresh_rand_var = LexicalVar(fresh_rand)
+                if isinstance(rand, Let) and len(rand.body) == 1:
+                    # this is quadratic for now :-(
+                    if not fresh_vars:
+                        all_args[i] = fresh_rand_var
+                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
+                    else:
+                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
+                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+                all_args[i] = fresh_rand_var
                 fresh_rhss.append(rand)
                 fresh_vars.append(fresh_rand)
-                new_rands.append(fresh_rand_var)
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(new_rands[0], new_rands[1:])]
+            fresh_body = [App(all_args[0], all_args[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
             return App(rator, rands)
@@ -835,7 +837,7 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils"]
+        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils", "#%place"]
 
     @jit.elidable
     def _elidable_lookup(self):
@@ -945,13 +947,12 @@ class SetBang(AST):
         return "(set! %s %s)"%(self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
-    _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
-    def __init__ (self, tst, thn, els, remove_env=False):
+    _immutable_fields_ = ["tst", "thn", "els"]
+    def __init__ (self, tst, thn, els):
         assert tst.simple
         self.tst = tst
         self.thn = thn
         self.els = els
-        self.remove_env = remove_env
 
     @staticmethod
     def make_let_converted(tst, thn, els):
@@ -962,30 +963,20 @@ class If(AST):
             return Let(SymList([fresh]),
                        [1],
                        [tst],
-                       [If(LexicalVar(fresh), thn, els, remove_env=True)])
+                       [If(LexicalVar(fresh), thn, els)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
-        if self.remove_env:
-            # remove the env created by the let introduced by make_let_converted
-            # it's no longer needed nor accessible
-            assert env._get_size_list() == 1
-            assert isinstance(env, ConsEnv)
-            env = env._prev # XXX
         if w_val is values.w_false:
             return self.els, env, cont
         else:
             return self.thn, env, cont
 
     def assign_convert(self, vars, env_structure):
-        if self.remove_env:
-            sub_env_structure = env_structure.prev
-        else:
-            sub_env_structure = env_structure
+        sub_env_structure = env_structure
         return If(self.tst.assign_convert(vars, env_structure),
                   self.thn.assign_convert(vars, sub_env_structure),
-                  self.els.assign_convert(vars, sub_env_structure),
-                  remove_env=self.remove_env)
+                  self.els.assign_convert(vars, sub_env_structure))
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
@@ -1460,11 +1451,15 @@ class Let(SequencedBodyAST):
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
-        env_structures, remove_num_envs = self._compute_remove_num_envs(sub_env_structure)
-
         local_muts = variable_set()
         for b in self.body:
             local_muts.update(b.mutated_vars())
+        new_vars = vars.copy()
+        for k, v in local_muts.iteritems():
+            new_vars[k] = v
+        self, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
+            new_vars, sub_env_structure)
+
         new_rhss = []
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structures[i])
@@ -1474,15 +1469,15 @@ class Let(SequencedBodyAST):
                 new_rhs = Cell(new_rhs, need_cell_flags)
             new_rhss.append(new_rhs)
 
-        new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
         body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        return Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+        self.tostring()
+        result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
+        result.tostring()
+        return result
 
-    def _compute_remove_num_envs(self, sub_env_structure):
+    def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = {}
         for b in self.body:
@@ -1493,9 +1488,16 @@ class Let(SequencedBodyAST):
             except KeyError:
                 pass
         # at most, we can remove all envs, apart from the one introduced by let
-        curr_remove = sub_env_structure.depth_and_size()[0] - 1
+        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
+        max_needed = 0
+        free_vars_not_mutated = True
         for v in free_vars_not_from_let:
-            curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+            depth = sub_env_structure.depth_of_var(v)[1] - 1
+            curr_remove = min(curr_remove, depth)
+            max_needed = max(max_needed, depth)
+            if LexicalVar(v) in new_vars:
+                free_vars_not_mutated = False
+        remove_num_envs = [curr_remove]
         if not curr_remove:
             body_env_structure = sub_env_structure
         else:
@@ -1503,14 +1505,32 @@ class Let(SequencedBodyAST):
             for i in range(curr_remove):
                 next_structure = next_structure.prev
             body_env_structure = SymList(self.args.elems, next_structure)
+        if (free_vars_not_mutated and max_needed == curr_remove and
+                max_depth > max_needed):
+            before_max_needed = sub_env_structure.prev.prev
+            for i in range(max_needed):
+                before_max_needed = before_max_needed.prev
+            body = self.body[0]
+            if before_max_needed and before_max_needed.depth_and_size()[1]:
+                # there is unneeded local env storage that we will never need
+                # in the body. thus, make a copy of all local variables into
+                # the current let, *before* the last rhs is evaluated
+                # we can reuse the var names
+                copied_vars = free_vars_not_from_let.keys()
+                new_rhss = self.rhss[:-1] + [LexicalVar(v) for v in copied_vars] + [self.rhss[-1]]
+                new_lhs_vars = body_env_structure.elems[:-1] + copied_vars + [body_env_structure.elems[-1]]
+                counts = self.counts[:-1] + [1] * len(copied_vars) + [self.counts[-1]]
+                body_env_structure = SymList(new_lhs_vars)
+                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
+                self = Let(body_env_structure, counts, new_rhss, self.body)
+                return self._compute_remove_num_envs(new_vars, sub_env_structure)
 
         env_structures = [body_env_structure]
-        remove_num_envs = [curr_remove]
         for i in range(len(self.rhss) - 1, -1, -1):
             rhs = self.rhss[i]
             free_vars = rhs.free_vars()
             for v in free_vars:
-                curr_remove = min(curr_remove, sub_env_structure.depth_of_var(v)[1] - 1)
+                curr_remove = min(curr_remove, sub_env_structure.prev.depth_of_var(v)[1])
             next_structure = sub_env_structure.prev
             for i in range(curr_remove):
                 next_structure = next_structure.prev
@@ -1518,7 +1538,7 @@ class Let(SequencedBodyAST):
             remove_num_envs.append(curr_remove)
         env_structures.reverse()
         remove_num_envs.reverse()
-        return env_structures, remove_num_envs[:]
+        return self, sub_env_structure, env_structures, remove_num_envs[:]
 
     def tostring(self):
         result = ["(let ("]
@@ -1598,6 +1618,7 @@ driver = jit.JitDriver(reds=["env", "cont"],
 
 def interpret_one(ast, env=None):
     cont = nil_continuation
+    cont.update_cm(values.parameterization_key, values.top_level_config)
     if not env:
         env = ToplevelEnv()
     try:

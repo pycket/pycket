@@ -13,6 +13,7 @@ def test_equal():
     check_all(
         "(equal? 1 1)",
         "(equal? 1.5 (+ 0.5 1))",
+        "(equal? 1+1i 1+1i)",
         "(equal? 'foo 'foo)",
         "(equal? '() '())",
         "(equal? #f #f)",
@@ -28,6 +29,8 @@ def test_equal():
         "(equal? 1 2)",
         "(equal? 1 2.2)",
         "(equal? 1 1.0)",
+        "(equal? 1+1i 1.0+0i)",
+        "(equal? 1+1i 1)",
         "(equal? 'foo 'bar)",
         "(equal? '() #f)",
         "(equal? #f #t)",

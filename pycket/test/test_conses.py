@@ -42,3 +42,12 @@ class TestConses(object):
         assert isinstance(c.car(), W_Fixnum)
         assert isinstance(c.cdr(), W_Fixnum)
 
+    def test_flocons(self):
+        _1 = W_Flonum(1.2)
+        _2 = W_Flonum(2.2)
+        c =  W_Cons.make(_1, _2)
+        #here be whitebox
+        assert isinstance(c, W_UnwrappedFlonumCons)
+        assert isinstance(c.car(), W_Flonum)
+        assert isinstance(c.cdr(), W_Flonum)
+

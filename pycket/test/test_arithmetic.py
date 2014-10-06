@@ -5,8 +5,6 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
-skip = pytest.mark.skipif("True")
-
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)
@@ -37,10 +35,47 @@ def test_quotient():
     res = run(str(big / 2))
     run("(quotient %s 2)" % (big, ), res)
 
+@pytest.mark.xfail
+def test_remainder(doctest):
+    """
+    > (remainder 0 1)
+    0
+    > (remainder 0 -1)
+    0
+    > (remainder 0 2)
+    0
+    > (remainder 0 -2)
+    0
+    > (remainder 1 1)
+    0
+    > (remainder -1 1)
+    0
+    > (remainder 1 -1)
+    0
+    > (remainder 2 1)
+    0
+    > (remainder 2 -1)
+    0
+    > (remainder 4 3)
+    1
+    > (remainder 4 -3)
+    1
+    > (remainder -4 3)
+    -1
+    > (remainder 10 3)
+    1
+    > (remainder -10.0 3)
+    -1.0
+    > (remainder 10.0 -3)
+    1.0
+    > (remainder -10 -3)
+    -1
+    """
+
 def test_div_fix():
     run_fix("(/ 6 3)", 2)
-    with pytest.raises(SchemeException):
-        run("(/ 1 2)", None) # XXX for now
+    x = run("(/ 1 2)")
+    assert x.tostring() == "1/2"
 
 def test_lt():
     run("(< 0 1)", w_true)
@@ -138,7 +173,7 @@ def test_string_to_number(doctest):
     """
     assert doctest
 
-@skip
+@pytest.mark.xfail
 def test_atan(doctest):
     """
     > (atan 0.5)
@@ -147,10 +182,10 @@ def test_atan(doctest):
     1.1071487177940904
     > (atan -2 -1)
     -2.0344439357957027
-    ;> (atan 1.0+5.0i)
-    ;1.530881333938778+0.19442614214700213i
-    ;> (atan +inf.0 -inf.0)
-    ;2.356194490192345
+    > (atan 1.0+5.0i)
+    1.530881333938778+0.19442614214700213i
+    > (atan +inf.0 -inf.0)
+    2.356194490192345
     """
 
 def test_flonum_special(doctest):
@@ -227,4 +262,212 @@ def test_all_comparators(doctest):
     #t
     > (>= 1 2 1)
     #f
+    """
+
+@pytest.mark.xfail
+def test_edge_cases(doctest):
+    """
+    > (* 0.0 1)
+    0.0
+    > (* 0 0.1)
+    0
+    > (* 0.0 0)
+    0
+    > (+ -0.1 0.1)
+    0.0
+    > (complex? (+ 1+1i 1-1i))
+    #t
+    > (complex? 2)
+    #t
+    > (+ 1+0.5i 1-0.5i)
+    2.0+0.0i
+    > (real? (+ 1+0.5i 1-0.5i))
+    #f
+    > (integer? (+ 1+1i 1-1i))
+    #t
+    > (+ 1+1i 1-1i)
+    2
+    """
+
+def test_rational(doctest):
+    """
+    > (/ 1 2)
+    1/2
+    > (+ 1/2 1/3)
+    5/6
+    > (+ 1/2 1)
+    3/2
+    > (+ 1/2 0.5)
+    1.0
+    > (- 4/5 -7/9)
+    71/45
+    > (- 1/2 2)
+    -3/2
+    > (- 1/2 0.0)
+    0.5
+    > (/ 2/3 3/2)
+    4/9
+    > (/ -2/3 -5)
+    2/15
+    > (/ 0.5 -1/4)
+    -2.0
+    > (* 2/3 3/2)
+    1
+    > (* 2 3/2)
+    3
+    > (* 3/2 5)
+    15/2
+    > (* 1/2 2.0)
+    1.0
+    > (+ 1/4 1/4)
+    1/2
+    > (sub1 5/3)
+    2/3
+    """
+
+def test_gcd():
+    from pycket.arithmetic import gcd
+    from rpython.rlib.rbigint import rbigint
+    def gcd_long(a, b):
+        return gcd(rbigint.fromlong(a), rbigint.fromlong(b)).tolong()
+
+    for a, b, r in [(5, 0, 5),
+                    (2**1000, 0, 2**1000),
+                    (4, 2, 2),
+                    (3*3*5*7*11*2**10, 2**7*3*7*11*13, 2**7*3*7*11)]:
+        assert gcd_long(a, b) == r
+        assert gcd_long(b, a) == r
+        if b:
+            assert gcd_long(a, -b) == -r
+            assert gcd_long(-a, -b) == -r
+            assert gcd_long(-a, b) == r
+        else:
+            assert gcd_long(-a, b) == -r
+        if a:
+            assert gcd_long(b, -a) == -r
+            assert gcd_long(-b, -a) == -r
+            assert gcd_long(-b, a) == r
+        else:
+            assert gcd_long(-b, a) == -r
+
+def test_sub1(doctest):
+    """
+    > (sub1 1)
+    0
+    > (sub1 -11111111111111111111111111111111112)
+    -11111111111111111111111111111111113
+    > (sub1 1.4)
+    0.3999999999999999
+    > (sub1 1.5)
+    0.5
+    > (sub1 1+1i)
+    0+1i
+    > (sub1 1/2)
+    -1/2
+    """
+    w_x = W_Fixnum(-sys.maxint-1).arith_sub1()
+    assert isinstance(w_x, W_Bignum)
+
+def test_round(doctest):
+    """
+    > (round 0.1)
+    0.0
+    > (round 0.0)
+    0.0
+    > (round 0.5)
+    0.0
+    > (round 0.51)
+    1.0
+    > (round -0.5)
+    -0.0
+    > (round -0.5001)
+    -1.0
+    > (round 1)
+    1
+    > (round 111111111111111111111111111111111111111111111111)
+    111111111111111111111111111111111111111111111111
+    > (round 1/2)
+    0
+    > (round 3/2)
+    2
+    > (round 11/20)
+    1
+    > (round -11/20)
+    -1
+    > (round -1/2)
+    0
+    > (round -5/4)
+    -1
+    > (round 5/4)
+    1
+    > (round 111111111111111111111111111111111111111/2)
+    55555555555555555555555555555555555556
+    """
+
+def test_max(doctest):
+    """
+    > (max 1 1.1)
+    1.1
+    > (max 1 0.2)
+    1.0
+    > (max 111111111111111111111111111111111111111 5)
+    111111111111111111111111111111111111111
+    > (max 111111111111111111111111111111111111111111111111111111111111 0.2)
+    1.1111111111111112e+59
+    > (max 1 3 2)
+    3
+    > (max 1 3 2.0)
+    3.0
+    > (max 1 1.1 0)
+    1.1
+    > (max 1 0.2 -5)
+    1.0
+    > (max 111111111111111111111111111111111111111 5 6)
+    111111111111111111111111111111111111111
+    > (max 111111111111111111111111111111111111111111111111111111111111 0.2 1023)
+    1.1111111111111112e+59
+    > (max 1 3 2 -6)
+    3
+    > (max 1 3 -17 2.0)
+    3.0
+    """
+
+def test_bitwise(doctest):
+    """
+    > (bitwise-ior 1 2)
+    3
+    > (bitwise-ior -32 1)
+    -31
+    > (bitwise-ior)
+    0
+    > (bitwise-and 1 2)
+    0
+    > (bitwise-and -32 -1)
+    -32
+    > (bitwise-and)
+    -1
+    > (bitwise-xor 1 5)
+    4
+    > (bitwise-xor -32 -1)
+    31
+    > (bitwise-xor)
+    0
+    > (bitwise-not 1)
+    -2
+    > (bitwise-not -1111111111111111111111111111111111111111111114243232)
+    1111111111111111111111111111111111111111111114243231
+    """
+
+def test_exact_to_inexact(doctest):
+    """
+    > (exact->inexact 1)
+    1.0
+    > (exact->inexact 1/2)
+    0.5
+    > (exact->inexact 0.5)
+    0.5
+    > (exact->inexact 1+2i)
+    1.0+2.0i
+    > (exact->inexact 102222222222222222222222222222222222222222222222123123)
+    1.0222222222222222e+53
     """

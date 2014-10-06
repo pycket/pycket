@@ -65,6 +65,23 @@ def test_let_remove_num_envs():
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a d))))")
     assert p.body[0].body[0].remove_num_envs == [0, 1, 2]
 
+def test_copy_to_env():
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
+    inner_let = p.body[0].body[0]
+    assert inner_let.remove_num_envs == [0, 0, 1, 2]
+    assert len(inner_let.args.elems) == 3
+    assert str(inner_let.args.elems[-2]).startswith('b')
+
+    # can't copy env, because of the mutation
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")
+    inner_let = p.body[0].body[0]
+    assert inner_let.remove_num_envs == [0, 0, 0]
+
+    # can't copy env, because of the mutation
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
+    inner_let = p.body[0].body[1]
+    assert inner_let.remove_num_envs == [0, 0, 0]
+
 def test_reclambda():
     # simple case:
     p = expr_ast("(letrec ([a (lambda () a)]) a)")
@@ -156,3 +173,13 @@ def test_bottom_up_let_conversion():
         let = let.body[0]
     assert let.rator.sym is f
 
+
+def test_bottom_up_let_conversion_bug_append():
+    caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")
+    lam = caselam.lams[0]
+    cons, car, cdr, a, b, append = lam.args.elems
+    let = lam.body[0]
+    for fn in [car, cdr, append]:
+        assert let.rhss[0].rator.sym is fn
+        let = let.body[0]
+    assert let.rator.sym is cons

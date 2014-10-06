@@ -167,7 +167,7 @@ def impersonate_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if not isinstance(struct, values_struct.W_Struct):
+    if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("impersonate-struct: not given struct")
 
     struct_type = struct.struct_type()
@@ -206,7 +206,7 @@ def chaperone_struct(args):
 
     struct, args = args[0], args[1:]
 
-    if not isinstance(struct, values_struct.W_Struct):
+    if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("chaperone-struct: not given struct")
 
     # Slicing would be nicer
@@ -259,12 +259,12 @@ def icmk(args):
 # See: https://github.com/plt/racket/blob/106cd16d359c7cb594f4def8f427c55992d41a6d/racket/src/racket/src/bool.c
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
-    info = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
+    info = EqualInfo.CHAPERONE_SINGLETON
     return equal_func(a, b, info, env, cont)
 
 @expose("impersonator-of?", [values.W_Object, values.W_Object], simple=False)
 def impersonator_of(a, b, env, cont):
-    info = EqualInfo(for_chaperone=EqualInfo.IMPERSONATOR)
+    info = EqualInfo.IMPERSONATOR_SINGLETON
     return equal_func(a, b, info, env, cont)
 
 @expose("impersonator?", [values.W_Object])

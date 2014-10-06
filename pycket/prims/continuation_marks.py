@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import get_mark_first, call_cont
+from pycket.cont import call_cont
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, make_callable_label, procedure
 
@@ -32,7 +32,7 @@ def cms_list(cms, mark, env, cont):
     return return_value(marks, env, cont)
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
-def cms_list(cms, mark, missing, env, cont):
+def cms_first(cms, mark, missing, env, cont):
     from pycket.interpreter import return_value
     if cms is values.w_false:
         the_cont = cont
@@ -42,7 +42,7 @@ def cms_list(cms, mark, missing, env, cont):
         raise SchemeException("Expected #f or a continuation-mark-set")
     is_cmk = isinstance(mark, values.W_ContinuationMarkKey)
     m = imp.get_base_object(mark) if is_cmk else mark
-    v = get_mark_first(the_cont, m)
+    v = the_cont.get_mark_first(m)
     val = v if v is not None else missing
     if is_cmk:
         return mark.get_cmk(val, env, cont)

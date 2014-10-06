@@ -169,8 +169,6 @@ for args in [
         ("remainder", "arith_mod"), # FIXME
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
-        ("max",      "arith_max"),
-        ("min",      "arith_min"),
         ]:
     make_binary_arith(*args)
 
@@ -179,12 +177,15 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
+        # XXX so far (+ '()) returns '(). need better type checking here
         if not args:
             if not supports_zero_args:
                 raise SchemeException("expected at least 1 argument to %s" % name)
             return neutral_element
         if len(args) == 1:
-            return getattr(neutral_element, methname)(args[0])
+            if neutral_element is not None:
+                return getattr(neutral_element, methname)(args[0])
+            return args[0]
         else:
             init = args[0]
             for i in range(1, jit.promote(len(args))):
@@ -193,13 +194,15 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum(0), "arith_add", True),
-        ("-", values.W_Fixnum(0), "arith_sub", False),
-        ("*", values.W_Fixnum(1), "arith_mul", True),
-        ("/", values.W_Fixnum(1), "arith_div", False),
-        ("bitwise-and", values.W_Fixnum(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum(0), "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum(0), "arith_xor", True),
+        ("+", values.W_Fixnum.make(0), "arith_add", True),
+        ("-", values.W_Fixnum.make(0), "arith_sub", False),
+        ("*", values.W_Fixnum.make(1), "arith_mul", True),
+        ("/", values.W_Fixnum.make(1), "arith_div", False),
+        ("max", None, "arith_max", False),
+        ("min", None, "arith_min", False),
+        ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
+        ("bitwise-ior", values.W_Fixnum.make(0), "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum.make(0), "arith_xor", True),
         ]:
     make_arith(*args)
 
@@ -242,11 +245,11 @@ def add1(v):
 
 @expose("atan", [values.W_Number, default(values.W_Number, None)])
 def atan(y, x):
-    if isinstance(x, values.W_Number):
+    if x is not None:
         # FIXME: signs determine the quadrant of the result
         # and care about NaNs and precision
-        if getattr(x, "arith_zerop")() is values.w_false:
-            z = getattr(y, "arith_div")(x)
+        if x.arith_zerop() is values.w_false:
+            z = y.arith_div(x)
         else:
             # we should raise exn_fail_contract_divide_by_zero
             raise SchemeException("zero_divisor")
@@ -255,8 +258,8 @@ def atan(y, x):
     return getattr(z, "arith_atan")()
 
 
-def make_unary_arith(name, methname):
-    @expose(name, [values.W_Number], simple=True)
+def make_unary_arith(name, methname, unwrap_type=values.W_Number):
+    @expose(name, [unwrap_type], simple=True)
     def do(a):
         return getattr(a, methname)()
     do.__name__ = methname
@@ -275,7 +278,8 @@ for args in [
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs"),
-        ("round", "arith_round")
+        ("round", "arith_round"),
+        ("bitwise-not", "arith_not", values.W_Integer),
         ]:
     make_unary_arith(*args)
 
