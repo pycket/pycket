@@ -97,7 +97,7 @@ def equal_func(a, b, info, env, cont):
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
-    # Enter into chaperones/impersonators is we have permission to do so
+    # Enter into chaperones/impersonators if we have permission to do so
     for_chaperone = jit.promote(info.for_chaperone)
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
