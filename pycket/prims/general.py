@@ -4,7 +4,7 @@ import os
 import time
 from pycket import impersonators as imp
 from pycket import values
-from pycket.cont import continuation, loop_label, call_cont, get_mark_first
+from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import vector as values_vector
@@ -1236,7 +1236,7 @@ def call_w_paramz(f, paramz, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
-    paramz = get_mark_first(cont, values.parameterization_key)
+    paramz = cont.get_mark_first(values.parameterization_key)
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 

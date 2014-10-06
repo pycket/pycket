@@ -1271,9 +1271,8 @@ class ParamKey(object):
     pass
 
 def find_param_cell(cont, param):
-    from pycket.cont import get_mark_first
     assert isinstance(cont, BaseCont)
-    p = get_mark_first(cont, parameterization_key)
+    p = cont.get_mark_first(parameterization_key)
     assert isinstance(p, W_Parameterization)
     assert isinstance(param, W_Parameter)
     v = p.get(param)
