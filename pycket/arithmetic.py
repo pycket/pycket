@@ -301,7 +301,7 @@ class __extend__(values.W_Flonum):
         if isinstance(other, values.W_Bignum):
             return self, values.W_Flonum(other.value.tofloat())
         if isinstance(other, values.W_Rational):
-            raise NotImplementedError
+            return self, other.arith_exact_inexact()
         return other.same_numeric_class_reversed(self)
 
     def arith_add_same(self, other):
