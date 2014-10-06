@@ -361,6 +361,8 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
         return return_value(values.W_Fixnum(0), env, cont)
 
     assert start >= 0 and stop < len(w_bstr.value)
+    assert stop >= 0
+
     to_write = w_bstr.value[start:stop]
 
     # FIXME: we fake here
