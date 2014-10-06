@@ -4,6 +4,7 @@ from rpython.rlib import jit, unroll
 
 
 class Link(object):
+    _immutable_fields_ = ["key", "val", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
         assert isinstance(k, W_Object)
@@ -85,6 +86,12 @@ class Cont(BaseCont):
         BaseCont.__init__(self)
         self.env = env
         self.prev = prev
+
+    def get_ast(self):
+        return self.prev.get_ast()
+
+    def get_next_executed_ast(self):
+        return self.prev.get_next_executed_ast()
 
     def get_marks(self, key):
         from pycket import values
@@ -210,3 +217,9 @@ def label(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
+# A useful continuation constructor. This invokes the given procedure with
+# the enviroment and continuation when values are supplied.
+# This is just a simple way to place a function call onto the continuation.
+@continuation
+def call_extra_cont(proc, calling_app, env, cont, vals):
+    return proc.call_with_extra_info(vals._get_full_list(), env, cont, calling_app)
