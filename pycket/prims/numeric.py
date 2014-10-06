@@ -257,8 +257,8 @@ def atan(y, x):
     return getattr(z, "arith_atan")()
 
 
-def make_unary_arith(name, methname):
-    @expose(name, [values.W_Number], simple=True)
+def make_unary_arith(name, methname, unwrap_type=values.W_Number):
+    @expose(name, [unwrap_type], simple=True)
     def do(a):
         return getattr(a, methname)()
     do.__name__ = methname
@@ -277,7 +277,8 @@ for args in [
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs"),
-        ("round", "arith_round")
+        ("round", "arith_round"),
+        ("bitwise-not", "arith_not", values.W_Integer),
         ]:
     make_unary_arith(*args)
 

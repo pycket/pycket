@@ -452,6 +452,10 @@ def test_bitwise(doctest):
     31
     > (bitwise-xor)
     0
+    > (bitwise-not 1)
+    -2
+    > (bitwise-not -1111111111111111111111111111111111111111111114243232)
+    1111111111111111111111111111111111111111111114243231
     """
 
 def test_exact_to_inexact(doctest):
