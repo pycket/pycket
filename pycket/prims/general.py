@@ -1249,13 +1249,13 @@ def gensym(init):
 
 @expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     return values.w_false # Back to one problem
 
 @expose("regexp-match?", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_matchp(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
@@ -1341,3 +1341,20 @@ def cur_load_rel_dir():
 @expose("current-directory", [])
 def cur_dir():
     return values.W_Path(os.getcwd())
+
+# Byte stuff
+@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+def make_bytes(length, byte):
+    # assert byte_huh(byte) is values.w_true
+    if isinstance(byte, values.W_Fixnum):
+        v = byte.value
+    elif isinstance(byte, values.W_Bignum):
+        try:
+            v = byte.value.toint()
+        except OverflowError:
+            assert False
+    else:
+        assert False
+    assert 0 <= v <= 255
+    bstr = chr(v) * length.value
+    return values.W_Bytes(bstr, immutable=False)

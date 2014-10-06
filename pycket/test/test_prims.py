@@ -169,3 +169,21 @@ def test_flvector_set_wrong_type():
             (require '#%flfxnum '#%unsafe)
             (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
         """)
+
+def test_byte_huh(doctest):
+    """
+    > (byte? 65)
+    #t
+    > (byte? 0)
+    #t
+    > (byte? 256)
+    #f
+    > (byte? -1)
+    #f
+    """
+
+def test_make_bytes(doctest):
+    """
+    > (make-bytes 5 65)
+    #"AAAAA"
+    """

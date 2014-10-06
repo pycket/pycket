@@ -827,18 +827,20 @@ class W_BytePRegexp(W_AnyRegexp): pass
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
-    _immutable_fields_ = ["value"]
-    def __init__(self, val):
+
+    def __init__(self, val, immutable=True):
+        assert val is not None
         self.value = val
+        self.imm   = immutable
     def tostring(self):
-        return "#%s" % self.value
+        return "#\"%s\"" % self.value
 
     def equal(self, other):
         if not isinstance(other, W_Bytes):
             return False
         return self.value == other.value
     def immutable(self):
-        return True
+        return self.imm
 
 class W_String(W_Object):
     errorname = "string"
