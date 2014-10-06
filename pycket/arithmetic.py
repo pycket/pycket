@@ -623,6 +623,8 @@ class __extend__(values.W_Rational):
         else:
             return values.W_Bignum.frombigint(res1)
 
+    def arith_exact_inexact(self):
+        return values.W_Flonum(self._numerator.truediv(self._denominator))
 
 class __extend__(values.W_Complex):
     def same_numeric_class(self, other):
@@ -663,3 +665,7 @@ class __extend__(values.W_Complex):
         denom = re2.arith_add(im2)
         return self.complex_conjugate().arith_div(denom)
 
+    def arith_exact_inexact(self):
+        return values.W_Complex(
+                self.real.arith_exact_inexact(),
+                self.imag.arith_exact_inexact())

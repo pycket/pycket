@@ -445,3 +445,17 @@ def test_bitwise(doctest):
     > (bitwise-xor)
     0
     """
+
+def test_exact_to_inexact(doctest):
+    """
+    > (exact->inexact 1)
+    1.0
+    > (exact->inexact 1/2)
+    0.5
+    > (exact->inexact 0.5)
+    0.5
+    > (exact->inexact 1+2i)
+    1.0+2.0i
+    > (exact->inexact 102222222222222222222222222222222222222222222222123123)
+    1.0222222222222222e+53
+    """
