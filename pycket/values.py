@@ -1123,7 +1123,7 @@ class W_Closure(W_Procedure):
             cont)
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_fields_ = ['caselam']
 

@@ -97,7 +97,7 @@ class LetrecCont(Cont):
 
 
 @inline_small_list(immutable=True, attrname="vals_w",
-                   unbox_fixnum=True, factoryname="_make")
+                   unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
 
