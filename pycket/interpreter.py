@@ -883,13 +883,12 @@ class SetBang(AST):
         return "(set! %s %s)"%(self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
-    _immutable_fields_ = ["tst", "thn", "els", "remove_env"]
-    def __init__ (self, tst, thn, els, remove_env=False):
+    _immutable_fields_ = ["tst", "thn", "els"]
+    def __init__ (self, tst, thn, els):
         assert tst.simple
         self.tst = tst
         self.thn = thn
         self.els = els
-        self.remove_env = remove_env
 
     @staticmethod
     def make_let_converted(tst, thn, els):
@@ -900,30 +899,20 @@ class If(AST):
             return Let(SymList([fresh]),
                        [1],
                        [tst],
-                       [If(LexicalVar(fresh), thn, els, remove_env=True)])
+                       [If(LexicalVar(fresh), thn, els)])
 
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
-        if self.remove_env:
-            # remove the env created by the let introduced by make_let_converted
-            # it's no longer needed nor accessible
-            assert env._get_size_list() == 1
-            assert isinstance(env, ConsEnv)
-            env = env._prev # XXX
         if w_val is values.w_false:
             return self.els, env, cont
         else:
             return self.thn, env, cont
 
     def assign_convert(self, vars, env_structure):
-        if self.remove_env:
-            sub_env_structure = env_structure.prev
-        else:
-            sub_env_structure = env_structure
+        sub_env_structure = env_structure
         return If(self.tst.assign_convert(vars, env_structure),
                   self.thn.assign_convert(vars, sub_env_structure),
-                  self.els.assign_convert(vars, sub_env_structure),
-                  remove_env=self.remove_env)
+                  self.els.assign_convert(vars, sub_env_structure))
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
@@ -1453,8 +1442,7 @@ class Let(SequencedBodyAST):
             for i in range(max_needed):
                 before_max_needed = before_max_needed.prev
             body = self.body[0]
-            if (before_max_needed and before_max_needed.depth_and_size()[1]
-                    and not (isinstance(body, If) and body.remove_env)):
+            if before_max_needed and before_max_needed.depth_and_size()[1]:
                 # there is unneeded local env storage that we will never need
                 # in the body. thus, make a copy of all local variables into
                 # the current let, *before* the last rhs is evaluated
