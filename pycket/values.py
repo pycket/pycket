@@ -213,6 +213,8 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             return W_UnwrappedFixnumCons(car, cdr)
+        elif isinstance(car, W_Flonum):
+            return W_UnwrappedFlonumCons(car, cdr)
         else:
             return W_WrappedCons(car, cdr)
 
@@ -360,6 +362,19 @@ class W_UnwrappedFixnumCons(W_Cons):
 
     def car(self):
         return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_UnwrappedFlonumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Flonum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Flonum(self._car)
 
     def cdr(self):
         return self._cdr
