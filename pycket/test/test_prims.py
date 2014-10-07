@@ -6,7 +6,7 @@
 
 import pytest
 from pycket.values import w_true
-from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod
+from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
 
 def test_equal():
@@ -187,3 +187,18 @@ def test_make_bytes(doctest):
     > (make-bytes 5 65)
     #"AAAAA"
     """
+
+def test_open_input_bytes_and_read_bytes_line(source):
+    """
+    (let* ([b (string->bytes/locale "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]
+           [expected '(#"MNOP" #"" #"" #"JKL" #"" #"GHI" #"" #"DEF" #"ABC")]
+           [inport (open-input-bytes b)])
+      (let ([res (let rev ([lines null])
+                   (let ([line (read-bytes-line inport)])
+                     (if (eof-object? line)
+                         lines
+                         (rev (cons line lines)))))])
+        (equal? res expected)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true

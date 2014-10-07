@@ -89,14 +89,33 @@ def read(port, env, cont):
         v = values.w_false # fail!
     return return_value(v, env, cont)
 
-@expose("read-line", [default(values.W_InputPort, None)], simple=False)
-def read(port, env, cont):
+
+def do_read_line(port, env, cont, as_bytes):
     from pycket.interpreter import return_value
     if port is None:
         port = current_in_param.get(cont)
     assert isinstance(port, values.W_InputPort)
-    stream = port.file
-    return return_value(values.W_String(stream.readline()), env, cont)
+    line = port.readline()
+    stop = len(line) - 1
+    if stop >= 0:
+        # chomp
+        line = line[:stop]
+        if as_bytes:
+            return return_value(values.W_Bytes(line), env, cont)
+        else:
+            return return_value(values.W_String(line), env, cont)
+    else:
+        return return_value(values.eof_object, env, cont)
+
+@expose("read-line", [default(values.W_InputPort, None)], simple=False)
+def read_line(port, env, cont):
+    return do_read_line(port, env, cont, as_bytes=False)
+
+@expose("read-bytes-line", [default(values.W_InputPort, None)], simple=False)
+def read_bytes_line(port, env, cont):
+    return do_read_line(port, env, cont, as_bytes=True)
+
+
 
 text_sym   = values.W_Symbol.make("text")
 binary_sym = values.W_Symbol.make("binary")
@@ -297,9 +316,18 @@ def cur_print_proc(args, env, cont):
 
 standard_printer = values.W_Prim("current-print", cur_print_proc)
 
+string_sym  = values.W_Symbol.make("string")
+
+
 @expose("open-output-string", [])
 def open_output_string():
     return values.W_StringOutputPort()
+
+@expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
+def open_input_bytes(bstr, name):
+    # FIXME: name is ignore
+    return values.W_StringInputPort(bstr.value)
+
 
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):

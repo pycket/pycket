@@ -1389,8 +1389,46 @@ class W_InputPort(W_Port):
     errorname = "input-port"
     def read(self, n):
         assert 0, "abstract class"
+    def readline(self):
+        assert 0, "abstract class"
     def tostring(self):
         return "#<input-port>"
+
+class W_StringInputPort(W_InputPort):
+    errorname = "input-port"
+    def __init__(self, str):
+        self.closed = False
+        self.str = str
+        self.ptr = 0
+    def readline(self):
+        # import pdb; pdb.set_trace()
+        from rpython.rlib.rstring import find
+        start = self.ptr
+        assert start >= 0
+        pos = find(self.str, "\n", start, len(self.str))
+        if pos == -1:
+            return self.read(pos)
+        else:
+            pos += 1
+            line = self.read(pos - start)
+        return line
+
+    def read(self, n):
+        if self.ptr >= len(self.str):
+            return ""
+        p = self.ptr
+        assert p >= 0
+        if n == -1 or n >= (len(self.str) - self.ptr):
+            self.ptr = len(self.str)
+            assert self.ptr >= 0
+            return self.str[p:]
+        else:
+            self.ptr += n
+            stop = self.ptr
+            assert stop < len(self.str)
+            assert stop >= 0
+            return self.str[p:stop]
+
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
@@ -1400,6 +1438,8 @@ class W_FileInputPort(W_InputPort):
         self.file = None
     def read(self, n):
         return self.file.read(n)
+    def readline(self):
+        return self.file.readline()
     def __init__(self, f):
         self.closed = False
         self.file = f
