@@ -70,8 +70,7 @@ for args in [
         ("thread-cell-values?", values.W_ThreadCellValues),
         ("semaphore?", values.W_Semaphore),
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
-        ("path?", values.W_Path),
-        ("arity-at-least?", values.W_ArityAtLeast),
+        ("path?", values.W_Path), 
         ("bytes?", values.W_Bytes),
         ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
         ("char?", values.W_Character),
@@ -136,11 +135,12 @@ def syntax_to_datum(stx):
     return stx.val
 
 # FIXME: implementation
-@expose("datum->syntax", [values.W_Syntax, values.W_Object,
-  default(values.W_Syntax, None), default(values.W_Syntax, None),
-  default(values.W_Syntax, None)])
+@expose("datum->syntax", [values.W_Object, values.W_Object,
+  default(values.W_Object, None), default(values.W_Object, None),
+  default(values.W_Object, None)])
 def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
-    return values.W_Syntax(ctxt)
+    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
+    return values.W_Syntax(v)
 
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
@@ -189,7 +189,7 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
-    if isinstance(v, values_struct.W_Struct):
+    if isinstance(v, values_struct.W_RootStruct):
         st = v.struct_type()
         if st is type:
             return v.ref(v.struct_type(), 0, env,
@@ -287,6 +287,8 @@ date_struct = define_struct("date", fields=["second",
                                             "time-zone-offset"])
 date_star_struct = define_struct("date*", date_struct, fields=["nanosecond",
                                                                "time-zone-name"])
+
+arity_at_least = define_struct("arity-at-least", values.w_null, ["value"])
 
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
@@ -412,33 +414,28 @@ def sem_post(s):
 def sem_wait(s):
     s.wait()
 
-@expose("arity-at-least", [values.W_Fixnum])
-def arity_at_least(n):
-    return values.W_ArityAtLeast(n.value)
-
-@expose("arity-at-least-value", [values.W_ArityAtLeast])
-def arity_at_least(a):
-    return values.W_Fixnum(a.val)
-
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
     return p
 
 @expose("procedure-arity", [procedure])
-def arity_at_least(n):
+def do_procedure_arity(proc):
     # FIXME
-    return values.W_ArityAtLeast(0)
+    return values_struct.W_Struct.make([values.W_Fixnum(0)], arity_at_least)
 
 @expose("procedure-arity?", [values.W_Object])
-def arity_at_least_p(n):
+def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
         if n.value >= 0:
             return values.w_true
-    elif isinstance(n, values.W_ArityAtLeast):
+    elif isinstance(n, values_struct.W_RootStruct) and\
+        n.struct_type().name == "arity-at-least":
         return values.w_true
     elif isinstance(n, values.W_List):
         for item in values.from_list(n):
-            if not (isinstance(item, values.W_Fixnum) or isinstance(item, values.W_ArityAtLeast)):
+            if not (isinstance(item, values.W_Fixnum) or\
+                (isinstance(item, values_struct.W_RootStruct) and\
+                item.struct_type().name == "arity-at-least")):
                 return values.w_false
         return values.w_true
     return values.w_false
@@ -1088,13 +1085,32 @@ def do_raise(v, barrier):
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
-def raise_arg_err(sym, str, val):
-    raise SchemeException("%s: expected %s but got %s"%(sym.value, str.value, val.tostring()))
+def raise_arg_err(name, expected, v):
+    raise SchemeException("%s: expected %s but got %s"%(name.value, expected.value, v.tostring()))
+
+@expose("raise-arguments-error")
+def raise_arg_err(args):
+    name = args[0]
+    assert isinstance(name, values.W_Symbol)
+    message = args[1]
+    assert isinstance(message, values.W_String)
+    from rpython.rlib.rstring import StringBuilder
+    error_msg = StringBuilder()
+    error_msg.append("%s: %s\n"%(name.value, message.value))
+    i = 2
+    while i + 1 < len(args):
+        field = args[i]
+        assert isinstance(field, values.W_String)
+        v = args[i+1]
+        assert isinstance(v, values.W_Object)
+        error_msg.append("%s: %s\n"%(field.value, v.tostring()))
+        i += 2
+    raise SchemeException(error_msg.build())
 
 # FIXME: implementation
 @expose("error-escape-handler", [default(values.W_Object, None)])
 def do_error_escape_handler(proc):
-    return values.W_Prim("", values.w_void)
+    return values.w_void
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
@@ -1158,3 +1174,8 @@ def make_bytes(length, byte):
     assert 0 <= v <= 255
     bstr = chr(v) * length.value
     return values.W_Bytes(bstr, immutable=False)
+
+# FIXME: implementation
+@expose("collect-garbage")
+def do_collect_garbage(args):
+    return values.w_void

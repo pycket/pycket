@@ -936,13 +936,6 @@ class W_Keyword(W_Object):
     def tostring(self):
         return "'#:%s" % self.value
 
-# FIXME: this should really be a struct
-class W_ArityAtLeast(W_Object):
-    _immutable_fields_ = ["val"]
-    errorname = "arity-at-least"
-    def __init__(self, n):
-        self.val = n
-
 class W_Procedure(W_Object):
     def __init__(self):
         raise NotImplementedError("Abstract base class")
