@@ -142,10 +142,20 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
         guard, constr_name, env, cont)
 
+@expose("struct-accessor-procedure?", [values.W_Object])
+def do_is_struct_accessor_procedure(v):
+    return values.W_Bool.make(isinstance(v, values_struct.W_StructAccessor) or\
+        isinstance(v, values_struct.W_StructFieldAccessor))
+
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor,
     values.W_Fixnum, default(values.W_Symbol, None)])
 def do_make_struct_field_accessor(accessor, field, field_name):
     return values_struct.W_StructFieldAccessor(accessor, field, field_name)
+
+@expose("struct-mutator-procedure?", [values.W_Object])
+def do_is_struct_mutator_procedure(v):
+    return values.W_Bool.make(isinstance(v, values_struct.W_StructMutator) or\
+        isinstance(v, values_struct.W_StructFieldMutator))
 
 @expose("make-struct-field-mutator", [values_struct.W_StructMutator,
     values.W_Fixnum, default(values.W_Symbol, None)])

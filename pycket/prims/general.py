@@ -57,8 +57,6 @@ for args in [
         ("struct-type?", values_struct.W_StructType),
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
-        ("struct-accessor-procedure?", values_struct.W_StructAccessor),
-        ("struct-mutator-procedure?", values_struct.W_StructMutator),
         ("struct-type-property?", values_struct.W_StructProperty),
         ("struct-type-property-accessor-procedure?", values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
@@ -134,8 +132,15 @@ def syntax_tainted(v):
     return values.w_false
 
 @expose("syntax->datum", [values.W_Syntax])
-def syntax_to_datum(v):
-    return v.val
+def syntax_to_datum(stx):
+    return stx.val
+
+# FIXME: implementation
+@expose("datum->syntax", [values.W_Syntax, values.W_Object,
+  default(values.W_Syntax, None), default(values.W_Syntax, None),
+  default(values.W_Syntax, None)])
+def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
+    return values.W_Syntax(ctxt)
 
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
@@ -505,6 +510,11 @@ def cont_prompt_avail(args):
 # FIXME: this is a data type
 @expose("continuation-prompt-tag?")
 def cont_prompt_tag(args):
+    return values.w_false
+
+# FIXME: implementation
+@expose("dynamic-wind")
+def dynamic_wind(args):
     return values.w_false
 
 @expose(["call/cc", "call-with-current-continuation",
@@ -1080,6 +1090,11 @@ def do_raise(v, barrier):
 @expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
 def raise_arg_err(sym, str, val):
     raise SchemeException("%s: expected %s but got %s"%(sym.value, str.value, val.tostring()))
+
+# FIXME: implementation
+@expose("error-escape-handler", [default(values.W_Object, None)])
+def do_error_escape_handler(proc):
+    return values.W_Prim("", values.w_void)
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
