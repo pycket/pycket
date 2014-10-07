@@ -156,7 +156,7 @@ def inexactp(n):
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]) #FIXME
+    return values.Values.make([a.arith_quotient(b), a.arith_mod(b)]) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
