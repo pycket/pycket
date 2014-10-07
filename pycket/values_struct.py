@@ -338,10 +338,12 @@ class W_PrefabKey(values.W_Object):
                 super_key = W_PrefabKey.from_raw_key(w_super_key)
         if init_field_cnt == -1:
             init_field_cnt = total_field_cnt
-            while super_key:
+            while True:
                 super_name, super_init_field_cnt, super_auto_field_cnt,\
-                    super_auto_v, super_mutables, super_key = super_key.make_key_tuple()
+                    super_auto_v, super_mutables, super_super_key = super_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
+                if not super_super_key:
+                    break
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
             mutables, super_key)
 
