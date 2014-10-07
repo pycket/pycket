@@ -186,7 +186,6 @@ class W_StructType(values.W_Object):
         for i in values.from_list(immutables):
             assert isinstance(i, values.W_Fixnum)
             self.immutables.append(i.value)
-        self.immutables += super_type.immutables if isinstance(super_type, W_StructType) else []
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
             self.constr_name = constr_name.value
