@@ -471,3 +471,17 @@ def test_exact_to_inexact(doctest):
     > (exact->inexact 102222222222222222222222222222222222222222222222123123)
     1.0222222222222222e+53
     """
+
+def test_inexact_to_exact(doctest):
+    """
+    > (inexact->exact 1.0)
+    1
+    > (inexact->exact 0.5)
+    1/2
+    > (inexact->exact 1/2)
+    1/2
+    > (inexact->exact 1.0+2.0i)
+    1+2i
+    > (inexact->exact 1.0222222222222222e+53)
+    102222222222222223892324523663483522756187192341561344
+    """
