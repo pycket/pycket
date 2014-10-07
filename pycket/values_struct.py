@@ -340,7 +340,7 @@ class W_PrefabKey(values.W_Object):
             s_key = super_key
             while s_key:
                 super_name, super_init_field_cnt, super_auto_field_cnt,\
-                    super_auto_v, super_mutables, s_key = super_key.make_key_tuple()
+                    super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
             mutables, super_key)
