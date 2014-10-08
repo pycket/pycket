@@ -7,6 +7,7 @@ from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode
+from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object

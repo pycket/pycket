@@ -202,3 +202,12 @@ def test_open_input_bytes_and_read_bytes_line(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
+def test_string_copy_bang(doctest):
+    """
+    > (define s (string #\A #\p #\p #\l #\e))
+    > (string-copy! s 4 "y")
+    > (string-copy! s 0 s 3 4)
+    > s
+    "lpply"
+    """

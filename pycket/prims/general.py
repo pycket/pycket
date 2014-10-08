@@ -220,15 +220,6 @@ def sys_lib_subpath(mode):
 def prim_clos(v):
     return values.w_false
 
-@expose("char->integer", [values.W_Character])
-def char2int(c):
-    return values.W_Fixnum(ord(c.value))
-
-@expose("string->list", [values.W_String])
-def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.value])
-
-
 ################################################################
 # built-in struct types
 
@@ -728,9 +719,6 @@ def reverse(w_l):
 @expose("void")
 def do_void(args): return values.w_void
 
-@expose("number->string", [values.W_Number])
-def num2str(a):
-    return values.W_String(a.tostring())
 
 ### Boxes
 
@@ -933,41 +921,6 @@ def file_pos_star(v):
 
 
 
-@expose("symbol->string", [values.W_Symbol])
-def symbol_to_string(v):
-    return values.W_String(v.value)
-
-@expose("string->symbol", [values.W_String])
-def string_to_symbol(v):
-    return values.W_Symbol.make(v.value)
-
-@expose("string->number", [values.W_String])
-def str2num(w_s):
-    from rpython.rlib import rarithmetic, rfloat, rbigint
-    from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
-
-    s = w_s.value
-    try:
-        if "." in s:
-            return values.W_Flonum(rfloat.string_to_float(s))
-        else:
-            try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
-            except ParseStringOverflowError:
-                return values.W_Bignum(rbigint.rbigint.fromstr(s))
-    except ParseStringError as e:
-        return values.w_false
-
-@expose("string->unreadable-symbol", [values.W_String])
-def string_to_unsymbol(v):
-    return values.W_Symbol.make_unreadable(v.value)
-
-@expose("string->immutable-string", [values.W_String])
-def string_to_immutable_string(string):
-    if string.immutable():
-        return string
-    return values.W_String(string.value, immutable=True)
-
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
     if v.unreadable:
@@ -978,21 +931,6 @@ def sym_unreadable(v):
 def string_to_symbol(v):
     return values.W_Bool.make(v.is_interned())
 
-@expose("string->uninterned-symbol", [values.W_String])
-def string_to_symbol(v):
-    return values.W_Symbol(v.value)
-
-@expose("string->bytes/locale", [values.W_String,
-                                 default(values.W_Object, values.w_false),
-                                 default(values.W_Integer, values.W_Fixnum(0)),
-                                 default(values.W_Integer, None)])
-def string_to_bytes_locale(str, errbyte, start, end):
-    # FIXME: This ignores the locale
-    return values.W_Bytes(str.value)
-
-@expose("integer->char", [values.W_Fixnum])
-def integer_to_char(v):
-    return values.W_Character(unichr(v.value))
 
 @expose("immutable?", [values.W_Object])
 def immutable(v):
@@ -1190,22 +1128,6 @@ def cur_load_rel_dir():
 def cur_dir():
     return values.W_Path(os.getcwd())
 
-# Byte stuff
-@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
-def make_bytes(length, byte):
-    # assert byte_huh(byte) is values.w_true
-    if isinstance(byte, values.W_Fixnum):
-        v = byte.value
-    elif isinstance(byte, values.W_Bignum):
-        try:
-            v = byte.value.toint()
-        except OverflowError:
-            assert False
-    else:
-        assert False
-    assert 0 <= v <= 255
-    bstr = chr(v) * length.value
-    return values.W_Bytes(bstr, immutable=False)
 
 # FIXME: implementation
 @expose("collect-garbage")
