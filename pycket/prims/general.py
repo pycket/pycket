@@ -608,6 +608,10 @@ def do_cddr(args):
 def do_caddr(args):
     return do_car([do_cdr([do_cdr(args)])])
 
+@expose("cdddr")
+def do_caddr(args):
+    return do_cdr([do_cdr([do_cdr(args)])])
+
 @expose("cadddr")
 def do_cadddr(args):
     return do_car([do_cdr([do_cdr([do_cdr(args)])])])
