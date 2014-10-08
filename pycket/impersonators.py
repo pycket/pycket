@@ -108,15 +108,16 @@ def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
 # Continuation used when calling an impersonator of a procedure.
 # Have to examine the results before checking
 @continuation
-def chp_proc_cont(orig, proc, env, cont, _vals):
+def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
     vals = _vals._get_full_list()
     arg_count = len(orig)
     if len(vals) == arg_count:
-        return proc.call(vals, env, cont)
+        return proc.call_with_extra_info(vals, env, cont, calling_app)
     if len(vals) == arg_count + 1:
         args, check = values.Values.make(vals[1:]), vals[0]
         return check_chaperone_results_loop(args, orig, 0, env,
-                call_cont(proc, env, call_cont(check, env, cont)))
+                call_extra_cont(proc, calling_app, env,
+                    call_extra_cont(check, calling_app, env, cont)))
     assert False
 
 @make_proxy(proxied="inner", properties="properties")
@@ -168,7 +169,7 @@ class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
 
     def post_call_cont(self, args, env, cont, calling_app):
-        return chp_proc_cont(args, self.inner, env, cont)
+        return chp_proc_cont(args, self.inner, calling_app, env, cont)
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
