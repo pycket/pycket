@@ -149,6 +149,7 @@ def compiled_module_expression(v):
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
+expose_val("break-enabled-key", values.break_enabled_key)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
 expose_val("print-mpair-curly-braces", values.W_Parameter(values.w_false))

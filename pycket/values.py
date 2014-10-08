@@ -916,6 +916,7 @@ class W_Symbol(W_Object):
     def variable_name(self):
         return self.value
 
+break_enabled_key = W_Symbol("break-enabled-key")
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
 
