@@ -422,10 +422,13 @@ def procedure_rename(p, n):
 def do_procedure_arity(proc):
     # FIXME
     (ls, at_least) = proc.get_arity()
-    if not ls and at_least == 0:
-        return values.to_list([])
+    if at_least > 0:
+        return values_struct.W_Struct.make([values.W_Fixnum(at_least)], arity_at_least)
     else:
-        return values_struct.W_Struct.make([values.W_Fixnum(0)], arity_at_least)
+        lst = []
+        for item in ls:
+            lst.append(values.W_Fixnum(item))
+        return values.to_list(lst)
 
 @expose("procedure-arity?", [values.W_Object])
 def do_is_procedure_arity(n):
@@ -817,7 +820,9 @@ def list_ref(lst, pos):
 
 @expose("list-tail", [values.W_Cons, values.W_Fixnum])
 def list_tail(lst, pos):
-    return values.to_list(values.from_list(lst)[pos.value:])
+    start_pos = pos.value
+    assert start_pos > 0
+    return values.to_list(values.from_list(lst)[start_pos:])
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
