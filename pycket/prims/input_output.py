@@ -92,8 +92,14 @@ def read(port, env, cont):
         v = values.w_false # fail!
     return return_value(v, env, cont)
 
+linefeed_sym        = values.W_Symbol.make("linefeed")
+return_sym          = values.W_Symbol.make("return")
+return_linefeed_sym = values.W_Symbol.make("return-linefeed")
+any_sym             = values.W_Symbol.make("any")
+any_one_sym         = values.W_Symbol.make("any-one")
 
-def do_read_line(port, env, cont, as_bytes):
+def do_read_line(port, mode, as_bytes, env, cont):
+    # FIXME: respect mode
     from pycket.interpreter import return_value
     if port is None:
         port = current_in_param.get(cont)
@@ -102,7 +108,8 @@ def do_read_line(port, env, cont, as_bytes):
     stop = len(line) - 1
     if stop >= 0:
         # chomp
-        line = line[:stop]
+        if line[stop] == "\n":
+            line = line[:stop]
         if as_bytes:
             return return_value(values.W_Bytes(line), env, cont)
         else:
@@ -110,13 +117,17 @@ def do_read_line(port, env, cont, as_bytes):
     else:
         return return_value(values.eof_object, env, cont)
 
-@expose("read-line", [default(values.W_InputPort, None)], simple=False)
-def read_line(port, env, cont):
-    return do_read_line(port, env, cont, as_bytes=False)
+@expose("read-line",[default(values.W_InputPort, None),
+                            default(values.W_Symbol, linefeed_sym)],
+        simple=False)
+def read_line(port, mode, env, cont):
+    return do_read_line(port, mode, False, env, cont)
 
-@expose("read-bytes-line", [default(values.W_InputPort, None)], simple=False)
-def read_bytes_line(port, env, cont):
-    return do_read_line(port, env, cont, as_bytes=True)
+@expose("read-bytes-line", [default(values.W_InputPort, None),
+                            default(values.W_Symbol, linefeed_sym)],
+        simple=False)
+def read_bytes_line(port, mode, env, cont):
+    return do_read_line(port, mode, True, env, cont)
 
 
 
