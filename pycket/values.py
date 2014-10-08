@@ -1379,9 +1379,11 @@ class W_StringOutputPort(W_OutputPort):
     errorname = "output-port"
     def __init__(self):
         self.closed = False
-        self.str = ""
-    def write(self, str):
-        self.str += str
+        self.str = StringBuilder()
+    def write(self, s):
+        self.str.append(s)
+    def contents(self):
+        return self.str.build()
 
 class W_InputPort(W_Port):
     errorname = "input-port"
@@ -1393,6 +1395,7 @@ class W_InputPort(W_Port):
         return "#<input-port>"
 
 class W_StringInputPort(W_InputPort):
+    _immutable_fields_ = ["str"]
     errorname = "input-port"
     def __init__(self, str):
         self.closed = False

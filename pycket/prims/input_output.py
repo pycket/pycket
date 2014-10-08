@@ -331,9 +331,9 @@ standard_printer = values.W_Prim("current-print", cur_print_proc)
 
 string_sym  = values.W_Symbol.make("string")
 
-
-@expose("open-output-string", [])
+@expose(["open-output-string", "open-output-bytes"], [])
 def open_output_string():
+    # FIXME: actual implementation for bytes and string
     return values.W_StringOutputPort()
 
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
@@ -341,9 +341,14 @@ def open_input_bytes(bstr, name):
     # FIXME: name is ignore
     return values.W_StringInputPort(bstr.value)
 
+@expose("open-input-string", [values.W_String, default(values.W_Symbol, string_sym)])
+def open_input_string(str, name):
+    # FIXME: name is ignore
+    return values.W_StringInputPort(str.value)
+
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):
-    return values.W_String.make(w_port.str)
+    return values.W_String.make(w_port.contents())
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
@@ -369,10 +374,12 @@ def port_write_handler(p):
 def port_count_lines_bang(p):
     return values.w_void
 
-@expose("read-bytes-avail!", [values.W_Bytes, default(values.W_InputPort, None),
-                              default(values.W_Fixnum, values.W_Fixnum(0)),
-                              default(values.W_Fixnum, None)], simple=False)
+@expose(["read-bytes!", "read-bytes-avail!"],
+        [values.W_Bytes, default(values.W_InputPort, None),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)], simple=False)
 def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
+    # FIXME: discern the available from the non-available form
     from pycket.interpreter import return_value
 
     # FIXME: custom ports
@@ -414,11 +421,12 @@ def do_write_string(str, out, start_pos, end_pos, env, cont):
     assert end >= 0
     return do_print(str.value[start:end], out, env, cont)
 
-@expose("write-bytes-avail", [values.W_Bytes, default(values.W_OutputPort, None),
-                               default(values.W_Fixnum, values.W_Fixnum(0)),
-                               default(values.W_Fixnum, None)], simple=False)
+@expose(["write-bytes", "write-bytes-avail"],
+         [values.W_Bytes, default(values.W_OutputPort, None),
+          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, None)], simple=False)
 def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
-
+    # FIXME: discern the available from the non-available form
     from pycket.interpreter import return_value
 
     # FIXME: custom ports
