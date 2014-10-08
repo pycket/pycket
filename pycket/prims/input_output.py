@@ -225,8 +225,13 @@ format_dict = {
     '~n': '\n',
     '~%': '\n',
     '~a': None,
+    '~A': None,
     '~e': None,
-    '~s': None
+    '~E': None,
+    '~s': None,
+    '~S': None,
+    '~v': None,
+    '~V': None,
 }
 format_regex = re.compile("|".join(format_dict.keys()))
 
@@ -264,7 +269,7 @@ def printf(args):
             if i+1 == len(fmt):
                 raise SchemeException("bad format string")
             s = fmt[i+1]
-            if s == 'a' or s == 'v' or s == 's':
+            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
                 # print a value
                 # FIXME: different format chars
                 if j >= len(vals):
