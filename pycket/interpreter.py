@@ -181,6 +181,7 @@ class LetCont(Cont):
 
 
 class FusedLet0Let0Cont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -199,6 +200,7 @@ class FusedLet0Let0Cont(Cont):
 
 
 class FusedLet0BeginCont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
