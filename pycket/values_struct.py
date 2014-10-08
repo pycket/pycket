@@ -604,6 +604,9 @@ class W_StructConstructor(values.W_Procedure):
     @continuation
     def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
         from pycket.interpreter import return_value, jump
+        checked_values = _vals._get_full_list()
+        if checked_values:
+            field_values = checked_values
         super_type = jit.promote(self.type.super)
         if isinstance(super_type, W_StructType):
             split_position = len(field_values) - self.type.init_field_cnt

@@ -191,6 +191,19 @@ def test_struct_guard():
     """)
     assert "bad name" in e.value.msg
 
+def test_struct_guard2():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (define-values (s:o make-o o? o-ref o-set!)
+        (make-struct-type 'o #f 1 0 'odefault null (make-inspector) #f null (lambda (o n) (+ o 1))))
+    
+    (define x (o-ref (make-o 10) 0))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 11
+
 def test_struct_prefab():
     m = run_mod(
     """
