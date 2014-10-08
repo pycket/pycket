@@ -3,6 +3,7 @@
 import math
 import operator
 from pycket import values
+from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
@@ -345,10 +346,9 @@ def unsafe_fxfl(a):
 def is_fxvector(v):
     return values.w_false
 
-# FIXME: implementation
 @expose("flvector?", [values.W_Object])
 def is_flvector(v):
-    return values.w_false
+    return values.W_Bool.make(isinstance(v, values_vector.W_FlVector))
 
 ## Unsafe Flonum ops
 @expose("unsafe-fl+", [unsafe(values.W_Flonum)] * 2)
