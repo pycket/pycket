@@ -421,7 +421,11 @@ def procedure_rename(p, n):
 @expose("procedure-arity", [procedure])
 def do_procedure_arity(proc):
     # FIXME
-    return values_struct.W_Struct.make([values.W_Fixnum(0)], arity_at_least)
+    (ls, at_least) = proc.get_arity()
+    if not ls and at_least == 0:
+        return values.to_list([])
+    else:
+        return values_struct.W_Struct.make([values.W_Fixnum(0)], arity_at_least)
 
 @expose("procedure-arity?", [values.W_Object])
 def do_is_procedure_arity(n):
@@ -811,6 +815,10 @@ def consp(v):
 def list_ref(lst, pos):
     return values.from_list(lst)[pos.value]
 
+@expose("list-tail", [values.W_Cons, values.W_Fixnum])
+def list_tail(lst, pos):
+    return values.to_list(values.from_list(lst)[pos.value:])
+
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
@@ -882,6 +890,10 @@ def path_stringp(v):
 def complete_path(v):
     # FIXME: stub
     return values.w_false
+
+@expose("path->string", [values.W_Path])
+def path2string(p):
+    return values.W_String(p.path)
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
