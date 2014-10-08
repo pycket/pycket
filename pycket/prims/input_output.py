@@ -188,30 +188,6 @@ def with_output_to_file(s, proc, env, cont):
     return call_with_extended_paramz(proc, [], [current_out_param], [port], 
                                      env, close_cont(port, env, cont))
 
-@expose("print-graph", [default(values.W_Object, None)])
-def do_print_graph(on):
-    return values.w_true
-
-@expose("print-struct", [default(values.W_Object, None)])
-def do_print_struct(on):
-    return values.w_true
-
-@expose("print-box", [default(values.W_Object, None)])
-def do_print_box(on):
-    return values.w_true
-
-@expose("print-vector-length", [default(values.W_Object, None)])
-def do_print_vector_length(on):
-    return values.w_true
-
-@expose("print-hash-table", [default(values.W_Object, None)])
-def do_print_hash_table(on):
-    return values.w_true
-
-@expose("print-boolean-long-form", [default(values.W_Object, None)])
-def do_print_boolean_long_form(on):
-    return values.w_true
-
 @expose("display", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def display(datum, out, env, cont):
     return do_print(datum.tostring(), out, env, cont)
@@ -456,9 +432,24 @@ stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "rb"))
 current_out_param = values.W_Parameter(stdout_port)
 current_error_param = values.W_Parameter(stdout_port)
 current_in_param = values.W_Parameter(stdin_port)
+
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)
 expose_val("current-input-port", current_in_param)
+
+print_graph_param = values.W_Parameter(values.w_false)
+print_struct_param = values.W_Parameter(values.w_false)
+print_box_param = values.W_Parameter(values.w_false)
+print_vector_length_param = values.W_Parameter(values.w_false)
+print_hash_table_param = values.W_Parameter(values.w_false)
+print_boolean_long_form_param = values.W_Parameter(values.w_false)
+
+expose_val("print-graph", print_graph_param)
+expose_val("print-struct", print_struct_param)
+expose_val("print-box", print_box_param)
+expose_val("print-vector-length", print_vector_length_param)
+expose_val("print-hash-table", print_hash_table_param)
+expose_val("print-boolean-long-form", print_boolean_long_form_param)
 
 # FIXME:
 @expose("custom-write?", [values.W_Object])
