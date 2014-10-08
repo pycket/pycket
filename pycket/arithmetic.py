@@ -455,7 +455,7 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            raise SchemeException("rationals not implemented")
+            return values.W_Rational.frombigint(self.value, other.value)
         return values.W_Bignum.frombigint(res)
 
     def arith_mod_same(self, other):
