@@ -388,17 +388,23 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     if w_port is None:
         w_port = current_in_param.get(cont)
     start = w_start.value
-    stop = len(w_bstr.value) - 1 if w_end is None else w_end.value
-    # FIXME: assert something on indices
-    assert start >= 0 and stop < len(w_bstr.value)
-    n = stop - start
-    
-    if n == 0:
+    stop = len(w_bstr.value) if w_end is None else w_end.value
+    if stop == start:
         return return_value(values.W_Fixnum(0), env, cont)
+
+
+    # FIXME: assert something on indices
+    assert start >= 0 and stop <= len(w_bstr.value)
+    n = stop - start
 
     res = w_port.read(n)
     reslen = len(res)
     
+    # shortcut without allocation when complete replace
+    if start == 0 and stop == len(w_bstr.value) and reslen == n:
+        w_bstr.value = res
+        return return_value(values.W_Fixnum(reslen), env, cont)
+
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
 
@@ -434,15 +440,18 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
         w_port = current_out_param.get(cont)
     start = w_start.value
     stop = len(w_bstr.value) if w_end is None else w_end.value
-    
+
     if start == stop:
         w_port.flush()
         return return_value(values.W_Fixnum(0), env, cont)
 
-    assert start >= 0 and stop < len(w_bstr.value)
-    assert stop >= 0
-
-    to_write = w_bstr.value[start:stop]
+    if start == 0 and stop == len(w_bstr.value):
+        to_write = w_bstr.value
+    else:
+        slice_stop = stop - 1
+        assert start >= 0 and slice_stop < len(w_bstr.value)
+        assert slice_stop >= 0
+        to_write = w_bstr.value[start:slice_stop]
 
     # FIXME: we fake here
     w_port.write(to_write)
