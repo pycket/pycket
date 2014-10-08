@@ -9,6 +9,7 @@ from rpython.rlib.rstring     import (ParseStringError,
 from rpython.rlib.rarithmetic import string_to_int
 from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
+from pycket                   import values_struct
 from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val
 import os
@@ -187,9 +188,28 @@ def with_output_to_file(s, proc, env, cont):
     return call_with_extended_paramz(proc, [], [current_out_param], [port], 
                                      env, close_cont(port, env, cont))
 
+@expose("print-graph", [default(values.W_Object, None)])
+def do_print_graph(on):
+    return values.w_true
 
 @expose("print-struct", [default(values.W_Object, None)])
 def do_print_struct(on):
+    return values.w_true
+
+@expose("print-box", [default(values.W_Object, None)])
+def do_print_box(on):
+    return values.w_true
+
+@expose("print-vector-length", [default(values.W_Object, None)])
+def do_print_vector_length(on):
+    return values.w_true
+
+@expose("print-hash-table", [default(values.W_Object, None)])
+def do_print_hash_table(on):
+    return values.w_true
+
+@expose("print-boolean-long-form", [default(values.W_Object, None)])
+def do_print_boolean_long_form(on):
     return values.w_true
 
 @expose("display", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
@@ -308,7 +328,7 @@ def flush_output(port, env, cont):
 
 def cur_print_proc(args, env, cont):
     from pycket.interpreter import return_value
-    v, = args
+    v = args[0]
     port = current_out_param.get(cont)
     if v is not values.w_void:
         port.write(v.tostring())
@@ -329,10 +349,20 @@ def open_input_bytes(bstr, name):
     # FIXME: name is ignore
     return values.W_StringInputPort(bstr.value)
 
-
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):
     return values.W_String.make(w_port.str)
+
+# FIXME: implementation
+@expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
+    values.W_Object, default(values.W_Object, None), default(values.W_Object, None),\
+    default(values.W_Object, None), default(values.W_Object, None),\
+    default(values.W_Object, None), default(values.W_Object, None),\
+    default(values.W_Object, None)])
+def make_output_port(name, evt, write_out, close, write_out_special,\
+    get_write_evt, get_write_special_evt, get_location, count_lines,\
+    init_position, buffer_mode):
+    return values.W_StringOutputPort()
 
 @expose("port-display-handler", [values.W_OutputPort])
 def port_display_handler(p):
@@ -341,6 +371,11 @@ def port_display_handler(p):
 @expose("port-write-handler", [values.W_OutputPort])
 def port_write_handler(p):
     return standard_printer
+
+# FIXME: implementation
+@expose("port-count-lines!", [values.W_Port])
+def port_count_lines_bang(p):
+    return values.w_void
 
 @expose("read-bytes-avail!", [values.W_Bytes, default(values.W_InputPort, None),
                               default(values.W_Fixnum, values.W_Fixnum(0)),
@@ -374,6 +409,18 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     builder.append_slice(w_bstr.value, start+reslen, len(w_bstr.value))
     w_bstr.value = builder.build()
     return return_value(values.W_Fixnum(reslen), env, cont)
+
+# FIXME: implementation
+@expose("write-string", [values.W_String, default(values.W_Object, None),\
+    default(values.W_Fixnum, values.W_Fixnum(0)),\
+    default(values.W_Fixnum, None)], simple=False)
+def do_write_string(str, out, start_pos, end_pos, env, cont):
+    out = None # FIXME
+    start = start_pos.value
+    assert start >= 0
+    end = end_pos.value if end_pos else len(str.value)
+    assert end >= 0
+    return do_print(str.value[start:end], out, env, cont)
 
 @expose("write-bytes-avail", [values.W_Bytes, default(values.W_OutputPort, None),
                                default(values.W_Fixnum, values.W_Fixnum(0)),
@@ -412,3 +459,8 @@ current_in_param = values.W_Parameter(stdin_port)
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)
 expose_val("current-input-port", current_in_param)
+
+# FIXME:
+@expose("custom-write?", [values.W_Object])
+def do_has_custom_write(v):
+    return values.w_false

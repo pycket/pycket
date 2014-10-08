@@ -340,6 +340,16 @@ def unsafe_fxquotient(a, b):
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
 
+# FIXME: implementation
+@expose("fxvector?", [values.W_Object])
+def is_fxvector(v):
+    return values.w_false
+
+# FIXME: implementation
+@expose("flvector?", [values.W_Object])
+def is_flvector(v):
+    return values.w_false
+
 ## Unsafe Flonum ops
 @expose("unsafe-fl+", [unsafe(values.W_Flonum)] * 2)
 def unsafe_flplus(a, b):
@@ -376,6 +386,3 @@ def unsafe_flgte(a, b):
 @expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fleq(a, b):
     return values.W_Bool.make(a.value == b.value)
-
-
-

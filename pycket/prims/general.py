@@ -313,7 +313,6 @@ for args in [ ("subprocess?",),
               ("char-title-case?",),
               ("char-lower-case?",),
               ("compiled-expression?",),
-              ("custom-write?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
@@ -818,11 +817,18 @@ def consp(v):
 def list_ref(lst, pos):
     return values.from_list(lst)[pos.value]
 
-@expose("list-tail", [values.W_Cons, values.W_Fixnum])
+@expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
     start_pos = pos.value
-    assert start_pos > 0
-    return values.to_list(values.from_list(lst)[start_pos:])
+    if start_pos == 0:
+        return lst
+    else:
+        assert start_pos > 0
+        if isinstance(lst, values.W_Cons):
+            return values.to_list(values.from_list(lst)[start_pos:])
+        else:
+            # FIXME:
+            return values.to_list([])
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
@@ -1072,6 +1078,11 @@ def regexp_matchp(r, o):
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
     # ack, this is wrong
     return values.w_true # Back to one problem
+
+# FIXME: implementation
+@expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object, default(values.W_Bytes, None)])
+def regexp_replace(pattern, input, insert, input_prefix):
+    return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
