@@ -37,17 +37,17 @@ def read_number_or_id(f, init):
             sofar.append(f.read(1))
         else:
             break
-    sofar = "".append(sofar)
+    got = "".join(sofar)
     try:
-        return NumberToken(values.W_Fixnum.make(string_to_int(sofar)))
+        return NumberToken(values.W_Fixnum.make(string_to_int(got)))
     except ParseStringOverflowError:
-        val = rbigint.fromdecimalstr(sofar)
+        val = rbigint.fromdecimalstr(got)
         return NumberToken(values.W_Bignum(val))
     except ParseStringError:
         try:
-            return NumberToken(values.W_Flonum.make(float(sofar)))
+            return NumberToken(values.W_Flonum.make(float(got)))
         except:
-            return SymbolToken(values.W_Symbol.make(sofar))
+            return SymbolToken(values.W_Symbol.make(got))
 
 def read_token(f):
     while True:
