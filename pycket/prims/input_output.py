@@ -4,7 +4,8 @@ from rpython.rlib.rsre import rsre_re as re
 from rpython.rlib import jit
 from rpython.rlib             import streamio as sio
 from rpython.rlib.rbigint     import rbigint
-from rpython.rlib.rstring     import ParseStringError, ParseStringOverflowError
+from rpython.rlib.rstring     import (ParseStringError,
+        ParseStringOverflowError, StringBuilder)
 from rpython.rlib.rarithmetic import string_to_int
 from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
@@ -224,21 +225,20 @@ format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
-    from rpython.rlib.rstring import StringBuilder
     text = form.value
     result = StringBuilder()
     pos = 0
     for match in format_regex.finditer(text):
         match_start = match.start()
         assert match_start >= 0
-        result.append(text[pos : match_start])
+        result.append_slice(text, pos, match_start)
         val = format_dict[match.group()]
         if val is None:
             val, v = v[0].tostring(), v[1:]
         result.append(val)
         pos = match.end()
         assert pos >= 0
-    result.append(text[pos:])
+    result.append_slice(text, pos, len(text))
     return result.build()
 
 @expose("printf")
@@ -368,8 +368,11 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
 
-    newval = "".join([w_bstr.value[:start], res, w_bstr.value[start+reslen:]])
-    w_bstr.value = newval
+    builder = StringBuilder()
+    builder.append_slice(w_bstr.value, 0, start)
+    builder.append(res)
+    builder.append_slice(w_bstr.value, start+reslen, len(w_bstr.value))
+    w_bstr.value = builder.build()
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 @expose("write-bytes-avail", [values.W_Bytes, default(values.W_OutputPort, None),
