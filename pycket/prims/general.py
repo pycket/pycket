@@ -823,12 +823,11 @@ def list_tail(lst, pos):
     if start_pos == 0:
         return lst
     else:
-        assert start_pos > 0
         if isinstance(lst, values.W_Cons):
+            assert start_pos > 0
             return values.to_list(values.from_list(lst)[start_pos:])
         else:
-            # FIXME:
-            return values.to_list([])
+            return values.w_null
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
