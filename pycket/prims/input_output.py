@@ -26,16 +26,17 @@ class LVecToken(Token): pass
 class RVecToken(Token): pass
 
 def read_number_or_id(f, init):
-    sofar = init
+    sofar = [init]
     while True:
         (count, c) = f.peek()
         if c == "":
             break
         c = c[0]
         if c.isalnum():
-            sofar = sofar + f.read(1)
+            sofar.append(f.read(1))
         else:
             break
+    sofar = "".append(sofar)
     try:
         return NumberToken(values.W_Fixnum.make(string_to_int(sofar)))
     except ParseStringOverflowError:
