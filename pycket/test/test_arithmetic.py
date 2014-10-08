@@ -5,6 +5,16 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
+def test_flonum_tostring():
+    from rpython.rtyper.test.test_llinterp import interpret
+    import math
+    def float_tostring(x):
+        print W_Flonum(x).tostring()
+        return W_Flonum(x).tostring() == s
+    s = str(math.pi)
+    res = interpret(float_tostring, [math.pi])
+    assert res
+
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)

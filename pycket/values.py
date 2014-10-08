@@ -506,10 +506,13 @@ class W_Fixnum(W_Integer):
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
-    def tostring(self):
-        return str(self.value)
+
     def __init__(self, val):
         self.value = val
+
+    def tostring(self):
+        from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
+        return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
 
     def equal(self, other):
         if not isinstance(other, W_Flonum):
