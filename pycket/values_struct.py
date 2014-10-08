@@ -583,6 +583,9 @@ class W_StructConstructor(values.W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
+        checked_values = _vals._get_full_list()
+        if checked_values:
+            field_values = checked_values + field_values[len(checked_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
@@ -603,7 +606,7 @@ class W_StructConstructor(values.W_Procedure):
 
     @continuation
     def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
-        from pycket.interpreter import return_value, jump
+        from pycket.interpreter import return_multi_vals, jump
         checked_values = _vals._get_full_list()
         if checked_values:
             field_values = checked_values
@@ -612,14 +615,13 @@ class W_StructConstructor(values.W_Procedure):
             split_position = len(field_values) - self.type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
-            field_values = self._splice(
-                field_values, len(field_values), split_position,
-                super_auto, len(super_auto))
+            field_values = self._splice(field_values, len(field_values),\
+                split_position, super_auto, len(super_auto))
             return super_type.constr.code(field_values[:split_position], True,
                 env, self.constr_proc_cont(field_values, env, cont))
         else:
             if issuper:
-                return jump(env, cont)
+                return return_multi_vals(values.Values.make(field_values), env, cont)
             else:
                 return jump(env, self.constr_proc_cont(field_values, env, cont))
 
