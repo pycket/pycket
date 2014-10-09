@@ -583,9 +583,9 @@ class W_StructConstructor(values.W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        checked_values = _vals._get_full_list()
-        if checked_values:
-            field_values = checked_values + field_values[len(checked_values):]
+        guard_super_values = _vals._get_full_list()
+        # if guard_super_values:
+        #     field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
@@ -607,9 +607,9 @@ class W_StructConstructor(values.W_Procedure):
     @continuation
     def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
-        checked_values = _vals._get_full_list()
-        if checked_values:
-            field_values = checked_values
+        guard_values = _vals._get_full_list()
+        if guard_values:
+            field_values = guard_values
         super_type = jit.promote(self.type.super)
         if isinstance(super_type, W_StructType):
             split_position = len(field_values) - self.type.init_field_cnt

@@ -204,6 +204,25 @@ def test_struct_guard2():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 11
 
+@skip
+def test_struct_guard3():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (define got null)
+    (define-values (s:a make-a a? a-ref a-set!)
+        (make-struct-type 'a #f 2 1 'adefault null (make-inspector) #f null
+            (lambda (a b n) (set! got (cons (list a b n) got)) (values 1 2))))
+    (define-values (s:b make-b b? b-ref b-set!)
+        (make-struct-type 'b s:a 1 2 'bdefault null (make-inspector) #f null
+            (lambda (a b c n) (set! got (cons (list a b c n) got)) (values 10 20 30))))
+
+    (define x (a-ref (make-b 'x 'y 'z) 0))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 1
+
 def test_struct_prefab():
     m = run_mod(
     """
