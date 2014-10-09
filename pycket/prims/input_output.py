@@ -92,8 +92,14 @@ def read(port, env, cont):
         v = values.w_false # fail!
     return return_value(v, env, cont)
 
+linefeed_sym        = values.W_Symbol.make("linefeed")
+return_sym          = values.W_Symbol.make("return")
+return_linefeed_sym = values.W_Symbol.make("return-linefeed")
+any_sym             = values.W_Symbol.make("any")
+any_one_sym         = values.W_Symbol.make("any-one")
 
-def do_read_line(port, env, cont, as_bytes):
+def do_read_line(port, mode, as_bytes, env, cont):
+    # FIXME: respect mode
     from pycket.interpreter import return_value
     if port is None:
         port = current_in_param.get(cont)
@@ -102,7 +108,8 @@ def do_read_line(port, env, cont, as_bytes):
     stop = len(line) - 1
     if stop >= 0:
         # chomp
-        line = line[:stop]
+        if line[stop] == "\n":
+            line = line[:stop]
         if as_bytes:
             return return_value(values.W_Bytes(line), env, cont)
         else:
@@ -110,13 +117,17 @@ def do_read_line(port, env, cont, as_bytes):
     else:
         return return_value(values.eof_object, env, cont)
 
-@expose("read-line", [default(values.W_InputPort, None)], simple=False)
-def read_line(port, env, cont):
-    return do_read_line(port, env, cont, as_bytes=False)
+@expose("read-line",[default(values.W_InputPort, None),
+                            default(values.W_Symbol, linefeed_sym)],
+        simple=False)
+def read_line(port, mode, env, cont):
+    return do_read_line(port, mode, False, env, cont)
 
-@expose("read-bytes-line", [default(values.W_InputPort, None)], simple=False)
-def read_bytes_line(port, env, cont):
-    return do_read_line(port, env, cont, as_bytes=True)
+@expose("read-bytes-line", [default(values.W_InputPort, None),
+                            default(values.W_Symbol, linefeed_sym)],
+        simple=False)
+def read_bytes_line(port, mode, env, cont):
+    return do_read_line(port, mode, True, env, cont)
 
 
 
@@ -214,8 +225,13 @@ format_dict = {
     '~n': '\n',
     '~%': '\n',
     '~a': None,
+    '~A': None,
     '~e': None,
-    '~s': None
+    '~E': None,
+    '~s': None,
+    '~S': None,
+    '~v': None,
+    '~V': None,
 }
 format_regex = re.compile("|".join(format_dict.keys()))
 
@@ -253,7 +269,7 @@ def printf(args):
             if i+1 == len(fmt):
                 raise SchemeException("bad format string")
             s = fmt[i+1]
-            if s == 'a' or s == 'v' or s == 's':
+            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
                 # print a value
                 # FIXME: different format chars
                 if j >= len(vals):
@@ -315,9 +331,9 @@ standard_printer = values.W_Prim("current-print", cur_print_proc)
 
 string_sym  = values.W_Symbol.make("string")
 
-
-@expose("open-output-string", [])
+@expose(["open-output-string", "open-output-bytes"], [])
 def open_output_string():
+    # FIXME: actual implementation for bytes and string
     return values.W_StringOutputPort()
 
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
@@ -325,9 +341,14 @@ def open_input_bytes(bstr, name):
     # FIXME: name is ignore
     return values.W_StringInputPort(bstr.value)
 
+@expose("open-input-string", [values.W_String, default(values.W_Symbol, string_sym)])
+def open_input_string(str, name):
+    # FIXME: name is ignore
+    return values.W_StringInputPort(str.value)
+
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):
-    return values.W_String.make(w_port.str)
+    return values.W_String.make(w_port.contents())
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
@@ -353,10 +374,12 @@ def port_write_handler(p):
 def port_count_lines_bang(p):
     return values.w_void
 
-@expose("read-bytes-avail!", [values.W_Bytes, default(values.W_InputPort, None),
-                              default(values.W_Fixnum, values.W_Fixnum(0)),
-                              default(values.W_Fixnum, None)], simple=False)
+@expose(["read-bytes!", "read-bytes-avail!"],
+        [values.W_Bytes, default(values.W_InputPort, None),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)], simple=False)
 def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
+    # FIXME: discern the available from the non-available form
     from pycket.interpreter import return_value
 
     # FIXME: custom ports
@@ -365,17 +388,23 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     if w_port is None:
         w_port = current_in_param.get(cont)
     start = w_start.value
-    stop = len(w_bstr.value) - 1 if w_end is None else w_end.value
-    # FIXME: assert something on indices
-    assert start >= 0 and stop < len(w_bstr.value)
-    n = stop - start
-    
-    if n == 0:
+    stop = len(w_bstr.value) if w_end is None else w_end.value
+    if stop == start:
         return return_value(values.W_Fixnum(0), env, cont)
+
+
+    # FIXME: assert something on indices
+    assert start >= 0 and stop <= len(w_bstr.value)
+    n = stop - start
 
     res = w_port.read(n)
     reslen = len(res)
     
+    # shortcut without allocation when complete replace
+    if start == 0 and stop == len(w_bstr.value) and reslen == n:
+        w_bstr.value = res
+        return return_value(values.W_Fixnum(reslen), env, cont)
+
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
 
@@ -398,11 +427,12 @@ def do_write_string(str, out, start_pos, end_pos, env, cont):
     assert end >= 0
     return do_print(str.value[start:end], out, env, cont)
 
-@expose("write-bytes-avail", [values.W_Bytes, default(values.W_OutputPort, None),
-                               default(values.W_Fixnum, values.W_Fixnum(0)),
-                               default(values.W_Fixnum, None)], simple=False)
+@expose(["write-bytes", "write-bytes-avail"],
+         [values.W_Bytes, default(values.W_OutputPort, None),
+          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, None)], simple=False)
 def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
-
+    # FIXME: discern the available from the non-available form
     from pycket.interpreter import return_value
 
     # FIXME: custom ports
@@ -410,20 +440,34 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
         w_port = current_out_param.get(cont)
     start = w_start.value
     stop = len(w_bstr.value) if w_end is None else w_end.value
-    
+
     if start == stop:
         w_port.flush()
         return return_value(values.W_Fixnum(0), env, cont)
 
-    assert start >= 0 and stop < len(w_bstr.value)
-    assert stop >= 0
-
-    to_write = w_bstr.value[start:stop]
+    if start == 0 and stop == len(w_bstr.value):
+        to_write = w_bstr.value
+    else:
+        slice_stop = stop - 1
+        assert start >= 0 and slice_stop < len(w_bstr.value)
+        assert slice_stop >= 0
+        to_write = w_bstr.value[start:slice_stop]
 
     # FIXME: we fake here
     w_port.write(to_write)
     return return_value(values.W_Fixnum(stop - start), env, cont)
     
+
+
+# FIXME:
+@expose("custom-write?", [values.W_Object])
+def do_has_custom_write(v):
+    return values.w_false
+    
+############################ Values and Parameters 
+
+expose_val("eof", values.eof_object)
+
 current_print_param = values.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 
@@ -451,7 +495,3 @@ expose_val("print-vector-length", print_vector_length_param)
 expose_val("print-hash-table", print_hash_table_param)
 expose_val("print-boolean-long-form", print_boolean_long_form_param)
 
-# FIXME:
-@expose("custom-write?", [values.W_Object])
-def do_has_custom_write(v):
-    return values.w_false

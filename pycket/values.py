@@ -7,6 +7,7 @@ from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode
+from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
@@ -1378,9 +1379,11 @@ class W_StringOutputPort(W_OutputPort):
     errorname = "output-port"
     def __init__(self):
         self.closed = False
-        self.str = ""
-    def write(self, str):
-        self.str += str
+        self.str = StringBuilder()
+    def write(self, s):
+        self.str.append(s)
+    def contents(self):
+        return self.str.build()
 
 class W_InputPort(W_Port):
     errorname = "input-port"
@@ -1392,6 +1395,7 @@ class W_InputPort(W_Port):
         return "#<input-port>"
 
 class W_StringInputPort(W_InputPort):
+    _immutable_fields_ = ["str"]
     errorname = "input-port"
     def __init__(self, str):
         self.closed = False
