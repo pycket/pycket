@@ -772,11 +772,18 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
     @label
-    @make_call_method([values.W_Object], simple=False)
-    def call(self, arg, env, cont):
+    @make_call_method(simple=False)
+    def call(self, args, env, cont):
         from pycket.interpreter import return_value
+        arg = args[0]
         if isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
+        elif len(args) > 1:
+            failure_result = args[1]
+            if failure_result.iscallable():
+                return failure_result.call([], env, cont)
+            else:
+                return return_value(failure_result, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
                 (self.property.name, self.property.name, arg.tostring()))
 
