@@ -11,7 +11,7 @@ from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
 from pycket                   import values_struct
 from pycket.error             import SchemeException
-from pycket.prims.expose      import default, expose, expose_val
+from pycket.prims.expose      import default, expose, expose_val, procedure
 import os
 
 class Token(object):
@@ -361,12 +361,19 @@ def make_output_port(name, evt, write_out, close, write_out_special,\
     init_position, buffer_mode):
     return values.W_StringOutputPort()
 
-@expose("port-display-handler", [values.W_OutputPort])
-def port_display_handler(p):
+# FIXME: implementation
+@expose("port-display-handler", [values.W_OutputPort, default(procedure, None)])
+def port_display_handler(out, proc):
     return standard_printer
 
-@expose("port-write-handler", [values.W_OutputPort])
-def port_write_handler(p):
+# FIXME: implementation
+@expose("port-write-handler", [values.W_OutputPort, default(procedure, None)])
+def port_write_handler(out, proc):
+    return standard_printer
+
+# FIXME: implementation
+@expose("port-print-handler", [values.W_OutputPort, default(procedure, None)])
+def port_print_handler(out, proc):
     return standard_printer
 
 # FIXME: implementation

@@ -308,7 +308,6 @@ for args in [ ("subprocess?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
-              ("procedure-struct-type?",),
               ("special-comment?",),
               ("exn:srclocs?",),
               ("logger?",),
@@ -450,6 +449,11 @@ def procedure_arity_includes(p, n, w_kw_ok):
         if n_val == i: return values.w_true
     if at_least != -1 and n_val >= at_least:
         return values.w_true
+    return values.w_false
+
+# FIXME: implementation
+@expose("procedure-struct-type?", [values_struct.W_StructType])
+def do_is_procedure_struct_type(type):
     return values.w_false
 
 @expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
@@ -763,6 +767,11 @@ def make_ephemeron(key, val):
 def ephemeron_value(ephemeron, default):
     v = ephemeron.get()
     return v if v is not None else default
+
+# FIXME: implementation
+@expose("make-reader-graph", [values.W_Object])
+def make_placeholder(val):
+    return val
 
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
