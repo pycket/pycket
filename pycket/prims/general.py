@@ -815,7 +815,7 @@ def consp(v):
 def list_ref(lst, pos):
     return values.from_list(lst)[pos.value]
 
-@expose("list-tail", [values.W_List, values.W_Fixnum])
+@expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
     start_pos = pos.value
     if start_pos == 0:
