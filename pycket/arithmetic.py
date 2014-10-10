@@ -330,7 +330,12 @@ class __extend__(values.W_Flonum):
         assert isinstance(other, values.W_Flonum)
         if other.value == 0.0:
             raise Exception("zero_divisor")
-        return values.W_Flonum(math.fmod(self.value, other.value))
+        x, y = self.value, other.value
+        res = math.fmod(x, y)
+        # ensure the remainder has the same sign as the denominator
+        if (y < 0.0) != (res < 0.0):
+            res += y
+        return values.W_Flonum(res)
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
