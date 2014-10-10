@@ -213,6 +213,8 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             return W_UnwrappedFixnumCons(car, cdr)
+        elif isinstance(car, W_Flonum):
+            return W_UnwrappedFlonumCons(car, cdr)
         else:
             return W_WrappedCons(car, cdr)
 
@@ -360,6 +362,19 @@ class W_UnwrappedFixnumCons(W_Cons):
 
     def car(self):
         return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_UnwrappedFlonumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Flonum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Flonum(self._car)
 
     def cdr(self):
         return self._cdr
@@ -747,7 +762,7 @@ def equal_hash_ref_loop(data, idx, key, env, cont):
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
@@ -766,7 +781,7 @@ def equal_hash_set_loop(data, idx, key, val, env, cont):
         data.append((key, val))
         return return_value(w_void, env, cont)
     k, _ = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_set_is_equal_cont(data, idx, key, val, env, cont))
 
@@ -1107,7 +1122,7 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_fields_ = ['caselam']
 
@@ -1271,9 +1286,8 @@ class ParamKey(object):
     pass
 
 def find_param_cell(cont, param):
-    from pycket.cont import get_mark_first
     assert isinstance(cont, BaseCont)
-    p = get_mark_first(cont, parameterization_key)
+    p = cont.get_mark_first(parameterization_key)
     assert isinstance(p, W_Parameterization)
     assert isinstance(param, W_Parameter)
     v = p.get(param)
