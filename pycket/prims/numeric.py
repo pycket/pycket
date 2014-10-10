@@ -266,6 +266,7 @@ for args in [
         ("abs", "arith_abs"),
         ("round", "arith_round"),
         ("bitwise-not", "arith_not", values.W_Integer),
+        ("exp",     "arith_exp"),
         ]:
     make_unary_arith(*args)
 

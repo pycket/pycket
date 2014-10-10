@@ -156,6 +156,10 @@ class __extend__(values.W_Number):
 
 
 
+    def arith_exp(self):
+        self = self.arith_exact_inexact()
+        assert isinstance(self, values.W_Flonum)
+        return self.arith_exp()
 
     def same_numeric_class_reversed(self, other):
         self, other = self.same_numeric_class(other)
@@ -334,6 +338,10 @@ class __extend__(values.W_Fixnum):
     def arith_oddp(self):
         return values.W_Bool.make((self.value % 2) != 0)
 
+    def arith_exp(self):
+        if self.value == 0:
+            return values.W_Fixnum(1)
+        return values.W_Flonum(math.exp(self.value))
 
     # ------------------ comparisons ------------------
 
@@ -496,6 +504,11 @@ class __extend__(values.W_Flonum):
 
     def arith_oddp(self):
         return values.W_Bool.make(math.fmod(self.value, 2.0) != 0.0)
+
+    def arith_exp(self):
+        if self.value == 0:
+            return values.W_Fixnum(1)
+        return values.W_Flonum(math.exp(self.value))
 
     # ------------------ comparisons ------------------
 
@@ -804,6 +817,13 @@ class __extend__(values.W_Complex):
         return values.W_Complex(
                 self.real.arith_exact_inexact(),
                 self.imag.arith_exact_inexact())
+
+    def arith_exp(self):
+        r = self.real.arith_exp()
+        cos = self.imag.arith_cos()
+        sin = self.imag.arith_sin()
+        return values.W_Complex(cos, sin).arith_mul(r)
+
 
     # ------------------ comparisons ------------------
 
