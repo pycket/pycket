@@ -256,9 +256,13 @@ class __extend__(values.W_Fixnum):
         assert isinstance(other, values.W_Fixnum)
         return values.W_Fixnum(self.value >> other.value)
 
-    def arith_shl_same(self, other_num):
+    def arith_shl_same(self, other):
         assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(intmask(self.value << other.value))
+        try:
+            res = rarithmetic.ovfcheck(self.value << other.value)
+        except OverflowError:
+            return self.arith_shl(values.W_Bignum(rbigint.fromint(other.value)))
+        return values.W_Fixnum(res)
 
     def arith_or_same(self, other):
         assert isinstance(other, values.W_Fixnum)

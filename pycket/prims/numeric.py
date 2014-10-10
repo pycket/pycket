@@ -270,6 +270,16 @@ for args in [
         ]:
     make_unary_arith(*args)
 
+
+@expose("arithmetic-shift", [values.W_Number, values.W_Fixnum])
+def arithmetic_shift(w_a, w_b):
+    # XXX support biginteger as second argument (returning 0 and out of memory)
+    b = w_b.value
+    if b >= 0:
+        return w_a.arith_shl(w_b)
+    else:
+        return w_a.arith_shr(values.W_Fixnum(-b))
+
 ## Unsafe Fixnum ops
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
