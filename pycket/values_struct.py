@@ -438,8 +438,8 @@ class W_RootStruct(values.W_Object):
 
     def checked_call(self, proc, args, env, cont):
         args_len = len(args)
-        (ls, at_least) = proc.get_arity()
-        if (args_len < at_least or at_least < 0) and args_len not in ls:
+        (arities, rest) = proc.get_arity()
+        if args_len < rest and args_len not in arities:
             for w_prop, w_prop_val in self.struct_type().props:
                 if w_prop.isinstance(w_prop_arity_string):
                     return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
@@ -584,8 +584,8 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         guard_super_values = _vals._get_full_list()
-        if guard_super_values:
-            field_values = guard_super_values + field_values[len(guard_super_values):]
+        # if guard_super_values:
+        #     field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
