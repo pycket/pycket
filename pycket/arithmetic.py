@@ -115,6 +115,48 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return self.arith_xor_same(other)
 
+    def arith_eq(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_eq_same(other)
+
+    def arith_ne(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_ne_same(other)
+
+    def arith_lt(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_lt_same(other)
+
+    def arith_le(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_le_same(other)
+
+    def arith_gt(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_gt_same(other)
+
+    def arith_ge(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_ge_same(other)
+
+    # default implementations
+
+    def arith_ne_same(self, other):
+        return not self.arith_eq_same(other)
+
+    def arith_le_same(self, other):
+        return not other.arith_lt_same(self)
+
+    def arith_gt_same(self, other):
+        return other.arith_lt_same(self)
+
+    def arith_ge_same(self, other):
+        return other.arith_le_same(self)
+
+
+
+
+
     def same_numeric_class_reversed(self, other):
         self, other = self.same_numeric_class(other)
         return other, self
@@ -293,6 +335,33 @@ class __extend__(values.W_Fixnum):
         return values.W_Bool.make((self.value % 2) != 0)
 
 
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value == other.value
+
+    def arith_ne_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value != other.value
+
+    def arith_lt_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value < other.value
+
+    def arith_le_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value <= other.value
+
+    def arith_gt_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value > other.value
+
+    def arith_ge_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        return self.value >= other.value
+
+
 class __extend__(values.W_Flonum):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Fixnum):
@@ -428,6 +497,31 @@ class __extend__(values.W_Flonum):
     def arith_oddp(self):
         return values.W_Bool.make(math.fmod(self.value, 2.0) != 0.0)
 
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value == other.value
+
+    def arith_ne_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value != other.value
+
+    def arith_lt_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value < other.value
+
+    def arith_le_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value <= other.value
+
+    def arith_gt_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value > other.value
+
+    def arith_ge_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        return self.value >= other.value
 
 class __extend__(values.W_Bignum):
     def same_numeric_class(self, other):
@@ -580,6 +674,16 @@ class __extend__(values.W_Bignum):
         return values.W_Bool.make(
             self.value.mod(rbigint.fromint(2)).tobool())
 
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_Bignum)
+        return self.value.eq(other.value)
+
+    def arith_lt_same(self, other):
+        assert isinstance(other, values.W_Bignum)
+        return self.value.lt(other.value)
+
 
 class __extend__(values.W_Rational):
     def same_numeric_class(self, other):
@@ -640,6 +744,18 @@ class __extend__(values.W_Rational):
     def arith_exact_inexact(self):
         return values.W_Flonum(self._numerator.truediv(self._denominator))
 
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        return self._numerator.eq(other._numerator) and self._denominator.eq(other._denominator)
+
+    def arith_lt_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        ad = self._numerator.mul(other._denominator)
+        cb = other._numerator.mul(self._denominator)
+        return ad.lt(cb)
+
 class __extend__(values.W_Complex):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Complex):
@@ -688,3 +804,13 @@ class __extend__(values.W_Complex):
         return values.W_Complex(
                 self.real.arith_exact_inexact(),
                 self.imag.arith_exact_inexact())
+
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_Complex)
+        return self.real.arith_eq(other.real) and self.imag.arith_eq(other.imag)
+
+    def arith_lt_same(self, other):
+        from pycket.error import SchemeException
+        raise SchemeException("can't compare complex numbers")

@@ -126,6 +126,29 @@ def test_lt_flonum_bignum():
     run("(< (expt 10 100) 1.0)", w_false)
     run("(< 1.0 (expt 10 100))", w_true)
 
+def test_comparison_doctest(doctest):
+    """
+    > (= 5+5i 5+5.0i)
+    #t
+    > (= 5+5i 5+5.0i 5.0+5i 5.0+5.0i)
+    #t
+    > (= 2/3 2/3)
+    #t
+    > (= 5+5i 5+3i)
+    #f
+    > (= 2/3 2/7)
+    #f
+    > (< -1/2 -1/3 2/3 11/10)
+    #t
+    > (< -2/3 1)
+    #t
+    > (< 2/3 1/3)
+    #f
+    E (< 1)
+    E (< )
+    E (< #f #t)
+    """
+
 def test_neg_pos():
     run("(negative? -1)", w_true)
     run("(negative?  0)", w_false)
@@ -263,9 +286,8 @@ def test_all_comparators(doctest):
     #t
     > (= 1 2)
     #f
-    ; fixme complex
-    ;> (= 2+3i 2+3i 2+3i)
-    ;#t
+    > (= 2+3i 2+3i 2+3i)
+    #t
     > (< 1 1)
     #f
     > (< 1 2 3)

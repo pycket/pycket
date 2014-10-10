@@ -22,61 +22,21 @@ def make_cmp(name, op, con):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
-        assert len(args) >= 2
+        if len(args) < 2:
+            raise SchemeException("number of arguments to %s too small" % name)
         idx = 2
         truth = True
         while idx <= len(args):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            assert isinstance(w_a, W_Number)
-            assert isinstance(w_b, W_Number)
+            if not isinstance(w_a, W_Number):
+                raise SchemeException("expected number")
+            if not isinstance(w_b, W_Number):
+                raise SchemeException("expected number")
             idx += 1
+            truth = truth and getattr(w_a, "arith_" + op)(w_b)
 
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Fixnum):
-                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
-                continue
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Bignum):
-                truth = truth and (getattr(w_a.value, op)(w_b.value))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Flonum):
-                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
-                continue
-
-            # Upcast float
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Flonum):
-                a = float(w_a.value)
-                truth = truth and (getattr(operator, op)(a, w_b.value))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Fixnum):
-                b = float(w_b.value)
-                truth = truth and (getattr(operator, op)(w_a.value, b))
-                continue
-
-            # Upcast bignum
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Fixnum):
-                b = rbigint.fromint(w_b.value)
-                truth = truth and (getattr(w_a.value, op)(b))
-                continue
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Bignum):
-                a = rbigint.fromint(w_a.value)
-                truth = truth and (getattr(a, op)(w_b.value))
-                continue
-
-            # Upcast bignum/float
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
-                b = rbigint.fromfloat(w_b.value)
-                truth = truth and (getattr(w_a.value, op)(b))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
-                a = rbigint.fromfloat(w_a.value)
-                truth = truth and (getattr(a, op)(w_b.value))
-                continue
-
-            #FIXME: Complex. Rationals
-
-            raise SchemeException("unsupported operation %s on %s %s" % (
-                name, w_a.tostring(), w_b.tostring()))
         return con(truth)
     do.__name__ = op
 
