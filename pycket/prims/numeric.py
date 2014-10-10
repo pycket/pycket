@@ -208,6 +208,7 @@ for args in [
     make_arith(*args)
 
 def make_fixedtype_arith(name, methname, intversion=True, floatversion=True):
+    methname += "_same"
     if floatversion:
         @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
         def do(a, b):
