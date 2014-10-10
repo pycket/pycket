@@ -138,7 +138,7 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class ConsEnv(Env):
     _immutable_fields_ = ["_prev"]
     def __init__ (self, prev):
@@ -172,4 +172,4 @@ class ConsEnv(Env):
         return self
 
     def __repr__(self):
-        return "<ConsEnv %r %r>" % ([x.tostring() for  x in self._get_full_list()], self._prev)
+        return "<%s %r %r>" % (self.__class__.__name__, [x.tostring() for  x in self._get_full_list()], self._prev)

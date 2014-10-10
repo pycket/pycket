@@ -69,7 +69,7 @@ def check_chaperone_results_loop(vals, args, idx, env, cont):
         idx += 1
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
-    info = EqualInfo(for_chaperone=EqualInfo.CHAPERONE)
+    info = EqualInfo.CHAPERONE_SINGLETON
     return equal_func(vals._get_list(idx), args[idx], info, env,
             catch_equal_cont(vals, args, idx, env, cont))
 

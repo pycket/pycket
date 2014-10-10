@@ -7,6 +7,7 @@ from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode
+from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
@@ -213,6 +214,8 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             return W_UnwrappedFixnumCons(car, cdr)
+        elif isinstance(car, W_Flonum):
+            return W_UnwrappedFlonumCons(car, cdr)
         else:
             return W_WrappedCons(car, cdr)
 
@@ -364,6 +367,19 @@ class W_UnwrappedFixnumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+class W_UnwrappedFlonumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Flonum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Flonum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -491,10 +507,13 @@ class W_Fixnum(W_Integer):
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
-    def tostring(self):
-        return str(self.value)
+
     def __init__(self, val):
         self.value = val
+
+    def tostring(self):
+        from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
+        return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
 
     def equal(self, other):
         if not isinstance(other, W_Flonum):
@@ -747,7 +766,7 @@ def equal_hash_ref_loop(data, idx, key, env, cont):
     if idx >= len(data):
         return return_value(None, env, cont)
     k, v = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_ref_is_equal_cont(data, idx, key, v, env, cont))
 
@@ -766,7 +785,7 @@ def equal_hash_set_loop(data, idx, key, val, env, cont):
         data.append((key, val))
         return return_value(w_void, env, cont)
     k, _ = data[idx]
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
             catch_set_is_equal_cont(data, idx, key, val, env, cont))
 
@@ -812,18 +831,20 @@ class W_BytePRegexp(W_AnyRegexp): pass
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
-    _immutable_fields_ = ["value"]
-    def __init__(self, val):
+
+    def __init__(self, val, immutable=True):
+        assert val is not None
         self.value = val
+        self.imm   = immutable
     def tostring(self):
-        return "#%s" % self.value
+        return "#\"%s\"" % self.value
 
     def equal(self, other):
         if not isinstance(other, W_Bytes):
             return False
         return self.value == other.value
     def immutable(self):
-        return True
+        return self.imm
 
 class W_String(W_Object):
     errorname = "string"
@@ -896,6 +917,7 @@ class W_Symbol(W_Object):
     def variable_name(self):
         return self.value
 
+break_enabled_key = W_Symbol("break-enabled-key")
 exn_handler_key = W_Symbol("exnh")
 parameterization_key = W_Symbol("parameterization")
 
@@ -918,13 +940,6 @@ class W_Keyword(W_Object):
         self.value = val
     def tostring(self):
         return "'#:%s" % self.value
-
-# FIXME: this should really be a struct
-class W_ArityAtLeast(W_Object):
-    _immutable_fields_ = ["val"]
-    errorname = "arity-at-least"
-    def __init__(self, n):
-        self.val = n
 
 class W_Procedure(W_Object):
     def __init__(self):
@@ -1108,7 +1123,7 @@ class W_Closure(W_Procedure):
             cont)
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_fixnum=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_fields_ = ['caselam']
 
@@ -1271,9 +1286,8 @@ class ParamKey(object):
     pass
 
 def find_param_cell(cont, param):
-    from pycket.cont import get_mark_first
     assert isinstance(cont, BaseCont)
-    p = get_mark_first(cont, parameterization_key)
+    p = cont.get_mark_first(parameterization_key)
     assert isinstance(p, W_Parameterization)
     assert isinstance(param, W_Parameter)
     v = p.get(param)
@@ -1363,16 +1377,59 @@ class W_OutputPort(W_Port):
 
 class W_StringOutputPort(W_OutputPort):
     errorname = "output-port"
-    def write(self, str):
-        self.str += str
     def __init__(self):
         self.closed = False
-        self.str = ""
+        self.str = StringBuilder()
+    def write(self, s):
+        self.str.append(s)
+    def contents(self):
+        return self.str.build()
 
 class W_InputPort(W_Port):
     errorname = "input-port"
+    def read(self, n):
+        assert 0, "abstract class"
+    def readline(self):
+        assert 0, "abstract class"
     def tostring(self):
         return "#<input-port>"
+
+class W_StringInputPort(W_InputPort):
+    _immutable_fields_ = ["str"]
+    errorname = "input-port"
+    def __init__(self, str):
+        self.closed = False
+        self.str = str
+        self.ptr = 0
+    def readline(self):
+        # import pdb; pdb.set_trace()
+        from rpython.rlib.rstring import find
+        start = self.ptr
+        assert start >= 0
+        pos = find(self.str, "\n", start, len(self.str))
+        if pos == -1:
+            return self.read(pos)
+        else:
+            pos += 1
+            line = self.read(pos - start)
+        return line
+
+    def read(self, n):
+        if self.ptr >= len(self.str):
+            return ""
+        p = self.ptr
+        assert p >= 0
+        if n == -1 or n >= (len(self.str) - self.ptr):
+            self.ptr = len(self.str)
+            assert self.ptr >= 0
+            return self.str[p:]
+        else:
+            self.ptr += n
+            stop = self.ptr
+            assert stop < len(self.str)
+            assert stop >= 0
+            return self.str[p:stop]
+
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
@@ -1380,6 +1437,10 @@ class W_FileInputPort(W_InputPort):
         self.closed = True
         self.file.close()
         self.file = None
+    def read(self, n):
+        return self.file.read(n)
+    def readline(self):
+        return self.file.readline()
     def __init__(self, f):
         self.closed = False
         self.file = f

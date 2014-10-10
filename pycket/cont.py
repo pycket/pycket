@@ -2,28 +2,6 @@ import inspect
 
 from rpython.rlib import jit, unroll
 
-# these aren't methods so that can handle empty conts
-def get_mark_first(cont, key):
-    p = cont
-    while isinstance(p, Cont):
-        v = p.find_cm(key)
-        if v:
-            return v
-        elif p.prev:
-            p = p.prev
-    return p.find_cm(key)
-
-def get_marks(cont, key):
-    from pycket import values
-    if not cont:
-        return values.w_null
-    # FIXME: don't use recursion
-    # it would be much more convenient to write this with mutable pairs
-    v = cont.find_cm(key)
-    if v:
-        return values.W_Cons.make(v, get_marks(cont.prev, key))
-    else:
-        return get_marks(cont.prev, key)
 
 class Link(object):
     def __init__(self, k, v, next):
@@ -64,6 +42,17 @@ class BaseCont(object):
         from pycket import values
         v = self.find_cm(key)
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
+
+    def get_mark_first(self, key):
+        p = self
+        while isinstance(p, Cont):
+            v = p.find_cm(key)
+            if v:
+                return v
+            elif p.prev:
+                p = p.prev
+        return p.find_cm(key)
+
 
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("abstract method")

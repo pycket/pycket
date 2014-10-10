@@ -5,6 +5,16 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
+def test_flonum_tostring():
+    from rpython.rtyper.test.test_llinterp import interpret
+    import math
+    def float_tostring(x):
+        print W_Flonum(x).tostring()
+        return W_Flonum(x).tostring() == s
+    s = str(math.pi)
+    res = interpret(float_tostring, [math.pi])
+    assert res
+
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)
@@ -297,24 +307,35 @@ def test_rational(doctest):
     5/6
     > (+ 1/2 1)
     3/2
+    > (+ 1/2 0.5)
+    1.0
     > (- 4/5 -7/9)
     71/45
     > (- 1/2 2)
     -3/2
+    > (- 1/2 0.0)
+    0.5
     > (/ 2/3 3/2)
     4/9
     > (/ -2/3 -5)
     2/15
+    > (/ 0.5 -1/4)
+    -2.0
     > (* 2/3 3/2)
     1
     > (* 2 3/2)
     3
     > (* 3/2 5)
     15/2
+    > (* 1/2 2.0)
+    1.0
     > (+ 1/4 1/4)
     1/2
     > (sub1 5/3)
     2/3
+    ; bignum to rational
+    > (/ 12323111111111111111111111111111111111111112222222222222 232321122)
+    2053851851851851851851851851851851851851852037037037037/38720187
     """
 
 def test_gcd():
@@ -444,4 +465,36 @@ def test_bitwise(doctest):
     31
     > (bitwise-xor)
     0
+    > (bitwise-not 1)
+    -2
+    > (bitwise-not -1111111111111111111111111111111111111111111114243232)
+    1111111111111111111111111111111111111111111114243231
+    """
+
+def test_exact_to_inexact(doctest):
+    """
+    > (exact->inexact 1)
+    1.0
+    > (exact->inexact 1/2)
+    0.5
+    > (exact->inexact 0.5)
+    0.5
+    > (exact->inexact 1+2i)
+    1.0+2.0i
+    > (exact->inexact 102222222222222222222222222222222222222222222222123123)
+    1.0222222222222222e+53
+    """
+
+def test_inexact_to_exact(doctest):
+    """
+    > (inexact->exact 1.0)
+    1
+    > (inexact->exact 0.5)
+    1/2
+    > (inexact->exact 1/2)
+    1/2
+    > (inexact->exact 1.0+2.0i)
+    1+2i
+    > (inexact->exact 1.0222222222222222e+53)
+    102222222222222223892324523663483522756187192341561344
     """

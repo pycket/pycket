@@ -5,6 +5,7 @@ from pycket              import values
 from pycket              import values_struct
 from pycket.cont         import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
+from rpython.rlib import jit
 
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
@@ -17,13 +18,18 @@ class EqualInfo(object):
     CHAPERONE    = 1
     IMPERSONATOR = 2
 
-    def __init__(self, for_chaperone=0):
+    def __init__(self, for_chaperone=BASIC):
+        """ NOT_RPYTHON """
         self.for_chaperone = for_chaperone
+
+EqualInfo.BASIC_SINGLETON = EqualInfo(EqualInfo.BASIC)
+EqualInfo.CHAPERONE_SINGLETON = EqualInfo(EqualInfo.CHAPERONE)
+EqualInfo.IMPERSONATOR_SINGLETON = EqualInfo(EqualInfo.IMPERSONATOR)
 
 @expose("equal?", [values.W_Object] * 2, simple=False)
 def equalp(a, b, env, cont):
     # FIXME: broken for cycles, etc
-    info = EqualInfo(for_chaperone=EqualInfo.BASIC)
+    info = EqualInfo.BASIC_SINGLETON
     return equal_func(a, b, info, env, cont)
 
 @expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
@@ -91,32 +97,40 @@ def equal_func(a, b, info, env, cont):
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
-    # Enter into chaperones/impersonators is we have permission to do so
-    if ((info.for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
-        (info.for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
+    # Enter into chaperones/impersonators if we have permission to do so
+    for_chaperone = jit.promote(info.for_chaperone)
+    if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
+        (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
         return equal_func(a.get_proxied(), b, info, env, cont)
 
     # If we are doing a chaperone/impersonator comparison, then we do not have
     # a chaperone-of/impersonator-of relation if `a` is not a proxy and
     # `b` is a proxy.
-    if info.for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
+    if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
         return return_value(values.w_false, env, cont)
 
     if isinstance(a, values.W_String) and isinstance(b, values.W_String):
+        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+        if is_chaperone and (not a.immutable() or not b.immutable()):
+            return return_value(values.w_false, env, cont)
+        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
+    if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
         is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
         if is_chaperone and (not a.immutable() or not b.immutable()):
             return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.value == b.value), env, cont)
+        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         return equal_func(a.car(), b.car(), info, env,
                     equal_car_cont(a.cdr(), b.cdr(), info, env, cont))
     if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
+        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
         if is_chaperone and (not a.immutable() or not b.immutable()):
             return return_value(values.w_false, env, cont)
         return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
     if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
-        is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
+        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
         if is_chaperone and (not a.immutable() or not b.immutable()):
             return return_value(values.w_false, env, cont)
         if a.length() != b.length():

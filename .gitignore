@@ -7,3 +7,6 @@ pycket-c*
 *pypylog
 *.exe
 *.swp
+*,cover
+.coverage
+.coverage.*
