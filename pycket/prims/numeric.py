@@ -193,6 +193,30 @@ for args in [
         ]:
     make_fixedtype_arith(*args)
 
+
+def make_fixedtype_cmps(name, methname):
+    methname = "arith_%s_same" % methname
+    def do(a, b):
+        return values.W_Bool.make(getattr(a, methname)(b))
+    do.__name__ = "fl_" + methname
+    expose("fl" + name, [values.W_Flonum] * 2, simple=True)(do)
+    expose("unsafe-fl" + name, [unsafe(values.W_Flonum)] * 2, simple=True)(do)
+
+    def do(a, b):
+        return values.W_Bool.make(getattr(a, methname)(b))
+    do.__name__ = "fx_" + methname
+    expose("fx" + name, [values.W_Fixnum] * 2, simple=True)(do)
+    expose("unsafe-fx" + name, [unsafe(values.W_Fixnum)] * 2, simple=True)(do)
+
+for args in [
+    ("<",  "lt"),
+    ("<=", "le"),
+    (">",  "gt"),
+    (">=", "ge"),
+    ("=",  "eq"),
+    ]:
+    make_fixedtype_cmps(*args)
+
 @expose("flsqrt", [values.W_Flonum])
 def flsqrt(f):
     return f.arith_sqrt()
@@ -270,29 +294,6 @@ def unsafe_fxmin(a, b):
 def unsafe_fxmax(a, b):
     return values.W_Fixnum(max(a.value, b.value))
 
-@expose("unsafe-fx<", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxlt(a, b):
-    return values.W_Bool.make(a.value < b.value)
-
-@expose("unsafe-fx<=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxlt(a, b):
-    return values.W_Bool.make(a.value <= b.value)
-
-@expose("unsafe-fx>", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxgt(a, b):
-    return values.W_Bool.make(a.value > b.value)
-
-@expose("unsafe-fx>=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxgt(a, b):
-    return values.W_Bool.make(a.value >= b.value)
-
-@expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxeq(a, b):
-    return values.W_Bool.make(a.value == b.value)
-
-@expose("fx=", [values.W_Fixnum] * 2)
-def fxeq(a, b):
-    return values.W_Bool.make(a.value == b.value)
 
 @expose("fx->fl", [values.W_Fixnum])
 def fxfl(a):
@@ -331,23 +332,3 @@ def unsafe_fltimes(a, b):
 @expose("unsafe-fl/", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fldiv(a, b):
     return values.W_Flonum(a.value / b.value)
-
-@expose("unsafe-fl<", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fllt(a, b):
-    return values.W_Bool.make(a.value < b.value)
-
-@expose("unsafe-fl<=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fllte(a, b):
-    return values.W_Bool.make(a.value <= b.value)
-
-@expose("unsafe-fl>", [unsafe(values.W_Flonum)] * 2)
-def unsafe_flgt(a, b):
-    return values.W_Bool.make(a.value > b.value)
-
-@expose("unsafe-fl>=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_flgte(a, b):
-    return values.W_Bool.make(a.value >= b.value)
-
-@expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fleq(a, b):
-    return values.W_Bool.make(a.value == b.value)

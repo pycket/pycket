@@ -258,6 +258,23 @@ def test_flonum_special(doctest):
     2.0
     > (flmax 2.0 1.0)
     2.0
+    > (fl> 2.5 1.5)
+    #t
+    > (fl>= 2.5 1.5)
+    #t
+    > (fl>= 1.5 1.5)
+    #t
+    > (fl>= -1.5 1.5)
+    #f
+    > (fl<= -1.5 1.5)
+    #t
+    > (fl<= -10.5 -10.5)
+    #t
+    > (fl< -10.0 -10.0)
+    #f
+    > (fl= -10.0 -10.0)
+    #t
+    E (fl= -10 -10.0)
     """
 
 def test_fixnum_special(doctest):
@@ -265,6 +282,7 @@ def test_fixnum_special(doctest):
     ! (require '#%flfxnum)
     > (fx+ 1 2)
     3
+    E (fx+ 1 1.2)
     > (fx- 2 1)
     1
     > (fx* 2 5)
@@ -277,6 +295,23 @@ def test_fixnum_special(doctest):
     2
     > (fxmax 2 1)
     2
+    > (fx> 2 1)
+    #t
+    > (fx>= 2 1)
+    #t
+    > (fx>= 1 1)
+    #t
+    > (fx>= -1 1)
+    #f
+    > (fx<= -1 1)
+    #t
+    > (fx<= -10 -10)
+    #t
+    > (fx< -10 -10)
+    #f
+    > (fx= -10 -10)
+    #t
+    E (fx= -10 -10.0)
     """
 
 def test_all_comparators(doctest):
