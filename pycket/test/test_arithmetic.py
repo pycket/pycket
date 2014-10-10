@@ -548,4 +548,8 @@ def test_fixnum_unsafe(doctest):
     20
     > (unsafe-fxmax 20 10)
     20
+    > (unsafe-fxmodulo -100 30)
+    20
+    > (unsafe-fxmodulo 100 -30)
+    -20
     """

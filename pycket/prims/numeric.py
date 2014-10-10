@@ -297,6 +297,10 @@ def unsafe_fxminus(a, b):
 def unsafe_fxtimes(a, b):
     return values.W_Fixnum(a.value * b.value)
 
+@expose("unsafe-fxmodulo", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxtimes(a, b):
+    return values.W_Fixnum(a.value % b.value)
+
 @expose("unsafe-fxmin", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxmin(a, b):
     return values.W_Fixnum(min(a.value, b.value))
