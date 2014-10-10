@@ -65,8 +65,7 @@ def pytest_funcarg__doctest(request):
     for line in lines:
         if ";" in line: # strip comments
             line = line[:line.find(";")]
-        line = line.strip()
-        if not line:
+        if not line.strip():
             continue
         elif line[0] == "!":
             if setup_done:
