@@ -275,6 +275,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_inexact_exact(self):
         return self
+
     def arith_exact_inexact(self):
         return values.W_Flonum(float(self.value))
 
@@ -398,7 +399,11 @@ class __extend__(values.W_Flonum):
     def arith_inexact_exact(self):
         fractional_part = self.arith_float_fractional_part()
         if fractional_part.value == 0:
-            return values.W_Fixnum(int(self.value))
+            try:
+                val = rarithmetic.ovfcheck_float_to_int(self.value)
+            except OverflowError:
+                return values.W_Bignum(rbigint.fromfloat(self.value))
+            return values.W_Fixnum(val)
         else:
             return values.W_Rational.fromfloat(self.value)
 
@@ -450,7 +455,7 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            raise SchemeException("rationals not implemented")
+            return values.W_Rational.frombigint(self.value, other.value)
         return values.W_Bignum.frombigint(res)
 
     def arith_mod_same(self, other):
@@ -547,6 +552,7 @@ class __extend__(values.W_Bignum):
 
     def arith_inexact_exact(self):
         return self
+
     def arith_exact_inexact(self):
         return values.W_Flonum(self.value.tofloat())
 
@@ -623,6 +629,9 @@ class __extend__(values.W_Rational):
         else:
             return values.W_Bignum.frombigint(res1)
 
+    def arith_inexact_exact(self):
+        return self
+
     def arith_exact_inexact(self):
         return values.W_Flonum(self._numerator.truediv(self._denominator))
 
@@ -664,6 +673,11 @@ class __extend__(values.W_Complex):
         im2 = self.imag.arith_mul(self.imag)
         denom = re2.arith_add(im2)
         return self.complex_conjugate().arith_div(denom)
+
+    def arith_inexact_exact(self):
+        return values.W_Complex(
+                self.real.arith_inexact_exact(),
+                self.imag.arith_inexact_exact())
 
     def arith_exact_inexact(self):
         return values.W_Complex(

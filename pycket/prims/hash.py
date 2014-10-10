@@ -193,3 +193,7 @@ def equal_hash_code(v):
     # FIXME: not implemented
     return values.W_Fixnum(0)
 
+@expose("equal-secondary-hash-code", [values.W_Object])
+def equal_hash_code(v):
+    # FIXME: not implemented
+    return values.W_Fixnum(0)

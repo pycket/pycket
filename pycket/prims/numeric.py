@@ -3,6 +3,7 @@
 import math
 import operator
 from pycket import values
+from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
@@ -156,7 +157,7 @@ def inexactp(n):
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]) #FIXME
+    return values.Values.make([a.arith_quotient(b), a.arith_mod(b)]) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -340,6 +341,15 @@ def unsafe_fxquotient(a, b):
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
 
+# FIXME: implementation
+@expose("fxvector?", [values.W_Object])
+def is_fxvector(v):
+    return values.w_false
+
+@expose("flvector?", [values.W_Object])
+def is_flvector(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_FlVector))
+
 ## Unsafe Flonum ops
 @expose("unsafe-fl+", [unsafe(values.W_Flonum)] * 2)
 def unsafe_flplus(a, b):
@@ -376,6 +386,3 @@ def unsafe_flgte(a, b):
 @expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fleq(a, b):
     return values.W_Bool.make(a.value == b.value)
-
-
-
