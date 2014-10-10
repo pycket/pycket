@@ -149,5 +149,6 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     print code
     res = execute(code, extra=kwargs.get("extra", ""))
     if res is not values.w_true:
-        assert 0, "%s is different from %s" % (
-                pairs_of_equal_stuff[res.value * 2], pairs_of_equal_stuff[res.value * 2 + 1])
+        wrongres = execute(pairs_of_equal_stuff[res.value * 2])
+        assert 0, "%s is %s, which is different from %s" % (
+                pairs_of_equal_stuff[res.value * 2], wrongres.tostring(), pairs_of_equal_stuff[res.value * 2 + 1])

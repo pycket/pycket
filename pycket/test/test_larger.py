@@ -60,5 +60,8 @@ def test_thread_cells():
 def test_impersonator_properties():
     run_file("impersonator-properties.rkt")
 
+def test_church():
+    run_file("church-simple.rkt")
+
 #def test_minikanren():
 #    run_file("minikanren.sch")
