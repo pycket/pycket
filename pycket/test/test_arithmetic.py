@@ -516,3 +516,36 @@ def test_inexact_to_exact(doctest):
     > (inexact->exact 1.0222222222222222e+53)
     102222222222222223892324523663483522756187192341561344
     """
+
+
+def test_flonum_unsafe(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (unsafe-fl+ 1.0 2.0)
+    3.0
+    > (unsafe-fl- 2.0 1.0)
+    1.0
+    > (unsafe-fl* 2.0 0.5)
+    1.0
+    > (unsafe-fl/ 2.0 0.5)
+    4.0
+    """
+
+def test_fixnum_unsafe(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (unsafe-fx+ 10 20)
+    30
+    > (unsafe-fx- 20 10)
+    10
+    > (unsafe-fx* 20 5)
+    100
+    > (unsafe-fxmin 10 20)
+    10
+    > (unsafe-fxmin 20 10)
+    10
+    > (unsafe-fxmax 10 20)
+    20
+    > (unsafe-fxmax 20 10)
+    20
+    """
