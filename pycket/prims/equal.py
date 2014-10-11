@@ -97,7 +97,7 @@ def equal_func(a, b, info, env, cont):
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
-    # Enter into chaperones/impersonators is we have permission to do so
+    # Enter into chaperones/impersonators if we have permission to do so
     for_chaperone = jit.promote(info.for_chaperone)
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
@@ -113,7 +113,14 @@ def equal_func(a, b, info, env, cont):
         is_chaperone = for_chaperone == EqualInfo.CHAPERONE
         if is_chaperone and (not a.immutable() or not b.immutable()):
             return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.value == b.value), env, cont)
+        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
+    if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
+        is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
+        if is_chaperone and (not a.immutable() or not b.immutable()):
+            return return_value(values.w_false, env, cont)
+        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         return equal_func(a.car(), b.car(), info, env,
                     equal_car_cont(a.cdr(), b.cdr(), info, env, cont))

@@ -186,7 +186,6 @@ class W_StructType(values.W_Object):
         for i in values.from_list(immutables):
             assert isinstance(i, values.W_Fixnum)
             self.immutables.append(i.value)
-        self.immutables += super_type.immutables if isinstance(super_type, W_StructType) else []
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
             self.constr_name = constr_name.value
@@ -338,9 +337,10 @@ class W_PrefabKey(values.W_Object):
                 super_key = W_PrefabKey.from_raw_key(w_super_key)
         if init_field_cnt == -1:
             init_field_cnt = total_field_cnt
-            while super_key:
+            s_key = super_key
+            while s_key:
                 super_name, super_init_field_cnt, super_auto_field_cnt,\
-                    super_auto_v, super_mutables, super_key = super_key.make_key_tuple()
+                    super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,\
             mutables, super_key)
@@ -583,6 +583,9 @@ class W_StructConstructor(values.W_Procedure):
     @continuation
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
+        guard_super_values = _vals._get_full_list()
+        # if guard_super_values:
+        #     field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
@@ -603,20 +606,22 @@ class W_StructConstructor(values.W_Procedure):
 
     @continuation
     def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
-        from pycket.interpreter import return_value, jump
+        from pycket.interpreter import return_multi_vals, jump
+        guard_values = _vals._get_full_list()
+        if guard_values:
+            field_values = guard_values
         super_type = jit.promote(self.type.super)
         if isinstance(super_type, W_StructType):
             split_position = len(field_values) - self.type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
-            field_values = self._splice(
-                field_values, len(field_values), split_position,
-                super_auto, len(super_auto))
+            field_values = self._splice(field_values, len(field_values),\
+                split_position, super_auto, len(super_auto))
             return super_type.constr.code(field_values[:split_position], True,
                 env, self.constr_proc_cont(field_values, env, cont))
         else:
             if issuper:
-                return jump(env, cont)
+                return return_multi_vals(values.Values.make(field_values), env, cont)
             else:
                 return jump(env, self.constr_proc_cont(field_values, env, cont))
 
@@ -767,11 +772,18 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
     @label
-    @make_call_method([values.W_Object], simple=False)
-    def call(self, arg, env, cont):
+    @make_call_method(simple=False)
+    def call(self, args, env, cont):
         from pycket.interpreter import return_value
+        arg = args[0]
         if isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
+        elif len(args) > 1:
+            failure_result = args[1]
+            if failure_result.iscallable():
+                return failure_result.call([], env, cont)
+            else:
+                return return_value(failure_result, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
                 (self.property.name, self.property.name, arg.tostring()))
 

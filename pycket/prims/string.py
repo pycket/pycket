@@ -4,6 +4,94 @@ import operator as op
 from pycket import values
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose
+from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
+from rpython.rlib.rstring     import StringBuilder
+
+
+@expose("symbol->string", [values.W_Symbol])
+def symbol_to_string(v):
+    return values.W_String(v.value)
+
+@expose("string->symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol.make(v.value)
+
+@expose("string->number", [values.W_String])
+def str2num(w_s):
+    from rpython.rlib import rarithmetic, rfloat, rbigint
+    from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+
+    s = w_s.value
+    try:
+        if "." in s:
+            return values.W_Flonum(rfloat.string_to_float(s))
+        else:
+            try:
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
+            except ParseStringOverflowError:
+                return values.W_Bignum(rbigint.rbigint.fromstr(s))
+    except ParseStringError as e:
+        return values.w_false
+
+@expose("number->string",
+        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum(10))])
+def num2str(a, radix):
+    from rpython.rlib.rbigint import BASE8, BASE16
+    if radix.value == 10:
+        return values.W_String(a.tostring())
+    else:
+        if isinstance(a, values.W_Fixnum):
+            if radix.value == 16:
+                return values.W_String(hex(a.value))
+            elif radix.value == 8:
+                return values.W_String(oct(a.value))
+            # elif radix.value == 2:
+            #     return values.W_String(bin(a.value))
+            else:
+                raise SchemeException("number->string: radix unsupported")
+        elif isinstance(a, values.W_Bignum):
+            if radix.value == 16:
+                return values.W_String(a.value.format(BASE16))
+            elif radix.value == 8:
+                return values.W_String(a.value.format(BASE8))
+            elif radix.value == 2:
+                return values.W_String(a.value.format("01"))
+            else:
+                raise SchemeException("number->string: radix unsupported")
+        else:
+            assert 0 # not reached
+
+
+@expose("string->unreadable-symbol", [values.W_String])
+def string_to_unsymbol(v):
+    return values.W_Symbol.make_unreadable(v.value)
+
+@expose("string->immutable-string", [values.W_String])
+def string_to_immutable_string(string):
+    if string.immutable():
+        return string
+    return values.W_String(string.value, immutable=True)
+
+@expose("string->uninterned-symbol", [values.W_String])
+def string_to_symbol(v):
+    return values.W_Symbol(v.value)
+
+@expose(["string->bytes/locale",
+         "string->bytes/utf-8"], [values.W_String,
+                                  default(values.W_Object, values.w_false),
+                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, None)])
+def string_to_bytes_locale(str, errbyte, start, end):
+    # FIXME: This ignores the locale
+    # FIXME: these are both wrong to some extend
+    return values.W_Bytes(str.value)
+
+@expose("string->list", [values.W_String])
+def string_to_list(s):
+    return values.to_list([values.W_Character(i) for i in s.value])
+
+
+##################################
 
 def define_string_comp(name, op):
     @expose(name)
@@ -46,17 +134,38 @@ def string_to_list(k, char):
     char = str(char.value) if isinstance(char, values.W_Character) else '\0'
     return values.W_String(char * k.value)
 
+@expose("string")
+def string(args):
+    assert len(args) > 0
+    builder = StringBuilder()
+    for char in args:
+        if not isinstance(char, values.W_Character):
+            raise SchemeException("string: expected a character")
+        builder.append(str(char.value))
+    return values.W_String(builder.build())
+
+
+@expose("string-downcase", [values.W_String])
+def char_downcase(v):
+    return values.W_String(v.value.lower())
+
+@expose("string-upcase", [values.W_String])
+def char_downcase(v):
+    return values.W_String(v.value.upper())
+
+
+
 # FIXME: this implementation sucks
 @expose("string-append")
 def string_append(args):
     if not args:
         return values.W_String("")
-    l = []
+    builder = StringBuilder()
     for a in args:
         if not isinstance(a, values.W_String):
             raise SchemeException("string-append: expected a string")
-        l.append(a.value)
-    return values.W_String(''.join(l))
+        builder.append(a.value)
+    return values.W_String(builder.build())
 
 @expose("string-length", [values.W_String])
 def string_length(s1):
@@ -104,3 +213,99 @@ def string_set(str, k, char):
     v[idx] = char.value
     str.value = "".join(v)
     return values.w_void
+
+
+@expose(["string-copy!"],
+         [values.W_String, values.W_Fixnum, values.W_String,
+          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, None)])
+def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
+    from pycket.interpreter import return_value
+
+    # FIXME: custom ports
+    if w_dest.immutable():
+        raise SchemeException("string-copy!: given immutable string")
+
+    dest_start = w_dest_start.value
+    dest_len = len(w_dest.value)
+    dest_max = (dest_len - dest_start)
+
+    src_start =  w_src_start.value
+    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+
+    assert (src_end-src_start) <= dest_max
+
+    builder = StringBuilder()
+    if dest_start > 0:
+        builder.append_slice(w_dest.value, 0, dest_start)
+    
+    if src_start == 0 and src_end == len(w_src.value):
+        builder.append(w_src.value)
+    else:
+        assert src_start >= 0 and src_end >= 0 and src_end <= len(w_src.value)
+        builder.append_slice(w_src.value, src_start, src_end)
+
+    builder.append_slice(w_dest.value, dest_start + (src_end - src_start), len(w_dest.value))
+    w_dest.value = builder.build()
+
+    return values.w_void
+
+
+################################################################################
+# Byte stuff
+@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+def make_bytes(length, byte):
+    # assert byte_huh(byte) is values.w_true
+    if isinstance(byte, values.W_Fixnum):
+        v = byte.value
+    elif isinstance(byte, values.W_Bignum):
+        try:
+            v = byte.value.toint()
+        except OverflowError:
+            assert False
+    else:
+        assert False
+    assert 0 <= v <= 255
+    bstr = chr(v) * length.value
+    return values.W_Bytes(bstr, immutable=False)
+
+@expose("bytes-append")
+def make_bytes(args):
+    if len(args) < 1:
+        raise SchemeException("error bytes-append")
+
+    # shortcut
+    first = args[0]
+    assert isinstance(first, values.W_Bytes)
+    if len(args) == 1:
+        return values.W_Bytes(first.value, immutable=False)
+
+    builder = StringBuilder()
+    for a in args:
+        if not isinstance(a, values.W_Bytes):
+            raise SchemeException("string-append: expected a byte string")
+        builder.append(a.value)
+    
+    return values.W_Bytes(builder.build(), immutable=False)
+
+################################################################################
+
+# Character
+
+
+@expose("char->integer", [values.W_Character])
+def char_to_integer(c):
+    return values.W_Fixnum(ord(c.value))
+
+
+@expose("integer->char", [values.W_Fixnum])
+def integer_to_char(v):
+    return values.W_Character(unichr(v.value))
+
+@expose("char-downcase", [values.W_Character])
+def char_downcase(v):
+    return values.W_Character(unichr(unicodedb.tolower(ord(v.value))))
+
+@expose("char-upcase", [values.W_Character])
+def char_downcase(v):
+    return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))

@@ -3,6 +3,7 @@
 #
 # conftest - configuring pytest, especially funcargs
 #
+import pytest
 
 def _doctstring_tempfile_named(request, name):
     tmpdir = request.getfuncargvalue('tmpdir')
@@ -49,7 +50,8 @@ def pytest_funcarg__ast_std(request):
 
 def pytest_funcarg__doctest(request):
     from textwrap import dedent
-    from pycket.test.testhelper import check_equal
+    from pycket.test.testhelper import check_equal, execute
+    from pycket.error import SchemeException
 
     assert request.function.__doc__ is not None
     code = dedent(request.function.__doc__)
@@ -57,13 +59,13 @@ def pytest_funcarg__doctest(request):
     setup = []
     exprs = []
     expect = []
+    errors = []
     current_let = []
     setup_done = False
     for line in lines:
         if ";" in line: # strip comments
             line = line[:line.find(";")]
-
-        if len(line.strip()) == 0:
+        if not line.strip():
             continue
         elif line[0] == "!":
             if setup_done:
@@ -72,6 +74,8 @@ def pytest_funcarg__doctest(request):
         elif line[0] == ">":
             setup_done = True
             current_let.append(line[2:])
+        elif line[0] == "E":
+            errors.append(line[1:])
         elif line[0] in " \t":
             current_let[-1] += "\n" + line[2:]
         else:
@@ -82,4 +86,7 @@ def pytest_funcarg__doctest(request):
     for pair in zip(exprs,expect):
         pairs.extend(pair)
     check_equal(*pairs, extra="\n".join(setup))
+    for error in errors:
+        with pytest.raises(SchemeException):
+            execute(error)
     return True

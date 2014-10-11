@@ -1,0 +1,20 @@
+# -*- mode: conf -*-
+# .coveragerc to control coverage.py
+[run]
+branch = True
+omit =
+     pycket/__main__.py
+     pycket/test/jit.py
+
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug-only code:
+    if debug
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise NotImplementedError
+

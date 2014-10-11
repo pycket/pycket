@@ -51,3 +51,13 @@ class TestRegressions(object):
         #t
         """
         assert doctest
+
+    def test_artiy_does_not_break_contracts(self, source):
+        """
+        #lang racket/base
+        (define ((f x) #:y [y 0]) 0)
+        ((procedure-rename (f 1) 'x) #:y 0)
+        (define result #t)
+        """
+        m = run_mod(source)
+        assert m.defs[W_Symbol.make("result")] == w_true

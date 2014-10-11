@@ -360,7 +360,7 @@
     [_ #:when (byte-pregexp? (syntax-e v))
        (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
-       (hash 'string (bytes->string/locale (syntax-e v)))]
+       (hash 'bytes (bytes->string/locale (syntax-e v)))]
     [_ #:when (hash? (syntax-e v))
        (let ([ht (syntax-e v)]
              [ht* (syntax-e v/loc)])

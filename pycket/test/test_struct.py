@@ -191,6 +191,38 @@ def test_struct_guard():
     """)
     assert "bad name" in e.value.msg
 
+def test_struct_guard2():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (define-values (s:o make-o o? o-ref o-set!)
+        (make-struct-type 'o #f 1 0 'odefault null (make-inspector) #f null (lambda (o n) (+ o 1))))
+    
+    (define x (o-ref (make-o 10) 0))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 11
+
+@skip
+def test_struct_guard3():
+    m = run_mod(
+    """
+    #lang pycket
+
+    (define got null)
+    (define-values (s:a make-a a? a-ref a-set!)
+        (make-struct-type 'a #f 2 1 'adefault null (make-inspector) #f null
+            (lambda (a b n) (set! got (cons (list a b n) got)) (values 1 2))))
+    (define-values (s:b make-b b? b-ref b-set!)
+        (make-struct-type 'b s:a 1 2 'bdefault null (make-inspector) #f null
+            (lambda (a b c n) (set! got (cons (list a b c n) got)) (values 10 20 30))))
+
+    (define x (a-ref (make-b 'x 'y 'z) 0))
+    """)
+    ov = m.defs[W_Symbol.make("x")]
+    assert ov.value == 1
+
 def test_struct_prefab():
     m = run_mod(
     """
@@ -407,7 +439,6 @@ def test_struct2vector(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-@skip
 def test_prefab_struct_key(doctest):
     """
     > (prefab-struct-key #s(cat "Garfield"))
@@ -421,7 +452,6 @@ def test_prefab_struct_key(doctest):
     """
     assert doctest
 
-@skip
 def test_make_prefab_struct(doctest):
     """
     > (make-prefab-struct 'clown "Binky" "pie")
@@ -432,8 +462,8 @@ def test_make_prefab_struct(doctest):
     '#s(clown "Binky" "pie")
     > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
     '#s((clown (1 #f)) "Binky" "pie")
-    > (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
-    '#s((clown (1 #f) #(0)) "Binky" "pie")
+    ;> (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
+    ;'#s((clown (1 #f) #(0)) "Binky" "pie")
     """
     assert doctest
 

@@ -5,6 +5,16 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
+def test_flonum_tostring():
+    from rpython.rtyper.test.test_llinterp import interpret
+    import math
+    def float_tostring(x):
+        print W_Flonum(x).tostring()
+        return W_Flonum(x).tostring() == s
+    s = str(math.pi)
+    res = interpret(float_tostring, [math.pi])
+    assert res
+
 def test_mul_zero():
     run_fix("(* 0 1.2)", 0)
     run_fix("(* 1.2 0)", 0)
@@ -72,6 +82,24 @@ def test_remainder(doctest):
     -1
     """
 
+def test_modulo(doctest):
+    """
+    > (modulo 10 3)
+    1
+    > (modulo -10.0 3)
+    2.0
+    > (modulo 10.0 -3)
+    -2.0
+    > (modulo -10 -3)
+    -1
+    > (modulo 1111111111111111111111111111111111111111111111111111111111111111111111111111 -2222222222222222222222222222222222222222222)
+    -2222222222111111111111111111111111111111111
+    > (modulo -1111111111111111111111111111111111111111111111111111111111111111111111111111 2222222222222222222222222222222222222222222)
+    2222222222111111111111111111111111111111111
+    > (modulo -1111111111111111111111111111111111111111111111111111111111111111111111111111 -2222222222222222222222222222222222222222222)
+    -111111111111111111111111111111111
+    """
+
 def test_div_fix():
     run_fix("(/ 6 3)", 2)
     x = run("(/ 1 2)")
@@ -97,6 +125,29 @@ def test_lt_fixnum_bignum():
 def test_lt_flonum_bignum():
     run("(< (expt 10 100) 1.0)", w_false)
     run("(< 1.0 (expt 10 100))", w_true)
+
+def test_comparison_doctest(doctest):
+    """
+    > (= 5+5i 5+5.0i)
+    #t
+    > (= 5+5i 5+5.0i 5.0+5i 5.0+5.0i)
+    #t
+    > (= 2/3 2/3)
+    #t
+    > (= 5+5i 5+3i)
+    #f
+    > (= 2/3 2/7)
+    #f
+    > (< -1/2 -1/3 2/3 11/10)
+    #t
+    > (< -2/3 1)
+    #t
+    > (< 2/3 1/3)
+    #f
+    E (< 1)
+    E (< )
+    E (< #f #t)
+    """
 
 def test_neg_pos():
     run("(negative? -1)", w_true)
@@ -207,6 +258,23 @@ def test_flonum_special(doctest):
     2.0
     > (flmax 2.0 1.0)
     2.0
+    > (fl> 2.5 1.5)
+    #t
+    > (fl>= 2.5 1.5)
+    #t
+    > (fl>= 1.5 1.5)
+    #t
+    > (fl>= -1.5 1.5)
+    #f
+    > (fl<= -1.5 1.5)
+    #t
+    > (fl<= -10.5 -10.5)
+    #t
+    > (fl< -10.0 -10.0)
+    #f
+    > (fl= -10.0 -10.0)
+    #t
+    E (fl= -10 -10.0)
     """
 
 def test_fixnum_special(doctest):
@@ -214,6 +282,7 @@ def test_fixnum_special(doctest):
     ! (require '#%flfxnum)
     > (fx+ 1 2)
     3
+    E (fx+ 1 1.2)
     > (fx- 2 1)
     1
     > (fx* 2 5)
@@ -226,6 +295,23 @@ def test_fixnum_special(doctest):
     2
     > (fxmax 2 1)
     2
+    > (fx> 2 1)
+    #t
+    > (fx>= 2 1)
+    #t
+    > (fx>= 1 1)
+    #t
+    > (fx>= -1 1)
+    #f
+    > (fx<= -1 1)
+    #t
+    > (fx<= -10 -10)
+    #t
+    > (fx< -10 -10)
+    #f
+    > (fx= -10 -10)
+    #t
+    E (fx= -10 -10.0)
     """
 
 def test_all_comparators(doctest):
@@ -235,9 +321,8 @@ def test_all_comparators(doctest):
     #t
     > (= 1 2)
     #f
-    ; fixme complex
-    ;> (= 2+3i 2+3i 2+3i)
-    ;#t
+    > (= 2+3i 2+3i 2+3i)
+    #t
     > (< 1 1)
     #f
     > (< 1 2 3)
@@ -323,6 +408,9 @@ def test_rational(doctest):
     1/2
     > (sub1 5/3)
     2/3
+    ; bignum to rational
+    > (/ 12323111111111111111111111111111111111111112222222222222 232321122)
+    2053851851851851851851851851851851851851852037037037037/38720187
     """
 
 def test_gcd():
@@ -470,4 +558,79 @@ def test_exact_to_inexact(doctest):
     1.0+2.0i
     > (exact->inexact 102222222222222222222222222222222222222222222222123123)
     1.0222222222222222e+53
+    """
+
+def test_inexact_to_exact(doctest):
+    """
+    > (inexact->exact 1.0)
+    1
+    > (inexact->exact 0.5)
+    1/2
+    > (inexact->exact 1/2)
+    1/2
+    > (inexact->exact 1.0+2.0i)
+    1+2i
+    > (inexact->exact 1.0222222222222222e+53)
+    102222222222222223892324523663483522756187192341561344
+    """
+
+
+def test_flonum_unsafe(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (unsafe-fl+ 1.0 2.0)
+    3.0
+    > (unsafe-fl- 2.0 1.0)
+    1.0
+    > (unsafe-fl* 2.0 0.5)
+    1.0
+    > (unsafe-fl/ 2.0 0.5)
+    4.0
+    """
+
+def test_fixnum_unsafe(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (unsafe-fx+ 10 20)
+    30
+    > (unsafe-fx- 20 10)
+    10
+    > (unsafe-fx* 20 5)
+    100
+    > (unsafe-fxmin 10 20)
+    10
+    > (unsafe-fxmin 20 10)
+    10
+    > (unsafe-fxmax 10 20)
+    20
+    > (unsafe-fxmax 20 10)
+    20
+    > (unsafe-fxmodulo -100 30)
+    20
+    > (unsafe-fxmodulo 100 -30)
+    -20
+    """
+
+def test_exp(doctest):
+    """
+    > (exp 1)
+    2.718281828459045
+    > (exp 0)
+    1
+    > (exp 2+3i)
+    -7.315110094901103+1.0427436562359045i
+    > (exp 2.0+3i)
+    -7.315110094901103+1.0427436562359045i
+    """
+
+def test_shift(doctest):
+    """
+    > (arithmetic-shift 1 10)
+    1024
+    > (arithmetic-shift 255 -3)
+    31
+    > (arithmetic-shift 10 1000)
+    107150860718626732094842504906000181056140481170553360744375038837035105112493612249319837881569585812759467291755314682518714528569231404359845775746985748039345677748242309854210746050623711418779541821530464749835819412673987675591655439460770629145711964776865421676604298316526243868372056680693760
+    > (arithmetic-shift 107150860718626732094842504906000181056140481170553360744375038837035105112493612249319837881569585812759467291755314682518714528569231404359845775746985748039345677748242309854210746050623711418779541821530464749835819412673987675591655439460770629145711964776865421676604298316526243868372056680693760 -1000)
+    10
     """

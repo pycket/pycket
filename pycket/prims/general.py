@@ -22,6 +22,7 @@ from pycket.prims import numeric
 from pycket.prims import random
 from pycket.prims import string
 from pycket.prims import undefined
+from pycket.prims import struct_structinfo
 from pycket.prims import vector
 from pycket.prims import input_output
 
@@ -56,8 +57,6 @@ for args in [
         ("struct-type?", values_struct.W_StructType),
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
-        ("struct-accessor-procedure?", values_struct.W_StructAccessor),
-        ("struct-mutator-procedure?", values_struct.W_StructMutator),
         ("struct-type-property?", values_struct.W_StructProperty),
         ("struct-type-property-accessor-procedure?", values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
@@ -71,8 +70,7 @@ for args in [
         ("thread-cell-values?", values.W_ThreadCellValues),
         ("semaphore?", values.W_Semaphore),
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
-        ("path?", values.W_Path),
-        ("arity-at-least?", values.W_ArityAtLeast),
+        ("path?", values.W_Path), 
         ("bytes?", values.W_Bytes),
         ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
         ("char?", values.W_Character),
@@ -133,8 +131,16 @@ def syntax_tainted(v):
     return values.w_false
 
 @expose("syntax->datum", [values.W_Syntax])
-def syntax_to_datum(v):
-    return v.val
+def syntax_to_datum(stx):
+    return stx.val
+
+# FIXME: implementation
+@expose("datum->syntax", [values.W_Object, values.W_Object,
+  default(values.W_Object, None), default(values.W_Object, None),
+  default(values.W_Object, None)])
+def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
+    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
+    return values.W_Syntax(v)
 
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
@@ -143,6 +149,7 @@ def compiled_module_expression(v):
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
+expose_val("break-enabled-key", values.break_enabled_key)
 expose_val("exception-handler-key", values.exn_handler_key)
 expose_val("parameterization-key", values.parameterization_key)
 expose_val("print-mpair-curly-braces", values.W_Parameter(values.w_false))
@@ -183,7 +190,7 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
-    if isinstance(v, values_struct.W_Struct):
+    if isinstance(v, values_struct.W_RootStruct):
         st = v.struct_type()
         if st is type:
             return v.ref(v.struct_type(), 0, env,
@@ -212,15 +219,6 @@ def sys_lib_subpath(mode):
 @expose("primitive-closure?", [values.W_Object])
 def prim_clos(v):
     return values.w_false
-
-@expose("char->integer", [values.W_Character])
-def char2int(c):
-    return values.W_Fixnum(ord(c.value))
-
-@expose("string->list", [values.W_String])
-def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.value])
-
 
 ################################################################
 # built-in struct types
@@ -282,6 +280,8 @@ date_struct = define_struct("date", fields=["second",
 date_star_struct = define_struct("date*", date_struct, fields=["nanosecond",
                                                                "time-zone-name"])
 
+arity_at_least = define_struct("arity-at-least", values.w_null, ["value"])
+
 def define_nyi(name, args=None):
     @expose(name, args, nyi=True)
     def nyi(args):
@@ -305,11 +305,9 @@ for args in [ ("subprocess?",),
               ("char-title-case?",),
               ("char-lower-case?",),
               ("compiled-expression?",),
-              ("custom-write?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
-              ("procedure-struct-type?",),
               ("special-comment?",),
               ("exn:srclocs?",),
               ("logger?",),
@@ -406,33 +404,35 @@ def sem_post(s):
 def sem_wait(s):
     s.wait()
 
-@expose("arity-at-least", [values.W_Fixnum])
-def arity_at_least(n):
-    return values.W_ArityAtLeast(n.value)
-
-@expose("arity-at-least-value", [values.W_ArityAtLeast])
-def arity_at_least(a):
-    return values.W_Fixnum(a.val)
-
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
     return p
 
 @expose("procedure-arity", [procedure])
-def arity_at_least(n):
+def do_procedure_arity(proc):
     # FIXME
-    return values.W_ArityAtLeast(0)
+    (ls, at_least) = proc.get_arity()
+    if at_least > 0:
+        return values_struct.W_Struct.make([values.W_Fixnum(at_least)], arity_at_least)
+    else:
+        lst = []
+        for item in ls:
+            lst.append(values.W_Fixnum(item))
+        return values.to_list(lst)
 
 @expose("procedure-arity?", [values.W_Object])
-def arity_at_least_p(n):
+def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
         if n.value >= 0:
             return values.w_true
-    elif isinstance(n, values.W_ArityAtLeast):
+    elif isinstance(n, values_struct.W_RootStruct) and\
+        n.struct_type().name == "arity-at-least":
         return values.w_true
     elif isinstance(n, values.W_List):
         for item in values.from_list(n):
-            if not (isinstance(item, values.W_Fixnum) or isinstance(item, values.W_ArityAtLeast)):
+            if not (isinstance(item, values.W_Fixnum) or\
+                (isinstance(item, values_struct.W_RootStruct) and\
+                item.struct_type().name == "arity-at-least")):
                 return values.w_false
         return values.w_true
     return values.w_false
@@ -449,6 +449,11 @@ def procedure_arity_includes(p, n, w_kw_ok):
         if n_val == i: return values.w_true
     if at_least != -1 and n_val >= at_least:
         return values.w_true
+    return values.w_false
+
+# FIXME: implementation
+@expose("procedure-struct-type?", [values_struct.W_StructType])
+def do_is_procedure_struct_type(type):
     return values.w_false
 
 @expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
@@ -506,6 +511,11 @@ def cont_prompt_avail(args):
 def cont_prompt_tag(args):
     return values.w_false
 
+# FIXME: implementation
+@expose("dynamic-wind")
+def dynamic_wind(args):
+    return values.w_false
+
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
         [procedure], simple=False)
@@ -515,7 +525,7 @@ def callcc(a, env, cont):
 @expose("time-apply", [procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
     initial = time.clock()
-    return a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
+    return  a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
 
 @expose("apply", simple=False)
 def apply(args, env, cont):
@@ -599,6 +609,10 @@ def do_cddr(args):
 @expose("caddr")
 def do_caddr(args):
     return do_car([do_cdr([do_cdr(args)])])
+
+@expose("cdddr")
+def do_caddr(args):
+    return do_cdr([do_cdr([do_cdr(args)])])
 
 @expose("cadddr")
 def do_cadddr(args):
@@ -709,198 +723,6 @@ def reverse(w_l):
 @expose("void")
 def do_void(args): return values.w_void
 
-@expose("make-inspector", [default(values_struct.W_StructInspector, None)])
-def do_make_instpector(inspector):
-    return values_struct.W_StructInspector.make(inspector)
-
-@expose("make-sibling-inspector", [default(values_struct.W_StructInspector, None)])
-def do_make_sibling_instpector(inspector):
-    return values_struct.W_StructInspector.make(inspector, True)
-
-@expose("current-inspector")
-def do_current_instpector(args):
-    return values_struct.current_inspector
-
-@expose("struct?", [values.W_Object])
-def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
-                              not v.struct_type().isopaque)
-
-def is_struct_info(v):
-    if isinstance(v, values.W_Cons):
-        struct_info = values.from_list(v)
-        if len(struct_info) == 6:
-            if not isinstance(struct_info[0], values_struct.W_StructType) and\
-                struct_info[0] is not values.w_false:
-                return False
-            if not isinstance(struct_info[1], values_struct.W_StructConstructor) and\
-                struct_info[1] is not values.w_false:
-                return False
-            if not isinstance(struct_info[2], values_struct.W_StructPredicate) and\
-                struct_info[2] is not values.w_false:
-                return False
-            accessors = struct_info[3]
-            if isinstance(accessors, values.W_Cons):
-                for accessor in values.from_list(accessors):
-                    if not isinstance(accessor, values_struct.W_StructFieldAccessor):
-                        if accessor is not values.w_false and\
-                            accessor is values.from_list(accessors)[-1]:
-                            return False
-            else:
-                return False
-            mutators = struct_info[4]
-            if isinstance(mutators, values.W_Cons):
-                for mutator in values.from_list(mutators):
-                    if not isinstance(mutator, values_struct.W_StructFieldAccessor):
-                        if mutator is not values.w_false and\
-                          mutator is values.from_list(mutators)[-1]:
-                          return False
-            else:
-                return False
-            if not isinstance(struct_info[5], values_struct.W_StructType) and\
-                not isinstance(struct_info[5], values.W_Bool):
-                return False
-            return True
-        return False
-    elif isinstance(v, values.W_Prim):
-        if v.name == "make-struct-info":
-            return True
-    # TODO: it can be also:
-    # 1. a structure with the prop:struct-info property
-    # 2. a structure type derived from struct:struct-info or
-    # with prop:struct-info and wrapped with make-set!-transformer
-    return False
-
-@expose("struct-info?", [values.W_Object])
-def do_is_struct_info(v):
-    return values.W_Bool.make(is_struct_info(v))
-
-@expose("checked-struct-info?", [values.W_Object])
-def do_is_checked_struct_info(v):
-    if isinstance(v, values.W_Prim):
-        if v.name == "make-struct-info":
-            # TODO: only when no parent type is specified or
-            # the parent type is also specified through a transformer binding to such a value
-            return values.w_true
-    return values.w_false
-
-@expose("make-struct-info", [procedure])
-def do_make_struct_info(thunk):
-    # FIXME: return values.W_Prim("make-struct-info", thunk.call)
-    return values.w_void
-
-@expose("extract-struct-info", [values.W_Object], simple=False)
-def do_extract_struct_info(v, env, cont):
-    assert is_struct_info(v)
-    from pycket.interpreter import return_value
-    if isinstance(v, values.W_Cons):
-        return return_value(v, env, cont)
-    elif isinstance(v, values.W_Prim):
-        return v.call([], env, cont)
-    else:
-        # TODO: it can be also:
-        # 1. a structure with the prop:struct-info property
-        # 2. a structure type derived from struct:struct-info or
-        # with prop:struct-info and wrapped with make-set!-transformer
-        return return_value(values.w_void, env, cont)
-
-@expose("struct-info", [values_struct.W_RootStruct])
-def do_struct_info(struct):
-    # TODO: if the current inspector does not control any
-    # structure type for which the struct is an instance then return w_false
-    struct_type = struct.struct_type() if True else values.w_false
-    skipped = values.w_false
-    return values.Values.make([struct_type, skipped])
-
-@expose("struct-type-info", [values_struct.W_StructType])
-def do_struct_type_info(struct_type):
-    return values.Values.make(struct_type.struct_type_info())
-
-@expose("struct-type-make-constructor", [values_struct.W_StructType])
-def do_struct_type_make_constructor(struct_type):
-    # TODO: if the type for struct-type is not controlled by the current inspector,
-    # the exn:fail:contract exception should be raised
-    return struct_type.constr
-
-@expose("struct-type-make-predicate", [values_struct.W_StructType])
-def do_struct_type_make_predicate(struct_type):
-    # TODO: if the type for struct-type is not controlled by the current inspector,
-    #the exn:fail:contract exception should be raised
-    return struct_type.pred
-
-@expose("make-struct-type",
-        [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
-         default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_null),
-         default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_null),
-         default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
-        raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    return values_struct.W_StructType.make(name, super_type, init_field_cnt,
-        auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
-        guard, constr_name, env, cont)
-
-@expose("make-struct-field-accessor",
-        [values_struct.W_StructAccessor, values.W_Fixnum, default(values.W_Symbol, None)])
-def do_make_struct_field_accessor(accessor, field, field_name):
-    return values_struct.W_StructFieldAccessor(accessor, field, field_name)
-
-@expose("make-struct-field-mutator",
-        [values_struct.W_StructMutator, values.W_Fixnum, default(values.W_Symbol, None)])
-def do_make_struct_field_mutator(mutator, field, field_name):
-    return values_struct.W_StructFieldMutator(mutator, field, field_name)
-
-@expose("struct->vector", [values_struct.W_RootStruct])
-def expose_struct2vector(struct):
-    return values_struct.struct2vector(struct)
-
-@expose("prefab-struct-key", [values.W_Object])
-def do_prefab_struct_key(v):
-    if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
-        return values.w_false
-    prefab_key = values_struct.W_PrefabKey.from_struct_type(v._type)
-    return prefab_key.short_key()
-
-@expose("make-prefab-struct")
-def do_make_prefab_struct(args):
-    assert len(args) > 1
-    key = args[0]
-    vals = args[1:]
-    return values_struct.W_Struct.make_prefab(key, vals)
-
-@expose("prefab-key->struct-type", [values.W_Object, values.W_Fixnum])
-def expose_prefab_key2struct_type(w_key, field_count):
-    return values_struct.W_StructType.make_prefab(
-      values_struct.W_PrefabKey.from_raw_key(w_key, field_count.value))
-
-@expose("prefab-key?", [values.W_Object])
-def do_prefab_key(v):
-    return values_struct.W_PrefabKey.is_prefab_key(v)
-
-@expose("make-struct-type-property", [values.W_Symbol,
-                                      default(values.W_Object, values.w_false),
-                                      default(values.W_List, values.w_null),
-                                      default(values.W_Object, values.w_false)])
-def mk_stp(sym, guard, supers, _can_imp):
-    can_imp = False
-    if guard is values.W_Symbol.make("can-impersonate"):
-        guard = values.w_false
-        can_imp = True
-    if _can_imp is not values.w_false:
-        can_imp = True
-    prop = values_struct.W_StructProperty(sym, guard, supers, can_imp)
-    return values.Values.make([prop,
-                               values_struct.W_StructPropertyPredicate(prop),
-                               values_struct.W_StructPropertyAccessor(prop)])
-
-@expose("number->string", [values.W_Number])
-def num2str(a):
-    return values.W_String(a.tostring())
 
 ### Boxes
 
@@ -946,6 +768,11 @@ def ephemeron_value(ephemeron, default):
     v = ephemeron.get()
     return v if v is not None else default
 
+# FIXME: implementation
+@expose("make-reader-graph", [values.W_Object])
+def make_placeholder(val):
+    return val
+
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
     return values.W_Placeholder(val)
@@ -987,6 +814,18 @@ def consp(v):
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):
     return values.from_list(lst)[pos.value]
+
+@expose("list-tail", [values.W_Object, values.W_Fixnum])
+def list_tail(lst, pos):
+    start_pos = pos.value
+    if start_pos == 0:
+        return lst
+    else:
+        if isinstance(lst, values.W_Cons):
+            assert start_pos > 0
+            return values.to_list(values.from_list(lst)[start_pos:])
+        else:
+            return values.w_null
 
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
@@ -1041,33 +880,6 @@ def current_command_line_arguments(env, cont):
             env.toplevel_env().commandline_arguments)
     return return_value(w_v, env, cont)
 
-# Unsafe struct ops
-@expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
-def unsafe_struct_ref(v, k):
-    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.inner
-    assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
-    return v._ref(k.value)
-
-@expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object])
-def unsafe_struct_set(v, k, val):
-    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.inner
-    assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value < v.struct_type().total_field_cnt
-    return v._set(k.value, val)
-
-@expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
-def unsafe_struct_star_ref(v, k):
-    assert 0 <= k.value < v.struct_type().total_field_cnt
-    return v._ref(k.value)
-
-@expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum), values.W_Object])
-def unsafe_struct_star_set(v, k, val):
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
-    return v._set(k.value, val)
-
 # Unsafe pair ops
 @expose("unsafe-car", [values.W_Cons])
 def unsafe_car(p):
@@ -1086,6 +898,10 @@ def path_stringp(v):
 def complete_path(v):
     # FIXME: stub
     return values.w_false
+
+@expose("path->string", [values.W_Path])
+def path2string(p):
+    return values.W_String(p.path)
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
@@ -1114,41 +930,6 @@ def file_pos_star(v):
 
 
 
-@expose("symbol->string", [values.W_Symbol])
-def symbol_to_string(v):
-    return values.W_String(v.value)
-
-@expose("string->symbol", [values.W_String])
-def string_to_symbol(v):
-    return values.W_Symbol.make(v.value)
-
-@expose("string->number", [values.W_String])
-def str2num(w_s):
-    from rpython.rlib import rarithmetic, rfloat, rbigint
-    from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
-
-    s = w_s.value
-    try:
-        if "." in s:
-            return values.W_Flonum(rfloat.string_to_float(s))
-        else:
-            try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
-            except ParseStringOverflowError:
-                return values.W_Bignum(rbigint.rbigint.fromstr(s))
-    except ParseStringError as e:
-        return values.w_false
-
-@expose("string->unreadable-symbol", [values.W_String])
-def string_to_unsymbol(v):
-    return values.W_Symbol.make_unreadable(v.value)
-
-@expose("string->immutable-string", [values.W_String])
-def string_to_immutable_string(string):
-    if string.immutable():
-        return string
-    return values.W_String(string.value, immutable=True)
-
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
     if v.unreadable:
@@ -1159,21 +940,6 @@ def sym_unreadable(v):
 def string_to_symbol(v):
     return values.W_Bool.make(v.is_interned())
 
-@expose("string->uninterned-symbol", [values.W_String])
-def string_to_symbol(v):
-    return values.W_Symbol(v.value)
-
-@expose("string->bytes/locale", [values.W_String,
-                                 default(values.W_Object, values.w_false),
-                                 default(values.W_Integer, values.W_Fixnum(0)),
-                                 default(values.W_Integer, None)])
-def string_to_bytes_locale(str, errbyte, start, end):
-    # FIXME: This ignores the locale
-    return values.W_Bytes(str.value)
-
-@expose("integer->char", [values.W_Fixnum])
-def integer_to_char(v):
-    return values.W_Character(unichr(v.value))
 
 @expose("immutable?", [values.W_Object])
 def immutable(v):
@@ -1249,16 +1015,23 @@ def gensym(init):
 
 @expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_match(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
-    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+           or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
     return values.w_false # Back to one problem
 
 @expose("regexp-match?", [values.W_Object, values.W_Object]) # FIXME: more error checking
 def regexp_matchp(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String)
-    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes)
+    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+           or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
     # ack, this is wrong
     return values.w_true # Back to one problem
+
+# FIXME: implementation
+@expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object, default(values.W_Bytes, None)])
+def regexp_replace(pattern, input, insert, input_prefix):
+    return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1293,8 +1066,32 @@ def do_raise(v, barrier):
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
-def raise_arg_err(sym, str, val):
-    raise SchemeException("%s: expected %s but got %s"%(sym.value, str.value, val.tostring()))
+def raise_arg_err(name, expected, v):
+    raise SchemeException("%s: expected %s but got %s"%(name.value, expected.value, v.tostring()))
+
+@expose("raise-arguments-error")
+def raise_arg_err(args):
+    name = args[0]
+    assert isinstance(name, values.W_Symbol)
+    message = args[1]
+    assert isinstance(message, values.W_String)
+    from rpython.rlib.rstring import StringBuilder
+    error_msg = StringBuilder()
+    error_msg.append("%s: %s\n"%(name.value, message.value))
+    i = 2
+    while i + 1 < len(args):
+        field = args[i]
+        assert isinstance(field, values.W_String)
+        v = args[i+1]
+        assert isinstance(v, values.W_Object)
+        error_msg.append("%s: %s\n"%(field.value, v.tostring()))
+        i += 2
+    raise SchemeException(error_msg.build())
+
+# FIXME: implementation
+@expose("error-escape-handler", [default(values.W_Object, None)])
+def do_error_escape_handler(proc):
+    return values.w_void
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
@@ -1341,3 +1138,9 @@ def cur_load_rel_dir():
 @expose("current-directory", [])
 def cur_dir():
     return values.W_Path(os.getcwd())
+
+
+# FIXME: implementation
+@expose("collect-garbage")
+def do_collect_garbage(args):
+    return values.w_void

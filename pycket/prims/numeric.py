@@ -3,6 +3,7 @@
 import math
 import operator
 from pycket import values
+from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
@@ -21,61 +22,21 @@ def make_cmp(name, op, con):
     @expose(name, simple=True)
     @jit.unroll_safe
     def do(args):
-        assert len(args) >= 2
+        if len(args) < 2:
+            raise SchemeException("number of arguments to %s too small" % name)
         idx = 2
         truth = True
         while idx <= len(args):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            assert isinstance(w_a, W_Number)
-            assert isinstance(w_b, W_Number)
+            if not isinstance(w_a, W_Number):
+                raise SchemeException("expected number")
+            if not isinstance(w_b, W_Number):
+                raise SchemeException("expected number")
             idx += 1
+            truth = truth and getattr(w_a, "arith_" + op)(w_b)
 
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Fixnum):
-                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
-                continue
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Bignum):
-                truth = truth and (getattr(w_a.value, op)(w_b.value))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Flonum):
-                truth = truth and (getattr(operator, op)(w_a.value, w_b.value))
-                continue
-
-            # Upcast float
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Flonum):
-                a = float(w_a.value)
-                truth = truth and (getattr(operator, op)(a, w_b.value))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Fixnum):
-                b = float(w_b.value)
-                truth = truth and (getattr(operator, op)(w_a.value, b))
-                continue
-
-            # Upcast bignum
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Fixnum):
-                b = rbigint.fromint(w_b.value)
-                truth = truth and (getattr(w_a.value, op)(b))
-                continue
-            if isinstance(w_a, W_Fixnum) and isinstance(w_b, W_Bignum):
-                a = rbigint.fromint(w_a.value)
-                truth = truth and (getattr(a, op)(w_b.value))
-                continue
-
-            # Upcast bignum/float
-            if isinstance(w_a, W_Bignum) and isinstance(w_b, W_Flonum):
-                b = rbigint.fromfloat(w_b.value)
-                truth = truth and (getattr(w_a.value, op)(b))
-                continue
-            if isinstance(w_a, W_Flonum) and isinstance(w_b, W_Bignum):
-                a = rbigint.fromfloat(w_a.value)
-                truth = truth and (getattr(a, op)(w_b.value))
-                continue
-
-            #FIXME: Complex. Rationals
-
-            raise SchemeException("unsupported operation %s on %s %s" % (
-                name, w_a.tostring(), w_b.tostring()))
         return con(truth)
     do.__name__ = op
 
@@ -156,7 +117,7 @@ def inexactp(n):
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), values.W_Fixnum(0)]) #FIXME
+    return values.Values.make([a.arith_quotient(b), a.arith_mod(b)]) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -207,6 +168,7 @@ for args in [
     make_arith(*args)
 
 def make_fixedtype_arith(name, methname, intversion=True, floatversion=True):
+    methname += "_same"
     if floatversion:
         @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
         def do(a, b):
@@ -230,6 +192,30 @@ for args in [
         ("min", "arith_min"),
         ]:
     make_fixedtype_arith(*args)
+
+
+def make_fixedtype_cmps(name, methname):
+    methname = "arith_%s_same" % methname
+    def do(a, b):
+        return values.W_Bool.make(getattr(a, methname)(b))
+    do.__name__ = "fl_" + methname
+    expose("fl" + name, [values.W_Flonum] * 2, simple=True)(do)
+    expose("unsafe-fl" + name, [unsafe(values.W_Flonum)] * 2, simple=True)(do)
+
+    def do(a, b):
+        return values.W_Bool.make(getattr(a, methname)(b))
+    do.__name__ = "fx_" + methname
+    expose("fx" + name, [values.W_Fixnum] * 2, simple=True)(do)
+    expose("unsafe-fx" + name, [unsafe(values.W_Fixnum)] * 2, simple=True)(do)
+
+for args in [
+    ("<",  "lt"),
+    ("<=", "le"),
+    (">",  "gt"),
+    (">=", "ge"),
+    ("=",  "eq"),
+    ]:
+    make_fixedtype_cmps(*args)
 
 @expose("flsqrt", [values.W_Flonum])
 def flsqrt(f):
@@ -280,8 +266,19 @@ for args in [
         ("abs", "arith_abs"),
         ("round", "arith_round"),
         ("bitwise-not", "arith_not", values.W_Integer),
+        ("exp",     "arith_exp"),
         ]:
     make_unary_arith(*args)
+
+
+@expose("arithmetic-shift", [values.W_Number, values.W_Fixnum])
+def arithmetic_shift(w_a, w_b):
+    # XXX support biginteger as second argument (returning 0 and out of memory)
+    b = w_b.value
+    if b >= 0:
+        return w_a.arith_shl(w_b)
+    else:
+        return w_a.arith_shr(values.W_Fixnum(-b))
 
 ## Unsafe Fixnum ops
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
@@ -296,6 +293,10 @@ def unsafe_fxminus(a, b):
 def unsafe_fxtimes(a, b):
     return values.W_Fixnum(a.value * b.value)
 
+@expose("unsafe-fxmodulo", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxtimes(a, b):
+    return values.W_Fixnum(a.value % b.value)
+
 @expose("unsafe-fxmin", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxmin(a, b):
     return values.W_Fixnum(min(a.value, b.value))
@@ -304,29 +305,6 @@ def unsafe_fxmin(a, b):
 def unsafe_fxmax(a, b):
     return values.W_Fixnum(max(a.value, b.value))
 
-@expose("unsafe-fx<", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxlt(a, b):
-    return values.W_Bool.make(a.value < b.value)
-
-@expose("unsafe-fx<=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxlt(a, b):
-    return values.W_Bool.make(a.value <= b.value)
-
-@expose("unsafe-fx>", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxgt(a, b):
-    return values.W_Bool.make(a.value > b.value)
-
-@expose("unsafe-fx>=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxgt(a, b):
-    return values.W_Bool.make(a.value >= b.value)
-
-@expose("unsafe-fx=", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxeq(a, b):
-    return values.W_Bool.make(a.value == b.value)
-
-@expose("fx=", [values.W_Fixnum] * 2)
-def fxeq(a, b):
-    return values.W_Bool.make(a.value == b.value)
 
 @expose("fx->fl", [values.W_Fixnum])
 def fxfl(a):
@@ -339,6 +317,15 @@ def unsafe_fxquotient(a, b):
 @expose("unsafe-fx->fl", [unsafe(values.W_Fixnum)])
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
+
+# FIXME: implementation
+@expose("fxvector?", [values.W_Object])
+def is_fxvector(v):
+    return values.w_false
+
+@expose("flvector?", [values.W_Object])
+def is_flvector(v):
+    return values.W_Bool.make(isinstance(v, values_vector.W_FlVector))
 
 ## Unsafe Flonum ops
 @expose("unsafe-fl+", [unsafe(values.W_Flonum)] * 2)
@@ -356,26 +343,3 @@ def unsafe_fltimes(a, b):
 @expose("unsafe-fl/", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fldiv(a, b):
     return values.W_Flonum(a.value / b.value)
-
-@expose("unsafe-fl<", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fllt(a, b):
-    return values.W_Bool.make(a.value < b.value)
-
-@expose("unsafe-fl<=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fllte(a, b):
-    return values.W_Bool.make(a.value <= b.value)
-
-@expose("unsafe-fl>", [unsafe(values.W_Flonum)] * 2)
-def unsafe_flgt(a, b):
-    return values.W_Bool.make(a.value > b.value)
-
-@expose("unsafe-fl>=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_flgte(a, b):
-    return values.W_Bool.make(a.value >= b.value)
-
-@expose("unsafe-fl=", [unsafe(values.W_Flonum)] * 2)
-def unsafe_fleq(a, b):
-    return values.W_Bool.make(a.value == b.value)
-
-
-

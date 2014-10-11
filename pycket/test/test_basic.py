@@ -182,6 +182,7 @@ def test_lists():
     run ("null", w_null)
     run ("(list)", w_null)
     run ("(list #t)", to_list([w_true]))
+    run ("(list-tail (list #f #f #t #t) 2)", to_list([w_true, w_true]))
 
 def test_box():
     run("(unbox (box #t))", w_true)
