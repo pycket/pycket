@@ -292,6 +292,14 @@ def make_bytes(args):
 def bytes_length(s1):
     return values.W_Fixnum(len(s1.value))
 
+@expose("bytes-ref", [values.W_Bytes, values.W_Fixnum])
+def bytes_ref(s, n):
+    return s.ref(n.value)
+
+@expose("bytes-set!", [values.W_Bytes, values.W_Fixnum, values.W_Fixnum])
+def bytes_ref(s, n, v):
+    return s.set(n.value, v.value)
+
 ################################################################################
 
 # Character

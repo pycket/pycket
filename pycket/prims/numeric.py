@@ -188,6 +188,7 @@ for args in [
         ("-", "arith_sub"),
         ("*", "arith_mul"),
         ("/", "arith_div", False),
+        ("and", "arith_and", True, False),
         ("max", "arith_max"),
         ("min", "arith_min"),
         ]:
@@ -280,7 +281,36 @@ def arithmetic_shift(w_a, w_b):
     else:
         return w_a.arith_shr(values.W_Fixnum(-b))
 
+@expose("fxlshift", [values.W_Fixnum, values.W_Fixnum])
+def fxlshift(w_a, w_b):
+    b = w_b.value
+    if b >= 0:
+        return w_a.arith_shl(w_b)
+    else:
+        raise SchemeException("fxlshift: expected positive argument, got %"%w_b)
+
+@expose("fxrshift", [values.W_Fixnum, values.W_Fixnum])
+def fxrshift(w_a, w_b):
+    b = w_b.value
+    if b >= 0:
+        return w_a.arith_shr(w_b)
+    else:
+        raise SchemeException("fxrshift: expected positive argument, got %"%w_b)
+
+
 ## Unsafe Fixnum ops
+@expose("unsafe-fxlshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxlshift(w_a, w_b):
+    return w_a.arith_shl(w_b)
+
+@expose("unsafe-fxrshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxrshift(w_a, w_b):
+    return w_a.arith_shr(w_b)
+
+@expose("unsafe-fxand", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxand(w_a, w_b):
+    return w_a.arith_and(w_b)
+
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
     return values.W_Fixnum(a.value + b.value)

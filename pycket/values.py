@@ -845,6 +845,21 @@ class W_Bytes(W_Object):
         return self.value == other.value
     def immutable(self):
         return self.imm
+    def ref(self, n):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-ref: index % out of bounds for length %"% (n, l))
+        return W_Fixnum(ord(self.value[n]))
+    def set(self, n, v):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-set!: index % out of bounds for length %"% (n, l))
+        if self.imm:
+            raise SchemeException("bytes-set!: can't mutate immutable string")
+        # FIXME: this is not constant time!
+        new = self.value[:n] + chr(v) + self.value[(n+1):]
+        self.value = new
+        return
 
 class W_String(W_Object):
     errorname = "string"

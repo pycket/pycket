@@ -434,6 +434,13 @@ def do_write_string(str, out, start_pos, end_pos, env, cont):
     assert end >= 0
     return do_print(str.value[start:end], out, env, cont)
 
+@expose("write-byte", [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
+def write_byte(b, out, env, cont):
+    s = b.value
+    if s < 0 or s > 255:
+        raise SchemeException("% is not a byte"%s)
+    return do_print(chr(s), out, env, cont)
+
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
           default(values.W_Fixnum, values.W_Fixnum(0)),
