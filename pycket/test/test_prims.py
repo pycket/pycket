@@ -5,6 +5,7 @@
 #
 
 import pytest
+import sys
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
@@ -211,3 +212,26 @@ def test_string_copy_bang(doctest):
     > s
     "lpply"
     """
+
+def test_system_type_os(source):
+    """(cons (system-type) (system-type 'os))"""
+    result = run_mod_expr(source, wrap=True)
+    assert result.car() == result.cdr()
+    sym = result.car().value
+    # Sadly, this can never cover all cases.
+    if sys.platform == "darwin":
+        assert sym == "macosx"
+    elif sys.plaform in ['win32', 'cygwin']:
+        assert sym == "windows"
+    else:
+        assert sym == "unix"
+
+def test_system_path_convetion_type(source):
+    """(system-path-convention-type)"""
+    result = run_mod_expr(source, wrap=True)
+    sym = result.value
+    if sys.platform in ['win32', 'cygwin']:
+        assert sym == "windows"
+    else:
+        assert sym == "unix"
+

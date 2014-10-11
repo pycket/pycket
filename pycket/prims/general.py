@@ -1102,13 +1102,6 @@ def find_sys_path(sym):
     else:
         raise SchemeException("unknown system path %s"%sym.value)
 
-@expose("system-type", [default(values.W_Symbol, values.W_Symbol.make("os"))])
-def system_type(sym):
-    if sym is values.W_Symbol.make("os"):
-        # FIXME: make this work on macs
-        return values.W_Symbol.make("unix")
-    raise SchemeException("unexpected system-type symbol %s"%sym.value)
-
 @expose("find-main-collects", [])
 def find_main_collects():
     return values.w_false
@@ -1139,6 +1132,40 @@ def cur_load_rel_dir():
 def cur_dir():
     return values.W_Path(os.getcwd())
 
+
+
+w_unix_sym = values.W_Symbol.make("unix")
+w_windows_sym = values.W_Symbol.make("windows")
+w_macosx_sym = values.W_Symbol.make("macosx")
+
+def detect_platform():
+    from sys import platform
+    if platform == "darwin":
+        return w_macosx_sym
+    elif plaform in ['win32', 'cygwin']:
+        return w_windows_sym
+    else:
+        return w_unix_sym
+
+w_system_sym = detect_platform()
+
+
+w_os_sym = values.W_Symbol.make("os")
+
+
+@expose("system-type", [default(values.W_Symbol, w_os_sym)])
+def system_type(w_what):
+    if w_what is w_os_sym:
+        return w_system_sym
+    raise SchemeException("unexpected system-type symbol %s" % w_what.value)
+
+
+@expose("system-path-convention-type", [])
+def system_path_convetion_type():
+    if w_system_sym is w_windows_sym:
+        return w_windows_sym
+    else:
+        return w_unix_sym
 
 # FIXME: implementation
 @expose("collect-garbage")
