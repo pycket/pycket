@@ -229,7 +229,7 @@ def test_system_type_os(source):
     # Sadly, this can never cover all cases.
     if sys.platform == "darwin":
         assert sym == "macosx"
-    elif sys.plaform in ['win32', 'cygwin']:
+    elif sys.platform in ['win32', 'cygwin']:
         assert sym == "windows"
     else:
         assert sym == "unix"
