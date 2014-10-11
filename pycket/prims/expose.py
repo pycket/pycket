@@ -49,7 +49,8 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
         aritystring = max_arity
     else:
         aritystring = "%s to %s" % (min_arg, max_arity)
-    errormsg_arity = "expected %s arguments to %s, got %%s" % (aritystring, funcname)
+    errormsg_arity = "expected %s arguments to %s, got %%s" % (
+        aritystring, funcname)
     for _, typ, _, _, _ in argtype_tuples:
         assert typ.__dict__.get("errorname"), str(typ)
     _arity = range(min_arg, max_arity+1), -1
@@ -75,13 +76,17 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             arg = args[i]
 
             if not unsafe:
-                if typ is not values.W_Object:
-                    if not(typ is procedure and arg.iscallable() or isinstance(arg, typ)):
-                        raise SchemeException("expected %s as argument to %s, got %s" % (typ.errorname, funcname, arg.tostring()))
+                if typ is not values.W_Object and not (
+                    typ is procedure and arg.iscallable() or \
+                        isinstance(arg, typ)):
+                    raise SchemeException(
+                        "expected %s as argument to %s, got %s" % (
+                            typ.errorname, funcname, arg.tostring()))
             else:
                 assert arg is not None
                 # the following precise type check is intentional.
-                # record_known_class records a precise class to the JIT, excluding subclasses
+                # record_known_class records a precise class to the JIT,
+                # excluding subclasses
                 assert type(arg) is typ
                 jit.record_known_class(arg, typ)
             typed_args += (arg, )
@@ -93,7 +98,8 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
 def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
-            from pycket.interpreter import return_multi_vals, return_value_direct
+            from pycket.interpreter import (return_multi_vals,
+                                            return_value_direct)
             from pycket             import values
             env = args[-2]
             cont = args[-1]
@@ -133,7 +139,8 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
         name = names[0]
         if nyi:
             def func_arg_unwrap(*args):
-                raise SchemeException("primitive %s is not yet implemented"%name)
+                raise SchemeException(
+                    "primitive %s is not yet implemented" % name)
             _arity = arity or ([], 0)
         elif argstypes is not None:
             func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
@@ -148,7 +155,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env:
-                raise SchemeException("name %s already defined"%nam)
+                raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
         return func_arg_unwrap
     return wrapper
@@ -188,5 +195,5 @@ def expose_val(name, w_v):
     from pycket import values
     sym = values.W_Symbol.make(name)
     if sym in prim_env:
-        raise Error("name %s already defined"%name)
+        raise Error("name %s already defined" % name)
     prim_env[sym] = w_v

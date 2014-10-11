@@ -157,7 +157,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
-    pipe.write("#lang s-exp pycket%s"%(" #:stdlib" if stdlib else ""))
+    pipe.write("#lang s-exp pycket%s" % (" #:stdlib" if stdlib else ""))
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
@@ -361,7 +361,7 @@ def to_lambda(o):
     pos, sourcefile = get_srcloc(o)
     return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()],
                        pos, sourcefile)
-    
+
 
 def _to_ast(json):
     dbgprint("_to_ast", json)

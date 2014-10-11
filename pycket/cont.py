@@ -60,9 +60,9 @@ class BaseCont(object):
     def tostring(self):
         "NOT_RPYTHON"
         if not isinstance(self, NilCont) and self.prev:
-            return "%s(%s)"%(self.__class__.__name__,self.prev.tostring())
+            return "%s(%s)" % (self.__class__.__name__,self.prev.tostring())
         else:
-            return "%s()"%(self.__class__.__name__)
+            return "%s()" % self.__class__.__name__
 
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
