@@ -7,8 +7,6 @@ from pycket.prims import *
 
 from pycket.test.testhelper import run_file
 
-
-
 def test_puzzle():
     run_file("puzzle.rkt", ("1048575", "460"), ("50", "1"))
 
