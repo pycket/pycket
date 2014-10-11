@@ -238,7 +238,7 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     builder = StringBuilder()
     if dest_start > 0:
         builder.append_slice(w_dest.value, 0, dest_start)
-    
+
     if src_start == 0 and src_end == len(w_src.value):
         builder.append(w_src.value)
     else:
@@ -285,8 +285,12 @@ def make_bytes(args):
         if not isinstance(a, values.W_Bytes):
             raise SchemeException("string-append: expected a byte string")
         builder.append(a.value)
-    
+
     return values.W_Bytes(builder.build(), immutable=False)
+
+@expose("bytes-length", [values.W_Bytes])
+def bytes_length(s1):
+    return values.W_Fixnum(len(s1.value))
 
 ################################################################################
 

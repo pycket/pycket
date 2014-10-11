@@ -170,7 +170,7 @@ def test_flvector_set_wrong_type():
             (require '#%flfxnum '#%unsafe)
             (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
         """)
-
+#############################################################################
 def test_byte_huh(doctest):
     """
     > (byte? 65)
@@ -187,6 +187,13 @@ def test_make_bytes(doctest):
     """
     > (make-bytes 5 65)
     #"AAAAA"
+    """
+
+
+def test_bytes_length(doctest):
+    """
+    > (bytes-length #"Apple")
+    5
     """
 
 def test_open_input_bytes_and_read_bytes_line(source):
@@ -213,6 +220,7 @@ def test_string_copy_bang(doctest):
     "lpply"
     """
 
+#############################################################################
 def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""
     result = run_mod_expr(source, wrap=True)
@@ -234,4 +242,3 @@ def test_system_path_convetion_type(source):
         assert sym == "windows"
     else:
         assert sym == "unix"
-
