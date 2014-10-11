@@ -287,7 +287,7 @@ def fxlshift(w_a, w_b):
     if b >= 0:
         return w_a.arith_shl(w_b)
     else:
-        raise SchemeException("fxlshift: expected positive argument, got %"%w_b)
+        raise SchemeException("fxlshift: expected positive argument, got %s"%w_b)
 
 @expose("fxrshift", [values.W_Fixnum, values.W_Fixnum])
 def fxrshift(w_a, w_b):
@@ -295,7 +295,7 @@ def fxrshift(w_a, w_b):
     if b >= 0:
         return w_a.arith_shr(w_b)
     else:
-        raise SchemeException("fxrshift: expected positive argument, got %"%w_b)
+        raise SchemeException("fxrshift: expected positive argument, got %s"%w_b)
 
 
 ## Unsafe Fixnum ops
