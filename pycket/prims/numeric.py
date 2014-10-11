@@ -268,18 +268,32 @@ for args in [
         ("round", "arith_round"),
         ("bitwise-not", "arith_not", values.W_Integer),
         ("exp",     "arith_exp"),
+        ("ceiling",     "arith_ceiling"),
+        ("floor",     "arith_floor"),
         ]:
     make_unary_arith(*args)
 
 
-@expose("arithmetic-shift", [values.W_Number, values.W_Fixnum])
-def arithmetic_shift(w_a, w_b):
+@expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
+def bitwise_bit_setp(n, m):
+    assert m.value >= 0
+    # FIXME: This is constant time in Racket when n is positive
+    if 0 == n.arith_and(arith_shift(values.W_Fixnum(1), m)).value:
+        return values.w_false
+    else:
+        return values.w_true
+
+def arith_shift(w_a, w_b):
     # XXX support biginteger as second argument (returning 0 and out of memory)
     b = w_b.value
     if b >= 0:
         return w_a.arith_shl(w_b)
     else:
         return w_a.arith_shr(values.W_Fixnum(-b))
+
+@expose("arithmetic-shift", [values.W_Integer, values.W_Fixnum])
+def arithmetic_shift(w_a, w_b):
+    return arith_shift(w_a, w_b)
 
 @expose("fxlshift", [values.W_Fixnum, values.W_Fixnum])
 def fxlshift(w_a, w_b):
