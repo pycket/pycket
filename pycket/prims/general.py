@@ -1206,7 +1206,7 @@ def detect_platform():
     from sys import platform
     if platform == "darwin":
         return w_macosx_sym
-    elif plaform in ['win32', 'cygwin']:
+    elif platform in ['win32', 'cygwin']:
         return w_windows_sym
     else:
         return w_unix_sym
