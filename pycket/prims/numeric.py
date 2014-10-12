@@ -274,11 +274,12 @@ for args in [
     make_unary_arith(*args)
 
 
-@expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
+@expose("bitwise-bit-set?", [values.W_Fixnum, values.W_Fixnum])
 def bitwise_bit_setp(n, m):
     assert m.value >= 0
     # FIXME: This is constant time in Racket when n is positive
-    if 0 == n.arith_and(arith_shift(values.W_Fixnum(1), m)).value:
+    v = n.arith_and(arith_shift(values.W_Fixnum(1), m))
+    if isinstance(v, values.W_Fixnum) and 0 == v.value:
         return values.w_false
     else:
         return values.w_true
