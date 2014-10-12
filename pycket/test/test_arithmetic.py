@@ -556,6 +556,19 @@ def test_bitwise(doctest):
     -2
     > (bitwise-not -1111111111111111111111111111111111111111111114243232)
     1111111111111111111111111111111111111111111114243231
+    > (bitwise-bit-set? 5 0)
+    #t
+    > (bitwise-bit-set? 5 2)
+    #t
+    > (bitwise-bit-set? -5 (expt 2 700))
+    #t
+    > (bitwise-bit-set? 5 (expt 2 700))
+    #f
+    > (bitwise-bit-set? (expt 2 100) 100)
+    #t
+    > (bitwise-bit-set? (expt 2 100) 101)
+    #f
+    E (bitwise-bit-set? 2 -5)
     """
 
 def test_exact_to_inexact(doctest):

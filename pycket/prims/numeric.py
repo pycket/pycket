@@ -274,11 +274,14 @@ for args in [
     make_unary_arith(*args)
 
 
-@expose("bitwise-bit-set?", [values.W_Fixnum, values.W_Fixnum])
-def bitwise_bit_setp(n, m):
-    assert m.value >= 0
-    # FIXME: This is constant time in Racket when n is positive
-    v = n.arith_and(arith_shift(values.W_Fixnum(1), m))
+@expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
+def bitwise_bit_setp(w_n, w_m):
+    if w_m.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-set?: second argument must be non-negative")
+    if not isinstance(w_m, values.W_Fixnum):
+        # a bignum that has such a big bit set does not fit in memory
+        return w_n.arith_negativep()
+    v = w_n.arith_and(arith_shift(values.W_Fixnum(1), w_m))
     if isinstance(v, values.W_Fixnum) and 0 == v.value:
         return values.w_false
     else:
@@ -291,10 +294,8 @@ def arith_shift(w_a, w_b):
         return w_a.arith_shl(w_b)
     else:
         return w_a.arith_shr(values.W_Fixnum(-b))
-
-@expose("arithmetic-shift", [values.W_Integer, values.W_Fixnum])
-def arithmetic_shift(w_a, w_b):
-    return arith_shift(w_a, w_b)
+# don't use the decorator to make the function usable in this file
+expose("arithmetic-shift", [values.W_Integer, values.W_Fixnum])(arith_shift)
 
 @expose("fxlshift", [values.W_Fixnum, values.W_Fixnum])
 def fxlshift(w_a, w_b):
