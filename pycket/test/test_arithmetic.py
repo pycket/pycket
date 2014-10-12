@@ -318,6 +318,12 @@ def test_fixnum_special(doctest):
     10240
     E (fxlshift 10 63)
     E (fxlshift 10 100)
+    (fxrshift 1 20)
+    0
+    > (fxrshift 20 1)
+    10
+    > (fxrshift -20 1)
+    -10
     """
 
 def test_all_comparators(doctest):
@@ -615,6 +621,10 @@ def test_fixnum_unsafe(doctest):
     20
     > (unsafe-fxmodulo 100 -30)
     -20
+    > (unsafe-fxlshift 1 10)
+    1024
+    ; implementation defined, but should terminate quickly
+    > (unsafe-fxlshift 1 10000000)
     """
 
 def test_exp(doctest):

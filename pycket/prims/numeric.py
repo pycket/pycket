@@ -322,11 +322,13 @@ def fxrshift(w_a, w_b):
 ## Unsafe Fixnum ops
 @expose("unsafe-fxlshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
 def unsafe_fxlshift(w_a, w_b):
-    return w_a.arith_shl(w_b)
+    res = rarithmetic.intmask(w_a.value << w_b.value)
+    return values.W_Fixnum(res)
 
 @expose("unsafe-fxrshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
 def unsafe_fxrshift(w_a, w_b):
-    return w_a.arith_shr(w_b)
+    res = w_a.value >> w_b.value
+    return values.W_Fixnum(res)
 
 @expose("unsafe-fxand", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
 def unsafe_fxand(w_a, w_b):
