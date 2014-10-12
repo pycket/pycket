@@ -450,7 +450,7 @@ def procedure_rename(p, n):
 def do_procedure_arity(proc):
     # FIXME
     (ls, at_least) = proc.get_arity()
-    if at_least > 0:
+    if at_least >= 0:
         return values_struct.W_Struct.make(
             [values.W_Fixnum(at_least)], arity_at_least)
     else:
