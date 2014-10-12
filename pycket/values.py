@@ -6,7 +6,7 @@ from pycket.cont              import continuation, label, BaseCont
 from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
-from rpython.rlib             import jit, runicode
+from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash
 from pycket.prims.expose      import make_call_method
@@ -488,6 +488,25 @@ class W_Rational(W_Number):
 class W_Integer(W_Number):
     errorname = "integer"
 
+    @staticmethod
+    def frombigint(value):
+        try:
+            num = value.toint()
+        except OverflowError:
+            pass
+        else:
+            return W_Fixnum(num)
+        return W_Bignum(value)
+
+    @staticmethod
+    def fromfloat(value):
+        try:
+            val = rarithmetic.ovfcheck_float_to_int(value)
+        except OverflowError:
+            return W_Bignum(rbigint.fromfloat(value))
+        return W_Fixnum(val)
+
+
 @memoize_constructor
 class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
@@ -526,16 +545,6 @@ class W_Bignum(W_Integer):
         return str(self.value)
     def __init__(self, val):
         self.value = val
-
-    @staticmethod
-    def frombigint(value):
-        try:
-            num = value.toint()
-        except OverflowError:
-            pass
-        else:
-            return W_Fixnum(num)
-        return W_Bignum(value)
 
     def equal(self, other):
         if not isinstance(other, W_Bignum):
