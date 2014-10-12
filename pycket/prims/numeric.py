@@ -16,8 +16,6 @@ from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
 from pycket import arithmetic
 
 def make_cmp(name, op, con):
-    from pycket.values import W_Number, W_Fixnum, W_Flonum, W_Bignum
-    from rpython.rlib.rbigint import rbigint
 
     @expose(name, simple=True)
     @jit.unroll_safe
@@ -30,9 +28,9 @@ def make_cmp(name, op, con):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            if not isinstance(w_a, W_Number):
+            if not isinstance(w_a, values.W_Number):
                 raise SchemeException("expected number")
-            if not isinstance(w_b, W_Number):
+            if not isinstance(w_b, values.W_Number):
                 raise SchemeException("expected number")
             idx += 1
             truth = truth and getattr(w_a, "arith_" + op)(w_b)
