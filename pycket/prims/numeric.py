@@ -7,7 +7,7 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit
+from rpython.rlib         import jit, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
                                         UnsignedLongLong
@@ -299,10 +299,16 @@ def arithmetic_shift(w_a, w_b):
 @expose("fxlshift", [values.W_Fixnum, values.W_Fixnum])
 def fxlshift(w_a, w_b):
     b = w_b.value
-    if b >= 0:
-        return w_a.arith_shl(w_b)
+    if 0 <= b <= 64:
+        try:
+            res = rarithmetic.ovfcheck(w_a.value << b)
+        except OverflowError:
+            raise SchemeException(
+                "fxlshift: result is not a fixnum")
+        return values.W_Fixnum(res)
     else:
-        raise SchemeException("fxlshift: expected positive argument, got %s"%w_b)
+        raise SchemeException(
+            "fxlshift: expected integer >= 0 and <= 64, got %s" % w_b.tostring())
 
 @expose("fxrshift", [values.W_Fixnum, values.W_Fixnum])
 def fxrshift(w_a, w_b):

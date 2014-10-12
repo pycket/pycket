@@ -312,6 +312,12 @@ def test_fixnum_special(doctest):
     > (fx= -10 -10)
     #t
     E (fx= -10 -10.0)
+    > (fxand 2 3)
+    2
+    > (fxlshift 10 10)
+    10240
+    E (fxlshift 10 63)
+    E (fxlshift 10 100)
     """
 
 def test_all_comparators(doctest):
