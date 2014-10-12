@@ -246,6 +246,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Fixnum)
+        # XXX nonsense
         try:
             res = rarithmetic.ovfcheck_float_to_int(math.pow(self.value, other.value))
         except OverflowError:
