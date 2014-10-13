@@ -646,38 +646,122 @@ def do_cons(a, b):
 def do_car(a):
     return a.car()
 
+@expose("cdr", [values.W_Cons])
+def do_cdr(a):
+    return a.cdr()
+
 @expose("cadr")
 def do_cadr(args):
     return do_car([do_cdr(args)])
-
 
 @expose("caar")
 def do_caar(args):
     return do_car([do_car(args)])
 
-@expose("cadar")
-def do_cadar(args):
-    return do_car([do_cdr([do_car(args)])])
+@expose("cdar")
+def do_cdar(args):
+    return do_cdr([do_car(args)])
 
 @expose("cddr")
 def do_cddr(args):
     return do_cdr([do_cdr(args)])
 
+@expose("caaar")
+def do_caaar(args):
+    return do_car([do_car([do_car(args)])])
+
+@expose("caadr")
+def do_caadr(args):
+    return do_car([do_car([do_cdr(args)])])
+
 @expose("caddr")
 def do_caddr(args):
     return do_car([do_cdr([do_cdr(args)])])
+
+@expose("cadar")
+def do_cadar(args):
+    return do_car([do_cdr([do_car(args)])])
+
+@expose("cdaar")
+def do_cdaar(args):
+    return do_cdr([do_car([do_car(args)])])
+
+@expose("cdadr")
+def do_cdadr(args):
+    return do_cdr([do_car([do_cdr(args)])])
+
+@expose("cddar")
+def do_cddar(args):
+    return do_cdr([do_cdr([do_car(args)])])
 
 @expose("cdddr")
 def do_caddr(args):
     return do_cdr([do_cdr([do_cdr(args)])])
 
+@expose("caaaar")
+def do_caaaar(args):
+    return do_car([do_car([do_car([do_car(args)])])])
+
+@expose("caaadr")
+def do_caaadr(args):
+    return do_car([do_car([do_car([do_cdr(args)])])])
+
+@expose("caadar")
+def do_caadar(args):
+    return do_car([do_car([do_cdr([do_car(args)])])])
+
+@expose("caaddr")
+def do_caaddr(args):
+    return do_car([do_car([do_cdr([do_cdr(args)])])])
+
+@expose("cadaar")
+def do_cadaar(args):
+    return do_car([do_cdr([do_car([do_car(args)])])])
+
+@expose("cadadr")
+def do_cadadr(args):
+    return do_car([do_cdr([do_car([do_cdr(args)])])])
+
+@expose("caddar")
+def do_caddar(args):
+    return do_car([do_cdr([do_cdr([do_car(args)])])])
+
 @expose("cadddr")
 def do_cadddr(args):
     return do_car([do_cdr([do_cdr([do_cdr(args)])])])
 
-@expose("cdr", [values.W_Cons])
-def do_cdr(a):
-    return a.cdr()
+@expose("cdaaar")
+def do_cdaaar(args):
+    return do_cdr([do_car([do_car([do_car(args)])])])
+
+@expose("cdaadr")
+def do_cdaadr(args):
+    return do_cdr([do_car([do_car([do_cdr(args)])])])
+
+@expose("cdadar")
+def do_cdadar(args):
+    return do_cdr([do_car([do_cdr([do_car(args)])])])
+
+@expose("cdaddr")
+def do_cdaddr(args):
+    return do_cdr([do_car([do_cdr([do_cdr(args)])])])
+
+@expose("cddaar")
+def do_cddaar(args):
+    return do_cdr([do_cdr([do_car([do_car(args)])])])
+
+@expose("cddadr")
+def do_cddadr(args):
+    return do_cdr([do_cdr([do_car([do_cdr(args)])])])
+
+@expose("cdddar")
+def do_cdddar(args):
+    return do_cdr([do_cdr([do_cdr([do_car(args)])])])
+
+@expose("cddddr")
+def do_cddddr(args):
+    return do_cdr([do_cdr([do_cdr([do_cdr(args)])])])
+
 
 @expose("mlist")
 def do_mlist(args):

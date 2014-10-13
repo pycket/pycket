@@ -511,6 +511,22 @@ def test_round(doctest):
     55555555555555555555555555555555555556
     """
 
+def test_flround(doctest):
+    """
+    ! (require racket/flonum)
+    > (flround 0.1)
+    0.0
+    > (flround 0.0)
+    0.0
+    > (flround 0.5)
+    0.0
+    > (flround 0.51)
+    1.0
+    > (flround -0.5)
+    -0.0
+    > (flround -0.5001)
+    -1.0
+    """
 def test_max(doctest):
     """
     > (max 1 1.1)
@@ -707,6 +723,36 @@ def test_truncate(doctest):
     > (truncate -2.5)
     -2.0
     > (truncate +inf.0)
+    +inf.0
+    """
+
+def test_flceiling(doctest):
+    """
+    ! (require racket/flonum)
+    > (flceiling 2.5)
+    3.0
+    > (flceiling -2.5)
+    -2.0
+    """
+
+def test_flfloor(doctest):
+    """
+    ! (require racket/flonum)
+    > (flfloor 2.5)
+    2.0
+    > (flfloor -2.5)
+    -3.0
+    """
+
+
+def test_fltruncate(doctest):
+    """
+    ! (require racket/flonum)
+    > (fltruncate 2.5)
+    2.0
+    > (fltruncate -2.5)
+    -2.0
+    > (fltruncate +inf.0)
     +inf.0
     """
 
