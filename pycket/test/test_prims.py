@@ -183,17 +183,39 @@ def test_byte_huh(doctest):
     #f
     """
 
-def test_make_bytes(doctest):
+def test_make_bytes_create(doctest):
     """
     > (make-bytes 5 65)
     #"AAAAA"
+    > (bytes 65 112 112 108 101)
+    #"Apple"
     """
 
 
-def test_bytes_length(doctest):
+def test_bytes(doctest):
     """
     > (bytes-length #"Apple")
     5
+    > (bytes-ref #"Apple" 0)
+    65
+    > (define s (bytes 65 112 112 108 101))
+    > (bytes-set! s 4 121)
+    > s
+    #"Apply"
+    """
+
+
+def test_unsafe_bytes(doctest):
+    """
+    ! (require '#%unsafe)
+    > (unsafe-bytes-length #"Apple")
+    5
+    > (unsafe-bytes-ref #"Apple" 0)
+    65
+    > (define s (bytes 65 112 112 108 101))
+    > (unsafe-bytes-set! s 4 121)
+    > s
+    #"Apply"
     """
 
 def test_open_input_bytes_and_read_bytes_line(source):
