@@ -3,7 +3,7 @@
 import operator as op
 from pycket import values
 from pycket.error import SchemeException
-from pycket.prims.expose import default, expose
+from pycket.prims.expose import default, expose, unsafe
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder
 
@@ -269,8 +269,19 @@ def make_bytes(length, byte):
     bstr = chr(v) * length.value
     return values.W_Bytes(bstr, immutable=False)
 
+@expose("bytes")
+def bytes(args):
+    assert len(args) > 0
+    builder = StringBuilder()
+    for char in args:
+        if not (isinstance(char, values.W_Fixnum)
+                and 0 <= char.value <= 255):
+            raise SchemeException("string: expected a character int")
+        builder.append(chr(char.value))
+    return values.W_Bytes(builder.build(), immutable=False)
+
 @expose("bytes-append")
-def make_bytes(args):
+def bytes_append(args):
     if len(args) < 1:
         raise SchemeException("error bytes-append")
 
@@ -297,8 +308,24 @@ def bytes_ref(s, n):
     return s.ref(n.value)
 
 @expose("bytes-set!", [values.W_Bytes, values.W_Fixnum, values.W_Fixnum])
-def bytes_ref(s, n, v):
+def bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
+
+@expose("unsafe-bytes-length", [unsafe(values.W_Bytes)])
+def unsafe_bytes_length(s1):
+    return values.W_Fixnum(len(s1.value))
+
+@expose("unsafe-bytes-ref", [unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
+def unsafe_bytes_ref(s, n):
+    return s.ref(n.value)
+
+@expose("unsafe-bytes-set!", [unsafe(values.W_Bytes),
+                              unsafe(values.W_Fixnum),
+                              unsafe(values.W_Fixnum)])
+def unsafe_bytes_set_bang(s, n, v):
+    return s.set(n.value, v.value)
+
+
 
 ################################################################################
 
