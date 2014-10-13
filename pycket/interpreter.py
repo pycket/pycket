@@ -14,20 +14,6 @@ import sys
 # imported for side effects
 import pycket.prims.general
 
-def preorder_traversal(asts):
-    todo = [i for i in reversed(asts)]
-    while todo:
-        top = todo.pop()
-        rev = [i for i in reversed(top.direct_children())]
-        todo.extend(rev)
-        yield top
-
-def enumerate_source_indices(asts):
-    i = 0
-    for node in preorder_traversal(asts):
-        node.source_index = i
-        i += 1
-
 class GlobalConfig(object):
     config = {}
     loaded = False
@@ -641,13 +627,6 @@ class App(AST):
     def direct_children(self):
         return [self.rator] + self.rands
 
-    def traceworthy(self):
-        for c in self.direct_children():
-            if c.traceworthy():
-                return True
-        rator = self.rator
-        return not (isinstance(rator, ModuleVar) and rator.is_primitive())
-
     def _mutated_vars(self):
         x = self.rator.mutated_vars()
         for r in self.rands:
@@ -1041,9 +1020,6 @@ class CaseLambda(AST):
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym)
 
-    def traceworthy(self):
-        return False
-
     def interpret_simple(self, env):
         if not self.any_frees:
             # cache closure if there are no free variables and the toplevel env
@@ -1144,9 +1120,6 @@ class Lambda(SequencedBodyAST):
 
     def interpret_simple(self, env):
         assert False # unreachable
-
-    def traceworthy(self):
-        return False
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
