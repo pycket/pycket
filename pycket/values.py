@@ -711,17 +711,21 @@ class W_BytePRegexp(W_AnyRegexp): pass
 class W_Bytes(W_Object):
     errorname = "bytes"
 
-    def __init__(self, val, immutable=True):
-        assert val is not None
-        self.value = val
+    @staticmethod
+    def from_string(str, immutable=True):
+        return W_Bytes(list(str), immutable)
+
+    def __init__(self, bs, immutable=True):
+        assert bs is not None
+        self.value = bs
         self.imm   = immutable
     def tostring(self):
-        return "#\"%s\"" % self.value
+        return "#\"%s\"" % "".join(self.value)
 
     def equal(self, other):
         if not isinstance(other, W_Bytes):
             return False
-        return self.value == other.value
+        return len(self.value) == len(other.value) and str(self.value) == str(other.value)
     def immutable(self):
         return self.imm
     def ref(self, n):
@@ -736,8 +740,7 @@ class W_Bytes(W_Object):
         if self.imm:
             raise SchemeException("bytes-set!: can't mutate immutable string")
         # FIXME: this is not constant time!
-        new = self.value[:n] + chr(v) + self.value[(n+1):]
-        self.value = new
+        self.value[n] = chr(v)
         return
 
 class W_String(W_Object):

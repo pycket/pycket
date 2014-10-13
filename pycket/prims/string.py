@@ -84,7 +84,7 @@ def string_to_symbol(v):
 def string_to_bytes_locale(str, errbyte, start, end):
     # FIXME: This ignores the locale
     # FIXME: these are both wrong to some extend
-    return values.W_Bytes(str.value)
+    return values.W_Bytes.from_string(str.value)
 
 @expose("string->list", [values.W_String])
 def string_to_list(s):
@@ -266,7 +266,7 @@ def make_bytes(length, byte):
     else:
         assert False
     assert 0 <= v <= 255
-    bstr = chr(v) * length.value
+    bstr = [chr(v)] * length.value
     return values.W_Bytes(bstr, immutable=False)
 
 @expose("bytes")
@@ -278,26 +278,24 @@ def bytes(args):
                 and 0 <= char.value <= 255):
             raise SchemeException("string: expected a character int")
         builder.append(chr(char.value))
-    return values.W_Bytes(builder.build(), immutable=False)
+    return values.W_Bytes.from_string(builder.build(), immutable=False)
 
 @expose("bytes-append")
 def bytes_append(args):
-    if len(args) < 1:
-        raise SchemeException("error bytes-append")
-
-    # shortcut
-    first = args[0]
-    assert isinstance(first, values.W_Bytes)
-    if len(args) == 1:
-        return values.W_Bytes(first.value, immutable=False)
-
-    builder = StringBuilder()
+    lens = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
-            raise SchemeException("string-append: expected a byte string")
-        builder.append(a.value)
+            raise SchemeException("bytes-append: expected a byte string, but got %s"%a)
+        lens += len(a.value)
 
-    return values.W_Bytes(builder.build(), immutable=False)
+    val = [' '] * lens # is this the fastest way to do things?
+    cnt = 0
+    for a in args:
+        for b in a:
+            val[cnt] = b
+            cnt += 1
+
+    return values.W_Bytes(val, immutable=False)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
@@ -329,12 +327,13 @@ def unsafe_bytes_set_bang(s, n, v):
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
     l = values.from_list(w_list)
-    sb = StringBuilder(len(l))
-    for w_c in l:
-        assert isinstance(w_c, values.W_Fixnum)
-        assert 0 <= w_c.value <= 255
-        sb.append(chr(w_c.value))
-    return values.W_Bytes(sb.build(), immutable=False)
+    for x in l:
+        if not isinstance(x, values.W_Fixnum):
+            raise SchemeException("list->bytes: expected fixnum, got %s"%x)
+        if x.value < 0 or x.value >= 256:
+            raise SchemeException("list->bytes: expected number between 0 and 255, got %s"%x)
+    ll = [chr(x.value) for x in l]
+    return values.W_Bytes(ll, immutable=False)
 
 @expose("subbytes",
         [values.W_Bytes, values.W_Fixnum, default(values.W_Fixnum, None)])
@@ -380,18 +379,9 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
     assert (src_end-src_start) <= dest_max
 
-    builder = StringBuilder()
-    if dest_start > 0:
-        builder.append_slice(w_dest.value, 0, dest_start)
 
-    if src_start == 0 and src_end == len(w_src.value):
-        builder.append(w_src.value)
-    else:
-        assert src_start >= 0 and src_end >= 0 and src_end <= len(w_src.value)
-        builder.append_slice(w_src.value, src_start, src_end)
-
-    builder.append_slice(w_dest.value, dest_start + (src_end - src_start), len(w_dest.value))
-    w_dest.value = builder.build()
+    for i in range(0, src_end - src_start):
+        w_dest.value[dest_start + i] = w_src.value[src_start + i]
 
     return values.w_void
 
@@ -406,7 +396,7 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not op(head.value, t.value):
+            if not op(str(head.value), str(t.value)):
                 return values.w_false
             head = t
         return values.w_true
