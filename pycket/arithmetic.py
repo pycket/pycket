@@ -788,7 +788,7 @@ class __extend__(values.W_Rational):
         return values.W_Integer.frombigint(res)
 
     def arith_truncate(self):
-        assert self._numerator is not NULLRBIGINT
+        assert self._numerator.ne(NULLRBIGINT)
         if self._numerator.sign == self._denominator.sign:
             return self.arith_floor()
         else:
