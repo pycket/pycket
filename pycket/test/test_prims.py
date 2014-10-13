@@ -232,6 +232,15 @@ def test_subbytes(doctest):
     #"pple"
     """
 
+def test_bytes_copy_bang(doctest):
+    """
+    > (define s (bytes 65 112 112 108 101))
+    > (bytes-copy! s 4 #"y")
+    > (bytes-copy! s 0 s 3 4)
+    > s
+    #"lpply"
+    """
+
 def test_open_input_bytes_and_read_bytes_line(source):
     """
     (let* ([b (string->bytes/locale "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]

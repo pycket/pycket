@@ -360,6 +360,41 @@ def subbytes(w_bytes, w_start, w_end):
             "subbytes: ending index is smaller than starting index")
     return values.W_Bytes(bytes[start:end], immutable=False)
 
+@expose(["bytes-copy!"],
+         [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
+          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, None)])
+def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
+    from pycket.interpreter import return_value
+
+    # FIXME: custom ports
+    if w_dest.immutable():
+        raise SchemeException("bytes-copy!: given immutable bytes")
+
+    dest_start = w_dest_start.value
+    dest_len = len(w_dest.value)
+    dest_max = (dest_len - dest_start)
+
+    src_start =  w_src_start.value
+    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+
+    assert (src_end-src_start) <= dest_max
+
+    builder = StringBuilder()
+    if dest_start > 0:
+        builder.append_slice(w_dest.value, 0, dest_start)
+
+    if src_start == 0 and src_end == len(w_src.value):
+        builder.append(w_src.value)
+    else:
+        assert src_start >= 0 and src_end >= 0 and src_end <= len(w_src.value)
+        builder.append_slice(w_src.value, src_start, src_end)
+
+    builder.append_slice(w_dest.value, dest_start + (src_end - src_start), len(w_dest.value))
+    w_dest.value = builder.build()
+
+    return values.w_void
+
 ################################################################################
 
 # Character
