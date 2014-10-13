@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 from pycket              import impersonators as imp
 from pycket              import values
+from pycket.values_hash  import (
+    W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable)
 from pycket.cont         import continuation
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure
 
-@expose("hash-for-each", [values.W_HashTable, procedure], simple=False)
+@expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
     keys = h.hash_keys()
@@ -32,12 +34,12 @@ def hash_for_each_cont(f, keys, ht, n, env, cont, _vals):
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
-    return values.W_EqvHashTable([], [])
+    return W_EqvHashTable([], [])
 
 @expose("make-immutable-hash", [default(values.W_Object, None)])
 def make_immutable_hash(assocs):
     # FIXME: not impelemented
-    return values.W_EqvHashTable([], [])
+    return W_EqvHashTable([], [])
 
 @expose("hash")
 def hash(args):
@@ -45,7 +47,7 @@ def hash(args):
         raise SchemeException("hash: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return values.W_EqualHashTable(keys, vals)
+    return W_EqualHashTable(keys, vals)
 
 @expose("hasheq")
 def hasheq(args):
@@ -53,7 +55,7 @@ def hasheq(args):
         raise SchemeException("hasheq: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return values.W_EqHashTable(keys, vals)
+    return W_EqHashTable(keys, vals)
 
 @expose("hasheqv")
 def hasheqv(args):
@@ -61,7 +63,7 @@ def hasheqv(args):
         raise SchemeException("hasheqv: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return values.W_EqvHashTable(keys, vals)
+    return W_EqvHashTable(keys, vals)
 
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
@@ -73,7 +75,7 @@ def make_hash(pairs):
             raise SchemeException("make-hash: expected list of pairs")
         keys.append(lst.car())
         vals.append(lst.cdr())
-    return values.W_EqualHashTable(keys, vals)
+    return W_EqualHashTable(keys, vals)
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
@@ -85,7 +87,7 @@ def make_hasheq(pairs):
             raise SchemeException("make-hash: expected list of pairs")
         keys.append(lst.car())
         vals.append(lst.cdr())
-    return values.W_EqHashTable(keys, vals)
+    return W_EqHashTable(keys, vals)
 
 @expose("make-hasheqv", [default(values.W_List, values.w_null)])
 def make_hasheqv(pairs):
@@ -97,13 +99,13 @@ def make_hasheqv(pairs):
             raise SchemeException("make-hash: expected list of pairs")
         keys.append(lst.car())
         vals.append(lst.cdr())
-    return values.W_EqvHashTable(keys, vals)
+    return W_EqvHashTable(keys, vals)
 
-@expose("hash-set!", [values.W_HashTable, values.W_Object, values.W_Object], simple=False)
+@expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
     return ht.hash_set(k, v, env, cont)
 
-@expose("hash-set", [values.W_HashTable, values.W_Object, values.W_Object], simple=False)
+@expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set(ht, k, v, env, cont):
     # FIXME: implementation
     return ht.hash_set(k, v, env, cont)
@@ -121,41 +123,41 @@ def hash_ref_cont(default, env, cont, _vals):
         return default.call([], env, cont)
     return return_value(default, env, cont)
 
-@expose("hash-ref", [values.W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
+@expose("hash-ref", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
     return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
 
-@expose("hash-remove!", [values.W_HashTable, values.W_Object])
+@expose("hash-remove!", [W_HashTable, values.W_Object])
 def hash_remove_bang(hash, key):
     # FIXME: not implemented
     return hash
 
-@expose("hash-remove", [values.W_HashTable, values.W_Object])
+@expose("hash-remove", [W_HashTable, values.W_Object])
 def hash_remove(hash, key):
     # FIXME: not implemented
     return hash
 
-@expose("hash-clear!", [values.W_HashTable])
+@expose("hash-clear!", [W_HashTable])
 def hash_clear_bang(hash):
     # FIXME: not implemented
-    return values.W_EqvHashTable([], [])
+    return W_EqvHashTable([], [])
 
-@expose("hash-clear", [values.W_HashTable])
+@expose("hash-clear", [W_HashTable])
 def hash_clear(hash):
     # FIXME: not implemented
-    return values.W_EqvHashTable([], [])
+    return W_EqvHashTable([], [])
 
-@expose("hash-map", [values.W_HashTable, values.W_Object])
+@expose("hash-map", [W_HashTable, values.W_Object])
 def hash_map(hash, proc):
     # FIXME: not implemented
     return hash
 
-@expose("hash-count", [values.W_HashTable])
+@expose("hash-count", [W_HashTable])
 def hash_count(hash):
     # FIXME: implementation
-    return values.W_Fixnum(len(hash.data))
+    return W_Fixnum(len(hash.data))
 
-@expose("hash-iterate-first", [values.W_HashTable])
+@expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(hash):
     # FIXME: implementation
     # if not hash.data:
@@ -164,26 +166,26 @@ def hash_iterate_first(hash):
     #     return hash.ref(0)
     return values.w_false
 
-@expose("hash-iterate-next", [values.W_HashTable, values.W_Fixnum])
+@expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(hash, pos):
     # FIXME: implementation
     # next_pos = pos.value + 1
     # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
     return values.w_false
 
-@expose("hash-iterate-key", [values.W_HashTable, values.W_Fixnum])
+@expose("hash-iterate-key", [W_HashTable, values.W_Fixnum])
 def hash_iterate_key(hash, pos):
     # FIXME: implementation
     # return hash.ref(pos.value)
     return values.w_false
 
-@expose("hash-iterate-value", [values.W_HashTable, values.W_Fixnum])
+@expose("hash-iterate-value", [W_HashTable, values.W_Fixnum])
 def hash_iterate_value(hash, pos):
     # FIXME: implementation
     # return hash.ref(pos.value)
     return values.w_false
 
-@expose("hash-copy", [values.W_HashTable])
+@expose("hash-copy", [W_HashTable])
 def hash_iterate_value(hash):
     # FIXME: implementation
     return hash

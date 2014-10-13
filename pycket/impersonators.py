@@ -6,6 +6,7 @@ from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket import values
 from pycket import values_struct
+from pycket import values_hash
 from rpython.rlib import jit
 
 @jit.unroll_safe
@@ -466,13 +467,13 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
 @make_proxy(proxied="inner", properties="properties")
-class W_InterposeHashTable(values.W_HashTable):
+class W_InterposeHashTable(values_hash.W_HashTable):
     errorname = "interpose-hash-table"
     _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc",
                           "key_proc", "clear_proc", "properties"]
     def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
-        assert isinstance(inner, values.W_HashTable)
+        assert isinstance(inner, values_hash.W_HashTable)
         assert set_proc.iscallable()
         assert ref_proc.iscallable()
         assert remove_proc.iscallable()

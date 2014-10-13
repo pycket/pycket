@@ -7,6 +7,7 @@ from pycket import values
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
+from pycket import values_hash
 from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -93,11 +94,12 @@ for args in [
         ("parameter?", values.W_Parameter),
         ("parameterization?", values.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
-        ("hash?", values.W_HashTable),
-        ("hash-eq?", values.W_HashTable),
-        ("hash-eqv?", values.W_HashTable),
-        ("hash-equal?", values.W_HashTable),
-        ("hash-weak?", values.W_HashTable)
+        # XXX tests tests tests tests!
+        ("hash?", values_hash.W_HashTable),
+        ("hash-eq?", values_hash.W_HashTable),
+        ("hash-eqv?", values_hash.W_HashTable),
+        ("hash-equal?", values_hash.W_HashTable),
+        ("hash-weak?", values_hash.W_HashTable)
         ]:
     make_pred(*args)
 

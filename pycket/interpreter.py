@@ -129,6 +129,29 @@ class LetCont(Cont):
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
+
+        if fuse:
+            if isinstance(prev, LetCont):
+                prev_counting_ast = prev.counting_ast
+                prev_env = prev.env
+                count = 1
+            elif isinstance(prev, RepeatingLetCont):
+                prev_counting_ast = prev.counting_ast
+                prev_env = prev.env
+                count = prev.count
+            else:
+                prev_counting_ast = None
+                prev_env = None
+                count = -1
+            jit.promote(prev_counting_ast)
+            if prev_counting_ast is counting_ast and env is prev_env:
+                if isinstance(prev, LetCont):
+                    prev_vals = ConsEnv.make(prev._get_full_list(), env)
+                else:
+                    assert isinstance(prev, RepeatingLetCont)
+                    prev_vals = prev.vals
+                vals = ConsEnv.make(vals_w, prev_vals)
+                return RepeatingLetCont(counting_ast, vals, env, prev.prev, count=count + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -197,6 +220,41 @@ class FusedLet0BeginCont(Cont):
                 [], ast1, index1, self.env,
                 BeginCont(ast2, self.env, self.prev),
                 fuse=False)
+        return actual_cont.plug_reduce(vals, env)
+
+
+class RepeatingLetCont(Cont):
+    def __init__(self, counting_ast, vals, env, prev, count=2):
+        Cont.__init__(self, env, prev)
+        self.counting_ast = counting_ast
+        self.count = count
+        self.vals = vals
+
+    @jit.unroll_safe
+    def plug_reduce(self, vals, env):
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        counts = 0
+        for i in range(rhsindex):
+            counts += ast.counts[i]
+        if not counts:
+            self_vals = []
+            prev_vals = self.vals
+        else:
+            fakeenv = self.vals
+            assert isinstance(fakeenv, ConsEnv)
+            self_vals = fakeenv._get_full_list()
+            prev_vals = fakeenv._prev
+        if self.count == 1:
+            prev_cont = self.prev
+        else:
+            prev_cont = RepeatingLetCont(
+                    self.counting_ast, prev_vals, self.env,
+                    self.prev, self.count - 1)
+        if not ast.body[0].should_enter:
+            ast.body[0].should_enter = True
+        actual_cont = LetCont.make(
+                self_vals, ast, rhsindex, self.env,
+                prev_cont, pruning_done=True, fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
 
