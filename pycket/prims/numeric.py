@@ -165,7 +165,8 @@ for args in [
         ]:
     make_arith(*args)
 
-def make_fixedtype_arith(name, methname, intversion=True, floatversion=True):
+def make_fixedtype_binary_arith(
+        name, methname, intversion=True, floatversion=True):
     methname += "_same"
     if floatversion:
         @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
@@ -189,9 +190,31 @@ for args in [
         ("and", "arith_and", True, False),
         ("max", "arith_max"),
         ("min", "arith_min"),
-        ]:
-    make_fixedtype_arith(*args)
+]:
+    make_fixedtype_binary_arith(*args)
 
+def make_fixedtype_unary_arith(
+        name, methname, intversion=True, floatversion=True):
+    if floatversion:
+        @expose("fl" + name, [values.W_Flonum], simple=True)
+        def do(a):
+            return getattr(a, methname)()
+        do.__name__ = "fl_" + methname
+
+    if intversion:
+        @expose("fx" + name, [values.W_Fixnum], simple=True)
+        def do(a):
+            return getattr(a, methname)()
+        do.__name__ = "fx_" + methname
+
+
+for args in [
+        ("ceiling", "arith_ceiling", False),
+        ("floor", "arith_floor", False),
+        ("round", "arith_round", False),
+        ("truncate", "arith_truncate", False),
+]:
+    make_fixedtype_unary_arith(*args)
 
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
