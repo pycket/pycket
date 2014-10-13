@@ -1326,7 +1326,9 @@ def system_path_convetion_type():
     else:
         return w_unix_sym
 
-# FIXME: implementation
-@expose("collect-garbage")
-def do_collect_garbage(args):
+@expose("collect-garbage", [])
+@jit.dont_look_inside
+def do_collect_garbage():
+    from rpython.rlib import rgc
+    rgc.collect()
     return values.w_void
