@@ -193,29 +193,6 @@ for args in [
 ]:
     make_fixedtype_binary_arith(*args)
 
-def make_fixedtype_unary_arith(
-        name, methname, intversion=True, floatversion=True):
-    if floatversion:
-        @expose("fl" + name, [values.W_Flonum], simple=True)
-        def do(a):
-            return getattr(a, methname)()
-        do.__name__ = "fl_" + methname
-
-    if intversion:
-        @expose("fx" + name, [values.W_Fixnum], simple=True)
-        def do(a):
-            return getattr(a, methname)()
-        do.__name__ = "fx_" + methname
-
-
-for args in [
-        ("ceiling", "arith_ceiling", False),
-        ("floor", "arith_floor", False),
-        ("round", "arith_round", False),
-        ("truncate", "arith_truncate", False),
-]:
-    make_fixedtype_unary_arith(*args)
-
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
     def do(a, b):
@@ -293,7 +270,7 @@ for args in [
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
         ("round", "arith_round", True),
-        ("truncate", "arith_truncate"),
+        ("truncate", "arith_truncate", True),
         ("floor", "arith_floor", True),
         ("ceiling", "arith_ceiling", True),
         ("bitwise-not", "arith_not", False, False, values.W_Integer),
