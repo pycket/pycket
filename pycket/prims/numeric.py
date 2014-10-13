@@ -216,10 +216,6 @@ for args in [
     ]:
     make_fixedtype_cmps(*args)
 
-@expose("flsqrt", [values.W_Flonum])
-def flsqrt(f):
-    return f.arith_sqrt()
-
 @expose("unsafe-flsqrt", [unsafe(values.W_Flonum)])
 def flsqrt(f):
     return f.arith_sqrt()
@@ -243,17 +239,27 @@ def atan(y, x):
     return getattr(z, "arith_atan")()
 
 
-def make_unary_arith(name, methname, unwrap_type=values.W_Number):
-    @expose(name, [unwrap_type], simple=True)
+def make_unary_arith(name, methname, flversion=False, fxversion=False, unwrap_type=values.W_Number):
     def do(a):
         return getattr(a, methname)()
     do.__name__ = methname
+    expose(name, [unwrap_type], simple=True)(do)
+    if flversion:
+        def dofl(a):
+            return getattr(a, methname)()
+        dofl.__name__ = methname
+        expose("fl" + name, [values.W_Flonum], simple=True)(dofl)
+    if fxversion:
+        def dofx(a):
+            return getattr(a, methname)()
+        dofx.__name__ = methname
+        expose("fx" + name, [values.W_Fixnum], simple=True)(dofx)
 
 for args in [
-        ("sin", "arith_sin"),
-        ("cos", "arith_cos"),
-        ("sqrt", "arith_sqrt"),
-        ("log", "arith_log"),
+        ("sin", "arith_sin", True),
+        ("cos", "arith_cos", True),
+        ("sqrt", "arith_sqrt", True),
+        ("log", "arith_log", True),
         ("sub1", "arith_sub1"),
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
@@ -262,13 +268,13 @@ for args in [
         ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
-        ("abs", "arith_abs"),
-        ("round", "arith_round"),
+        ("abs", "arith_abs", True),
+        ("round", "arith_round", True),
         ("truncate", "arith_truncate"),
-        ("floor", "arith_floor"),
-        ("ceiling", "arith_ceiling"),
-        ("bitwise-not", "arith_not", values.W_Integer),
-        ("exp",     "arith_exp"),
+        ("floor", "arith_floor", True),
+        ("ceiling", "arith_ceiling", True),
+        ("bitwise-not", "arith_not", False, False, values.W_Integer),
+        ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
 
