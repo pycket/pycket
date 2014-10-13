@@ -161,19 +161,24 @@ def make_label(func, enter=False):
     func_argnames, varargs, varkw, defaults = inspect.getargspec(func)
     assert not varkw and not defaults
     if varargs: # grrr, bad
-        class Args(BaseCont):
+        class Args(Cont):
+            _immutable_fields_ = ["args"]
             def __init__(self, *args):
-                BaseCont.__init__(self)
-                self.args = args
+                #BaseCont.__init__(self)
+                Cont.__init__(self, args[-2], args[-1])
+                self.args = args[:-2]
 
             def _get_args(self):
                 return self.args
     else:
         assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
 
-        Args = _make_args_class(BaseCont, func_argnames)
+        Args = _make_args_class(Cont, func_argnames[:-2])
         def __init__(self, *args):
-            BaseCont.__init__(self)
+            env = args[-2]
+            cont = args[-1]
+            Cont.__init__(self, env, cont)
+            args = args[:-2]
             self._init_args(*args)
         Args.__init__ = __init__
 
@@ -189,7 +194,9 @@ def make_label(func, enter=False):
         should_enter = enter
         def interpret(self, env, cont):
             assert type(cont) is Args
-            return func(*cont._get_args())
+            args = cont._get_args()
+            args += (cont.env, cont.prev)
+            return func(*args)
         def tostring(self):
             return strrepr
     Label.__name__ = clsname
