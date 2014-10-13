@@ -450,16 +450,16 @@ def procedure_rename(p, n):
 
 @expose("procedure-arity", [procedure])
 def do_procedure_arity(proc):
-    # FIXME
+    result = []
     (ls, at_least) = proc.get_arity()
-    if at_least >= 0:
-        return values_struct.W_Struct.make(
-            [values.W_Fixnum(at_least)], arity_at_least)
-    else:
-        lst = []
-        for item in ls:
-            lst.append(values.W_Fixnum(item))
-        return values.to_list(lst)
+    for item in ls:
+        result.append(values.W_Fixnum(item))
+    if at_least != -1:
+        result.append(values_struct.W_Struct.make([values.W_Fixnum(at_least)],\
+            arity_at_least))
+    if len(result) == 1:
+        return result[0]
+    return values.to_list(result[:])
 
 @expose("procedure-arity?", [values.W_Object])
 def do_is_procedure_arity(n):
@@ -478,8 +478,8 @@ def do_is_procedure_arity(n):
         return values.w_true
     return values.w_false
 
-@expose("procedure-arity-includes?",
-        [procedure, values.W_Number, default(values.W_Object, values.w_false)])
+@expose("procedure-arity-includes?", [procedure, values.W_Number,
+  default(values.W_Object, values.w_false)])
 @jit.unroll_safe
 def procedure_arity_includes(p, n, w_kw_ok):
     # for now, ignore kw_ok

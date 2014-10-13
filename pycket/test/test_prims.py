@@ -220,6 +220,36 @@ def test_string_copy_bang(doctest):
     "lpply"
     """
 
+def test_procedure_arity(doctest):
+    """
+    ! (require racket/private/norm-arity)
+    > (procedure-arity cons)
+    2
+    > (procedure-arity list)
+    (arity-at-least 0)
+    > (arity-at-least? (procedure-arity list))
+    #t
+    > (arity-at-least-value (procedure-arity list))
+    0
+    > (arity-at-least-value (procedure-arity (lambda (x . y) x)))
+    1
+    > (procedure-arity (case-lambda [(x) 0] [(x y) 1]))
+    '(1 2)
+    """
+
+def test_procedure_arity_includes(doctest):
+    """
+    ! (require racket/private/kw)
+    > (procedure-arity-includes? cons 2)
+    #t
+    > (procedure-arity-includes? display 3)
+    #f
+    ;> (procedure-arity-includes? (lambda (x #:y y) x) 1)
+    ;#f
+    > (procedure-arity-includes? (lambda (x #:y y) x) 1 #t)
+    #t
+    """
+
 #############################################################################
 def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""

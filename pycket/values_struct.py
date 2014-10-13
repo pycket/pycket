@@ -437,9 +437,10 @@ class W_RootStruct(values.W_Object):
         return self.checked_call(proc, args, env, cont)
 
     def checked_call(self, proc, args, env, cont):
+        # FIXME: args for keyword arguments are wrong
         args_len = len(args)
-        (arities, rest) = proc.get_arity()
-        if args_len < rest and args_len not in arities:
+        (ls, at_least) = proc.get_arity()
+        if (args_len < at_least or at_least < 0) and args_len not in ls:
             for w_prop, w_prop_val in self.struct_type().props:
                 if w_prop.isinstance(w_prop_arity_string):
                     return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
