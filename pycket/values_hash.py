@@ -44,7 +44,7 @@ class W_SimpleHashTable(W_HashTable):
         return self.data.keys()
 
     def tostring(self):
-        lst = [W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
     @label
@@ -123,7 +123,7 @@ class W_EqualHashTable(W_HashTable):
         return [k for k, _ in self.mapping]
 
     def tostring(self):
-        lst = [W_Cons.make(k, v).tostring() for k, v in self.mapping]
+        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.mapping]
         return "#hash(%s)" % " ".join(lst)
 
     @label

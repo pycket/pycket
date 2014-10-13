@@ -155,7 +155,7 @@ def hash_map(hash, proc):
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
     # FIXME: implementation
-    return W_Fixnum(len(hash.data))
+    return values.W_Fixnum(len(hash.data))
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(hash):
