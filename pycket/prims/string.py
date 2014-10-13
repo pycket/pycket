@@ -130,7 +130,7 @@ for a in [("string<?", op.lt),
     define_string_comp(*a)
 
 @expose("make-string", [values.W_Fixnum, default(values.W_Character, values.w_null)])
-def string_to_list(k, char):
+def make_string(k, char):
     char = str(char.value) if isinstance(char, values.W_Character) else '\0'
     return values.W_String(char * k.value)
 
@@ -326,6 +326,39 @@ def unsafe_bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
 
 
+@expose("list->bytes", [values.W_List])
+def list_to_bytes(w_list):
+    l = values.from_list(w_list)
+    sb = StringBuilder(len(l))
+    for w_c in l:
+        assert isinstance(w_c, values.W_Fixnum)
+        assert 0 <= w_c.value <= 255
+        sb.append(chr(w_c.value))
+    return values.W_Bytes(sb.build(), immutable=False)
+
+@expose("subbytes",
+        [values.W_Bytes, values.W_Fixnum, default(values.W_Fixnum, None)])
+def subbytes(w_bytes, w_start, w_end):
+    """
+    (subbytes bstr start [end]) → bytes?
+        bstr : bytes?
+        start : exact-nonnegative-integer?
+        end : exact-nonnegative-integer? = (bytes-length str)
+    """
+    bytes = w_bytes.value
+    start = w_start.value
+    if start > len(bytes) or start < 0:
+        raise SchemeException("subbytes: end index out of bounds")
+    if w_end is not None:
+        end = w_end.value
+        if end > len(bytes) or end < 0:
+            raise SchemeException("subbytes: end index out of bounds")
+    else:
+        end = len(bytes)
+    if end < start:
+        raise SchemeException(
+            "subbytes: ending index is smaller than starting index")
+    return values.W_Bytes(bytes[start:end], immutable=False)
 
 ################################################################################
 

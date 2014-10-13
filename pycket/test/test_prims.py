@@ -192,6 +192,12 @@ def test_make_bytes_create(doctest):
     """
 
 
+def test_list_to_bytes(doctest):
+    """
+    > (list->bytes (list 65 112 112 108 101))
+    #"Apple"
+    """
+
 def test_bytes(doctest):
     """
     > (bytes-length #"Apple")
@@ -216,6 +222,14 @@ def test_unsafe_bytes(doctest):
     > (unsafe-bytes-set! s 4 121)
     > s
     #"Apply"
+    """
+
+def test_subbytes(doctest):
+    """
+    > (subbytes #"Apple" 1 3)
+    #"pp"
+    > (subbytes #"Apple" 1)
+    #"pple"
     """
 
 def test_open_input_bytes_and_read_bytes_line(source):

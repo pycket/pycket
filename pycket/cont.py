@@ -102,6 +102,11 @@ def _make_args_class(base, argnames):
             for i, name in unroll_argnames:
                 args += (getattr(self, name), )
             return args
+
+        def tostring(self):
+            "NOT_RPYTHON"
+            return "%s%s" % (self.__class__.__name__, len(self._get_args()))
+
     return Args
 
 def continuation(func):
@@ -155,6 +160,11 @@ def make_label(func, enter=False):
 
             def _get_args(self):
                 return self.args
+
+            def tostring(self):
+                "NOT_RPYTHON"
+                return "%s%s" % (self.__class__.__name__, len(self._get_args()))
+
     else:
         assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
 
