@@ -11,25 +11,26 @@ from pycket.prims.expose import default, expose, procedure
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
-    keys = h.hash_keys()
+    items = h.hash_items()
     return return_value(values.w_void, env,
-            hash_for_each_cont(f, keys, h, 0, env, cont))
+            hash_for_each_cont(f, items, h, 0, env, cont))
 
 @continuation
-def get_result_cont(f, keys, ht, n, env, cont, _vals):
+def get_result_cont(f, items, ht, n, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     val = check_one_val(_vals)
-    after = hash_for_each_cont(f, keys, ht, n + 1, env, cont)
+    after = hash_for_each_cont(f, items, ht, n + 1, env, cont)
     if val is None:
         return return_value(values.w_void, env, after)
-    return f.call([keys[n], val], env, after)
+    return f.call([items[n][0], val], env, after)
 
 @continuation
-def hash_for_each_cont(f, keys, ht, n, env, cont, _vals):
+def hash_for_each_cont(f, items, ht, n, env, cont, _vals):
     from pycket.interpreter import return_value
-    if n == len(keys):
+    if n == len(items):
         return return_value(values.w_void, env, cont)
-    return ht.hash_ref(keys[n], env, get_result_cont(f, keys, ht, n, env, cont))
+    k, v = items[n]
+    return return_value(v, env, get_result_cont(f, items, ht, n, env, cont))
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
@@ -154,8 +155,7 @@ def hash_map(hash, proc):
 
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
-    # FIXME: implementation
-    return values.W_Fixnum(len(hash.data))
+    return values.W_Fixnum(hash.length())
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(hash):
