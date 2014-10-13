@@ -48,3 +48,11 @@ class W_Object(object):
         return self is other # default implementation
     def tostring(self):
         return str(self)
+
+
+class SingletonMeta(type):
+    def __new__(cls, name, bases, dct):
+        result = type.__new__(cls, name, bases, dct)
+        result.singleton = result()
+        return result
+
