@@ -395,6 +395,30 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
     return values.w_void
 
+def define_bytes_comp(name, op):
+    @expose(name)
+    def comp(args):
+        if len(args) < 2:
+            raise SchemeException(name + ": requires at least 2 arguments")
+        head, tail = args[0], args[1:]
+        if not isinstance(head, values.W_Bytes):
+            raise SchemeException(name + ": not given a bytes")
+        for t in tail:
+            if not isinstance(t, values.W_Bytes):
+                raise SchemeException(name + ": not given a bytes")
+            if not op(head.value, t.value):
+                return values.w_false
+            head = t
+        return values.w_true
+
+for a in [("bytes<?", op.lt),
+          ("bytes<=?", op.le),
+          ("bytes=?", op.eq),
+          ("bytes>=?", op.ge),
+          ("bytes>?", op.gt),
+          ]:
+    define_bytes_comp(*a)
+
 ################################################################################
 
 # Character

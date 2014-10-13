@@ -326,6 +326,87 @@ def test_string_copy_bang(doctest):
     "lpply"
     """
 
+def test_string_comparison(doctest):
+    """
+    > (string=? "Apple" "apple")
+    #f
+    > (string=? "a" "as" "a")
+    #f
+    > (string<? "Apple" "apple")
+    #t
+    > (string<? "apple" "Apple")
+    #f
+    > (string<? "a" "b" "c")
+    #t
+    > (string<=? "Apple" "apple")
+    #t
+    > (string<=? "apple" "Apple")
+    #f
+    > (string<=? "a" "b" "b")
+    #t
+    > (string>? "Apple" "apple")
+    #f
+    > (string>? "apple" "Apple")
+    #t
+    > (string>? "c" "b" "a")
+    #t
+    > (string>=? "Apple" "apple")
+    #f
+    > (string>=? "apple" "Apple")
+    #t
+    > (string>=? "c" "b" "b")
+    #t
+    > (string-ci=? "Apple" "apple")
+    #t
+    > (string-ci=? "a" "a" "a")
+    #t
+    > (string-ci<? "Apple" "apple")
+    #f
+    > (string-ci<? "apple" "banana")
+    #t
+    > (string-ci<? "a" "b" "c")
+    #t
+    > (string-ci<=? "Apple" "apple")
+    #t
+    > (string-ci<=? "apple" "Apple")
+    #t
+    > (string-ci<=? "a" "b" "b")
+    #t
+    > (string-ci>? "Apple" "apple")
+    #f
+    > (string-ci>? "banana" "Apple")
+    #t
+    > (string-ci>? "c" "b" "a")
+    #t
+    > (string-ci>=? "Apple" "apple")
+    #t
+    > (string-ci>=? "apple" "Apple")
+    #t
+    > (string-ci>=? "c" "b" "b")
+    #t
+    """
+
+def test_bytes_comparison(doctest):
+    """
+    > (bytes=? #"Apple" #"apple")
+    #f
+    > (bytes=? #"a" #"as" #"a")
+    #f
+    > (bytes<? #"Apple" #"apple")
+    #t
+    > (bytes<? #"apple" #"Apple")
+    #f
+    > (bytes<? #"a" #"b" #"c")
+    #t
+    > (bytes>? #"Apple" #"apple")
+    #f
+    > (bytes>? #"apple" #"Apple")
+    #t
+    > (bytes>? #"c" #"b" #"a")
+    #t
+    """
+
+####################
 def test_procedure_arity(doctest):
     """
     ! (require racket/private/norm-arity)
