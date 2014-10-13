@@ -104,7 +104,6 @@ def _make_args_class(base, argnames):
             return args
 
         def tostring(self):
-            "NOT_RPYTHON"
             return "%s%s" % (self.__class__.__name__, len(self._get_args()))
 
     return Args
@@ -162,7 +161,6 @@ def make_label(func, enter=False):
                 return self.args
 
             def tostring(self):
-                "NOT_RPYTHON"
                 return "%s%s" % (self.__class__.__name__, len(self._get_args()))
 
     else:
