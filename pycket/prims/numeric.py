@@ -125,7 +125,7 @@ def make_binary_arith(name, methname):
 
 for args in [
         ("quotient", "arith_quotient"),
-        ("remainder", "arith_mod"), # FIXME
+        ("remainder", "arith_remainder"),
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
         ]:

@@ -83,6 +83,10 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return self.arith_quotient_same(other)
 
+    def arith_remainder(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_remainder_same(other)
+
     def arith_pow(self, other):
         self, other = self.same_numeric_class(other)
         return self.arith_pow_same(other)
@@ -237,6 +241,22 @@ class __extend__(values.W_Fixnum):
             res = rarithmetic.ovfcheck(self.value % other.value)
         except OverflowError:
             return self.arith_mod(values.W_Bignum(rbigint.fromint(other.value)))
+        return values.W_Fixnum(res)
+
+    def arith_remainder_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        if other.value == 0:
+            raise Exception("zero_divisor")
+        a = abs(self.value)
+        b = abs(other.value)
+        try:
+            res = rarithmetic.ovfcheck(a % b)
+            if self.value < 0:
+                res = rarithmetic.ovfcheck(-res)
+        except OverflowError:
+            res = a % b
+            res1 = -res if self.value < 0 else res
+            return self.arith_mod(values.W_Bignum(rbigint.fromint(res1)))
         return values.W_Fixnum(res)
 
     def arith_quotient_same(self, other):
@@ -415,6 +435,14 @@ class __extend__(values.W_Flonum):
             res += y
         return values.W_Flonum(res)
 
+    def arith_remainder_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        if other.value == 0.0:
+            raise Exception("zero_divisor")
+        x, y = self.value, other.value
+        res = math.fmod(x, y)
+        return values.W_Flonum(res)
+
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
         return values.W_Flonum(math.pow(self.value, other.value))
@@ -573,6 +601,15 @@ class __extend__(values.W_Bignum):
         assert isinstance(other, values.W_Bignum)
         try:
             return values.W_Integer.frombigint(self.value.mod(other.value))
+        except ZeroDivisionError:
+            raise Exception("zero_divisor")
+
+    def arith_remainder_same(self, other):
+        from rpython.rlib.rbigint import _divrem
+        assert isinstance(other, values.W_Bignum)
+        try:
+            div, rem = _divrem(self.value, other.value)
+            return values.W_Integer.frombigint(rem)
         except ZeroDivisionError:
             raise Exception("zero_divisor")
 
