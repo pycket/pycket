@@ -144,6 +144,7 @@ def syntax_to_datum(stx):
   default(values.W_Object, None), default(values.W_Object, None),
   default(values.W_Object, None)])
 def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
+    raise NotImplementedError()
     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
     return values.W_Syntax(v)
 
@@ -496,6 +497,7 @@ def procedure_arity_includes(p, n, w_kw_ok):
 # FIXME: implementation
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(type):
+    raise NotImplementedError()
     return values.w_false
 
 @expose("variable-reference-constant?",
@@ -560,6 +562,7 @@ def cont_prompt_tag(args):
 # FIXME: implementation
 @expose("dynamic-wind")
 def dynamic_wind(args):
+    raise NotImplementedError()
     return values.w_false
 
 @expose(["call/cc", "call-with-current-continuation",
@@ -913,7 +916,8 @@ def ephemeron_value(ephemeron, default):
 
 # FIXME: implementation
 @expose("make-reader-graph", [values.W_Object])
-def make_placeholder(val):
+def make_reader_graph(val):
+    raise NotImplementedError()
     return val
 
 @expose("make-placeholder", [values.W_Object])
@@ -1186,6 +1190,7 @@ def regexp_matchp(r, o):
 @expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
                            default(values.W_Bytes, None)])
 def regexp_replace(pattern, input, insert, input_prefix):
+    raise NotImplementedError()
     return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
@@ -1248,6 +1253,7 @@ def raise_arg_err(args):
 # FIXME: implementation
 @expose("error-escape-handler", [default(values.W_Object, None)])
 def do_error_escape_handler(proc):
+    raise NotImplementedError()
     return values.w_void
 
 @expose("find-system-path", [values.W_Symbol])
