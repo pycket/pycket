@@ -663,8 +663,8 @@ def test_shift(doctest):
     > (arithmetic-shift 107150860718626732094842504906000181056140481170553360744375038837035105112493612249319837881569585812759467291755314682518714528569231404359845775746985748039345677748242309854210746050623711418779541821530464749835819412673987675591655439460770629145711964776865421676604298316526243868372056680693760 -1000)
     10
     """
-@pytest.mark.xfail
-def test_floor_ceiling(doctest):
+
+def test_ceiling(doctest):
     """
     > (ceiling 17/4)
     5
@@ -674,6 +674,10 @@ def test_floor_ceiling(doctest):
     3.0
     > (ceiling -2.5)
     -2.0
+    """
+
+def test_floor(doctest):
+    """
     > (floor 17/4)
     4
     > (floor -17/4)
@@ -682,6 +686,21 @@ def test_floor_ceiling(doctest):
     2.0
     > (floor -2.5)
     -3.0
+    """
+
+
+def test_truncate(doctest):
+    """
+    > (truncate 17/4)
+    4
+    > (truncate -17/4)
+    -4
+    > (truncate 2.5)
+    2.0
+    > (truncate -2.5)
+    -2.0
+    > (truncate +inf.0)
+    +inf.0
     """
 
 @pytest.mark.xfail

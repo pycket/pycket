@@ -168,7 +168,14 @@ class __extend__(values.W_Number):
 class __extend__(values.W_Integer):
     def arith_round(self):
         return self
-
+    def arith_truncate(self):
+        return self
+    def arith_floor(self):
+        return self
+    def arith_ceiling(self):
+        return self
+    def arith_inexact_exact(self):
+        return self
 
 class __extend__(values.W_Fixnum):
 
@@ -309,22 +316,11 @@ class __extend__(values.W_Fixnum):
         return values.W_Flonum(math.atan(self.value))
 
     # ------------------ miscellanous ------------------
-    def arith_round(self):
-        return self
-
-    def arith_floor(self):
-        return self
-
-    def arith_ceiling(self):
-        return self
 
     def arith_float_fractional_part(self):
         return values.W_Fixnum(0)
 
     def arith_float_integer_part(self):
-        return self
-
-    def arith_inexact_exact(self):
         return self
 
     def arith_exact_inexact(self):
@@ -454,13 +450,26 @@ class __extend__(values.W_Flonum):
         from rpython.rlib.rfloat import round_double
         return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
+    def arith_truncate(self):
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        elif self.value < 0:
+            return self.arith_ceiling()
+        else:
+            return self.arith_floor()
+
     def arith_floor(self):
-        # XXX racket returns a flonum here
-        return values.W_Integer.fromfloat(math.floor(self.value))
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        return values.W_Flonum(float(math.floor(self.value)))
 
     def arith_ceiling(self):
-        # XXX racket returns a flonum here
-        return values.W_Integer.fromfloat(math.ceil(self.value))
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        return values.W_Flonum(float(math.ceil(self.value)))
 
     def arith_float_fractional_part(self):
         try:
@@ -637,22 +646,11 @@ class __extend__(values.W_Bignum):
 
 
     # ------------------ miscellanous ------------------
-    def arith_round(self):
-        return self
-
-    def arith_floor(self):
-        return self
-
-    def arith_ceiling(self):
-        return self
 
     def arith_arith_fractional_part(self):
         return values.W_Fixnum(0)
 
     def arith_arith_integer_part(self):
-        return self
-
-    def arith_inexact_exact(self):
         return self
 
     def arith_exact_inexact(self):
@@ -740,6 +738,24 @@ class __extend__(values.W_Rational):
                 return values.W_Integer.frombigint(res1)
         else:
             return values.W_Integer.frombigint(res1)
+
+
+    def arith_ceiling(self):
+        res1 = self._numerator.floordiv(self._denominator)
+        res = res1.add(ONERBIGINT)
+        return values.W_Integer.frombigint(res)
+
+
+    def arith_floor(self):
+        res = self._numerator.floordiv(self._denominator)
+        return values.W_Integer.frombigint(res)
+
+    def arith_truncate(self):
+        assert self._numerator is not NULLRBIGINT
+        if self._numerator.sign == self._denominator.sign:
+            return self.arith_floor()
+        else:
+            return self.arith_ceiling()
 
     def arith_inexact_exact(self):
         return self

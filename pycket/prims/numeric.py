@@ -264,10 +264,11 @@ for args in [
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs"),
         ("round", "arith_round"),
+        ("truncate", "arith_truncate"),
+        ("floor", "arith_floor"),
+        ("ceiling", "arith_ceiling"),
         ("bitwise-not", "arith_not", values.W_Integer),
         ("exp",     "arith_exp"),
-        ("ceiling",     "arith_ceiling"),
-        ("floor",     "arith_floor"),
         ]:
     make_unary_arith(*args)
 
