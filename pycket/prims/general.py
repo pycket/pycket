@@ -7,9 +7,11 @@ from pycket import values
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
+from pycket import values_hash
 from pycket import vector as values_vector
 from pycket.error import SchemeException
-from pycket.prims.expose import unsafe, default, expose, expose_val, procedure, make_call_method
+from pycket.prims.expose import (unsafe, default, expose, expose_val,
+                                 procedure, make_call_method)
 from rpython.rlib import jit
 from rpython.rlib.rsre import rsre_re as re
 
@@ -58,7 +60,8 @@ for args in [
         ("struct-constructor-procedure?", values_struct.W_StructConstructor),
         ("struct-predicate-procedure?", values_struct.W_StructPredicate),
         ("struct-type-property?", values_struct.W_StructProperty),
-        ("struct-type-property-accessor-procedure?", values_struct.W_StructPropertyAccessor),
+        ("struct-type-property-accessor-procedure?",
+         values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
         ("regexp?", values.W_Regexp),
         ("pregexp?", values.W_PRegexp),
@@ -70,7 +73,7 @@ for args in [
         ("thread-cell-values?", values.W_ThreadCellValues),
         ("semaphore?", values.W_Semaphore),
         ("semaphore-peek-evt?", values.W_SemaphorePeekEvt),
-        ("path?", values.W_Path), 
+        ("path?", values.W_Path),
         ("bytes?", values.W_Bytes),
         ("pseudo-random-generator?", values.W_PseudoRandomGenerator),
         ("char?", values.W_Character),
@@ -85,16 +88,18 @@ for args in [
         ("hash-placeholder?", values.W_HashTablePlaceholder),
         ("module-path-index?", values.W_ModulePathIndex),
         ("resolved-module-path?", values.W_ResolvedModulePath),
-        ("impersonator-property-accessor-procedure?", imp.W_ImpPropertyAccessor),
+        ("impersonator-property-accessor-procedure?",
+         imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
         ("parameter?", values.W_Parameter),
         ("parameterization?", values.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
-        ("hash?", values.W_HashTable),
-        ("hash-eq?", values.W_HashTable),
-        ("hash-eqv?", values.W_HashTable),
-        ("hash-equal?", values.W_HashTable),
-        ("hash-weak?", values.W_HashTable)
+        # XXX tests tests tests tests!
+        ("hash?", values_hash.W_HashTable),
+        ("hash-eq?", values_hash.W_HashTable),
+        ("hash-eqv?", values_hash.W_HashTable),
+        ("hash-equal?", values_hash.W_HashTable),
+        ("hash-weak?", values_hash.W_HashTable)
         ]:
     make_pred(*args)
 
@@ -163,14 +168,16 @@ for name in ["prop:evt",
              "prop:exn:srclocs",
              "prop:custom-print-quotable",
              "prop:incomplete-arity"]:
-    expose_val(name, values_struct.W_StructProperty(values.W_Symbol.make(name), values.w_false))
+    expose_val(name, values_struct.W_StructProperty(
+        values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
 expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
-expose_val("prop:chaperone-unsafe-undefined", values_struct.w_prop_chaperone_unsafe_undefined)
+expose_val("prop:chaperone-unsafe-undefined",
+           values_struct.w_prop_chaperone_unsafe_undefined)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
@@ -184,7 +191,8 @@ def check_cont(proc, v, v1, v2, env, cont, _vals):
 def receive_first_field(proc, v, v1, v2, env, cont, _vals):
     from pycket.interpreter import check_one_val
     first_field = check_one_val(_vals)
-    return first_field.call([v1, v2], env, check_cont(proc, v, v1, v2, env, cont))
+    return first_field.call([v1, v2], env,
+                            check_cont(proc, v, v1, v2, env, cont))
 
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
@@ -208,7 +216,8 @@ def current_logger():
 def make_logger(name, parent):
     return values.W_Logger()
 
-@expose("make-parameter", [values.W_Object, default(values.W_Object, values.w_false)])
+@expose("make-parameter",
+        [values.W_Object, default(values.W_Object, values.w_false)])
 def make_parameter(init, guard):
     return values.W_Parameter(init, guard)
 
@@ -234,39 +243,70 @@ def define_struct(name, super=values.w_null, fields=[]):
     expose_val("make-" + name, struct_constr)
     expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        acc = values_struct.W_StructFieldAccessor(struct_acc, values.W_Fixnum(field), values.W_Symbol.make(field_name))
+        w_num = values.W_Fixnum(field)
+        w_name =  values.W_Symbol.make(field_name)
+        acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
 
-exn = define_struct("exn", values.w_null, ["message", "continuation-marks"])
-exn_fail = define_struct("exn:fail", exn)
-exn_fail_contract = define_struct("exn:fail:contract", exn_fail)
-exn_fail_contract_arity = define_struct("exn:fail:contract:arity", exn_fail)
-exn_fail_contract_divide_by_zero = define_struct("exn:fail:contract:divide-by-zero", exn_fail)
-exn_fail_contract_non_fixnum_result = define_struct("exn:fail:contract:non-fixnum-result", exn_fail)
-exn_fail_contract_continuation = define_struct("exn:fail:contract:continuation", exn_fail)
-exn_fail_contract_variable = define_struct("exn:fail:contract:variable", exn_fail, ["id"])
-exn_fail_syntax = define_struct("exn:fail:syntax", exn_fail, ["exprs"])
-exn_fail_syntax_unbound = define_struct("exn:fail:syntax:unbound", exn_fail_syntax)
-exn_fail_syntax_missing_module = define_struct("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
-exn_fail_read = define_struct("exn:fail:read", exn_fail, ["srclocs"])
-exn_fail_read_eof = define_struct("exn:fail:read:eof", exn_fail_read)
-exn_fail_read_non_char = define_struct("exn:fail:read:non-char", exn_fail_read)
-exn_fail_fs = define_struct("exn:fail:filesystem", exn_fail)
-exn_fail_fs_exists = define_struct("exn:fail:filesystem:exists", exn_fail_fs)
-exn_fail_fs_version = define_struct("exn:fail:filesystem:version", exn_fail_fs)
-exn_fail_fs_errno = define_struct("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
-exn_fail_fs_missing_module = define_struct("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
-exn_fail_network = define_struct("exn:fail:network", exn_fail)
-exn_fail_network_errno = define_struct("exn:fail:network:errno", exn_fail_network, ["errno"])
-exn_fail_out_of_memory = define_struct("exn:fail:out-of-memory", exn_fail)
-exn_fail_unsupported = define_struct("exn:fail:unsupported", exn_fail)
-exn_fail_user = define_struct("exn:fail:user", exn_fail)
-exn_break = define_struct("exn:break", exn)
-exn_break_hang_up = define_struct("exn:break:hang-up", exn_break)
-exn_break_terminate = define_struct("exn:break:terminate", exn_break)
 
-srcloc = define_struct("srcloc", fields=["source", "line", "column", "position", "span"])
+exn = \
+    define_struct("exn", values.w_null, ["message", "continuation-marks"])
+exn_fail = \
+    define_struct("exn:fail", exn)
+exn_fail_contract = \
+    define_struct("exn:fail:contract", exn_fail)
+exn_fail_contract_arity = \
+    define_struct("exn:fail:contract:arity", exn_fail)
+exn_fail_contract_divide_by_zero = \
+    define_struct("exn:fail:contract:divide-by-zero", exn_fail)
+exn_fail_contract_non_fixnum_result = \
+    define_struct("exn:fail:contract:non-fixnum-result", exn_fail)
+exn_fail_contract_continuation = \
+    define_struct("exn:fail:contract:continuation", exn_fail)
+exn_fail_contract_variable = \
+    define_struct("exn:fail:contract:variable", exn_fail, ["id"])
+exn_fail_syntax = \
+    define_struct("exn:fail:syntax", exn_fail, ["exprs"])
+exn_fail_syntax_unbound = \
+    define_struct("exn:fail:syntax:unbound", exn_fail_syntax)
+exn_fail_syntax_missing_module = \
+    define_struct("exn:fail:syntax:missing-module", exn_fail_syntax, ["path"])
+exn_fail_read = \
+    define_struct("exn:fail:read", exn_fail, ["srclocs"])
+exn_fail_read_eof = \
+    define_struct("exn:fail:read:eof", exn_fail_read)
+exn_fail_read_non_char = \
+    define_struct("exn:fail:read:non-char", exn_fail_read)
+exn_fail_fs = \
+    define_struct("exn:fail:filesystem", exn_fail)
+exn_fail_fs_exists = \
+    define_struct("exn:fail:filesystem:exists", exn_fail_fs)
+exn_fail_fs_version = \
+    define_struct("exn:fail:filesystem:version", exn_fail_fs)
+exn_fail_fs_errno = \
+    define_struct("exn:fail:filesystem:errno", exn_fail_fs, ["errno"])
+exn_fail_fs_missing_module = \
+    define_struct("exn:fail:filesystem:missing-module", exn_fail_fs, ["path"])
+exn_fail_network = \
+    define_struct("exn:fail:network", exn_fail)
+exn_fail_network_errno = \
+    define_struct("exn:fail:network:errno", exn_fail_network, ["errno"])
+exn_fail_out_of_memory = \
+    define_struct("exn:fail:out-of-memory", exn_fail)
+exn_fail_unsupported = \
+    define_struct("exn:fail:unsupported", exn_fail)
+exn_fail_user = \
+    define_struct("exn:fail:user", exn_fail)
+exn_break = \
+    define_struct("exn:break", exn)
+exn_break_hang_up = \
+    define_struct("exn:break:hang-up", exn_break)
+exn_break_terminate = \
+    define_struct("exn:break:terminate", exn_break)
+
+srcloc = define_struct("srcloc",
+                       fields=["source", "line", "column", "position", "span"])
 date_struct = define_struct("date", fields=["second",
                                             "minute",
                                             "hour",
@@ -277,8 +317,8 @@ date_struct = define_struct("date", fields=["second",
                                             "year-day",
                                             "dst?"
                                             "time-zone-offset"])
-date_star_struct = define_struct("date*", date_struct, fields=["nanosecond",
-                                                               "time-zone-name"])
+date_star_struct = define_struct("date*", date_struct,
+                                 fields=["nanosecond", "time-zone-name"])
 
 arity_at_least = define_struct("arity-at-least", values.w_null, ["value"])
 
@@ -410,15 +450,16 @@ def procedure_rename(p, n):
 
 @expose("procedure-arity", [procedure])
 def do_procedure_arity(proc):
-    # FIXME
+    result = []
     (ls, at_least) = proc.get_arity()
-    if at_least > 0:
-        return values_struct.W_Struct.make([values.W_Fixnum(at_least)], arity_at_least)
-    else:
-        lst = []
-        for item in ls:
-            lst.append(values.W_Fixnum(item))
-        return values.to_list(lst)
+    for item in ls:
+        result.append(values.W_Fixnum(item))
+    if at_least != -1:
+        result.append(values_struct.W_Struct.make([values.W_Fixnum(at_least)],\
+            arity_at_least))
+    if len(result) == 1:
+        return result[0]
+    return values.to_list(result[:])
 
 @expose("procedure-arity?", [values.W_Object])
 def do_is_procedure_arity(n):
@@ -437,7 +478,8 @@ def do_is_procedure_arity(n):
         return values.w_true
     return values.w_false
 
-@expose("procedure-arity-includes?", [procedure, values.W_Number, default(values.W_Object, values.w_false)])
+@expose("procedure-arity-includes?", [procedure, values.W_Number,
+  default(values.W_Object, values.w_false)])
 @jit.unroll_safe
 def procedure_arity_includes(p, n, w_kw_ok):
     # for now, ignore kw_ok
@@ -456,12 +498,15 @@ def procedure_arity_includes(p, n, w_kw_ok):
 def do_is_procedure_struct_type(type):
     return values.w_false
 
-@expose("variable-reference-constant?", [values.W_VariableReference], simple=False)
+@expose("variable-reference-constant?",
+        [values.W_VariableReference], simple=False)
 def varref_const(varref, env, cont):
     from pycket.interpreter import return_value
-    return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))), env, cont)
+    return return_value(values.W_Bool.make(not(varref.varref.is_mutable(env))),
+                        env, cont)
 
-@expose("variable-reference->resolved-module-path",  [values.W_VariableReference])
+@expose("variable-reference->resolved-module-path",
+        [values.W_VariableReference])
 def varref_rmp(varref):
     return values.W_ResolvedModulePath(values.W_Path(varref.varref.path))
 
@@ -499,7 +544,8 @@ def time_apply_cont(initial, env, cont, vals):
     final = time.clock()
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_l = vals._get_full_list()
-    results = values.Values.make([values.to_list(vals_l), ms, ms, values.W_Fixnum(0)])
+    results = values.Values.make([values.to_list(vals_l),
+                                  ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
 
 @expose("continuation-prompt-available?")
@@ -525,7 +571,8 @@ def callcc(a, env, cont):
 @expose("time-apply", [procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
     initial = time.clock()
-    return  a.call(values.from_list(args), env, time_apply_cont(initial, env, cont))
+    return  a.call(values.from_list(args),
+                   env, time_apply_cont(initial, env, cont))
 
 @expose("apply", simple=False)
 def apply(args, env, cont):
@@ -536,7 +583,8 @@ def apply(args, env, cont):
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     if not listp_loop(lst):
-        raise SchemeException("apply expected a list as the last argument, got something else")
+        raise SchemeException(
+            "apply expected a list as the last argument, got something else")
     args_len = len(args)-1
     assert args_len >= 0
     others = args[1:args_len]
@@ -598,29 +646,122 @@ def do_cons(a, b):
 def do_car(a):
     return a.car()
 
+@expose("cdr", [values.W_Cons])
+def do_cdr(a):
+    return a.cdr()
+
 @expose("cadr")
 def do_cadr(args):
     return do_car([do_cdr(args)])
+
+@expose("caar")
+def do_caar(args):
+    return do_car([do_car(args)])
+
+@expose("cdar")
+def do_cdar(args):
+    return do_cdr([do_car(args)])
 
 @expose("cddr")
 def do_cddr(args):
     return do_cdr([do_cdr(args)])
 
+@expose("caaar")
+def do_caaar(args):
+    return do_car([do_car([do_car(args)])])
+
+@expose("caadr")
+def do_caadr(args):
+    return do_car([do_car([do_cdr(args)])])
+
 @expose("caddr")
 def do_caddr(args):
     return do_car([do_cdr([do_cdr(args)])])
+
+@expose("cadar")
+def do_cadar(args):
+    return do_car([do_cdr([do_car(args)])])
+
+@expose("cdaar")
+def do_cdaar(args):
+    return do_cdr([do_car([do_car(args)])])
+
+@expose("cdadr")
+def do_cdadr(args):
+    return do_cdr([do_car([do_cdr(args)])])
+
+@expose("cddar")
+def do_cddar(args):
+    return do_cdr([do_cdr([do_car(args)])])
 
 @expose("cdddr")
 def do_caddr(args):
     return do_cdr([do_cdr([do_cdr(args)])])
 
+@expose("caaaar")
+def do_caaaar(args):
+    return do_car([do_car([do_car([do_car(args)])])])
+
+@expose("caaadr")
+def do_caaadr(args):
+    return do_car([do_car([do_car([do_cdr(args)])])])
+
+@expose("caadar")
+def do_caadar(args):
+    return do_car([do_car([do_cdr([do_car(args)])])])
+
+@expose("caaddr")
+def do_caaddr(args):
+    return do_car([do_car([do_cdr([do_cdr(args)])])])
+
+@expose("cadaar")
+def do_cadaar(args):
+    return do_car([do_cdr([do_car([do_car(args)])])])
+
+@expose("cadadr")
+def do_cadadr(args):
+    return do_car([do_cdr([do_car([do_cdr(args)])])])
+
+@expose("caddar")
+def do_caddar(args):
+    return do_car([do_cdr([do_cdr([do_car(args)])])])
+
 @expose("cadddr")
 def do_cadddr(args):
     return do_car([do_cdr([do_cdr([do_cdr(args)])])])
 
-@expose("cdr", [values.W_Cons])
-def do_cdr(a):
-    return a.cdr()
+@expose("cdaaar")
+def do_cdaaar(args):
+    return do_cdr([do_car([do_car([do_car(args)])])])
+
+@expose("cdaadr")
+def do_cdaadr(args):
+    return do_cdr([do_car([do_car([do_cdr(args)])])])
+
+@expose("cdadar")
+def do_cdadar(args):
+    return do_cdr([do_car([do_cdr([do_car(args)])])])
+
+@expose("cdaddr")
+def do_cdaddr(args):
+    return do_cdr([do_car([do_cdr([do_cdr(args)])])])
+
+@expose("cddaar")
+def do_cddaar(args):
+    return do_cdr([do_cdr([do_car([do_car(args)])])])
+
+@expose("cddadr")
+def do_cddadr(args):
+    return do_cdr([do_cdr([do_car([do_cdr(args)])])])
+
+@expose("cdddar")
+def do_cdddar(args):
+    return do_cdr([do_cdr([do_cdr([do_car(args)])])])
+
+@expose("cddddr")
+def do_cddddr(args):
+    return do_cdr([do_cdr([do_cdr([do_cdr(args)])])])
+
 
 @expose("mlist")
 def do_mlist(args):
@@ -754,7 +895,8 @@ def box_cas(box, old, new):
 def make_weak_box(val):
     return values.W_WeakBox(val)
 
-@expose("weak-box-value", [values.W_WeakBox, default(values.W_Object, values.w_false)])
+@expose("weak-box-value",
+        [values.W_WeakBox, default(values.W_Object, values.w_false)])
 def weak_box_value(wb, default):
     v = wb.get()
     return v if v is not None else default
@@ -763,7 +905,8 @@ def weak_box_value(wb, default):
 def make_ephemeron(key, val):
     return values.W_Ephemeron(key, val)
 
-@expose("ephemeron-value", [values.W_Ephemeron, default(values.W_Object, values.w_false)])
+@expose("ephemeron-value",
+        [values.W_Ephemeron, default(values.W_Object, values.w_false)])
 def ephemeron_value(ephemeron, default):
     v = ephemeron.get()
     return v if v is not None else default
@@ -836,7 +979,7 @@ def error(args):
     if len(args) == 1:
         sym = args
         assert isinstance(sym, values.W_Symbol)
-        raise SchemeException("error: %s"%sym.tostring())
+        raise SchemeException("error: %s" % sym.tostring())
     else:
         first_arg = args[0]
         if isinstance(first_arg, values.W_String):
@@ -845,7 +988,7 @@ def error(args):
             msg.append(first_arg.tostring())
             v = args[1:]
             for item in v:
-                msg.append(" %s"%item.tostring())
+                msg.append(" %s" % item.tostring())
             raise SchemeException(msg.build())
         else:
             src = first_arg
@@ -853,7 +996,8 @@ def error(args):
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values.W_String)
-            raise SchemeException("%s: %s"%(src.tostring(), input_output.format(form, v)))
+            raise SchemeException("%s: %s" % (
+                src.tostring(), input_output.format(form, v)))
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
@@ -892,7 +1036,8 @@ def unsafe_cdr(p):
 @expose("path-string?", [values.W_Object])
 def path_stringp(v):
     # FIXME: handle zeros in string
-    return values.W_Bool.make(isinstance(v, values.W_String) or isinstance(v, values.W_Path))
+    return values.W_Bool.make(
+        isinstance(v, values.W_String) or isinstance(v, values.W_Path))
 
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
@@ -910,7 +1055,8 @@ def path2bytes(p):
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
-    return return_multi_vals(values.Values.make([values.w_false] * 3), env, cont)
+    return return_multi_vals(values.Values.make([values.w_false] * 3),
+                             env, cont)
 
 @expose("port-writes-special?", [values.W_Object])
 def port_writes_special(v):
@@ -949,7 +1095,8 @@ def immutable(v):
 def jit_enabled():
     return values.w_true
 
-@expose("make-thread-cell", [values.W_Object, default(values.W_Bool, values.w_false)])
+@expose("make-thread-cell",
+        [values.W_Object, default(values.W_Bool, values.w_false)])
 def make_thread_cell(v, pres):
     return values.W_ThreadCell(v, False if pres is values.w_false else True)
 
@@ -962,7 +1109,8 @@ def thread_cell_set(cell, v):
     cell.value = v
     return values.w_void
 
-@expose("current-preserved-thread-cell-values", [default(values.W_ThreadCellValues, None)])
+@expose("current-preserved-thread-cell-values",
+        [default(values.W_ThreadCellValues, None)])
 def current_preserved_thread_cell_values(v):
     # Generate a new thread-cell-values object
     if v is None:
@@ -984,7 +1132,8 @@ def mcpt(s):
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
 
-@expose("extend-parameterization", [values.W_Object, values.W_Object, values.W_Object])
+@expose("extend-parameterization",
+        [values.W_Object, values.W_Object, values.W_Object])
 def extend_paramz(paramz, key, val):
     if not isinstance(key, values.W_Parameter):
         raise SchemeException("Not a parameter")
@@ -997,7 +1146,8 @@ def call_with_parameterization(f, args, paramz, env, cont):
     cont.update_cm(values.parameterization_key, paramz)
     return f.call(args, env, cont)
 
-@expose("call-with-parameterization", [values.W_Object, values.W_Parameterization], simple=False)
+@expose("call-with-parameterization",
+        [values.W_Object, values.W_Parameterization], simple=False)
 def call_w_paramz(f, paramz, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
@@ -1013,23 +1163,28 @@ def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
 
-@expose("regexp-match", [values.W_Object, values.W_Object]) # FIXME: more error checking
+@expose("regexp-match", [values.W_Object, values.W_Object])
 def regexp_match(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+     # FIXME: more error checking
+    assert isinstance(r, values.W_AnyRegexp) \
+        or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-           or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
+        or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
     return values.w_false # Back to one problem
 
-@expose("regexp-match?", [values.W_Object, values.W_Object]) # FIXME: more error checking
+@expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(r, o):
-    assert isinstance(r, values.W_AnyRegexp) or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+    # FIXME: more error checking
+    assert isinstance(r, values.W_AnyRegexp) \
+        or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-           or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
+        or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
     # ack, this is wrong
     return values.w_true # Back to one problem
 
 # FIXME: implementation
-@expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object, default(values.W_Bytes, None)])
+@expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
+                           default(values.W_Bytes, None)])
 def regexp_replace(pattern, input, insert, input_prefix):
     return input
 
@@ -1049,7 +1204,7 @@ def build_path(args):
         elif isinstance(a, values.W_Path):
             r = r + a.path
         else:
-            raise SchemeException("bad input to build-path: %s"%a)
+            raise SchemeException("bad input to build-path: %s" % a)
     return values.W_Path(r)
 
 @expose("current-environment-variables", [])
@@ -1065,9 +1220,11 @@ def do_raise(v, barrier):
     # TODO:
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
-@expose("raise-argument-error", [values.W_Symbol, values.W_String, values.W_Object])
+@expose("raise-argument-error",
+        [values.W_Symbol, values.W_String, values.W_Object])
 def raise_arg_err(name, expected, v):
-    raise SchemeException("%s: expected %s but got %s"%(name.value, expected.value, v.tostring()))
+    raise SchemeException("%s: expected %s but got %s" % (
+        name.value, expected.value, v.tostring()))
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):
@@ -1077,14 +1234,14 @@ def raise_arg_err(args):
     assert isinstance(message, values.W_String)
     from rpython.rlib.rstring import StringBuilder
     error_msg = StringBuilder()
-    error_msg.append("%s: %s\n"%(name.value, message.value))
+    error_msg.append("%s: %s\n" % (name.value, message.value))
     i = 2
     while i + 1 < len(args):
         field = args[i]
         assert isinstance(field, values.W_String)
         v = args[i+1]
         assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n"%(field.value, v.tostring()))
+        error_msg.append("%s: %s\n" % (field.value, v.tostring()))
         i += 2
     raise SchemeException(error_msg.build())
 
@@ -1100,14 +1257,7 @@ def find_sys_path(sym):
     if v:
         return values.W_Path(v)
     else:
-        raise SchemeException("unknown system path %s"%sym.value)
-
-@expose("system-type", [default(values.W_Symbol, values.W_Symbol.make("os"))])
-def system_type(sym):
-    if sym is values.W_Symbol.make("os"):
-        # FIXME: make this work on macs
-        return values.W_Symbol.make("unix")
-    raise SchemeException("unexpected system-type symbol %s"%sym.value)
+        raise SchemeException("unknown system path %s" % sym.value)
 
 @expose("find-main-collects", [])
 def find_main_collects():
@@ -1126,11 +1276,13 @@ def load(lib, env, cont):
     lib_name = lib.tostring()
     json_ast = ensure_json_ast_load(lib_name)
     if json_ast is None:
-        raise SchemeException("can't gernerate load-file for %s " % lib.tostring())
+        raise SchemeException(
+            "can't gernerate load-file for %s " % lib.tostring())
     ast = load_json_ast_rpython(json_ast)
-    raise NotImplementedError("would crash anyway when trying to interpret the Module")
+    raise NotImplementedError(
+        "would crash anyway when trying to interpret the Module")
     #return ast, env, cont
-    
+
 @expose("current-load-relative-directory", [])
 def cur_load_rel_dir():
     return values.w_false
@@ -1139,6 +1291,40 @@ def cur_load_rel_dir():
 def cur_dir():
     return values.W_Path(os.getcwd())
 
+
+
+w_unix_sym = values.W_Symbol.make("unix")
+w_windows_sym = values.W_Symbol.make("windows")
+w_macosx_sym = values.W_Symbol.make("macosx")
+
+def detect_platform():
+    from sys import platform
+    if platform == "darwin":
+        return w_macosx_sym
+    elif platform in ['win32', 'cygwin']:
+        return w_windows_sym
+    else:
+        return w_unix_sym
+
+w_system_sym = detect_platform()
+
+
+w_os_sym = values.W_Symbol.make("os")
+
+
+@expose("system-type", [default(values.W_Symbol, w_os_sym)])
+def system_type(w_what):
+    if w_what is w_os_sym:
+        return w_system_sym
+    raise SchemeException("unexpected system-type symbol %s" % w_what.value)
+
+
+@expose("system-path-convention-type", [])
+def system_path_convetion_type():
+    if w_system_sym is w_windows_sym:
+        return w_windows_sym
+    else:
+        return w_unix_sym
 
 # FIXME: implementation
 @expose("collect-garbage")

@@ -753,7 +753,7 @@ class Var(AST):
         return {self.sym: None}
 
     def tostring(self):
-        return "%s"% self.sym.variable_name()
+        return "%s" % self.sym.variable_name()
 
 
 class CellRef(Var):
@@ -761,7 +761,7 @@ class CellRef(Var):
         return CellRef(self.sym, env_structure)
 
     def tostring(self):
-        return "CellRef(%s)"% Var.tostring(self)
+        return "CellRef(%s)" % Var.tostring(self)
 
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
@@ -881,7 +881,7 @@ class ModuleVar(Var):
 #     def assign_convert(self, vars, env_structure):
 #         return ModCellRef(self.sym, self.srcmod, self.srcsym)
 #     def tostring(self):
-#         return "ModCellRef(%s)"%variable_name(self.sym)
+#         return "ModCellRef(%s)" %variable_name(self.sym)
 #     def _set(self, w_val, env):
 #         w_res = self.modvar._lookup(env)
 #         assert isinstance(w_res, values.W_Cell)
@@ -939,7 +939,7 @@ class SetBang(AST):
         return [self.var, self.rhs]
 
     def tostring(self):
-        return "(set! %s %s)"%(self.var.sym.variable_name(), self.rhs.tostring())
+        return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -983,7 +983,7 @@ class If(AST):
         return x
 
     def tostring(self):
-        return "(if %s %s %s)"%(self.tst.tostring(), self.thn.tostring(), self.els.tostring())
+        return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(formals + ([rest] if rest else []))
@@ -1057,7 +1057,7 @@ class CaseLambda(AST):
     def tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
-        return "(case-lambda %s)"%(" ".join([l.tostring() for l in self.lams]))
+        return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
 
     def tostring_as_closure(self):
         if len(self.lams) == 0:
@@ -1065,9 +1065,9 @@ class CaseLambda(AST):
         lam = self.lams[0]
         file, pos = lam.srcfile, lam.srcpos
         if file and (pos >= 0):
-            return "#<procedure:%s:%s>"%(lam.srcfile, lam.srcpos)
+            return "#<procedure:%s:%s>" % (lam.srcfile, lam.srcpos)
         if file:
-            return "#<procedure:%s>"%(lam.srcfile)
+            return "#<procedure:%s>" % (lam.srcfile)
         return "#<procedure>"
 
     def get_arity(self):
@@ -1171,9 +1171,13 @@ class Lambda(SequencedBodyAST):
         fmls_len = len(self.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.rest:
-            raise SchemeException("wrong number of arguments to %s, expected %s but got %s"%(self.tostring(), fmls_len,args_len))
+            raise SchemeException(
+                "wrong number of arguments to %s, expected %s but got %s" % (
+                    self.tostring(), fmls_len,args_len))
         if fmls_len > args_len:
-            raise SchemeException("wrong number of arguments to %s, expected at least %s but got %s"%(self.tostring(), fmls_len,args_len))
+            raise SchemeException(
+                "wrong number of arguments to %s, expected at least %s but got %s" % (
+                    self.tostring(), fmls_len,args_len))
         if self.rest:
             actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
         else:
@@ -1201,14 +1205,15 @@ class Lambda(SequencedBodyAST):
         return vals[:]
 
     def tostring(self):
-        if self.rest and not self.formals:
-            return "(lambda %s %s)"%(self.rest, [b.tostring() for b in self.body])
+        if self.rest and (not self.formals):
+            return "(lambda %s %s)" % (self.rest, [b.tostring() for b in self.body])
         if self.rest:
-            return "(lambda (%s . %s) %s)"%(self.formals, self.rest, [b.tostring() for b in self.body])
+            return "(lambda (%s . %s) %s)" % (self.formals, self.rest, [b.tostring() for b in self.body])
         else:
-            return "(lambda (%s) %s)"%(" ".join([v.variable_name() for v in self.formals]),
-                                       self.body[0].tostring() if len(self.body) == 1 else
-                                       " ".join([b.tostring() for b in self.body]))
+            return "(lambda (%s) %s)" % (
+                " ".join([v.variable_name() for v in self.formals]),
+                self.body[0].tostring() if len(self.body) == 1 else
+                " ".join([b.tostring() for b in self.body]))
 
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
@@ -1309,8 +1314,10 @@ class Letrec(SequencedBodyAST):
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
-        return "(letrec (%s) %s)"%([(v.variable_name(), self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
-                                   [b.tostring() for b in self.body])
+        return "(letrec (%s) %s)" % (
+            [(v.variable_name(),
+              self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+            [b.tostring() for b in self.body])
 
 def _make_symlist_counts(varss):
     counts = []
@@ -1597,7 +1604,8 @@ class DefineValues(AST):
         return self.rhs.free_vars()
 
     def tostring(self):
-        return "(define-values %s %s)"%(self.display_names, self.rhs.tostring())
+        return "(define-values %s %s)" % (
+            self.display_names, self.rhs.tostring())
 
 def get_printable_location(green_ast, came_from):
     if green_ast is None:

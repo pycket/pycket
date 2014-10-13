@@ -45,7 +45,6 @@ def test_quotient():
     res = run(str(big / 2))
     run("(quotient %s 2)" % (big, ), res)
 
-@pytest.mark.xfail
 def test_remainder(doctest):
     """
     > (remainder 0 1)
@@ -80,6 +79,14 @@ def test_remainder(doctest):
     1.0
     > (remainder -10 -3)
     -1
+    > (remainder 11111111111111111111111111111111111111 3333333333333333333333333333333)
+    1111111111111111111111112222222
+    > (remainder 11111111111111111111111111111111111111 -3333333333333333333333333333333)
+    1111111111111111111111112222222
+    > (remainder -11111111111111111111111111111111111111 3333333333333333333333333333333)
+    -1111111111111111111111112222222
+    > (remainder -11111111111111111111111111111111111111 -3333333333333333333333333333333)
+    -1111111111111111111111112222222
     """
 
 def test_modulo(doctest):
@@ -312,6 +319,18 @@ def test_fixnum_special(doctest):
     > (fx= -10 -10)
     #t
     E (fx= -10 -10.0)
+    > (fxand 2 3)
+    2
+    > (fxlshift 10 10)
+    10240
+    E (fxlshift 10 63)
+    E (fxlshift 10 100)
+    > (fxrshift 1 20)
+    0
+    > (fxrshift 20 1)
+    10
+    > (fxrshift -20 1)
+    -10
     """
 
 def test_all_comparators(doctest):
@@ -492,6 +511,22 @@ def test_round(doctest):
     55555555555555555555555555555555555556
     """
 
+def test_flround(doctest):
+    """
+    ! (require racket/flonum)
+    > (flround 0.1)
+    0.0
+    > (flround 0.0)
+    0.0
+    > (flround 0.5)
+    0.0
+    > (flround 0.51)
+    1.0
+    > (flround -0.5)
+    -0.0
+    > (flround -0.5001)
+    -1.0
+    """
 def test_max(doctest):
     """
     > (max 1 1.1)
@@ -544,6 +579,19 @@ def test_bitwise(doctest):
     -2
     > (bitwise-not -1111111111111111111111111111111111111111111114243232)
     1111111111111111111111111111111111111111111114243231
+    > (bitwise-bit-set? 5 0)
+    #t
+    > (bitwise-bit-set? 5 2)
+    #t
+    > (bitwise-bit-set? -5 (expt 2 700))
+    #t
+    > (bitwise-bit-set? 5 (expt 2 700))
+    #f
+    > (bitwise-bit-set? (expt 2 100) 100)
+    #t
+    > (bitwise-bit-set? (expt 2 100) 101)
+    #f
+    E (bitwise-bit-set? 2 -5)
     """
 
 def test_exact_to_inexact(doctest):
@@ -609,6 +657,10 @@ def test_fixnum_unsafe(doctest):
     20
     > (unsafe-fxmodulo 100 -30)
     -20
+    > (unsafe-fxlshift 1 10)
+    1024
+    ; implementation defined, but should terminate quickly
+    > (unsafe-fxlshift 1 10000000)
     """
 
 def test_exp(doctest):
@@ -633,4 +685,86 @@ def test_shift(doctest):
     107150860718626732094842504906000181056140481170553360744375038837035105112493612249319837881569585812759467291755314682518714528569231404359845775746985748039345677748242309854210746050623711418779541821530464749835819412673987675591655439460770629145711964776865421676604298316526243868372056680693760
     > (arithmetic-shift 107150860718626732094842504906000181056140481170553360744375038837035105112493612249319837881569585812759467291755314682518714528569231404359845775746985748039345677748242309854210746050623711418779541821530464749835819412673987675591655439460770629145711964776865421676604298316526243868372056680693760 -1000)
     10
+    """
+
+def test_ceiling(doctest):
+    """
+    > (ceiling 17/4)
+    5
+    > (ceiling -17/4)
+    -4
+    > (ceiling 2.5)
+    3.0
+    > (ceiling -2.5)
+    -2.0
+    """
+
+def test_floor(doctest):
+    """
+    > (floor 17/4)
+    4
+    > (floor -17/4)
+    -5
+    > (floor 2.5)
+    2.0
+    > (floor -2.5)
+    -3.0
+    """
+
+
+def test_truncate(doctest):
+    """
+    > (truncate 17/4)
+    4
+    > (truncate -17/4)
+    -4
+    > (truncate 2.5)
+    2.0
+    > (truncate -2.5)
+    -2.0
+    > (truncate +inf.0)
+    +inf.0
+    """
+
+def test_flceiling(doctest):
+    """
+    ! (require racket/flonum)
+    > (flceiling 2.5)
+    3.0
+    > (flceiling -2.5)
+    -2.0
+    """
+
+def test_flfloor(doctest):
+    """
+    ! (require racket/flonum)
+    > (flfloor 2.5)
+    2.0
+    > (flfloor -2.5)
+    -3.0
+    """
+
+
+def test_fltruncate(doctest):
+    """
+    ! (require racket/flonum)
+    > (fltruncate 2.5)
+    2.0
+    > (fltruncate -2.5)
+    -2.0
+    > (fltruncate +inf.0)
+    +inf.0
+    """
+
+@pytest.mark.xfail
+def test_expt(doctest):
+    """
+    > (expt 2 3)
+    8
+    > (expt 4 0.5)
+    2.0
+    > (expt 2 -5)
+    1/32
+    > (expt 2. -5)
+    0.03125
     """

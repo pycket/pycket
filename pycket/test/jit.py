@@ -175,7 +175,7 @@ class TestLLtype(LLJitMixin):
         self.run_file("sumloop.rkt")
 
     def test_treerec(self):
-        self.run_file("treerec.rkt")
+        self.run_file("treerec.rkt", run_untranslated=False)
 
     def test_nqueens(self):
         self.run_file("nqueens.rkt")

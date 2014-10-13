@@ -147,8 +147,13 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     code.append("  " * (ind + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     print code
-    res = execute(code, extra=kwargs.get("extra", ""))
+    extra = kwargs.get("extra", "")
+    res = execute(code, extra=extra)
     if res is not values.w_true:
-        wrongres = execute(pairs_of_equal_stuff[res.value * 2])
+        src = pairs_of_equal_stuff[res.value * 2]
+        if isinstance(src, list):
+            src = "(let ()\n" + "\n".join(src) + ")"
+        wrong = execute(src, extra=extra)
         assert 0, "%s is %s, which is different from %s" % (
-                pairs_of_equal_stuff[res.value * 2], wrongres.tostring(), pairs_of_equal_stuff[res.value * 2 + 1])
+            pairs_of_equal_stuff[res.value * 2], wrong.tostring(),
+            pairs_of_equal_stuff[res.value * 2 + 1])

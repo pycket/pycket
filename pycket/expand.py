@@ -15,6 +15,7 @@ from pycket.interpreter import *
 from pycket import values
 from pycket import vector
 from pycket import values_struct
+from pycket import values_hash
 
 class ExpandException(SchemeException):
     pass
@@ -157,7 +158,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
-    pipe.write("#lang s-exp pycket%s"%(" #:stdlib" if stdlib else ""))
+    pipe.write("#lang s-exp pycket%s" % (" #:stdlib" if stdlib else ""))
     pipe.write(code)
     err = os.WEXITSTATUS(pipe.close())
     if err != 0:
@@ -361,7 +362,7 @@ def to_lambda(o):
     pos, sourcefile = get_srcloc(o)
     return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()],
                        pos, sourcefile)
-    
+
 
 def _to_ast(json):
     dbgprint("_to_ast", json)
@@ -551,7 +552,7 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return values.W_EqvHashTable(
+            return values_hash.W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()])
         if "regexp" in obj:

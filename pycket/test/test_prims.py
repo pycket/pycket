@@ -5,6 +5,7 @@
 #
 
 import pytest
+import sys
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
@@ -66,6 +67,7 @@ def test_substring(doctest):
         '(substring "applebee" 0 8)', '"applebee"',
     )
 
+###############################################################################
 
 def test_append_single(doctest):
     """
@@ -121,6 +123,66 @@ def test_map(doctest):
     """
     assert doctest
 
+def test_shorthands(doctest):
+    """
+    > (caar '((1 2) 3 4))
+    1
+    > (cadr '((1 2) 3 4))
+    3
+    > (cdar '((7 6 5 4 3 2 1) 8 9))
+    '(6 5 4 3 2 1)
+    > (cddr '(2 1))
+    '()
+    > (caaar '(((6 5 4 3 2 1) 7) 8 9))
+    6
+    > (caadr '(9 (7 6 5 4 3 2 1) 8))
+    7
+    > (cadar '((7 6 5 4 3 2 1) 8 9))
+    6
+    > (caddr '(3 2 1))
+    1
+    > (cdaar '(((6 5 4 3 2 1) 7) 8 9))
+    '(5 4 3 2 1)
+    > (cdadr '(9 (7 6 5 4 3 2 1) 8))
+    '(6 5 4 3 2 1)
+    > (cddar '((7 6 5 4 3 2 1) 8 9))
+    '(5 4 3 2 1)
+    > (cdddr '(3 2 1))
+    '()
+    > (caaaar '((((5 4 3 2 1) 6) 7) 8 9))
+    5
+    > (caaadr '(9 ((6 5 4 3 2 1) 7) 8))
+    6
+    > (caadar '((7 (5 4 3 2 1) 6) 8 9))
+    5
+    > (caaddr '(9 8 (6 5 4 3 2 1) 7))
+    6
+    > (cadaar '(((6 5 4 3 2 1) 7) 8 9))
+    5
+    > (cadadr '(9 (7 6 5 4 3 2 1) 8))
+    6
+    > (caddar '((7 6 5 4 3 2 1) 8 9))
+    5
+    > (cadddr '(4 3 2 1))
+    1
+    > (cdaaar '((((5 4 3 2 1) 6) 7) 8 9))
+    '(4 3 2 1)
+    > (cdaadr '(9 ((6 5 4 3 2 1) 7) 8))
+    '(5 4 3 2 1)
+    > (cdadar '((7 (5 4 3 2 1) 6) 8 9))
+    '(4 3 2 1)
+    > (cdaddr '(9 8 (6 5 4 3 2 1) 7))
+    '(5 4 3 2 1)
+    > (cddaar '(((6 5 4 3 2 1) 7) 8 9))
+    '(4 3 2 1)
+    > (cddadr '(9 (7 6 5 4 3 2 1) 8))
+    '(5 4 3 2 1)
+    > (cdddar '((7 6 5 4 3 2 1) 8 9))
+    '(4 3 2 1)
+    > (cddddr '(4 3 2 1))
+    '()
+"""
+###############################################################################
 def test_random():
     for i in range(100):
         x = run_flo("(random)")
@@ -169,7 +231,7 @@ def test_flvector_set_wrong_type():
             (require '#%flfxnum '#%unsafe)
             (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
         """)
-
+#############################################################################
 def test_byte_huh(doctest):
     """
     > (byte? 65)
@@ -182,10 +244,62 @@ def test_byte_huh(doctest):
     #f
     """
 
-def test_make_bytes(doctest):
+def test_make_bytes_create(doctest):
     """
     > (make-bytes 5 65)
     #"AAAAA"
+    > (bytes 65 112 112 108 101)
+    #"Apple"
+    """
+
+
+def test_list_to_bytes(doctest):
+    """
+    > (list->bytes (list 65 112 112 108 101))
+    #"Apple"
+    """
+
+def test_bytes(doctest):
+    """
+    > (bytes-length #"Apple")
+    5
+    > (bytes-ref #"Apple" 0)
+    65
+    > (define s (bytes 65 112 112 108 101))
+    > (bytes-set! s 4 121)
+    > s
+    #"Apply"
+    """
+
+
+def test_unsafe_bytes(doctest):
+    """
+    ! (require '#%unsafe)
+    > (unsafe-bytes-length #"Apple")
+    5
+    > (unsafe-bytes-ref #"Apple" 0)
+    65
+    > (define s (bytes 65 112 112 108 101))
+    > (unsafe-bytes-set! s 4 121)
+    > s
+    #"Apply"
+    """
+
+def test_subbytes(doctest):
+    """
+    > (subbytes #"Apple" 1 3)
+    #"pp"
+    > (subbytes #"Apple" 1)
+    #"pple"
+    """
+
+def test_bytes_copy_bang(doctest):
+    """
+    > (define s (bytes 65 112 112 108 101))
+    > (bytes-copy! s 4 #"y")
+    > (bytes-copy! s 0 s 3 4)
+    > s
+    #"lpply"
     """
 
 def test_open_input_bytes_and_read_bytes_line(source):
@@ -211,3 +325,56 @@ def test_string_copy_bang(doctest):
     > s
     "lpply"
     """
+
+def test_procedure_arity(doctest):
+    """
+    ! (require racket/private/norm-arity)
+    > (procedure-arity cons)
+    2
+    > (procedure-arity list)
+    (arity-at-least 0)
+    > (arity-at-least? (procedure-arity list))
+    #t
+    > (arity-at-least-value (procedure-arity list))
+    0
+    > (arity-at-least-value (procedure-arity (lambda (x . y) x)))
+    1
+    > (procedure-arity (case-lambda [(x) 0] [(x y) 1]))
+    '(1 2)
+    """
+
+def test_procedure_arity_includes(doctest):
+    """
+    ! (require racket/private/kw)
+    > (procedure-arity-includes? cons 2)
+    #t
+    > (procedure-arity-includes? display 3)
+    #f
+    ;> (procedure-arity-includes? (lambda (x #:y y) x) 1)
+    ;#f
+    > (procedure-arity-includes? (lambda (x #:y y) x) 1 #t)
+    #t
+    """
+
+#############################################################################
+def test_system_type_os(source):
+    """(cons (system-type) (system-type 'os))"""
+    result = run_mod_expr(source, wrap=True)
+    assert result.car() == result.cdr()
+    sym = result.car().value
+    # Sadly, this can never cover all cases.
+    if sys.platform == "darwin":
+        assert sym == "macosx"
+    elif sys.platform in ['win32', 'cygwin']:
+        assert sym == "windows"
+    else:
+        assert sym == "unix"
+
+def test_system_path_convetion_type(source):
+    """(system-path-convention-type)"""
+    result = run_mod_expr(source, wrap=True)
+    sym = result.value
+    if sys.platform in ['win32', 'cygwin']:
+        assert sym == "windows"
+    else:
+        assert sym == "unix"

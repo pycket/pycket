@@ -2,6 +2,7 @@
 from pycket import impersonators as imp
 from pycket import values
 from pycket import values_struct
+from pycket import values_hash
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, expose_val
 from pycket.prims.equal import equal_func, EqualInfo
@@ -89,7 +90,7 @@ def unpack_hash_args(args, name):
         hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc = args
     else:
         raise SchemeException(name + ": wrong number of arguments")
-    if not isinstance(hash, values.W_HashTable):
+    if not isinstance(hash, values_hash.W_HashTable):
         raise SchemeException(name + ": first argument is not a hash")
     if not ref_proc.iscallable():
         raise SchemeException(name + ": ref-proc is not callable")

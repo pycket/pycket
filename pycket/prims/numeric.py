@@ -7,7 +7,7 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit
+from rpython.rlib         import jit, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
                                         UnsignedLongLong
@@ -16,8 +16,6 @@ from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
 from pycket import arithmetic
 
 def make_cmp(name, op, con):
-    from pycket.values import W_Number, W_Fixnum, W_Flonum, W_Bignum
-    from rpython.rlib.rbigint import rbigint
 
     @expose(name, simple=True)
     @jit.unroll_safe
@@ -30,9 +28,9 @@ def make_cmp(name, op, con):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            if not isinstance(w_a, W_Number):
+            if not isinstance(w_a, values.W_Number):
                 raise SchemeException("expected number")
-            if not isinstance(w_b, W_Number):
+            if not isinstance(w_b, values.W_Number):
                 raise SchemeException("expected number")
             idx += 1
             truth = truth and getattr(w_a, "arith_" + op)(w_b)
@@ -127,7 +125,7 @@ def make_binary_arith(name, methname):
 
 for args in [
         ("quotient", "arith_quotient"),
-        ("remainder", "arith_mod"), # FIXME
+        ("remainder", "arith_remainder"),
         ("modulo",   "arith_mod"),
         ("expt",     "arith_pow"),
         ]:
@@ -167,7 +165,8 @@ for args in [
         ]:
     make_arith(*args)
 
-def make_fixedtype_arith(name, methname, intversion=True, floatversion=True):
+def make_fixedtype_binary_arith(
+        name, methname, intversion=True, floatversion=True):
     methname += "_same"
     if floatversion:
         @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
@@ -188,11 +187,34 @@ for args in [
         ("-", "arith_sub"),
         ("*", "arith_mul"),
         ("/", "arith_div", False),
+        ("and", "arith_and", True, False),
         ("max", "arith_max"),
         ("min", "arith_min"),
-        ]:
-    make_fixedtype_arith(*args)
+]:
+    make_fixedtype_binary_arith(*args)
 
+def make_fixedtype_unary_arith(
+        name, methname, intversion=True, floatversion=True):
+    if floatversion:
+        @expose("fl" + name, [values.W_Flonum], simple=True)
+        def do(a):
+            return getattr(a, methname)()
+        do.__name__ = "fl_" + methname
+
+    if intversion:
+        @expose("fx" + name, [values.W_Fixnum], simple=True)
+        def do(a):
+            return getattr(a, methname)()
+        do.__name__ = "fx_" + methname
+
+
+for args in [
+        ("ceiling", "arith_ceiling", False),
+        ("floor", "arith_floor", False),
+        ("round", "arith_round", False),
+        ("truncate", "arith_truncate", False),
+]:
+    make_fixedtype_unary_arith(*args)
 
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
@@ -265,22 +287,76 @@ for args in [
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs"),
         ("round", "arith_round"),
+        ("truncate", "arith_truncate"),
+        ("floor", "arith_floor"),
+        ("ceiling", "arith_ceiling"),
         ("bitwise-not", "arith_not", values.W_Integer),
         ("exp",     "arith_exp"),
         ]:
     make_unary_arith(*args)
 
 
-@expose("arithmetic-shift", [values.W_Number, values.W_Fixnum])
-def arithmetic_shift(w_a, w_b):
+@expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
+def bitwise_bit_setp(w_n, w_m):
+    if w_m.arith_negativep() is values.w_true:
+        raise SchemeException("bitwise-bit-set?: second argument must be non-negative")
+    if not isinstance(w_m, values.W_Fixnum):
+        # a bignum that has such a big bit set does not fit in memory
+        return w_n.arith_negativep()
+    v = w_n.arith_and(arith_shift(values.W_Fixnum(1), w_m))
+    if isinstance(v, values.W_Fixnum) and 0 == v.value:
+        return values.w_false
+    else:
+        return values.w_true
+
+def arith_shift(w_a, w_b):
     # XXX support biginteger as second argument (returning 0 and out of memory)
     b = w_b.value
     if b >= 0:
         return w_a.arith_shl(w_b)
     else:
         return w_a.arith_shr(values.W_Fixnum(-b))
+# don't use the decorator to make the function usable in this file
+expose("arithmetic-shift", [values.W_Integer, values.W_Fixnum])(arith_shift)
+
+@expose("fxlshift", [values.W_Fixnum, values.W_Fixnum])
+def fxlshift(w_a, w_b):
+    b = w_b.value
+    if 0 <= b <= 64:
+        try:
+            res = rarithmetic.ovfcheck(w_a.value << b)
+        except OverflowError:
+            raise SchemeException(
+                "fxlshift: result is not a fixnum")
+        return values.W_Fixnum(res)
+    else:
+        raise SchemeException(
+            "fxlshift: expected integer >= 0 and <= 64, got %s" % w_b.tostring())
+
+@expose("fxrshift", [values.W_Fixnum, values.W_Fixnum])
+def fxrshift(w_a, w_b):
+    b = w_b.value
+    if b >= 0:
+        return w_a.arith_shr(w_b)
+    else:
+        raise SchemeException("fxrshift: expected positive argument, got %s"%w_b)
+
 
 ## Unsafe Fixnum ops
+@expose("unsafe-fxlshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxlshift(w_a, w_b):
+    res = rarithmetic.intmask(w_a.value << w_b.value)
+    return values.W_Fixnum(res)
+
+@expose("unsafe-fxrshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxrshift(w_a, w_b):
+    res = w_a.value >> w_b.value
+    return values.W_Fixnum(res)
+
+@expose("unsafe-fxand", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+def unsafe_fxand(w_a, w_b):
+    return w_a.arith_and(w_b)
+
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
     return values.W_Fixnum(a.value + b.value)

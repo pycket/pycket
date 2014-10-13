@@ -88,5 +88,5 @@ def pytest_funcarg__doctest(request):
     check_equal(*pairs, extra="\n".join(setup))
     for error in errors:
         with pytest.raises(SchemeException):
-            execute(error)
+            execute(error, extra="\n".join(setup))
     return True

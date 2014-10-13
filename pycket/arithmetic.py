@@ -83,6 +83,10 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return self.arith_quotient_same(other)
 
+    def arith_remainder(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_remainder_same(other)
+
     def arith_pow(self, other):
         self, other = self.same_numeric_class(other)
         return self.arith_pow_same(other)
@@ -168,7 +172,14 @@ class __extend__(values.W_Number):
 class __extend__(values.W_Integer):
     def arith_round(self):
         return self
-
+    def arith_truncate(self):
+        return self
+    def arith_floor(self):
+        return self
+    def arith_ceiling(self):
+        return self
+    def arith_inexact_exact(self):
+        return self
 
 class __extend__(values.W_Fixnum):
 
@@ -232,6 +243,22 @@ class __extend__(values.W_Fixnum):
             return self.arith_mod(values.W_Bignum(rbigint.fromint(other.value)))
         return values.W_Fixnum(res)
 
+    def arith_remainder_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        if other.value == 0:
+            raise Exception("zero_divisor")
+        a = abs(self.value)
+        b = abs(other.value)
+        try:
+            res = rarithmetic.ovfcheck(a % b)
+            if self.value < 0:
+                res = rarithmetic.ovfcheck(-res)
+        except OverflowError:
+            res = a % b
+            res1 = -res if self.value < 0 else res
+            return self.arith_mod(values.W_Bignum(rbigint.fromint(res1)))
+        return values.W_Fixnum(res)
+
     def arith_quotient_same(self, other):
         assert isinstance(other, values.W_Fixnum)
         x = self.value
@@ -246,6 +273,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Fixnum)
+        # XXX nonsense
         try:
             res = rarithmetic.ovfcheck_float_to_int(math.pow(self.value, other.value))
         except OverflowError:
@@ -308,22 +336,11 @@ class __extend__(values.W_Fixnum):
         return values.W_Flonum(math.atan(self.value))
 
     # ------------------ miscellanous ------------------
-    def arith_round(self):
-        return self
-
-    def arith_floor(self):
-        return self
-
-    def arith_ceiling(self):
-        return self
 
     def arith_float_fractional_part(self):
         return values.W_Fixnum(0)
 
     def arith_float_integer_part(self):
-        return self
-
-    def arith_inexact_exact(self):
         return self
 
     def arith_exact_inexact(self):
@@ -418,6 +435,14 @@ class __extend__(values.W_Flonum):
             res += y
         return values.W_Flonum(res)
 
+    def arith_remainder_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        if other.value == 0.0:
+            raise Exception("zero_divisor")
+        x, y = self.value, other.value
+        res = math.fmod(x, y)
+        return values.W_Flonum(res)
+
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
         return values.W_Flonum(math.pow(self.value, other.value))
@@ -453,20 +478,26 @@ class __extend__(values.W_Flonum):
         from rpython.rlib.rfloat import round_double
         return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
+    def arith_truncate(self):
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        elif self.value < 0:
+            return self.arith_ceiling()
+        else:
+            return self.arith_floor()
+
     def arith_floor(self):
-        # XXX factor out conversion to fix or bignum
-        try:
-            val = rarithmetic.ovfcheck_float_to_int(math.floor(self.value))
-        except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(math.floor(self.value)))
-        return values.W_Fixnum(val)
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        return values.W_Flonum(float(math.floor(self.value)))
 
     def arith_ceiling(self):
-        try:
-            val = rarithmetic.ovfcheck_float_to_int(math.ceil(self.value))
-        except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(math.ceil(self.value)))
-        return values.W_Fixnum(val)
+        from rpython.rlib.rfloat import isinf
+        if isinf(self.value):
+            return self
+        return values.W_Flonum(float(math.ceil(self.value)))
 
     def arith_float_fractional_part(self):
         try:
@@ -476,20 +507,12 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(float(self.value - val))
 
     def arith_float_integer_part(self):
-        try:
-            val = rarithmetic.ovfcheck_float_to_int(self.value)
-        except OverflowError:
-            return values.W_Bignum(rbigint.fromfloat(self.value))
-        return values.W_Fixnum(val)
+        return values.W_Integer.fromfloat(self.value)
 
     def arith_inexact_exact(self):
         fractional_part = self.arith_float_fractional_part()
         if fractional_part.value == 0:
-            try:
-                val = rarithmetic.ovfcheck_float_to_int(self.value)
-            except OverflowError:
-                return values.W_Bignum(rbigint.fromfloat(self.value))
-            return values.W_Fixnum(val)
+            return values.W_Integer.fromfloat(self.value)
         else:
             return values.W_Rational.fromfloat(self.value)
 
@@ -550,11 +573,11 @@ class __extend__(values.W_Bignum):
     # ------------------ addition ------------------
     def arith_add_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.add(other.value))
+        return values.W_Integer.frombigint(self.value.add(other.value))
 
     def arith_sub_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.sub(other.value))
+        return values.W_Integer.frombigint(self.value.sub(other.value))
 
     def arith_unarysub(self):
         # XXX fix the sys.maxint + 1 case
@@ -562,7 +585,7 @@ class __extend__(values.W_Bignum):
 
     def arith_mul_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.mul(other.value))
+        return values.W_Integer.frombigint(self.value.mul(other.value))
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -572,12 +595,21 @@ class __extend__(values.W_Bignum):
             raise SchemeException("zero_divisor")
         if mod.tobool():
             return values.W_Rational.frombigint(self.value, other.value)
-        return values.W_Bignum.frombigint(res)
+        return values.W_Integer.frombigint(res)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Bignum)
         try:
-            return values.W_Bignum.frombigint(self.value.mod(other.value))
+            return values.W_Integer.frombigint(self.value.mod(other.value))
+        except ZeroDivisionError:
+            raise Exception("zero_divisor")
+
+    def arith_remainder_same(self, other):
+        from rpython.rlib.rbigint import _divrem
+        assert isinstance(other, values.W_Bignum)
+        try:
+            div, rem = _divrem(self.value, other.value)
+            return values.W_Integer.frombigint(rem)
         except ZeroDivisionError:
             raise Exception("zero_divisor")
 
@@ -590,12 +622,12 @@ class __extend__(values.W_Bignum):
             div, rem = _divrem(x, y)
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
-        return values.W_Bignum.frombigint(div)
+        return values.W_Integer.frombigint(div)
 
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.pow(other.value))
+        return values.W_Integer.frombigint(self.value.pow(other.value))
 
     def arith_shr_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -604,7 +636,7 @@ class __extend__(values.W_Bignum):
         except OverflowError:
             # XXX raise a Racket-level error!
             raise ValueError('Right operand too big')
-        return values.W_Bignum.frombigint(self.value.rshift(num))
+        return values.W_Integer.frombigint(self.value.rshift(num))
 
     def arith_shl_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -613,26 +645,26 @@ class __extend__(values.W_Bignum):
         except OverflowError:
             # XXX raise a Racket-level error!
             raise ValueError('Right operand too big')
-        return values.W_Bignum.frombigint(self.value.lshift(num))
+        return values.W_Integer.frombigint(self.value.lshift(num))
 
     def arith_or_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.or_(other.value))
+        return values.W_Integer.frombigint(self.value.or_(other.value))
 
     def arith_and_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.and_(other.value))
+        return values.W_Integer.frombigint(self.value.and_(other.value))
 
     def arith_xor_same(self, other):
         assert isinstance(other, values.W_Bignum)
-        return values.W_Bignum.frombigint(self.value.xor(other.value))
+        return values.W_Integer.frombigint(self.value.xor(other.value))
 
     def arith_not(self):
-        return values.W_Bignum.frombigint(self.value.invert())
+        return values.W_Integer.frombigint(self.value.invert())
 
 
     def arith_abs(self):
-        return values.W_Bignum.frombigint(self.value.abs())
+        return values.W_Integer.frombigint(self.value.abs())
 
 
     # ------------------ max ------------------
@@ -640,33 +672,22 @@ class __extend__(values.W_Bignum):
         assert isinstance(other, values.W_Bignum)
         # XXX is this tested?
         if self.value.lt(other.value):
-            return values.W_Bignum.frombigint(other.value)
-        return values.W_Bignum.frombigint(self.value)
+            return values.W_Integer.frombigint(other.value)
+        return values.W_Integer.frombigint(self.value)
 
     def arith_min_same(self, other):
         assert isinstance(other, values.W_Bignum)
         if self.value.lt(other.value):
-            return values.W_Bignum.frombigint(self.value)
-        return values.W_Bignum.frombigint(other.value)
+            return values.W_Integer.frombigint(self.value)
+        return values.W_Integer.frombigint(other.value)
 
 
     # ------------------ miscellanous ------------------
-    def arith_round(self):
-        return self
-
-    def arith_floor(self):
-        return self
-
-    def arith_ceiling(self):
-        return self
 
     def arith_arith_fractional_part(self):
         return values.W_Fixnum(0)
 
     def arith_arith_integer_part(self):
-        return self
-
-    def arith_inexact_exact(self):
         return self
 
     def arith_exact_inexact(self):
@@ -745,15 +766,33 @@ class __extend__(values.W_Rational):
         diff1 = diff1.abs()
         if diff1.gt(diff2):
             res2 = res1.add(ONERBIGINT)
-            return values.W_Bignum.frombigint(res2)
+            return values.W_Integer.frombigint(res2)
         elif diff1.eq(diff2):
             if res1.and_(ONERBIGINT).tobool():
                 res2 = res1.add(ONERBIGINT)
-                return values.W_Bignum.frombigint(res2)
+                return values.W_Integer.frombigint(res2)
             else:
-                return values.W_Bignum.frombigint(res1)
+                return values.W_Integer.frombigint(res1)
         else:
-            return values.W_Bignum.frombigint(res1)
+            return values.W_Integer.frombigint(res1)
+
+
+    def arith_ceiling(self):
+        res1 = self._numerator.floordiv(self._denominator)
+        res = res1.add(ONERBIGINT)
+        return values.W_Integer.frombigint(res)
+
+
+    def arith_floor(self):
+        res = self._numerator.floordiv(self._denominator)
+        return values.W_Integer.frombigint(res)
+
+    def arith_truncate(self):
+        assert self._numerator.ne(NULLRBIGINT)
+        if self._numerator.sign == self._denominator.sign:
+            return self.arith_floor()
+        else:
+            return self.arith_ceiling()
 
     def arith_inexact_exact(self):
         return self

@@ -1,6 +1,8 @@
 
 from pycket.cont import label
-from pycket.values import W_MVector, W_VectorSuper, W_Object, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.base import W_Object, SingletonMeta
+
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit
@@ -174,12 +176,6 @@ class W_FlVector(W_VectorSuper):
             if not self.ref(i).equal(other.ref(i)):
                 return False
         return True
-
-class SingletonMeta(type):
-    def __new__(cls, name, bases, dct):
-        result = type.__new__(cls, name, bases, dct)
-        result.singleton = result()
-        return result
 
 class VectorStrategy(object):
     """ works for any W_VectorSuper that has
