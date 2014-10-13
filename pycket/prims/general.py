@@ -650,6 +650,15 @@ def do_car(a):
 def do_cadr(args):
     return do_car([do_cdr(args)])
 
+
+@expose("caar")
+def do_caar(args):
+    return do_car([do_car(args)])
+
+@expose("cadar")
+def do_cadar(args):
+    return do_car([do_cdr([do_car(args)])])
+
 @expose("cddr")
 def do_cddr(args):
     return do_cdr([do_cdr(args)])
