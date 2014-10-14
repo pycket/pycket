@@ -6,6 +6,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder
+from rpython.rlib import jit
 
 
 @expose("symbol->string", [values.W_Symbol])
@@ -162,8 +163,8 @@ def char_downcase(v):
 
 
 
-# FIXME: this implementation sucks
 @expose("string-append")
+@jit.unroll_safe
 def string_append(args):
     if not args:
         return values.W_String("")
