@@ -63,6 +63,7 @@ def check_chaperone_results(args, env, cont, vals):
     assert vals._get_size_list() >= len(args)
     return check_chaperone_results_loop(vals, args, 0, env, cont)
 
+@jit.unroll_safe
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     from pycket.prims.equal import equal_func, EqualInfo

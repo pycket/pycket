@@ -111,7 +111,7 @@ def do_read_line(port, mode, as_bytes, env, cont):
         if line[stop] == "\n":
             line = line[:stop]
         if as_bytes:
-            return return_value(values.W_Bytes(line), env, cont)
+            return return_value(values.W_Bytes.from_string(line), env, cont)
         else:
             return return_value(values.W_String(line), env, cont)
     else:
@@ -339,7 +339,7 @@ def open_output_string():
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
 def open_input_bytes(bstr, name):
     # FIXME: name is ignore
-    return values.W_StringInputPort(bstr.value)
+    return values.W_StringInputPort(str(bstr.value))
 
 @expose("open-input-string", [values.W_String, default(values.W_Symbol, string_sym)])
 def open_input_string(str, name):
@@ -409,17 +409,18 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     
     # shortcut without allocation when complete replace
     if start == 0 and stop == len(w_bstr.value) and reslen == n:
-        w_bstr.value = res
+        w_bstr.value = list(res)
         return return_value(values.W_Fixnum(reslen), env, cont)
 
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
-
-    builder = StringBuilder()
-    builder.append_slice(w_bstr.value, 0, start)
-    builder.append(res)
-    builder.append_slice(w_bstr.value, start+reslen, len(w_bstr.value))
-    w_bstr.value = builder.build()
+        
+    assert 0 # FIXME
+    # builder = StringBuilder()
+    # builder.append_slice(w_bstr.value, 0, start)
+    # builder.append(res)
+    # builder.append_slice(w_bstr.value, start+reslen, len(w_bstr.value))
+    # w_bstr.value = builder.build()
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
@@ -468,7 +469,7 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
         to_write = w_bstr.value[start:slice_stop]
 
     # FIXME: we fake here
-    w_port.write(to_write)
+    w_port.write("".join(to_write))
     return return_value(values.W_Fixnum(stop - start), env, cont)
     
 
