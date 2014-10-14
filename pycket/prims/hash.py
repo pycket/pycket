@@ -40,7 +40,7 @@ def make_weak_hasheq():
 @expose("make-immutable-hash", [default(values.W_Object, None)])
 def make_immutable_hash(assocs):
     # FIXME: Not annotated as immutable
-    lsts = values.from_list(pairs)
+    lsts = values.from_list(assocs)
     keys = []
     vals = []
     for lst in lsts:
