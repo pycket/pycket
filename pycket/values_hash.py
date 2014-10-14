@@ -322,6 +322,9 @@ class StringHashmapStrategy(HashmapStrategy):
 
     def unwrap(self, w_val):
         assert isinstance(w_val, values.W_String)
+        # note that even for mutable strings this is safe: racket makes no
+        # promises about what happens when you mutate a key of a dict so just
+        # using the old value is an ok implementation
         return w_val.value
 
 
