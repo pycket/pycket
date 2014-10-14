@@ -5,12 +5,6 @@ from pycket.cont import continuation, label
 from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
 from rpython.rlib import rerased
 
-def eq_hash(k):
-    if isinstance(k, values.W_Fixnum):
-        return compute_hash(k.value)
-    else:
-        return compute_hash(k)
-
 class W_HashTable(W_Object):
     errorname = "hash"
     _attrs_ = []
@@ -43,7 +37,6 @@ class W_SimpleHashTable(W_HashTable):
         raise NotImplementedError("abstract method")
 
     def __init__(self, keys, vals):
-        from pycket.prims.equal import eqp_logic
         assert len(keys) == len(vals)
         self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
         for i, k in enumerate(keys):
@@ -73,7 +66,7 @@ class W_SimpleHashTable(W_HashTable):
 class W_EqvHashTable(W_SimpleHashTable):
     @staticmethod
     def hash_value(k):
-        return eq_hash(k)
+        return k.hash_eqv()
 
     @staticmethod
     def cmp_value(a, b):
@@ -82,7 +75,12 @@ class W_EqvHashTable(W_SimpleHashTable):
 class W_EqHashTable(W_SimpleHashTable):
     @staticmethod
     def hash_value(k):
-        return eq_hash(k)
+        if isinstance(k, values.W_Fixnum):
+            return compute_hash(k.value)
+        if isinstance(k, values.W_Character):
+            return ord(k.value)
+        else:
+            return compute_hash(k)
 
     @staticmethod
     def cmp_value(a, b):

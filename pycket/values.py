@@ -427,6 +427,9 @@ class W_Number(W_Object):
     def eqv(self, other):
         return self.equal(other)
 
+    def hash_eqv(self):
+        return self.hash_equal()
+
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
     errorname = "rational"
@@ -486,6 +489,12 @@ class W_Rational(W_Number):
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
+    def hash_equal(self):
+        hash1 = self._numerator.hash()
+        hash2 = self._denominator.hash()
+        return rarithmetic.intmask(hash1 + 1000003 * hash2)
+
+
 class W_Integer(W_Number):
     errorname = "integer"
 
@@ -523,6 +532,10 @@ class W_Fixnum(W_Integer):
             return False
         return self.value == other.value
 
+    def hash_equal(self):
+        return self.value
+
+
 @memoize_constructor
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
@@ -540,6 +553,10 @@ class W_Flonum(W_Number):
             return False
         return self.value == other.value
 
+    def hash_equal(self):
+        return compute_hash(self.value)
+
+
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
     def tostring(self):
@@ -551,6 +568,9 @@ class W_Bignum(W_Integer):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
+
+    def hash_equal(self):
+        return self.value.hash()
 
 @memoize_constructor
 class W_Complex(W_Number):
@@ -566,6 +586,11 @@ class W_Complex(W_Number):
             return False
         return (self.real.equal(other.real) and
                 self.imag.equal(other.imag))
+
+    def hash_equal(self):
+        hash1 = compute_hash(self.real)
+        hash2 = compute_hash(self.imag)
+        return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def tostring(self):
         return "%s+%si" % (self.real.tostring(), self.imag.tostring())
@@ -589,6 +614,11 @@ class W_Character(W_Object):
             return False
         return self.value == other.value
     eqv = equal
+
+    def hash_eqv(self):
+        return ord(self.value)
+    hash_equal = hash_eqv
+
 
 class W_Thread(W_Object):
     errorname = "thread"

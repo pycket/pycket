@@ -12,6 +12,15 @@ def test_hash_simple(doctest):
     2
     """
 
+def test_hasheqv(doctest):
+    """
+    ! (define ht (make-hasheqv))
+    > (hash-set! ht 1.0 'a)
+    > (hash-set! ht 2.0 'a)
+    > (hash-ref ht (+ 1.0 1.0))
+    'a
+    """
+
 def test_hash_symbols(doctest):
     """
     ! (define ht (make-hash))

@@ -1,7 +1,7 @@
 from pycket.error             import SchemeException
 from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 class W_Object(object):
     __metaclass__ = extendabletype
@@ -42,10 +42,17 @@ class W_Object(object):
 
     def immutable(self):
         return False
+
     def equal(self, other):
         return self is other # default implementation
+
     def eqv(self, other):
         return self is other # default implementation
+
+    def hash_equal(self):
+        return objectmodel.compute_hash(self) # default implementation
+    hash_eqv = hash_equal
+
     def tostring(self):
         return str(self)
 
