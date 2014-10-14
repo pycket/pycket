@@ -90,77 +90,84 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = values.W_Fixnum(idx.value + 1)
     return equal_vec_func(a, b, inc, info, env, cont)
 
-@loop_label
+@label
 def equal_func(a, b, info, env, cont):
     from pycket.interpreter import return_value
 
-    if a.eqv(b):
-        return return_value(values.w_true, env, cont)
-
-    # Enter into chaperones/impersonators if we have permission to do so
     for_chaperone = jit.promote(info.for_chaperone)
-    if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
-        (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
-        return equal_func(a.get_proxied(), b, info, env, cont)
+    while True:
+        if a.eqv(b):
+            return return_value(values.w_true, env, cont)
 
-    # If we are doing a chaperone/impersonator comparison, then we do not have
-    # a chaperone-of/impersonator-of relation if `a` is not a proxy and
-    # `b` is a proxy.
-    if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
+        # Enter into chaperones/impersonators if we have permission to do so
+        if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
+            (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
+            a = a.get_proxied()
+            continue
+            #return equal_func(a.get_proxied(), b, info, env, cont)
+
+        # If we are doing a chaperone/impersonator comparison, then we do not have
+        # a chaperone-of/impersonator-of relation if `a` is not a proxy and
+        # `b` is a proxy.
+        if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
+            return return_value(values.w_false, env, cont)
+
+        if isinstance(a, values.W_String) and isinstance(b, values.W_String):
+            is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
+        if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
+            is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+
+        if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
+            cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
+            a, b = a.car(), b.car()
+            continue
+
+        if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
+            is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
+
+        if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
+            is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            if a.length() != b.length():
+                return return_value(values.w_false, env, cont)
+            return equal_vec_func(a, b, values.W_Fixnum(0), info, env, cont)
+
+        if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
+            a_type = a.struct_type()
+            b_type = b.struct_type()
+            for w_car, w_prop in a_type.props:
+                if w_car.isinstance(values_struct.w_prop_equal_hash):
+                    for w_car, w_prop in b_type.props:
+                        if w_car.isinstance(values_struct.w_prop_equal_hash):
+                            assert isinstance(w_prop, values_vector.W_Vector)
+                            w_equal_proc, w_hash_proc, w_hash2_proc = \
+                                w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+                            # FIXME: it should work with cycles properly and be an equal?-recur
+                            w_equal_recur = values.W_Prim("equal?-recur", equalp)
+                            return w_equal_proc.call([a, b, w_equal_recur], env, cont)
+            if not a.struct_type().isopaque and not b.struct_type().isopaque:
+                # This is probably not correct even if struct2vector were done
+                # correct, due to side effects, but it is close enough for now.
+                # Though the racket documentation says that `equal?` can elide
+                # impersonator/chaperone handlers.
+                a_imm = len(a_type.immutables) == a_type.total_field_cnt
+                b_imm = len(b_type.immutables) == b_type.total_field_cnt
+                a = values_struct.struct2vector(a, immutable=a_imm)
+                b = values_struct.struct2vector(b, immutable=b_imm)
+                continue
+
         return return_value(values.w_false, env, cont)
-
-    if isinstance(a, values.W_String) and isinstance(b, values.W_String):
-        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
-
-    if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
-        is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
-
-    if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
-        return equal_func(a.car(), b.car(), info, env,
-                    equal_car_cont(a.cdr(), b.cdr(), info, env, cont))
-    if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
-    if isinstance(a, values.W_MVector) and isinstance(b, values.W_MVector):
-        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        if a.length() != b.length():
-            return return_value(values.w_false, env, cont)
-        return equal_vec_func(a, b, values.W_Fixnum(0), info, env, cont)
-    if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
-        a_type = a.struct_type()
-        b_type = b.struct_type()
-        for w_car, w_prop in a_type.props:
-            if w_car.isinstance(values_struct.w_prop_equal_hash):
-                for w_car, w_prop in b_type.props:
-                    if w_car.isinstance(values_struct.w_prop_equal_hash):
-                        assert isinstance(w_prop, values_vector.W_Vector)
-                        w_equal_proc, w_hash_proc, w_hash2_proc = \
-                            w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
-                        # FIXME: it should work with cycles properly and be an equal?-recur
-                        w_equal_recur = values.W_Prim("equal?-recur", equalp)
-                        return w_equal_proc.call([a, b, w_equal_recur], env, cont)
-        if not a.struct_type().isopaque and not b.struct_type().isopaque:
-            # This is probably not correct even if struct2vector were done
-            # correct, due to side effects, but it is close enough for now.
-            # Though the racket documentation says that `equal?` can elide
-            # impersonator/chaperone handlers.
-            a_imm = len(a_type.immutables) == a_type.total_field_cnt
-            b_imm = len(b_type.immutables) == b_type.total_field_cnt
-            l = values_struct.struct2vector(a, immutable=a_imm)
-            r = values_struct.struct2vector(b, immutable=b_imm)
-            return equal_func(l, r, info, env, cont)
-
-    return return_value(values.w_false, env, cont)
 
 def eqp_logic(a, b):
     if a is b:
