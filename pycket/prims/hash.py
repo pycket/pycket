@@ -39,6 +39,7 @@ def make_weak_hasheq():
 
 @expose("make-immutable-hash", [default(values.W_Object, None)])
 def make_immutable_hash(assocs):
+    raise NotImplementedError()
     # FIXME: not impelemented
     return W_EqvHashTable([], [])
 
@@ -108,7 +109,7 @@ def hash_set_bang(ht, k, v, env, cont):
 
 @expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set(ht, k, v, env, cont):
-    # FIXME: implementation
+    raise NotImplementedError()
     return ht.hash_set(k, v, env, cont)
     #return ht
 
@@ -130,27 +131,27 @@ def hash_ref(ht, k, default, env, cont):
 
 @expose("hash-remove!", [W_HashTable, values.W_Object])
 def hash_remove_bang(hash, key):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return hash
 
 @expose("hash-remove", [W_HashTable, values.W_Object])
 def hash_remove(hash, key):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return hash
 
 @expose("hash-clear!", [W_HashTable])
 def hash_clear_bang(hash):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return W_EqvHashTable([], [])
 
 @expose("hash-clear", [W_HashTable])
 def hash_clear(hash):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return W_EqvHashTable([], [])
 
 @expose("hash-map", [W_HashTable, values.W_Object])
 def hash_map(hash, proc):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return hash
 
 @expose("hash-count", [W_HashTable])
@@ -159,7 +160,7 @@ def hash_count(hash):
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(hash):
-    # FIXME: implementation
+    raise NotImplementedError()
     # if not hash.data:
     #     return values.w_false
     # else:
@@ -168,34 +169,35 @@ def hash_iterate_first(hash):
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(hash, pos):
-    # FIXME: implementation
+    raise NotImplementedError()
     # next_pos = pos.value + 1
     # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
     return values.w_false
 
 @expose("hash-iterate-key", [W_HashTable, values.W_Fixnum])
 def hash_iterate_key(hash, pos):
-    # FIXME: implementation
+    raise NotImplementedError()
     # return hash.ref(pos.value)
     return values.w_false
 
 @expose("hash-iterate-value", [W_HashTable, values.W_Fixnum])
 def hash_iterate_value(hash, pos):
-    # FIXME: implementation
+    raise NotImplementedError()
     # return hash.ref(pos.value)
     return values.w_false
 
 @expose("hash-copy", [W_HashTable])
 def hash_iterate_value(hash):
+    raise NotImplementedError()
     # FIXME: implementation
     return hash
 
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return values.W_Fixnum(0)
 
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    # FIXME: not implemented
+    raise NotImplementedError()
     return values.W_Fixnum(0)
