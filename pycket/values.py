@@ -762,6 +762,21 @@ class W_Bytes(W_Object):
             return False
         return len(self.value) == len(other.value) and str(self.value) == str(other.value)
 
+    def hash_equal(self):
+        from rpython.rlib.rarithmetic import intmask
+        # like CPython's string hash
+        s = self.value
+        length = len(s)
+        if length == 0:
+            return -1
+        x = ord(s[0]) << 7
+        i = 0
+        while i < length:
+            x = intmask((1000003*x) ^ ord(s[i]))
+            i += 1
+        x ^= length
+        return intmask(x)
+
     def immutable(self):
         return self.imm
 

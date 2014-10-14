@@ -160,6 +160,8 @@ def _find_strategy_class(keys):
         return SymbolHashmapStrategy.singleton
     if single_class is values.W_String:
         return StringHashmapStrategy.singleton
+    if single_class is values.W_Bytes:
+        return ByteHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
 
 class UnwrappedHashmapStrategyMixin(object):
@@ -191,12 +193,15 @@ class UnwrappedHashmapStrategyMixin(object):
         return len(self.unerase(w_dict.hstorage))
 
     def create_storage(self, keys, vals):
+        d = self._create_empty_dict()
         if not keys:
-            return self.erase({})
-        d = {}
+            return self.erase(d)
         for i, w_key in enumerate(keys):
             d[self.unwrap(w_key)] = vals[i]
         return self.erase(d)
+
+    def _create_empty_dict(self):
+        return {}
 
     def switch_to_object_strategy(self, w_dict):
         d = self.unerase(w_dict.hstorage)
@@ -239,6 +244,8 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = SymbolHashmapStrategy.singleton
         elif type(w_key) is values.W_String:
             strategy = StringHashmapStrategy.singleton
+        elif type(w_key) is values.W_Bytes:
+            strategy = ByteHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton
         storage = strategy.create_storage([], [])
@@ -324,6 +331,37 @@ class StringHashmapStrategy(HashmapStrategy):
         # promises about what happens when you mutate a key of a dict so just
         # using the old value is an ok implementation
         return w_val.value
+
+
+def hash_bytes(w_b):
+    assert isinstance(w_b, values.W_Bytes)
+    return w_b.hash_equal()
+
+def cmp_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_Bytes)
+    assert isinstance(w_b, values.W_Bytes)
+    return w_a.value == w_b.value
+
+class ByteHashmapStrategy(HashmapStrategy):
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("byte-hashmap-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_Bytes)
+
+    def wrap(self, val):
+        return val
+
+    def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_Bytes)
+        return w_val
+
+    def _create_empty_dict(self):
+        return r_dict(cmp_bytes, hash_bytes)
+
 
 
 class W_EqualHashTable(W_HashTable):

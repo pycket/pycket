@@ -66,6 +66,31 @@ def test_hash_strings(doctest):
     """
 
 
+def test_hash_bytes(doctest):
+    """
+    ! (define ht (make-hash))
+    ! (hash-set! ht #"a" '(red round))
+    ! (hash-set! ht #"bc" '(yellow long))
+    > (hash-ref ht #"a")
+    '(red round)
+    > (hash-ref ht #"bc")
+    '(yellow long)
+    > (hash-ref ht (bytes-append #"b" #"c"))
+    '(yellow long)
+    E (hash-ref ht #"c")
+    > (hash-ref ht #"c" "not there")
+    "not there"
+
+    > (hash-set! ht 1 'ohnoes) ; dehomogenize
+    > (hash-ref ht #"a")
+    '(red round)
+    > (hash-ref ht #"bc")
+    '(yellow long)
+    > (hash-ref ht 1)
+    'ohnoes
+    """
+
+
 def test_hash_ints(doctest):
     """
     ! (define ht (make-hash))
