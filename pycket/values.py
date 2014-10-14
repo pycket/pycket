@@ -1378,14 +1378,15 @@ class W_StringInputPort(W_InputPort):
         start = self.ptr
         assert start >= 0
         pos = find(self.str, "\n", start, len(self.str))
-        if pos == -1:
-            return self.read(pos)
+        if pos < 0:
+            return self.read()
         else:
             pos += 1
-            line = self.read(pos - start)
+            stop = self.ptr = pos
+            return self.str[start:stop]
         return line
 
-    def read(self, n):
+    def read(self, n=-1):
         if self.ptr >= len(self.str):
             return ""
         p = self.ptr
