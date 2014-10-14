@@ -42,9 +42,14 @@ def num2str(a, radix):
     else:
         if isinstance(a, values.W_Fixnum):
             if radix.value == 16:
-                return values.W_String(hex(a.value))
-            elif radix.value == 8:
-                return values.W_String(oct(a.value))
+                res = hex(a.value)
+                if a.value >= 0:
+                    res = res[2:]
+                else:
+                    res = "-" + res[3:]
+                return values.W_String(res)
+            #elif radix.value == 8:
+            #    return values.W_String(oct(a.value))
             # elif radix.value == 2:
             #     return values.W_String(bin(a.value))
             else:
@@ -58,6 +63,8 @@ def num2str(a, radix):
                 return values.W_String(a.value.format("01"))
             else:
                 raise SchemeException("number->string: radix unsupported")
+        elif isinstance(a, values.W_Flonum):
+            raise SchemeException("number->string: flonum only supports radix 10")
         else:
             assert 0 # not reached
 
