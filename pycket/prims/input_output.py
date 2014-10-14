@@ -469,7 +469,7 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
         to_write = w_bstr.value[start:slice_stop]
 
     # FIXME: we fake here
-    w_port.write(str(to_write))
+    w_port.write("".join(to_write))
     return return_value(values.W_Fixnum(stop - start), env, cont)
     
 
