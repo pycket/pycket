@@ -339,7 +339,7 @@ def open_output_string():
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
 def open_input_bytes(bstr, name):
     # FIXME: name is ignore
-    return values.W_StringInputPort(str(bstr.value))
+    return values.W_StringInputPort(bstr.as_str())
 
 @expose("open-input-string", [values.W_String, default(values.W_Symbol, string_sym)])
 def open_input_string(str, name):

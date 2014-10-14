@@ -726,13 +726,16 @@ class W_Bytes(W_Object):
         if not isinstance(other, W_Bytes):
             return False
         return len(self.value) == len(other.value) and str(self.value) == str(other.value)
+
     def immutable(self):
         return self.imm
+
     def ref(self, n):
         l = len(self.value)
         if n < 0 or n >= l:
             raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
         return W_Fixnum(ord(self.value[n]))
+
     def set(self, n, v):
         l = len(self.value)
         if n < 0 or n >= l:
@@ -742,6 +745,10 @@ class W_Bytes(W_Object):
         # FIXME: this is not constant time!
         self.value[n] = chr(v)
         return
+
+    def as_str(self):
+        return "".join(self.value)
+
 
 class W_String(W_Object):
     errorname = "string"
