@@ -406,6 +406,17 @@ def test_bytes_comparison(doctest):
     #t
     """
 
+
+def test_bytes_append(doctest):
+    """
+    > (bytes-append #"Apple" #"Banana")
+    #"AppleBanana"
+    """
+def test_string_append(doctest):
+    """
+    > (string-append "Apple" "Banana")
+    "AppleBanana"
+    """
 ####################
 def test_procedure_arity(doctest):
     """
