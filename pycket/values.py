@@ -8,7 +8,8 @@ from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
-from rpython.rlib.objectmodel import r_dict, compute_hash
+from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
+from rpython.rlib.rarithmetic import r_longlong, intmask
 from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
 
@@ -524,7 +525,9 @@ class W_Fixnum(W_Integer):
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
-        assert isinstance(val, int)
+        if not we_are_translated():
+            # this is not safe during translation
+            assert isinstance(val, int)
         self.value = val
 
     def equal(self, other):
@@ -1201,7 +1204,7 @@ class W_Parameterization(W_Object):
             else:
                 new_keys[i] = self.keys[i-len(params)]
                 new_vals[i] = self.vals[i-len(params)]
-                
+
         return W_Parameterization(self.root, new_keys, new_vals)
     def get(self, param):
         k = param.key
@@ -1299,6 +1302,10 @@ class W_Port(W_Object):
         self.closed = True
     def __init__(self):
         self.closed = False
+    def seek(self, offset, end=False):
+        raise NotImplementedError("abstract base classe")
+    def tell(self):
+        raise NotImplementedError("abstract base classe")
 
 class W_OutputPort(W_Port):
     errorname = "output-port"
@@ -1320,6 +1327,19 @@ class W_StringOutputPort(W_OutputPort):
         self.str.append(s)
     def contents(self):
         return self.str.build()
+    def seek(self, offset, end=False):
+        if end or offset == self.str.getlength():
+            return
+        if offset > self.str.getlength():
+            self.str.append("\0" * (self.str.getlength() - offset))
+        else:
+            # FIXME: this is potentially slow.
+            content = self.contents()
+            self.str = StringBuilder(offset)
+            self.str.append_slice(content, 0, offset)
+
+    def tell(self):
+        return self.str.getlength()
 
 class W_InputPort(W_Port):
     errorname = "input-port"
@@ -1366,6 +1386,17 @@ class W_StringInputPort(W_InputPort):
             assert stop >= 0
             return self.str[p:stop]
 
+    def seek(self, offset, end=False):
+        if end or offset == self.ptr:
+            return
+        if offset > self.ptr:
+            raise SchemeException("index out of bounds")
+        else:
+            self.ptr = offset
+
+    def tell(self):
+        return self.ptr
+
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
@@ -1381,6 +1412,15 @@ class W_FileInputPort(W_InputPort):
         self.closed = False
         self.file = f
 
+    def seek(self, offset, end=False):
+        if end:
+            self.file.seek(0, 2)
+        else:
+            self.file.seek(offset, 0)
+
+    def tell(self):
+        return self.file.tell()
+
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     def write(self, str):
@@ -1395,3 +1435,12 @@ class W_FileOutputPort(W_OutputPort):
     def __init__(self, f):
         self.closed = False
         self.file = f
+
+    def seek(self, offset, end=False):
+        if end:
+            self.file.seek(0, 2)
+        else:
+            self.file.seek(offset, 0)
+
+    def tell(self):
+        return self.file.tell()

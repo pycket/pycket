@@ -419,6 +419,16 @@ for a in [("bytes<?", op.lt),
           ]:
     define_bytes_comp(*a)
 
+@expose(["bytes->string/locale",
+         "bytes->string/utf-8"], [values.W_Bytes,
+                                  default(values.W_Object, values.w_false),
+                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, None)])
+def string_to_bytes_locale(bytes, errbyte, start, end):
+    # FIXME: This ignores the locale
+    # FIXME: these are both wrong to some extend
+    return values.W_String(bytes.as_str())
+
 ################################################################################
 
 # Character

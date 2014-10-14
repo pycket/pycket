@@ -118,18 +118,41 @@ def do_read_line(port, mode, as_bytes, env, cont):
         return return_value(values.eof_object, env, cont)
 
 @expose("read-line",[default(values.W_InputPort, None),
-                            default(values.W_Symbol, linefeed_sym)],
-        simple=False)
+                     default(values.W_Symbol, linefeed_sym)],
+                    simple=False)
 def read_line(port, mode, env, cont):
     return do_read_line(port, mode, False, env, cont)
 
 @expose("read-bytes-line", [default(values.W_InputPort, None),
                             default(values.W_Symbol, linefeed_sym)],
-        simple=False)
+                           simple=False)
 def read_bytes_line(port, mode, env, cont):
     return do_read_line(port, mode, True, env, cont)
 
 
+def do_read_one(port, as_bytes, env, cont):
+    from pycket.interpreter import return_value
+    if port is None:
+        port = current_in_param.get(cont)
+    assert isinstance(port, values.W_InputPort)
+    # FIXME: UTF-8
+    c = port.read(1)
+    if len(c) == 0:
+        return return_value(values.eof_object, env, cont)
+
+    i = ord(c[0])
+    if as_bytes:
+        return return_value(values.W_Fixnum(i), env, cont)
+    else:
+        return return_value(values.W_Character(unichr(i)), env, cont)
+
+@expose("read-char", [default(values.W_InputPort, None)], simple=False)
+def read_char(port, env, cont):
+    return do_read_one(port, False, env, cont)
+
+@expose("read-byte", [default(values.W_InputPort, None)], simple=False)
+def read_byte(port, env, cont):
+    return do_read_one(port, True, env, cont)
 
 text_sym   = values.W_Symbol.make("text")
 binary_sym = values.W_Symbol.make("binary")
@@ -162,7 +185,7 @@ def eofp(e):
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     port.file.close()
-    return return_multi_vals(vals, env, cont)    
+    return return_multi_vals(vals, env, cont)
 
 def open_infile(str, mode):
     s = str.value
@@ -199,6 +222,37 @@ def with_output_to_file(s, proc, env, cont):
     return call_with_extended_paramz(proc, [], [current_out_param], [port], 
                                      env, close_cont(port, env, cont))
 
+
+@expose("file-position")
+def file_position(args):
+    if len(args) == 1:
+        w_port = args[0]
+        assert isinstance(w_port, values.W_Port)
+        told = w_port.tell()
+        assert told >= 0
+        return values.W_Integer.frombigint(
+            rbigint.fromrarith_int(told))
+    elif len(args) == 2:
+        w_port = args[0]
+        assert isinstance(w_port, values.W_Port)
+        w_offset = args[1]
+        if isinstance(w_offset, values.W_Fixnum):
+            assert w_offset.value >= 0
+            w_port.seek(w_offset.value)
+        elif isinstance(w_offset, values.W_Bignum):
+            v = w_offset.value.tolonglong()
+            w_port.seek(v)
+        elif w_offset is values.eof_object:
+            w_port.seek(0, end=True)
+        else:
+            assert 0
+        return values.w_void
+
+
+    raise SchemeException(
+        "printf expected one or two arguments, got %s" % len(args))
+
+###############################################################################
 @expose("display", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def display(datum, out, env, cont):
     return do_print(datum.tostring(), out, env, cont)

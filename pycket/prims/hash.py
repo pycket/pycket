@@ -29,7 +29,7 @@ def make_weak_hasheq():
     # FIXME: not actually weak
     return W_EqvHashTable([], [])
 
-@expose("make-immutable-hash", [default(values.W_Object, None)])
+@expose("make-immutable-hash", [default(values.W_Object, values.w_null)])
 def make_immutable_hash(assocs):
     # FIXME: Not annotated as immutable
     lsts = values.from_list(assocs)

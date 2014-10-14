@@ -125,3 +125,18 @@ def test_hash_tableau(doctest):
     > (hash-ref ht2 (cons 'a 'b) 2)
     1
     """
+
+def test_default_hash(source):
+    """
+    (let ()
+    (make-weak-hasheq)
+    (make-immutable-hash)
+    (make-hash)
+    (make-hasheq)
+    (make-hasheqv)
+    #t)
+    """
+    from pycket.test.testhelper import run_mod_expr
+    from pycket.values import w_true
+    result = run_mod_expr(source, wrap=True)
+    assert result is w_true
