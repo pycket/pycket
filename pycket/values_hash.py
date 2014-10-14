@@ -160,6 +160,8 @@ def _find_strategy_class(keys):
         return FixnumHashmapStrategy.singleton
     if single_class is values.W_Symbol:
         return SymbolHashmapStrategy.singleton
+    if single_class is values.W_String:
+        return StringHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
 
 class UnwrappedHashmapStrategyMixin(object):
@@ -237,6 +239,8 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = FixnumHashmapStrategy.singleton
         elif type(w_key) is values.W_Symbol:
             strategy = SymbolHashmapStrategy.singleton
+        elif type(w_key) is values.W_String:
+            strategy = StringHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton
         storage = strategy.create_storage([], [])
@@ -301,6 +305,24 @@ class SymbolHashmapStrategy(HashmapStrategy):
     def unwrap(self, w_val):
         assert isinstance(w_val, values.W_Symbol)
         return w_val
+
+
+class StringHashmapStrategy(HashmapStrategy):
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("string-hashmap-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_String)
+
+    def wrap(self, val):
+        return values.W_String(val)
+
+    def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_String)
+        return w_val.value
 
 
 class W_EqualHashTable(W_HashTable):
