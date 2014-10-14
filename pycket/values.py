@@ -14,6 +14,7 @@ from pycket.base              import W_Object
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
+from rpython.rlib.debug import check_list_of_chars
 
 UNROLLING_CUTOFF = 5
 
@@ -717,8 +718,9 @@ class W_Bytes(W_Object):
 
     def __init__(self, bs, immutable=True):
         assert bs is not None
-        self.value = bs
+        self.value = check_list_of_chars(bs)
         self.imm   = immutable
+
     def tostring(self):
         return "#\"%s\"" % "".join(self.value)
 
