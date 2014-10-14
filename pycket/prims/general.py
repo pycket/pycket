@@ -1054,7 +1054,7 @@ def path2string(p):
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
-    return values.W_Bytes(p.path)
+    return values.W_Bytes.from_string(p.path)
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
@@ -1203,7 +1203,7 @@ def build_path(args):
     r = ""
     for a in args:
         if isinstance(a, values.W_Bytes):
-            r = r + a.value
+            r = r + str(a.value)
         elif isinstance(a, values.W_String):
             r = r + a.value
         elif isinstance(a, values.W_Path):

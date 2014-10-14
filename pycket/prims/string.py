@@ -291,7 +291,8 @@ def bytes_append(args):
     val = [' '] * lens # is this the fastest way to do things?
     cnt = 0
     for a in args:
-        for b in a:
+        assert isinstance(a, values.W_Bytes)
+        for b in a.value:
             val[cnt] = b
             cnt += 1
 
@@ -327,12 +328,13 @@ def unsafe_bytes_set_bang(s, n, v):
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
     l = values.from_list(w_list)
-    for x in l:
+    ll = [' '] * len(l)
+    for (i,x) in enumerate(l):
         if not isinstance(x, values.W_Fixnum):
             raise SchemeException("list->bytes: expected fixnum, got %s"%x)
         if x.value < 0 or x.value >= 256:
             raise SchemeException("list->bytes: expected number between 0 and 255, got %s"%x)
-    ll = [chr(x.value) for x in l]
+        ll[i] = chr(x.value)
     return values.W_Bytes(ll, immutable=False)
 
 @expose("subbytes",
