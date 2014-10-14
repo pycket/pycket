@@ -39,9 +39,16 @@ def make_weak_hasheq():
 
 @expose("make-immutable-hash", [default(values.W_Object, None)])
 def make_immutable_hash(assocs):
-    raise NotImplementedError()
-    # FIXME: not impelemented
-    return W_EqvHashTable([], [])
+    # FIXME: Not annotated as immutable
+    lsts = values.from_list(pairs)
+    keys = []
+    vals = []
+    for lst in lsts:
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("make-hash: expected list of pairs")
+        keys.append(lst.car())
+        vals.append(lst.cdr())
+    return W_EqualHashTable(keys, vals)
 
 @expose("hash")
 def hash(args):
