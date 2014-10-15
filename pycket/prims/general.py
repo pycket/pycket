@@ -497,12 +497,7 @@ def procedure_arity_includes(proc, k, kw_ok):
         if at_least != -1 and k_val >= at_least:
             return values.w_true
     elif isinstance(k, values.W_Bignum):
-        k_val = k.value
-        for item in ls:
-            if k_val.eq(rbigint.fromint(item)):
-                return values.w_true
-        if at_least != -1 and k_val.ge(rbigint.fromint(at_least)):
-            return values.w_true
+        raise NotImplementedError()
     return values.w_false
 
 # FIXME: implementation
