@@ -11,18 +11,22 @@ from pycket.prims.expose import default, expose, procedure, define_nyi
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
-    items = h.hash_items()
     return return_value(values.w_void, env,
-            hash_for_each_cont(f, items, h, 0, env, cont))
+            hash_for_each_cont(f, h, 0, env, cont))
 
 @continuation
-def hash_for_each_cont(f, items, ht, n, env, cont, _vals):
+def hash_for_each_cont(f, ht, index, env, cont, _vals):
     from pycket.interpreter import return_value
-    if n == len(items):
+    nextindex = index + 1
+    try:
+        w_key, w_value = ht.get_item(index)
+    except KeyError:
+        return return_value(values.w_void, env,
+                hash_for_each_cont(f, ht, nextindex, env, cont))
+    except IndexError:
         return return_value(values.w_void, env, cont)
-    after = hash_for_each_cont(f, items, ht, n + 1, env, cont)
-    k, v = items[n]
-    return f.call([k, v], env, after)
+    after = hash_for_each_cont(f, ht, nextindex, env, cont)
+    return f.call([w_key, w_value], env, after)
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():

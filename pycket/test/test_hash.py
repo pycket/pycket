@@ -165,3 +165,23 @@ def test_default_hash(source):
     from pycket.values import w_true
     result = run_mod_expr(source, wrap=True)
     assert result is w_true
+
+def test_get_item():
+    from rpython.rtyper.test.test_llinterp import interpret, get_interpreter
+    from pycket.values_hash import get_dict_item
+    def tg(a, b, c, d):
+        dct = {str(a): b, str(c): d}
+        i = 0
+        while 1:
+            print i
+            try:
+                x, y = get_dict_item(dct, i)
+                print x, y
+                assert (x == str(a) and y == b) or (x == str(c) and y == d)
+            except KeyError:
+                pass
+            except IndexError:
+                break
+            i += 1
+    tg("1", 2, "3", 4)
+    interpret(tg, [1, 2, 334, 4])

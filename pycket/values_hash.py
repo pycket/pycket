@@ -24,6 +24,10 @@ class W_HashTable(W_Object):
     def length(self):
         raise NotImplementedError("abstract method")
 
+    def get_item(self, i):
+        # see get_dict_item at the bottom of the file for the interface
+        raise NotImplementedError("abstract method")
+
 
 class W_SimpleHashTable(W_HashTable):
     _attrs_ = ['data']
@@ -72,6 +76,9 @@ class W_EqvHashTable(W_SimpleHashTable):
     def cmp_value(a, b):
         return a.eqv(b)
 
+    def get_item(self, i):
+        return get_dict_item(self.data, i)
+
 class W_EqHashTable(W_SimpleHashTable):
     @staticmethod
     def hash_value(k):
@@ -86,6 +93,9 @@ class W_EqHashTable(W_SimpleHashTable):
     def cmp_value(a, b):
         from pycket.prims.equal import eqp_logic
         return eqp_logic(a, b)
+
+    def get_item(self, i):
+        return get_dict_item(self.data, i)
 
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
@@ -136,6 +146,9 @@ class HashmapStrategy(object):
         raise NotImplementedError("abstract base class")
 
     def items(self, w_dict):
+        raise NotImplementedError("abstract base class")
+
+    def get_item(self, w_dict, i):
         raise NotImplementedError("abstract base class")
 
     def length(self, w_dict):
@@ -189,6 +202,10 @@ class UnwrappedHashmapStrategyMixin(object):
     def items(self, w_dict):
         return [(self.wrap(key), w_val) for key, w_val in self.unerase(w_dict.hstorage).iteritems()]
 
+    def get_item(self, w_dict, i):
+        key, w_val = get_dict_item(self.unerase(w_dict.hstorage), i)
+        return self.wrap(key), w_val
+
     def length(self, w_dict):
         return len(self.unerase(w_dict.hstorage))
 
@@ -229,6 +246,9 @@ class EmptyHashmapStrategy(HashmapStrategy):
     def items(self, w_dict):
         return []
 
+    def get_item(self, w_dict, i):
+        raise IndexError
+
     def length(self, w_dict):
         return 0
 
@@ -266,6 +286,12 @@ class ObjectHashmapStrategy(HashmapStrategy):
 
     def items(self, w_dict):
         return self.unerase(w_dict.hstorage)
+
+    def get_item(self, w_dict, i):
+        try:
+            return self.unerase(w_dict.hstorage)[i]
+        except IndexError:
+            raise
 
     def length(self, w_dict):
         return len(self.unerase(w_dict.hstorage))
@@ -379,10 +405,61 @@ class W_EqualHashTable(W_HashTable):
     def hash_ref(self, key, env, cont):
         return self.strategy.get(self, key, env, cont)
 
+    def get_item(self, i):
+        return self.strategy.get_item(self, i)
+
     def length(self):
         return self.strategy.length(self)
 
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
+
+
+
+def get_dict_item(d, i):
+    """ return item of dict d at position i. Raises a KeyError if the index
+    carries no valid entry. Raises IndexError if the index is beyond the end of
+    the dict. """
+    return d.items()[i]
+
+def ll_get_dict_item(RES, dict, i):
+    from rpython.rtyper.lltypesystem import lltype
+    from rpython.rtyper.lltypesystem.rdict import recast
+    entries = dict.entries
+    entries_len = len(entries)
+    assert i >= 0
+    if i >= entries_len:
+        raise IndexError
+    if entries.valid(i):
+        r = lltype.malloc(RES.TO)
+        r.item0 = recast(RES.TO.item0, entries[i].key)
+        r.item1 = recast(RES.TO.item1, entries[i].value)
+        return r
+    else:
+        raise KeyError
+
+from rpython.rtyper.extregistry import ExtRegistryEntry
+
+
+class Entry(ExtRegistryEntry):
+    _about_ = get_dict_item
+
+    def compute_result_annotation(self, s_d, s_i):
+        from rpython.annotator.model import SomeTuple, SomeInteger
+        s_key = s_d.dictdef.dictkey.s_value
+        s_value = s_d.dictdef.dictvalue.s_value
+        return SomeTuple([s_key, s_value])
+
+    def specialize_call(self, hop):
+        from rpython.rtyper.lltypesystem import lltype
+        # somewhat evil hackery
+        dictrepr = hop.rtyper.getrepr(hop.args_s[0])
+        v_dict, v_index = hop.inputargs(dictrepr, lltype.Signed)
+        r_tuple = hop.rtyper.getrepr(hop.s_result)
+        cTUPLE = hop.inputconst(lltype.Void, r_tuple.lowleveltype)
+        hop.exception_is_here()
+        v_res = hop.gendirectcall(ll_get_dict_item, cTUPLE, v_dict, v_index)
+        return v_res
+
 
