@@ -4,6 +4,7 @@
 # A place for regression tests
 #
 
+import pytest
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
@@ -39,6 +40,7 @@ class TestRegressions(object):
         ret = run_mod_expr(source, wrap=True)
         assert ret.equal(w_list)
 
+    @pytest.mark.xfail
     def test_regexp_args(self, doctest):
         """
         > (regexp-match #rx"^-$" "/")

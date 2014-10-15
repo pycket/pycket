@@ -197,3 +197,8 @@ def expose_val(name, w_v):
     if sym in prim_env:
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
+
+def define_nyi(name, prim_args=None, *args, **kwargs):
+    @expose(name, prim_args, nyi=True, *args, **kwargs)
+    def nyi(a):
+        pass

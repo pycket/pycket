@@ -11,7 +11,7 @@ from pycket import values_hash
 from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method)
+                                 procedure, make_call_method, define_nyi)
 from rpython.rlib import jit
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
@@ -140,14 +140,14 @@ def syntax_tainted(v):
 def syntax_to_datum(stx):
     return stx.val
 
-# FIXME: implementation
-@expose("datum->syntax", [values.W_Object, values.W_Object,
-  default(values.W_Object, None), default(values.W_Object, None),
-  default(values.W_Object, None)])
-def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
-    raise NotImplementedError()
-    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
-    return values.W_Syntax(v)
+define_nyi("datum->syntax")
+# @expose("datum->syntax", [values.W_Object, values.W_Object,
+#   default(values.W_Object, None), default(values.W_Object, None),
+#   default(values.W_Object, None)])
+# def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
+#     raise NotImplementedError()
+#     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
+#     return values.W_Syntax(v)
 
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
@@ -324,10 +324,6 @@ date_star_struct = define_struct("date*", date_struct,
 
 arity_at_least = define_struct("arity-at-least", values.w_null, ["value"])
 
-def define_nyi(name, args=None):
-    @expose(name, args, nyi=True)
-    def nyi(args):
-        pass
 
 for args in [ ("subprocess?",),
               ("file-stream-port?",),
@@ -386,6 +382,8 @@ for args in [ ("subprocess?",),
               ("impersonate-channel",),
               ]:
     define_nyi(*args)
+
+
 
 @expose("object-name", [values.W_Object])
 def object_name(v):
@@ -501,11 +499,12 @@ def procedure_arity_includes(proc, k, kw_ok):
             return values.w_true
     return values.w_false
 
-# FIXME: implementation
-@expose("procedure-struct-type?", [values_struct.W_StructType])
-def do_is_procedure_struct_type(type):
-    raise NotImplementedError()
-    return values.w_false
+
+define_nyi("procedure-struct-type?")
+# @expose("procedure-struct-type?", [values_struct.W_StructType])
+# def do_is_procedure_struct_type(type):
+#     raise NotImplementedError()
+#     return values.w_false
 
 @expose("variable-reference-constant?",
         [values.W_VariableReference], simple=False)
@@ -567,10 +566,10 @@ def cont_prompt_tag(args):
     return values.w_false
 
 # FIXME: implementation
-@expose("dynamic-wind")
-def dynamic_wind(args):
-    raise NotImplementedError()
-    return values.w_false
+define_nyi("dynamic-wind")
+# def dynamic_wind(args):
+#     raise NotImplementedError()
+#     return values.w_false
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
@@ -922,10 +921,10 @@ def ephemeron_value(ephemeron, default):
     return v if v is not None else default
 
 # FIXME: implementation
-@expose("make-reader-graph", [values.W_Object])
-def make_reader_graph(val):
-    raise NotImplementedError()
-    return val
+define_nyi("make-reader-graph", [values.W_Object])
+# def make_reader_graph(val):
+#     raise NotImplementedError()
+#     return val
 
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
@@ -1174,31 +1173,31 @@ def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.value)
 
-@expose("regexp-match", [values.W_Object, values.W_Object])
-def regexp_match(r, o):
-     # FIXME: more error checking
-    assert isinstance(r, values.W_AnyRegexp) \
-        or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-        or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-    return values.w_false # Back to one problem
+define_nyi("regexp-match", [values.W_Object, values.W_Object])
+# def regexp_match(r, o):
+#      # FIXME: more error checking
+#     assert isinstance(r, values.W_AnyRegexp) \
+#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
+#     return values.w_false # Back to one problem
 
-@expose("regexp-match?", [values.W_Object, values.W_Object])
-def regexp_matchp(r, o):
-    # FIXME: more error checking
-    assert isinstance(r, values.W_AnyRegexp) \
-        or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-    assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-        or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-    # ack, this is wrong
-    return values.w_true # Back to one problem
+define_nyi("regexp-match?", [values.W_Object, values.W_Object])
+# def regexp_matchp(r, o):
+#     # FIXME: more error checking
+#     assert isinstance(r, values.W_AnyRegexp) \
+#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
+#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
+#     # ack, this is wrong
+#     return values.w_true # Back to one problem
 
 # FIXME: implementation
-@expose("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
+define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
                            default(values.W_Bytes, None)])
-def regexp_replace(pattern, input, insert, input_prefix):
-    raise NotImplementedError()
-    return input
+# def regexp_replace(pattern, input, insert, input_prefix):
+#     raise NotImplementedError()
+#     return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1257,11 +1256,10 @@ def raise_arg_err(args):
         i += 2
     raise SchemeException(error_msg.build())
 
-# FIXME: implementation
-@expose("error-escape-handler", [default(values.W_Object, None)])
-def do_error_escape_handler(proc):
-    raise NotImplementedError()
-    return values.w_void
+define_nyi("error-escape-handler", [default(values.W_Object, None)])
+# def do_error_escape_handler(proc):
+#     raise NotImplementedError()
+#     return values.w_void
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):

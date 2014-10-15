@@ -460,7 +460,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
 
     res = w_port.read(n)
     reslen = len(res)
-    
+
     # shortcut without allocation when complete replace
     if start == 0 and stop == len(w_bstr.value) and reslen == n:
         w_bstr.value = list(res)
@@ -468,13 +468,9 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
 
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
-        
-    assert 0 # FIXME
-    # builder = StringBuilder()
-    # builder.append_slice(w_bstr.value, 0, start)
-    # builder.append(res)
-    # builder.append_slice(w_bstr.value, start+reslen, len(w_bstr.value))
-    # w_bstr.value = builder.build()
+
+    for i in range(0, reslen):
+        w_bstr.value[start + i] = res[i]
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
