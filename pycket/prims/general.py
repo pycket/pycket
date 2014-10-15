@@ -482,7 +482,6 @@ def do_is_procedure_arity(n):
 
 @expose("procedure-arity-includes?",
         [procedure, values.W_Integer, default(values.W_Object, values.w_false)])
-@jit.unroll_safe
 def procedure_arity_includes(proc, k, kw_ok):
     if kw_ok is values.w_false:
         if isinstance(proc, values_struct.W_RootStruct):
@@ -497,7 +496,12 @@ def procedure_arity_includes(proc, k, kw_ok):
         if at_least != -1 and k_val >= at_least:
             return values.w_true
     elif isinstance(k, values.W_Bignum):
-        raise NotImplementedError()
+        k_val = k.value
+        for item in ls:
+            if k_val.eq(rbigint.fromint(item)):
+                return values.w_true
+        if at_least != -1 and k_val.ge(rbigint.fromint(at_least)):
+            return values.w_true
     return values.w_false
 
 # FIXME: implementation
