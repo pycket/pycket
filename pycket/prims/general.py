@@ -13,6 +13,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, make_call_method)
 from rpython.rlib import jit
+from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
@@ -480,7 +481,7 @@ def do_is_procedure_arity(n):
     return values.w_false
 
 @expose("procedure-arity-includes?",
-        [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
+        [procedure, values.W_Integer, default(values.W_Object, values.w_false)])
 @jit.unroll_safe
 def procedure_arity_includes(proc, k, kw_ok):
     if kw_ok is values.w_false:
@@ -488,12 +489,20 @@ def procedure_arity_includes(proc, k, kw_ok):
             for w_prop, w_prop_val in proc.struct_type().props:
                   if w_prop.isinstance(values_struct.w_prop_incomplete_arity):
                       return values.w_false
-    k_val = k.value
     (ls, at_least) = proc.get_arity()
-    if k_val in ls:
-        return values.w_true
-    if at_least != -1 and k_val >= at_least:
-        return values.w_true
+    if isinstance(k, values.W_Fixnum):
+        k_val = k.value
+        if k_val in ls:
+            return values.w_true
+        if at_least != -1 and k_val >= at_least:
+            return values.w_true
+    elif isinstance(k, values.W_Bignum):
+        k_val = k.value
+        for item in ls:
+            if k_val.eq(rbigint.fromint(item)):
+                return values.w_true
+        if at_least != -1 and k_val.ge(rbigint.fromint(at_least)):
+            return values.w_true
     return values.w_false
 
 # FIXME: implementation
