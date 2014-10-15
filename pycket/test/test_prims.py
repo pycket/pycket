@@ -442,8 +442,8 @@ def test_procedure_arity_includes(doctest):
     #t
     > (procedure-arity-includes? display 3)
     #f
-    ;> (procedure-arity-includes? (lambda (x #:y y) x) 1)
-    ;#f
+    > (procedure-arity-includes? (lambda (x #:y y) x) 1)
+    #f
     > (procedure-arity-includes? (lambda (x #:y y) x) 1 #t)
     #t
     """

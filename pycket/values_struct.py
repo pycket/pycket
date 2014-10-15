@@ -459,6 +459,25 @@ class W_RootStruct(values.W_Object):
         args = [self] + args
         return self.checked_call(proc, args, env, cont)
 
+    def get_arity(self):
+        if self.iscallable():
+            typ = self.struct_type()
+            proc = typ.prop_procedure
+            if isinstance(proc, values.W_Fixnum):
+                offset = typ.get_offset(typ.procedure_source)
+                proc = self._get_list(proc.value + offset)
+                return proc.get_arity()
+            else:
+                # -1 for the self argument
+                (ls, at_least) = proc.get_arity()
+                for i, val in enumerate(ls):
+                    ls[i] = val - 1
+                if at_least != -1:
+                    at_least -= 1
+                return (ls, at_least)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
+
     def struct_type(self):
         raise NotImplementedError("abstract base class")
 
@@ -748,6 +767,7 @@ class W_StructProperty(values.W_Object):
 w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
+w_prop_incomplete_arity = W_StructProperty(values.W_Symbol.make("prop:incomplete-arity"), values.w_false)
 w_prop_custom_write = W_StructProperty(values.W_Symbol.make("prop:custom-write"), values.w_false)
 w_prop_equal_hash = W_StructProperty(values.W_Symbol.make("prop:equal+hash"), values.w_false)
 w_prop_chaperone_unsafe_undefined = W_StructProperty(values.W_Symbol.make("prop:chaperone-unsafe-undefined"), values.w_false)

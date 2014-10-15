@@ -167,14 +167,14 @@ for name in ["prop:evt",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:exn:srclocs",
-             "prop:custom-print-quotable",
-             "prop:incomplete-arity"]:
+             "prop:custom-print-quotable"]:
     expose_val(name, values_struct.W_StructProperty(
         values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
+expose_val("prop:incomplete-arity", values_struct.w_prop_incomplete_arity)
 expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
@@ -479,18 +479,20 @@ def do_is_procedure_arity(n):
         return values.w_true
     return values.w_false
 
-@expose("procedure-arity-includes?", [procedure, values.W_Number,
-  default(values.W_Object, values.w_false)])
+@expose("procedure-arity-includes?",
+        [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
 @jit.unroll_safe
-def procedure_arity_includes(p, n, w_kw_ok):
-    # for now, ignore kw_ok
-    if not isinstance(n, values.W_Fixnum):
-        return values.w_false # valid arities are always small integers
-    n_val = n.value
-    (ls, at_least) = p.get_arity()
-    for i in ls:
-        if n_val == i: return values.w_true
-    if at_least != -1 and n_val >= at_least:
+def procedure_arity_includes(proc, k, kw_ok):
+    if kw_ok is values.w_false:
+        if isinstance(proc, values_struct.W_RootStruct):
+            for w_prop, w_prop_val in proc.struct_type().props:
+                  if w_prop.isinstance(values_struct.w_prop_incomplete_arity):
+                      return values.w_false
+    k_val = k.value
+    (ls, at_least) = proc.get_arity()
+    if k_val in ls:
+        return values.w_true
+    if at_least != -1 and k_val >= at_least:
         return values.w_true
     return values.w_false
 
