@@ -1312,7 +1312,7 @@ eof_object = W_EOF()
 class W_Port(W_Object):
     errorname = "port"
     def tostring(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def close(self):
         self.closed = True
     def __init__(self):
@@ -1327,9 +1327,9 @@ class W_OutputPort(W_Port):
     def __init__(self):
         pass
     def write(self, str):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def flush(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def tostring(self):
         return "#<output-port>"
 
@@ -1359,9 +1359,9 @@ class W_StringOutputPort(W_OutputPort):
 class W_InputPort(W_Port):
     errorname = "input-port"
     def read(self, n):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract class")
     def readline(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract class")
     def tostring(self):
         return "#<input-port>"
 
