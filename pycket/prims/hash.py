@@ -28,6 +28,35 @@ def hash_for_each_cont(f, ht, index, env, cont, _vals):
     after = hash_for_each_cont(f, ht, nextindex, env, cont)
     return f.call([w_key, w_value], env, after)
 
+
+@expose("hash-map", [W_HashTable, procedure], simple=False)
+def hash_map(h, f, env, cont):
+    from pycket.interpreter import return_value
+    acc = values.w_null
+    return return_value(None, env,
+            hash_map_cont(f, h, 0, acc, env, cont))
+
+@continuation
+def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
+    from pycket.interpreter import return_value
+    vals = vals._get_full_list()
+    if len(vals) != 1:
+        raise SchemeException("hash-map: wrong number of results")
+    w_val, = vals
+    if w_val is not None:
+        w_acc = values.W_Cons.make(w_val, w_acc)
+    nextindex = index + 1
+    try:
+        w_key, w_value = ht.get_item(index)
+    except KeyError:
+        return return_value(None, env,
+                hash_map_cont(f, ht, nextindex, w_acc, env, cont))
+    except IndexError:
+        return return_value(w_acc, env, cont)
+    after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
+    return f.call([w_key, w_value], env, after)
+
+
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
@@ -151,11 +180,6 @@ define_nyi("hash-clear", [W_HashTable])
 # def hash_clear(hash):
 #     raise NotImplementedError()
 #     return W_EqvHashTable([], [])
-
-define_nyi("hash-map", [W_HashTable, values.W_Object])
-# def hash_map(hash, proc):
-#     raise NotImplementedError()
-#     return hash
 
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):

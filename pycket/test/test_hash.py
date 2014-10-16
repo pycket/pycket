@@ -121,6 +121,17 @@ def test_hash_for_each(doctest):
     21
     """
 
+def test_hash_map(doctest):
+    """
+    ! (define h #hash((1 . 2) (2 . 3) (3 . 4)))
+    ! (define s (hash-map h (lambda (k v) (+ k v))))
+    > s
+    > (or (equal? s '(3 5 7)) (equal? s '(3 7 5))
+          (equal? s '(5 3 7)) (equal? s '(5 7 3))
+          (equal? s '(7 3 5)) (equal? s '(7 5 3)))
+    #t
+    """
+
 def test_use_equal(doctest):
     """
     ! (define ht (make-hash))
