@@ -300,9 +300,8 @@ def bytes_append(args):
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        for b in a.value:
-            val[cnt] = b
-            cnt += 1
+        val[cnt:cnt+len(a.value)] = a.value
+        cnt += len(a.value)
 
     return values.W_Bytes(val, immutable=False)
 
