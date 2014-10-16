@@ -455,7 +455,7 @@ class W_RootStruct(values.W_Object):
         proc = typ.prop_procedure
         if isinstance(proc, values.W_Fixnum):
             return self.ref(typ.procedure_source, proc.value, env,
-                    self.receive_proc_cont(args, env, cont))
+                self.receive_proc_cont(args, env, cont))
         args = [self] + args
         return self.checked_call(proc, args, env, cont)
 
@@ -474,7 +474,7 @@ class W_RootStruct(values.W_Object):
                     ls[i] = val - 1
                 if at_least != -1:
                     at_least -= 1
-                return (ls, at_least)
+                return ([val for val in ls if val != -1], at_least)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 
