@@ -134,7 +134,8 @@ class W_StructType(values.W_Object):
         prop_val = p.cdr()
         if sub_prop is None:
             if prop.isinstance(w_prop_procedure):
-                if self.prop_procedure is not None and self.prop_procedure != prop_val:
+                if self.prop_procedure is not None and\
+                    self.prop_procedure is not prop_val:
                     raise SchemeException(
                         "make-struct-type: duplicate property binding\nproperty: %s" %
                             prop.tostring())
