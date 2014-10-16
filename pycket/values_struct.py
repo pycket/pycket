@@ -112,6 +112,8 @@ class W_StructType(values.W_Object):
             if not is_checked and prop.guard.iscallable():
                 return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
                     env, self.save_prop_value(props, idx, True, env, cont))
+            if prop.isinstance(w_prop_procedure):
+                self.prop_procedure = prop_val
             self.props.append((prop, prop_val))
             return self.attach_prop(props, idx + 1, False, env, cont)
         # at this point all properties are saved, next step is to copy
@@ -132,8 +134,10 @@ class W_StructType(values.W_Object):
         prop_val = p.cdr()
         if sub_prop is None:
             if prop.isinstance(w_prop_procedure):
-                if self.prop_procedure is not None:
-                    raise SchemeException("duplicate property binding")
+                if self.prop_procedure is not None and self.prop_procedure != prop_val:
+                    raise SchemeException(
+                        "make-struct-type: duplicate property binding\nproperty: %s" %
+                            prop.tostring())
                 self.prop_procedure = prop_val
                 self.procedure_source = self
             elif prop.isinstance(w_prop_checked_procedure):
@@ -797,7 +801,11 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         arg = args[0]
-        if isinstance(arg, W_RootStruct):
+        if isinstance(arg, W_StructType):
+            for p, val in arg.props:
+                if p is self.property:
+                    return return_value(val, env, cont)
+        elif isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
         elif len(args) > 1:
             failure_result = args[1]

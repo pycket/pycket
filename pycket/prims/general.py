@@ -499,12 +499,19 @@ def procedure_arity_includes(proc, k, kw_ok):
             return values.w_true
     return values.w_false
 
+@expose("procedure-struct-type?", [values_struct.W_StructType])
+def do_is_procedure_struct_type(struct_type):
+    return values.W_Bool.make(struct_type.prop_procedure is not None)
 
-define_nyi("procedure-struct-type?")
-# @expose("procedure-struct-type?", [values_struct.W_StructType])
-# def do_is_procedure_struct_type(type):
-#     raise NotImplementedError()
-#     return values.w_false
+@expose("procedure-extract-target", [procedure], simple=False)
+def do_procedure_extract_target(proc, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(proc, values_struct.W_RootStruct):
+        prop_procedure = proc.struct_type().prop_procedure
+        procedure_source = proc.struct_type().procedure_source
+        if isinstance(prop_procedure, values.W_Fixnum):
+            return proc.ref(procedure_source, prop_procedure.value, env, cont)
+    return return_value(values.w_false, env, cont)
 
 @expose("variable-reference-constant?",
         [values.W_VariableReference], simple=False)
