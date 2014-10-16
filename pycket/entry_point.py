@@ -15,7 +15,8 @@ def entry_point(argv):
     try:
         return actual_entry(argv)
     except SchemeException, e:
-        print "ERROR:", e.msg
+        print "ERROR:"
+        print e.format_error()
         raise # to see interpreter-level traceback
 
 def actual_entry(argv):
