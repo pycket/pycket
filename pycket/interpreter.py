@@ -1111,6 +1111,8 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+        if not config.callgraph:
+            self.body[0].should_enter = True
 
     def enable_jitting(self):
         if config.log_callgraph:
