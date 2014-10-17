@@ -5,7 +5,7 @@ from pycket              import values
 from pycket              import values_struct
 from pycket.cont         import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
@@ -189,5 +189,11 @@ def procedure_closure_contents_eq(a, b):
 
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
-    return values.W_Bool.make(a.eqv(b))
+    res = a.eqv(b)
+    if not objectmodel.we_are_translated() and res:
+        # this is a useful sanity check during testing:
+        # check that the following invarinat is true:
+        # a.eqv(b) => a.hash_eqv() == b.hash_eqv()
+        assert a.hash_eqv() == b.hash_eqv()
+    return values.W_Bool.make(res)
 

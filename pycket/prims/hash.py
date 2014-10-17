@@ -6,31 +6,56 @@ from pycket.values_hash  import (
     W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable)
 from pycket.cont         import continuation
 from pycket.error        import SchemeException
-from pycket.prims.expose import default, expose, procedure
+from pycket.prims.expose import default, expose, procedure, define_nyi
 
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
-    items = h.hash_items()
     return return_value(values.w_void, env,
-            hash_for_each_cont(f, items, h, 0, env, cont))
+            hash_for_each_cont(f, h, 0, env, cont))
 
 @continuation
-def get_result_cont(f, items, ht, n, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
-    val = check_one_val(_vals)
-    after = hash_for_each_cont(f, items, ht, n + 1, env, cont)
-    if val is None:
-        return return_value(values.w_void, env, after)
-    return f.call([items[n][0], val], env, after)
-
-@continuation
-def hash_for_each_cont(f, items, ht, n, env, cont, _vals):
+def hash_for_each_cont(f, ht, index, env, cont, _vals):
     from pycket.interpreter import return_value
-    if n == len(items):
+    nextindex = index + 1
+    try:
+        w_key, w_value = ht.get_item(index)
+    except KeyError:
+        return return_value(values.w_void, env,
+                hash_for_each_cont(f, ht, nextindex, env, cont))
+    except IndexError:
         return return_value(values.w_void, env, cont)
-    k, v = items[n]
-    return return_value(v, env, get_result_cont(f, items, ht, n, env, cont))
+    after = hash_for_each_cont(f, ht, nextindex, env, cont)
+    return f.call([w_key, w_value], env, after)
+
+
+@expose("hash-map", [W_HashTable, procedure], simple=False)
+def hash_map(h, f, env, cont):
+    from pycket.interpreter import return_value
+    acc = values.w_null
+    return return_value(None, env,
+            hash_map_cont(f, h, 0, acc, env, cont))
+
+@continuation
+def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
+    from pycket.interpreter import return_value
+    vals = vals._get_full_list()
+    if len(vals) != 1:
+        raise SchemeException("hash-map: wrong number of results")
+    w_val, = vals
+    if w_val is not None:
+        w_acc = values.W_Cons.make(w_val, w_acc)
+    nextindex = index + 1
+    try:
+        w_key, w_value = ht.get_item(index)
+    except KeyError:
+        return return_value(None, env,
+                hash_map_cont(f, ht, nextindex, w_acc, env, cont))
+    except IndexError:
+        return return_value(w_acc, env, cont)
+    after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
+    return f.call([w_key, w_value], env, after)
+
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
@@ -114,11 +139,11 @@ def make_hasheqv(pairs):
 def hash_set_bang(ht, k, v, env, cont):
     return ht.hash_set(k, v, env, cont)
 
-@expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
-def hash_set(ht, k, v, env, cont):
-    raise NotImplementedError()
-    return ht.hash_set(k, v, env, cont)
-    #return ht
+define_nyi("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
+# def hash_set(ht, k, v, env, cont):
+#     raise NotImplementedError()
+#     return ht.hash_set(k, v, env, cont)
+#     #return ht
 
 @continuation
 def hash_ref_cont(default, env, cont, _vals):
@@ -136,75 +161,70 @@ def hash_ref_cont(default, env, cont, _vals):
 def hash_ref(ht, k, default, env, cont):
     return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
 
-@expose("hash-remove!", [W_HashTable, values.W_Object])
-def hash_remove_bang(hash, key):
-    raise NotImplementedError()
-    return hash
+define_nyi("hash-remove!", [W_HashTable, values.W_Object])
+# def hash_remove_bang(hash, key):
+#     raise NotImplementedError()
+#     return hash
 
-@expose("hash-remove", [W_HashTable, values.W_Object])
-def hash_remove(hash, key):
-    raise NotImplementedError()
-    return hash
+define_nyi("hash-remove", [W_HashTable, values.W_Object])
+# def hash_remove(hash, key):
+#     raise NotImplementedError()
+#     return hash
 
-@expose("hash-clear!", [W_HashTable])
-def hash_clear_bang(hash):
-    raise NotImplementedError()
-    return W_EqvHashTable([], [])
+define_nyi("hash-clear!", [W_HashTable])
+# def hash_clear_bang(hash):
+#     raise NotImplementedError()
+#     return W_EqvHashTable([], [])
 
-@expose("hash-clear", [W_HashTable])
-def hash_clear(hash):
-    raise NotImplementedError()
-    return W_EqvHashTable([], [])
-
-@expose("hash-map", [W_HashTable, values.W_Object])
-def hash_map(hash, proc):
-    raise NotImplementedError()
-    return hash
+define_nyi("hash-clear", [W_HashTable])
+# def hash_clear(hash):
+#     raise NotImplementedError()
+#     return W_EqvHashTable([], [])
 
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
 
-@expose("hash-iterate-first", [W_HashTable])
-def hash_iterate_first(hash):
-    raise NotImplementedError()
-    # if not hash.data:
-    #     return values.w_false
-    # else:
-    #     return hash.ref(0)
-    return values.w_false
+define_nyi("hash-iterate-first", [W_HashTable])
+# def hash_iterate_first(hash):
+#     raise NotImplementedError()
+#     # if not hash.data:
+#     #     return values.w_false
+#     # else:
+#     #     return hash.ref(0)
+#     return values.w_false
 
-@expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
-def hash_iterate_next(hash, pos):
-    raise NotImplementedError()
-    # next_pos = pos.value + 1
-    # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
-    return values.w_false
+define_nyi("hash-iterate-next", [W_HashTable, values.W_Fixnum])
+# def hash_iterate_next(hash, pos):
+#     raise NotImplementedError()
+#     # next_pos = pos.value + 1
+#     # return hash.ref(next_pos) if hash.ref(next_pos) is not None else values.w_false
+#     return values.w_false
 
-@expose("hash-iterate-key", [W_HashTable, values.W_Fixnum])
-def hash_iterate_key(hash, pos):
-    raise NotImplementedError()
-    # return hash.ref(pos.value)
-    return values.w_false
+define_nyi("hash-iterate-key", [W_HashTable, values.W_Fixnum])
+# def hash_iterate_key(hash, pos):
+#     raise NotImplementedError()
+#     # return hash.ref(pos.value)
+#     return values.w_false
 
-@expose("hash-iterate-value", [W_HashTable, values.W_Fixnum])
-def hash_iterate_value(hash, pos):
-    raise NotImplementedError()
-    # return hash.ref(pos.value)
-    return values.w_false
+define_nyi("hash-iterate-value", [W_HashTable, values.W_Fixnum])
+# def hash_iterate_value(hash, pos):
+#     raise NotImplementedError()
+#     # return hash.ref(pos.value)
+#     return values.w_false
 
-@expose("hash-copy", [W_HashTable])
-def hash_iterate_value(hash):
-    raise NotImplementedError()
-    # FIXME: implementation
-    return hash
+define_nyi("hash-copy", [W_HashTable])
+# def hash_iterate_value(hash):
+#     raise NotImplementedError()
+#     # FIXME: implementation
+#     return hash
 
-@expose("equal-hash-code", [values.W_Object])
-def equal_hash_code(v):
-    raise NotImplementedError()
-    return values.W_Fixnum(0)
+define_nyi("equal-hash-code", [values.W_Object])
+# def equal_hash_code(v):
+#     raise NotImplementedError()
+#     return values.W_Fixnum(0)
 
-@expose("equal-secondary-hash-code", [values.W_Object])
-def equal_hash_code(v):
-    raise NotImplementedError()
-    return values.W_Fixnum(0)
+define_nyi("equal-secondary-hash-code", [values.W_Object])
+# def equal_hash_code(v):
+#     raise NotImplementedError()
+#     return values.W_Fixnum(0)

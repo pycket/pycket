@@ -406,6 +406,17 @@ def test_bytes_comparison(doctest):
     #t
     """
 
+
+def test_bytes_append(doctest):
+    """
+    > (bytes-append #"Apple" #"Banana")
+    #"AppleBanana"
+    """
+def test_string_append(doctest):
+    """
+    > (string-append "Apple" "Banana")
+    "AppleBanana"
+    """
 ####################
 def test_procedure_arity(doctest):
     """
@@ -431,8 +442,8 @@ def test_procedure_arity_includes(doctest):
     #t
     > (procedure-arity-includes? display 3)
     #f
-    ;> (procedure-arity-includes? (lambda (x #:y y) x) 1)
-    ;#f
+    > (procedure-arity-includes? (lambda (x #:y y) x) 1)
+    #f
     > (procedure-arity-includes? (lambda (x #:y y) x) 1 #t)
     #t
     """
@@ -459,3 +470,36 @@ def test_system_path_convetion_type(source):
         assert sym == "windows"
     else:
         assert sym == "unix"
+
+def test_number_to_string(doctest):
+    """
+    > (number->string 10)
+    "10"
+    > (number->string -10)
+    "-10"
+    > (number->string -1.1)
+    "-1.1"
+    > (number->string -5.5)
+    "-5.5"
+    > (number->string -17+1i)
+    "-17+1i"
+    > (number->string -5/6)
+    "-5/6"
+    > (number->string 1 16)
+    "1"
+    > (number->string 10 16)
+    "a"
+    > (number->string 111 16)
+    "6f"
+    E (number->string 111 -164)
+    > (number->string -164 16)
+    "-a4"
+    E (number->string -164.3 16)
+    ;> (number->string -4/5 16)
+    ;"-4/5"
+    ;> (number->string -4/12311 16)
+    ;"-4/3017"
+    > (number->string 111111111111111111111111111111111111111111111111111111111111111111111111111111111 16)
+    "3bf9304450677dc5f60e4afde2a26b6546f195ed670022bc71c71c71c71c71c71c7"
+    """
+

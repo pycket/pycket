@@ -6,6 +6,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder
+from rpython.rlib import jit
 
 
 @expose("symbol->string", [values.W_Symbol])
@@ -42,9 +43,14 @@ def num2str(a, radix):
     else:
         if isinstance(a, values.W_Fixnum):
             if radix.value == 16:
-                return values.W_String(hex(a.value))
-            elif radix.value == 8:
-                return values.W_String(oct(a.value))
+                res = hex(a.value)
+                if a.value >= 0:
+                    res = res[2:]
+                else:
+                    res = "-" + res[3:]
+                return values.W_String(res)
+            #elif radix.value == 8:
+            #    return values.W_String(oct(a.value))
             # elif radix.value == 2:
             #     return values.W_String(bin(a.value))
             else:
@@ -58,6 +64,8 @@ def num2str(a, radix):
                 return values.W_String(a.value.format("01"))
             else:
                 raise SchemeException("number->string: radix unsupported")
+        elif isinstance(a, values.W_Flonum):
+            raise SchemeException("number->string: flonum only supports radix 10")
         else:
             assert 0 # not reached
 
@@ -155,8 +163,8 @@ def char_downcase(v):
 
 
 
-# FIXME: this implementation sucks
 @expose("string-append")
+@jit.unroll_safe
 def string_append(args):
     if not args:
         return values.W_String("")
@@ -292,9 +300,8 @@ def bytes_append(args):
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        for b in a.value:
-            val[cnt] = b
-            cnt += 1
+        val[cnt:cnt+len(a.value)] = a.value
+        cnt += len(a.value)
 
     return values.W_Bytes(val, immutable=False)
 
@@ -410,6 +417,16 @@ for a in [("bytes<?", op.lt),
           ("bytes>?", op.gt),
           ]:
     define_bytes_comp(*a)
+
+@expose(["bytes->string/locale",
+         "bytes->string/utf-8"], [values.W_Bytes,
+                                  default(values.W_Object, values.w_false),
+                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, None)])
+def string_to_bytes_locale(bytes, errbyte, start, end):
+    # FIXME: This ignores the locale
+    # FIXME: these are both wrong to some extend
+    return values.W_String(bytes.as_str())
 
 ################################################################################
 

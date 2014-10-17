@@ -112,6 +112,8 @@ class W_StructType(values.W_Object):
             if not is_checked and prop.guard.iscallable():
                 return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
                     env, self.save_prop_value(props, idx, True, env, cont))
+            if prop.isinstance(w_prop_procedure):
+                self.prop_procedure = prop_val
             self.props.append((prop, prop_val))
             return self.attach_prop(props, idx + 1, False, env, cont)
         # at this point all properties are saved, next step is to copy
@@ -132,8 +134,11 @@ class W_StructType(values.W_Object):
         prop_val = p.cdr()
         if sub_prop is None:
             if prop.isinstance(w_prop_procedure):
-                if self.prop_procedure is not None:
-                    raise SchemeException("duplicate property binding")
+                if self.prop_procedure is not None and\
+                    self.prop_procedure is not prop_val:
+                    raise SchemeException(
+                        "make-struct-type: duplicate property binding\nproperty: %s" %
+                            prop.tostring())
                 self.prop_procedure = prop_val
                 self.procedure_source = self
             elif prop.isinstance(w_prop_checked_procedure):
@@ -455,9 +460,28 @@ class W_RootStruct(values.W_Object):
         proc = typ.prop_procedure
         if isinstance(proc, values.W_Fixnum):
             return self.ref(typ.procedure_source, proc.value, env,
-                    self.receive_proc_cont(args, env, cont))
+                self.receive_proc_cont(args, env, cont))
         args = [self] + args
         return self.checked_call(proc, args, env, cont)
+
+    def get_arity(self):
+        if self.iscallable():
+            typ = self.struct_type()
+            proc = typ.prop_procedure
+            if isinstance(proc, values.W_Fixnum):
+                offset = typ.get_offset(typ.procedure_source)
+                proc = self._get_list(proc.value + offset)
+                return proc.get_arity()
+            else:
+                # -1 for the self argument
+                (ls, at_least) = proc.get_arity()
+                for i, val in enumerate(ls):
+                    ls[i] = val - 1
+                if at_least != -1:
+                    at_least -= 1
+                return ([val for val in ls if val != -1], at_least)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
 
     def struct_type(self):
         raise NotImplementedError("abstract base class")
@@ -748,6 +772,7 @@ class W_StructProperty(values.W_Object):
 w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
+w_prop_incomplete_arity = W_StructProperty(values.W_Symbol.make("prop:incomplete-arity"), values.w_false)
 w_prop_custom_write = W_StructProperty(values.W_Symbol.make("prop:custom-write"), values.w_false)
 w_prop_equal_hash = W_StructProperty(values.W_Symbol.make("prop:equal+hash"), values.w_false)
 w_prop_chaperone_unsafe_undefined = W_StructProperty(values.W_Symbol.make("prop:chaperone-unsafe-undefined"), values.w_false)
@@ -777,7 +802,11 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
         arg = args[0]
-        if isinstance(arg, W_RootStruct):
+        if isinstance(arg, W_StructType):
+            for p, val in arg.props:
+                if p is self.property:
+                    return return_value(val, env, cont)
+        elif isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
         elif len(args) > 1:
             failure_result = args[1]

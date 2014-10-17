@@ -9,12 +9,14 @@ from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
-from rpython.rlib.objectmodel import r_dict, compute_hash
+from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
+from rpython.rlib.rarithmetic import r_longlong, intmask
 from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
+from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized
 
 UNROLLING_CUTOFF = 5
 
@@ -427,6 +429,9 @@ class W_Number(W_Object):
     def eqv(self, other):
         return self.equal(other)
 
+    def hash_eqv(self):
+        return self.hash_equal()
+
 class W_Rational(W_Number):
     _immutable_fields_ = ["num", "den"]
     errorname = "rational"
@@ -486,6 +491,12 @@ class W_Rational(W_Number):
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
+    def hash_equal(self):
+        hash1 = self._numerator.hash()
+        hash2 = self._denominator.hash()
+        return rarithmetic.intmask(hash1 + 1000003 * hash2)
+
+
 class W_Integer(W_Number):
     errorname = "integer"
 
@@ -515,13 +526,19 @@ class W_Fixnum(W_Integer):
     def tostring(self):
         return str(self.value)
     def __init__(self, val):
-        assert isinstance(val, int)
+        if not we_are_translated():
+            # this is not safe during translation
+            assert isinstance(val, int)
         self.value = val
 
     def equal(self, other):
         if not isinstance(other, W_Fixnum):
             return False
         return self.value == other.value
+
+    def hash_equal(self):
+        return self.value
+
 
 @memoize_constructor
 class W_Flonum(W_Number):
@@ -540,6 +557,10 @@ class W_Flonum(W_Number):
             return False
         return self.value == other.value
 
+    def hash_equal(self):
+        return compute_hash(self.value)
+
+
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
     def tostring(self):
@@ -551,6 +572,9 @@ class W_Bignum(W_Integer):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
+
+    def hash_equal(self):
+        return self.value.hash()
 
 @memoize_constructor
 class W_Complex(W_Number):
@@ -566,6 +590,11 @@ class W_Complex(W_Number):
             return False
         return (self.real.equal(other.real) and
                 self.imag.equal(other.imag))
+
+    def hash_equal(self):
+        hash1 = compute_hash(self.real)
+        hash2 = compute_hash(self.imag)
+        return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def tostring(self):
         return "%s+%si" % (self.real.tostring(), self.imag.tostring())
@@ -589,6 +618,11 @@ class W_Character(W_Object):
             return False
         return self.value == other.value
     eqv = equal
+
+    def hash_eqv(self):
+        return ord(self.value)
+    hash_equal = hash_eqv
+
 
 class W_Thread(W_Object):
     errorname = "thread"
@@ -718,8 +752,10 @@ class W_Bytes(W_Object):
 
     def __init__(self, bs, immutable=True):
         assert bs is not None
-        self.value = bs
+        self.value = check_list_of_chars(bs)
+        make_sure_not_resized(self.value)
         self.imm   = immutable
+
     def tostring(self):
         return "#\"%s\"" % "".join(self.value)
 
@@ -727,13 +763,31 @@ class W_Bytes(W_Object):
         if not isinstance(other, W_Bytes):
             return False
         return len(self.value) == len(other.value) and str(self.value) == str(other.value)
+
+    def hash_equal(self):
+        from rpython.rlib.rarithmetic import intmask
+        # like CPython's string hash
+        s = self.value
+        length = len(s)
+        if length == 0:
+            return -1
+        x = ord(s[0]) << 7
+        i = 0
+        while i < length:
+            x = intmask((1000003*x) ^ ord(s[i]))
+            i += 1
+        x ^= length
+        return intmask(x)
+
     def immutable(self):
         return self.imm
+
     def ref(self, n):
         l = len(self.value)
         if n < 0 or n >= l:
             raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
         return W_Fixnum(ord(self.value[n]))
+
     def set(self, n, v):
         l = len(self.value)
         if n < 0 or n >= l:
@@ -743,6 +797,10 @@ class W_Bytes(W_Object):
         # FIXME: this is not constant time!
         self.value[n] = chr(v)
         return
+
+    def as_str(self):
+        return "".join(self.value)
+
 
 class W_String(W_Object):
     errorname = "string"
@@ -1154,7 +1212,7 @@ class W_Parameterization(W_Object):
             else:
                 new_keys[i] = self.keys[i-len(params)]
                 new_vals[i] = self.vals[i-len(params)]
-                
+
         return W_Parameterization(self.root, new_keys, new_vals)
     def get(self, param):
         k = param.key
@@ -1247,20 +1305,24 @@ eof_object = W_EOF()
 class W_Port(W_Object):
     errorname = "port"
     def tostring(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def close(self):
         self.closed = True
     def __init__(self):
         self.closed = False
+    def seek(self, offset, end=False):
+        raise NotImplementedError("abstract base classe")
+    def tell(self):
+        raise NotImplementedError("abstract base classe")
 
 class W_OutputPort(W_Port):
     errorname = "output-port"
     def __init__(self):
         pass
     def write(self, str):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def flush(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract base classe")
     def tostring(self):
         return "#<output-port>"
 
@@ -1273,13 +1335,26 @@ class W_StringOutputPort(W_OutputPort):
         self.str.append(s)
     def contents(self):
         return self.str.build()
+    def seek(self, offset, end=False):
+        if end or offset == self.str.getlength():
+            return
+        if offset > self.str.getlength():
+            self.str.append("\0" * (self.str.getlength() - offset))
+        else:
+            # FIXME: this is potentially slow.
+            content = self.contents()
+            self.str = StringBuilder(offset)
+            self.str.append_slice(content, 0, offset)
+
+    def tell(self):
+        return self.str.getlength()
 
 class W_InputPort(W_Port):
     errorname = "input-port"
     def read(self, n):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract class")
     def readline(self):
-        assert 0, "abstract class"
+        raise NotImplementedError("abstract class")
     def tostring(self):
         return "#<input-port>"
 
@@ -1296,14 +1371,15 @@ class W_StringInputPort(W_InputPort):
         start = self.ptr
         assert start >= 0
         pos = find(self.str, "\n", start, len(self.str))
-        if pos == -1:
-            return self.read(pos)
+        if pos < 0:
+            return self.read()
         else:
             pos += 1
-            line = self.read(pos - start)
+            stop = self.ptr = pos
+            return self.str[start:stop]
         return line
 
-    def read(self, n):
+    def read(self, n=-1):
         if self.ptr >= len(self.str):
             return ""
         p = self.ptr
@@ -1318,6 +1394,17 @@ class W_StringInputPort(W_InputPort):
             assert stop < len(self.str)
             assert stop >= 0
             return self.str[p:stop]
+
+    def seek(self, offset, end=False):
+        if end or offset == self.ptr:
+            return
+        if offset > self.ptr:
+            raise SchemeException("index out of bounds")
+        else:
+            self.ptr = offset
+
+    def tell(self):
+        return self.ptr
 
 
 class W_FileInputPort(W_InputPort):
@@ -1334,6 +1421,15 @@ class W_FileInputPort(W_InputPort):
         self.closed = False
         self.file = f
 
+    def seek(self, offset, end=False):
+        if end:
+            self.file.seek(0, 2)
+        else:
+            self.file.seek(offset, 0)
+
+    def tell(self):
+        return self.file.tell()
+
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     def write(self, str):
@@ -1348,3 +1444,12 @@ class W_FileOutputPort(W_OutputPort):
     def __init__(self, f):
         self.closed = False
         self.file = f
+
+    def seek(self, offset, end=False):
+        if end:
+            self.file.seek(0, 2)
+        else:
+            self.file.seek(offset, 0)
+
+    def tell(self):
+        return self.file.tell()

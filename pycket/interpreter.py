@@ -377,6 +377,14 @@ class Module(object):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
     def interpret_mod(self, env):
+        try:
+            return self._interpret_mod(env)
+        except SchemeException, e:
+            if e.context_module is None:
+                e.context_module = self
+            raise
+
+    def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
@@ -1617,6 +1625,7 @@ def get_printable_location(green_ast, came_from):
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
+<<<<<<< HEAD
 if config.two_state:
     driver = jit.JitDriver(reds=["env", "cont"],
                            greens=["ast", "came_from"],
@@ -1637,6 +1646,10 @@ if config.two_state:
                     driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
         except Done, e:
             return e.values
+        except SchemeException, e:
+            if e.context_ast is None:
+                e.context_ast = ast
+            raise
 else:
     driver = jit.JitDriver(reds=["env", "cont"],
                            greens=["ast"],
@@ -1655,6 +1668,10 @@ else:
                     driver.can_enter_jit(ast=ast, env=env, cont=cont)
         except Done, e:
             return e.values
+        except SchemeException, e:
+            if e.context_ast is None:
+                e.context_ast = ast
+            raise
 
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):

@@ -5,12 +5,6 @@ from pycket.cont import continuation, label
 from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
 from rpython.rlib import rerased
 
-def eq_hash(k):
-    if isinstance(k, values.W_Fixnum):
-        return compute_hash(k.value)
-    else:
-        return compute_hash(k)
-
 class W_HashTable(W_Object):
     errorname = "hash"
     _attrs_ = []
@@ -30,6 +24,10 @@ class W_HashTable(W_Object):
     def length(self):
         raise NotImplementedError("abstract method")
 
+    def get_item(self, i):
+        # see get_dict_item at the bottom of the file for the interface
+        raise NotImplementedError("abstract method")
+
 
 class W_SimpleHashTable(W_HashTable):
     _attrs_ = ['data']
@@ -43,7 +41,6 @@ class W_SimpleHashTable(W_HashTable):
         raise NotImplementedError("abstract method")
 
     def __init__(self, keys, vals):
-        from pycket.prims.equal import eqp_logic
         assert len(keys) == len(vals)
         self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
         for i, k in enumerate(keys):
@@ -73,21 +70,32 @@ class W_SimpleHashTable(W_HashTable):
 class W_EqvHashTable(W_SimpleHashTable):
     @staticmethod
     def hash_value(k):
-        return eq_hash(k)
+        return k.hash_eqv()
 
     @staticmethod
     def cmp_value(a, b):
         return a.eqv(b)
 
+    def get_item(self, i):
+        return get_dict_item(self.data, i)
+
 class W_EqHashTable(W_SimpleHashTable):
     @staticmethod
     def hash_value(k):
-        return eq_hash(k)
+        if isinstance(k, values.W_Fixnum):
+            return compute_hash(k.value)
+        if isinstance(k, values.W_Character):
+            return ord(k.value)
+        else:
+            return compute_hash(k)
 
     @staticmethod
     def cmp_value(a, b):
         from pycket.prims.equal import eqp_logic
         return eqp_logic(a, b)
+
+    def get_item(self, i):
+        return get_dict_item(self.data, i)
 
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
@@ -140,6 +148,9 @@ class HashmapStrategy(object):
     def items(self, w_dict):
         raise NotImplementedError("abstract base class")
 
+    def get_item(self, w_dict, i):
+        raise NotImplementedError("abstract base class")
+
     def length(self, w_dict):
         raise NotImplementedError("abstract base class")
 
@@ -160,6 +171,10 @@ def _find_strategy_class(keys):
         return FixnumHashmapStrategy.singleton
     if single_class is values.W_Symbol:
         return SymbolHashmapStrategy.singleton
+    if single_class is values.W_String:
+        return StringHashmapStrategy.singleton
+    if single_class is values.W_Bytes:
+        return ByteHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
 
 class UnwrappedHashmapStrategyMixin(object):
@@ -187,16 +202,23 @@ class UnwrappedHashmapStrategyMixin(object):
     def items(self, w_dict):
         return [(self.wrap(key), w_val) for key, w_val in self.unerase(w_dict.hstorage).iteritems()]
 
+    def get_item(self, w_dict, i):
+        key, w_val = get_dict_item(self.unerase(w_dict.hstorage), i)
+        return self.wrap(key), w_val
+
     def length(self, w_dict):
         return len(self.unerase(w_dict.hstorage))
 
     def create_storage(self, keys, vals):
+        d = self._create_empty_dict()
         if not keys:
-            return self.erase({})
-        d = {}
+            return self.erase(d)
         for i, w_key in enumerate(keys):
             d[self.unwrap(w_key)] = vals[i]
         return self.erase(d)
+
+    def _create_empty_dict(self):
+        return {}
 
     def switch_to_object_strategy(self, w_dict):
         d = self.unerase(w_dict.hstorage)
@@ -224,6 +246,9 @@ class EmptyHashmapStrategy(HashmapStrategy):
     def items(self, w_dict):
         return []
 
+    def get_item(self, w_dict, i):
+        raise IndexError
+
     def length(self, w_dict):
         return 0
 
@@ -237,6 +262,10 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = FixnumHashmapStrategy.singleton
         elif type(w_key) is values.W_Symbol:
             strategy = SymbolHashmapStrategy.singleton
+        elif type(w_key) is values.W_String:
+            strategy = StringHashmapStrategy.singleton
+        elif type(w_key) is values.W_Bytes:
+            strategy = ByteHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton
         storage = strategy.create_storage([], [])
@@ -257,6 +286,12 @@ class ObjectHashmapStrategy(HashmapStrategy):
 
     def items(self, w_dict):
         return self.unerase(w_dict.hstorage)
+
+    def get_item(self, w_dict, i):
+        try:
+            return self.unerase(w_dict.hstorage)[i]
+        except IndexError:
+            raise
 
     def length(self, w_dict):
         return len(self.unerase(w_dict.hstorage))
@@ -303,6 +338,58 @@ class SymbolHashmapStrategy(HashmapStrategy):
         return w_val
 
 
+class StringHashmapStrategy(HashmapStrategy):
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("string-hashmap-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_String)
+
+    def wrap(self, val):
+        return values.W_String(val)
+
+    def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_String)
+        # note that even for mutable strings this is safe: racket makes no
+        # promises about what happens when you mutate a key of a dict so just
+        # using the old value is an ok implementation
+        return w_val.value
+
+
+def hash_bytes(w_b):
+    assert isinstance(w_b, values.W_Bytes)
+    return w_b.hash_equal()
+
+def cmp_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_Bytes)
+    assert isinstance(w_b, values.W_Bytes)
+    return w_a.value == w_b.value
+
+class ByteHashmapStrategy(HashmapStrategy):
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("byte-hashmap-strategry")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_Bytes)
+
+    def wrap(self, val):
+        return val
+
+    def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_Bytes)
+        return w_val
+
+    def _create_empty_dict(self):
+        return r_dict(cmp_bytes, hash_bytes)
+
+
+
 class W_EqualHashTable(W_HashTable):
     _attrs_ = ['strategy', 'hstorage']
     def __init__(self, keys, vals):
@@ -318,10 +405,61 @@ class W_EqualHashTable(W_HashTable):
     def hash_ref(self, key, env, cont):
         return self.strategy.get(self, key, env, cont)
 
+    def get_item(self, i):
+        return self.strategy.get_item(self, i)
+
     def length(self):
         return self.strategy.length(self)
 
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
+
+
+
+def get_dict_item(d, i):
+    """ return item of dict d at position i. Raises a KeyError if the index
+    carries no valid entry. Raises IndexError if the index is beyond the end of
+    the dict. """
+    return d.items()[i]
+
+def ll_get_dict_item(RES, dict, i):
+    from rpython.rtyper.lltypesystem import lltype
+    from rpython.rtyper.lltypesystem.rdict import recast
+    entries = dict.entries
+    entries_len = len(entries)
+    assert i >= 0
+    if i >= entries_len:
+        raise IndexError
+    if entries.valid(i):
+        r = lltype.malloc(RES.TO)
+        r.item0 = recast(RES.TO.item0, entries[i].key)
+        r.item1 = recast(RES.TO.item1, entries[i].value)
+        return r
+    else:
+        raise KeyError
+
+from rpython.rtyper.extregistry import ExtRegistryEntry
+
+
+class Entry(ExtRegistryEntry):
+    _about_ = get_dict_item
+
+    def compute_result_annotation(self, s_d, s_i):
+        from rpython.annotator.model import SomeTuple, SomeInteger
+        s_key = s_d.dictdef.dictkey.s_value
+        s_value = s_d.dictdef.dictvalue.s_value
+        return SomeTuple([s_key, s_value])
+
+    def specialize_call(self, hop):
+        from rpython.rtyper.lltypesystem import lltype
+        # somewhat evil hackery
+        dictrepr = hop.rtyper.getrepr(hop.args_s[0])
+        v_dict, v_index = hop.inputargs(dictrepr, lltype.Signed)
+        r_tuple = hop.rtyper.getrepr(hop.s_result)
+        cTUPLE = hop.inputconst(lltype.Void, r_tuple.lowleveltype)
+        hop.exception_is_here()
+        v_res = hop.gendirectcall(ll_get_dict_item, cTUPLE, v_dict, v_index)
+        return v_res
+
 
