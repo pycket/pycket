@@ -3,6 +3,7 @@
 
 from pycket.env               import ConsEnv
 from pycket.cont              import continuation, label, BaseCont
+from pycket                   import config
 from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from rpython.tool.pairtype    import extendabletype
@@ -1003,7 +1004,7 @@ class W_Closure(W_Procedure):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
-        if not jit.we_are_jitted():
+        if not jit.we_are_jitted() and config.callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
         # specialize on the fact that often we end up executing in the
         # same environment.
@@ -1052,7 +1053,7 @@ class W_Closure1AsEnv(ConsEnv):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
-        if not jit.we_are_jitted():
+        if not jit.we_are_jitted() and config.callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
         actuals = lam.match_args(args)
         # specialize on the fact that often we end up executing in the

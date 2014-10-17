@@ -1,5 +1,6 @@
 from pycket.AST               import AST
 from pycket                   import values
+from pycket                   import config
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -1104,7 +1105,8 @@ class Lambda(SequencedBodyAST):
             b.set_surrounding_lambda(self)
 
     def enable_jitting(self):
-        #print "enabling jitting", self.tostring()
+        if config.log_callgraph:
+            print "enabling jitting", self.tostring()
         #for b in self.body:
             #b.should_enter = True
             #b.should_enter = False
@@ -1615,26 +1617,44 @@ def get_printable_location(green_ast, came_from):
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
-driver = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast", "came_from"],
-                       get_printable_location=get_printable_location)
-
-def interpret_one(ast, env=None):
-    cont = nil_continuation
-    came_from = ast
-    cont.update_cm(values.parameterization_key, values.top_level_config)
-    if env is None:
-        env = ToplevelEnv()
-    try:
-        while True:
-            driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-            came_from = ast
-            ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter:
-                #print ast.tostring()
-                driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
-    except Done, e:
-        return e.values
+if config.two_state:
+    driver = jit.JitDriver(reds=["env", "cont"],
+                           greens=["ast", "came_from"],
+                           get_printable_location=get_printable_location)
+    def interpret_one(ast, env=None):
+        cont = nil_continuation
+        came_from = ast
+        cont.update_cm(values.parameterization_key, values.top_level_config)
+        if env is None:
+            env = ToplevelEnv()
+        try:
+            while True:
+                driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+                came_from = ast
+                ast, env, cont = ast.interpret(env, cont)
+                if ast.should_enter:
+                    #print ast.tostring()
+                    driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+        except Done, e:
+            return e.values
+else:
+    driver = jit.JitDriver(reds=["env", "cont"],
+                           greens=["ast"],
+                           get_printable_location=get_printable_location)
+    def interpret_one(ast, env=None):
+        cont = nil_continuation
+        cont.update_cm(values.parameterization_key, values.top_level_config)
+        if env is None:
+            env = ToplevelEnv()
+        try:
+            while True:
+                driver.jit_merge_point(ast=ast, env=env, cont=cont)
+                ast, env, cont = ast.interpret(env, cont)
+                if ast.should_enter:
+                    #print ast.tostring()
+                    driver.can_enter_jit(ast=ast, env=env, cont=cont)
+        except Done, e:
+            return e.values
 
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):
