@@ -1625,7 +1625,6 @@ def get_printable_location(green_ast, came_from):
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
-<<<<<<< HEAD
 if config.two_state:
     driver = jit.JitDriver(reds=["env", "cont"],
                            greens=["ast", "came_from"],
