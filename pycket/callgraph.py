@@ -25,7 +25,7 @@ class CallGraph(object):
                     cont_ast = cont.get_next_executed_ast()
                 if cont_ast and cont_ast.surrounding_lambda is calling_lam:
                     # jit the down recursion
-                    print "jitting downrecursion", cont_ast.tostring()
+                    #print "jitting downrecursion", cont_ast.tostring()
                     cont_ast.should_enter = True
 
     def is_recursive(self, lam, starting_from=None):

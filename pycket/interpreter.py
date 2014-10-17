@@ -1104,7 +1104,7 @@ class Lambda(SequencedBodyAST):
             b.set_surrounding_lambda(self)
 
     def enable_jitting(self):
-        print "enabling jitting", self.tostring()
+        #print "enabling jitting", self.tostring()
         #for b in self.body:
             #b.should_enter = True
             #b.should_enter = False
