@@ -11,13 +11,13 @@ expose_val("unsafe-undefined", values.w_unsafe_undefined)
 @expose("check-not-unsafe-undefined", [values.W_Object, values.W_Symbol])
 def cnuu(obj, sym):
     if obj is values.w_unsafe_undefined:
-        raise SchemeException("%s: undefined; use before initialization" % sym.value)
+        raise SchemeException("%s: undefined; use before initialization" % sym.utf8value)
     return obj
 
 @expose("check-not-unsafe-undefined/assign", [values.W_Object, values.W_Symbol])
 def cnuua(obj, sym):
     if obj is values.w_unsafe_undefined:
-        raise SchemeException("%s: undefined; assignment before initialization" % sym.value)
+        raise SchemeException("%s: undefined; assignment before initialization" % sym.utf8value)
     return obj
 
 def make_accessor(acc, i):
