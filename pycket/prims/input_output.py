@@ -7,6 +7,7 @@ from rpython.rlib.rbigint     import rbigint
 from rpython.rlib.rstring     import (ParseStringError,
         ParseStringOverflowError, StringBuilder)
 from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib import runicode
 
 from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
@@ -137,7 +138,6 @@ def do_read_one(port, as_bytes, env, cont):
     if port is None:
         port = current_in_param.get(cont)
     assert isinstance(port, values.W_InputPort)
-    # FIXME: UTF-8
     c = port.read(1)
     if len(c) == 0:
         return return_value(values.eof_object, env, cont)
@@ -146,7 +146,12 @@ def do_read_one(port, as_bytes, env, cont):
     if as_bytes:
         return return_value(values.W_Fixnum(i), env, cont)
     else:
-        return return_value(values.W_Character(unichr(i)), env, cont)
+        # hmpf, poking around in internals
+        needed = runicode.utf8_code_length[i]
+        c += port.read(needed - 1)
+        c = c.decode("utf-8")
+        assert len(c) == 1
+        return return_value(values.W_Character(c[0]), env, cont)
 
 @expose("read-char", [default(values.W_InputPort, None)], simple=False)
 def read_char(port, env, cont):

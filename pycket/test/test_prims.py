@@ -291,7 +291,7 @@ def test_bytes_copy_bang(doctest):
 
 def test_open_input_bytes_and_read_bytes_line(source):
     """
-    (let* ([b (string->bytes/locale "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]
+    (let* ([b (string->bytes/utf-8 "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]
            [expected '(#"MNOP" #"" #"" #"JKL" #"" #"GHI" #"" #"DEF" #"ABC")]
            [inport (open-input-bytes b)])
       (let ([res (let rev ([lines null])
@@ -300,6 +300,22 @@ def test_open_input_bytes_and_read_bytes_line(source):
                          lines
                          (rev (cons line lines)))))])
         (equal? res expected)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+def test_read_utf8_bytes_chars(source):
+    ur"""
+    (let* ([b "ÄÖÜ"]
+           [inport (open-input-string b)]
+           [res1 (read-byte inport)]
+           [res2 (read-byte inport)]
+           [res3 (read-char inport)]
+           )
+        (and
+            (equal? res1 195)
+            (equal? res2 132)
+            (equal? res3 #\Ö)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
