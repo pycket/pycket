@@ -165,11 +165,11 @@ def string(args):
 
 
 @expose("string-downcase", [W_String])
-def char_downcase(v):
+def string_downcase(v):
     return v.lower()
 
 @expose("string-upcase", [W_String])
-def char_downcase(v):
+def string_upcase(v):
     return v.upper()
 
 
@@ -446,7 +446,6 @@ def string_to_bytes_locale(bytes, errbyte, start, end):
 def char_to_integer(c):
     return values.W_Fixnum(ord(c.value))
 
-
 @expose("integer->char", [values.W_Fixnum])
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
@@ -456,5 +455,5 @@ def char_downcase(v):
     return values.W_Character(unichr(unicodedb.tolower(ord(v.value))))
 
 @expose("char-upcase", [values.W_Character])
-def char_downcase(v):
+def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))

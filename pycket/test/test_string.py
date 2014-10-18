@@ -171,3 +171,18 @@ def test_string_to_symbol(doctest):
     > (symbol->string 'abc)
     "abc"
     """
+
+def test_char_integer(doctest):
+    """
+    > (char->integer (integer->char 65))
+    65
+    """
+
+def test_string_change_case(doctest):
+    """
+    > (string-upcase "abc")
+    "ABC"
+    > (string-upcase "abc__123")
+    "ABC__123"
+    """
+

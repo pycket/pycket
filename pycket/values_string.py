@@ -85,6 +85,12 @@ class W_String(W_Object):
     def equal(self, other):
         return self.get_strategy().eq(self, other)
 
+    def upper(self):
+        return self.get_strategy().upper(self)
+
+    def lower(self):
+        return self.get_strategy().lower(self)
+
     def __repr__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self.get_strategy(), self.storage)
 
@@ -191,6 +197,12 @@ class StringStrategy(object):
     def hash(self, w_str):
         return compute_hash(w_str.as_unicode()) # inefficient default
 
+    def upper(self, w_str):
+        raise NotImplementedError("abstract base class")
+
+    def lower(self, w_str):
+        raise NotImplementedError("abstract base class")
+
 
     # mutation operations
 
@@ -281,6 +293,12 @@ class AsciiStringStrategy(ImmutableStringStrategy):
     def hash(self, w_str):
         return compute_hash(w_str.as_str_ascii())
 
+    def upper(self, w_str):
+        return W_String.fromascii(w_str.as_str_ascii().upper())
+
+    def lower(self, w_str):
+        return W_String.fromascii(w_str.as_str_ascii().lower())
+
 
 class AsciiMutableStringStrategy(MutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("ascii-mutable-string-strategy")
@@ -329,6 +347,14 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
             target[index] = chr(char)
             index += 1
 
+    def upper(self, w_str):
+        # XXX inefficient
+        return W_String.fromascii(w_str.as_str_ascii().upper())
+
+    def lower(self, w_str):
+        # XXX inefficient
+        return W_String.fromascii(w_str.as_str_ascii().lower())
+
 
 class UnicodeStringStrategy(ImmutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("unicode-string-strategy")
@@ -371,6 +397,11 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         assert 0
         return compute_hash(w_str.as_str_ascii())
 
+    def upper(self):
+        assert 0
+
+    def lower(self):
+        assert 0
 
 
 
