@@ -164,6 +164,18 @@ def test_immutable_literals(doctest):
     #t
     """
 
+def test_string_to_immutable(doctest):
+    r"""
+    > (string->immutable-string "abc") ; easy case
+    "abc"
+    > (string->immutable-string (string #\a #\b))
+    "ab"
+    > (immutable?  (string #\a #\b))
+    #f
+    > (immutable? (string->immutable-string (string #\a #\b)))
+    #t
+    """
+
 def test_string_to_symbol(doctest):
     """
     > (string->symbol "abc")

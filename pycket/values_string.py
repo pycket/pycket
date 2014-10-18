@@ -130,7 +130,7 @@ class W_String(W_Object):
 class W_MutableString(W_String):
 
     def make_immutable(self):
-        assert 0
+        return W_ImmutableString(self.strategy, self.storage) # XXX convert away from lists
 
 
     def immutable(self):
@@ -406,10 +406,10 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         assert 0
         return compute_hash(w_str.as_str_ascii())
 
-    def upper(self):
+    def upper(self, w_str):
         assert 0
 
-    def lower(self):
+    def lower(self, w_str):
         assert 0
 
 
