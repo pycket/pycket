@@ -59,7 +59,7 @@ def expand_string(s, reuse=True, srcloc=True):
         if reuse:
             current_racket_proc = process
     if reuse:
-        process.stdin.write(s)
+        process.stdin.write(s.encode("utf-8"))
         ## I would like to write something so that Racket sees EOF without
         ## closing the file. But I can't figure out how to do that. It
         ## must be possible, though, because bash manages it.

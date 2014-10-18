@@ -132,7 +132,6 @@ class W_MutableString(W_String):
     def make_immutable(self):
         return W_ImmutableString(self.strategy, self.storage) # XXX convert away from lists
 
-
     def immutable(self):
         return False
 
@@ -312,6 +311,11 @@ class AsciiStringStrategy(ImmutableStringStrategy):
 class AsciiMutableStringStrategy(MutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("ascii-mutable-string-strategy")
 
+    def make_unicode(self, w_str):
+        strategy = UnicodeMutableStringStrategy.singleton
+        storage = strategy.erase(self.as_unicharlist(w_str))
+        w_str.change_strategy(strategy, storage)
+
     def as_charlist_ascii(self, w_str):
         return self.unerase(w_str.storage)
 
@@ -319,7 +323,7 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
         return self.unerase(w_str.storage)
 
     def as_unicharlist(self, w_str):
-        assert 0 # XXX
+        return [unichr(ord(c)) for c in self.unerase(w_str.storage)]
 
 
     # string operations
@@ -344,8 +348,11 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
 
     def setitem(self, w_str, index, unichar):
         val = ord(unichar.value)
-        assert val < 128 # XXX
-        self.unerase(w_str.storage)[index] = chr(val)
+        if val < 128:
+            self.unerase(w_str.storage)[index] = chr(val)
+        else:
+            self.make_unicode(w_str)
+            return w_str.setitem(index, unichar)
 
     def setslice(self, w_str, index, w_from, fromstart, fromend):
         target = self.unerase(w_str.storage)
@@ -369,7 +376,9 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("unicode-string-strategy")
 
     def make_mutable(self, w_str):
-        assert 0
+        strategy = UnicodeMutableStringStrategy.singleton
+        storage = strategy.erase(self.as_unicharlist(w_str))
+        w_str.change_strategy(strategy, storage)
 
     def as_str_ascii(self, w_str):
         assert 0
@@ -380,8 +389,7 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         return self.unerase(w_str.storage)
 
     def as_unicode(self, w_str):
-        assert 0
-        return unicode(self.unerase(w_str.storage)) # change strategy?
+        return self.unerase(w_str.storage)
 
 
     # string operations
@@ -393,7 +401,6 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         return self.unerase(w_str.storage)[index]
 
     def getslice(self, w_str, start, stop):
-        assert 0
         v = self.unerase(w_str.storage)[start:stop]
         return W_MutableString(self, self.erase(v))
 
@@ -412,6 +419,55 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
     def lower(self, w_str):
         assert 0
 
+
+class UnicodeMutableStringStrategy(MutableStringStrategy):
+    erase, unerase = rerased.new_static_erasing_pair("unicode-mutable-string-strategy")
+
+    def as_charlist_ascii(self, w_str):
+        assert 0
+
+    def as_charlist_utf8(self, w_str):
+        assert 0
+
+    def as_unicharlist(self, w_str):
+        return self.unerase(w_str.storage)
+
+
+    # string operations
+
+    def length(self, w_str):
+        return len(self.unerase(w_str.storage))
+
+    def getitem(self, w_str, index):
+        return self.unerase(w_str.storage)[index]
+
+    def getslice(self, w_str, start, stop):
+        v = self.unerase(w_str.storage)[start:stop]
+        return W_MutableString(self, self.erase(v))
+
+    def eq(self, w_str, w_other):
+        if w_other.get_strategy() is self:
+            return self.unerase(w_str.storage) == self.unerase(w_other.storage)
+        return MutableStringStrategy.eq(self, w_str, w_other)
+
+
+    # mutation operations
+
+    def setitem(self, w_str, index, unichar):
+        self.unerase(w_str.storage)[index] = unichar.value
+
+    def setslice(self, w_str, index, w_from, fromstart, fromend):
+        target = self.unerase(w_str.storage)
+        # XXX inefficient
+        for sourceindex in range(fromstart, fromend):
+            target[index] = w_from.getitem(sourceindex)
+            index += 1
+
+    def upper(self, w_str):
+        assert 0
+
+    def lower(self, w_str):
+        assert 0
 
 
 # what I need

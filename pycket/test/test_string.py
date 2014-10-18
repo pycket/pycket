@@ -1,3 +1,4 @@
+# coding: utf-8
 
 def test_string_set_bang(doctest):
     """
@@ -212,3 +213,17 @@ def test_string_change_case(doctest):
     "ABC__123"
     """
 
+
+def test_unicode(doctest):
+    u"""
+    ! (define str (substring "hello world" 0 5))
+    ! (define str1 (substring "hello fuß" 0 5))
+    ! (string-set! str 1 #\\ä)
+    ! (string-set! str1 1 #\\ä)
+    > str
+    "hällo"
+    > str1
+    "hällo"
+    > (immutable? str)
+    #f
+    """
