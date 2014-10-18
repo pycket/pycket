@@ -14,7 +14,7 @@ from rpython.rlib import jit
 def symbol_to_string(v):
     if v.asciivalue:
         return W_String.fromascii(v.asciivalue)
-    return W_String.fromunicode(v.value)
+    return W_String.fromunicode(v.unicodevalue)
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
@@ -77,7 +77,7 @@ def num2str(a, radix):
 
 @expose("string->unreadable-symbol", [W_String])
 def string_to_unsymbol(v):
-    return values.W_Symbol.make_unreadable(v.value)
+    return values.W_Symbol.make_unreadable(v.as_str_utf8())
 
 @expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
@@ -85,7 +85,7 @@ def string_to_immutable_string(string):
 
 @expose("string->uninterned-symbol", [W_String])
 def string_to_symbol(v):
-    return values.W_Symbol(v.value)
+    return values.W_Symbol(v.as_unicode())
 
 @expose(["string->bytes/locale",
          "string->bytes/utf-8"], [W_String,

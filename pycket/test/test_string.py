@@ -170,6 +170,20 @@ def test_string_to_symbol(doctest):
     'abc
     > (symbol->string 'abc)
     "abc"
+    > (symbol->string (string->unreadable-symbol "abc"))
+    "abc"
+    > (symbol->string (string->uninterned-symbol "abc"))
+    "abc"
+    > (eq? (string->unreadable-symbol "abc") (string->unreadable-symbol "abc"))
+    #t
+    > (eq? (string->symbol "abc") (string->symbol "abc"))
+    #t
+    > (eq? (string->symbol "abc") 'abc)
+    #t
+    > (eq? (string->unreadable-symbol "abc") 'abc)
+    #f
+    > (eq? (string->uninterned-symbol "abc") (string->uninterned-symbol "abc"))
+    #f
     """
 
 def test_char_integer(doctest):

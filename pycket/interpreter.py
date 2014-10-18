@@ -689,7 +689,7 @@ class Var(AST):
     def interpret_simple(self, env):
         val = self._lookup(env)
         if val is None:
-            raise SchemeException("%s: undefined" % self.sym.value)
+            raise SchemeException("%s: undefined" % self.sym.utf8value)
         return val
 
     def direct_children(self):
