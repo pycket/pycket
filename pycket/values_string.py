@@ -11,34 +11,35 @@ class W_String(W_Object):
     @staticmethod
     def fromstr_utf8(s, immutable=False):
         u = s.decode("utf-8")
-        return W_String.fromunicode(u)
+        return W_String.fromunicode(u, immutable)
 
     @staticmethod
     def fromascii(s, immutable=False):
-        # XXX don't ignore immutable
         assert s.decode("ascii") == s
         strategy = AsciiStringStrategy.singleton
         storage = strategy.erase(s)
-        return W_String(strategy, storage)
+        if immutable:
+            cls = W_ImmutableString
+        else:
+            cls = W_MutableString
+        return cls(strategy, storage)
 
     @staticmethod
     def fromunicode(u, immutable=False):
         strategy = UnicodeStringStrategy.singleton
         storage = strategy.erase(u)
-        return W_String(strategy, storage)
+        if immutable:
+            cls = W_ImmutableString
+        else:
+            cls = W_MutableString
+        return cls(strategy, storage)
 
     @staticmethod
     def frombytes(b, immutable=False):
         assert 0
 
-    def __init__(self, strategy, storage, immutable=False):
+    def __init__(self, strategy, storage):
         self.change_strategy(strategy, storage)
-        # XXX later: remove flag
-        self.imm   = immutable
-
-    def make_immutable(self):
-        # XXX
-        return self
 
     def change_strategy(self, strategy, storage):
         self.strategy = strategy
@@ -46,34 +47,6 @@ class W_String(W_Object):
 
     def get_strategy(self):
         return self.strategy
-
-    def __repr__(self):
-        return "W_String(%s, %s)" % (self.get_strategy(), self.storage)
-
-    def tostring(self):
-        from pypy.objspace.std.bytesobject import string_escape_encode
-        #return string_escape_encode(self.value, '"')
-        result = self.as_str_utf8()
-        assert result is not None
-        return result
-
-    cache = {}
-    @staticmethod
-    def make(val):
-        # XXX reactivate make
-        assert 0
-        lup = W_String.cache.get(val, None)
-        if lup is None:
-            lup = W_String(val, immutable=True)
-            W_String.cache[val] = lup
-        return lup
-
-    def equal(self, other):
-        return self.get_strategy().eq(self, other)
-
-    def immutable(self):
-        return self.imm
-
 
     # methods that defer to the strategies
 
@@ -108,6 +81,45 @@ class W_String(W_Object):
     def hash_equal(self):
         return self.get_strategy().hash(self)
 
+    def equal(self, other):
+        return self.get_strategy().eq(self, other)
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (self.__class__.__name__, self.get_strategy(), self.storage)
+
+    def tostring(self):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        #return string_escape_encode(self.value, '"')
+        result = self.as_str_utf8()
+        assert result is not None
+        return result
+
+    def setitem(self, index, unichar):
+        raise SchemeError("can't mutate string")
+
+    def setslice(self, index, w_from, fromstart, fromend):
+        raise SchemeError("can't mutate string")
+
+
+class W_MutableString(W_String):
+
+    def make_immutable(self):
+        assert 0
+
+    cache = {}
+    @staticmethod
+    def make(val):
+        # XXX reactivate make
+        assert 0
+        lup = W_String.cache.get(val, None)
+        if lup is None:
+            lup = W_String(val, immutable=True)
+            W_String.cache[val] = lup
+        return lup
+
+    def immutable(self):
+        return False
+
     # mutation operations
 
     def setitem(self, index, unichar):
@@ -117,20 +129,13 @@ class W_String(W_Object):
         return self.get_strategy().setslice(self, index, w_from, fromstart, fromend)
 
 
+class W_ImmutableString(W_String):
+    # XXX don't store the strategy
+    def make_immutable(self):
+        return self
 
-
-# comparison
-# build from characters
-# upper case
-# lower case
-# appending
-# length
-# substring
-# indexing, including writing
-# make immutable
-
-
-
+    def immutable(self):
+        return True
 
 
 class StringStrategy(object):
@@ -265,7 +270,7 @@ class AsciiStringStrategy(ImmutableStringStrategy):
 
     def getslice(self, w_str, start, stop):
         v = self.unerase(w_str.storage)[start:stop]
-        return W_String(self, self.erase(v))
+        return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
@@ -299,7 +304,7 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
 
     def getslice(self, w_str, start, stop):
         v = self.unerase(w_str.storage)[start:stop]
-        return W_String(self, self.erase(v))
+        return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
@@ -354,7 +359,7 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
     def getslice(self, w_str, start, stop):
         assert 0
         v = self.unerase(w_str.storage)[start:stop]
-        return W_String(self, self.erase(v))
+        return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:

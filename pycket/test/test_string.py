@@ -5,6 +5,8 @@ def test_string_set_bang(doctest):
     ! (string-set! str 0 #\\x)
     > str
     "xello"
+    > (immutable? str)
+    #f
     """
 
 def test_substring(doctest):
@@ -154,4 +156,10 @@ def test_output_string(doctest):
     10
     > (get-output-string p)
     "abccarstaa"
+    """
+
+def test_immutable_literals(doctest):
+    """
+    > (immutable? "abc")
+    #t
     """
