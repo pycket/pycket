@@ -2,7 +2,7 @@ from pycket.base import W_Object, SingletonMeta
 from pycket.error import SchemeException
 
 from rpython.rlib import rerased
-from rpython.rlib.objectmodel import compute_hash, import_from_mixin
+from rpython.rlib.objectmodel import compute_hash, we_are_translated
 
 class W_String(W_Object):
     errorname = "string"
@@ -11,12 +11,22 @@ class W_String(W_Object):
 
     @staticmethod
     def fromstr_utf8(s, immutable=False):
-        u = s.decode("utf-8")
-        return W_String.fromunicode(u, immutable)
+        # try to see whether it's ascii first
+        ascii = True
+        for c in s:
+            if ord(c) >= 128:
+                ascii = False
+                break
+        if ascii:
+            return W_String.fromascii(s, immutable=True)
+        else:
+            u = s.decode("utf-8")
+            return W_String.fromunicode(u, immutable)
 
     @staticmethod
     def fromascii(s, immutable=False):
-        assert s.decode("ascii") == s
+        if not we_are_translated():
+            assert s.decode("ascii") == s
         strategy = AsciiStringStrategy.singleton
         storage = strategy.erase(s)
         if immutable:
@@ -41,15 +51,7 @@ class W_String(W_Object):
         # try to see whether the string is ascii
         lup = W_String.cache.get(val, None)
         if lup is None:
-            ascii = True
-            for c in val:
-                if ord(c) >= 128:
-                    ascii = False
-                    break
-            if ascii:
-                lup = W_String.fromascii(val, immutable=True)
-            else:
-                lup = W_String.fromstr_utf8(val, immutable=True)
+            lup = W_String.fromstr_utf8(val, immutable=True)
             W_String.cache[val] = lup
         return lup
 
@@ -459,7 +461,6 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
 
     def lower(self, w_str):
         assert 0
-
 
 # what I need
 # comparison
