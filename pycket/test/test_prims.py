@@ -340,7 +340,7 @@ def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""
     result = run_mod_expr(source, wrap=True)
     assert result.car() == result.cdr()
-    sym = result.car().value
+    sym = result.car().asciivalue
     # Sadly, this can never cover all cases.
     if sys.platform == "darwin":
         assert sym == "macosx"
@@ -349,10 +349,10 @@ def test_system_type_os(source):
     else:
         assert sym == "unix"
 
-def test_system_path_convetion_type(source):
+def test_system_path_convention_type(source):
     """(system-path-convention-type)"""
     result = run_mod_expr(source, wrap=True)
-    sym = result.value
+    sym = result.asciivalue
     if sys.platform in ['win32', 'cygwin']:
         assert sym == "windows"
     else:

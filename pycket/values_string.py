@@ -1,4 +1,5 @@
 from pycket.base import W_Object, SingletonMeta
+from pycket.error import SchemeException
 
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin
@@ -95,10 +96,10 @@ class W_String(W_Object):
         return result
 
     def setitem(self, index, unichar):
-        raise SchemeError("can't mutate string")
+        raise SchemeException("can't mutate string")
 
     def setslice(self, index, w_from, fromstart, fromend):
-        raise SchemeError("can't mutate string")
+        raise SchemeException("can't mutate string")
 
 
 class W_MutableString(W_String):

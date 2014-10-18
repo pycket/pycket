@@ -163,3 +163,11 @@ def test_immutable_literals(doctest):
     > (immutable? "abc")
     #t
     """
+
+def test_string_to_symbol(doctest):
+    """
+    > (string->symbol "abc")
+    'abc
+    > (symbol->string 'abc)
+    "abc"
+    """

@@ -174,7 +174,7 @@ class W_StructType(values.W_Object):
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
-        self.name = name.value
+        self.name = name.utf8value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
         self.auto_field_cnt = auto_field_cnt.value
@@ -193,7 +193,7 @@ class W_StructType(values.W_Object):
             self.immutables.append(i.value)
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
-            self.constr_name = constr_name.value
+            self.constr_name = constr_name.utf8value
         else:
             self.constr_name = "make-" + self.name
 
@@ -283,7 +283,7 @@ class W_PrefabKey(values.W_Object):
     def from_raw_params(w_name, w_init_field_cnt, w_auto_field_cnt, auto_v,\
         w_immutables, super_type):
         assert isinstance(w_name, values.W_Symbol)
-        name = w_name.value
+        name = w_name.utf8value
         assert isinstance(w_init_field_cnt, values.W_Fixnum)
         init_field_cnt = w_init_field_cnt.value
         assert isinstance(w_auto_field_cnt, values.W_Fixnum)
@@ -308,13 +308,13 @@ class W_PrefabKey(values.W_Object):
         super_key = None
         mutables = []
         if isinstance(w_key, values.W_Symbol):
-            name = w_key.value
+            name = w_key.utf8value
             init_field_cnt = total_field_cnt
         else:
             key = values.from_list(w_key)
             w_name = key[0]
             assert isinstance(w_name, values.W_Symbol)
-            name = w_name.value
+            name = w_name.utf8value
             idx = 1
             w_init_field_cnt = key[idx]
             if isinstance(w_init_field_cnt, values.W_Fixnum):
@@ -753,7 +753,7 @@ class W_StructProperty(values.W_Object):
     errorname = "struct-type-property"
     _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
     def __init__(self, name, guard, supers=values.w_null, can_imp=False):
-        self.name = name.value
+        self.name = name.utf8value
         self.guard = guard
         self.supers = values.from_list(supers)
         self.can_imp = can_imp

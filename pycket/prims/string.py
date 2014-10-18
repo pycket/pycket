@@ -12,11 +12,13 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    return W_String.fromascii(v.value) # XXX for now
+    if v.asciivalue:
+        return W_String.fromascii(v.asciivalue)
+    return W_String.fromunicode(v.value)
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
-    return values.W_Symbol.make(v.value)
+    return values.W_Symbol.make(v.as_str_utf8())
 
 @expose("string->number", [W_String])
 def str2num(w_s):

@@ -810,7 +810,7 @@ class W_Symbol(W_Object):
 
     def __init__(self, val, unreadable=False):
         assert isinstance(val, unicode)
-        self.value = val
+        self.unicodevalue = val
         self.unreadable = unreadable
         try:
             self.asciivalue = val.encode("ascii")
@@ -841,10 +841,10 @@ class W_Symbol(W_Object):
             return w_result
 
     def __repr__(self):
-        return self.value
+        return self.utf8value
 
     def is_interned(self):
-        string = self.value
+        string = self.unicodevalue
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string] is self
         if string in W_Symbol.unreadable_symbols:

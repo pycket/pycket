@@ -973,6 +973,7 @@ def consp(v):
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):
+    # XXX inefficient
     return values.from_list(lst)[pos.value]
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
@@ -983,6 +984,7 @@ def list_tail(lst, pos):
     else:
         if isinstance(lst, values.W_Cons):
             assert start_pos > 0
+            # XXX inefficient
             return values.to_list(values.from_list(lst)[start_pos:])
         else:
             return values.w_null
@@ -1178,7 +1180,7 @@ def call_with_extended_paramz(f, args, keys, vals, env, cont):
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
-    return Gensym.gensym(init.value)
+    return Gensym.gensym(init.utf8value)
 
 define_nyi("regexp-match", [values.W_Object, values.W_Object])
 # def regexp_match(r, o):
@@ -1218,7 +1220,7 @@ def build_path(args):
         if isinstance(a, values.W_Bytes):
             r = r + str(a.value)
         elif isinstance(a, values_string.W_String):
-            r = r + a.value
+            r = r + a.as_str_utf8()
         elif isinstance(a, values.W_Path):
             r = r + a.path
         else:
@@ -1242,7 +1244,7 @@ def do_raise(v, barrier):
         [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_arg_err(name, expected, v):
     raise SchemeException("%s: expected %s but got %s" % (
-        name.value, expected.value, v.tostring()))
+        name.utf8value, expected.as_str_utf8(), v.tostring()))
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):
@@ -1252,14 +1254,17 @@ def raise_arg_err(args):
     assert isinstance(message, values_string.W_String)
     from rpython.rlib.rstring import StringBuilder
     error_msg = StringBuilder()
-    error_msg.append("%s: %s\n" % (name.value, message.value))
+    error_msg.append(name.utf8value)
+    error_msg.append(": ")
+    error_msg.append(message.as_str_utf8())
+    error_msg.append("\n")
     i = 2
     while i + 1 < len(args):
         field = args[i]
         assert isinstance(field, values_string.W_String)
         v = args[i+1]
         assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n" % (field.value, v.tostring()))
+        error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
         i += 2
     raise SchemeException(error_msg.build())
 
@@ -1270,12 +1275,12 @@ define_nyi("error-escape-handler", [default(values.W_Object, None)])
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
-    from .. import interpreter
-    v = interpreter.GlobalConfig.lookup(sym.value)
+    from pycket import interpreter
+    v = interpreter.GlobalConfig.lookup(sym.utf8value)
     if v:
         return values.W_Path(v)
     else:
-        raise SchemeException("unknown system path %s" % sym.value)
+        raise SchemeException("unknown system path %s" % sym.utf8value)
 
 @expose("find-main-collects", [])
 def find_main_collects():
@@ -1334,7 +1339,7 @@ w_os_sym = values.W_Symbol.make("os")
 def system_type(w_what):
     if w_what is w_os_sym:
         return w_system_sym
-    raise SchemeException("unexpected system-type symbol %s" % w_what.value)
+    raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
 
 @expose("system-path-convention-type", [])
