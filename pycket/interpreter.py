@@ -729,7 +729,7 @@ class Gensym(object):
     def gensym(hint="g"):
         count = Gensym._counter[hint] = Gensym._counter.get(hint, -1) +  1
         # not using `make` so that it's really gensym
-        return values.W_Symbol(hint + str(count))
+        return values.W_Symbol(unicode(hint + str(count)))
 
 
 class LexicalVar(Var):
