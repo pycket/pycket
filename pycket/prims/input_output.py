@@ -7,9 +7,11 @@ from rpython.rlib.rbigint     import rbigint
 from rpython.rlib.rstring     import (ParseStringError,
         ParseStringOverflowError, StringBuilder)
 from rpython.rlib.rarithmetic import string_to_int
+
 from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
 from pycket                   import values_struct
+from pycket                   import values_string
 from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val, procedure
 import os
@@ -56,9 +58,9 @@ def read_token(f):
         if c in [" ", "\n", "\t"]:
             continue
         if c in ["(", "[", "{"]:
-            return LParenToken(values.W_String.make(c))
+            return LParenToken(values_string.W_String.fromascii(c))
         if c in [")", "]", "}"]:
-            return RParenToken(values.W_String.make(c))
+            return RParenToken(values_string.W_String.fromascii(c))
         if c.isalnum():
             return read_number_or_id(f, c)
         if c == "#":
@@ -68,7 +70,7 @@ def read_token(f):
             if c2 == "f":
                 return BooleanToken(values.w_false)
             if c2 in ["(", "[", "{"]:
-                return LVecToken(values.W_String.make(c2))
+                return LVecToken(values_string.W_String.fromascii(c2))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
@@ -76,7 +78,7 @@ def read_token(f):
 def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
-        port = current_out_param.get(cont)
+        port = current_out_param.get(cont) # XXX wrong???
     assert isinstance(port, values.W_InputPort)
     stream = port.file
     token = read_token(stream)
@@ -113,7 +115,7 @@ def do_read_line(port, mode, as_bytes, env, cont):
         if as_bytes:
             return return_value(values.W_Bytes.from_string(line), env, cont)
         else:
-            return return_value(values.W_String(line), env, cont)
+            return return_value(values_string.W_String.fromascii(line), env, cont) # XXX
     else:
         return return_value(values.eof_object, env, cont)
 
@@ -159,14 +161,14 @@ binary_sym = values.W_Symbol.make("binary")
 none_sym   = values.W_Symbol.make("none")
 error_sym  = values.W_Symbol.make("error")
 
-@expose("open-input-file", [values.W_String,
+@expose("open-input-file", [values_string.W_String,
                             default(values.W_Symbol, binary_sym),
                             default(values.W_Symbol, none_sym)])
 def open_input_file(str, mode, mod_mode):
     m = "r" if mode is text_sym else "rb"
     return open_infile(str, m)
 
-@expose("open-output-file", [values.W_String,
+@expose("open-output-file", [values_string.W_String,
                              default(values.W_Symbol, binary_sym),
                              default(values.W_Symbol, error_sym)])
 def open_output_file(str, mode, exists):
@@ -187,25 +189,25 @@ def close_cont(port, env, cont, vals):
     port.file.close()
     return return_multi_vals(vals, env, cont)
 
-def open_infile(str, mode):
-    s = str.value
+def open_infile(w_str, mode):
+    s = w_str.as_str_utf8()
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
 
-def open_outfile(str, mode):
-    s = str.value
+def open_outfile(w_str, mode):
+    s = w_str.as_str_utf8()
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
-@expose("call-with-input-file", [values.W_String, values.W_Object], simple=False)
+@expose("call-with-input-file", [values_string.W_String, values.W_Object], simple=False)
 def call_with_input_file(s, proc, env, cont):
     port = open_infile(s, "rb")
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("call-with-output-file", [values.W_String, values.W_Object], simple=False)
+@expose("call-with-output-file", [values_string.W_String, values.W_Object], simple=False)
 def call_with_output_file(s, proc, env, cont):
     port = open_outfile(s, "wb")
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values.W_String, values.W_Object, 
+@expose("with-input-from-file", [values_string.W_String, values.W_Object, 
                                  default(values.W_Symbol, binary_sym)], 
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
@@ -215,7 +217,7 @@ def with_input_from_file(s, proc, mode, env, cont):
     return call_with_extended_paramz(proc, [], [current_in_param], [port], 
                                      env, close_cont(port, env, cont))
 
-@expose("with-output-to-file", [values.W_String, values.W_Object], simple=False)
+@expose("with-output-to-file", [values_string.W_String, values.W_Object], simple=False)
 def with_output_to_file(s, proc, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
     port = open_outfile(s, "wb")
@@ -291,7 +293,7 @@ format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
-    text = form.value
+    text = form.as_str_ascii()
     result = StringBuilder()
     pos = 0
     for match in format_regex.finditer(text):
@@ -312,9 +314,9 @@ def printf(args):
     if not args:
         raise SchemeException("printf expected at least one argument, got 0")
     fmt = args[0]
-    if not isinstance(fmt, values.W_String):
+    if not isinstance(fmt, values_string.W_String):
         raise SchemeException("printf expected a format string, got something else")
-    fmt = fmt.value
+    fmt = fmt.as_str_ascii() # XXX for now
     vals = args[1:]
     i = 0
     j = 0
@@ -343,14 +345,14 @@ def printf(args):
 @expose("format")
 def do_format(args):
     form, v = args[0], args[1:]
-    assert isinstance(form, values.W_String)
-    return values.W_String(format(form, v))
+    assert isinstance(form, values_string.W_String)
+    return values_string.W_String.fromascii(format(form, v))
 
 @expose("fprintf", simple=False)
 def do_fprintf(args, env, cont):
     out, form, v = args[0], args[1], args[2:]
     assert isinstance(out, values.W_OutputPort)
-    assert isinstance(form, values.W_String)
+    assert isinstance(form, values_string.W_String)
     out.write(format(form, v))
     return return_void(env, cont)
 
@@ -395,14 +397,14 @@ def open_input_bytes(bstr, name):
     # FIXME: name is ignore
     return values.W_StringInputPort(bstr.as_str())
 
-@expose("open-input-string", [values.W_String, default(values.W_Symbol, string_sym)])
-def open_input_string(str, name):
+@expose("open-input-string", [values_string.W_String, default(values.W_Symbol, string_sym)])
+def open_input_string(w_str, name):
     # FIXME: name is ignore
-    return values.W_StringInputPort(str.value)
+    return values.W_StringInputPort(w_str.as_str_ascii()) # XXX XXX XXX
 
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):
-    return values.W_String.make(w_port.contents())
+    return values_string.W_String.fromascii(w_port.contents())
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
@@ -474,16 +476,23 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
-@expose("write-string", [values.W_String, default(values.W_Object, None),\
+@expose("write-string", [values_string.W_String, default(values.W_OutputPort, None),\
     default(values.W_Fixnum, values.W_Fixnum(0)),\
     default(values.W_Fixnum, None)], simple=False)
-def do_write_string(str, out, start_pos, end_pos, env, cont):
-    out = None # FIXME
+def do_write_string(w_str, port, start_pos, end_pos, env, cont):
+    from pycket.interpreter import return_value
     start = start_pos.value
     assert start >= 0
-    end = end_pos.value if end_pos else len(str.value)
-    assert end >= 0
-    return do_print(str.value[start:end], out, env, cont)
+    if end_pos:
+        end_pos = end_pos.value
+        if end_pos < 0 or end_pos > w_str.length():
+            raise SchemeException("write-string: ending index out of range")
+    else:
+        end_pos = w_str.length()
+    if port is None:
+        port = current_out_param.get(cont)
+    port.write(w_str.getslice(start, end_pos).as_str_utf8())
+    return return_value(values.W_Fixnum(end_pos - start), env, cont)
 
 @expose("write-byte", [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
 def write_byte(b, out, env, cont):

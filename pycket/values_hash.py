@@ -1,5 +1,5 @@
 from pycket.base import W_Object, SingletonMeta
-from pycket import values
+from pycket import values, values_string
 from pycket.cont import continuation, label
 
 from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
@@ -171,7 +171,7 @@ def _find_strategy_class(keys):
         return FixnumHashmapStrategy.singleton
     if single_class is values.W_Symbol:
         return SymbolHashmapStrategy.singleton
-    if single_class is values.W_String:
+    if single_class is values_string.W_String:
         return StringHashmapStrategy.singleton
     if single_class is values.W_Bytes:
         return ByteHashmapStrategy.singleton
@@ -231,9 +231,7 @@ class UnwrappedHashmapStrategyMixin(object):
 
 
 class EmptyHashmapStrategy(HashmapStrategy):
-    erase, unerase = rerased.new_erasing_pair("object-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
@@ -262,7 +260,7 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = FixnumHashmapStrategy.singleton
         elif type(w_key) is values.W_Symbol:
             strategy = SymbolHashmapStrategy.singleton
-        elif type(w_key) is values.W_String:
+        elif type(w_key) is values_string.W_String:
             strategy = StringHashmapStrategy.singleton
         elif type(w_key) is values.W_Bytes:
             strategy = ByteHashmapStrategy.singleton
@@ -274,9 +272,7 @@ class EmptyHashmapStrategy(HashmapStrategy):
 
 
 class ObjectHashmapStrategy(HashmapStrategy):
-    erase, unerase = rerased.new_erasing_pair("object-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
     def get(self, w_dict, w_key, env, cont):
         return equal_hash_ref_loop(self.unerase(w_dict.hstorage), 0, w_key, env, cont)
@@ -303,9 +299,7 @@ class ObjectHashmapStrategy(HashmapStrategy):
 class FixnumHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("fixnum-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("fixnum-hashmap-strategry")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values.W_Fixnum)
@@ -322,9 +316,7 @@ class FixnumHashmapStrategy(HashmapStrategy):
 class SymbolHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("symbol-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("symbol-hashmap-strategry")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values.W_Symbol)
@@ -338,25 +330,32 @@ class SymbolHashmapStrategy(HashmapStrategy):
         return w_val
 
 
+def hash_strings(w_b):
+    assert isinstance(w_b, values_string.W_String)
+    return w_b.hash_equal()
+
+def cmp_strings(w_a, w_b):
+    assert isinstance(w_a, values_string.W_String)
+    assert isinstance(w_b, values_string.W_String)
+    return w_a.equal(w_b)
+
+
 class StringHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("string-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("string-hashmap-strategry")
 
     def is_correct_type(self, w_obj):
-        return isinstance(w_obj, values.W_String)
+        return isinstance(w_obj, values_string.W_String)
 
-    def wrap(self, val):
-        return values.W_String(val)
+    def wrap(self, w_val):
+        return w_val
 
     def unwrap(self, w_val):
-        assert isinstance(w_val, values.W_String)
-        # note that even for mutable strings this is safe: racket makes no
-        # promises about what happens when you mutate a key of a dict so just
-        # using the old value is an ok implementation
-        return w_val.value
+        return w_val
+
+    def _create_empty_dict(self):
+        return r_dict(cmp_strings, hash_strings)
 
 
 def hash_bytes(w_b):
@@ -371,9 +370,7 @@ def cmp_bytes(w_a, w_b):
 class ByteHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("byte-hashmap-strategry")
-    erase = staticmethod(erase)
-    unerase = staticmethod(unerase)
+    erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategry")
 
     def is_correct_type(self, w_obj):
         return isinstance(w_obj, values.W_Bytes)

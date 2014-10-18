@@ -3,7 +3,7 @@
 import os
 import time
 from pycket import impersonators as imp
-from pycket import values
+from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
@@ -53,7 +53,7 @@ for args in [
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
         ("vector?", values.W_MVector),
-        ("string?", values.W_String),
+        ("string?", values_string.W_String),
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("inspector?", values_struct.W_StructInspector),
@@ -387,7 +387,7 @@ for args in [ ("subprocess?",),
 
 @expose("object-name", [values.W_Object])
 def object_name(v):
-    return values.W_String(v.tostring())
+    return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("namespace-variable-value", [values.W_Symbol,
     default(values.W_Object, values.w_true),
@@ -402,9 +402,9 @@ def find_main_config():
 
 @expose("version", [])
 def version():
-    from .. import interpreter
+    from pycket import interpreter
     version = interpreter.GlobalConfig.lookup("version")
-    return values.W_String("unknown version" if version is None else version)
+    return values_string.W_String.fromascii("unknown version" if version is None else version)
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -999,7 +999,7 @@ def error(args):
         raise SchemeException("error: %s" % sym.tostring())
     else:
         first_arg = args[0]
-        if isinstance(first_arg, values.W_String):
+        if isinstance(first_arg, values_string.W_String):
             from rpython.rlib.rstring import StringBuilder
             msg = StringBuilder()
             msg.append(first_arg.tostring())
@@ -1012,7 +1012,7 @@ def error(args):
             form = args[1]
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
-            assert isinstance(form, values.W_String)
+            assert isinstance(form, values_string.W_String)
             raise SchemeException("%s: %s" % (
                 src.tostring(), input_output.format(form, v)))
 
@@ -1054,7 +1054,7 @@ def unsafe_cdr(p):
 def path_stringp(v):
     # FIXME: handle zeros in string
     return values.W_Bool.make(
-        isinstance(v, values.W_String) or isinstance(v, values.W_Path))
+        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
 
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
@@ -1063,7 +1063,7 @@ def complete_path(v):
 
 @expose("path->string", [values.W_Path])
 def path2string(p):
-    return values.W_String(p.path)
+    return values_string.W_String.fromstr_utf8(p.path)
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
@@ -1184,8 +1184,8 @@ define_nyi("regexp-match", [values.W_Object, values.W_Object])
 # def regexp_match(r, o):
 #      # FIXME: more error checking
 #     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+#         or isinstance(r, values_string.W_String) or isinstance(r, values.W_Bytes)
+#     assert isinstance(o, values_string.W_String) or isinstance(o, values.W_Bytes) \
 #         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
 #     return values.w_false # Back to one problem
 
@@ -1193,8 +1193,8 @@ define_nyi("regexp-match?", [values.W_Object, values.W_Object])
 # def regexp_matchp(r, o):
 #     # FIXME: more error checking
 #     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
+#         or isinstance(r, values_string.W_String) or isinstance(r, values.W_Bytes)
+#     assert isinstance(o, values_string.W_String) or isinstance(o, values.W_Bytes) \
 #         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
 #     # ack, this is wrong
 #     return values.w_true # Back to one problem
@@ -1217,7 +1217,7 @@ def build_path(args):
     for a in args:
         if isinstance(a, values.W_Bytes):
             r = r + str(a.value)
-        elif isinstance(a, values.W_String):
+        elif isinstance(a, values_string.W_String):
             r = r + a.value
         elif isinstance(a, values.W_Path):
             r = r + a.path
@@ -1239,7 +1239,7 @@ def do_raise(v, barrier):
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error",
-        [values.W_Symbol, values.W_String, values.W_Object])
+        [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_arg_err(name, expected, v):
     raise SchemeException("%s: expected %s but got %s" % (
         name.value, expected.value, v.tostring()))
@@ -1249,14 +1249,14 @@ def raise_arg_err(args):
     name = args[0]
     assert isinstance(name, values.W_Symbol)
     message = args[1]
-    assert isinstance(message, values.W_String)
+    assert isinstance(message, values_string.W_String)
     from rpython.rlib.rstring import StringBuilder
     error_msg = StringBuilder()
     error_msg.append("%s: %s\n" % (name.value, message.value))
     i = 2
     while i + 1 < len(args):
         field = args[i]
-        assert isinstance(field, values.W_String)
+        assert isinstance(field, values_string.W_String)
         v = args[i+1]
         assert isinstance(v, values.W_Object)
         error_msg.append("%s: %s\n" % (field.value, v.tostring()))
@@ -1288,7 +1288,7 @@ def mpi_join(a, b):
 # Loading
 
 # FIXME: Proper semantics.
-@expose("load", [values.W_String], simple=False)
+@expose("load", [values_string.W_String], simple=False)
 def load(lib, env, cont):
     from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
     lib_name = lib.tostring()

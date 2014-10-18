@@ -1,5 +1,5 @@
 from pycket.AST               import AST
-from pycket                   import values
+from pycket                   import values, values_string
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -430,7 +430,7 @@ class Quote(AST):
     def tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
                 isinstance(self.w_val, values.W_Number) or
-                isinstance(self.w_val, values.W_String) or
+                isinstance(self.w_val, values_string.W_String) or
                 isinstance(self.w_val, values.W_Symbol)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
@@ -1418,9 +1418,7 @@ class Let(SequencedBodyAST):
         body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        self.tostring()
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
-        result.tostring()
         return result
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):

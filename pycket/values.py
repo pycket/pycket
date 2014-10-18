@@ -801,31 +801,6 @@ class W_Bytes(W_Object):
         return "".join(self.value)
 
 
-class W_String(W_Object):
-    errorname = "string"
-    cache = {}
-    def __init__(self, val, immutable=False):
-        assert val is not None
-        self.value = val
-        self.imm   = immutable
-    def tostring(self):
-        from pypy.objspace.std.bytesobject import string_escape_encode
-        #return string_escape_encode(self.value, '"')
-        return self.value
-    @staticmethod
-    def make(val):
-        lup = W_String.cache.get(val, None)
-        if lup is None:
-            lup = W_String(val, immutable=True)
-            W_String.cache[val] = lup
-        return lup
-    def equal(self, other):
-        if not isinstance(other, W_String):
-            return False
-        return self.value == other.value
-    def immutable(self):
-        return self.imm
-
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value", "unreadable"]
     errorname = "symbol"

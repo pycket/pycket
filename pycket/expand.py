@@ -12,7 +12,7 @@ from rpython.rlib.rarithmetic import string_to_int
 from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
-from pycket import values
+from pycket import values, values_string
 from pycket import vector
 from pycket import values_struct
 from pycket import values_hash
@@ -566,7 +566,7 @@ def to_value(json):
         if "bytes" in obj:
             return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
         if "string" in obj:
-            return values.W_String.make(str(obj["string"].value_string()))
+            return values_string.W_String.fromascii(str(obj["string"].value_string()), immutable=True)
         if "keyword" in obj:
             return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:

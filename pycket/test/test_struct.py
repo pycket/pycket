@@ -326,7 +326,7 @@ def test_struct_prop_procedure_with_self_arg():
     (define greeting (joe-greet "Mary"))
     """)
     ov = m.defs[W_Symbol.make("greeting")]
-    assert ov.value == "Hi Mary, I'm Joe"
+    assert ov.as_str_ascii() == "Hi Mary, I'm Joe"
 
 def test_struct_prop_arity():
     m = run_mod(

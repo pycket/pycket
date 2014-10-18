@@ -2,28 +2,29 @@
 # -*- coding: utf-8 -*-
 import operator as op
 from pycket import values
+from pycket.values_string import W_String
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, unsafe
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
-from rpython.rlib.rstring     import StringBuilder
+from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 from rpython.rlib import jit
 
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    return values.W_String(v.value)
+    return W_String.fromascii(v.value) # XXX for now
 
-@expose("string->symbol", [values.W_String])
+@expose("string->symbol", [W_String])
 def string_to_symbol(v):
     return values.W_Symbol.make(v.value)
 
-@expose("string->number", [values.W_String])
+@expose("string->number", [W_String])
 def str2num(w_s):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 
-    s = w_s.value
     try:
+        s = w_s.as_str_ascii()
         if "." in s:
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
@@ -33,13 +34,15 @@ def str2num(w_s):
                 return values.W_Bignum(rbigint.rbigint.fromstr(s))
     except ParseStringError as e:
         return values.w_false
+    except ValueError:
+        return values.w_false
 
 @expose("number->string",
         [values.W_Number, default(values.W_Fixnum, values.W_Fixnum(10))])
 def num2str(a, radix):
     from rpython.rlib.rbigint import BASE8, BASE16
     if radix.value == 10:
-        return values.W_String(a.tostring())
+        return W_String.fromascii(a.tostring())
     else:
         if isinstance(a, values.W_Fixnum):
             if radix.value == 16:
@@ -48,20 +51,20 @@ def num2str(a, radix):
                     res = res[2:]
                 else:
                     res = "-" + res[3:]
-                return values.W_String(res)
+                return W_String.fromascii(res)
             #elif radix.value == 8:
-            #    return values.W_String(oct(a.value))
+            #    return W_String.fromascii(oct(a.value))
             # elif radix.value == 2:
-            #     return values.W_String(bin(a.value))
+            #     return W_String.fromascii(bin(a.value))
             else:
                 raise SchemeException("number->string: radix unsupported")
         elif isinstance(a, values.W_Bignum):
             if radix.value == 16:
-                return values.W_String(a.value.format(BASE16))
+                return W_String.fromascii(a.value.format(BASE16))
             elif radix.value == 8:
-                return values.W_String(a.value.format(BASE8))
+                return W_String.fromascii(a.value.format(BASE8))
             elif radix.value == 2:
-                return values.W_String(a.value.format("01"))
+                return W_String.fromascii(a.value.format("01"))
             else:
                 raise SchemeException("number->string: radix unsupported")
         elif isinstance(a, values.W_Flonum):
@@ -70,33 +73,33 @@ def num2str(a, radix):
             assert 0 # not reached
 
 
-@expose("string->unreadable-symbol", [values.W_String])
+@expose("string->unreadable-symbol", [W_String])
 def string_to_unsymbol(v):
     return values.W_Symbol.make_unreadable(v.value)
 
-@expose("string->immutable-string", [values.W_String])
+@expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
-    if string.immutable():
-        return string
-    return values.W_String(string.value, immutable=True)
+    return string.make_immutable()
 
-@expose("string->uninterned-symbol", [values.W_String])
+@expose("string->uninterned-symbol", [W_String])
 def string_to_symbol(v):
     return values.W_Symbol(v.value)
 
 @expose(["string->bytes/locale",
-         "string->bytes/utf-8"], [values.W_String,
+         "string->bytes/utf-8"], [W_String,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Integer, values.W_Fixnum(0)),
-                                  default(values.W_Integer, None)])
+                                  default(values.W_Fixnum, values.W_Fixnum(0)),
+                                  default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
+    assert errbyte is values.w_false
+    assert start.value == 0
+    assert end is None
     # FIXME: This ignores the locale
-    # FIXME: these are both wrong to some extend
-    return values.W_Bytes.from_string(str.value)
+    return values.W_Bytes(str.as_charlist_utf8())
 
-@expose("string->list", [values.W_String])
+@expose("string->list", [W_String])
 def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.value])
+    return values.to_list([values.W_Character(i) for i in s.as_unicode()])
 
 
 ##################################
@@ -107,12 +110,12 @@ def define_string_comp(name, op):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
         head, tail = args[0], args[1:]
-        if not isinstance(head, values.W_String):
+        if not isinstance(head, W_String):
             raise SchemeException(name + ": not given a string")
         for t in tail:
-            if not isinstance(t, values.W_String):
+            if not isinstance(t, W_String):
                 raise SchemeException(name + ": not given a string")
-            if not op(head.value, t.value):
+            if not op(head.as_str_ascii(), t.as_str_ascii()): # XXX do better
                 return values.w_false
             head = t
         return values.w_true
@@ -137,10 +140,14 @@ for a in [("string<?", op.lt),
           ]:
     define_string_comp(*a)
 
-@expose("make-string", [values.W_Fixnum, default(values.W_Character, values.w_null)])
+@expose("make-string", [values.W_Fixnum, default(values.W_Character, None)])
 def make_string(k, char):
-    char = str(char.value) if isinstance(char, values.W_Character) else '\0'
-    return values.W_String(char * k.value)
+    if char is None:
+        char = '\0'
+    else:
+        assert ord(char.value) < 128 # XXX for now
+        char = chr(ord(char.value))
+    return W_String.fromascii(char * k.value)
 
 @expose("string")
 def string(args):
@@ -149,82 +156,95 @@ def string(args):
     for char in args:
         if not isinstance(char, values.W_Character):
             raise SchemeException("string: expected a character")
-        builder.append(str(char.value))
-    return values.W_String(builder.build())
+        if not ord(char.value) < 128:
+            raise NotImplementedError("XXX")
+        builder.append(chr(ord(char.value)))
+    return W_String.fromascii(builder.build())
 
 
-@expose("string-downcase", [values.W_String])
+@expose("string-downcase", [W_String])
 def char_downcase(v):
-    return values.W_String(v.value.lower())
+    return v.lower()
 
-@expose("string-upcase", [values.W_String])
+@expose("string-upcase", [W_String])
 def char_downcase(v):
-    return values.W_String(v.value.upper())
-
+    return v.upper()
 
 
 @expose("string-append")
 @jit.unroll_safe
 def string_append(args):
     if not args:
-        return values.W_String("")
+        return W_String.fromascii("")
     builder = StringBuilder()
+    unibuilder = None
     for a in args:
-        if not isinstance(a, values.W_String):
+        if not isinstance(a, W_String):
             raise SchemeException("string-append: expected a string")
-        builder.append(a.value)
-    return values.W_String(builder.build())
+        if unibuilder is None:
+            try:
+                builder.append(a.as_str_ascii())
+                continue
+            except ValueError:
+                unibuilder = UnicodeBuilder()
+                unibuilder.append(unicode(builder.build()))
+        unibuilder.append(a.as_unicode())
+    if unibuilder is None:
+        return W_String.fromascii(builder.build())
+    else:
+        return W_String.fromunicode(unibuilder.build())
 
-@expose("string-length", [values.W_String])
+@expose("string-length", [W_String])
 def string_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
-@expose("substring", [values.W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
+@expose("substring", [W_String, values.W_Fixnum, default(values.W_Fixnum, None)])
 def substring(w_string, w_start, w_end):
     """
-    (substring str start [end]) → string?
+    (substring str start [end]) -> string?
         str : string?
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (string-length str)
     """
-    string = w_string.value
+    lenstring = w_string.length()
     start = w_start.value
-    if start > len(string) or start < 0:
+    if start > lenstring or start < 0:
         raise SchemeException("substring: end index out of bounds")
     if w_end is not None:
         end = w_end.value
-        if end > len(string) or end < 0:
+        if end > lenstring or end < 0:
             raise SchemeException("substring: end index out of bounds")
     else:
-        end = len(string)
+        end = lenstring
     if end < start:
         raise SchemeException(
             "substring: ending index is smaller than starting index")
-    return values.W_String(string[start:end])
+    return w_string.getslice(start, end)
 
-@expose("string-ref", [values.W_String, values.W_Fixnum])
+@expose("string-ref", [W_String, values.W_Fixnum])
 def string_ref(s, n):
-    idx = n.value
-    st  = s.value
-    if idx < 0 or idx >= len(st):
-        raise SchemeException("string-ref: index out of range")
-    return values.W_Character(st[idx])
+    n = n.value
+    if not 0 <= n < s.length():
+        raise SchemeException("string-ref: index out of bounds")
+    return values.W_Character(s.getitem(n))
 
-@expose("string-set!", [values.W_String, values.W_Fixnum, values.W_Character])
-def string_set(str, k, char):
-    if str.immutable():
+@expose("string-set!", [W_String, values.W_Fixnum, values.W_Character])
+def string_set(w_str, w_index, w_char):
+    idx = w_index.value
+    if w_str.immutable():
         raise SchemeException("string-set!: given immutable string")
+    if not (0 <= idx < w_str.length()):
+        raise SchemeException("string-set!: given index is out of range")
+    w_str.setitem(w_index.value, w_char)
+    return values.w_void
     idx = k.value
     v = [i for i in str.value]
-    if not (0 <= idx < len(v)):
-        raise SchemeException("string-set!: given index is out of range")
     v[idx] = char.value
     str.value = "".join(v)
-    return values.w_void
 
 
 @expose(["string-copy!"],
-         [values.W_String, values.W_Fixnum, values.W_String,
+         [W_String, values.W_Fixnum, W_String,
           default(values.W_Fixnum, values.W_Fixnum(0)),
           default(values.W_Fixnum, None)])
 def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
@@ -235,27 +255,15 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
         raise SchemeException("string-copy!: given immutable string")
 
     dest_start = w_dest_start.value
-    dest_len = len(w_dest.value)
+    dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
     src_start =  w_src_start.value
-    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+    src_end = w_src.length() if w_src_end is None else w_src_end.value
 
-    assert (src_end-src_start) <= dest_max
-
-    builder = StringBuilder()
-    if dest_start > 0:
-        builder.append_slice(w_dest.value, 0, dest_start)
-
-    if src_start == 0 and src_end == len(w_src.value):
-        builder.append(w_src.value)
-    else:
-        assert src_start >= 0 and src_end >= 0 and src_end <= len(w_src.value)
-        builder.append_slice(w_src.value, src_start, src_end)
-
-    builder.append_slice(w_dest.value, dest_start + (src_end - src_start), len(w_dest.value))
-    w_dest.value = builder.build()
-
+    if src_end - src_start > dest_max:
+        raise SchemeException("string-copy!: not enough room in target string")
+    w_dest.setslice(dest_start, w_src, src_start, src_end)
     return values.w_void
 
 
@@ -425,8 +433,7 @@ for a in [("bytes<?", op.lt),
                                   default(values.W_Integer, None)])
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
-    # FIXME: these are both wrong to some extend
-    return values.W_String(bytes.as_str())
+    return W_String.fromstr_utf8(bytes.as_str())
 
 ################################################################################
 
