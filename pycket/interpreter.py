@@ -1117,9 +1117,6 @@ class Lambda(SequencedBodyAST):
     def enable_jitting(self):
         if config.log_callgraph:
             print "enabling jitting", self.tostring()
-        #for b in self.body:
-            #b.should_enter = True
-            #b.should_enter = False
         self.body[0].should_enter = True
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
