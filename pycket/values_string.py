@@ -267,7 +267,7 @@ class AsciiStringStrategy(ImmutableStringStrategy):
         return len(self.unerase(w_str.storage))
 
     def getitem(self, w_str, index):
-        return unicode(self.unerase(w_str.storage)[index])
+        return unichr(ord(self.unerase(w_str.storage)[index]))
 
     def getslice(self, w_str, start, stop):
         v = self.unerase(w_str.storage)[start:stop]
@@ -301,7 +301,7 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
         return len(self.unerase(w_str.storage))
 
     def getitem(self, w_str, index):
-        return unicode(self.unerase(w_str.storage)[index])
+        return unichr(ord(self.unerase(w_str.storage)[index]))
 
     def getslice(self, w_str, start, stop):
         v = self.unerase(w_str.storage)[start:stop]
