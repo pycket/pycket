@@ -304,6 +304,22 @@ def test_open_input_bytes_and_read_bytes_line(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+def test_open_input_and_read_line(source):
+    u"""
+    (let* ([b "ÄBC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n"]
+           [expected '("MNOP" "" "" "JKL" "" "GHI" "" "DEF" "ÄBC")]
+           [inport (open-input-string b)])
+      (let ([res (let rev ([lines null])
+                   (let ([line (read-line inport)])
+                     (if (eof-object? line)
+                         lines
+                         (rev (cons line lines)))))])
+        (equal? res expected)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+
 ####################
 def test_procedure_arity(doctest):
     """

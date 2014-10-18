@@ -115,7 +115,7 @@ def do_read_line(port, mode, as_bytes, env, cont):
         if as_bytes:
             return return_value(values.W_Bytes.from_string(line), env, cont)
         else:
-            return return_value(values_string.W_String.fromascii(line), env, cont) # XXX
+            return return_value(values_string.W_String.fromstr_utf8(line), env, cont)
     else:
         return return_value(values.eof_object, env, cont)
 
@@ -322,6 +322,7 @@ def printf(args):
     vals = args[1:]
     i = 0
     j = 0
+    # XXX what's the difference to the algorithm in format?
     while i < len(fmt):
         if fmt[i] == '~':
             if i+1 == len(fmt):
@@ -402,11 +403,11 @@ def open_input_bytes(bstr, name):
 @expose("open-input-string", [values_string.W_String, default(values.W_Symbol, string_sym)])
 def open_input_string(w_str, name):
     # FIXME: name is ignore
-    return values.W_StringInputPort(w_str.as_str_ascii()) # XXX XXX XXX
+    return values.W_StringInputPort(w_str.as_str_utf8())
 
 @expose("get-output-string", [values.W_StringOutputPort])
 def open_output_string(w_port):
-    return values_string.W_String.fromascii(w_port.contents())
+    return values_string.W_String.fromascii(w_port.contents()) # XXX
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
