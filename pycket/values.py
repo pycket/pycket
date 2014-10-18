@@ -1298,14 +1298,19 @@ eof_object = W_EOF()
 
 class W_Port(W_Object):
     errorname = "port"
-    def tostring(self):
-        raise NotImplementedError("abstract base classe")
-    def close(self):
-        self.closed = True
+
     def __init__(self):
         self.closed = False
+
+    def tostring(self):
+        raise NotImplementedError("abstract base classe")
+
+    def close(self):
+        self.closed = True
+
     def seek(self, offset, end=False):
         raise NotImplementedError("abstract base classe")
+
     def tell(self):
         raise NotImplementedError("abstract base classe")
 
@@ -1313,10 +1318,13 @@ class W_OutputPort(W_Port):
     errorname = "output-port"
     def __init__(self):
         pass
+
     def write(self, str):
         raise NotImplementedError("abstract base classe")
+
     def flush(self):
         raise NotImplementedError("abstract base classe")
+
     def tostring(self):
         return "#<output-port>"
 
@@ -1355,10 +1363,12 @@ class W_InputPort(W_Port):
 class W_StringInputPort(W_InputPort):
     _immutable_fields_ = ["str"]
     errorname = "input-port"
+
     def __init__(self, str):
         self.closed = False
         self.str = str
         self.ptr = 0
+
     def readline(self):
         # import pdb; pdb.set_trace()
         from rpython.rlib.rstring import find
@@ -1403,17 +1413,21 @@ class W_StringInputPort(W_InputPort):
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
+
+    def __init__(self, f):
+        self.closed = False
+        self.file = f
+
     def close(self):
         self.closed = True
         self.file.close()
         self.file = None
+
     def read(self, n):
         return self.file.read(n)
+
     def readline(self):
         return self.file.readline()
-    def __init__(self, f):
-        self.closed = False
-        self.file = f
 
     def seek(self, offset, end=False):
         if end:
@@ -1426,18 +1440,22 @@ class W_FileInputPort(W_InputPort):
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
+
+    def __init__(self, f):
+        self.closed = False
+        self.file = f
+
     def write(self, str):
         self.file.write(str)
-        self.file.flush() # flushes too often
+        self.file.flush() # XXX flushes too often
+
     def flush(self):
         self.file.flush()
+
     def close(self):
         self.closed = True
         self.file.close()
         self.file = None
-    def __init__(self, f):
-        self.closed = False
-        self.file = f
 
     def seek(self, offset, end=False):
         if end:
