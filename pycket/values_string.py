@@ -39,6 +39,25 @@ class W_String(W_Object):
     def frombytes(b, immutable=False):
         assert 0
 
+    cache = {}
+    @staticmethod
+    def make(val):
+        # try to see whether the string is ascii
+        lup = W_String.cache.get(val, None)
+        if lup is None:
+            ascii = True
+            for c in val:
+                if ord(c) >= 128:
+                    ascii = False
+                    break
+            if ascii:
+                lup = W_String.fromascii(val, immutable=True)
+            else:
+                lup = W_String.fromstr_utf8(val, immutable=True)
+            W_String.cache[val] = lup
+        return lup
+
+
     def __init__(self, strategy, storage):
         self.change_strategy(strategy, storage)
 
@@ -113,16 +132,6 @@ class W_MutableString(W_String):
     def make_immutable(self):
         assert 0
 
-    cache = {}
-    @staticmethod
-    def make(val):
-        # XXX reactivate make
-        assert 0
-        lup = W_String.cache.get(val, None)
-        if lup is None:
-            lup = W_String(val, immutable=True)
-            W_String.cache[val] = lup
-        return lup
 
     def immutable(self):
         return False

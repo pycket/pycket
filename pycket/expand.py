@@ -566,7 +566,7 @@ def to_value(json):
         if "bytes" in obj:
             return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
         if "string" in obj:
-            return values_string.W_String.fromascii(str(obj["string"].value_string()), immutable=True)
+            return values_string.W_String.make(str(obj["string"].value_string()))
         if "keyword" in obj:
             return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:
