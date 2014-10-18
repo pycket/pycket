@@ -293,16 +293,18 @@ format_regex = re.compile("|".join(format_dict.keys()))
 
 @jit.unroll_safe
 def format(form, v):
-    text = form.as_str_ascii()
+    text = form.as_str_utf8()
     result = StringBuilder()
     pos = 0
+    vindex = 0
     for match in format_regex.finditer(text):
         match_start = match.start()
         assert match_start >= 0
         result.append_slice(text, pos, match_start)
         val = format_dict[match.group()]
         if val is None:
-            val, v = v[0].tostring(), v[1:]
+            val = v[vindex].tostring()
+            vindex += 1
         result.append(val)
         pos = match.end()
         assert pos >= 0
@@ -346,7 +348,7 @@ def printf(args):
 def do_format(args):
     form, v = args[0], args[1:]
     assert isinstance(form, values_string.W_String)
-    return values_string.W_String.fromascii(format(form, v))
+    return values_string.W_String.fromstr_utf8(format(form, v))
 
 @expose("fprintf", simple=False)
 def do_fprintf(args, env, cont):

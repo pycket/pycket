@@ -227,3 +227,9 @@ def test_unicode(doctest):
     > (immutable? str)
     #f
     """
+
+def test_format_unicode(doctest):
+    u"""
+    > (format "~s.00€" 1)
+    "1.00€"
+    """

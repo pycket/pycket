@@ -35,10 +35,6 @@ class W_String(W_Object):
             cls = W_MutableString
         return cls(strategy, storage)
 
-    @staticmethod
-    def frombytes(b, immutable=False):
-        assert 0
-
     cache = {}
     @staticmethod
     def make(val):
@@ -203,7 +199,8 @@ class StringStrategy(object):
         return True
 
     def hash(self, w_str):
-        return compute_hash(w_str.as_unicode()) # inefficient default
+        # potentially inefficient default
+        return compute_hash(w_str.as_unicode())
 
     def upper(self, w_str):
         raise NotImplementedError("abstract base class")
@@ -381,12 +378,10 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         w_str.change_strategy(strategy, storage)
 
     def as_str_ascii(self, w_str):
-        assert 0
-        return self.unerase(w_str.storage)
+        raise ValueError # XXX or check?
 
     def as_str_utf8(self, w_str):
-        assert 0
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.storage).encode("utf-8")
 
     def as_unicode(self, w_str):
         return self.unerase(w_str.storage)
@@ -408,10 +403,6 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         if w_other.get_strategy() is self:
             return self.unerase(w_str.storage) == self.unerase(w_other.storage)
         return ImmutableStringStrategy.eq(self, w_str, w_other)
-
-    def hash(self, w_str):
-        assert 0
-        return compute_hash(w_str.as_str_ascii())
 
     def upper(self, w_str):
         assert 0
