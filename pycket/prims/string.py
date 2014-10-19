@@ -152,14 +152,13 @@ def make_string(k, char):
 @expose("string")
 def string(args):
     assert len(args) > 0
-    builder = StringBuilder()
+    builder = UnicodeBuilder()
+    # XXX could do one less copy in the ascii case
     for char in args:
         if not isinstance(char, values.W_Character):
             raise SchemeException("string: expected a character")
-        if not ord(char.value) < 128:
-            raise NotImplementedError("XXX")
-        builder.append(chr(ord(char.value)))
-    return W_String.fromascii(builder.build())
+        builder.append(char.value)
+    return W_String.fromunicode(builder.build())
 
 
 @expose("string-downcase", [W_String])

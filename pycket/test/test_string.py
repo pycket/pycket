@@ -345,3 +345,12 @@ def test_make_string(doctest):
     > (make-string 2)
     "\u0000\u0000"
     """
+
+
+def test_string_unicode(doctest):
+    ur"""
+    > (string #\A #\p #\p #\l #\e)
+    "Apple"
+    >  (string #\Ä #\p #\f #\e #\l)
+    "Äpfel"
+    """
