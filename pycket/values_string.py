@@ -3,6 +3,8 @@ from pycket.error import SchemeException
 
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import compute_hash, we_are_translated
+from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
+from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
 class W_String(W_Object):
     errorname = "string"
@@ -407,10 +409,18 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         return ImmutableStringStrategy.eq(self, w_str, w_other)
 
     def upper(self, w_str):
-        assert 0
+        value = self.unerase(w_str.storage)
+        builder = UnicodeBuilder(len(value))
+        for i, ch in enumerate(value):
+            builder.append(unichr(unicodedb.toupper(ord(ch))))
+        return W_MutableString(self, self.erase(builder.build()))
 
     def lower(self, w_str):
-        assert 0
+        value = self.unerase(w_str.storage)
+        builder = UnicodeBuilder(len(value))
+        for i, ch in enumerate(value):
+            builder.append(unichr(unicodedb.tolower(ord(ch))))
+        return W_MutableString(self, self.erase(builder.build()))
 
 
 class UnicodeMutableStringStrategy(MutableStringStrategy):
@@ -456,11 +466,21 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
             target[index] = w_from.getitem(sourceindex)
             index += 1
 
+
     def upper(self, w_str):
-        assert 0
+        # copy paste from above, but the types are different
+        value = self.unerase(w_str.storage)
+        builder = UnicodeBuilder(len(value))
+        for i, ch in enumerate(value):
+            builder.append(unichr(unicodedb.toupper(ord(ch))))
+        return W_MutableString(self, self.erase(builder.build()))
 
     def lower(self, w_str):
-        assert 0
+        value = self.unerase(w_str.storage)
+        builder = UnicodeBuilder(len(value))
+        for i, ch in enumerate(value):
+            builder.append(unichr(unicodedb.tolower(ord(ch))))
+        return W_MutableString(self, self.erase(builder.build()))
 
 # what I need
 # comparison

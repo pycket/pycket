@@ -233,3 +233,21 @@ def test_format_unicode(doctest):
     > (format "~s.00€" 1)
     "1.00€"
     """
+
+def test_string_upcase_downcase(doctest):
+    u"""
+    > (string-upcase "über")
+    "ÜBER"
+    > (string-upcase "uber")
+    "UBER"
+    > (string-upcase "123aA")
+    "123AA"
+    > (string-downcase "ÜBER")
+    "über"
+    > (string-downcase "UBER")
+    "uber"
+    > (string-downcase "123Aa")
+    "123aa"
+    > (immutable? (string-upcase "abc"))
+    #f
+    """
