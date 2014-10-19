@@ -323,7 +323,7 @@ def printf(args):
     fmt = args[0]
     if not isinstance(fmt, values_string.W_String):
         raise SchemeException("printf expected a format string, got something else")
-    fmt = fmt.as_str_ascii() # XXX for now
+    fmt = fmt.as_str_utf8() # XXX for now
     vals = args[1:]
     i = 0
     j = 0

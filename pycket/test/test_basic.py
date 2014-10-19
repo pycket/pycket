@@ -416,7 +416,7 @@ def test_with_continuation_mark():
     """)
     sym = W_Symbol.make("result")
     assert isinstance(m.defs[sym], values_string.W_String)
-    assert m.defs[sym].as_str_ascii() == "ham"
+    assert m.defs[sym].as_str_utf8() == "ham"
 
 def test_with_continuation_mark_impersonator():
     m = run_mod(
