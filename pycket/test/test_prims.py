@@ -235,6 +235,7 @@ def test_make_bytes_create(doctest):
     """
     > (make-bytes 5 65)
     #"AAAAA"
+    E (make-bytes 5 11111)
     > (bytes 65 112 112 108 101)
     #"Apple"
     """

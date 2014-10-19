@@ -360,11 +360,8 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
         storage = strategy.erase(self.as_unicharlist(w_str))
         w_str.change_strategy(strategy, storage)
 
-    def as_charlist_ascii(self, w_str):
-        return self.unerase(w_str.storage)
-
     def as_charlist_utf8(self, w_str):
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.storage)[:]
 
     def as_unicharlist(self, w_str):
         return [unichr(ord(c)) for c in self.unerase(w_str.storage)]

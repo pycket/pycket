@@ -267,14 +267,10 @@ def make_bytes(length, byte):
     # assert byte_huh(byte) is values.w_true
     if isinstance(byte, values.W_Fixnum):
         v = byte.value
-    elif isinstance(byte, values.W_Bignum):
-        try:
-            v = byte.value.toint()
-        except OverflowError:
-            assert False
     else:
-        assert False
-    assert 0 <= v <= 255
+        raise SchemeException("make-bytes: not a byte")
+    if not 0 <= v <= 255:
+        raise SchemeException("make-bytes: argument out of range")
     bstr = [chr(v)] * length.value
     return values.W_Bytes(bstr, immutable=False)
 
