@@ -9,6 +9,8 @@ from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
 class W_String(W_Object):
     errorname = "string"
+    _attrs_ = []
+    _settled_ = True
 
     # factory methods
 
@@ -33,7 +35,7 @@ class W_String(W_Object):
         strategy = AsciiStringStrategy.singleton
         storage = strategy.erase(s)
         if immutable:
-            cls = W_ImmutableString
+            cls = W_AsciiImmutableString
         else:
             cls = W_MutableString
         return cls(strategy, storage)
@@ -43,7 +45,7 @@ class W_String(W_Object):
         strategy = UnicodeStringStrategy.singleton
         storage = strategy.erase(u)
         if immutable:
-            cls = W_ImmutableString
+            cls = W_UnicodeImmutableString
         else:
             cls = W_MutableString
         return cls(strategy, storage)
@@ -58,16 +60,14 @@ class W_String(W_Object):
             W_String.cache[val] = lup
         return lup
 
-
-    def __init__(self, strategy, storage):
-        self.change_strategy(strategy, storage)
-
-    def change_strategy(self, strategy, storage):
-        self.strategy = strategy
-        self.storage = storage
+    def make_immutable(self):
+        raise NotImplementedError("abstract base class")
 
     def get_strategy(self):
-        return self.strategy
+        raise NotImplementedError("abstract base class")
+
+    def get_storage(self):
+        raise NotImplementedError("abstract base class")
 
     # methods that defer to the strategies
 
@@ -120,7 +120,7 @@ class W_String(W_Object):
         return self.get_strategy().lower(self)
 
     def __repr__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.get_strategy(), self.storage)
+        return "%s(%s, %s)" % (self.__class__.__name__, self.get_strategy(), self.get_storage())
 
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
@@ -138,8 +138,30 @@ class W_String(W_Object):
 
 class W_MutableString(W_String):
 
+    def __init__(self, strategy, storage):
+        self.change_strategy(strategy, storage)
+
+    def get_strategy(self):
+        return self.strategy
+
+    def get_storage(self):
+        return self.storage
+
+    def change_strategy(self, strategy, storage):
+        self.strategy = strategy
+        self.storage = storage
+
     def make_immutable(self):
-        return W_ImmutableString(self.strategy, self.storage) # XXX convert away from lists
+        try:
+            s = self.as_str_ascii()
+        except ValueError:
+            strategy = UnicodeStringStrategy.singleton
+            storage = strategy.erase(self.as_unicode())
+            return W_UnicodeImmutableString(strategy, storage)
+        else:
+            strategy = AsciiStringStrategy.singleton
+            storage = strategy.erase(s)
+            return W_AsciiImmutableString(strategy, storage)
 
     def immutable(self):
         return False
@@ -154,12 +176,33 @@ class W_MutableString(W_String):
 
 
 class W_ImmutableString(W_String):
-    # XXX don't store the strategy
+    # abstract base class of immutable strings
+    # there are concrete subclasses for every immutable strategy
+
+    _immutable_fields_ = ['storage']
+
+    def __init__(self, strategy, storage):
+        self.storage = storage
+        assert strategy is self.get_strategy()
+
     def make_immutable(self):
         return self
 
     def immutable(self):
         return True
+
+    def get_storage(self):
+        return self.storage
+
+
+class W_AsciiImmutableString(W_ImmutableString):
+    def get_strategy(self):
+        return AsciiStringStrategy.singleton
+
+
+class W_UnicodeImmutableString(W_ImmutableString):
+    def get_strategy(self):
+        return UnicodeStringStrategy.singleton
 
 
 class StringStrategy(object):
@@ -316,30 +359,30 @@ class AsciiStringStrategy(ImmutableStringStrategy):
         w_str.change_strategy(strategy, storage)
 
     def as_str_ascii(self, w_str):
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.get_storage())
 
     def as_str_utf8(self, w_str):
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.get_storage())
 
     def as_unicode(self, w_str):
-        return unicode(self.unerase(w_str.storage)) # change strategy?
+        return unicode(self.unerase(w_str.get_storage())) # change strategy?
 
 
     # string operations
 
     def length(self, w_str):
-        return len(self.unerase(w_str.storage))
+        return len(self.unerase(w_str.get_storage()))
 
     def getitem(self, w_str, index):
-        return unichr(ord(self.unerase(w_str.storage)[index]))
+        return unichr(ord(self.unerase(w_str.get_storage())[index]))
 
     def getslice(self, w_str, start, stop):
-        v = self.unerase(w_str.storage)[start:stop]
+        v = self.unerase(w_str.get_storage())[start:stop]
         return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
-            return self.unerase(w_str.storage) == self.unerase(w_other.storage)
+            return self.unerase(w_str.get_storage()) == self.unerase(w_other.get_storage())
         return ImmutableStringStrategy.eq(self, w_str, w_other)
 
     def hash(self, w_str):
@@ -361,27 +404,27 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
         w_str.change_strategy(strategy, storage)
 
     def as_charlist_utf8(self, w_str):
-        return self.unerase(w_str.storage)[:]
+        return self.unerase(w_str.get_storage())[:]
 
     def as_unicharlist(self, w_str):
-        return [unichr(ord(c)) for c in self.unerase(w_str.storage)]
+        return [unichr(ord(c)) for c in self.unerase(w_str.get_storage())]
 
 
     # string operations
 
     def length(self, w_str):
-        return len(self.unerase(w_str.storage))
+        return len(self.unerase(w_str.get_storage()))
 
     def getitem(self, w_str, index):
-        return unichr(ord(self.unerase(w_str.storage)[index]))
+        return unichr(ord(self.unerase(w_str.get_storage())[index]))
 
     def getslice(self, w_str, start, stop):
-        v = self.unerase(w_str.storage)[start:stop]
+        v = self.unerase(w_str.get_storage())[start:stop]
         return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
-            return self.unerase(w_str.storage) == self.unerase(w_other.storage)
+            return self.unerase(w_str.get_storage()) == self.unerase(w_other.get_storage())
         return MutableStringStrategy.eq(self, w_str, w_other)
 
 
@@ -390,13 +433,13 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
     def setitem(self, w_str, index, unichar):
         val = ord(unichar.value)
         if val < 128:
-            self.unerase(w_str.storage)[index] = chr(val)
+            self.unerase(w_str.get_storage())[index] = chr(val)
         else:
             self.make_unicode(w_str)
             return w_str.setitem(index, unichar)
 
     def setslice(self, w_str, index, w_from, fromstart, fromend):
-        target = self.unerase(w_str.storage)
+        target = self.unerase(w_str.get_storage())
         # XXX inefficient
         for sourceindex in range(fromstart, fromend):
             char = ord(w_from.getitem(sourceindex))
@@ -425,38 +468,38 @@ class UnicodeStringStrategy(ImmutableStringStrategy):
         raise ValueError # XXX or check?
 
     def as_str_utf8(self, w_str):
-        return self.unerase(w_str.storage).encode("utf-8")
+        return self.unerase(w_str.get_storage()).encode("utf-8")
 
     def as_unicode(self, w_str):
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.get_storage())
 
 
     # string operations
 
     def length(self, w_str):
-        return len(self.unerase(w_str.storage))
+        return len(self.unerase(w_str.get_storage()))
 
     def getitem(self, w_str, index):
-        return self.unerase(w_str.storage)[index]
+        return self.unerase(w_str.get_storage())[index]
 
     def getslice(self, w_str, start, stop):
-        v = self.unerase(w_str.storage)[start:stop]
+        v = self.unerase(w_str.get_storage())[start:stop]
         return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
-            return self.unerase(w_str.storage) == self.unerase(w_other.storage)
+            return self.unerase(w_str.get_storage()) == self.unerase(w_other.get_storage())
         return ImmutableStringStrategy.eq(self, w_str, w_other)
 
     def upper(self, w_str):
-        value = self.unerase(w_str.storage)
+        value = self.unerase(w_str.get_storage())
         builder = UnicodeBuilder(len(value))
         for i, ch in enumerate(value):
             builder.append(unichr(unicodedb.toupper(ord(ch))))
         return W_MutableString(self, self.erase(builder.build()))
 
     def lower(self, w_str):
-        value = self.unerase(w_str.storage)
+        value = self.unerase(w_str.get_storage())
         builder = UnicodeBuilder(len(value))
         for i, ch in enumerate(value):
             builder.append(unichr(unicodedb.tolower(ord(ch))))
@@ -473,34 +516,34 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
         assert 0
 
     def as_unicharlist(self, w_str):
-        return self.unerase(w_str.storage)
+        return self.unerase(w_str.get_storage())
 
 
     # string operations
 
     def length(self, w_str):
-        return len(self.unerase(w_str.storage))
+        return len(self.unerase(w_str.get_storage()))
 
     def getitem(self, w_str, index):
-        return self.unerase(w_str.storage)[index]
+        return self.unerase(w_str.get_storage())[index]
 
     def getslice(self, w_str, start, stop):
-        v = self.unerase(w_str.storage)[start:stop]
+        v = self.unerase(w_str.get_storage())[start:stop]
         return W_MutableString(self, self.erase(v))
 
     def eq(self, w_str, w_other):
         if w_other.get_strategy() is self:
-            return self.unerase(w_str.storage) == self.unerase(w_other.storage)
+            return self.unerase(w_str.get_storage()) == self.unerase(w_other.get_storage())
         return MutableStringStrategy.eq(self, w_str, w_other)
 
 
     # mutation operations
 
     def setitem(self, w_str, index, unichar):
-        self.unerase(w_str.storage)[index] = unichar.value
+        self.unerase(w_str.get_storage())[index] = unichar.value
 
     def setslice(self, w_str, index, w_from, fromstart, fromend):
-        target = self.unerase(w_str.storage)
+        target = self.unerase(w_str.get_storage())
         # XXX inefficient
         for sourceindex in range(fromstart, fromend):
             target[index] = w_from.getitem(sourceindex)
@@ -509,41 +552,16 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
 
     def upper(self, w_str):
         # copy paste from above, but the types are different
-        value = self.unerase(w_str.storage)
+        value = self.unerase(w_str.get_storage())
         builder = UnicodeBuilder(len(value))
         for i, ch in enumerate(value):
             builder.append(unichr(unicodedb.toupper(ord(ch))))
-        return W_MutableString(self, self.erase(builder.build()))
+        return W_MutableString(self, self.erase(list(builder.build())))
 
     def lower(self, w_str):
-        value = self.unerase(w_str.storage)
+        value = self.unerase(w_str.get_storage())
         builder = UnicodeBuilder(len(value))
         for i, ch in enumerate(value):
             builder.append(unichr(unicodedb.tolower(ord(ch))))
-        return W_MutableString(self, self.erase(builder.build()))
-
-# what I need
-# comparison
-# upper case
-# lower case
-# appending
-# make immutable
-
-
-# "lattice"
-#
-#  mutable     immutable
-#  unicode <-  unicode
-#    |           |
-# (latin1) <- (latin1)
-#    |           |
-#  ascii   <-  ascii
-#    |           |
-#   bot    <-   bot
-
-
-# approach: try to be as far at the bottom as possible, but never move down
-# try to store things immutably
-# immutable strings still have to be mutable for going up the representation
-# hierarchy
+        return W_MutableString(self, self.erase(list(builder.build())))
 
