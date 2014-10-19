@@ -332,3 +332,16 @@ def test_string_cmp_ci(doctest):
     > (string-ci>? "A" "ä")
     #f
     """
+
+def test_make_string(doctest):
+    ur"""
+    > (make-string 4 #\a)
+    "aaaa"
+    > (make-string 4 #\ä)
+    "ääää"
+    E (make-string -5 #\ä)
+    > (make-string 20 #\_)
+    "____________________"
+    > (make-string 2)
+    "\u0000\u0000"
+    """

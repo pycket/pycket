@@ -136,11 +136,18 @@ for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
 @expose("make-string", [values.W_Fixnum, default(values.W_Character, None)])
 def make_string(k, char):
     if char is None:
-        char = '\0'
+        char = u'\0'
     else:
-        assert ord(char.value) < 128 # XXX for now
-        char = chr(ord(char.value))
-    return W_String.fromascii(char * k.value)
+        char = char.value
+    c = ord(char)
+    if k.value < 0:
+        raise SchemeException("make-string: around negative")
+    if c < 128:
+        char = chr(c)
+        return W_String.fromascii(char * k.value)
+    else:
+        char = unichr(c)
+        return W_String.fromunicode(char * k.value)
 
 @expose("string")
 def string(args):
