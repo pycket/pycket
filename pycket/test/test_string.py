@@ -251,3 +251,84 @@ def test_string_upcase_downcase(doctest):
     > (immutable? (string-upcase "abc"))
     #f
     """
+
+def test_string_cmp(doctest):
+    u"""
+    > (string<? "a" "a")
+    #f
+    > (string<=? "a" "a")
+    #t
+    > (string=? "a" "a")
+    #t
+    > (string>=? "a" "a")
+    #t
+    > (string>? "a" "a")
+    #f
+    > (string<? "a" "b")
+    #t
+    > (string<=? "a" "b")
+    #t
+    > (string=? "a" "b")
+    #f
+    > (string>? "a" "b")
+    #f
+    > (string>=? "a" "b")
+    #f
+    > (string<? "a" "aa")
+    #t
+    > (string<=? "a" "aa")
+    #t
+    > (string=? "a" "aa")
+    #f
+    > (string>? "a" "aa")
+    #f
+    > (string>=? "a" "aa")
+    #f
+    > (string<? "a" "ä")
+    #t
+    > (string=? "a" "ä")
+    #f
+    > (string>? "a" "ä")
+    #f
+    """
+
+
+def test_string_cmp_ci(doctest):
+    u"""
+    > (string-ci<? "A" "a")
+    #f
+    > (string-ci<=? "A" "a")
+    #t
+    > (string-ci=? "A" "a")
+    #t
+    > (string-ci>=? "A" "a")
+    #t
+    > (string-ci>? "A" "a")
+    #f
+    > (string-ci<? "A" "b")
+    #t
+    > (string-ci<=? "A" "b")
+    #t
+    > (string-ci=? "A" "b")
+    #f
+    > (string-ci>? "A" "b")
+    #f
+    > (string-ci>=? "A" "b")
+    #f
+    > (string-ci<? "A" "aa")
+    #t
+    > (string-ci<=? "A" "aa")
+    #t
+    > (string-ci=? "A" "aa")
+    #f
+    > (string-ci>? "A" "aa")
+    #f
+    > (string-ci>=? "A" "aa")
+    #f
+    > (string-ci<? "A" "ä")
+    #t
+    > (string-ci=? "A" "ä")
+    #f
+    > (string-ci>? "A" "ä")
+    #f
+    """

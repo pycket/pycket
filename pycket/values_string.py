@@ -6,6 +6,7 @@ from rpython.rlib.objectmodel import compute_hash, we_are_translated
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
+
 class W_String(W_Object):
     errorname = "string"
 
@@ -102,7 +103,15 @@ class W_String(W_Object):
         return self.get_strategy().hash(self)
 
     def equal(self, other):
+        if not isinstance(other, W_String):
+            return False
         return self.get_strategy().eq(self, other)
+
+    def cmp(self, other):
+        return self.get_strategy().cmp(self, other)
+
+    def cmp_ci(self, other):
+        return self.get_strategy().cmp_ci(self, other)
 
     def upper(self):
         return self.get_strategy().upper(self)
@@ -201,6 +210,40 @@ class StringStrategy(object):
             if self.getitem(w_str, i) != w_other.getitem(i):
                 return False
         return True
+
+    def cmp(self, w_str, w_other):
+        # base implementations, subclasses should do better ones
+        len1 = self.length(w_str)
+        len2 = w_other.length()
+
+        if len1 < len2:
+            cmplen = len1
+        else:
+            cmplen = len2
+        for i in range(cmplen):
+            diff = ord(self.getitem(w_str, i)) - ord(w_other.getitem(i))
+            if diff:
+                return diff
+            i += 1
+        return len1 - len2
+
+    def cmp_ci(self, w_str, w_other):
+        # base implementations, subclasses should do better ones
+        len1 = self.length(w_str)
+        len2 = w_other.length()
+
+        if len1 < len2:
+            cmplen = len1
+        else:
+            cmplen = len2
+        for i in range(cmplen):
+            ch1 = unicodedb.tolower(ord(self.getitem(w_str, i)))
+            ch2 = unicodedb.tolower(ord(w_other.getitem(i)))
+            diff = ch1 - ch2
+            if diff:
+                return diff
+            i += 1
+        return len1 - len2
 
     def hash(self, w_str):
         # potentially inefficient default

@@ -115,28 +115,21 @@ def define_string_comp(name, op):
         for t in tail:
             if not isinstance(t, W_String):
                 raise SchemeException(name + ": not given a string")
-            if not op(head.as_str_ascii(), t.as_str_ascii()): # XXX do better
+            if not op(head, t):
                 return values.w_false
             head = t
         return values.w_true
 
-# FIXME: Doing case insensitives like this will perform the lower operation
-# every time a value is used for a comparison.
-def make_ci(op):
-    def lower(a, b):
-        return op(a.lower(), b.lower())
-    return lower
-
-for a in [("string<?", op.lt),
-          ("string<=?", op.le),
-          ("string=?", op.eq),
-          ("string>=?", op.ge),
-          ("string>?", op.gt),
-          ("string-ci<?", make_ci(op.lt)),
-          ("string-ci<=?", make_ci(op.le)),
-          ("string-ci=?", make_ci(op.eq)),
-          ("string-ci>=?", make_ci(op.ge)),
-          ("string-ci>?", make_ci(op.gt)),
+for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
+          ("string<=?", lambda w_self, w_other: w_self.cmp(w_other) <= 0),
+          ("string=?", lambda w_self, w_other: w_self.equal(w_other)),
+          ("string>=?", lambda w_self, w_other: w_self.cmp(w_other) >= 0),
+          ("string>?", lambda w_self, w_other: w_self.cmp(w_other) > 0),
+          ("string-ci<?", lambda w_self, w_other: w_self.cmp_ci(w_other) < 0),
+          ("string-ci<=?", lambda w_self, w_other: w_self.cmp_ci(w_other) <= 0),
+          ("string-ci=?", lambda w_self, w_other: w_self.cmp_ci(w_other) == 0),
+          ("string-ci>=?", lambda w_self, w_other: w_self.cmp_ci(w_other) >= 0),
+          ("string-ci>?", lambda w_self, w_other: w_self.cmp_ci(w_other) > 0),
           ]:
     define_string_comp(*a)
 
