@@ -108,12 +108,6 @@ def unpack_hash_args(args, name):
 def impersonate_hash(args):
     hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
             unpack_hash_args(args, "impersonate-hash")
-    ref_proc.mark_non_loop()
-    ref_proc.mark_non_loop()
-    set_proc.mark_non_loop()
-    remove_proc.mark_non_loop()
-    key_proc.mark_non_loop()
-    clear_proc.mark_non_loop()
     return imp.W_ImpHashTable(hash, ref_proc, set_proc, remove_proc,
                               key_proc, clear_proc, prop_keys, prop_vals)
 
@@ -121,24 +115,17 @@ def impersonate_hash(args):
 def chaperone_hash(args):
     hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
             unpack_hash_args(args, "chaperone-hash")
-    ref_proc.mark_non_loop()
-    set_proc.mark_non_loop()
-    remove_proc.mark_non_loop()
-    key_proc.mark_non_loop()
-    clear_proc.mark_non_loop()
     return imp.W_ChpHashTable(hash, ref_proc, set_proc, remove_proc,
                               key_proc, clear_proc, prop_keys, prop_vals)
 
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
     proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
-    check.mark_non_loop()
     return imp.W_ImpProcedure(proc, check, prop_keys, prop_vals)
 
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
     proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "chaperone-procedure")
-    check.mark_non_loop()
     return imp.W_ChpProcedure(proc, check, prop_keys, prop_vals)
 
 @expose("impersonate-vector")
@@ -146,15 +133,11 @@ def impersonate_vector(args):
     v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "impersonate-vector")
     if v.immutable():
         raise SchemeException("impersonate-vector: cannot impersonate immutable vector")
-    refh.mark_non_loop()
-    seth.mark_non_loop()
     return imp.W_ImpVector(v, refh, seth, prop_keys, prop_vals)
 
 @expose("chaperone-vector")
 def chaperone_vector(args):
     v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "chaperone-vector")
-    refh.mark_non_loop()
-    seth.mark_non_loop()
     return imp.W_ChpVector(v, refh, seth, prop_keys, prop_vals)
 
 # Need to check that fields are mutable
@@ -227,8 +210,6 @@ def chaperone_struct(args):
 @expose("chaperone-box")
 def chaperone_box(args):
     b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "chaperone-box")
-    unbox.mark_non_loop()
-    set.mark_non_loop()
     return imp.W_ChpBox(b, unbox, set, prop_keys, prop_vals)
 
 @expose("impersonate-box")
@@ -236,22 +217,16 @@ def impersonate_box(args):
     b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "impersonate-box")
     if b.immutable():
         raise SchemeException("Cannot impersonate immutable box")
-    unbox.mark_non_loop()
-    set.mark_non_loop()
     return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
 
 @expose("chaperone-continuation-mark-key")
 def ccmk(args):
     key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "chaperone-continuation-mark-key")
-    getter.mark_non_loop()
-    setter.mark_non_loop()
     return imp.W_ChpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
 
 @expose("impersonate-continuation-mark-key")
 def icmk(args):
     key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "impersonate-continuation-mark-key")
-    getter.mark_non_loop()
-    setter.mark_non_loop()
     return imp.W_ImpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
 
 # TODO: This is not correct, based on Racket's internal implementation.
