@@ -199,7 +199,7 @@ def open_outfile(str, mode):
                                  values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
                                 simple=False)
-def call_with_input_file(s, proc, env, cont):
+def call_with_input_file(s, proc, mode, env, cont):
     m = "r" if mode is w_text_sym else "rb"
     port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
@@ -208,7 +208,7 @@ def call_with_input_file(s, proc, env, cont):
                                   values.W_Object,
                                   default(values.W_Symbol, w_binary_sym)],
                                 simple=False)
-def call_with_output_file(s, proc, env, cont):
+def call_with_output_file(s, proc, mode, env, cont):
     m = "w" if mode is w_text_sym else "wb"
     port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
