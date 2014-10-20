@@ -1,5 +1,6 @@
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rlib import rarithmetic
+from rpython.rlib.objectmodel import specialize
 from rpython.rtyper.raisingops import int_floordiv_ovf
 from pycket import values, error
 from pycket.error import SchemeException
@@ -142,6 +143,13 @@ class __extend__(values.W_Number):
     def arith_ge(self, other):
         self, other = self.same_numeric_class(other)
         return self.arith_ge_same(other)
+
+    def arith_gcd(self, other):
+        self, other = self.same_numeric_class(other)
+        return self.arith_gcd_same(other)
+
+    def arith_lcm(self, other):
+        return self.arith_mul(other).arith_div(self.arith_gcd(other))
 
     # default implementations
 
@@ -307,6 +315,16 @@ class __extend__(values.W_Fixnum):
     def arith_not(self):
         return values.W_Fixnum(~self.value)
 
+    def arith_gcd_same(self, other):
+        assert isinstance(other, values.W_Fixnum)
+        if other.value == 0:
+            return self
+        try:
+            res = rarithmetic.ovfcheck(self.value % other.value)
+            return other.arith_gcd(values.W_Fixnum(res))
+        except OverflowError:
+            return values.W_Bignum(
+                rbigint.fromint(self.value)).arith_gcd(other)
 
     # ------------------ abs ------------------
     def arith_abs(self):
@@ -458,7 +476,6 @@ class __extend__(values.W_Flonum):
         assert isinstance(other, values.W_Flonum)
         return values.W_Flonum(min(self.value, other.value))
 
-
     # ------------------ trigonometry ------------------
 
     def arith_sin(self):
@@ -536,6 +553,13 @@ class __extend__(values.W_Flonum):
         if self.value == 0:
             return values.W_Fixnum(1)
         return values.W_Flonum(math.exp(self.value))
+
+    def arith_gcd_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        if not other.value:
+            return self
+        res = math.fmod(self.value, other.value)
+        return other.arith_gcd(values.W_Flonum(res))
 
     # ------------------ comparisons ------------------
 
@@ -681,6 +705,9 @@ class __extend__(values.W_Bignum):
             return values.W_Integer.frombigint(self.value)
         return values.W_Integer.frombigint(other.value)
 
+    def arith_gcd_same(self, other):
+        assert isinstance(other, values.W_Bignum)
+        return values.W_Integer.frombigint(gcd(self.value, other.value))
 
     # ------------------ miscellanous ------------------
 
@@ -758,6 +785,13 @@ class __extend__(values.W_Rational):
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
         return self.arith_mul(factor)
+
+    def arith_gcd_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        num = gcd(self._numerator.mul(other._denominator),
+                  other._numerator.mul(self._denominator))
+        den = self._denominator.mul(other._denominator)
+        return values.W_Rational.frombigint(num, den)
 
     def arith_round(self):
         res1 = self._numerator.floordiv(self._denominator)

@@ -510,3 +510,19 @@ def test_char_equal_huh(doctest):
     > (char=? #\a #\A #\a)
     #f
     """
+
+def test_gcd_lcm(doctest):
+    """
+    > (gcd 10)
+    10
+    > (gcd 12 81.0)
+    3.0
+    > (gcd 1/2 1/3)
+    1/6
+    > (lcm 10)
+    10
+    > (lcm 3 4.0)
+    12.0
+    > (lcm 1/2 2/3)
+    2
+    """
