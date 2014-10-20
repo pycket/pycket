@@ -358,11 +358,9 @@ class AsciiStringStrategy(ImmutableStringStrategy):
         storage = strategy.erase(self.as_charlist_ascii(w_str))
         w_str.change_strategy(strategy, storage)
 
-    def as_str_ascii(self, w_str):
-        return self.unerase(w_str.get_storage())
-
     def as_str_utf8(self, w_str):
         return self.unerase(w_str.get_storage())
+    as_str_ascii = as_str_utf8
 
     def as_unicode(self, w_str):
         return unicode(self.unerase(w_str.get_storage())) # change strategy?
@@ -409,6 +407,9 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
     def as_unicharlist(self, w_str):
         return [unichr(ord(c)) for c in self.unerase(w_str.get_storage())]
 
+    def as_str_utf8(self, w_str):
+        return = "".join(self.unerase(w_str.get_storage()))
+    as_str_ascii = as_str_utf8
 
     # string operations
 
@@ -518,6 +519,8 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
     def as_unicharlist(self, w_str):
         return self.unerase(w_str.get_storage())
 
+    def as_unicode(self, w_str):
+        return u"".join(self.unerase(w_str.get_storage()))
 
     # string operations
 
