@@ -5,6 +5,22 @@ from pycket.error import SchemeException
 
 @expose("regexp-match", [values.W_Object, values.W_Object])
 def regexp_match(w_re, w_str):
+    result = match(w_re, w_str)
+    if isinstance(w_str, values_string.W_String):
+        if result is None:
+            return values.w_false
+        else:
+            return values.to_list([values_string.W_String.fromascii(r)
+                    for r in result])
+    else:
+        assert isinstance(w_str, values.W_Bytes) # XXX for now
+        if result is None:
+            return values.w_false
+        else:
+            return values.to_list([values.W_Bytes.from_string(r)
+                    for r in result])
+
+def match(w_re, w_str):
     # FIXME: more error checking
     if isinstance(w_re, values_string.W_String):
         w_re = values_regex.W_Regexp(w_re.as_str_ascii()) # XXX for now
@@ -17,29 +33,20 @@ def regexp_match(w_re, w_str):
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_ascii() # XXX for now
         result = w_re.match_string(s)
-        if result is None:
-            return values.w_false
-        else:
-            return values.to_list([values_string.W_String.fromascii(r)
-                    for r in result])
+        return result
     if isinstance(w_str, values.W_Bytes):
         result = w_re.match_string(w_str.as_str())
-        if result is None:
-            return values.w_false
-        else:
-            return values.to_list([values.W_Bytes.from_string(r)
-                    for r in result])
+        return result
+    raise SchemeException("regexp-match: can't deal with this type")
 
 
-define_nyi("regexp-match?", [values.W_Object, values.W_Object])
-# def regexp_matchp(r, o):
-#     # FIXME: more error checking
-#     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values_string.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values_string.W_String) or isinstance(o, values.W_Bytes) \
-#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-#     # ack, this is wrong
-#     return values.w_true # Back to one problem
+@expose("regexp-match?", [values.W_Object, values.W_Object])
+def regexp_matchp(w_r, w_o):
+    result = match(w_r, w_o)
+    if result:
+        return values.w_true
+    else:
+        return values.w_false
 
 # FIXME: implementation
 define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,

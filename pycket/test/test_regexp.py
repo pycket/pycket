@@ -14,3 +14,11 @@ def test_regexp_match(doctest):
     > (regexp-match #"[a-zA-Z]+" #"")
     #f
     """
+
+def test_regexp_match_p(doctest):
+    """
+    > (regexp-match? #rx"x." "12x4x6")
+    #t
+    > (regexp-match? #rx"y." "12x4x6")
+    #f
+    """
