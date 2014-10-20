@@ -154,23 +154,23 @@ def read_char(port, env, cont):
 def read_byte(port, env, cont):
     return do_read_one(port, True, env, cont)
 
-text_sym   = values.W_Symbol.make("text")
-binary_sym = values.W_Symbol.make("binary")
-none_sym   = values.W_Symbol.make("none")
-error_sym  = values.W_Symbol.make("error")
+w_text_sym   = values.W_Symbol.make("text")
+w_binary_sym = values.W_Symbol.make("binary")
+w_none_sym   = values.W_Symbol.make("none")
+w_error_sym  = values.W_Symbol.make("error")
 
 @expose("open-input-file", [values.W_String,
-                            default(values.W_Symbol, binary_sym),
-                            default(values.W_Symbol, none_sym)])
+                            default(values.W_Symbol, w_binary_sym),
+                            default(values.W_Symbol, w_none_sym)])
 def open_input_file(str, mode, mod_mode):
-    m = "r" if mode is text_sym else "rb"
+    m = "r" if mode is w_text_sym else "rb"
     return open_infile(str, m)
 
 @expose("open-output-file", [values.W_String,
-                             default(values.W_Symbol, binary_sym),
-                             default(values.W_Symbol, error_sym)])
+                             default(values.W_Symbol, w_binary_sym),
+                             default(values.W_Symbol, w_error_sym)])
 def open_output_file(str, mode, exists):
-    m = "w" if mode is text_sym else "wb"
+    m = "w" if mode is w_text_sym else "wb"
     return open_outfile(str, m)
 
 @expose("port-closed?", [values.W_Port])
@@ -195,31 +195,40 @@ def open_outfile(str, mode):
     s = str.value
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
-@expose("call-with-input-file", [values.W_String, values.W_Object], simple=False)
+@expose("call-with-input-file", [values.W_String,
+                                 values.W_Object,
+                                 default(values.W_Symbol, w_binary_sym)],
+                                simple=False)
 def call_with_input_file(s, proc, env, cont):
-    port = open_infile(s, "rb")
+    m = "r" if mode is w_text_sym else "rb"
+    port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("call-with-output-file", [values.W_String, values.W_Object], simple=False)
+@expose("call-with-output-file", [values.W_String,
+                                  values.W_Object,
+                                  default(values.W_Symbol, w_binary_sym)],
+                                simple=False)
 def call_with_output_file(s, proc, env, cont):
-    port = open_outfile(s, "wb")
+    m = "w" if mode is w_text_sym else "wb"
+    port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values.W_String, values.W_Object, 
-                                 default(values.W_Symbol, binary_sym)], 
+@expose("with-input-from-file", [values.W_String, values.W_Object,
+                                 default(values.W_Symbol, w_binary_sym)],
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
-    m = "rb" if mode is binary_sym else "r"
+    m = "rb" if mode is w_binary_sym else "r"
     port = open_infile(s, m)
-    return call_with_extended_paramz(proc, [], [current_in_param], [port], 
+    return call_with_extended_paramz(proc, [], [current_in_param], [port],
                                      env, close_cont(port, env, cont))
 
-@expose("with-output-to-file", [values.W_String, values.W_Object], simple=False)
+@expose("with-output-to-file",
+        [values.W_String, values.W_Object], simple=False)
 def with_output_to_file(s, proc, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
     port = open_outfile(s, "wb")
-    return call_with_extended_paramz(proc, [], [current_out_param], [port], 
+    return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
 
