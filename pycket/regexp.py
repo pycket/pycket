@@ -47,7 +47,7 @@ CHARACTER_ESCAPES = {
     "v": "\v",
 }
 
-MAX_REPEAT = 65535
+from rpython.rlib.rsre.rsre_char import MAXREPEAT
 
 AT_BEGINNING = 0
 AT_BEGINNING_LINE = 1
@@ -82,8 +82,8 @@ CATEGORY_UNI_LINEBREAK = 16
 CATEGORY_UNI_NOT_LINEBREAK = 17
 
 class RegexpCache(object):
-    # TODO: this should use an LRU cache, and be elidable for the JIT.
-    def __init__(self, space):
+    # XXX should be elidable for the JIT.
+    def __init__(self):
         self._contents = {}
 
     def contains(self, pattern, flags):
@@ -283,7 +283,7 @@ class CompilerContext(object):
 
 
 class Counts(object):
-    def __init__(self, min_count, max_count=MAX_REPEAT, limited_quantifier=False):
+    def __init__(self, min_count, max_count=MAXREPEAT, limited_quantifier=False):
         self.min_count = min_count
         self.max_count = max_count
         self.limited_quantifier = limited_quantifier
@@ -913,7 +913,7 @@ def _parse_item(source, info):
             return LazyRepeat(element, min_count, max_count)
         elif source.match("+"):
             if counts.limited_quantifier:
-                return GreedyRepeat(GreedyRepeat(element, min_count, max_count), 1, MAX_REPEAT)
+                return GreedyRepeat(GreedyRepeat(element, min_count, max_count), 1, MAXREPEAT)
             else:
                 return make_atomic(info, GreedyRepeat(element, min_count, max_count))
         else:
@@ -1181,10 +1181,10 @@ def _parse_limited_quantifier(source):
         if not source.match("}"):
             raise ParseError
         min_count = int(min_count) if min_count else 0
-        max_count = int(max_count) if max_count else MAX_REPEAT
+        max_count = int(max_count) if max_count else MAXREPEAT
         if min_count > max_count:
             raise RegexpError("min repeat gereater than max repeat")
-        if max_count > MAX_REPEAT:
+        if max_count > MAXREPEAT:
             raise RegexpError("repeat count too big")
         return Counts(min_count, max_count, limited_quantifier=True)
     if ch != "}":
@@ -1192,7 +1192,7 @@ def _parse_limited_quantifier(source):
     if not min_count:
         raise ParseError
     min_count = int(min_count)
-    if min_count > MAX_REPEAT:
+    if min_count > MAXREPEAT:
         raise RegexpError("repeat count too big")
     return Counts(min_count, min_count, limited_quantifier=True)
 
