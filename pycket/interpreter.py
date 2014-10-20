@@ -1289,7 +1289,6 @@ class Letrec(SequencedBodyAST):
 
     def direct_children(self):
         return self.rhss + self.body
-        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1637,8 +1636,7 @@ if config.two_state:
         try:
             while True:
                 driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-                if type(ast) is App:
-                    came_from = ast
+                came_from = ast
                 ast, env, cont = ast.interpret(env, cont)
                 if ast.should_enter:
                     #print ast.tostring()
