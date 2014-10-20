@@ -517,7 +517,7 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
         assert 0
 
     def as_unicharlist(self, w_str):
-        return self.unerase(w_str.get_storage()[:])
+        return self.unerase(w_str.get_storage())[:]
 
     def as_unicode(self, w_str):
         return u"".join(self.unerase(w_str.get_storage()))
