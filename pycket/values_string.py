@@ -408,7 +408,7 @@ class AsciiMutableStringStrategy(MutableStringStrategy):
         return [unichr(ord(c)) for c in self.unerase(w_str.get_storage())]
 
     def as_str_utf8(self, w_str):
-        return = "".join(self.unerase(w_str.get_storage()))
+        return "".join(self.unerase(w_str.get_storage()))
     as_str_ascii = as_str_utf8
 
     # string operations
@@ -517,7 +517,7 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
         assert 0
 
     def as_unicharlist(self, w_str):
-        return self.unerase(w_str.get_storage())
+        return self.unerase(w_str.get_storage()[:])
 
     def as_unicode(self, w_str):
         return u"".join(self.unerase(w_str.get_storage()))
