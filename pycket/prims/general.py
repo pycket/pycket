@@ -8,6 +8,7 @@ from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import values_hash
+from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -21,13 +22,14 @@ from pycket.prims import continuation_marks
 from pycket.prims import equal as eq_prims
 from pycket.prims import hash
 from pycket.prims import impersonator
+from pycket.prims import input_output
 from pycket.prims import numeric
 from pycket.prims import random
+from pycket.prims import regexp
 from pycket.prims import string
-from pycket.prims import undefined
 from pycket.prims import struct_structinfo
+from pycket.prims import undefined
 from pycket.prims import vector
-from pycket.prims import input_output
 
 from rpython.rlib import jit
 
@@ -64,10 +66,10 @@ for args in [
         ("struct-type-property-accessor-procedure?",
          values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
-        ("regexp?", values.W_Regexp),
-        ("pregexp?", values.W_PRegexp),
-        ("byte-regexp?", values.W_ByteRegexp),
-        ("byte-pregexp?", values.W_BytePRegexp),
+        ("regexp?", values_regex.W_Regexp),
+        ("pregexp?", values_regex.W_PRegexp),
+        ("byte-regexp?", values_regex.W_ByteRegexp),
+        ("byte-pregexp?", values_regex.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
         ("syntax?", values.W_Syntax),
         ("thread-cell?", values.W_ThreadCell),
@@ -1182,31 +1184,6 @@ def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.utf8value)
 
-define_nyi("regexp-match", [values.W_Object, values.W_Object])
-# def regexp_match(r, o):
-#      # FIXME: more error checking
-#     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values_string.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values_string.W_String) or isinstance(o, values.W_Bytes) \
-#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-#     return values.w_false # Back to one problem
-
-define_nyi("regexp-match?", [values.W_Object, values.W_Object])
-# def regexp_matchp(r, o):
-#     # FIXME: more error checking
-#     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values_string.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values_string.W_String) or isinstance(o, values.W_Bytes) \
-#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-#     # ack, this is wrong
-#     return values.w_true # Back to one problem
-
-# FIXME: implementation
-define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
-                           default(values.W_Bytes, None)])
-# def regexp_replace(pattern, input, insert, input_prefix):
-#     raise NotImplementedError()
-#     return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):

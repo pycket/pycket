@@ -13,6 +13,7 @@ from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
 from pycket import values, values_string
+from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
 from pycket import values_hash
@@ -556,13 +557,13 @@ def to_value(json):
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()])
         if "regexp" in obj:
-            return values.W_Regexp(obj["regexp"].value_string())
+            return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
-            return values.W_ByteRegexp(obj["byte-regexp"].value_string())
+            return values_regex.W_ByteRegexp(obj["byte-regexp"].value_string())
         if "pregexp" in obj:
-            return values.W_PRegexp(obj["pregexp"].value_string())
+            return values_regex.W_PRegexp(obj["pregexp"].value_string())
         if "byte-regexp" in obj:
-            return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
+            return values_regex.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "bytes" in obj:
             return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
         if "string" in obj:

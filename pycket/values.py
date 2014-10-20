@@ -730,17 +730,6 @@ class W_ThreadCell(W_Object):
 
 
 
-class W_AnyRegexp(W_Object):
-    _immutable_fields_ = ["str"]
-    errorname = "regexp"
-    def __init__(self, str):
-        self.str = str
-
-class W_Regexp(W_AnyRegexp): pass
-class W_PRegexp(W_AnyRegexp): pass
-class W_ByteRegexp(W_AnyRegexp): pass
-class W_BytePRegexp(W_AnyRegexp): pass
-
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
