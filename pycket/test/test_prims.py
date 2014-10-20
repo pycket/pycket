@@ -503,3 +503,10 @@ def test_number_to_string(doctest):
     "3bf9304450677dc5f60e4afde2a26b6546f195ed670022bc71c71c71c71c71c71c7"
     """
 
+def test_char_equal_huh(doctest):
+    r"""
+    > (char=? #\a #\a)
+    #t
+    > (char=? #\a #\A #\a)
+    #f
+    """

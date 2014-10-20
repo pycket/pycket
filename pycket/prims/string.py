@@ -449,3 +449,17 @@ def char_downcase(v):
 @expose("char-upcase", [values.W_Character])
 def char_downcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
+
+@expose("char=?")
+def char_equal_huh(w_args):
+    if len(w_args) < 2:
+        raise SchemeException("char=?: requires at least 2 arguments")
+    w_comparand = w_args[0]
+    assert isinstance(w_comparand, values.W_Character)
+    comparand = w_comparand.value
+    w_res = values.w_true
+    for w_arg in w_args:
+        assert isinstance(w_arg, values.W_Character)
+        if not w_arg.value == comparand:
+            w_res = values.w_false
+    return w_res
