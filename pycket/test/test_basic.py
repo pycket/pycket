@@ -506,6 +506,7 @@ def test_tostring_of_list():
 
 def test_callgraph_reconstruction():
     from pycket.expand import expand_string, parse_module
+    from pycket        import config
     str = """
         #lang pycket
         (define (f x) (g (+ x 1)))
@@ -521,16 +522,19 @@ def test_callgraph_reconstruction():
     f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
-    assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
-    assert g.body[0].should_enter
+
+    if config.callgraph:
+        assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
+        assert g.body[0].should_enter
 
 def test_should_enter_downrecursion():
     from pycket.expand import expand_string, parse_module
+    from pycket        import config
     str = """
         #lang pycket
 
         (define (append a b)
-          (if (null? a) 
+          (if (null? a)
               b
               (cons (car a) (append (cdr a) b))))
         (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6))
@@ -553,12 +557,14 @@ def test_should_enter_downrecursion():
     m = interpret_module(ast, env)
     append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]
     f = m.defs[W_Symbol.make("n->f")].closure.caselam.lams[0]
-    assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
 
-    assert append.body[0].should_enter
-    # This is long to account for let conversion
-    assert append.body[0].body[0].els.body[0].body[0].body[0].should_enter
+    if config.callgraph:
+        assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
 
-    assert f.body[0].should_enter
-    assert f.body[0].body[0].els.body[0].should_enter
+        assert append.body[0].should_enter
+        # This is long to account for let conversion
+        assert append.body[0].body[0].els.body[0].body[0].body[0].should_enter
+
+        assert f.body[0].should_enter
+        assert f.body[0].body[0].els.body[0].should_enter
 
