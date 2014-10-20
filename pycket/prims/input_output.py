@@ -485,12 +485,21 @@ def do_write_string(str, out, start_pos, end_pos, env, cont):
     assert end >= 0
     return do_print(str.value[start:end], out, env, cont)
 
-@expose("write-byte", [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
+@expose("write-byte",
+        [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
 def write_byte(b, out, env, cont):
     s = b.value
     if s < 0 or s > 255:
         raise SchemeException("%s is not a byte"%s)
     return do_print(chr(s), out, env, cont)
+
+@expose("write-char",
+        [values.W_Character, default(values.W_OutputPort, None)], simple=False)
+def write_char(w_char, w_port, env, cont):
+    c = w_char.value
+    from rpython.rlib.runicode import unicode_encode_utf_8
+    s = unicode_encode_utf_8(c, len(c), "strict")
+    return do_print(s, out, env, cont)
 
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
