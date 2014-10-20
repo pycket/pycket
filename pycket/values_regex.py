@@ -12,17 +12,22 @@ CACHE = regexp.RegexpCache()
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["source"]
     errorname = "regexp"
-    def __init__(self, source, flags=0):
+    def __init__(self, source):
         self.source = source
-        code, flags, groupcount, groupindex, indexgroup, group_offsets = regexp.compile(CACHE, source, flags)
-        self.code = code
-        self.flags = flags
-        self.groupcount = groupcount
-        self.groupindex = groupindex
-        self.indexgroup = indexgroup
-        self.group_offsets = group_offsets
+        self.code = None
+
+    def ensure_compiled(self):
+        if self.code is None:
+            code, flags, groupcount, groupindex, indexgroup, group_offsets = regexp.compile(CACHE, self.source, 0)
+            self.code = code
+            self.flags = flags
+            self.groupcount = groupcount
+            self.groupindex = groupindex
+            self.indexgroup = indexgroup
+            self.group_offsets = group_offsets
 
     def match_string(self, s):
+        self.ensure_compiled()
         endpos = len(s)
         ctx = rsre_core.search(self.code, s)
         if not ctx:
