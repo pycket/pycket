@@ -508,7 +508,7 @@ def write_char(w_char, w_port, env, cont):
     c = w_char.value
     from rpython.rlib.runicode import unicode_encode_utf_8
     s = unicode_encode_utf_8(c, len(c), "strict")
-    return do_print(s, out, env, cont)
+    return do_print(s, w_port, env, cont)
 
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
