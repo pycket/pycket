@@ -483,7 +483,6 @@ def test_arity():
     run("(procedure-arity-includes? (lambda x 1) 1)", w_true)
     run("(procedure-arity-includes? (lambda x 1) 0)", w_true)
 
-@pytest.mark.xfail
 def test_arity_kw(doctest):
     """
     ! (require racket/private/kw)
