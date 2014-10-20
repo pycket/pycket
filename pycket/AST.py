@@ -30,6 +30,16 @@ class AST(object):
         for child in self.direct_children():
             child.set_surrounding_lambda(lam)
 
+    def set_should_enter(self):
+        """ Set the should_enter field and returns whether or not the field was
+        already set. The field is only actually mutated when it was originally
+        false, as the should_enter field is marked as quasi-mutable.
+        """
+        if not self.should_enter:
+            self.should_enter = True
+            return True
+        return False
+
     def direct_children(self):
         return []
 

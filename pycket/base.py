@@ -3,6 +3,8 @@ from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib import jit, objectmodel
 
+
+
 class W_Object(object):
     __metaclass__ = extendabletype
     _attrs_ = []
@@ -18,9 +20,6 @@ class W_Object(object):
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
-
-    def mark_non_loop(self):
-        pass
 
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self):

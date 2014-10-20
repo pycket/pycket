@@ -4,6 +4,7 @@ from rpython.rlib import jit, unroll
 
 
 class Link(object):
+    _immutable_fields_ = ["key", "val", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
         assert isinstance(k, W_Object)
@@ -18,6 +19,12 @@ class BaseCont(object):
     # so that they can be saved without saving the whole continuation.
     def __init__(self):
         self.marks = None
+
+    def get_ast(self):
+        return None # best effort
+
+    def get_next_executed_ast(self):
+        return None # best effort
 
     def find_cm(self, k):
         from pycket.prims.equal import eqp_logic
@@ -79,6 +86,12 @@ class Cont(BaseCont):
         BaseCont.__init__(self)
         self.env = env
         self.prev = prev
+
+    def get_ast(self):
+        return self.prev.get_ast()
+
+    def get_next_executed_ast(self):
+        return self.prev.get_next_executed_ast()
 
     def get_marks(self, key):
         from pycket import values
@@ -152,10 +165,12 @@ def make_label(func, enter=False):
     func_argnames, varargs, varkw, defaults = inspect.getargspec(func)
     assert not varkw and not defaults
     if varargs: # grrr, bad
-        class Args(BaseCont):
+        class Args(Cont):
+            _immutable_fields_ = ["args"]
             def __init__(self, *args):
-                BaseCont.__init__(self)
-                self.args = args
+                #BaseCont.__init__(self)
+                Cont.__init__(self, args[-2], args[-1])
+                self.args = args[:-2]
 
             def _get_args(self):
                 return self.args
@@ -166,9 +181,12 @@ def make_label(func, enter=False):
     else:
         assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
 
-        Args = _make_args_class(BaseCont, func_argnames)
+        Args = _make_args_class(Cont, func_argnames[:-2])
         def __init__(self, *args):
-            BaseCont.__init__(self)
+            env = args[-2]
+            cont = args[-1]
+            Cont.__init__(self, env, cont)
+            args = args[:-2]
             self._init_args(*args)
         Args.__init__ = __init__
 
@@ -184,7 +202,9 @@ def make_label(func, enter=False):
         should_enter = enter
         def interpret(self, env, cont):
             assert type(cont) is Args
-            return func(*cont._get_args())
+            args = cont._get_args()
+            args += (cont.env, cont.prev)
+            return func(*args)
         def tostring(self):
             return strrepr
     Label.__name__ = clsname
@@ -212,3 +232,9 @@ def label(func):
 def call_cont(proc, env, cont, vals):
     return proc.call(vals._get_full_list(), env, cont)
 
+# A useful continuation constructor. This invokes the given procedure with
+# the enviroment and continuation when values are supplied.
+# This is just a simple way to place a function call onto the continuation.
+@continuation
+def call_extra_cont(proc, calling_app, env, cont, vals):
+    return proc.call_with_extra_info(vals._get_full_list(), env, cont, calling_app)

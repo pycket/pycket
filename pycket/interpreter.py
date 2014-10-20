@@ -1,5 +1,6 @@
 from pycket.AST               import AST
 from pycket                   import values
+from pycket                   import config
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -78,6 +79,15 @@ class LetrecCont(Cont):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
 
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Letrec)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
+
     @jit.unroll_safe
     def plug_reduce(self, _vals, env):
         vals = _vals._get_full_list()
@@ -104,6 +114,15 @@ class LetCont(Cont):
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, rhsindex = self.counting_ast.unpack(Let)
+        if rhsindex == (len(ast.rhss) - 1):
+            return ast.body[0]
+        return ast.rhss[rhsindex + 1]
 
     @staticmethod
     @jit.unroll_safe
@@ -167,9 +186,13 @@ class LetCont(Cont):
 
 
 class FusedLet0Let0Cont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
+
+    def get_ast(self):
+        return self.combined_ast.ast1.ast
 
     def plug_reduce(self, vals, env):
         ast1, ast2 = self.combined_ast.unpack()
@@ -185,10 +208,13 @@ class FusedLet0Let0Cont(Cont):
 
 
 class FusedLet0BeginCont(Cont):
+    _immutable_fields_ = ["combined_ast"]
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
 
+    def get_ast(self):
+        return self.combined_ast.ast1.ast
 
     def plug_reduce(self, vals, env):
         ast1, ast2 = self.combined_ast.unpack()
@@ -207,6 +233,9 @@ class CellCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
 
+    def get_ast(self):
+        return self.ast
+
     @jit.unroll_safe
     def plug_reduce(self, vals, env):
         ast = jit.promote(self.ast)
@@ -223,6 +252,10 @@ class SetBangCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
     def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
         self.ast.var._set(w_val, self.env)
@@ -234,6 +267,13 @@ class BeginCont(Cont):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
 
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, i = self.counting_ast.unpack(SequencedBodyAST)
+        return ast.body[i]
+
     def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
         return ast.make_begin_cont(self.env, self.prev, i)
@@ -244,6 +284,13 @@ class Begin0Cont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast
+
     def plug_reduce(self, vals, env):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
@@ -261,6 +308,13 @@ class WCMKeyCont(Cont):
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast.value
+
     def plug_reduce(self, vals, env):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
@@ -271,6 +325,13 @@ class WCMValCont(Cont):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.key = key
+
+    def get_ast(self):
+        return self.ast
+
+    def get_next_executed_ast(self):
+        return self.ast.body
+
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         if isinstance(self.key, values.W_ContinuationMarkKey):
@@ -536,7 +597,6 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
-        self.should_enter = isinstance(rator, ModuleVar) and not rator.is_primitive()
 
     @staticmethod
     def make_let_converted(rator, rands):
@@ -934,12 +994,12 @@ class If(AST):
     def tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-
 def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, srcpos, srcfile)
+
 
 def free_vars_lambda(body, args):
     x = {}
@@ -953,7 +1013,6 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
-    should_enter = True
 
     def __init__(self, lams, recursive_sym=None):
         ## TODO: drop lams whose arity is redundant
@@ -1035,7 +1094,6 @@ class CaseLambda(AST):
                 arities = arities + [n]
         return (arities, rest)
 
-
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure'
@@ -1053,7 +1111,13 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
-            b.should_enter = True
+        if not config.callgraph:
+            self.body[0].should_enter = True
+
+    def enable_jitting(self):
+        if config.log_callgraph:
+            print "enabling jitting", self.tostring()
+        self.body[0].set_should_enter()
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
@@ -1088,7 +1152,7 @@ class Lambda(SequencedBodyAST):
         if new_lets:
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(self.formals, self.rest, self.args, self.frees, new_body, 
+        return Lambda(self.formals, self.rest, self.args, self.frees, new_body,
                       self.srcpos, self.srcfile, env_structure, sub_env_structure)
 
     def direct_children(self):
@@ -1160,7 +1224,6 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
-
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
 
@@ -1190,7 +1253,6 @@ class CombinedAstAndIndex(AST):
     def tostring(self):
         return "<%s of %s>" % (self.index, self.ast.tostring())
 
-
 class CombinedAstAndAst(AST):
     _immutable_fields_ = ["ast1", "ast2"]
 
@@ -1203,7 +1265,6 @@ class CombinedAstAndAst(AST):
         ast1 = self.ast1
         ast2 = self.ast2
         return ast1, ast2
-
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
@@ -1227,7 +1288,7 @@ class Letrec(SequencedBodyAST):
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
-        return self.body + self.rhss
+        return self.rhss + self.body
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1370,7 +1431,8 @@ class Let(SequencedBodyAST):
                 [], self, 0, env, cont)
 
     def direct_children(self):
-        return self.body + self.rhss
+        return self.rhss + self.body
+        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1506,7 +1568,6 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
-
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
     names = []
@@ -1554,34 +1615,60 @@ class DefineValues(AST):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 
-def get_printable_location(green_ast):
+def get_printable_location(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
+    surrounding = green_ast.surrounding_lambda
+    if surrounding is not None and green_ast is surrounding.body[0]:
+        return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
-driver = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast"],
-                       get_printable_location=get_printable_location)
-
-def interpret_one(ast, env=None):
-    cont = nil_continuation
-    cont.update_cm(values.parameterization_key, values.top_level_config)
-    if not env:
-        env = ToplevelEnv()
-    try:
-        while True:
-            driver.jit_merge_point(ast=ast, env=env, cont=cont)
-            ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter:
-                #print ast.tostring()
-                driver.can_enter_jit(ast=ast, env=env, cont=cont)
-    except Done, e:
-        return e.values
-    except SchemeException, e:
-        if e.context_ast is None:
-            e.context_ast = ast
-        raise
-
+if config.two_state:
+    driver = jit.JitDriver(reds=["env", "cont"],
+                           greens=["ast", "came_from"],
+                           get_printable_location=get_printable_location)
+    def interpret_one(ast, env=None):
+        cont = nil_continuation
+        came_from = ast
+        cont.update_cm(values.parameterization_key, values.top_level_config)
+        if env is None:
+            env = ToplevelEnv()
+        try:
+            while True:
+                driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+                came_from = ast
+                ast, env, cont = ast.interpret(env, cont)
+                if ast.should_enter:
+                    #print ast.tostring()
+                    driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+        except Done, e:
+            return e.values
+        except SchemeException, e:
+            if e.context_ast is None:
+                e.context_ast = ast
+            raise
+else:
+    driver = jit.JitDriver(reds=["env", "cont"],
+                           greens=["ast"],
+                           get_printable_location=get_printable_location)
+    def interpret_one(ast, env=None):
+        cont = nil_continuation
+        cont.update_cm(values.parameterization_key, values.top_level_config)
+        if env is None:
+            env = ToplevelEnv()
+        try:
+            while True:
+                driver.jit_merge_point(ast=ast, env=env, cont=cont)
+                ast, env, cont = ast.interpret(env, cont)
+                if ast.should_enter:
+                    #print ast.tostring()
+                    driver.can_enter_jit(ast=ast, env=env, cont=cont)
+        except Done, e:
+            return e.values
+        except SchemeException, e:
+            if e.context_ast is None:
+                e.context_ast = ast
+            raise
 
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):
