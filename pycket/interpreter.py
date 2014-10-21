@@ -130,21 +130,21 @@ class LetCont(Cont):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
-        if fuse and not vals_w:
-            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(Let)
-                # check whether envs are the same:
-                if prev_ast.args.prev is ast.args.prev and env is prev.env:
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
-            elif isinstance(prev, BeginCont):
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
-                # check whether envs are the same:
-                if env is prev.env: # XXX could use structure to check plausibility
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
+        #if fuse and not vals_w:
+            #if isinstance(prev, LetCont) and prev._get_size_list() == 0:
+                #prev_counting_ast = prev.counting_ast
+                #prev_ast, _ = prev_counting_ast.unpack(Let)
+                ## check whether envs are the same:
+                #if prev_ast.args.prev is ast.args.prev and env is prev.env:
+                    #combined_ast = counting_ast.combine(prev_counting_ast)
+                    #return FusedLet0Let0Cont(combined_ast, env, prev.prev)
+            #elif isinstance(prev, BeginCont):
+                #prev_counting_ast = prev.counting_ast
+                #prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
+                ## check whether envs are the same:
+                #if env is prev.env: # XXX could use structure to check plausibility
+                    #combined_ast = counting_ast.combine(prev_counting_ast)
+                    #return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
@@ -1624,29 +1624,30 @@ if config.two_state:
             return green_ast.tostring() + ' from ' + came_from.tostring()
         return green_ast.tostring()
 
-        driver = jit.JitDriver(reds=["env", "cont"],
-                               greens=["ast", "came_from"],
-                               get_printable_location=get_printable_location)
-        def interpret_one(ast, env=None):
-            cont = nil_continuation
-            came_from = ast
-            cont.update_cm(values.parameterization_key, values.top_level_config)
-            if env is None:
-                env = ToplevelEnv()
-            try:
-                while True:
-                    driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-                    came_from = ast
-                    ast, env, cont = ast.interpret(env, cont)
-                    if ast.should_enter:
-                        #print ast.tostring()
-                        driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
-            except Done, e:
-                return e.values
-            except SchemeException, e:
-                if e.context_ast is None:
-                    e.context_ast = ast
-                raise
+    driver = jit.JitDriver(reds=["env", "cont"],
+                           greens=["ast", "came_from"],
+                           get_printable_location=get_printable_location)
+
+    def interpret_one(ast, env=None):
+        cont = nil_continuation
+        came_from = ast
+        cont.update_cm(values.parameterization_key, values.top_level_config)
+        if env is None:
+            env = ToplevelEnv()
+        try:
+            while True:
+                driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+                came_from = ast
+                ast, env, cont = ast.interpret(env, cont)
+                if ast.should_enter:
+                    #print ast.tostring()
+                    driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+        except Done, e:
+            return e.values
+        except SchemeException, e:
+            if e.context_ast is None:
+                e.context_ast = ast
+            raise
 else:
     def get_printable_location(green_ast ):
         if green_ast is None:
