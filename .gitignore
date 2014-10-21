@@ -11,3 +11,4 @@ pycket-c*
 .coverage
 .coverage.*
 compiled/
+pypy/
