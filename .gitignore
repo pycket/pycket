@@ -10,3 +10,4 @@ pycket-c*
 *,cover
 .coverage
 .coverage.*
+compiled/
