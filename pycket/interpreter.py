@@ -1615,39 +1615,43 @@ class DefineValues(AST):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 
-def get_printable_location(green_ast, came_from):
-    if green_ast is None:
-        return 'Green_Ast is None'
-    surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
-    return green_ast.tostring()
-
 if config.two_state:
-    driver = jit.JitDriver(reds=["env", "cont"],
-                           greens=["ast", "came_from"],
-                           get_printable_location=get_printable_location)
-    def interpret_one(ast, env=None):
-        cont = nil_continuation
-        came_from = ast
-        cont.update_cm(values.parameterization_key, values.top_level_config)
-        if env is None:
-            env = ToplevelEnv()
-        try:
-            while True:
-                driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-                came_from = ast
-                ast, env, cont = ast.interpret(env, cont)
-                if ast.should_enter:
-                    #print ast.tostring()
-                    driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
-        except Done, e:
-            return e.values
-        except SchemeException, e:
-            if e.context_ast is None:
-                e.context_ast = ast
-            raise
+    def get_printable_location(green_ast, came_from):
+        if green_ast is None:
+            return 'Green_Ast is None'
+        surrounding = green_ast.surrounding_lambda
+        if surrounding is not None and green_ast is surrounding.body[0]:
+            return green_ast.tostring() + ' from ' + came_from.tostring()
+        return green_ast.tostring()
+
+        driver = jit.JitDriver(reds=["env", "cont"],
+                               greens=["ast", "came_from"],
+                               get_printable_location=get_printable_location)
+        def interpret_one(ast, env=None):
+            cont = nil_continuation
+            came_from = ast
+            cont.update_cm(values.parameterization_key, values.top_level_config)
+            if env is None:
+                env = ToplevelEnv()
+            try:
+                while True:
+                    driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+                    came_from = ast
+                    ast, env, cont = ast.interpret(env, cont)
+                    if ast.should_enter:
+                        #print ast.tostring()
+                        driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            except Done, e:
+                return e.values
+            except SchemeException, e:
+                if e.context_ast is None:
+                    e.context_ast = ast
+                raise
 else:
+    def get_printable_location(green_ast ):
+        if green_ast is None:
+            return 'Green_Ast is None'
+        return green_ast.tostring()
     driver = jit.JitDriver(reds=["env", "cont"],
                            greens=["ast"],
                            get_printable_location=get_printable_location)
