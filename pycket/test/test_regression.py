@@ -67,3 +67,7 @@ class TestRegressions(object):
     @pytest.mark.xfail
     def test_rhss_vs_args(self):
         run_file("rhss_vs_args.rkt")
+
+    @pytest.mark.xfail
+    def test_name_shadowing_huh(self):
+        run_file("bugtest.rkt")
