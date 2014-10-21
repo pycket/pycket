@@ -361,21 +361,16 @@ class W_PrefabKey(values.W_Object):
             idx = 1
             if isinstance(key[idx], values.W_Fixnum):
                 idx += 1
-            else:
-                if not isinstance(key[idx], values.W_Cons):
-                    return values.w_false
-                idx += 1
             if len(key) > idx:
-                if not isinstance(key[idx], values.W_Cons):
-                    return values.w_false
-                idx += 1
+                if isinstance(key[idx], values.W_Cons):
+                    idx += 1
             if len(key) > idx:
-                if not isinstance(key[idx], values_vector.W_Vector):
-                    return values.w_false
-                idx += 1
+                if isinstance(key[idx], values_vector.W_Vector):
+                    idx += 1
             if len(key) > idx:
-                return W_PrefabKey.is_prefab_key(key[idx])
-            return values.w_true
+                w_super_key = values.to_list(key[idx:])
+                return W_PrefabKey.is_prefab_key(w_super_key)
+            return values.W_Bool.make(len(key) == idx)
         else:
             return values.w_false
 
