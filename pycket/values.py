@@ -1304,14 +1304,20 @@ eof_object = W_EOF()
 
 class W_Port(W_Object):
     errorname = "port"
-    def tostring(self):
-        raise NotImplementedError("abstract base classe")
-    def close(self):
-        self.closed = True
+    _attrs_ = ['closed']
+
     def __init__(self):
         self.closed = False
+
+    def tostring(self):
+        raise NotImplementedError("abstract base classe")
+
+    def close(self):
+        self.closed = True
+
     def seek(self, offset, end=False):
         raise NotImplementedError("abstract base classe")
+
     def tell(self):
         raise NotImplementedError("abstract base classe")
 
@@ -1351,6 +1357,7 @@ class W_StringOutputPort(W_OutputPort):
 
 class W_InputPort(W_Port):
     errorname = "input-port"
+    _attrs_ = []
     def read(self, n):
         raise NotImplementedError("abstract class")
     def readline(self):
@@ -1365,6 +1372,7 @@ class W_StringInputPort(W_InputPort):
         self.closed = False
         self.str = str
         self.ptr = 0
+
     def readline(self):
         # import pdb; pdb.set_trace()
         from rpython.rlib.rstring import find
@@ -1409,17 +1417,20 @@ class W_StringInputPort(W_InputPort):
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
+    def __init__(self, f):
+        self.closed = False
+        self.file = f
+
     def close(self):
         self.closed = True
         self.file.close()
         self.file = None
+
     def read(self, n):
         return self.file.read(n)
+
     def readline(self):
         return self.file.readline()
-    def __init__(self, f):
-        self.closed = False
-        self.file = f
 
     def seek(self, offset, end=False):
         if end:
@@ -1428,22 +1439,27 @@ class W_FileInputPort(W_InputPort):
             self.file.seek(offset, 0)
 
     def tell(self):
-        return self.file.tell()
+        # XXX this means we can only deal with 4GiB files on 32bit systems
+        return int(intmask(self.file.tell()))
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
+
+    def __init__(self, f):
+        self.closed = False
+        self.file = f
+
     def write(self, str):
         self.file.write(str)
         self.file.flush() # flushes too often
+
     def flush(self):
         self.file.flush()
+
     def close(self):
         self.closed = True
         self.file.close()
         self.file = None
-    def __init__(self, f):
-        self.closed = False
-        self.file = f
 
     def seek(self, offset, end=False):
         if end:
@@ -1452,4 +1468,5 @@ class W_FileOutputPort(W_OutputPort):
             self.file.seek(offset, 0)
 
     def tell(self):
-        return self.file.tell()
+        # XXX this means we can only deal with 4GiB files on 32bit systems
+        return int(intmask(self.file.tell()))
