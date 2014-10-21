@@ -624,7 +624,8 @@ class W_StructConstructor(values.W_Procedure):
         return new_array
 
     @continuation
-    def constr_proc_wrapper_cont(self, field_values, issuper, env, cont, _vals):
+    def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
+        env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
         guard_values = _vals._get_full_list()
         if guard_values:
@@ -638,30 +639,33 @@ class W_StructConstructor(values.W_Procedure):
                 split_position, super_auto, len(super_auto))
             if issuper:
                 return super_type.constr.code(field_values[:split_position],
-                    True, env, cont)
+                    struct_type_name, True, env, cont)
             else:
                 return super_type.constr.code(field_values[:split_position],
-                    True, env, self.constr_proc_cont(field_values, env, cont))
+                    struct_type_name, True,
+                    env, self.constr_proc_cont(field_values, env, cont))
         else:
             if issuper:
                 return return_multi_vals(values.Values.make(field_values), env, cont)
             else:
                 return jump(env, self.constr_proc_cont(field_values, env, cont))
 
-    def code(self, field_values, issuper, env, cont):
+    def code(self, field_values, struct_type_name, issuper, env, cont):
         from pycket.interpreter import jump
         if self.type.guard is values.w_false:
-            return jump(env, self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
+            return jump(env, self.constr_proc_wrapper_cont(field_values,
+                struct_type_name, issuper, env, cont))
         else:
-            guard_args = field_values + [values.W_Symbol.make(self.type.name)]
+            guard_args = field_values + [values.W_Symbol.make(struct_type_name)]
             jit.promote(self)
             return self.type.guard.call(guard_args, env,
-                self.constr_proc_wrapper_cont(field_values, issuper, env, cont))
+                self.constr_proc_wrapper_cont(field_values, struct_type_name,
+                    issuper, env, cont))
 
     @label
     @make_call_method(simple=False)
     def call(self, args, env, cont):
-        return self.code(args, False, env, cont)
+        return self.code(args, self.type.name, False, env, cont)
 
     def tostring(self):
         return "#<procedure:%s>" % self.type.name
