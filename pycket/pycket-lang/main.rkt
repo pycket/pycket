@@ -3,35 +3,14 @@
 (require racket/unsafe/ops (for-syntax racket/base racket/runtime-path)
          racket/include (prefix-in k: '#%kernel) racket/contract)
 (provide (all-from-out racket/unsafe/ops))
-;; for now, white-listed for benchmarks.
-(provide k:call-with-output-file)
 (provide (rename-out [modbeg #%module-begin]))
-
-(provide include time if contract)
-
-;------------------------------------------------------------------------------
-;one-armed if.
-(define-syntax if
-  (syntax-rules ()
-    ((if expr true-branch)
-     (when expr true-branch))
-    ((if expr true-branch false-branch)
-     (cond
-       (expr true-branch)
-       (else false-branch)))))
+(provide include contract)
 ;------------------------------------------------------------------------------
 
 (begin-for-syntax
  (define-runtime-path stdlib.sch "./stdlib.rktl"))
 
 ;------------------------------------------------------------------------------
-; customized timer
-; in ReBench TestVMPerformance format
-(define-syntax-rule (time expr1 expr ...)
-  (let-values ([(v cpu user gc) (time-apply (lambda () expr1 expr ...) null)])
-    (printf "RESULT-cpu: ~a.0\nRESULT-gc: ~a.0\nRESULT-total: ~a.0\n"
-            cpu gc user)
-    (apply values v)))
 
 (define-syntax (modbeg stx)
   (syntax-case stx ()
