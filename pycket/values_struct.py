@@ -121,9 +121,9 @@ class W_StructType(values.W_Object):
         struct_type = self.super
         while isinstance(struct_type, W_StructType):
             self.props = self.props + struct_type.props
-            if self.prop_procedure is None:
+            if not self.prop_procedure and struct_type.prop_procedure:
                 self.prop_procedure = struct_type.prop_procedure
-                self.procedure_source = struct_type
+                self.procedure_source = struct_type.procedure_source
             struct_type = struct_type.super
         struct_tuple = self.make_struct_tuple()
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
@@ -442,10 +442,9 @@ class W_RootStruct(values.W_Object):
         return self.checked_call(proc, args, env, cont)
 
     def checked_call(self, proc, args, env, cont):
-        # FIXME: args for keyword arguments are wrong
         args_len = len(args)
         (ls, at_least) = proc.get_arity()
-        if (args_len < at_least or at_least < 0) and args_len not in ls:
+        if (args_len < at_least or at_least == -1) and args_len not in ls:
             for w_prop, w_prop_val in self.struct_type().props:
                 if w_prop.isinstance(w_prop_arity_string):
                     return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
@@ -609,8 +608,8 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         guard_super_values = _vals._get_full_list()
-        # if guard_super_values:
-        #     field_values = guard_super_values + field_values[len(guard_super_values):]
+        if guard_super_values:
+            field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
@@ -642,8 +641,12 @@ class W_StructConstructor(values.W_Procedure):
             assert split_position >= 0
             field_values = self._splice(field_values, len(field_values),\
                 split_position, super_auto, len(super_auto))
-            return super_type.constr.code(field_values[:split_position], True,
-                env, self.constr_proc_cont(field_values, env, cont))
+            if issuper:
+                return super_type.constr.code(field_values[:split_position],
+                    True, env, cont)
+            else:
+                return super_type.constr.code(field_values[:split_position],
+                    True, env, self.constr_proc_cont(field_values, env, cont))
         else:
             if issuper:
                 return return_multi_vals(values.Values.make(field_values), env, cont)
