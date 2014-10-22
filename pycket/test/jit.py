@@ -386,3 +386,6 @@ class TestLLtype(LLJitMixin):
              [l        (makelist 10000)])
           (map inc l))
         """)
+    def test_shadow_bug(self):
+        self.run_file("bugtest2.rkt", run_untranslated=False)
+

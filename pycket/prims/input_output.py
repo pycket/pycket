@@ -77,7 +77,7 @@ def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
         port = current_out_param.get(cont)
-    assert isinstance(port, values.W_InputPort)
+    assert isinstance(port, values.W_FileInputPort)
     stream = port.file
     token = read_token(stream)
     if isinstance(token, NumberToken):
@@ -173,6 +173,16 @@ def open_output_file(str, mode, exists):
     m = "w" if mode is w_text_sym else "wb"
     return open_outfile(str, m)
 
+@expose("close-input-file", [values.W_InputPort])
+def close_input_file(port):
+    port.close()
+    return values.w_void
+
+@expose("close-output-file", [values.W_OutputPort])
+def close_output_file(port):
+    port.close()
+    return values.w_void
+
 @expose("port-closed?", [values.W_Port])
 def port_closedp(p):
     return values.W_Bool.make(p.closed)
@@ -184,7 +194,7 @@ def eofp(e):
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
-    port.file.close()
+    port.close()
     return return_multi_vals(vals, env, cont)
 
 def open_infile(str, mode):
@@ -240,7 +250,7 @@ def file_position(args):
         told = w_port.tell()
         assert told >= 0
         return values.W_Integer.frombigint(
-            rbigint.fromrarith_int(told))
+            rbigint.fromint(told))
     elif len(args) == 2:
         w_port = args[0]
         assert isinstance(w_port, values.W_Port)
@@ -249,7 +259,8 @@ def file_position(args):
             assert w_offset.value >= 0
             w_port.seek(w_offset.value)
         elif isinstance(w_offset, values.W_Bignum):
-            v = w_offset.value.tolonglong()
+            # XXX this means we can only deal with 4GiB files on 32bit systems
+            v = w_offset.value.toint()
             w_port.seek(v)
         elif w_offset is values.eof_object:
             w_port.seek(0, end=True)

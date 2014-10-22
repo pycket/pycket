@@ -204,7 +204,6 @@ def test_struct_guard2():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 11
 
-@skip
 def test_struct_guard3():
     m = run_mod(
     """
@@ -451,6 +450,17 @@ def test_prefab_struct_key(doctest):
     '(cute-cat cat 1)
     """
     assert doctest
+
+def test_is_prefab_key(source):
+    """
+    (let* ([k0 (prefab-key? 'cat)]
+           [k1 (prefab-key? '(cute-cat cat 1))]
+           [k2 (prefab-key? '(clown 1 (1 #f) #(0)))]
+           [l (prefab-key? 0)])
+    (and k0 k1 k2 (not l)))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
 
 def test_make_prefab_struct(doctest):
     """
