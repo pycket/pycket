@@ -64,7 +64,6 @@ class TestRegressions(object):
         m = run_mod(source)
         assert m.defs[W_Symbol.make("result")] == w_true
 
-    @pytest.mark.xfail
     def test_rhss_vs_args(self):
         run_file("rhss_vs_args.rkt")
 
