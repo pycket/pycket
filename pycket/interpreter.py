@@ -1484,9 +1484,7 @@ class Let(SequencedBodyAST):
         body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        self.tostring()
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
-        result.tostring()
         return result
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
