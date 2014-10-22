@@ -149,6 +149,8 @@ class TestLLtype(LLJitMixin):
     def test_puzzle(self):
         self.run_file("puzzle.rkt")
 
+    def test_paraffins(self):
+        self.run_file("paraffins.rkt", run_untranslated=True)
 
     def test_bubble_safe(self):
         self.run_file("bubble.rkt")
