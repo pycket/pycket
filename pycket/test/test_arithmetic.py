@@ -112,6 +112,14 @@ def test_div_fix():
     x = run("(/ 1 2)")
     assert x.tostring() == "1/2"
 
+def test_div_complex(doctest):
+    """
+    > (/ 2+3i 2)
+    1+3/2i
+    > (/ 2+3i 3-4i)
+    -6/25+17/25i
+    """
+
 def test_lt():
     run("(< 0 1)", w_true)
     run("(< 0 1000000000000000000000000000)", w_true)

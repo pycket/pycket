@@ -872,6 +872,11 @@ class __extend__(values.W_Complex):
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Complex)
+        if other.imag.arith_eq(values.W_Fixnum.make(0)):
+            divisor = other.real
+            r = self.real.arith_div(divisor)
+            i = self.imag.arith_div(divisor)
+            return values.W_Complex(r, i)
         factor = other.reciprocal()
         return self.arith_mul(factor)
 
