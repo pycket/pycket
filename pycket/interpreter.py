@@ -130,21 +130,21 @@ class LetCont(Cont):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
-        #if fuse and not vals_w:
-            #if isinstance(prev, LetCont) and prev._get_size_list() == 0:
-                #prev_counting_ast = prev.counting_ast
-                #prev_ast, _ = prev_counting_ast.unpack(Let)
-                ## check whether envs are the same:
-                #if prev_ast.args.prev is ast.args.prev and env is prev.env:
-                    #combined_ast = counting_ast.combine(prev_counting_ast)
-                    #return FusedLet0Let0Cont(combined_ast, env, prev.prev)
-            #elif isinstance(prev, BeginCont):
-                #prev_counting_ast = prev.counting_ast
-                #prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
-                ## check whether envs are the same:
-                #if env is prev.env: # XXX could use structure to check plausibility
-                    #combined_ast = counting_ast.combine(prev_counting_ast)
-                    #return FusedLet0BeginCont(combined_ast, env, prev.prev)
+        if fuse and not vals_w:
+            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
+                prev_counting_ast = prev.counting_ast
+                prev_ast, _ = prev_counting_ast.unpack(Let)
+                # check whether envs are the same:
+                if prev_ast.args.prev is ast.args.prev and env is prev.env:
+                    combined_ast = counting_ast.combine(prev_counting_ast)
+                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
+            elif isinstance(prev, BeginCont):
+                prev_counting_ast = prev.counting_ast
+                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
+                # check whether envs are the same:
+                if env is prev.env: # XXX could use structure to check plausibility
+                    combined_ast = counting_ast.combine(prev_counting_ast)
+                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
