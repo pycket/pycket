@@ -74,4 +74,4 @@ class TestRegressions(object):
     # We could make something work here by dynamically writing out a file
     # that knows the path to wraptest.rkt
     def test_name_shadowing_huh(self):
-        run_file("bugtest.rkt")
+        run_file("bugtest2.rkt")
