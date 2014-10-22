@@ -70,5 +70,8 @@ class TestRegressions(object):
         run_file("rhss_vs_args.rkt")
 
     @skip
+    # This can't work consistently because of paths plus use of stdin
+    # We could make something work here by dynamically writing out a file
+    # that knows the path to wraptest.rkt
     def test_name_shadowing_huh(self):
         run_file("bugtest.rkt")
