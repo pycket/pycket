@@ -98,6 +98,11 @@ def string_to_bytes_locale(str, errbyte, start, end):
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.value])
 
+@expose("list->string", [values.W_List])
+def list_to_string(w_list):
+    l = values.from_list(w_list)
+    return string(l)
+
 
 ##################################
 
@@ -293,7 +298,8 @@ def bytes_append(args):
     lens = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
-            raise SchemeException("bytes-append: expected a byte string, but got %s"%a)
+            raise SchemeException(
+                "bytes-append: expected a byte string, but got %s" % a)
         lens += len(a.value)
 
     val = [' '] * lens # is this the fastest way to do things?
@@ -338,9 +344,10 @@ def list_to_bytes(w_list):
     ll = [' '] * len(l)
     for (i,x) in enumerate(l):
         if not isinstance(x, values.W_Fixnum):
-            raise SchemeException("list->bytes: expected fixnum, got %s"%x)
+            raise SchemeException("list->bytes: expected fixnum, got %s" % x)
         if x.value < 0 or x.value >= 256:
-            raise SchemeException("list->bytes: expected number between 0 and 255, got %s"%x)
+            raise SchemeException(
+                "list->bytes: expected number between 0 and 255, got %s" % x)
         ll[i] = chr(x.value)
     return values.W_MutableBytes(ll)
 
