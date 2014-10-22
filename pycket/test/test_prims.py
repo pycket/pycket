@@ -503,6 +503,12 @@ def test_number_to_string(doctest):
     "3bf9304450677dc5f60e4afde2a26b6546f195ed670022bc71c71c71c71c71c71c7"
     """
 
+def test_list_to_string(doctest):
+    r"""
+    > (list->string (list #\A #\p #\p #\l #\e))
+    "Apple"
+    """
+
 def test_char_equal_huh(doctest):
     r"""
     > (char=? #\a #\a)
@@ -525,4 +531,20 @@ def test_gcd_lcm(doctest):
     12.0
     > (lcm 1/2 2/3)
     2
+    """
+
+def test_close_port(doctest):
+    """
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (port-closed? sp)
+    #f
+    > (close-input-port sp)
+    > (port-closed? sp)
+    #t
+    > (define op (open-output-string))
+    > (port-closed? op)
+    #f
+    > (close-output-port op)
+    > (port-closed? op)
+    #t
     """
