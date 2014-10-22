@@ -526,3 +526,19 @@ def test_gcd_lcm(doctest):
     > (lcm 1/2 2/3)
     2
     """
+
+def test_close_port(doctest):
+    """
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (port-closed? sp)
+    #f
+    > (close-input-port sp)
+    > (port-closed? sp)
+    #t
+    > (define op (open-output-string))
+    > (port-closed? op)
+    #f
+    > (close-output-port op)
+    > (port-closed? op)
+    #t
+    """
