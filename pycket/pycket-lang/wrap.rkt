@@ -20,7 +20,9 @@
                               (memq 'nothing tokens)
                               '(nothing))))
   #`(#%module-begin
-     #,@(if r5rs? #'((require r5rs)) #'())
+     #,(datum->syntax stx (if r5rs?
+                              '(require r5rs)
+                              '(include "../configuration/one-armed-if.rkt")))
      #,(datum->syntax stx '(include "../configuration/definitions-racket.rkt"))
      #,(datum->syntax stx '(include "../configuration/iterations.rkt"))
      #,(datum->syntax stx `(include ,(format "../configuration/specialize-racket-~a.rkt" specialize)))
