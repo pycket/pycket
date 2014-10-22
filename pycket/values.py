@@ -756,11 +756,10 @@ class W_Bytes(W_Object):
             return W_MutableBytes(list(str))
 
 
-    def __init__(self, bs, immutable=True):
+    def __init__(self, bs):
         assert bs is not None
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
-        self.imm   = immutable
 
     def tostring(self):
         return "#\"%s\"" % "".join(self.value)

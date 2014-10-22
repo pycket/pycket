@@ -303,7 +303,7 @@ def bytes_append(args):
         val[cnt:cnt+len(a.value)] = a.value
         cnt += len(a.value)
 
-    return values.W_MutableBytes(val, immutable=False)
+    return values.W_MutableBytes(val)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
