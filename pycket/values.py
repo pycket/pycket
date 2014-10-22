@@ -1455,6 +1455,13 @@ class W_StringInputPort(W_InputPort):
             return self.str[start:stop]
         return line
 
+    def peek(self, n=-1):
+        assert n == -1
+        if self.ptr >= len(self.str):
+            return ""
+        return self.str[self.ptr]
+        
+
     def read(self, n=-1):
         if self.ptr >= len(self.str):
             return ""
@@ -1499,6 +1506,14 @@ class W_FileInputPort(W_InputPort):
 
     def readline(self):
         return self.file.readline()
+
+    def peek(self, n=-1):
+        assert n == -1
+        (count, c) = self.file.peek()
+        if count == 0:
+            return ""
+        else:
+            return c[0]
 
     def seek(self, offset, end=False):
         if end:

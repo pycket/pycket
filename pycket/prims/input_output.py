@@ -30,10 +30,9 @@ class RVecToken(Token): pass
 def read_number_or_id(f, init):
     sofar = [init]
     while True:
-        (count, c) = f.peek()
+        c = f.peek()
         if c == "":
             break
-        c = c[0]
         if c.isalnum():
             sofar.append(f.read(1))
         else:
@@ -77,20 +76,47 @@ def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
         port = current_out_param.get(cont)
-    assert isinstance(port, values.W_FileInputPort)
-    stream = port.file
-    token = read_token(stream)
-    if isinstance(token, NumberToken):
-        v = token.val
-    elif isinstance(token, StringToken):
-        v = token.val
-    elif isinstance(token, SymbolToken):
-        v = token.val
-    elif isinstance(token, BooleanToken):
-        v = token.val
-    else:
-        v = values.w_false # fail!
+    v = read_stream(port)
     return return_value(v, env, cont)
+
+def read_stream(stream):
+    next_token = read_token(stream)
+    if isinstance(next_token, LParenToken):
+        v = read_list(stream, values.w_null, next_token.val)
+        return v
+    else:
+        return next_token.val
+
+def reverse(w_l):
+    acc = values.w_null
+    while isinstance(w_l, values.W_Cons):
+        val, w_l = w_l.car(), w_l.cdr()
+        acc = values.W_Cons.make(val, acc)
+    if w_l is not values.w_null:
+        raise SchemeException("reverse: not given proper list")
+    return acc
+
+def check_matches(s1, s2):
+    if s1 == "(":
+        assert s2 == ")"
+    if s1 == "[":
+        assert s2 == "]"
+    if s1 == "{":
+        assert s2 == "}"
+
+def read_list(stream, so_far, end):
+    next_token = read_token(stream)
+    if isinstance(next_token, RParenToken):
+        check_matches(end.value, next_token.val.value)
+        return reverse(so_far)
+    if isinstance(next_token, LParenToken):
+        v = read_list(stream, values.w_null, next_token.val)
+    else:
+        v = next_token.val
+    assert isinstance(v, values.W_Object)
+    return read_list(stream, values.W_Cons.make(v, so_far), end)
+    
+
 
 linefeed_sym        = values.W_Symbol.make("linefeed")
 return_sym          = values.W_Symbol.make("return")

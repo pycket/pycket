@@ -560,3 +560,38 @@ def test_close_port(doctest):
     > (port-closed? op)
     #t
     """
+
+def test_read(doctest):
+    """
+    > (read (open-input-string "1"))
+    1
+    > (read (open-input-string "#t"))
+    #t
+    > (read (open-input-string "abc"))
+    'abc
+    > (define s (open-input-string "1 #t abc"))
+    > (read s)
+    1
+    > (read s)
+    #t
+    > (read s)
+    'abc
+    > (read (open-input-string "()"))
+    '()
+    > (read (open-input-string "(1)"))
+    '(1)
+    > (read (open-input-string "(1 2 3 a b c)"))
+    '(1 2 3 a b c)
+    > (read (open-input-string "(1 (2 3) (a (b c)))"))
+    '(1 (2 3) (a (b c)))
+    > (read (open-input-string "[]"))
+    '[]
+    > (read (open-input-string "[]"))
+    '()
+    > (read (open-input-string "[1]"))
+    '[1]
+    > (read (open-input-string "[1 2 3 a b c]"))
+    '[1 2 3 a b c]
+    > (read (open-input-string "[1 [2 3] [a [b c]]]"))
+    '[1 [2 3] [a [b c]]]
+    """
