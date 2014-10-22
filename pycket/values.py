@@ -742,13 +742,19 @@ class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass
 class W_BytePRegexp(W_AnyRegexp): pass
 
+
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
+    _attrs_ = ['value']
 
     @staticmethod
     def from_string(str, immutable=True):
-        return W_Bytes(list(str), immutable)
+        if immutable:
+            return W_ImmutableBytes(list(str))
+        else:
+            return W_MutableBytes(list(str))
+
 
     def __init__(self, bs, immutable=True):
         assert bs is not None
@@ -780,7 +786,7 @@ class W_Bytes(W_Object):
         return intmask(x)
 
     def immutable(self):
-        return self.imm
+        raise NotImplementedError("abstract base class")
 
     def ref(self, n):
         l = len(self.value)
@@ -789,17 +795,33 @@ class W_Bytes(W_Object):
         return W_Fixnum(ord(self.value[n]))
 
     def set(self, n, v):
-        l = len(self.value)
-        if n < 0 or n >= l:
-            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
-        if self.imm:
-            raise SchemeException("bytes-set!: can't mutate immutable string")
-        # FIXME: this is not constant time!
-        self.value[n] = chr(v)
-        return
+        raise NotImplementedError("abstract base class")
 
     def as_str(self):
         return "".join(self.value)
+
+
+class W_MutableBytes(W_Bytes):
+    errorname = "bytes"
+
+    def immutable(self):
+        return False
+
+    def set(self, n, v):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
+        self.value[n] = chr(v)
+
+
+class W_ImmutableBytes(W_Bytes):
+    errorname = "bytes"
+
+    def immutable(self):
+        return True
+
+    def set(self, n, v):
+        raise SchemeException("bytes-set!: can't mutate immutable bytes")
 
 
 class W_String(W_Object):
