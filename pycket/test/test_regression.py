@@ -10,6 +10,8 @@ from pycket.values import *
 from pycket.prims import *
 from pycket.test.testhelper import *
 
+skip = pytest.mark.skipif("True")
+
 class TestRegressions(object):
 
     def test_cell_closure(self, source):
@@ -64,10 +66,12 @@ class TestRegressions(object):
         m = run_mod(source)
         assert m.defs[W_Symbol.make("result")] == w_true
 
-    @pytest.mark.xfail
     def test_rhss_vs_args(self):
         run_file("rhss_vs_args.rkt")
 
-    @pytest.mark.xfail
+    @skip
+    # This can't work consistently because of paths plus use of stdin
+    # We could make something work here by dynamically writing out a file
+    # that knows the path to wraptest.rkt
     def test_name_shadowing_huh(self):
-        run_file("bugtest.rkt")
+        run_file("bugtest2.rkt")

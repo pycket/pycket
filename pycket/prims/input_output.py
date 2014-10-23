@@ -173,13 +173,13 @@ def open_output_file(str, mode, exists):
     m = "w" if mode is w_text_sym else "wb"
     return open_outfile(str, m)
 
-@expose("close-input-file", [values.W_InputPort])
-def close_input_file(port):
+@expose("close-input-port", [values.W_InputPort])
+def close_input_port(port):
     port.close()
     return values.w_void
 
-@expose("close-output-file", [values.W_OutputPort])
-def close_output_file(port):
+@expose("close-output-port", [values.W_OutputPort])
+def close_output_port(port):
     port.close()
     return values.w_void
 

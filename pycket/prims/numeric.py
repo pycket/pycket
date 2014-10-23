@@ -260,6 +260,10 @@ def make_unary_arith(name, methname, flversion=False, fxversion=False, unwrap_ty
 for args in [
         ("sin", "arith_sin", True),
         ("cos", "arith_cos", True),
+        ("tan", "arith_tan", True),
+        ("sinh", "arith_sinh", True),
+        ("cosh", "arith_cosh", True),
+        ("tanh", "arith_tanh", True),
         ("sqrt", "arith_sqrt", True),
         ("log", "arith_log", True),
         ("sub1", "arith_sub1"),

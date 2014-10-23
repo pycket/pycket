@@ -342,14 +342,22 @@ class __extend__(values.W_Fixnum):
 
     # ------------------ trigonometry ------------------
 
-    def arith_sin(self):
-        return values.W_Flonum(math.sin(self.value))
     def arith_sqrt(self):
         assert 0
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
+    def arith_sin(self):
+        return values.W_Flonum(math.sin(self.value))
     def arith_cos(self):
         return values.W_Flonum(math.cos(self.value))
+    def arith_tan(self):
+        return values.W_Flonum(math.tan(self.value))
+    def arith_sinh(self):
+        return values.W_Flonum(math.sinh(self.value))
+    def arith_cosh(self):
+        return values.W_Flonum(math.cosh(self.value))
+    def arith_tanh(self):
+        return values.W_Flonum(math.tanh(self.value))
     def arith_atan(self):
         return values.W_Flonum(math.atan(self.value))
 
@@ -478,14 +486,22 @@ class __extend__(values.W_Flonum):
 
     # ------------------ trigonometry ------------------
 
-    def arith_sin(self):
-        return values.W_Flonum(math.sin(self.value))
     def arith_sqrt(self):
         return values.W_Flonum(math.sqrt(self.value))
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
+    def arith_sin(self):
+        return values.W_Flonum(math.sin(self.value))
     def arith_cos(self):
         return values.W_Flonum(math.cos(self.value))
+    def arith_tan(self):
+        return values.W_Flonum(math.tan(self.value))
+    def arith_sinh(self):
+        return values.W_Flonum(math.sinh(self.value))
+    def arith_cosh(self):
+        return values.W_Flonum(math.cosh(self.value))
+    def arith_tanh(self):
+        return values.W_Flonum(math.tanh(self.value))
     def arith_atan(self):
         return values.W_Flonum(math.atan(self.value))
 
@@ -846,6 +862,7 @@ class __extend__(values.W_Rational):
         cb = other._numerator.mul(self._denominator)
         return ad.lt(cb)
 
+
 class __extend__(values.W_Complex):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Complex):
@@ -872,6 +889,11 @@ class __extend__(values.W_Complex):
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Complex)
+        if other.imag.arith_eq(values.W_Fixnum.make(0)):
+            divisor = other.real
+            r = self.real.arith_div(divisor)
+            i = self.imag.arith_div(divisor)
+            return values.W_Complex(r, i)
         factor = other.reciprocal()
         return self.arith_mul(factor)
 
@@ -901,6 +923,30 @@ class __extend__(values.W_Complex):
         sin = self.imag.arith_sin()
         return values.W_Complex(cos, sin).arith_mul(r)
 
+    def arith_sin(self):
+        "sin(a+bi)=sin a cosh b + i cos a sinh b"
+        r = self.real.arith_sin().arith_mul(self.imag.arith_cosh())
+        i = self.real.arith_cos().arith_mul(self.imag.arith_sinh())
+        return values.W_Complex(r, i)
+    def arith_cos(self):
+        "cos(a+bi)=cos a cosh b − i sin a sinh b"
+        r = self.real.arith_cos().arith_mul(self.imag.arith_cosh())
+        i = self.real.arith_sin().arith_mul(self.imag.arith_sinh())
+        return values.W_Complex(r, i).complex_conjugate()
+    def arith_tan(self):
+        return self.arith_sin().arith_div_same(self.arith_cos())
+    def arith_sinh(self):
+        "sinh(a+bi)=sinh a cos b + i cosh a sinh b"
+        r = self.real.arith_sinh().arith_mul(self.imag.arith_cos())
+        i = self.real.arith_cosh().arith_mul(self.imag.arith_sin())
+        return values.W_Complex(r, i)
+    def arith_cosh(self):
+        "cosh(a+bi)=cosh a cos b + i sinh a sin b"
+        r = self.real.arith_cosh().arith_mul(self.imag.arith_cos())
+        i = self.real.arith_sinh().arith_mul(self.imag.arith_sin())
+        return values.W_Complex(r, i)
+    def arith_tanh(self):
+        return self.arith_sinh().arith_div(self.arith_cosh())
 
     # ------------------ comparisons ------------------
 

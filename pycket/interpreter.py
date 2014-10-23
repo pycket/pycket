@@ -1322,9 +1322,13 @@ class Letrec(SequencedBodyAST):
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
+        vars = []
+        len = 0
+        for i in self.counts:
+            vars.append(self.args.elems[len:len+i])
         return "(letrec (%s) %s)" % (
-            [(v.variable_name(),
-              self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+            [([v.variable_name() for v in vs],
+              self.rhss[i].tostring()) for i, vs in enumerate(vars)],
             [b.tostring() for b in self.body])
 
 def _make_symlist_counts(varss):
@@ -1480,9 +1484,7 @@ class Let(SequencedBodyAST):
         body_env_structure = env_structures[len(self.rhss)]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
-        self.tostring()
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
-        result.tostring()
         return result
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
