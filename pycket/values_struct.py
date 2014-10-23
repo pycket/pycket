@@ -198,17 +198,15 @@ class W_StructType(values.W_Object):
             self.constr_name = "make-" + self.name
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
-        self.offsets = self.calculate_offsets()
         self.isprefab = self.inspector is PREFAB
         if self.isprefab:
             self.isopaque = False
         else:
             self.isopaque = self.inspector is not values.w_false
 
-        self.mutables = []
-        for i in range(self.init_field_cnt):
-            if i not in self.immutables:
-                self.mutables.append(i)
+        self.offsets = {}
+        self.mutables = [] # in compare to immutables, it stores _absolut_ positions
+        self.init_field_positions()
 
         self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
@@ -216,14 +214,16 @@ class W_StructType(values.W_Object):
         self.mut = W_StructMutator(self)
 
     @jit.unroll_safe
-    def calculate_offsets(self):
-        result = {}
+    def init_field_positions(self):
         struct_type = self
         while isinstance(struct_type, W_StructType):
-            result[struct_type] = struct_type.total_field_cnt - \
+            offset = struct_type.total_field_cnt - \
             struct_type.init_field_cnt - struct_type.auto_field_cnt
+            self.offsets[struct_type] = offset
+            for i in range(struct_type.init_field_cnt):
+                if i not in struct_type.immutables:
+                    self.mutables.append(i + offset)
             struct_type = struct_type.super
-        return result
 
     @jit.elidable
     def get_offset(self, type):
@@ -549,11 +549,7 @@ class W_Struct(W_RootStruct):
             return value.get_val()
         return value
     def _set(self, k, val):
-        value = self._get_list(k)
-        if isinstance(value, values.W_Cell):
-            value.set_val(val)
-        else:
-            self._set_list(k, values.W_Cell(val))
+        value = self._get_list(k).set_val(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
@@ -608,6 +604,7 @@ class W_StructConstructor(values.W_Procedure):
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
         for i in self.type.mutables:
+            mutable_value = field_values[i]
             field_values[i] = values.W_Cell(mutable_value)
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
