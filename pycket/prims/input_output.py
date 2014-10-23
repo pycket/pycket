@@ -14,13 +14,24 @@ from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val, procedure
 import os
 
+quote_symbol = values.W_Symbol.make("quote")
+quasiquote_symbol = values.W_Symbol.make("quasiquote")
+unquote_symbol = values.W_Symbol.make("unquote")
+unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
+
 class Token(object): pass
 
 class ValueToken(Token):
     def __init__(self, v):
         assert isinstance(v, values.W_Object)
         self.val = v
-    
+
+class SpecialToken(Token):
+    def __init__(self, s, con):
+        self.str = s
+        self.con = con
+    def finish(self, val):
+        return values.W_Cons.make(self.con, values.W_Cons.make(val, values.w_null))
 
 class NumberToken(ValueToken): pass
 class StringToken(ValueToken): pass
@@ -68,6 +79,17 @@ def read_token(f):
             return RParenToken(c)
         if c == ".":
             return DotToken(c)
+        if c == "'":
+            return SpecialToken(c, quote_symbol)
+        if c ==  "`":
+            return SpecialToken(c, quasiquote_symbol)
+        if c == ",":
+            p = f.peek()
+            if p == "@":
+                p = f.read(1)
+                return SpecialToken(c + p, unquote_splicing_symbol)
+            else:
+                return SpecialToken(c, unquote_symbol)
         if c.isalnum():
             return read_number_or_id(f, c)
         if c == "#":
@@ -91,6 +113,9 @@ def read(port, env, cont):
 
 def read_stream(stream):
     next_token = read_token(stream)
+    if isinstance(next_token, SpecialToken):
+        v = read_stream(stream)
+        return next_token.finish(v)
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
             raise SchemeException("read: unexpected %s"%next_token.str)
@@ -129,6 +154,9 @@ def read_list(stream, so_far, end):
         return reverse(so_far)
     elif isinstance(next_token, LParenToken):
         v = read_list(stream, values.w_null, next_token.str)
+    elif isinstance(next_token, SpecialToken):
+        arg = read_stream(stream)
+        v = next_token.finish(arg)
     else:
         assert isinstance(next_token, ValueToken)
         v = next_token.val
