@@ -1428,6 +1428,8 @@ class W_InputPort(W_Port):
     _attrs_ = []
     def read(self, n):
         raise NotImplementedError("abstract class")
+    def peek(self, n=-1):
+        raise NotImplementedError("abstract class")
     def readline(self):
         raise NotImplementedError("abstract class")
     def tostring(self):
@@ -1460,7 +1462,7 @@ class W_StringInputPort(W_InputPort):
         if self.ptr >= len(self.str):
             return ""
         return self.str[self.ptr]
-        
+
 
     def read(self, n=-1):
         if self.ptr >= len(self.str):
@@ -1480,8 +1482,9 @@ class W_StringInputPort(W_InputPort):
 
     def seek(self, offset, end=False):
         if end or offset == self.ptr:
+            self.ptr = len(self.str)
             return
-        if offset > self.ptr:
+        if offset > len(self.str):
             raise SchemeException("index out of bounds")
         else:
             self.ptr = offset

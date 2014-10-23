@@ -521,12 +521,64 @@ def test_list_to_string(doctest):
     "Apple"
     """
 
-def test_char_equal_huh(doctest):
+def test_char_cmp_huh(doctest):
     r"""
     > (char=? #\a #\a)
     #t
     > (char=? #\a #\A #\a)
     #f
+    > (char<? #\A #\a)
+    #t
+    > (char<? #\a #\A)
+    #f
+    > (char<? #\a #\b #\c)
+    #t
+    > (char<=? #\A #\a)
+    #t
+    > (char<=? #\a #\A)
+    #f
+    > (char<=? #\a #\b #\b)
+    #t
+    > (char>? #\A #\a)
+    #f
+    > (char>? #\a #\A)
+    #t
+    > (char>? #\c #\b #\a)
+    #t
+    > (char>=? #\A #\a)
+    #f
+    > (char>=? #\a #\A)
+    #t
+    > (char>=? #\c #\b #\b)
+    #t
+    > (char-ci=? #\A #\a)
+    #t
+    > (char-ci=? #\a #\a #\a)
+    #t
+    > (char-ci<? #\A #\a)
+    #f
+    > (char-ci<? #\a #\b)
+    #t
+    > (char-ci<? #\a #\b #\c)
+    #t
+    > (char-ci<=? #\A #\a)
+    #t
+    > (char-ci<=? #\a #\A)
+    #t
+    > (char-ci<=? #\a #\b #\b)
+    #t
+    > (char-ci>? #\A #\a)
+    #f
+    > (char-ci>? #\b #\A)
+    #t
+    > (char-ci>? #\c #\b #\a)
+    #t
+    > (char-ci>=? #\A #\a)
+    #t
+    > (char-ci>=? #\a #\A)
+    #t
+    > (char-ci>=? #\c #\b #\b)
+    #t
     """
 
 def test_char_prop_huh(doctest):
@@ -559,22 +611,6 @@ def test_gcd_lcm(doctest):
     12.0
     > (lcm 1/2 2/3)
     2
-    """
-
-def test_close_port(doctest):
-    """
-    > (define sp (open-input-string "(apples 42 day)"))
-    > (port-closed? sp)
-    #f
-    > (close-input-port sp)
-    > (port-closed? sp)
-    #t
-    > (define op (open-output-string))
-    > (port-closed? op)
-    #f
-    > (close-output-port op)
-    > (port-closed? op)
-    #t
     """
 
 def test_read(doctest):
@@ -619,4 +655,38 @@ def test_read(doctest):
     '`(1)
     > (rs "`(,1)")
     '`(,1)
+    """
+
+def test_close_port(doctest):
+    """
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (port-closed? sp)
+    #f
+    > (close-input-port sp)
+    > (port-closed? sp)
+    #t
+    > (define op (open-output-string))
+    > (port-closed? op)
+    #f
+    > (close-output-port op)
+    > (port-closed? op)
+    #t
+    """
+
+def test_port_read_peek(doctest):
+    r"""
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (peek-char sp)
+    #\(
+    > (peek-char sp 5)
+    #\e
+    > (read-char sp)
+    #\(
+    > (define bp (open-input-bytes #"(apples 42 day)"))
+    > (peek-byte bp)
+    40
+    > (peek-byte bp 5)
+    101
+    > (read-byte bp)
+    40
     """

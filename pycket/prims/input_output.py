@@ -161,7 +161,7 @@ def read_list(stream, so_far, end):
         assert isinstance(next_token, ValueToken)
         v = next_token.val
     return read_list(stream, values.W_Cons.make(v, so_far), end)
-    
+
 
 
 linefeed_sym        = values.W_Symbol.make("linefeed")
@@ -198,17 +198,21 @@ def read_line(port, mode, env, cont):
 @expose("read-bytes-line", [default(values.W_InputPort, None),
                             default(values.W_Symbol, linefeed_sym)],
                            simple=False)
-def read_bytes_line(port, mode, env, cont):
-    return do_read_line(port, mode, True, env, cont)
+def read_bytes_line(w_port, w_mode, env, cont):
+    return do_read_line(w_port, w_mode, True, env, cont)
 
 
-def do_read_one(port, as_bytes, env, cont):
+def do_read_one(w_port, as_bytes, peek, env, cont):
     from pycket.interpreter import return_value
-    if port is None:
-        port = current_in_param.get(cont)
-    assert isinstance(port, values.W_InputPort)
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+    assert isinstance(w_port, values.W_InputPort)
     # FIXME: UTF-8
-    c = port.read(1)
+    if peek:
+        c = w_port.peek()
+    else:
+        c = w_port.read(1)
+
     if len(c) == 0:
         return return_value(values.eof_object, env, cont)
 
@@ -219,12 +223,36 @@ def do_read_one(port, as_bytes, env, cont):
         return return_value(values.W_Character(unichr(i)), env, cont)
 
 @expose("read-char", [default(values.W_InputPort, None)], simple=False)
-def read_char(port, env, cont):
-    return do_read_one(port, False, env, cont)
+def read_char(w_port, env, cont):
+    return do_read_one(w_port, False, False, env, cont)
 
 @expose("read-byte", [default(values.W_InputPort, None)], simple=False)
-def read_byte(port, env, cont):
-    return do_read_one(port, True, env, cont)
+def read_byte(w_port, env, cont):
+    return do_read_one(w_port, True, False, env, cont)
+
+
+def do_peek(w_port, as_bytes, skip, env, cont):
+    if skip == 0:
+        return do_read_one(w_port, as_bytes, True, env, cont)
+    else:
+        # FIXME: put into port.
+        old = w_port.tell()
+        w_port.seek(old + skip)
+        ret = do_read_one(w_port, as_bytes, True, env, cont)
+        w_port.seek(old)
+        return ret
+
+@expose("peek-char", [default(values.W_InputPort, None),
+                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                    simple=False)
+def peek_char(w_port, w_skip, env, cont):
+    return do_peek(w_port, False, w_skip.value, env, cont)
+
+@expose("peek-byte", [default(values.W_InputPort, None),
+                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                    simple=False)
+def peek_byte(w_port, w_skip, env, cont):
+    return do_peek(w_port, True, w_skip.value, env, cont)
 
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
@@ -479,7 +507,7 @@ def flush_output(port, env, cont):
         port = current_out_param.get(cont)
     port.flush()
     return return_void(env, cont)
-    
+
 
 def cur_print_proc(args, env, cont):
     from pycket.interpreter import return_value
@@ -639,15 +667,15 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
     # FIXME: we fake here
     w_port.write("".join(to_write))
     return return_value(values.W_Fixnum(stop - start), env, cont)
-    
+
 
 
 # FIXME:
 @expose("custom-write?", [values.W_Object])
 def do_has_custom_write(v):
     return values.w_false
-    
-############################ Values and Parameters 
+
+############################ Values and Parameters
 
 expose_val("eof", values.eof_object)
 
@@ -677,4 +705,3 @@ expose_val("print-box", print_box_param)
 expose_val("print-vector-length", print_vector_length_param)
 expose_val("print-hash-table", print_hash_table_param)
 expose_val("print-boolean-long-form", print_boolean_long_form_param)
-
