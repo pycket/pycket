@@ -23,7 +23,7 @@ class W_String(W_Object):
                 ascii = False
                 break
         if ascii:
-            return W_String.fromascii(s, immutable=True)
+            return W_String.fromascii(s, immutable)
         else:
             u = s.decode("utf-8")
             return W_String.fromunicode(u, immutable)
