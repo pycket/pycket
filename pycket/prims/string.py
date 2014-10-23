@@ -149,6 +149,8 @@ def make_string(k, char):
 
 @expose("string")
 def string(args):
+    if len(args) == 0:
+        return values.W_String("")
     assert len(args) > 0
     builder = StringBuilder()
     for char in args:
@@ -284,7 +286,10 @@ def make_bytes(length, byte):
 
 @expose("bytes")
 def bytes(args):
+    if len(args) == 0:
+        return values.W_MutableBytes([])
     assert len(args) > 0
+
     builder = StringBuilder()
     for char in args:
         if not (isinstance(char, values.W_Fixnum)

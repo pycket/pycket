@@ -250,6 +250,18 @@ def test_make_bytes_create(doctest):
     #"AAAAA"
     > (bytes 65 112 112 108 101)
     #"Apple"
+    > (bytes)
+    #""
+    """
+
+def test_make_string_create(doctest):
+    """
+    > (make-string 5 #\A)
+    "AAAAA"
+    > (string #\A #\p #\p #\l #\e)
+    "Apple"
+    > (string)
+    ""
     """
 
 
