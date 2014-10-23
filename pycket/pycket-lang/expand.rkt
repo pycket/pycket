@@ -8,6 +8,22 @@
 
 (define keep-srcloc (make-parameter #t))
 
+(define lexical-bindings (make-free-id-table))
+
+(define (register-all! x)
+  (cond [(list? x) (for-each register-all! x)]
+        [(identifier? x) (dict-set! lexical-bindings x #t)]
+        [(pair? x)
+         (register-all! (car x))
+         (register-all! (cdr x))]
+        [(syntax? x) (register-all! (syntax-e x))]
+        [else (error 'register-all! "unexpected ~a" x)]))
+
+(define (identifier-binding* i)
+  (if (dict-ref lexical-bindings i #f)
+      'lexical
+      (identifier-binding i)))
+
 (define (hash-set* h . kvs)
   (let loop ([kvs kvs] [h h])
     (if (null? kvs)
@@ -267,10 +283,12 @@
                                     [x* (syntax->list #'(xs* ...))]
                                     [e (syntax->list #'(es ...))]
                                     [e* (syntax->list #'(es* ...))])
+                           (register-all! x)
                            (list (map id->sym (syntax->list x)) (to-json e e*)))
            'let-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
     [((#%plain-lambda fmls . b)
       (#%plain-lambda fmls* . b*))
+     (register-all! #'fmls)
      (hash 'lambda (to-json #'fmls #'fmls*)
            'body (map to-json
                       (syntax->list #'b)
@@ -282,6 +300,7 @@
                       [b (syntax->list #'(b ...))]
                       [fmls* (syntax->list #'(fmls* ...))]
                       [b* (syntax->list #'(b* ...))])
+             (register-all! #'fmls)
              (hash 'lambda (to-json fmls fmls*)
                    'body (map to-json (syntax->list b) (syntax->list b*)))))]
     [((letrec-values ([xs es] ...) b ...)
@@ -290,6 +309,7 @@
                                        [e (syntax->list #'(es ...))]
                                        [x* (syntax->list #'(xs* ...))]
                                        [e* (syntax->list #'(es* ...))])
+                              (register-all! x)
                               (list (map id->sym (syntax->list x)) (to-json e e*)))
            'letrec-body (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))]
     [((quote e) (quote e*))
@@ -326,7 +346,7 @@
            (hash 'improper (list (map to-json s s*) (to-json r r*)))
            (map to-json s s*)))]
     [(i:identifier _)
-     (match (identifier-binding #'i)
+     (match (identifier-binding* #'i)
        ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id _ nom-src-id

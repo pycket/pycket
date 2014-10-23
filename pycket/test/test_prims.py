@@ -238,6 +238,18 @@ def test_make_bytes_create(doctest):
     E (make-bytes 5 11111)
     > (bytes 65 112 112 108 101)
     #"Apple"
+    > (bytes)
+    #""
+    """
+
+def test_make_string_create(doctest):
+    """
+    > (make-string 5 #\A)
+    "AAAAA"
+    > (string #\A #\p #\p #\l #\e)
+    "Apple"
+    > (string)
+    ""
     """
 
 
@@ -423,3 +435,48 @@ def test_number_to_string(doctest):
     "3bf9304450677dc5f60e4afde2a26b6546f195ed670022bc71c71c71c71c71c71c7"
     """
 
+def test_list_to_string(doctest):
+    r"""
+    > (list->string (list #\A #\p #\p #\l #\e))
+    "Apple"
+    """
+
+def test_char_equal_huh(doctest):
+    r"""
+    > (char=? #\a #\a)
+    #t
+    > (char=? #\a #\A #\a)
+    #f
+    """
+
+def test_gcd_lcm(doctest):
+    """
+    > (gcd 10)
+    10
+    > (gcd 12 81.0)
+    3.0
+    > (gcd 1/2 1/3)
+    1/6
+    > (lcm 10)
+    10
+    > (lcm 3 4.0)
+    12.0
+    > (lcm 1/2 2/3)
+    2
+    """
+
+def test_close_port(doctest):
+    """
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (port-closed? sp)
+    #f
+    > (close-input-port sp)
+    > (port-closed? sp)
+    #t
+    > (define op (open-output-string))
+    > (port-closed? op)
+    #f
+    > (close-output-port op)
+    > (port-closed? op)
+    #t
+    """

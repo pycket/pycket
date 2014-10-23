@@ -101,6 +101,11 @@ def string_to_bytes_locale(str, errbyte, start, end):
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.as_unicode()])
 
+@expose("list->string", [values.W_List])
+def list_to_string(w_list):
+    l = values.from_list(w_list)
+    return string(l)
+
 
 ##################################
 
@@ -151,6 +156,8 @@ def make_string(k, char):
 
 @expose("string")
 def string(args):
+    if len(args) == 0:
+        return values.W_String("")
     assert len(args) > 0
     builder = UnicodeBuilder()
     # XXX could do one less copy in the ascii case
@@ -278,11 +285,14 @@ def make_bytes(length, byte):
     if not 0 <= v <= 255:
         raise SchemeException("make-bytes: argument out of range")
     bstr = [chr(v)] * length.value
-    return values.W_Bytes(bstr, immutable=False)
+    return values.W_MutableBytes(bstr)
 
 @expose("bytes")
 def bytes(args):
+    if len(args) == 0:
+        return values.W_MutableBytes([])
     assert len(args) > 0
+
     builder = StringBuilder()
     for char in args:
         if not (isinstance(char, values.W_Fixnum)
@@ -296,7 +306,8 @@ def bytes_append(args):
     lens = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
-            raise SchemeException("bytes-append: expected a byte string, but got %s"%a)
+            raise SchemeException(
+                "bytes-append: expected a byte string, but got %s" % a)
         lens += len(a.value)
 
     val = [' '] * lens # is this the fastest way to do things?
@@ -306,7 +317,7 @@ def bytes_append(args):
         val[cnt:cnt+len(a.value)] = a.value
         cnt += len(a.value)
 
-    return values.W_Bytes(val, immutable=False)
+    return values.W_MutableBytes(val)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
@@ -320,15 +331,15 @@ def bytes_ref(s, n):
 def bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
 
-@expose("unsafe-bytes-length", [unsafe(values.W_Bytes)])
+@expose("unsafe-bytes-length", [values.W_Bytes])
 def unsafe_bytes_length(s1):
     return values.W_Fixnum(len(s1.value))
 
-@expose("unsafe-bytes-ref", [unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
+@expose("unsafe-bytes-ref", [values.W_Bytes, unsafe(values.W_Fixnum)])
 def unsafe_bytes_ref(s, n):
     return s.ref(n.value)
 
-@expose("unsafe-bytes-set!", [unsafe(values.W_Bytes),
+@expose("unsafe-bytes-set!", [unsafe(values.W_MutableBytes),
                               unsafe(values.W_Fixnum),
                               unsafe(values.W_Fixnum)])
 def unsafe_bytes_set_bang(s, n, v):
@@ -341,11 +352,12 @@ def list_to_bytes(w_list):
     ll = [' '] * len(l)
     for (i,x) in enumerate(l):
         if not isinstance(x, values.W_Fixnum):
-            raise SchemeException("list->bytes: expected fixnum, got %s"%x)
+            raise SchemeException("list->bytes: expected fixnum, got %s" % x)
         if x.value < 0 or x.value >= 256:
-            raise SchemeException("list->bytes: expected number between 0 and 255, got %s"%x)
+            raise SchemeException(
+                "list->bytes: expected number between 0 and 255, got %s" % x)
         ll[i] = chr(x.value)
-    return values.W_Bytes(ll, immutable=False)
+    return values.W_MutableBytes(ll)
 
 @expose("subbytes",
         [values.W_Bytes, values.W_Fixnum, default(values.W_Fixnum, None)])
@@ -369,7 +381,7 @@ def subbytes(w_bytes, w_start, w_end):
     if end < start:
         raise SchemeException(
             "subbytes: ending index is smaller than starting index")
-    return values.W_Bytes(bytes[start:end], immutable=False)
+    return values.W_MutableBytes(bytes[start:end])
 
 @expose(["bytes-copy!"],
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
@@ -450,3 +462,17 @@ def char_downcase(v):
 @expose("char-upcase", [values.W_Character])
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
+
+@expose("char=?")
+def char_equal_huh(w_args):
+    if len(w_args) < 2:
+        raise SchemeException("char=?: requires at least 2 arguments")
+    w_comparand = w_args[0]
+    assert isinstance(w_comparand, values.W_Character)
+    comparand = w_comparand.value
+    w_res = values.w_true
+    for w_arg in w_args:
+        assert isinstance(w_arg, values.W_Character)
+        if not w_arg.value == comparand:
+            w_res = values.w_false
+    return w_res

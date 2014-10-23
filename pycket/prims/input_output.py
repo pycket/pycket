@@ -80,7 +80,7 @@ def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
         port = current_out_param.get(cont) # XXX wrong???
-    assert isinstance(port, values.W_InputPort)
+    assert isinstance(port, values.W_FileInputPort)
     stream = port.file
     token = read_token(stream)
     if isinstance(token, NumberToken):
@@ -161,24 +161,34 @@ def read_char(port, env, cont):
 def read_byte(port, env, cont):
     return do_read_one(port, True, env, cont)
 
-text_sym   = values.W_Symbol.make("text")
-binary_sym = values.W_Symbol.make("binary")
-none_sym   = values.W_Symbol.make("none")
-error_sym  = values.W_Symbol.make("error")
+w_text_sym   = values.W_Symbol.make("text")
+w_binary_sym = values.W_Symbol.make("binary")
+w_none_sym   = values.W_Symbol.make("none")
+w_error_sym  = values.W_Symbol.make("error")
 
 @expose("open-input-file", [values_string.W_String,
-                            default(values.W_Symbol, binary_sym),
-                            default(values.W_Symbol, none_sym)])
+                            default(values.W_Symbol, w_binary_sym),
+                            default(values.W_Symbol, w_none_sym)])
 def open_input_file(str, mode, mod_mode):
-    m = "r" if mode is text_sym else "rb"
+    m = "r" if mode is w_text_sym else "rb"
     return open_infile(str, m)
 
 @expose("open-output-file", [values_string.W_String,
-                             default(values.W_Symbol, binary_sym),
-                             default(values.W_Symbol, error_sym)])
+                             default(values.W_Symbol, w_binary_sym),
+                             default(values.W_Symbol, w_error_sym)])
 def open_output_file(str, mode, exists):
-    m = "w" if mode is text_sym else "wb"
+    m = "w" if mode is w_text_sym else "wb"
     return open_outfile(str, m)
+
+@expose("close-input-port", [values.W_InputPort])
+def close_input_port(port):
+    port.close()
+    return values.w_void
+
+@expose("close-output-port", [values.W_OutputPort])
+def close_output_port(port):
+    port.close()
+    return values.w_void
 
 @expose("port-closed?", [values.W_Port])
 def port_closedp(p):
@@ -191,7 +201,7 @@ def eofp(e):
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
-    port.file.close()
+    port.close()
     return return_multi_vals(vals, env, cont)
 
 def open_infile(w_str, mode):
@@ -202,31 +212,40 @@ def open_outfile(w_str, mode):
     s = w_str.as_str_utf8()
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
-@expose("call-with-input-file", [values_string.W_String, values.W_Object], simple=False)
-def call_with_input_file(s, proc, env, cont):
-    port = open_infile(s, "rb")
+@expose("call-with-input-file", [values_string.W_String,
+                                 values.W_Object,
+                                 default(values.W_Symbol, w_binary_sym)],
+                                simple=False)
+def call_with_input_file(s, proc, mode, env, cont):
+    m = "r" if mode is w_text_sym else "rb"
+    port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("call-with-output-file", [values_string.W_String, values.W_Object], simple=False)
-def call_with_output_file(s, proc, env, cont):
-    port = open_outfile(s, "wb")
+@expose("call-with-output-file", [values_string.W_String,
+                                  values.W_Object,
+                                  default(values.W_Symbol, w_binary_sym)],
+                                simple=False)
+def call_with_output_file(s, proc, mode, env, cont):
+    m = "w" if mode is w_text_sym else "wb"
+    port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values_string.W_String, values.W_Object, 
-                                 default(values.W_Symbol, binary_sym)], 
+@expose("with-input-from-file", [values_string.W_String, values.W_Object,
+                                 default(values.W_Symbol, w_binary_sym)],
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
-    m = "rb" if mode is binary_sym else "r"
+    m = "rb" if mode is w_binary_sym else "r"
     port = open_infile(s, m)
-    return call_with_extended_paramz(proc, [], [current_in_param], [port], 
+    return call_with_extended_paramz(proc, [], [current_in_param], [port],
                                      env, close_cont(port, env, cont))
 
-@expose("with-output-to-file", [values_string.W_String, values.W_Object], simple=False)
+@expose("with-output-to-file",
+        [values_string.W_String, values.W_Object], simple=False)
 def with_output_to_file(s, proc, env, cont):
     from pycket.prims.general      import call_with_extended_paramz
     port = open_outfile(s, "wb")
-    return call_with_extended_paramz(proc, [], [current_out_param], [port], 
+    return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
 
@@ -238,7 +257,7 @@ def file_position(args):
         told = w_port.tell()
         assert told >= 0
         return values.W_Integer.frombigint(
-            rbigint.fromrarith_int(told))
+            rbigint.fromint(told))
     elif len(args) == 2:
         w_port = args[0]
         assert isinstance(w_port, values.W_Port)
@@ -247,7 +266,8 @@ def file_position(args):
             assert w_offset.value >= 0
             w_port.seek(w_offset.value)
         elif isinstance(w_offset, values.W_Bignum):
-            v = w_offset.value.tolonglong()
+            # XXX this means we can only deal with 4GiB files on 32bit systems
+            v = w_offset.value.toint()
             w_port.seek(v)
         elif w_offset is values.eof_object:
             w_port.seek(0, end=True)
@@ -502,12 +522,21 @@ def do_write_string(w_str, port, start_pos, end_pos, env, cont):
     port.write(w_str.getslice(start, end_pos).as_str_utf8())
     return return_value(values.W_Fixnum(end_pos - start), env, cont)
 
-@expose("write-byte", [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
+@expose("write-byte",
+        [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
 def write_byte(b, out, env, cont):
     s = b.value
     if s < 0 or s > 255:
         raise SchemeException("%s is not a byte"%s)
     return do_print(chr(s), out, env, cont)
+
+@expose("write-char",
+        [values.W_Character, default(values.W_OutputPort, None)], simple=False)
+def write_char(w_char, w_port, env, cont):
+    c = w_char.value
+    from rpython.rlib.runicode import unicode_encode_utf_8
+    s = unicode_encode_utf_8(c, len(c), "strict")
+    return do_print(s, w_port, env, cont)
 
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),

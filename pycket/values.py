@@ -731,19 +731,24 @@ class W_ThreadCell(W_Object):
 
 
 
+
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
+    _attrs_ = ['value']
 
     @staticmethod
     def from_string(str, immutable=True):
-        return W_Bytes(list(str), immutable)
+        if immutable:
+            return W_ImmutableBytes(list(str))
+        else:
+            return W_MutableBytes(list(str))
 
-    def __init__(self, bs, immutable=True):
+
+    def __init__(self, bs):
         assert bs is not None
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
-        self.imm   = immutable
 
     def tostring(self):
         return "#\"%s\"" % "".join(self.value)
@@ -769,7 +774,7 @@ class W_Bytes(W_Object):
         return intmask(x)
 
     def immutable(self):
-        return self.imm
+        raise NotImplementedError("abstract base class")
 
     def ref(self, n):
         l = len(self.value)
@@ -778,17 +783,33 @@ class W_Bytes(W_Object):
         return W_Fixnum(ord(self.value[n]))
 
     def set(self, n, v):
-        l = len(self.value)
-        if n < 0 or n >= l:
-            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
-        if self.imm:
-            raise SchemeException("bytes-set!: can't mutate immutable string")
-        # FIXME: this is not constant time!
-        self.value[n] = chr(v)
-        return
+        raise NotImplementedError("abstract base class")
 
     def as_str(self):
         return "".join(self.value)
+
+
+class W_MutableBytes(W_Bytes):
+    errorname = "bytes"
+
+    def immutable(self):
+        return False
+
+    def set(self, n, v):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
+        self.value[n] = chr(v)
+
+
+class W_ImmutableBytes(W_Bytes):
+    errorname = "bytes"
+
+    def immutable(self):
+        return True
+
+    def set(self, n, v):
+        raise SchemeException("bytes-set!: can't mutate immutable bytes")
 
 
 class W_Symbol(W_Object):
@@ -1279,6 +1300,7 @@ eof_object = W_EOF()
 
 class W_Port(W_Object):
     errorname = "port"
+    _attrs_ = ['closed']
 
     def __init__(self):
         self.closed = False
@@ -1334,6 +1356,7 @@ class W_StringOutputPort(W_OutputPort):
 
 class W_InputPort(W_Port):
     errorname = "input-port"
+    _attrs_ = []
     def read(self, n):
         raise NotImplementedError("abstract class")
     def readline(self):
@@ -1417,7 +1440,8 @@ class W_FileInputPort(W_InputPort):
             self.file.seek(offset, 0)
 
     def tell(self):
-        return self.file.tell()
+        # XXX this means we can only deal with 4GiB files on 32bit systems
+        return int(intmask(self.file.tell()))
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
@@ -1445,4 +1469,5 @@ class W_FileOutputPort(W_OutputPort):
             self.file.seek(offset, 0)
 
     def tell(self):
-        return self.file.tell()
+        # XXX this means we can only deal with 4GiB files on 32bit systems
+        return int(intmask(self.file.tell()))

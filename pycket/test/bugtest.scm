@@ -1,0 +1,12 @@
+(define (gcbench)
+  (let* ()
+    (let* ()
+      (define (main)
+        (display "Shadowing Test.")
+        (newline))
+      (main))))
+
+(define (main . rest)
+  (display "Testing shadowing.")
+  (newline)
+  (gcbench))

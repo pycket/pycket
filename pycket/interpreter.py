@@ -1289,7 +1289,6 @@ class Letrec(SequencedBodyAST):
 
     def direct_children(self):
         return self.rhss + self.body
-        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1323,9 +1322,13 @@ class Letrec(SequencedBodyAST):
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
     def tostring(self):
+        vars = []
+        len = 0
+        for i in self.counts:
+            vars.append(self.args.elems[len:len+i])
         return "(letrec (%s) %s)" % (
-            [(v.variable_name(),
-              self.rhss[i].tostring()) for i, v in enumerate(self.args.elems)],
+            [([v.variable_name() for v in vs],
+              self.rhss[i].tostring()) for i, vs in enumerate(vars)],
             [b.tostring() for b in self.body])
 
 def _make_symlist_counts(varss):
@@ -1635,8 +1638,7 @@ if config.two_state:
         try:
             while True:
                 driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-                if type(ast) is App:
-                    came_from = ast
+                came_from = ast
                 ast, env, cont = ast.interpret(env, cont)
                 if ast.should_enter:
                     #print ast.tostring()

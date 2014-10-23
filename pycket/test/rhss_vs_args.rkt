@@ -1,24 +1,4 @@
-#lang racket/base
-(require r5rs)
-(define (partition v left right less?)
-  (let ((mid (vector-ref v right)))
-    (define (uploop i)
-      (let ((i (+ i 1)))
-        (if (and (< i right) (less? (vector-ref v i) mid))
-            (uploop i)
-            i)))
-    (define (downloop j)
-      (let ((j (- j 1)))
-        (if (and (> j left) (less? mid (vector-ref v j)))
-            (downloop j)
-            j)))
-    '()))
-
-(define (quicksort-benchmark)
-  (let* ((n 3)
-         (v (make-vector n)))
-    (do ((i 0 (+ i 1)))
-        ((= i n))
-        (vector-set! v i (random 4000)))))
-
-(quicksort-benchmark)
+(module rhss_vs_args '#%kernel
+  (let-values (((mid) '#f))
+    (letrec-values (((uploop downloop) (values #f #f)))
+      #f)))

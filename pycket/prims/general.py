@@ -202,11 +202,14 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False)
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
+    from pycket.interpreter import check_one_val, return_value
     if isinstance(v, values_struct.W_RootStruct):
-        st = v.struct_type()
-        if st is type:
-            return v.ref(v.struct_type(), 0, env,
+        struct_type = v.struct_type()
+        while isinstance(struct_type, values_struct.W_StructType):
+            if struct_type is type:
+                return return_value(v._ref(0), env,
                     receive_first_field(proc, v, v1, v2, env, cont))
+            struct_type = struct_type.super
     return proc.call([v, v1, v2], env, cont)
 
 ################################################################
