@@ -6,7 +6,7 @@ from pycket import values
 from pycket import vector as values_vector
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
-from pycket.prims.expose import unsafe, default, expose
+from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
 
 @expose("vector")
 def vector(args):
@@ -124,7 +124,7 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
                     dest, dest_start, next, env, cont))
 
 # FIXME: Chaperones
-@expose("unsafe-vector-ref", [values.W_Object, unsafe(values.W_Fixnum)], simple=False)
+@expose("unsafe-vector-ref", [subclass_unsafe(values.W_MVector), unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
@@ -144,7 +144,9 @@ def unsafe_vector_star_ref(v, i):
     return v.unsafe_ref(i.value)
 
 # FIXME: Chaperones
-@expose("unsafe-vector-set!", [values.W_Object, unsafe(values.W_Fixnum), values.W_Object], simple=False)
+@expose("unsafe-vector-set!",
+        [subclass_unsafe(values.W_MVector), unsafe(values.W_Fixnum), values.W_Object],
+        simple=False)
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
@@ -163,7 +165,7 @@ def unsafe_vector_star_set(v, i, new):
 def unsafe_flvector_set(v, i, new):
     return v.unsafe_set(i.value, new)
 
-@expose("unsafe-vector-length", [values.W_MVector])
+@expose("unsafe-vector-length", [subclass_unsafe(values.W_MVector)])
 def unsafe_vector_length(v):
     return values.W_Fixnum(v.length())
 

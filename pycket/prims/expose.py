@@ -3,6 +3,10 @@ from pycket.error import SchemeException
 
 prim_env = {}
 
+SAFE = 0
+UNSAFE = 1
+SUBCLASS_UNSAFE = 2
+
 class unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
     argument will be assumed to have the precise corresponding type (no
@@ -10,6 +14,18 @@ class unsafe(object):
 
     def __init__(self, typ):
         self.typ = typ
+
+
+class subclass_unsafe(object):
+    """ can be used in the argtypes part of an @expose call. The corresponding
+    argument will be assumed to have a subtype of the corresponding type.
+    This tends to be less efficient than unsafe, so use only if unsafe doesn't
+    work.
+    """
+
+    def __init__(self, typ):
+        self.typ = typ
+
 
 class default(object):
     """ can be used in the argtypes part of an @expose call. If the argument is
@@ -27,7 +43,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
     min_arg = 0
     isdefault = False
     for i, typ in enumerate(argstypes):
-        isunsafe = False
+        isunsafe = SAFE
         default_value = None
         if isinstance(typ, default):
             isdefault = True
@@ -41,7 +57,10 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             subclasses = typ.__subclasses__()
             if subclasses:
                 raise ValueError("type %s cannot be used unsafely, since it has subclasses %s" % (typ, subclasses))
-            isunsafe = True
+            isunsafe = UNSAFE
+        elif isinstance(typ, subclass_unsafe):
+            typ = typ.typ
+            isunsafe = SUBCLASS_UNSAFE
         type_errormsg = "expected %s as argument %s to %s, got " % (
                             typ.errorname, i, funcname)
         argtype_tuples.append((i, typ, isunsafe, isdefault, default_value, type_errormsg))
@@ -81,13 +100,20 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
                     typ is procedure and arg.iscallable() or \
                         isinstance(arg, typ)):
                     break
-            else:
+            elif unsafe == UNSAFE:
                 assert arg is not None
                 # the following precise type check is intentional.
                 # record_known_class records a precise class to the JIT,
                 # excluding subclasses
                 assert type(arg) is typ
                 jit.record_known_class(arg, typ)
+            else:
+                assert unsafe == SUBCLASS_UNSAFE
+                # this is not really communicating much to the jit
+                # but at least type inference knows the unsafe type
+                # (and if we come up with better ideas when know the place to
+                # use it)
+                assert isinstance(arg, typ)
             typed_args += (arg, )
         else:
             typed_args += rest
