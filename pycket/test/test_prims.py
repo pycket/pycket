@@ -579,11 +579,12 @@ def test_close_port(doctest):
 
 def test_read(doctest):
     """
-    > (read (open-input-string "1"))
+    ! (define (rs s) (read (open-input-string s)))
+    > (rs "1")
     1
-    > (read (open-input-string "#t"))
+    > (rs "#t")
     #t
-    > (read (open-input-string "abc"))
+    > (rs "abc")
     'abc
     > (define s (open-input-string "1 #t abc"))
     > (read s)
@@ -592,22 +593,24 @@ def test_read(doctest):
     #t
     > (read s)
     'abc
-    > (read (open-input-string "()"))
+    > (rs "()")
     '()
-    > (read (open-input-string "(1)"))
+    > (rs "(1)")
     '(1)
-    > (read (open-input-string "(1 2 3 a b c)"))
+    > (rs "(1 2 3 a b c)")
     '(1 2 3 a b c)
-    > (read (open-input-string "(1 (2 3) (a (b c)))"))
+    > (rs "(1 (2 3) (a (b c)))")
     '(1 (2 3) (a (b c)))
-    > (read (open-input-string "[]"))
+    > (rs "[]")
     '[]
-    > (read (open-input-string "[]"))
+    > (rs "[]")
     '()
-    > (read (open-input-string "[1]"))
+    > (rs "[1]")
     '[1]
-    > (read (open-input-string "[1 2 3 a b c]"))
+    > (rs "[1 2 3 a b c]")
     '[1 2 3 a b c]
-    > (read (open-input-string "[1 [2 3] [a [b c]]]"))
+    > (rs "[1 [2 3] [a [b c]]]")
     '[1 [2 3] [a [b c]]]
+    > (rs "(1 . 2)")
+    (cons 1 2)
     """

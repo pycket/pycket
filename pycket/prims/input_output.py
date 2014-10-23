@@ -33,6 +33,7 @@ class DelimToken(Token):
 
 class LParenToken(DelimToken): pass
 class RParenToken(DelimToken): pass
+class DotToken(DelimToken): pass
 
 def read_number_or_id(f, init):
     sofar = [init]
@@ -65,6 +66,8 @@ def read_token(f):
             return LParenToken(c)
         if c in [")", "]", "}"]:
             return RParenToken(c)
+        if c == ".":
+            return DotToken(c)
         if c.isalnum():
             return read_number_or_id(f, c)
         if c == "#":
@@ -89,20 +92,18 @@ def read(port, env, cont):
 def read_stream(stream):
     next_token = read_token(stream)
     if isinstance(next_token, DelimToken):
-        if isinstance(next_token, RParenToken):
+        if not isinstance(next_token, LParenToken):
             raise SchemeException("read: unexpected %s"%next_token.str)
         v = read_list(stream, values.w_null, next_token.str)
         return v
     else:
         return next_token.val
 
-def reverse(w_l):
-    acc = values.w_null
+# assumes a proper list
+def reverse(w_l, acc=values.w_null):
     while isinstance(w_l, values.W_Cons):
         val, w_l = w_l.car(), w_l.cdr()
         acc = values.W_Cons.make(val, acc)
-    if w_l is not values.w_null:
-        raise SchemeException("reverse: not given proper list")
     return acc
 
 def check_matches(s1, s2):
@@ -115,10 +116,18 @@ def check_matches(s1, s2):
 
 def read_list(stream, so_far, end):
     next_token = read_token(stream)
-    if isinstance(next_token, RParenToken):
+    if isinstance(next_token, DotToken):
+        last = read_stream(stream)
+        close = read_token(stream)
+        if isinstance(close, RParenToken):
+            check_matches(end, close.str)
+            return reverse(so_far, acc=last)
+        else:
+            raise SchemeException("read: illegal use of `.`")
+    elif isinstance(next_token, RParenToken):
         check_matches(end, next_token.str)
         return reverse(so_far)
-    if isinstance(next_token, LParenToken):
+    elif isinstance(next_token, LParenToken):
         v = read_list(stream, values.w_null, next_token.str)
     else:
         assert isinstance(next_token, ValueToken)
