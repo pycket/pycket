@@ -249,12 +249,36 @@ def call_with_input_file(s, proc, mode, env, cont):
     port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
+
+w_error_sym = values.W_Symbol.make("error")
+w_append_sym = values.W_Symbol.make("append")
+w_update_sym = values.W_Symbol.make("update")
+w_replace_sym = values.W_Symbol.make("replace")
+w_truncate_sym = values.W_Symbol.make("truncate")
+w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
+
 @expose("call-with-output-file", [values.W_String,
                                   values.W_Object,
-                                  default(values.W_Symbol, w_binary_sym)],
+                                  default(values.W_Symbol, w_binary_sym),
+                                  default(values.W_Symbol, w_error_sym)],
                                 simple=False)
-def call_with_output_file(s, proc, mode, env, cont):
-    m = "w" if mode is w_text_sym else "wb"
+def call_with_output_file(s, proc, mode, exists, env, cont):
+    if mode is w_text_sym:
+        if exists is w_append_sym:
+            m = "a"
+        elif exists is w_truncate_sym:
+            m = "w"
+        else:
+            raise SchemeException(
+                "modes not yet supported: %s and %s" % (mode, exists))
+    else:
+        if exists is w_append_sym:
+            m = "ab"
+        elif exists is w_truncate_sym:
+            m = "wb"
+        else:
+            raise SchemeException(
+                "modes not yet supported: %s and %s" % (mode, exists))
     port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
