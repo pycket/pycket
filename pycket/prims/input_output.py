@@ -270,7 +270,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
         m += "w"
     else:
         raise SchemeException("modes not yet supported: %s" % exists)
-    if mode not is w_text_sym:
+    if mode is not w_text_sym:
         m += "b"
     port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
