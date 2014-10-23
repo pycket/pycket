@@ -929,7 +929,7 @@ class __extend__(values.W_Complex):
         i = self.real.arith_cos().arith_mul(self.imag.arith_sinh())
         return values.W_Complex(r, i)
     def arith_cos(self):
-        "cos(a+bi)=cos a cosh b − i sin a sinh b"
+        "cos(a+bi)=cos a cosh b - i sin a sinh b"
         r = self.real.arith_cos().arith_mul(self.imag.arith_cosh())
         i = self.real.arith_sin().arith_mul(self.imag.arith_sinh())
         return values.W_Complex(r, i).complex_conjugate()
