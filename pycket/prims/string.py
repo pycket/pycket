@@ -130,11 +130,11 @@ for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
           ("string=?", lambda w_self, w_other: w_self.equal(w_other)),
           ("string>=?", lambda w_self, w_other: w_self.cmp(w_other) >= 0),
           ("string>?", lambda w_self, w_other: w_self.cmp(w_other) > 0),
-          ("string-ci<?", lambda w_self, w_other: w_self.cmp_ci(w_other) < 0),
-          ("string-ci<=?", lambda w_self, w_other: w_self.cmp_ci(w_other) <= 0),
-          ("string-ci=?", lambda w_self, w_other: w_self.cmp_ci(w_other) == 0),
-          ("string-ci>=?", lambda w_self, w_other: w_self.cmp_ci(w_other) >= 0),
-          ("string-ci>?", lambda w_self, w_other: w_self.cmp_ci(w_other) > 0),
+          ("string-ci<?", lambda w_self, w_other: w_self.cmp_case_insensitive(w_other) < 0),
+          ("string-ci<=?", lambda w_self, w_other: w_self.cmp_case_insensitive(w_other) <= 0),
+          ("string-ci=?", lambda w_self, w_other: w_self.cmp_case_insensitive(w_other) == 0),
+          ("string-ci>=?", lambda w_self, w_other: w_self.cmp_case_insensitive(w_other) >= 0),
+          ("string-ci>?", lambda w_self, w_other: w_self.cmp_case_insensitive(w_other) > 0),
           ]:
     define_string_comp(*a)
 
@@ -157,7 +157,7 @@ def make_string(k, char):
 @expose("string")
 def string(args):
     if len(args) == 0:
-        return values.W_String("")
+        return W_String.fromascii("")
     assert len(args) > 0
     builder = UnicodeBuilder()
     # XXX could do one less copy in the ascii case

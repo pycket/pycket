@@ -53,7 +53,6 @@ class W_String(W_Object):
     cache = {}
     @staticmethod
     def make(val):
-        # try to see whether the string is ascii
         lup = W_String.cache.get(val, None)
         if lup is None:
             lup = W_String.fromstr_utf8(val, immutable=True)
@@ -108,10 +107,17 @@ class W_String(W_Object):
         return self.get_strategy().eq(self, other)
 
     def cmp(self, other):
+        """
+        returns
+         - a negative number if self < other
+         - a positive number if self > other
+         - 0 if self == other
+        only the sign of the result is relevant, not the value
+        """
         return self.get_strategy().cmp(self, other)
 
-    def cmp_ci(self, other):
-        return self.get_strategy().cmp_ci(self, other)
+    def cmp_case_insensitive(self, other):
+        return self.get_strategy().cmp_case_insensitive(self, other)
 
     def upper(self):
         return self.get_strategy().upper(self)
@@ -249,8 +255,9 @@ class StringStrategy(object):
         length = self.length(w_str)
         if length != w_other.length():
             return False
+        otherstrategy = w_other.get_strategy()
         for i in range(length):
-            if self.getitem(w_str, i) != w_other.getitem(i):
+            if self.getitem(w_str, i) != otherstrategy.getitem(w_other, i):
                 return False
         return True
 
@@ -263,14 +270,15 @@ class StringStrategy(object):
             cmplen = len1
         else:
             cmplen = len2
+        otherstrategy = w_other.get_strategy()
         for i in range(cmplen):
-            diff = ord(self.getitem(w_str, i)) - ord(w_other.getitem(i))
+            diff = ord(self.getitem(w_str, i)) - ord(otherstrategy.getitem(w_other, i))
             if diff:
                 return diff
             i += 1
         return len1 - len2
 
-    def cmp_ci(self, w_str, w_other):
+    def cmp_case_insensitive(self, w_str, w_other):
         # base implementations, subclasses should do better ones
         len1 = self.length(w_str)
         len2 = w_other.length()
@@ -279,9 +287,10 @@ class StringStrategy(object):
             cmplen = len1
         else:
             cmplen = len2
+        otherstrategy = w_other.get_strategy()
         for i in range(cmplen):
             ch1 = unicodedb.tolower(ord(self.getitem(w_str, i)))
-            ch2 = unicodedb.tolower(ord(w_other.getitem(i)))
+            ch2 = unicodedb.tolower(ord(otherstrategy.getitem(w_other, i)))
             diff = ch1 - ch2
             if diff:
                 return diff

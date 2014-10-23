@@ -124,6 +124,10 @@ def test_string_append(doctest):
     """
     > (string-append "Apple" "Banana")
     "AppleBanana"
+    > (string-append "Apple")
+    "Apple"
+    > (string-append)
+    ""
     """
 
 def test_bytes_to_string_utf8(doctest):
