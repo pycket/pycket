@@ -205,6 +205,11 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
+        self.mutables = []
+        for i in range(self.init_field_cnt):
+            if i not in self.immutables:
+                self.mutables.append(i)
+
         self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
         self.acc = W_StructAccessor(self)
@@ -534,11 +539,7 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        value = self._get_list(field + offset)
-        if isinstance(value, values.W_Cell):
-            value.set_val(val)
-        else:
-            self._set_list(field + offset, values.W_Cell(val))
+        self._get_list(field + offset).set_val(val)
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
@@ -600,11 +601,14 @@ class W_StructConstructor(values.W_Procedure):
         raise NotImplementedError("abstract base class")
 
     @continuation
+    @jit.unroll_safe
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         guard_super_values = _vals._get_full_list()
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
+        for i in self.type.mutables:
+            field_values[i] = values.W_Cell(mutable_value)
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
         result = W_Struct.make(field_values, self.type)
