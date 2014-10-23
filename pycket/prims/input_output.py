@@ -263,22 +263,15 @@ w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
                                   default(values.W_Symbol, w_error_sym)],
                                 simple=False)
 def call_with_output_file(s, proc, mode, exists, env, cont):
-    if mode is w_text_sym:
-        if exists is w_append_sym:
-            m = "a"
-        elif exists is w_truncate_sym:
-            m = "w"
-        else:
-            raise SchemeException(
-                "modes not yet supported: %s and %s" % (mode, exists))
+    m = ""
+    if exists is w_append_sym:
+        m += "a"
+    elif exists is w_truncate_sym:
+        m += "w"
     else:
-        if exists is w_append_sym:
-            m = "ab"
-        elif exists is w_truncate_sym:
-            m = "wb"
-        else:
-            raise SchemeException(
-                "modes not yet supported: %s and %s" % (mode, exists))
+        raise SchemeException("modes not yet supported: %s" % exists)
+    if mode not is w_text_sym:
+        m += "b"
     port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
