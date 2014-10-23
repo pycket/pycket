@@ -14,18 +14,25 @@ from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val, procedure
 import os
 
-class Token(object):
-    def __init__(self, v):
-        self.val = v
+class Token(object): pass
 
-class NumberToken(Token): pass
-class StringToken(Token): pass
-class SymbolToken(Token): pass
-class BooleanToken(Token): pass
-class LParenToken(Token): pass
-class RParenToken(Token): pass
-class LVecToken(Token): pass
-class RVecToken(Token): pass
+class ValueToken(Token):
+    def __init__(self, v):
+        assert isinstance(v, values.W_Object)
+        self.val = v
+    
+
+class NumberToken(ValueToken): pass
+class StringToken(ValueToken): pass
+class SymbolToken(ValueToken): pass
+class BooleanToken(ValueToken): pass
+
+class DelimToken(Token):
+    def __init__(self, s):
+        self.str = s
+
+class LParenToken(DelimToken): pass
+class RParenToken(DelimToken): pass
 
 def read_number_or_id(f, init):
     sofar = [init]
@@ -55,9 +62,9 @@ def read_token(f):
         if c in [" ", "\n", "\t"]:
             continue
         if c in ["(", "[", "{"]:
-            return LParenToken(values.W_String.make(c))
+            return LParenToken(c)
         if c in [")", "]", "}"]:
-            return RParenToken(values.W_String.make(c))
+            return RParenToken(c)
         if c.isalnum():
             return read_number_or_id(f, c)
         if c == "#":
@@ -67,7 +74,7 @@ def read_token(f):
             if c2 == "f":
                 return BooleanToken(values.w_false)
             if c2 in ["(", "[", "{"]:
-                return LVecToken(values.W_String.make(c2))
+                return LParenToken("#" + c2)
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
@@ -81,8 +88,10 @@ def read(port, env, cont):
 
 def read_stream(stream):
     next_token = read_token(stream)
-    if isinstance(next_token, LParenToken):
-        v = read_list(stream, values.w_null, next_token.val)
+    if isinstance(next_token, DelimToken):
+        if isinstance(next_token, RParenToken):
+            raise SchemeException("read: unexpected %s"%next_token.str)
+        v = read_list(stream, values.w_null, next_token.str)
         return v
     else:
         return next_token.val
@@ -107,13 +116,13 @@ def check_matches(s1, s2):
 def read_list(stream, so_far, end):
     next_token = read_token(stream)
     if isinstance(next_token, RParenToken):
-        check_matches(end.value, next_token.val.value)
+        check_matches(end, next_token.str)
         return reverse(so_far)
     if isinstance(next_token, LParenToken):
-        v = read_list(stream, values.w_null, next_token.val)
+        v = read_list(stream, values.w_null, next_token.str)
     else:
+        assert isinstance(next_token, ValueToken)
         v = next_token.val
-    assert isinstance(v, values.W_Object)
     return read_list(stream, values.W_Cons.make(v, so_far), end)
     
 
