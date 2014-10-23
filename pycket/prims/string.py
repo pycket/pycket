@@ -475,3 +475,18 @@ def char_equal_huh(w_args):
         if not w_arg.value == comparand:
             w_res = values.w_false
     return w_res
+
+@expose("char-alphabetic?", [values.W_Character])
+def char_alphabetic_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isalpha(c) else values.w_false
+
+@expose("char-whitespace?", [values.W_Character])
+def char_whitespace_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isspace(c) else values.w_false
+
+@expose("char-numeric?", [values.W_Character])
+def char_numeric_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isnumeric(c) else values.w_false

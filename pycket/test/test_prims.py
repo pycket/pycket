@@ -529,6 +529,22 @@ def test_char_equal_huh(doctest):
     #f
     """
 
+def test_char_prop_huh(doctest):
+    r"""
+    > (char-alphabetic? #\a)
+    #t
+    > (char-alphabetic? #\=)
+    #f
+    > (char-numeric? #\0)
+    #t
+    > (char-numeric? #\=)
+    #f
+    > (char-whitespace? #\tab)
+    #t
+    > (char-whitespace? #\=)
+    #f
+    """
+
 def test_gcd_lcm(doctest):
     """
     > (gcd 10)
