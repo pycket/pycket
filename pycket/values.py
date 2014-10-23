@@ -61,8 +61,6 @@ class W_Cell(W_Object): # not the same as Racket's box
             v = W_CellBoolStrategy(v is w_true)
         elif isinstance(v, W_Symbol):
             v = W_CellSymbolStrategy(v.value)
-        elif isinstance(v, W_String):
-            v = W_CellStringStrategy(v.value)
         self.w_value = v
 
     def get_val(self):
@@ -75,8 +73,6 @@ class W_Cell(W_Object): # not the same as Racket's box
             return W_Bool.make(w_value.value)
         elif isinstance(w_value, W_CellSymbolStrategy):
             return W_Symbol.make(w_value.value)
-        elif isinstance(w_value, W_CellStringStrategy):
-            return W_String.make(w_value.value)
         return w_value
 
     def set_val(self, w_value):
@@ -104,12 +100,6 @@ class W_Cell(W_Object): # not the same as Racket's box
                 w_v.value = w_value.value
             else:
                 self.w_value = W_CellSymbolStrategy(w_value.value)
-        elif isinstance(w_value, W_String):
-            w_v = self.w_value
-            if isinstance(w_v, W_CellStringStrategy):
-                w_v.value = w_value.value
-            else:
-                self.w_value = W_CellStringStrategy(w_value.value)
         else:
             self.w_value = w_value
 
