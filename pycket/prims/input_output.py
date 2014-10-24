@@ -85,7 +85,7 @@ def read_string(f):
     while True:
         c = f.read(1)
         if c == '"':
-            return values.W_String.make("".join(buf))
+            return values_string.W_String.fromstr_utf8("".join(buf))
         elif c == "\\":
             n = f.read(1)
             if n in ['"', "\\"]:
