@@ -46,14 +46,21 @@ class LParenToken(DelimToken): pass
 class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
+def idchar(c):
+    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":"]):
+        return True
+    return False
+
 def read_number_or_id(f, init):
     sofar = [init]
     while True:
         c = f.peek()
         if c == "":
             break
-        if c.isalnum():
-            sofar.append(f.read(1))
+        if idchar(c):
+            v = f.read(1)
+            assert v == c
+            sofar.append(v)
         else:
             break
     got = "".join(sofar)
@@ -68,15 +75,41 @@ def read_number_or_id(f, init):
         except:
             return SymbolToken(values.W_Symbol.make(got))
 
+# FIXME: replace with a string builder
+# FIXME: unicode
+def read_string(f):
+    buf = []
+    while True:
+        c = f.read(1)
+        if c == '"':
+            return values.W_String.make("".join(buf))
+        elif c == "\\":
+            n = f.read(1)
+            if n in ['"', "\\"]:
+                c = n
+            elif n == "n":
+                c = "\n"
+            elif n == "t":
+                c = "\t"
+            else:
+                raise SchemeException("read: bad escape character in string: %s"%n)
+        buf.append(c)
+
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
+        if c == ";":
+            f.readline()
+            continue
         if c in [" ", "\n", "\t"]:
             continue
         if c in ["(", "[", "{"]:
             return LParenToken(c)
         if c in [")", "]", "}"]:
             return RParenToken(c)
+        if c == "\"":
+            v = read_string(f)
+            return ValueToken(v)
         if c == ".":
             return DotToken(c)
         if c == "'":
@@ -90,7 +123,7 @@ def read_token(f):
                 return SpecialToken(c + p, unquote_splicing_symbol)
             else:
                 return SpecialToken(c, unquote_symbol)
-        if c.isalnum():
+        if idchar(c):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
