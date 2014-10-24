@@ -41,6 +41,8 @@ class StringToken(ValueToken): pass
 class SymbolToken(ValueToken): pass
 class BooleanToken(ValueToken): pass
 class CharToken(ValueToken): pass
+class EOFToken(ValueToken): pass
+
 
 class DelimToken(Token):
     def __init__(self, s):
@@ -51,7 +53,7 @@ class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
 def idchar(c):
-    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":", "="]):
+    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":", "=", "*", "$", "%", "<", ">", "+", "^", "@", "&", "~", "/"]):
         return True
     return False
 
@@ -102,6 +104,8 @@ def read_string(f):
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
+        if not c:
+            return EOFToken(values.eof_object)
         if c == ";":
             f.readline()
             continue
