@@ -46,14 +46,21 @@ class LParenToken(DelimToken): pass
 class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
+def idchar(c):
+    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":"]):
+        return True
+    return False
+
 def read_number_or_id(f, init):
     sofar = [init]
     while True:
         c = f.peek()
         if c == "":
             break
-        if c.isalnum():
-            sofar.append(f.read(1))
+        if idchar(c):
+            v = f.read(1)
+            assert v == c
+            sofar.append(v)
         else:
             break
     got = "".join(sofar)
@@ -116,7 +123,7 @@ def read_token(f):
                 return SpecialToken(c + p, unquote_splicing_symbol)
             else:
                 return SpecialToken(c, unquote_symbol)
-        if c.isalnum():
+        if idchar(c):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
