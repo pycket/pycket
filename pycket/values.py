@@ -747,17 +747,6 @@ class W_ThreadCell(W_Object):
 
 
 
-class W_AnyRegexp(W_Object):
-    _immutable_fields_ = ["str"]
-    errorname = "regexp"
-    def __init__(self, str):
-        self.str = str
-
-class W_Regexp(W_AnyRegexp): pass
-class W_PRegexp(W_AnyRegexp): pass
-class W_ByteRegexp(W_AnyRegexp): pass
-class W_BytePRegexp(W_AnyRegexp): pass
-
 
 @memoize_constructor
 class W_Bytes(W_Object):
@@ -839,65 +828,50 @@ class W_ImmutableBytes(W_Bytes):
         raise SchemeException("bytes-set!: can't mutate immutable bytes")
 
 
-class W_String(W_Object):
-    errorname = "string"
-    cache = {}
-    def __init__(self, val, immutable=False):
-        assert val is not None
-        self.value = val
-        self.imm   = immutable
-    def tostring(self):
-        from pypy.objspace.std.bytesobject import string_escape_encode
-        #return string_escape_encode(self.value, '"')
-        return self.value
-    @staticmethod
-    def make(val):
-        lup = W_String.cache.get(val, None)
-        if lup is None:
-            lup = W_String(val, immutable=True)
-            W_String.cache[val] = lup
-        return lup
-    def equal(self, other):
-        if not isinstance(other, W_String):
-            return False
-        return self.value == other.value
-    def immutable(self):
-        return self.imm
-
 class W_Symbol(W_Object):
-    _immutable_fields_ = ["value", "unreadable"]
+    _immutable_fields_ = ["value", "unreadable", "asciivalue", "utf8value"]
     errorname = "symbol"
     all_symbols = {}
     unreadable_symbols = {}
 
 
     def __init__(self, val, unreadable=False):
-        self.value = val
+        assert isinstance(val, unicode)
+        self.unicodevalue = val
         self.unreadable = unreadable
+        try:
+            self.asciivalue = val.encode("ascii")
+        except UnicodeEncodeError:
+            self.asciivalue = None
+        self.utf8value = val.encode("utf-8")
 
     @staticmethod
     def make(string):
+        # assume that string is a utf-8 encoded unicode string
+        value = string.decode("utf-8")
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        w_result = W_Symbol.all_symbols.get(string, None)
+        w_result = W_Symbol.all_symbols.get(value, None)
         if w_result is None:
-            W_Symbol.all_symbols[string] = w_result = W_Symbol(string)
+            W_Symbol.all_symbols[value] = w_result = W_Symbol(value)
         return w_result
 
     @staticmethod
     def make_unreadable(string):
-        if string in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[string]
+        # assume that string is a utf-8 encoded unicode string
+        value = string.decode("utf-8")
+        if value in W_Symbol.unreadable_symbols:
+            return W_Symbol.unreadable_symbols[value]
         else:
-            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(string, True)
+            W_Symbol.unreadable_symbols[value] = w_result = W_Symbol(value, True)
             return w_result
 
     def __repr__(self):
-        return self.value
+        return self.utf8value
 
     def is_interned(self):
-        string = self.value
+        string = self.unicodevalue
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string] is self
         if string in W_Symbol.unreadable_symbols:
@@ -905,14 +879,15 @@ class W_Symbol(W_Object):
         return False
 
     def tostring(self):
-        return "'%s" % self.value
+        return "'%s" % self.utf8value
 
     def variable_name(self):
-        return self.value
+        return self.utf8value
 
-break_enabled_key = W_Symbol("break-enabled-key")
-exn_handler_key = W_Symbol("exnh")
-parameterization_key = W_Symbol("parameterization")
+# XXX what are these for?
+break_enabled_key = W_Symbol(u"break-enabled-key")
+exn_handler_key = W_Symbol(u"exnh")
+parameterization_key = W_Symbol(u"parameterization")
 
 class W_Keyword(W_Object):
     _immutable_fields_ = ["value"]
@@ -1362,10 +1337,13 @@ class W_OutputPort(W_Port):
     errorname = "output-port"
     def __init__(self):
         pass
+
     def write(self, str):
         raise NotImplementedError("abstract base classe")
+
     def flush(self):
         raise NotImplementedError("abstract base classe")
+
     def tostring(self):
         return "#<output-port>"
 
@@ -1407,6 +1385,7 @@ class W_InputPort(W_Port):
 class W_StringInputPort(W_InputPort):
     _immutable_fields_ = ["str"]
     errorname = "input-port"
+
     def __init__(self, str):
         self.closed = False
         self.str = str
@@ -1463,6 +1442,7 @@ class W_StringInputPort(W_InputPort):
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
+
     def __init__(self, f):
         self.closed = False
         self.file = f
@@ -1503,7 +1483,7 @@ class W_FileOutputPort(W_OutputPort):
 
     def write(self, str):
         self.file.write(str)
-        self.file.flush() # flushes too often
+        self.file.flush() # XXX flushes too often
 
     def flush(self):
         self.file.flush()

@@ -88,6 +88,7 @@ def parse_file(fname, *replacements):
     for replace, with_ in replacements:
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
+    s = s.decode("utf-8")
     s = expand_string(s)
     ast = parse_module(s)
     return ast

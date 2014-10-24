@@ -3,11 +3,12 @@
 import os
 import time
 from pycket import impersonators as imp
-from pycket import values
+from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_struct
 from pycket import values_hash
+from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -22,13 +23,14 @@ from pycket.prims import continuation_marks
 from pycket.prims import equal as eq_prims
 from pycket.prims import hash
 from pycket.prims import impersonator
+from pycket.prims import input_output
 from pycket.prims import numeric
 from pycket.prims import random
+from pycket.prims import regexp
 from pycket.prims import string
-from pycket.prims import undefined
 from pycket.prims import struct_structinfo
+from pycket.prims import undefined
 from pycket.prims import vector
-from pycket.prims import input_output
 
 from rpython.rlib import jit
 
@@ -54,7 +56,7 @@ for args in [
         ("fixnum?", values.W_Fixnum),
         ("flonum?", values.W_Flonum),
         ("vector?", values.W_MVector),
-        ("string?", values.W_String),
+        ("string?", values_string.W_String),
         ("symbol?", values.W_Symbol),
         ("boolean?", values.W_Bool),
         ("inspector?", values_struct.W_StructInspector),
@@ -65,10 +67,10 @@ for args in [
         ("struct-type-property-accessor-procedure?",
          values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
-        ("regexp?", values.W_Regexp),
-        ("pregexp?", values.W_PRegexp),
-        ("byte-regexp?", values.W_ByteRegexp),
-        ("byte-pregexp?", values.W_BytePRegexp),
+        ("regexp?", values_regex.W_Regexp),
+        ("pregexp?", values_regex.W_PRegexp),
+        ("byte-regexp?", values_regex.W_ByteRegexp),
+        ("byte-pregexp?", values_regex.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
         ("syntax?", values.W_Syntax),
         ("thread-cell?", values.W_ThreadCell),
@@ -392,7 +394,7 @@ for args in [ ("subprocess?",),
 
 @expose("object-name", [values.W_Object])
 def object_name(v):
-    return values.W_String(v.tostring())
+    return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("namespace-variable-value", [values.W_Symbol,
     default(values.W_Object, values.w_true),
@@ -407,9 +409,9 @@ def find_main_config():
 
 @expose("version", [])
 def version():
-    from .. import interpreter
+    from pycket import interpreter
     version = interpreter.GlobalConfig.lookup("version")
-    return values.W_String("unknown version" if version is None else version)
+    return values_string.W_String.fromascii("unknown version" if version is None else version)
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -978,6 +980,7 @@ def consp(v):
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):
+    # XXX inefficient
     return values.from_list(lst)[pos.value]
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
@@ -988,6 +991,7 @@ def list_tail(lst, pos):
     else:
         if isinstance(lst, values.W_Cons):
             assert start_pos > 0
+            # XXX inefficient
             return values.to_list(values.from_list(lst)[start_pos:])
         else:
             return values.w_null
@@ -1004,7 +1008,7 @@ def error(args):
         raise SchemeException("error: %s" % sym.tostring())
     else:
         first_arg = args[0]
-        if isinstance(first_arg, values.W_String):
+        if isinstance(first_arg, values_string.W_String):
             from rpython.rlib.rstring import StringBuilder
             msg = StringBuilder()
             msg.append(first_arg.tostring())
@@ -1017,7 +1021,7 @@ def error(args):
             form = args[1]
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
-            assert isinstance(form, values.W_String)
+            assert isinstance(form, values_string.W_String)
             raise SchemeException("%s: %s" % (
                 src.tostring(), input_output.format(form, v)))
 
@@ -1059,7 +1063,7 @@ def unsafe_cdr(p):
 def path_stringp(v):
     # FIXME: handle zeros in string
     return values.W_Bool.make(
-        isinstance(v, values.W_String) or isinstance(v, values.W_Path))
+        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
 
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
@@ -1068,7 +1072,7 @@ def complete_path(v):
 
 @expose("path->string", [values.W_Path])
 def path2string(p):
-    return values.W_String(p.path)
+    return values_string.W_String.fromstr_utf8(p.path)
 
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
@@ -1183,33 +1187,8 @@ def call_with_extended_paramz(f, args, keys, vals, env, cont):
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
-    return Gensym.gensym(init.value)
+    return Gensym.gensym(init.utf8value)
 
-define_nyi("regexp-match", [values.W_Object, values.W_Object])
-# def regexp_match(r, o):
-#      # FIXME: more error checking
-#     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-#     return values.w_false # Back to one problem
-
-define_nyi("regexp-match?", [values.W_Object, values.W_Object])
-# def regexp_matchp(r, o):
-#     # FIXME: more error checking
-#     assert isinstance(r, values.W_AnyRegexp) \
-#         or isinstance(r, values.W_String) or isinstance(r, values.W_Bytes)
-#     assert isinstance(o, values.W_String) or isinstance(o, values.W_Bytes) \
-#         or isinstance(o, values.W_InputPort) or isinstance(o, values.W_Path)
-#     # ack, this is wrong
-#     return values.w_true # Back to one problem
-
-# FIXME: implementation
-define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
-                           default(values.W_Bytes, None)])
-# def regexp_replace(pattern, input, insert, input_prefix):
-#     raise NotImplementedError()
-#     return input
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1222,8 +1201,8 @@ def build_path(args):
     for a in args:
         if isinstance(a, values.W_Bytes):
             r = r + str(a.value)
-        elif isinstance(a, values.W_String):
-            r = r + a.value
+        elif isinstance(a, values_string.W_String):
+            r = r + a.as_str_utf8()
         elif isinstance(a, values.W_Path):
             r = r + a.path
         else:
@@ -1244,27 +1223,30 @@ def do_raise(v, barrier):
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
 @expose("raise-argument-error",
-        [values.W_Symbol, values.W_String, values.W_Object])
+        [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_arg_err(name, expected, v):
     raise SchemeException("%s: expected %s but got %s" % (
-        name.value, expected.value, v.tostring()))
+        name.utf8value, expected.as_str_utf8(), v.tostring()))
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):
     name = args[0]
     assert isinstance(name, values.W_Symbol)
     message = args[1]
-    assert isinstance(message, values.W_String)
+    assert isinstance(message, values_string.W_String)
     from rpython.rlib.rstring import StringBuilder
     error_msg = StringBuilder()
-    error_msg.append("%s: %s\n" % (name.value, message.value))
+    error_msg.append(name.utf8value)
+    error_msg.append(": ")
+    error_msg.append(message.as_str_utf8())
+    error_msg.append("\n")
     i = 2
     while i + 1 < len(args):
         field = args[i]
-        assert isinstance(field, values.W_String)
+        assert isinstance(field, values_string.W_String)
         v = args[i+1]
         assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n" % (field.value, v.tostring()))
+        error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
         i += 2
     raise SchemeException(error_msg.build())
 
@@ -1275,12 +1257,12 @@ define_nyi("error-escape-handler", [default(values.W_Object, None)])
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
-    from .. import interpreter
-    v = interpreter.GlobalConfig.lookup(sym.value)
+    from pycket import interpreter
+    v = interpreter.GlobalConfig.lookup(sym.utf8value)
     if v:
         return values.W_Path(v)
     else:
-        raise SchemeException("unknown system path %s" % sym.value)
+        raise SchemeException("unknown system path %s" % sym.utf8value)
 
 @expose("find-main-collects", [])
 def find_main_collects():
@@ -1293,7 +1275,7 @@ def mpi_join(a, b):
 # Loading
 
 # FIXME: Proper semantics.
-@expose("load", [values.W_String], simple=False)
+@expose("load", [values_string.W_String], simple=False)
 def load(lib, env, cont):
     from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
     lib_name = lib.tostring()
@@ -1339,7 +1321,7 @@ w_os_sym = values.W_Symbol.make("os")
 def system_type(w_what):
     if w_what is w_os_sym:
         return w_system_sym
-    raise SchemeException("unexpected system-type symbol %s" % w_what.value)
+    raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
 
 @expose("system-path-convention-type", [])

@@ -54,19 +54,6 @@ def test_list_vector_conversion():
         "#(1.1 a)", "(list->vector (list 1.1 'a))",
     )
 
-def test_substring(doctest):
-    """
-    > (substring "Apple" 1 3)
-    "pp"
-    > (substring "Apple" 1)
-    "pple"
-    """
-    assert doctest
-    check_equal(
-        '(substring "applebee" 5)', '"bee"',
-        '(substring "applebee" 0 8)', '"applebee"',
-    )
-
 ###############################################################################
 
 def test_append_single(doctest):
@@ -248,6 +235,7 @@ def test_make_bytes_create(doctest):
     """
     > (make-bytes 5 65)
     #"AAAAA"
+    E (make-bytes 5 11111)
     > (bytes 65 112 112 108 101)
     #"Apple"
     > (bytes)
@@ -316,7 +304,7 @@ def test_bytes_copy_bang(doctest):
 
 def test_open_input_bytes_and_read_bytes_line(source):
     """
-    (let* ([b (string->bytes/locale "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]
+    (let* ([b (string->bytes/utf-8 "ABC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n")]
            [expected '(#"MNOP" #"" #"" #"JKL" #"" #"GHI" #"" #"DEF" #"ABC")]
            [inport (open-input-bytes b)])
       (let ([res (let rev ([lines null])
@@ -329,106 +317,38 @@ def test_open_input_bytes_and_read_bytes_line(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-def test_string_copy_bang(doctest):
+def test_read_utf8_bytes_chars(source):
+    ur"""
+    (let* ([b "ÄÖÜ"]
+           [inport (open-input-string b)]
+           [res1 (read-byte inport)]
+           [res2 (read-byte inport)]
+           [res3 (read-char inport)]
+           )
+        (and
+            (equal? res1 195)
+            (equal? res2 132)
+            (equal? res3 #\Ö)))
     """
-    > (define s (string #\A #\p #\p #\l #\e))
-    > (string-copy! s 4 "y")
-    > (string-copy! s 0 s 3 4)
-    > s
-    "lpply"
-    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
 
-def test_string_comparison(doctest):
+def test_open_input_and_read_line(source):
+    u"""
+    (let* ([b "ÄBC\nDEF\n\nGHI\n\nJKL\n\n\nMNOP\n"]
+           [expected '("MNOP" "" "" "JKL" "" "GHI" "" "DEF" "ÄBC")]
+           [inport (open-input-string b)])
+      (let ([res (let rev ([lines null])
+                   (let ([line (read-line inport)])
+                     (if (eof-object? line)
+                         lines
+                         (rev (cons line lines)))))])
+        (equal? res expected)))
     """
-    > (string=? "Apple" "apple")
-    #f
-    > (string=? "a" "as" "a")
-    #f
-    > (string<? "Apple" "apple")
-    #t
-    > (string<? "apple" "Apple")
-    #f
-    > (string<? "a" "b" "c")
-    #t
-    > (string<=? "Apple" "apple")
-    #t
-    > (string<=? "apple" "Apple")
-    #f
-    > (string<=? "a" "b" "b")
-    #t
-    > (string>? "Apple" "apple")
-    #f
-    > (string>? "apple" "Apple")
-    #t
-    > (string>? "c" "b" "a")
-    #t
-    > (string>=? "Apple" "apple")
-    #f
-    > (string>=? "apple" "Apple")
-    #t
-    > (string>=? "c" "b" "b")
-    #t
-    > (string-ci=? "Apple" "apple")
-    #t
-    > (string-ci=? "a" "a" "a")
-    #t
-    > (string-ci<? "Apple" "apple")
-    #f
-    > (string-ci<? "apple" "banana")
-    #t
-    > (string-ci<? "a" "b" "c")
-    #t
-    > (string-ci<=? "Apple" "apple")
-    #t
-    > (string-ci<=? "apple" "Apple")
-    #t
-    > (string-ci<=? "a" "b" "b")
-    #t
-    > (string-ci>? "Apple" "apple")
-    #f
-    > (string-ci>? "banana" "Apple")
-    #t
-    > (string-ci>? "c" "b" "a")
-    #t
-    > (string-ci>=? "Apple" "apple")
-    #t
-    > (string-ci>=? "apple" "Apple")
-    #t
-    > (string-ci>=? "c" "b" "b")
-    #t
-    """
-
-def test_bytes_comparison(doctest):
-    """
-    > (bytes=? #"Apple" #"apple")
-    #f
-    > (bytes=? #"a" #"as" #"a")
-    #f
-    > (bytes<? #"Apple" #"apple")
-    #t
-    > (bytes<? #"apple" #"Apple")
-    #f
-    > (bytes<? #"a" #"b" #"c")
-    #t
-    > (bytes>? #"Apple" #"apple")
-    #f
-    > (bytes>? #"apple" #"Apple")
-    #t
-    > (bytes>? #"c" #"b" #"a")
-    #t
-    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
 
 
-def test_bytes_append(doctest):
-    """
-    > (bytes-append #"Apple" #"Banana")
-    #"AppleBanana"
-    """
-def test_string_append(doctest):
-    """
-    > (string-append "Apple" "Banana")
-    "AppleBanana"
-    """
 ####################
 def test_procedure_arity(doctest):
     """
@@ -465,7 +385,7 @@ def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""
     result = run_mod_expr(source, wrap=True)
     assert result.car() == result.cdr()
-    sym = result.car().value
+    sym = result.car().asciivalue
     # Sadly, this can never cover all cases.
     if sys.platform == "darwin":
         assert sym == "macosx"
@@ -474,10 +394,10 @@ def test_system_type_os(source):
     else:
         assert sym == "unix"
 
-def test_system_path_convetion_type(source):
+def test_system_path_convention_type(source):
     """(system-path-convention-type)"""
     result = run_mod_expr(source, wrap=True)
-    sym = result.value
+    sym = result.asciivalue
     if sys.platform in ['win32', 'cygwin']:
         assert sym == "windows"
     else:

@@ -3,6 +3,7 @@ import pycket.impersonators as imp
 import pycket.vector        as values_vector
 from pycket              import values
 from pycket              import values_struct
+from pycket              import values_string
 from pycket.cont         import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
 from rpython.rlib import jit, objectmodel
@@ -112,7 +113,7 @@ def equal_func(a, b, info, env, cont):
         if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
             return return_value(values.w_false, env, cont)
 
-        if isinstance(a, values.W_String) and isinstance(b, values.W_String):
+        if isinstance(a, values_string.W_String) and isinstance(b, values_string.W_String):
             is_chaperone = for_chaperone == EqualInfo.CHAPERONE
             if is_chaperone and (not a.immutable() or not b.immutable()):
                 return return_value(values.w_false, env, cont)

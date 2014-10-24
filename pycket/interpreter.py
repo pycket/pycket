@@ -1,5 +1,5 @@
 from pycket.AST               import AST
-from pycket                   import values
+from pycket                   import values, values_string
 from pycket                   import config
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
@@ -491,7 +491,7 @@ class Quote(AST):
     def tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
                 isinstance(self.w_val, values.W_Number) or
-                isinstance(self.w_val, values.W_String) or
+                isinstance(self.w_val, values_string.W_String) or
                 isinstance(self.w_val, values.W_Symbol)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
@@ -749,7 +749,7 @@ class Var(AST):
     def interpret_simple(self, env):
         val = self._lookup(env)
         if val is None:
-            raise SchemeException("%s: undefined" % self.sym.value)
+            raise SchemeException("%s: undefined" % self.sym.utf8value)
         return val
 
     def direct_children(self):
@@ -789,7 +789,7 @@ class Gensym(object):
     def gensym(hint="g"):
         count = Gensym._counter[hint] = Gensym._counter.get(hint, -1) +  1
         # not using `make` so that it's really gensym
-        return values.W_Symbol(hint + str(count))
+        return values.W_Symbol(unicode(hint + str(count)))
 
 
 class LexicalVar(Var):

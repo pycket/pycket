@@ -254,7 +254,7 @@ def chaperone(x):
 @expose("make-impersonator-property", [values.W_Symbol], simple=False)
 def make_imp_prop(sym, env, cont):
     from pycket.interpreter import return_multi_vals
-    name = sym.value
+    name = sym.utf8value
     prop = imp.W_ImpPropertyDescriptor(name)
     pred = imp.W_ImpPropertyPredicate(prop)
     accs = imp.W_ImpPropertyAccessor(prop)

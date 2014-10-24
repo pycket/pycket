@@ -12,7 +12,8 @@ from rpython.rlib.rarithmetic import string_to_int
 from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
-from pycket import values
+from pycket import values, values_string
+from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
 from pycket import values_hash
@@ -59,7 +60,7 @@ def expand_string(s, reuse=True, srcloc=True):
         if reuse:
             current_racket_proc = process
     if reuse:
-        process.stdin.write(s)
+        process.stdin.write(s.encode("utf-8"))
         ## I would like to write something so that Racket sees EOF without
         ## closing the file. But I can't figure out how to do that. It
         ## must be possible, though, because bash manages it.
@@ -556,17 +557,17 @@ def to_value(json):
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()])
         if "regexp" in obj:
-            return values.W_Regexp(obj["regexp"].value_string())
+            return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
-            return values.W_ByteRegexp(obj["byte-regexp"].value_string())
+            return values_regex.W_ByteRegexp(obj["byte-regexp"].value_string())
         if "pregexp" in obj:
-            return values.W_PRegexp(obj["pregexp"].value_string())
+            return values_regex.W_PRegexp(obj["pregexp"].value_string())
         if "byte-regexp" in obj:
-            return values.W_BytePRegexp(obj["byte-pregexp"].value_string())
+            return values_regex.W_BytePRegexp(obj["byte-pregexp"].value_string())
         if "bytes" in obj:
             return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
         if "string" in obj:
-            return values.W_String.make(str(obj["string"].value_string()))
+            return values_string.W_String.make(str(obj["string"].value_string()))
         if "keyword" in obj:
             return values.W_Keyword.make(str(obj["keyword"].value_string()))
         if "improper" in obj:

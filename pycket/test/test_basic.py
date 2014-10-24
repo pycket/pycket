@@ -2,6 +2,7 @@ import pytest
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
+from pycket import values_string
 from pycket.prims import *
 
 from pycket.test.testhelper import (run, run_fix, run_flo, run_top, execute,
@@ -414,8 +415,8 @@ def test_with_continuation_mark():
             key))))
     """)
     sym = W_Symbol.make("result")
-    assert isinstance(m.defs[sym], W_String)
-    assert m.defs[sym].value == "ham"
+    assert isinstance(m.defs[sym], values_string.W_String)
+    assert m.defs[sym].as_str_utf8() == "ham"
 
 def test_with_continuation_mark_impersonator():
     m = run_mod(
@@ -455,19 +456,6 @@ def test_impersonator_application_mark():
     sym = W_Symbol.make("result")
     assert isinstance(m.defs[sym], W_Fixnum)
     assert m.defs[sym].value == 42
-
-def test_string_set_bang():
-    m = run_mod(
-    """
-    #lang pycket
-    (define str (substring "hello world" 0 5))
-    (string-set! str 0 #\\x)
-    """)
-    sym = W_Symbol.make("str")
-    res = m.defs[sym]
-    assert isinstance(res, W_String)
-    assert not res.immutable()
-    assert res.value == "xello"
 
 def test_arity():
     run("(procedure-arity-includes? add1 1)", w_true)

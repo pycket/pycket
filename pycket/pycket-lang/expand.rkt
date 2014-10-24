@@ -376,11 +376,11 @@
     [_ #:when (pregexp? (syntax-e v))
        (hash 'pregexp (object-name (syntax-e v)))]
     [_ #:when (byte-regexp? (syntax-e v))
-       (hash 'byte-regexp (bytes->string/locale (object-name (syntax-e v))))]
+       (hash 'byte-regexp (bytes->string/utf-8 (object-name (syntax-e v))))]
     [_ #:when (byte-pregexp? (syntax-e v))
-       (hash 'byte-pregexp (bytes->string/locale (object-name (syntax-e v))))]
+       (hash 'byte-pregexp (bytes->string/utf-8 (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
-       (hash 'bytes (bytes->string/locale (syntax-e v)))]
+       (hash 'bytes (bytes->string/utf-8 (syntax-e v)))]
     [_ #:when (hash? (syntax-e v))
        (let ([ht (syntax-e v)]
              [ht* (syntax-e v/loc)])

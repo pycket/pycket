@@ -5,7 +5,7 @@ from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException
 from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module, GlobalConfig
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
-from pycket.values import W_String
+from pycket.values_string import W_String
 
 from rpython.rlib import jit
 
@@ -25,7 +25,7 @@ def actual_entry(argv):
     config, names, args, retval = parse_args(argv)
     if retval != 0 or config is None:
         return retval
-    args_w = [W_String(arg) for arg in args]
+    args_w = [W_String.fromstr_utf8(arg) for arg in args]
     module_name, json_ast = ensure_json_ast(config, names)
     if json_ast is None:
         ast = expand_to_ast(module_name)
