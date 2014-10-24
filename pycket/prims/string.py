@@ -4,7 +4,7 @@ import operator as op
 from pycket import values
 from pycket.values_string import W_String
 from pycket.error import SchemeException
-from pycket.prims.expose import default, expose, unsafe
+from pycket.prims.expose import default, expose, unsafe, subclass_unsafe
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 from rpython.rlib import jit
@@ -331,11 +331,11 @@ def bytes_ref(s, n):
 def bytes_set_bang(s, n, v):
     return s.set(n.value, v.value)
 
-@expose("unsafe-bytes-length", [values.W_Bytes])
+@expose("unsafe-bytes-length", [subclass_unsafe(values.W_Bytes)])
 def unsafe_bytes_length(s1):
     return values.W_Fixnum(len(s1.value))
 
-@expose("unsafe-bytes-ref", [values.W_Bytes, unsafe(values.W_Fixnum)])
+@expose("unsafe-bytes-ref", [subclass_unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
 def unsafe_bytes_ref(s, n):
     return s.ref(n.value)
 

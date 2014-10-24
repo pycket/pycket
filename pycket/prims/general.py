@@ -12,7 +12,8 @@ from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method, define_nyi)
+                                 procedure, make_call_method, define_nyi,
+                                 subclass_unsafe)
 from rpython.rlib import jit
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
@@ -240,10 +241,14 @@ def prim_clos(v):
 # built-in struct types
 
 def define_struct(name, super=values.w_null, fields=[]):
+    immutables = []
+    for i in range(len(fields)):
+        immutables.append(values.W_Fixnum(i))
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
         values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
             super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false).make_struct_tuple()
+            values.w_false, values.w_null, values.w_false, values.w_false,
+            values.to_list(immutables)).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
@@ -1049,11 +1054,11 @@ def current_command_line_arguments(env, cont):
     return return_value(w_v, env, cont)
 
 # Unsafe pair ops
-@expose("unsafe-car", [values.W_Cons])
+@expose("unsafe-car", [subclass_unsafe(values.W_Cons)])
 def unsafe_car(p):
     return p.car()
 
-@expose("unsafe-cdr", [values.W_Cons])
+@expose("unsafe-cdr", [subclass_unsafe(values.W_Cons)])
 def unsafe_cdr(p):
     return p.cdr()
 

@@ -480,7 +480,6 @@ def test_make_prefab_struct(doctest):
 
 # Other
 
-@skip
 def test_procedure():
     m = run_mod(
     """
