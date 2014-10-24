@@ -40,6 +40,7 @@ class NumberToken(ValueToken): pass
 class StringToken(ValueToken): pass
 class SymbolToken(ValueToken): pass
 class BooleanToken(ValueToken): pass
+class CharToken(ValueToken): pass
 
 class DelimToken(Token):
     def __init__(self, s):
@@ -50,7 +51,7 @@ class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
 def idchar(c):
-    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":"]):
+    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":", "="]):
         return True
     return False
 
@@ -136,6 +137,9 @@ def read_token(f):
                 return BooleanToken(values.w_false)
             if c2 in ["(", "[", "{"]:
                 return LParenToken("#" + c2)
+            if c2 == "\\":
+                ch = f.read(1)
+                return CharToken(values.W_Character.make(ch))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
