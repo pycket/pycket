@@ -91,6 +91,9 @@ def read_string(f):
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
+        if c == ";":
+            f.readline()
+            continue
         if c in [" ", "\n", "\t"]:
             continue
         if c in ["(", "[", "{"]:
