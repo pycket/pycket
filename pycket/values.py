@@ -55,12 +55,24 @@ class W_Cell(W_Object): # not the same as Racket's box
         assert not isinstance(v, W_Cell)
         if isinstance(v, W_Fixnum):
             v = W_CellIntegerStrategy(v.value)
+        elif isinstance(v, W_Flonum):
+            v = W_CellFloatStrategy(v.value)
+        elif isinstance(v, W_Bool):
+            v = W_CellBoolStrategy(v is w_true)
+        elif isinstance(v, W_Symbol):
+            v = W_CellSymbolStrategy(v.value)
         self.w_value = v
 
     def get_val(self):
         w_value = self.w_value
         if isinstance(w_value, W_CellIntegerStrategy):
             return W_Fixnum(w_value.value)
+        elif isinstance(w_value, W_CellFloatStrategy):
+            return W_Flonum(w_value.value)
+        elif isinstance(w_value, W_CellBoolStrategy):
+            return W_Bool.make(w_value.value)
+        elif isinstance(w_value, W_CellSymbolStrategy):
+            return W_Symbol.make(w_value.value)
         return w_value
 
     def set_val(self, w_value):
@@ -70,11 +82,46 @@ class W_Cell(W_Object): # not the same as Racket's box
                 w_v.value = w_value.value
             else:
                 self.w_value = W_CellIntegerStrategy(w_value.value)
+        elif isinstance(w_value, W_Flonum):
+            w_v = self.w_value
+            if isinstance(w_v, W_CellFloatStrategy):
+                w_v.value = w_value.value
+            else:
+                self.w_value = W_CellFloatStrategy(w_value.value)
+        elif isinstance(w_value, W_Bool):
+            w_v = self.w_value
+            if isinstance(w_v, W_CellBoolStrategy):
+                w_v.value = w_value is w_true
+            else:
+                self.w_value = W_CellBoolStrategy(w_value is w_true)
+        elif isinstance(w_value, W_Symbol):
+            w_v = self.w_value
+            if isinstance(w_v, W_CellSymbolStrategy):
+                w_v.value = w_value.value
+            else:
+                self.w_value = W_CellSymbolStrategy(w_value.value)
         else:
             self.w_value = w_value
 
 class W_CellIntegerStrategy(W_Object):
     # can be stored in cells only, is mutated when a W_Fixnum is stored
+    def __init__(self, value):
+        self.value = value
+
+class W_CellFloatStrategy(W_Object):
+    # can be stored in cells only, is mutated when a W_Fixnum is stored
+    def __init__(self, value):
+        self.value = value
+
+class W_CellBoolStrategy(W_Object):
+    def __init__(self, value):
+        self.value = value
+
+class W_CellSymbolStrategy(W_Object):
+    def __init__(self, value):
+        self.value = value
+
+class W_CellStringStrategy(W_Object):
     def __init__(self, value):
         self.value = value
 
@@ -1381,6 +1428,8 @@ class W_InputPort(W_Port):
     _attrs_ = []
     def read(self, n):
         raise NotImplementedError("abstract class")
+    def peek(self, n=-1):
+        raise NotImplementedError("abstract class")
     def readline(self):
         raise NotImplementedError("abstract class")
     def tostring(self):
@@ -1408,6 +1457,13 @@ class W_StringInputPort(W_InputPort):
             return self.str[start:stop]
         return line
 
+    def peek(self, n=-1):
+        assert n == -1
+        if self.ptr >= len(self.str):
+            return ""
+        return self.str[self.ptr]
+
+
     def read(self, n=-1):
         if self.ptr >= len(self.str):
             return ""
@@ -1426,8 +1482,9 @@ class W_StringInputPort(W_InputPort):
 
     def seek(self, offset, end=False):
         if end or offset == self.ptr:
+            self.ptr = len(self.str)
             return
-        if offset > self.ptr:
+        if offset > len(self.str):
             raise SchemeException("index out of bounds")
         else:
             self.ptr = offset
@@ -1452,6 +1509,14 @@ class W_FileInputPort(W_InputPort):
 
     def readline(self):
         return self.file.readline()
+
+    def peek(self, n=-1):
+        assert n == -1
+        (count, c) = self.file.peek()
+        if count == 0:
+            return ""
+        else:
+            return c[0]
 
     def seek(self, offset, end=False):
         if end:

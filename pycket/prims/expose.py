@@ -3,6 +3,10 @@ from pycket.error import SchemeException
 
 prim_env = {}
 
+SAFE = 0
+UNSAFE = 1
+SUBCLASS_UNSAFE = 2
+
 class unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
     argument will be assumed to have the precise corresponding type (no
@@ -10,6 +14,18 @@ class unsafe(object):
 
     def __init__(self, typ):
         self.typ = typ
+
+
+class subclass_unsafe(object):
+    """ can be used in the argtypes part of an @expose call. The corresponding
+    argument will be assumed to have a subtype of the corresponding type.
+    This tends to be less efficient than unsafe, so use only if unsafe doesn't
+    work.
+    """
+
+    def __init__(self, typ):
+        self.typ = typ
+
 
 class default(object):
     """ can be used in the argtypes part of an @expose call. If the argument is
@@ -27,7 +43,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
     min_arg = 0
     isdefault = False
     for i, typ in enumerate(argstypes):
-        isunsafe = False
+        isunsafe = SAFE
         default_value = None
         if isinstance(typ, default):
             isdefault = True
@@ -41,18 +57,21 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             subclasses = typ.__subclasses__()
             if subclasses:
                 raise ValueError("type %s cannot be used unsafely, since it has subclasses %s" % (typ, subclasses))
-            isunsafe = True
-        argtype_tuples.append((i, typ, isunsafe, isdefault, default_value))
+            isunsafe = UNSAFE
+        elif isinstance(typ, subclass_unsafe):
+            typ = typ.typ
+            isunsafe = SUBCLASS_UNSAFE
+        type_errormsg = "expected %s as argument %s to %s, got " % (
+                            typ.errorname, i, funcname)
+        argtype_tuples.append((i, typ, isunsafe, isdefault, default_value, type_errormsg))
     unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
     max_arity = len(argstypes)
     if min_arg == max_arity:
         aritystring = max_arity
     else:
         aritystring = "%s to %s" % (min_arg, max_arity)
-    errormsg_arity = "expected %s arguments to %s, got %%s" % (
+    errormsg_arity = "expected %s arguments to %s, got " % (
         aritystring, funcname)
-    for _, typ, _, _, _ in argtype_tuples:
-        assert typ.__dict__.get("errorname"), str(typ)
     _arity = range(min_arg, max_arity+1), -1
     def func_arg_unwrap(*allargs):
         from pycket import values
@@ -65,10 +84,11 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
             args = allargs[0]
             rest = allargs[1:]
             typed_args = ()
-        if not min_arg <= len(args) <= max_arity:
-            raise SchemeException(errormsg_arity % len(args))
         lenargs = len(args)
-        for i, typ, unsafe, default, default_value in unroll_argtypes:
+        if not min_arg <= lenargs <= max_arity:
+            raise SchemeException(errormsg_arity + str(lenargs))
+        type_errormsg = None
+        for i, typ, unsafe, default, default_value, type_errormsg in unroll_argtypes:
             if i >= min_arg and i >= lenargs:
                 assert default
                 typed_args += (default_value, )
@@ -79,19 +99,28 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
                 if typ is not values.W_Object and not (
                     typ is procedure and arg.iscallable() or \
                         isinstance(arg, typ)):
-                    raise SchemeException(
-                        "expected %s as argument to %s, got %s" % (
-                            typ.errorname, funcname, arg.tostring()))
-            else:
+                    break
+            elif unsafe == UNSAFE:
                 assert arg is not None
                 # the following precise type check is intentional.
                 # record_known_class records a precise class to the JIT,
                 # excluding subclasses
                 assert type(arg) is typ
                 jit.record_known_class(arg, typ)
+            else:
+                assert unsafe == SUBCLASS_UNSAFE
+                # this is not really communicating much to the jit
+                # but at least type inference knows the unsafe type
+                # (and if we come up with better ideas when know the place to
+                # use it)
+                assert isinstance(arg, typ)
             typed_args += (arg, )
-        typed_args += rest
-        return func(*typed_args)
+        else:
+            typed_args += rest
+            return func(*typed_args)
+        # reachable only by break when the type check fails
+        assert type_errormsg is not None
+        raise SchemeException(type_errormsg + arg.tostring())
     func_arg_unwrap.func_name = "%s_arg_unwrap" % (func.func_name, )
     return func_arg_unwrap, _arity
 

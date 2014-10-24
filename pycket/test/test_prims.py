@@ -521,11 +521,79 @@ def test_list_to_string(doctest):
     "Apple"
     """
 
-def test_char_equal_huh(doctest):
+def test_char_cmp_huh(doctest):
     r"""
     > (char=? #\a #\a)
     #t
     > (char=? #\a #\A #\a)
+    #f
+    > (char<? #\A #\a)
+    #t
+    > (char<? #\a #\A)
+    #f
+    > (char<? #\a #\b #\c)
+    #t
+    > (char<=? #\A #\a)
+    #t
+    > (char<=? #\a #\A)
+    #f
+    > (char<=? #\a #\b #\b)
+    #t
+    > (char>? #\A #\a)
+    #f
+    > (char>? #\a #\A)
+    #t
+    > (char>? #\c #\b #\a)
+    #t
+    > (char>=? #\A #\a)
+    #f
+    > (char>=? #\a #\A)
+    #t
+    > (char>=? #\c #\b #\b)
+    #t
+    > (char-ci=? #\A #\a)
+    #t
+    > (char-ci=? #\a #\a #\a)
+    #t
+    > (char-ci<? #\A #\a)
+    #f
+    > (char-ci<? #\a #\b)
+    #t
+    > (char-ci<? #\a #\b #\c)
+    #t
+    > (char-ci<=? #\A #\a)
+    #t
+    > (char-ci<=? #\a #\A)
+    #t
+    > (char-ci<=? #\a #\b #\b)
+    #t
+    > (char-ci>? #\A #\a)
+    #f
+    > (char-ci>? #\b #\A)
+    #t
+    > (char-ci>? #\c #\b #\a)
+    #t
+    > (char-ci>=? #\A #\a)
+    #t
+    > (char-ci>=? #\a #\A)
+    #t
+    > (char-ci>=? #\c #\b #\b)
+    #t
+    """
+
+def test_char_prop_huh(doctest):
+    r"""
+    > (char-alphabetic? #\a)
+    #t
+    > (char-alphabetic? #\=)
+    #f
+    > (char-numeric? #\0)
+    #t
+    > (char-numeric? #\=)
+    #f
+    > (char-whitespace? #\tab)
+    #t
+    > (char-whitespace? #\=)
     #f
     """
 
@@ -545,6 +613,50 @@ def test_gcd_lcm(doctest):
     2
     """
 
+def test_read(doctest):
+    """
+    ! (define (rs s) (read (open-input-string s)))
+    > (rs "1")
+    1
+    > (rs "#t")
+    #t
+    > (rs "abc")
+    'abc
+    > (define s (open-input-string "1 #t abc"))
+    > (read s)
+    1
+    > (read s)
+    #t
+    > (read s)
+    'abc
+    > (rs "()")
+    '()
+    > (rs "(1)")
+    '(1)
+    > (rs "(1 2 3 a b c)")
+    '(1 2 3 a b c)
+    > (rs "(1 (2 3) (a (b c)))")
+    '(1 (2 3) (a (b c)))
+    > (rs "[]")
+    '[]
+    > (rs "[]")
+    '()
+    > (rs "[1]")
+    '[1]
+    > (rs "[1 2 3 a b c]")
+    '[1 2 3 a b c]
+    > (rs "[1 [2 3] [a [b c]]]")
+    '[1 [2 3] [a [b c]]]
+    > (rs "(1 . 2)")
+    (cons 1 2)
+    > (rs "'(1)")
+    ''(1)
+    > (rs "`(1)")
+    '`(1)
+    > (rs "`(,1)")
+    '`(,1)
+    """
+
 def test_close_port(doctest):
     """
     > (define sp (open-input-string "(apples 42 day)"))
@@ -559,4 +671,22 @@ def test_close_port(doctest):
     > (close-output-port op)
     > (port-closed? op)
     #t
+    """
+
+def test_port_read_peek(doctest):
+    r"""
+    > (define sp (open-input-string "(apples 42 day)"))
+    > (peek-char sp)
+    #\(
+    > (peek-char sp 5)
+    #\e
+    > (read-char sp)
+    #\(
+    > (define bp (open-input-bytes #"(apples 42 day)"))
+    > (peek-byte bp)
+    40
+    > (peek-byte bp 5)
+    101
+    > (read-byte bp)
+    40
     """

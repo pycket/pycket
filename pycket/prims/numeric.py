@@ -265,6 +265,9 @@ for args in [
         ("cosh", "arith_cosh", True),
         ("tanh", "arith_tanh", True),
         ("sqrt", "arith_sqrt", True),
+        ("asin", "arith_asin", True),
+        ("acos", "arith_acos", True),
+        # ("tan", "arith_tan", True), down below
         ("log", "arith_log", True),
         ("sub1", "arith_sub1"),
         ("inexact->exact", "arith_inexact_exact"),
