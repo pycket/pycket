@@ -68,6 +68,26 @@ def read_number_or_id(f, init):
         except:
             return SymbolToken(values.W_Symbol.make(got))
 
+# FIXME: replace with a string builder
+# FIXME: unicode
+def read_string(f):
+    buf = []
+    while True:
+        c = f.read(1)
+        if c == '"':
+            return values.W_String.make("".join(buf))
+        elif c == "\\":
+            n = f.read()
+            if n in ['"', "\\"]:
+                c = n
+            elif n == "n":
+                c = "\n"
+            elif n == "t":
+                c = "\t"
+            else:
+                raise SchemeException("read: bad escape character in string: %s"%n)
+        buf.append(c)
+
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
@@ -77,6 +97,9 @@ def read_token(f):
             return LParenToken(c)
         if c in [")", "]", "}"]:
             return RParenToken(c)
+        if c == "\"":
+            v = read_string(f)
+            return ValueToken(v)
         if c == ".":
             return DotToken(c)
         if c == "'":

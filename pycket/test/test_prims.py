@@ -655,6 +655,16 @@ def test_read(doctest):
     '`(1)
     > (rs "`(,1)")
     '`(,1)
+    > (rs "\\"1\\"")
+    "1"
+    > (rs "\\"'abc\\"")
+    "'abc"
+    > (rs "\\"hello jed\\"")
+    "hello jed"
+    > (rs "\\"abc.123\\"")
+    "abc.123"
+    > (rs "\\"\\t\\n\\"")
+    "\\t\\n"
     """
 
 def test_close_port(doctest):
