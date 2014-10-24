@@ -1397,7 +1397,7 @@ class W_InputPort(W_Port):
     _attrs_ = []
     def read(self, n):
         raise NotImplementedError("abstract class")
-    def peek(self, n=-1):
+    def peek(self):
         raise NotImplementedError("abstract class")
     def readline(self):
         raise NotImplementedError("abstract class")
@@ -1426,8 +1426,7 @@ class W_StringInputPort(W_InputPort):
             return self.str[start:stop]
         return line
 
-    def peek(self, n=-1):
-        assert n == -1
+    def peek(self):
         if self.ptr >= len(self.str):
             return ""
         return self.str[self.ptr]
@@ -1479,13 +1478,11 @@ class W_FileInputPort(W_InputPort):
     def readline(self):
         return self.file.readline()
 
-    def peek(self, n=-1):
-        assert n == -1
-        (count, c) = self.file.peek()
-        if count == 0:
-            return ""
-        else:
-            return c[0]
+    def peek(self):
+        pos = self.file.tell()
+        res = self.file.read(1)
+        self.file.seek(pos, 0)
+        return res
 
     def seek(self, offset, end=False):
         if end:
