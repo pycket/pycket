@@ -358,6 +358,10 @@ class __extend__(values.W_Fixnum):
         return values.W_Flonum(math.cosh(self.value))
     def arith_tanh(self):
         return values.W_Flonum(math.tanh(self.value))
+    def arith_asin(self):
+        return values.W_Flonum(math.asin(self.value))
+    def arith_acos(self):
+        return values.W_Flonum(math.acos(self.value))
     def arith_atan(self):
         return values.W_Flonum(math.atan(self.value))
 
@@ -502,6 +506,10 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(math.cosh(self.value))
     def arith_tanh(self):
         return values.W_Flonum(math.tanh(self.value))
+    def arith_asin(self):
+        return values.W_Flonum(math.asin(self.value))
+    def arith_acos(self):
+        return values.W_Flonum(math.acos(self.value))
     def arith_atan(self):
         return values.W_Flonum(math.atan(self.value))
 
@@ -947,6 +955,14 @@ class __extend__(values.W_Complex):
         return values.W_Complex(r, i)
     def arith_tanh(self):
         return self.arith_sinh().arith_div(self.arith_cosh())
+    def arith_asin(self):
+        raise NotImplementedError("to be done")
+    def arith_acos(self):
+        raise NotImplementedError("to be done")
+    def arith_atan(self):
+        raise NotImplementedError("to be done")
+
+
 
     # ------------------ comparisons ------------------
 

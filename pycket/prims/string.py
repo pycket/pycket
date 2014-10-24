@@ -463,16 +463,55 @@ def char_downcase(v):
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
 
-@expose("char=?")
-def char_equal_huh(w_args):
-    if len(w_args) < 2:
-        raise SchemeException("char=?: requires at least 2 arguments")
-    w_comparand = w_args[0]
-    assert isinstance(w_comparand, values.W_Character)
-    comparand = w_comparand.value
-    w_res = values.w_true
-    for w_arg in w_args:
-        assert isinstance(w_arg, values.W_Character)
-        if not w_arg.value == comparand:
-            w_res = values.w_false
-    return w_res
+
+def define_char_comp(name, op):
+    @expose(name)
+    def comp(args):
+        if len(args) < 2:
+            raise SchemeException(name + ": requires at least 2 arguments")
+        head, tail = args[0], args[1:]
+        if not isinstance(head, values.W_Character):
+            raise SchemeException(name + ": not given a character")
+        for t in tail:
+            if not isinstance(t, values.W_Character):
+                raise SchemeException(name + ": not given a character")
+            if not op(head.value, t.value):
+                return values.w_false
+            head = t
+        return values.w_true
+
+# FIXME: Doing case insensitives like this will perform the lower operation
+# every time a value is used for a comparison.
+def make_ci(op):
+    def lower(a, b):
+        return op(unichr(unicodedb.tolower(ord(a))),
+                  unichr(unicodedb.tolower(ord(b))))
+    return lower
+
+for a in [("char<?", op.lt),
+          ("char<=?", op.le),
+          ("char=?", op.eq),
+          ("char>=?", op.ge),
+          ("char>?", op.gt),
+          ("char-ci<?", make_ci(op.lt)),
+          ("char-ci<=?", make_ci(op.le)),
+          ("char-ci=?", make_ci(op.eq)),
+          ("char-ci>=?", make_ci(op.ge)),
+          ("char-ci>?", make_ci(op.gt)),
+          ]:
+    define_char_comp(*a)
+
+@expose("char-alphabetic?", [values.W_Character])
+def char_alphabetic_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isalpha(c) else values.w_false
+
+@expose("char-whitespace?", [values.W_Character])
+def char_whitespace_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isspace(c) else values.w_false
+
+@expose("char-numeric?", [values.W_Character])
+def char_numeric_huh(w_char):
+    c = ord(w_char.value)
+    return values.w_true if unicodedb.isnumeric(c) else values.w_false
