@@ -77,7 +77,7 @@ def read_string(f):
         if c == '"':
             return values.W_String.make("".join(buf))
         elif c == "\\":
-            n = f.read()
+            n = f.read(1)
             if n in ['"', "\\"]:
                 c = n
             elif n == "n":
