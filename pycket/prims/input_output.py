@@ -143,7 +143,7 @@ def read_token(f):
                 return LParenToken("#" + c2)
             if c2 == "\\":
                 ch = f.read(1)
-                return CharToken(values.W_Character.make(ch))
+                return CharToken(values.W_Character.make(unichr(int(ch))))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
