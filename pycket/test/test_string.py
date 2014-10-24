@@ -173,7 +173,8 @@ def test_immutable_literals(doctest):
 
 def test_string_to_immutable(doctest):
     r"""
-    > (string->immutable-string "abc") ; easy case
+    ; easy case
+    > (string->immutable-string "abc")
     "abc"
     > (string->immutable-string (string #\a #\b))
     "ab"

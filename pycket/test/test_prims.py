@@ -632,11 +632,11 @@ def test_port_read_peek(doctest):
 
 def test_peek_bug(tmpdir):
     from pycket.prims.input_output import open_infile
-    from pycket import values
+    from pycket import values_string
     s = "abc\ndef\nghi"
     f = tmpdir.join("example.txt")
     f.write(s)
-    w_n = values.W_String(str(f))
+    w_n = values_string.W_String.fromstr_utf8(str(f))
     w_p = open_infile(w_n, "r")
     for c in s:
         c1 = w_p.peek()
