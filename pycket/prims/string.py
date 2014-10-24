@@ -91,7 +91,8 @@ def string_to_symbol(v):
                                   default(values.W_Fixnum, values.W_Fixnum(0)),
                                   default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
-    assert errbyte is values.w_false
+    # assert errbyte is values.w_false
+    # ignore for now
     assert start.value == 0
     assert end is None
     # FIXME: This ignores the locale
