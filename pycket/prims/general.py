@@ -184,6 +184,10 @@ expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
 
+@expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
+def raise_type_error(name, expected, v):
+    raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
+
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
