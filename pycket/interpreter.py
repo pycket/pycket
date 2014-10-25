@@ -1214,10 +1214,11 @@ class Lambda(SequencedBodyAST):
         return vals[:]
 
     def tostring(self):
-        if self.rest and (not self.formals):
-            return "(lambda %s %s)" % (self.rest, [b.tostring() for b in self.body])
+        if self.rest and not self.formals:
+            return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
         if self.rest:
-            return "(lambda (%s . %s) %s)" % (self.formals, self.rest, [b.tostring() for b in self.body])
+            fmls = " ".join([v.variable_name() for v in self.formals])
+            return "(lambda (%s . %s) %s)" % (fmls, self.rest.tostring(), [b.tostring() for b in self.body])
         else:
             return "(lambda (%s) %s)" % (
                 " ".join([v.variable_name() for v in self.formals]),
