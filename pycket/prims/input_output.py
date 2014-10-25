@@ -345,15 +345,22 @@ def close_cont(port, env, cont, vals):
     port.close()
     return return_multi_vals(vals, env, cont)
 
+def extract_path(obj):
+    if isinstance(obj, values_string.W_String):
+        return obj.as_str_utf8()
+    if isinstance(obj, values.W_Path):
+        return obj.path
+    raise SchemeException("expected path-like values but got %s" % obj.tostring())
+
 def open_infile(w_str, mode):
-    s = w_str.as_str_utf8()
+    s = extract_path(w_str)
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
 
 def open_outfile(w_str, mode):
-    s = w_str.as_str_utf8()
+    s = extract_path(w_str)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
-@expose("call-with-input-file", [values_string.W_String,
+@expose("call-with-input-file", [values.W_Object,
                                  values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
                                 simple=False)
@@ -362,7 +369,6 @@ def call_with_input_file(s, proc, mode, env, cont):
     port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-
 w_error_sym = values.W_Symbol.make("error")
 w_append_sym = values.W_Symbol.make("append")
 w_update_sym = values.W_Symbol.make("update")
@@ -370,7 +376,7 @@ w_replace_sym = values.W_Symbol.make("replace")
 w_truncate_sym = values.W_Symbol.make("truncate")
 w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
 
-@expose("call-with-output-file", [values_string.W_String,
+@expose("call-with-output-file", [values.W_Object,
                                   values.W_Object,
                                   default(values.W_Symbol, w_binary_sym),
                                   default(values.W_Symbol, w_error_sym)],
