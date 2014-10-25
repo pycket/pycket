@@ -126,7 +126,7 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=config.fuse_conts, pruning_done=False):
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
