@@ -22,3 +22,24 @@ def test_regexp_match_p(doctest):
     > (regexp-match? #rx"y." "12x4x6")
     #f
     """
+
+def test_bug(doctest):
+    """
+    ! (define flag "--profile")
+    > (regexp-match? #rx"^([-+][^-+]$|(--|[+][+])[^-+])" flag)
+    #t
+    > (regexp-match #rx"^([-+][^-+]$|(--|[+][+])[^-+])" "--profile")
+    '("--p" "--p" "--")
+    """
+
+def test_or_parsing(doctest):
+    """
+    > (regexp-match? "ab|c" "a")
+    #f
+    > (regexp-match? "ab|c" "ab")
+    #t
+    > (regexp-match? "ab|c" "c")
+    #t
+    > (regexp-match? "ab|c" "ac")
+    #t
+    """
