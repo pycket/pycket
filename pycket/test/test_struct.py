@@ -106,7 +106,7 @@ def test_struct_inheritance2():
 
 def test_struct_comparison(source):
     """
-    (struct glass (width height) #:transparent)
+    (struct glass (width height) #:transparent #:mutable)
     (struct lead (width height))
     (define slab (lead 1 2))
 
@@ -495,20 +495,3 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
-
-def test_struct_equal():
-    m = run_mod(
-    """
-    #lang pycket
-    (require racket/private/kw)
-
-    (define-struct s1 (a b) #:transparent)
-    (define-struct s2 (c d) #:transparent #:mutable)
-
-    (define f (equal? (make-s1 0 1) (make-s2 0 1)))
-    (define t1 (equal? (make-s1 0 1) (make-s1 0 1)))
-    (define t2 (equal? (make-s2 0 1) (make-s2 0 1)))
-
-    (define result (and (not f) t1 t2))
-    """)
-    assert m.defs[W_Symbol.make("result")] == w_true
