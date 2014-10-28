@@ -385,10 +385,10 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
     m = ""
     if exists is w_append_sym:
         m += "a"
-    elif exists is w_truncate_sym:
+    elif exists is w_truncate_sym or w_truncate_replace_sym:
         m += "w"
     else:
-        raise SchemeException("modes not yet supported: %s" % exists)
+        raise SchemeException("mode not yet supported: %s" % exists.tostring())
     if mode is not w_text_sym:
         m += "b"
     port = open_outfile(s, m)
