@@ -59,10 +59,20 @@ def test_regex_match_port(doctest):
     #\x
     """
 
-def test_regex_determines_result_type(doctest):
+def test_regex_result_types(doctest):
     r"""
     > (regexp-match #rx"a" "bca")
     '("a")
     > (regexp-match #rx#"a" "bca")
+    '(#"a")
+    > (regexp-match "a" "bca")
+    '("a")
+    > (regexp-match "a" #"bca")
+    '(#"a")
+    > (regexp-match "a" #"bca")
+    '(#"a")
+    > (regexp-match #"a" "bca")
+    '(#"a")
+    > (regexp-match "a" #"bca")
     '(#"a")
     """
