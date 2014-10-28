@@ -36,8 +36,22 @@ def match(w_re, w_str):
     if isinstance(w_str, values.W_Bytes):
         result = w_re.match_string(w_str.as_str())
         return result
+    if isinstance(w_str, values.W_InputPort):
+        result = match_port(w_re, w_str)
+        return result
     raise SchemeException("regexp-match: can't deal with this type")
 
+
+def match_port(w_re, w_port):
+    max_match = w_port._length_up_to_end()
+    pos = w_port.tell()
+    for i in range(max_match):
+        w_port.seek(pos)
+        s = w_port.read(i)
+        result = w_re.match_string(s)
+        if result:
+            return result
+    return None
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
