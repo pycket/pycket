@@ -227,7 +227,14 @@ def expose_val(name, w_v):
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
 
-def define_nyi(name, prim_args=None, *args, **kwargs):
-    @expose(name, prim_args, nyi=True, *args, **kwargs)
-    def nyi(a):
-        pass
+def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
+    if bail:
+        @expose(name, prim_args, nyi=True, *args, **kwargs)
+        def nyi(a):
+            pass
+    else:
+        @expose(name, prim_args, nyi=False, *args, **kwargs)
+        def nyi(a):
+            from pycket import values
+            print "NOT YET IMPLEMENTED: %s" % name
+            return values.w_false

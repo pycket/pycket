@@ -89,10 +89,9 @@ class W_CellIntegerStrategy(W_Object):
         self.value = value
 
 class W_CellFloatStrategy(W_Object):
-    # can be stored in cells only, is mutated when a W_Fixnum is stored
+    # can be stored in cells only, is mutated when a W_Flonum is stored
     def __init__(self, value):
         self.value = value
-
 
 class W_Undefined(W_Object):
     errorname = "unsafe-undefined"

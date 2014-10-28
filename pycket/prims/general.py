@@ -143,14 +143,14 @@ def syntax_tainted(v):
 def syntax_to_datum(stx):
     return stx.val
 
-define_nyi("datum->syntax")
-# @expose("datum->syntax", [values.W_Object, values.W_Object,
-#   default(values.W_Object, None), default(values.W_Object, None),
-#   default(values.W_Object, None)])
-# def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
-#     raise NotImplementedError()
-#     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
-#     return values.W_Syntax(v)
+# FIXME: not implemented
+@expose("datum->syntax", [values.W_Object, values.W_Object,
+  default(values.W_Object, None), default(values.W_Object, None),
+  default(values.W_Object, None)])
+def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
+    print "NOT YET IMPLEMENTED: datum->syntax"
+    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
+    return values.W_Syntax(v)
 
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
@@ -583,11 +583,7 @@ def cont_prompt_avail(args):
 def cont_prompt_tag(args):
     return values.w_false
 
-# FIXME: implementation
-define_nyi("dynamic-wind")
-# def dynamic_wind(args):
-#     raise NotImplementedError()
-#     return values.w_false
+define_nyi("dynamic-wind", False)
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
@@ -1254,10 +1250,7 @@ def raise_arg_err(args):
         i += 2
     raise SchemeException(error_msg.build())
 
-define_nyi("error-escape-handler", [default(values.W_Object, None)])
-# def do_error_escape_handler(proc):
-#     raise NotImplementedError()
-#     return values.w_void
+define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
 
 @expose("find-system-path", [values.W_Symbol])
 def find_sys_path(sym):
