@@ -8,7 +8,9 @@ def regexp_match(w_re, w_str):
     result = match(w_re, w_str)
     if result is None:
         return values.w_false
-    elif isinstance(w_str, values_string.W_String) and \
+    elif (isinstance(w_str, values_string.W_String) or \
+          isinstance(w_str, values.W_StringInputPort)) \
+        and \
          (isinstance(w_re, values_regex.W_PRegexp) or \
           isinstance(w_re, values_regex.W_Regexp) or \
           isinstance(w_re, values_string.W_String)):
