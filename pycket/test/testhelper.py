@@ -78,6 +78,7 @@ def run_std(c, v):
 
 def run_file(fname, *replacements):
     ast = parse_file(fname, *replacements)
+    GlobalConfig.load(ast)
     val = interpret_module(ast)
 
 
