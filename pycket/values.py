@@ -1381,6 +1381,8 @@ class W_InputPort(W_Port):
         raise NotImplementedError("abstract class")
     def tostring(self):
         return "#<input-port>"
+    def _length_up_to_end(self):
+        raise NotImplementedError("abstract class")
 
 class W_StringInputPort(W_InputPort):
     _immutable_fields_ = ["str"]
@@ -1439,6 +1441,8 @@ class W_StringInputPort(W_InputPort):
     def tell(self):
         return self.ptr
 
+    def _length_up_to_end(self):
+        return len(self.str) - self.ptr
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
@@ -1473,6 +1477,13 @@ class W_FileInputPort(W_InputPort):
     def tell(self):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
+
+    def _length_up_to_end(self):
+        old_ptr = self.tell()
+        self.seek(0, end=True)
+        new_ptr = self.tell()
+        self.seek(old_ptr)
+        return new_ptr - old_ptr
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
