@@ -460,9 +460,12 @@ def procedure_rename(p, n):
     return p
 
 @continuation
-def proc_arity_cont(env, cont, _vals):
+def proc_arity_cont(result, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
-    return return_value(check_one_val(_vals), env, cont)
+    result.append(check_one_val(_vals))
+    if len(result) == 1:
+        return return_value(result[0], env, cont)
+    return return_value(values.to_list(result[:]), env, cont)
 
 @expose("procedure-arity", [procedure], simple=False)
 def do_procedure_arity(proc, env, cont):
@@ -473,7 +476,7 @@ def do_procedure_arity(proc, env, cont):
         result.append(values.W_Fixnum(item))
     if at_least != -1:
         val = [values.W_Fixnum(at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(env, cont))
+        return arity_at_least.constr.call(val, env, proc_arity_cont(result, env, cont))
     if len(result) == 1:
         return return_value(result[0], env, cont)
     return return_value(values.to_list(result[:]), env, cont)
