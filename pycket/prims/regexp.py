@@ -6,19 +6,18 @@ from pycket.error import SchemeException
 @expose("regexp-match", [values.W_Object, values.W_Object])
 def regexp_match(w_re, w_str):
     result = match(w_re, w_str)
-    if isinstance(w_str, values_string.W_String):
-        if result is None:
-            return values.w_false
-        else:
-            return values.to_list([values_string.W_String.fromascii(r)
-                    for r in result])
+    if result is None:
+        return values.w_false
+    elif isinstance(w_re, values_regex.W_Regexp) or \
+         isinstance(w_re, values_regex.W_PRegexp):
+        return values.to_list([values_string.W_String.fromascii(r)
+                for r in result])
+    elif isinstance(w_re, values_regex.W_ByteRegexp) or \
+         isinstance(w_re, values_regex.W_BytePRegexp):
+        return values.to_list([values.W_Bytes.from_string(r)
+                for r in result])
     else:
-        assert isinstance(w_str, values.W_Bytes) # XXX for now
-        if result is None:
-            return values.w_false
-        else:
-            return values.to_list([values.W_Bytes.from_string(r)
-                    for r in result])
+        assert 0 # Unreachable
 
 def match(w_re, w_str):
     # FIXME: more error checking

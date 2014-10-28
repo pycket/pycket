@@ -43,3 +43,26 @@ def test_or_parsing(doctest):
     > (regexp-match? "ab|c" "ac")
     #t
     """
+
+def test_regex_match_port(doctest):
+    r"""
+    ! (define s (open-input-string "bcbcaxcbayc"))
+    > (file-position s)
+    0
+    > (peek-char s)
+    #\b
+    > (regexp-match #rx"a" s)
+    '("a")
+    > (file-position s)
+    5
+    > (peek-char s)
+    #\x
+    """
+
+def test_regex_determines_result_type(doctest):
+    r"""
+    > (regexp-match #rx"a" "bca")
+    '("a")
+    > (regexp-match #rx#"a" "bca")
+    '(#"a")
+    """
