@@ -459,18 +459,27 @@ def sem_wait(s):
 def procedure_rename(p, n):
     return p
 
-@expose("procedure-arity", [procedure])
-def do_procedure_arity(proc):
+@continuation
+def proc_arity_cont(result, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    result.append(check_one_val(_vals))
+    if len(result) == 1:
+        return return_value(result[0], env, cont)
+    return return_value(values.to_list(result[:]), env, cont)
+
+@expose("procedure-arity", [procedure], simple=False)
+def do_procedure_arity(proc, env, cont):
+    from pycket.interpreter import return_value
     result = []
     (ls, at_least) = proc.get_arity()
     for item in ls:
         result.append(values.W_Fixnum(item))
     if at_least != -1:
-        result.append(values_struct.W_Struct.make([values.W_Fixnum(at_least)],\
-            arity_at_least))
+        val = [values.W_Fixnum(at_least)]
+        return arity_at_least.constr.call(val, env, proc_arity_cont(result, env, cont))
     if len(result) == 1:
-        return result[0]
-    return values.to_list(result[:])
+        return return_value(result[0], env, cont)
+    return return_value(values.to_list(result[:]), env, cont)
 
 @expose("procedure-arity?", [values.W_Object])
 def do_is_procedure_arity(n):
