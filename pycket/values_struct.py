@@ -513,8 +513,13 @@ class W_Struct(W_RootStruct):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
         return W_Struct.make(w_values, w_struct_type)
 
+    @jit.unroll_safe
     def vals(self):
-        return self._get_full_list()
+        values = self._get_full_list()
+        for i, value in enumerate(values):
+            if i in self._type.mutables:
+                values[i] = value.get_val()
+        return values
 
     def struct_type(self):
         return self._type

@@ -428,12 +428,14 @@ def test_struct_copying_and_update(doctest):
 def test_struct2vector(source):
     """
     (struct posn (x y) #:transparent)
+    (struct 3d-posn posn ([z #:mutable]))
 
-    (let* ([d (posn 1 2)]
+    (let* ([d (3d-posn 1 2 3)]
            [v (struct->vector d)]
-           [v0 (vector-ref v 0)]
-           [v1 (vector-ref v 1)])
-    (and (eq? v0 'struct:posn) (= v1 1)))
+           [v_name (vector-ref v 0)]
+           [v0 (vector-ref v 1)]
+           [v2 (vector-ref v 3)])
+    (and (eq? v_name 'struct:3d-posn) (= v0 1) (= v2 3)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
@@ -493,3 +495,20 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
+
+def test_struct_equal():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+
+    (define-struct s1 (a b) #:transparent)
+    (define-struct s2 (c d) #:transparent #:mutable)
+
+    (define f (equal? (make-s1 0 1) (make-s2 0 1)))
+    (define t1 (equal? (make-s1 0 1) (make-s1 0 1)))
+    (define t2 (equal? (make-s2 0 1) (make-s2 0 1)))
+
+    (define result (and (not f) t1 t2))
+    """)
+    assert m.defs[W_Symbol.make("result")] == w_true
