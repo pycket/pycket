@@ -83,31 +83,16 @@ class W_Cell(W_Object): # not the same as Racket's box
         else:
             self.w_value = w_value
 
-    def equal(self, other):
-        if not isinstance(other, W_Cell):
-            return False
-        return self.w_value.equal(other.w_value)
-    eqv = equal
-
 class W_CellIntegerStrategy(W_Object):
     # can be stored in cells only, is mutated when a W_Fixnum is stored
     def __init__(self, value):
         self.value = value
-
-    def equal(self, other):
-        if not isinstance(other, W_CellIntegerStrategy):
-            return False
-        return self.value == other.value
 
 class W_CellFloatStrategy(W_Object):
     # can be stored in cells only, is mutated when a W_Flonum is stored
     def __init__(self, value):
         self.value = value
 
-    def equal(self, other):
-        if not isinstance(other, W_CellFloatStrategy):
-            return False
-        return self.value == other.value
 
 class W_Undefined(W_Object):
     errorname = "unsafe-undefined"
