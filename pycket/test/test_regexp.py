@@ -63,6 +63,10 @@ def test_regex_result_types(doctest):
     r"""
     > (regexp-match #rx"a" "bca")
     '("a")
+    > (regexp-match #rx"a" #"bca")
+    '(#"a")
+    > (regexp-match #rx#"a" "bca")
+    '(#"a")
     > (regexp-match #rx#"a" "bca")
     '(#"a")
     > (regexp-match "a" "bca")
