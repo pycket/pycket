@@ -318,7 +318,7 @@ def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors", "mutators", "struct_props", "handlers", "properties"]
+    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties[*]"]
 
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
@@ -361,24 +361,24 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def ref(self, struct_id, field, env, cont):
-        (op, interp) = self.accessors.get(field, (None, None))
-        if interp is None:
+        op, interp = self.accessors.get(field, (None, None))
+        if op is None or interp is None:
             return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
         return op.call([self.inner], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        (op, interp) = self.mutators.get(field, (None, None))
-        if interp is None or op is None:
+        op, interp = self.mutators.get(field, (None, None))
+        if op is None or interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, val, env, cont)
         return interp.call([self.inner, val], env, after)
 
     @label
     def get_prop(self, property, env, cont):
-        (op, interp) = self.struct_props.get(property, (None, None))
-        if interp is None or op is None:
+        op, interp = self.struct_props.get(property, (None, None))
+        if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
         after = self.post_ref_cont(interp, env, cont)
         return op.call([self.inner], env, after)

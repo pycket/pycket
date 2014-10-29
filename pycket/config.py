@@ -3,6 +3,6 @@
 
 two_state     = True
 callgraph     = True
-fuse_conts    = True
+fuse_conts    = False
 log_callgraph = False
 
