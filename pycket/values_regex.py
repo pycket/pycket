@@ -12,7 +12,7 @@ class PortBuffer(buffer.Buffer):
     """match context for matching in a port."""
     # XXX how to extend to unicode?
 
-    _immutable_fields_ = ["w_port"]
+    _immutable_ = True
 
     def __init__(self, w_port):
         self.w_port = w_port
@@ -27,7 +27,7 @@ class PortBuffer(buffer.Buffer):
     def getitem(self, index):
         if index >= len(self.read_so_far):
             nchars = len(self.read_so_far) - index + 1
-            self.read_so_far.extend(self.w_port.read(nchars))
+            self.read_so_far.extend(list(self.w_port.read(nchars)))
         ch = self.read_so_far[index]
         return ch
 
