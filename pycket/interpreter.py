@@ -24,6 +24,11 @@ class GlobalConfig(object):
         return GlobalConfig.instance.config.get(s, None)
 
     @staticmethod
+    def reset():
+        GlobalConfig.instance.loaded = False
+        GlobalConfig.instance.config = {}
+
+    @staticmethod
     def load(ast):
         if GlobalConfig.instance.loaded: return
         GlobalConfig.instance.loaded = True

@@ -64,6 +64,5 @@ def test_church():
 #def test_minikanren():
 #    run_file("minikanren.sch")
 
-@pytest.mark.xfail
 def test_struct():
     run_file("struct-test.rkt")

@@ -76,6 +76,7 @@ def run_std(c, v):
 def run_file(fname, *replacements):
     ModTable.reset()
     ast = parse_file(fname, *replacements)
+    GlobalConfig.reset()
     GlobalConfig.load(ast)
     val = interpret_module(ast)
 
