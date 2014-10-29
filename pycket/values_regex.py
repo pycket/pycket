@@ -47,9 +47,14 @@ class W_AnyRegexp(W_Object):
         return None
 
     def eqv(self, other):
-        return type(self) is type(other) and \
-            (self.code == other.code if (self.code or other.code) \
-            else self.source == other.source)
+        if not isinstance(other, W_AnyRegexp):
+            return False
+        if type(self) is type(other):
+            if (self.code or other.code):
+                return self.code == other.code
+            else:
+                return self.source == other.source
+        return False
 
 
 
