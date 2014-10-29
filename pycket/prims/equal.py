@@ -167,6 +167,8 @@ def equal_func(a, b, info, env, cont):
                 a = values_struct.struct2vector(a, immutable=a_imm)
                 b = values_struct.struct2vector(b, immutable=b_imm)
                 continue
+        if a.equal(b):
+            return return_value(values.w_true, env, cont)
 
         return return_value(values.w_false, env, cont)
 

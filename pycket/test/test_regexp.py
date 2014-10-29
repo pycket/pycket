@@ -100,3 +100,14 @@ def test_regex_result_types(doctest):
     > (regexp-match "a" #"bca")
     '(#"a")
     """
+
+def test_regex_equality(doctest):
+    r"""
+    > (equal? (regexp "ap*le") #rx"ap*le")
+    #t
+    > (eqv? (regexp "ap*le") #rx"ap*le")
+    #f
+    > (equal? (byte-regexp #"ap*le") #rx"ap*le")
+    #f
+    """
+

@@ -66,7 +66,7 @@ class W_AnyRegexp(W_Object):
         return _extract_result(ctx, self.groupcount)
 
 
-    def eqv(self, other):
+    def equal(self, other):
         if not isinstance(other, W_AnyRegexp):
             return False
         if type(self) is type(other):

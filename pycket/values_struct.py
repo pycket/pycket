@@ -258,7 +258,7 @@ class W_PrefabKey(values.W_Object):
     @staticmethod
     def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
         for key in W_PrefabKey.all_keys:
-            if key.equal((name, init_field_cnt, auto_field_cnt, auto_v,\
+            if key.equal_tuple((name, init_field_cnt, auto_field_cnt, auto_v,\
                 mutables, super_key)):
                 return key
         key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v,\
@@ -391,9 +391,10 @@ class W_PrefabKey(values.W_Object):
     def equal(self, other):
         if isinstance(other, W_PrefabKey):
             return self.make_key_tuple() == other.make_key_tuple()
-        elif isinstance(other, tuple):
-            return self.make_key_tuple() == other
         return False
+
+    def equal_tuple(self, other):
+        return self.make_key_tuple() == other
 
     def key(self):
         key = []
