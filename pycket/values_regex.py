@@ -50,10 +50,7 @@ class W_AnyRegexp(W_Object):
         if not isinstance(other, W_AnyRegexp):
             return False
         if type(self) is type(other):
-            if (self.code or other.code):
-                return self.code == other.code
-            else:
-                return self.source == other.source
+            return self.source == other.source
         return False
 
 
