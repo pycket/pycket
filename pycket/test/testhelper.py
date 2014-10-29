@@ -80,8 +80,8 @@ def run_file(fname, *replacements):
     ModTable.reset()
     ast = parse_file(fname, *replacements)
     GlobalConfig.load(ast)
-    val = interpret_module(ast)
-
+    env = ToplevelEnv()
+    val = interpret_module(ast, env)
 
 def parse_file(fname, *replacements):
     fname = os.path.join(os.path.dirname(__file__), fname)
@@ -94,9 +94,6 @@ def parse_file(fname, *replacements):
     s = expand_string(s)
     ast = parse_module(s)
     return ast
-
-
-
 
 #
 # Combined checking
