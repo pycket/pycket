@@ -3,9 +3,7 @@
 #
 # Assorted test helpers
 #
-
 import os
-
 from pycket.expand import expand, to_ast, expand_string, parse_module, ModTable
 from pycket.pycket_json import loads
 from pycket.interpreter import *
@@ -44,7 +42,6 @@ def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
         assert ov.equal(v)
     return ov
 
-
 def execute(p, stdlib=False, extra=""):
     return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
@@ -80,8 +77,7 @@ def run_file(fname, *replacements):
     ModTable.reset()
     ast = parse_file(fname, *replacements)
     GlobalConfig.load(ast)
-    env = ToplevelEnv()
-    val = interpret_module(ast, env)
+    val = interpret_module(ast)
 
 def parse_file(fname, *replacements):
     fname = os.path.join(os.path.dirname(__file__), fname)
