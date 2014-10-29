@@ -25,6 +25,6 @@
                               '(include "../configuration/one-armed-if.rkt")))
      #,(datum->syntax stx '(include "../configuration/definitions-racket.rkt"))
      #,(datum->syntax stx '(include "../configuration/iterations.rkt"))
-     #,(datum->syntax stx `(include ,(format "../configuration/specialize-racket-~a.rkt" specialize)))
+     #,(datum->syntax stx `(require ,(format "../configuration/specialize-racket-~a.rkt" specialize)))
      #,(datum->syntax stx `(include ,(format "../src/~a.scm" name)))
      #,(datum->syntax stx '(main))))
