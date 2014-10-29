@@ -31,10 +31,6 @@ class GlobalConfig(object):
         GlobalConfig.instance.config.update(ast.config)
 GlobalConfig.instance = GlobalConfig()
 
-class ModuleCache(object):
-    modules = {}
-
-ModuleCache.instance = ModuleCache()
 
 class Done(Exception):
     def __init__(self, vals):
