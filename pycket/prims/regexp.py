@@ -32,10 +32,12 @@ def regexp_match(w_re, w_str):
           isinstance(w_re, values_regex.W_Regexp) or \
           isinstance(w_re, values_string.W_String)):
         return values.to_list([values_string.W_String.fromascii(r)
-                for r in result])
+                               if r else values.w_false
+                               for r in result])
     else:
         return values.to_list([values.W_Bytes.from_string(r)
-                for r in result])
+                               if r else values.w_false
+                               for r in result])
 
 def match(w_re, w_str):
     # FIXME: more error checking
