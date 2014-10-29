@@ -35,6 +35,17 @@ class W_AnyRegexp(W_Object):
         result = [ctx.group(i) for i in range(self.groupcount + 1)]
         return result
 
+    def match_port(self, w_port):
+        max_match = w_port._length_up_to_end()
+        pos = w_port.tell()
+        for i in range(max_match):
+            w_port.seek(pos)
+            s = w_port.read(i)
+            result = self.match_string(s)
+            if result:
+                return result
+        return None
+
 
 class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
