@@ -260,7 +260,7 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = FixnumHashmapStrategy.singleton
         elif type(w_key) is values.W_Symbol:
             strategy = SymbolHashmapStrategy.singleton
-        elif type(w_key) is values_string.W_String:
+        elif isinstance(w_key, values_string.W_String):
             strategy = StringHashmapStrategy.singleton
         elif type(w_key) is values.W_Bytes:
             strategy = ByteHashmapStrategy.singleton

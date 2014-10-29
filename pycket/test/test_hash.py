@@ -1,3 +1,6 @@
+from pycket.test.testhelper import run_mod_expr
+from pycket.values_hash import get_dict_item, StringHashmapStrategy
+
 def test_hash_simple(doctest):
     """
     ! (define ht (make-hash))
@@ -172,14 +175,12 @@ def test_default_hash(source):
     (make-hasheqv)
     #t)
     """
-    from pycket.test.testhelper import run_mod_expr
     from pycket.values import w_true
     result = run_mod_expr(source, wrap=True)
     assert result is w_true
 
 def test_get_item():
     from rpython.rtyper.test.test_llinterp import interpret, get_interpreter
-    from pycket.values_hash import get_dict_item
     def tg(a, b, c, d):
         dct = {str(a): b, str(c): d}
         i = 0
@@ -196,3 +197,18 @@ def test_get_item():
             i += 1
     tg("1", 2, "3", 4)
     interpret(tg, [1, 2, 334, 4])
+
+
+def test_whitebox_str(source):
+    r"""
+    (let ([ht (make-hash)] [st (string #\a #\b)])
+        (string-set! st 0 #\x)
+        (hash-set! ht "a" '(red round))
+        (hash-set! ht "b" '(yellow long))
+        (hash-set! ht st 77)
+        (hash-ref ht "c" "not there")
+        ht)
+    """
+    result = run_mod_expr(source)
+    assert result.strategy is StringHashmapStrategy.singleton
+
