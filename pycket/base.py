@@ -21,6 +21,9 @@ class W_Object(object):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
+    def enable_jitting(self):
+        pass # need to override in callables that are based on an AST
+
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self):
         if self.iscallable():

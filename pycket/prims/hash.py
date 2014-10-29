@@ -11,6 +11,7 @@ from pycket.prims.expose import default, expose, procedure, define_nyi
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
+    f.enable_jitting()
     return return_value(values.w_void, env,
             hash_for_each_cont(f, h, 0, env, cont))
 
@@ -33,6 +34,7 @@ def hash_for_each_cont(f, ht, index, env, cont, _vals):
 def hash_map(h, f, env, cont):
     from pycket.interpreter import return_value
     acc = values.w_null
+    f.enable_jitting()
     return return_value(None, env,
             hash_map_cont(f, h, 0, acc, env, cont))
 

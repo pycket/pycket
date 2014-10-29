@@ -1033,6 +1033,9 @@ class W_Closure(W_Procedure):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
 
+    def enable_jitting(self):
+        self.caselam.enable_jitting()
+
     def tostring(self):
         return self.caselam.tostring_as_closure()
 
@@ -1107,6 +1110,9 @@ class W_Closure1AsEnv(ConsEnv):
     def iscallable(self):
         return True
 
+    def enable_jitting(self):
+        self.caselam.enable_jitting()
+
     def immutable(self):
         return True
 
@@ -1176,6 +1182,9 @@ class W_PromotableClosure(W_Procedure):
 
     def __init__(self, caselam, toplevel_env):
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+
+    def enable_jitting(self):
+        self.closure.enable_jitting()
 
     @label
     def call(self, args, env, cont):

@@ -1027,6 +1027,10 @@ class CaseLambda(AST):
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
 
+    def enable_jitting(self):
+        for l in self.lams:
+            l.enable_jitting()
+
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym)
 

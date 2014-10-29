@@ -1,5 +1,6 @@
-from pycket.test.testhelper import run_mod_expr
+from pycket.test.testhelper import run_mod_expr, run_mod
 from pycket.values_hash import get_dict_item, StringHashmapStrategy
+from pycket import values
 
 def test_hash_simple(doctest):
     """
@@ -175,9 +176,8 @@ def test_default_hash(source):
     (make-hasheqv)
     #t)
     """
-    from pycket.values import w_true
     result = run_mod_expr(source, wrap=True)
-    assert result is w_true
+    assert result is values.w_true
 
 def test_get_item():
     from rpython.rtyper.test.test_llinterp import interpret, get_interpreter
@@ -211,4 +211,22 @@ def test_whitebox_str(source):
     """
     result = run_mod_expr(source)
     assert result.strategy is StringHashmapStrategy.singleton
+
+def test_hash_iteration_enables_jitting(source):
+    """
+    #lang pycket
+    (define h #hash((1 . 2) (2 . 3) (3 . 4)))
+    (define (fe c v) '())
+    (define (fm c v) '())
+    (hash-for-each h fe)
+    (hash-map h fm)
+    """
+    mod = run_mod(source)
+    f = mod.defs[values.W_Symbol.make('fe')]
+    assert f.closure.caselam.lams[0].body[0].should_enter
+    f = mod.defs[values.W_Symbol.make('fm')]
+    assert f.closure.caselam.lams[0].body[0].should_enter
+
+
+
 
