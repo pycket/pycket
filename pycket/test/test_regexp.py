@@ -1,4 +1,24 @@
 
+def test_make_regexp(doctest):
+    """
+    > (regexp "ap*le")
+    #rx"ap*le"
+    > (regexp? (regexp "ap*le"))
+    #t
+    > (pregexp? (regexp "ap*le"))
+    #f
+    > (pregexp? (pregexp "ap*le"))
+    #t
+    > (regexp? #px"ap*le")
+    #t
+    > (byte-regexp #"ap*le")
+    #rx#"ap*le"
+    E (byte-regexp "ap*le")
+    > (byte-pregexp? (byte-pregexp #"ap*le"))
+    #t
+    """
+
+
 def test_regexp_match(doctest):
     """
     > (regexp-match #rx"[a-zA-Z]+(c)" "abc")

@@ -3,6 +3,23 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val,
 from pycket import values, values_string, values_regex
 from pycket.error import SchemeException
 
+@expose("regexp", [values_string.W_String])
+def regrexp(w_str):
+    return values_regex.W_Regexp(w_str.as_str_utf8())
+
+@expose("pregexp", [values_string.W_String])
+def pregrexp(w_str):
+    return values_regex.W_PRegexp(w_str.as_str_utf8())
+
+@expose("byte-regexp", [values.W_Bytes])
+def byte_regrexp(w_str):
+    return values_regex.W_ByteRegexp(w_str.as_str())
+
+@expose("byte-pregexp", [values.W_Bytes])
+def byte_pregrexp(w_str):
+    return values_regex.W_BytePRegexp(w_str.as_str())
+
+
 @expose("regexp-match", [values.W_Object, values.W_Object])
 def regexp_match(w_re, w_str):
     result = match(w_re, w_str)

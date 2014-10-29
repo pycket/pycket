@@ -46,6 +46,12 @@ class W_AnyRegexp(W_Object):
                 return result
         return None
 
+    def eqv(self, other):
+        return type(self) is type(other) and \
+            (self.code == other.code if (self.code or other.code) \
+            else self.source == other.source)
+
+
 
 class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
