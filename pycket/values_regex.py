@@ -79,9 +79,12 @@ def _extract_result(ctx, groupcount):
     result = []
     for i in range(groupcount + 1):
         start, end = ctx.span(i)
-        assert 0 <= start
-        assert 0 <= end
-        result.append(''.join([chr(ctx.str(j)) for j in range(start, end)]))
+        if start == -1 and end == -1:
+            result.append(None)
+        else:
+            assert 0 <= start
+            assert 0 <= end
+            result.append(''.join([chr(ctx.str(j)) for j in range(start, end)]))
     return result
 
 class W_Regexp(W_AnyRegexp): pass
