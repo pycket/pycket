@@ -1,5 +1,6 @@
 from pycket.test.testhelper import run_mod_expr, run_mod
 from pycket.values_hash import get_dict_item, StringHashmapStrategy
+from pycket.values_hash import ByteHashmapStrategy
 from pycket import values
 
 def test_hash_simple(doctest):
@@ -211,6 +212,32 @@ def test_whitebox_str(source):
     """
     result = run_mod_expr(source)
     assert result.strategy is StringHashmapStrategy.singleton
+
+def test_whitebox_str(source):
+    r"""
+    (let ([ht (make-hash)] [st (string #\a #\b)])
+        (string-set! st 0 #\x)
+        (hash-set! ht "a" '(red round))
+        (hash-set! ht "b" '(yellow long))
+        (hash-set! ht st 77)
+        (hash-ref ht "c" "not there")
+        ht)
+    """
+    result = run_mod_expr(source)
+    assert result.strategy is StringHashmapStrategy.singleton
+
+def test_whitebox_bytes(source):
+    r"""
+    (let ([ht (make-hash)] [st (bytes 65 66)])
+        (bytes-set! st 0 67)
+        (hash-set! ht #"a" '(red round))
+        (hash-set! ht #"b" '(yellow long))
+        (hash-set! ht st 77)
+        (hash-ref ht #"c" "not there")
+        ht)
+    """
+    result = run_mod_expr(source)
+    assert result.strategy is ByteHashmapStrategy.singleton
 
 def test_hash_iteration_enables_jitting(source):
     """
