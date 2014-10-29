@@ -3,10 +3,33 @@ from pycket.error import SchemeException
 from pycket import values, values_string
 from pycket import regexp
 
-from rpython.rlib.rsre import rsre_core
+from rpython.rlib.rsre import rsre_core, rsre_char
+from rpython.rlib import buffer
 
 CACHE = regexp.RegexpCache()
 
+class PortBuffer(buffer.Buffer):
+    """match context for matching in a port."""
+    # XXX how to extend to unicode?
+
+    _immutable_ = True
+
+    def __init__(self, w_port):
+        self.w_port = w_port
+        l = w_port._length_up_to_end()
+        assert l >= 0
+        self.length = l
+        self.read_so_far = []
+
+    def getlength(self):
+        return self.length
+
+    def getitem(self, index):
+        if index >= len(self.read_so_far):
+            nchars = len(self.read_so_far) - index + 1
+            self.read_so_far.extend(list(self.w_port.read(nchars)))
+        ch = self.read_so_far[index]
+        return ch
 
 
 class W_AnyRegexp(W_Object):
@@ -28,23 +51,20 @@ class W_AnyRegexp(W_Object):
 
     def match_string(self, s):
         self.ensure_compiled()
-        endpos = len(s)
         ctx = rsre_core.search(self.code, s)
         if not ctx:
             return None
-        result = [ctx.group(i) for i in range(self.groupcount + 1)]
-        return result
+        return _extract_result(ctx, self.groupcount)
 
     def match_port(self, w_port):
-        max_match = w_port._length_up_to_end()
-        pos = w_port.tell()
-        for i in range(max_match):
-            w_port.seek(pos)
-            s = w_port.read(i)
-            result = self.match_string(s)
-            if result:
-                return result
-        return None
+        self.ensure_compiled()
+        buf = PortBuffer(w_port)
+        ctx = rsre_core.BufMatchContext(self.code, buf, 0, buf.getlength(), 0)
+        matched = rsre_core.search_context(ctx)
+        if not matched:
+            return None
+        return _extract_result(ctx, self.groupcount)
+
 
     def eqv(self, other):
         if not isinstance(other, W_AnyRegexp):
@@ -54,6 +74,15 @@ class W_AnyRegexp(W_Object):
         return False
 
 
+@rsre_core.specializectx
+def _extract_result(ctx, groupcount):
+    result = []
+    for i in range(groupcount + 1):
+        start, end = ctx.span(i)
+        assert 0 <= start
+        assert 0 <= end
+        result.append(''.join([chr(ctx.str(j)) for j in range(start, end)]))
+    return result
 
 class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
