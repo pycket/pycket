@@ -383,6 +383,16 @@ def test_fixnum_special(doctest):
     10
     > (fxrshift -20 1)
     -10
+    > (fxmodulo 10 3)
+    1
+    > (fxmodulo -10 -3)
+    -1
+    > (fxremainder 10 3)
+    1
+    > (fxremainder -10 -3)
+    -1
+    > (fxquotient 10 3)
+    3
     """
 
 def test_all_comparators(doctest):
@@ -709,10 +719,59 @@ def test_fixnum_unsafe(doctest):
     20
     > (unsafe-fxmodulo 100 -30)
     -20
+    > (unsafe-fx- 2 1)
+    1
+    > (unsafe-fx* 2 5)
+    10
+    > (unsafe-fxmin 1 2)
+    1
+    > (unsafe-fxmin 2 1)
+    1
+    > (unsafe-fxmax 1 2)
+    2
+    > (unsafe-fxmax 2 1)
+    2
+    > (unsafe-fx> 2 1)
+    #t
+    > (unsafe-fx>= 2 1)
+    #t
+    > (unsafe-fx>= 1 1)
+    #t
+    > (unsafe-fx>= -1 1)
+    #f
+    > (unsafe-fx<= -1 1)
+    #t
+    > (unsafe-fx<= -10 -10)
+    #t
+    > (unsafe-fx< -10 -10)
+    #f
+    > (unsafe-fx= -10 -10)
+    #t
+    > (unsafe-fxand 2 3)
+    2
+    > (unsafe-fxlshift 10 10)
+    10240
+    > (unsafe-fxrshift 1 20)
+    0
+    > (unsafe-fxrshift 20 1)
+    10
+    > (unsafe-fxrshift -20 1)
+    -10
+    > (unsafe-fxmodulo 10 3)
+    1
+    > (unsafe-fxmodulo -10 -3)
+    -1
+    > (unsafe-fxremainder 10 3)
+    1
+    > (unsafe-fxremainder -10 -3)
+    -1
+    > (unsafe-fxquotient 10 3)
+    3
     > (unsafe-fxlshift 1 10)
     1024
     ; implementation defined, but should terminate quickly
     > (unsafe-fxlshift 1 10000000)
+    ;1
     """
 
 def test_exp(doctest):

@@ -182,16 +182,17 @@ def make_fixedtype_binary_arith(
             return getattr(a, methname)(b)
         do.__name__ = "fx_" + methname
 
-
 for args in [
         ("+", "arith_add"),
-        ("quotient", "arith_quotient", True, False),
         ("-", "arith_sub"),
         ("*", "arith_mul"),
         ("/", "arith_div", False),
         ("and", "arith_and", True, False),
         ("max", "arith_max"),
         ("min", "arith_min"),
+        ("quotient", "arith_quotient", True, False),
+        ("remainder", "arith_remainder", True, False),
+        ("modulo", "arith_mod", True, False),
 ]:
     make_fixedtype_binary_arith(*args)
 
@@ -241,21 +242,23 @@ def atan(y, x):
     return getattr(z, "arith_atan")()
 
 
-def make_unary_arith(name, methname, flversion=False, fxversion=False, unwrap_type=values.W_Number):
+def make_unary_arith(name, methname, flversion=False, fxversion=False,
+                     unwrap_type=values.W_Number):
     def do(a):
         return getattr(a, methname)()
     do.__name__ = methname
     expose(name, [unwrap_type], simple=True)(do)
     if flversion:
+        @expose("fl" + name, [values.W_Flonum], simple=True)
         def dofl(a):
             return getattr(a, methname)()
         dofl.__name__ = methname
-        expose("fl" + name, [values.W_Flonum], simple=True)(dofl)
+
     if fxversion:
+        @expose("fx" + name, [values.W_Fixnum], simple=True)
         def dofx(a):
             return getattr(a, methname)()
         dofx.__name__ = methname
-        expose("fx" + name, [values.W_Fixnum], simple=True)(dofx)
 
 for args in [
         ("sin", "arith_sin", True),
@@ -361,10 +364,6 @@ def unsafe_fxminus(a, b):
 def unsafe_fxtimes(a, b):
     return values.W_Fixnum(a.value * b.value)
 
-@expose("unsafe-fxmodulo", [unsafe(values.W_Fixnum)] * 2)
-def unsafe_fxtimes(a, b):
-    return values.W_Fixnum(a.value % b.value)
-
 @expose("unsafe-fxmin", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxmin(a, b):
     return values.W_Fixnum(min(a.value, b.value))
@@ -373,14 +372,26 @@ def unsafe_fxmin(a, b):
 def unsafe_fxmax(a, b):
     return values.W_Fixnum(max(a.value, b.value))
 
-
-@expose("fx->fl", [values.W_Fixnum])
-def fxfl(a):
-    return values.W_Flonum(float(a.value))
+@expose("unsafe-fxmodulo", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxtimes(a, b):
+    return values.W_Fixnum(a.value % b.value)
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
     return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
+
+@expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxquotient(w_a, w_b):
+    a = abs(w_a.value)
+    b = abs(w_b.value)
+    res = a % b
+    if w_a.value < 0:
+        res = -res
+    return values.W_Fixnum.make(res)
+
+@expose("fx->fl", [values.W_Fixnum])
+def fxfl(a):
+    return values.W_Flonum(float(a.value))
 
 @expose("unsafe-fx->fl", [unsafe(values.W_Fixnum)])
 def unsafe_fxfl(a):
