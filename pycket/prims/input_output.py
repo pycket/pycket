@@ -22,6 +22,11 @@ quasiquote_symbol = values.W_Symbol.make("quasiquote")
 unquote_symbol = values.W_Symbol.make("unquote")
 unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
 
+quote_syntax_symbol = values.W_Symbol.make("quote-syntax")
+quasiquote_syntax_symbol = values.W_Symbol.make("quasisyntax")
+unquote_syntax_symbol = values.W_Symbol.make("unsyntax")
+unquote_syntax_splicing_symbol = values.W_Symbol.make("unsyntax-splicing")
+
 class Token(object): pass
 
 class ValueToken(Token):
