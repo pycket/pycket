@@ -750,7 +750,8 @@ expose_val("eof", values.eof_object)
 current_print_param = values.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w"))
+# line buffer stdout
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
 stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
 current_out_param = values.W_Parameter(stdout_port)
 current_error_param = values.W_Parameter(stdout_port)
