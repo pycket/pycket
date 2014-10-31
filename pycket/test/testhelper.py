@@ -7,6 +7,7 @@ import os
 from pycket.expand import expand, to_ast, expand_string, parse_module, ModTable
 from pycket.pycket_json import loads
 from pycket.interpreter import *
+from pycket.env import ToplevelEnv
 from pycket import values
 
 #
@@ -76,9 +77,9 @@ def run_std(c, v):
 def run_file(fname, *replacements):
     ModTable.reset()
     ast = parse_file(fname, *replacements)
-    GlobalConfig.reset()
-    GlobalConfig.load(ast)
-    val = interpret_module(ast)
+    env = ToplevelEnv()
+    env.globalconfig.load(ast)
+    val = interpret_module(ast, env)
 
 def parse_file(fname, *replacements):
     fname = os.path.join(os.path.dirname(__file__), fname)

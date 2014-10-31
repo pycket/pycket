@@ -85,6 +85,21 @@ class ModuleEnv(object):
         return self.modules.get(name, None)
 
 
+class GlobalConfig(object):
+    def __init__(self):
+        self.config = None
+
+    def lookup(self, s):
+        return self.config.get(s, None)
+
+    def load(self, ast):
+        from pycket.interpreter import Module
+        if self.config is not None:
+            return
+        assert isinstance(ast, Module)
+        self.config = ast.config.copy()
+
+
 class Env(W_Object):
     _attrs_ = []
 
@@ -112,6 +127,7 @@ class ToplevelEnv(Env):
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
+        self.globalconfig = GlobalConfig()
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())

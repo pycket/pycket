@@ -411,11 +411,13 @@ def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
 def find_main_config():
     return values.w_false
 
-@expose("version", [])
-def version():
-    from pycket import interpreter
-    version = interpreter.GlobalConfig.lookup("version")
-    return values_string.W_String.fromascii("unknown version" if version is None else version)
+@expose("version", [], simple=False)
+def version(env, cont):
+    from pycket.interpreter import return_value
+    toplevel = env.toplevel_env()
+    version = toplevel.globalconfig.lookup("version")
+    result = values_string.W_String.fromascii("unknown version" if version is None else version)
+    return return_value(result, env, cont)
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -1261,12 +1263,12 @@ def raise_arg_err(args):
 
 define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
 
-@expose("find-system-path", [values.W_Symbol])
-def find_sys_path(sym):
-    from pycket import interpreter
-    v = interpreter.GlobalConfig.lookup(sym.utf8value)
+@expose("find-system-path", [values.W_Symbol], simple=False)
+def find_sys_path(sym, env, cont):
+    from pycket.interpreter import return_value
+    v = env.toplevel_env().globalconfig.lookup(sym.utf8value)
     if v:
-        return values.W_Path(v)
+        return return_value(values.W_Path(v), env, cont)
     else:
         raise SchemeException("unknown system path %s" % sym.utf8value)
 

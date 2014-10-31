@@ -133,9 +133,8 @@ class TestLLtype(LLJitMixin):
 
     def run_file(self, fname, run_untranslated=True):
         ast = parse_file(fname)
-        GlobalConfig.reset()
-        GlobalConfig.load(ast)
         env = ToplevelEnv()
+        env.globalconfig.load(ast)
         def interp_w():
             val = interpret_module(ast, env)
             return val
