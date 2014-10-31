@@ -35,7 +35,11 @@ def actual_entry(argv):
     env = ToplevelEnv()
     env.commandline_arguments = args_w
     env.module_env.add_module(module_name, ast)
-    val = interpret_module(ast, env)
+    try:
+        val = interpret_module(ast, env)
+    finally:
+        from pycket.prims.input_output import shutdown
+        shutdown(env)
     return 0
 
 def target(driver, args):

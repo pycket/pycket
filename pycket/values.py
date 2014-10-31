@@ -1503,7 +1503,6 @@ class W_FileOutputPort(W_OutputPort):
 
     def write(self, str):
         self.file.write(str)
-        self.file.flush() # XXX flushes too often
 
     def flush(self):
         self.file.flush()
