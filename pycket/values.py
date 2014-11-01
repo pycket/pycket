@@ -607,7 +607,7 @@ class W_Complex(W_Number):
     def eqv(self, other):
         if not isinstance(other, W_Complex):
             return False
-        return self.real.eqv(other.real) and self.imag.equal(other.imag)
+        return self.real.eqv(other.real) and self.imag.eqv(other.imag)
 
     def hash_equal(self):
         hash1 = compute_hash(self.real)
