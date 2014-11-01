@@ -4,12 +4,12 @@ from rpython.rlib import jit, unroll
 
 
 class Link(object):
-    _immutable_fields_ = ["key", "val", "next"]
+    _immutable_fields_ = ["key", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
         assert isinstance(k, W_Object)
         assert isinstance(v, W_Object)
-        assert (next is None) or isinstance(next, Link)
+        assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v
         self.next = next
@@ -35,6 +35,7 @@ class BaseCont(object):
             l = l.next
         return None
 
+    @jit.unroll_safe
     def update_cm(self, k, v):
         from pycket.prims.equal import eqp_logic
         l = self.marks
