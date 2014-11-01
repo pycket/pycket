@@ -1494,6 +1494,7 @@ class W_FileInputPort(W_InputPort):
         self.seek(old_ptr)
         return new_ptr - old_ptr
 
+
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
 

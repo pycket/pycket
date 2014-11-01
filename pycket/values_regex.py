@@ -4,7 +4,7 @@ from pycket import values, values_string
 from pycket import regexp
 
 from rpython.rlib.rsre import rsre_core, rsre_char
-from rpython.rlib import buffer
+from rpython.rlib import buffer, jit
 
 CACHE = regexp.RegexpCache()
 
@@ -58,6 +58,14 @@ class W_AnyRegexp(W_Object):
 
     def match_port(self, w_port):
         self.ensure_compiled()
+        if isinstance(w_port, values.W_StringInputPort):
+            # fast path
+            ctx = rsre_core.search(self.code, w_port.str, start=w_port.ptr)
+            if not ctx:
+                return None
+            start, end = ctx.span(0) # the whole match
+            w_port.ptr = end
+            return _extract_result(ctx, self.groupcount)
         buf = PortBuffer(w_port)
         ctx = rsre_core.BufMatchContext(self.code, buf, 0, buf.getlength(), 0)
         matched = rsre_core.search_context(ctx)
@@ -75,6 +83,7 @@ class W_AnyRegexp(W_Object):
 
 
 @rsre_core.specializectx
+@jit.unroll_safe
 def _extract_result(ctx, groupcount):
     result = []
     for i in range(groupcount + 1):
@@ -84,8 +93,15 @@ def _extract_result(ctx, groupcount):
         else:
             assert 0 <= start
             assert 0 <= end
-            result.append(''.join([chr(ctx.str(j)) for j in range(start, end)]))
+            result.append(_getslice(ctx, start, end))
     return result
+
+@rsre_core.specializectx
+def _getslice(ctx, start, end):
+    if isinstance(ctx, rsre_core.StrMatchContext):
+        return ctx._string[start:end]
+    else:
+        return ''.join([chr(ctx.str(j)) for j in range(start, end)])
 
 class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass

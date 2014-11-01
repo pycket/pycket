@@ -3,6 +3,8 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val,
 from pycket import values, values_string, values_regex
 from pycket.error import SchemeException
 
+from rpython.rlib import jit
+
 @expose("regexp", [values_string.W_String])
 def regrexp(w_str):
     return values_regex.W_Regexp(w_str.as_str_utf8())
@@ -21,6 +23,7 @@ def byte_pregrexp(w_str):
 
 
 @expose("regexp-match", [values.W_Object, values.W_Object])
+@jit.unroll_safe
 def regexp_match(w_re, w_str):
     result = match(w_re, w_str)
     if result is None:

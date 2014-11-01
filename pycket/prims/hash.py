@@ -139,6 +139,7 @@ def make_hasheqv(pairs):
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
+    from pycket import values
     return ht.hash_set(k, v, env, cont)
 
 define_nyi("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
