@@ -594,6 +594,14 @@ def test_read(doctest):
     12
     > (read s2)
     34
+    > (rs "#'()")
+    '(quote-syntax ())
+    > (rs "#`()")
+    '(quasisyntax ())
+    > (rs "#`(#,x)")
+    '(quasisyntax ((unsyntax x)))
+    > (rs "#`(#,@x)")
+    '(quasisyntax ((unsyntax-splicing x)))
     """
 
 def test_close_port(doctest):

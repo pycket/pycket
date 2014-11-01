@@ -17,15 +17,15 @@ from pycket.error             import SchemeException
 from pycket.prims.expose      import default, expose, expose_val, procedure
 import os
 
-quote_symbol = values.W_Symbol.make("quote")
-quasiquote_symbol = values.W_Symbol.make("quasiquote")
-unquote_symbol = values.W_Symbol.make("unquote")
-unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
+w_quote_symbol = values.W_Symbol.make("quote")
+w_quasiquote_symbol = values.W_Symbol.make("quasiquote")
+w_unquote_symbol = values.W_Symbol.make("unquote")
+w_unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
 
-quote_syntax_symbol = values.W_Symbol.make("quote-syntax")
-quasiquote_syntax_symbol = values.W_Symbol.make("quasisyntax")
-unquote_syntax_symbol = values.W_Symbol.make("unsyntax")
-unquote_syntax_splicing_symbol = values.W_Symbol.make("unsyntax-splicing")
+w_quote_syntax_symbol = values.W_Symbol.make("quote-syntax")
+w_quasiquote_syntax_symbol = values.W_Symbol.make("quasisyntax")
+w_unquote_syntax_symbol = values.W_Symbol.make("unsyntax")
+w_unquote_syntax_splicing_symbol = values.W_Symbol.make("unsyntax-splicing")
 
 class Token(object): pass
 
@@ -57,8 +57,10 @@ class LParenToken(DelimToken): pass
 class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
+allowed_char = list("!?.-_:=*$%<>+^@&~/")
+
 def idchar(c):
-    if c.isalnum() or (c in ["!", "?", ".", "-", "_", ":", "=", "*", "$", "%", "<", ">", "+", "^", "@", "&", "~", "/"]):
+    if c.isalnum() or (c in allowed_char):
         return True
     return False
 
@@ -126,20 +128,30 @@ def read_token(f):
         if c == ".":
             return DotToken(c)
         if c == "'":
-            return SpecialToken(c, quote_symbol)
+            return SpecialToken(c, w_quote_symbol)
         if c ==  "`":
-            return SpecialToken(c, quasiquote_symbol)
+            return SpecialToken(c, w_quasiquote_symbol)
         if c == ",":
             p = f.peek()
             if p == "@":
                 p = f.read(1)
-                return SpecialToken(c + p, unquote_splicing_symbol)
+                return SpecialToken(c + p, w_unquote_splicing_symbol)
             else:
-                return SpecialToken(c, unquote_symbol)
+                return SpecialToken(c, w_unquote_symbol)
         if idchar(c):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
+            if c2 == "'":
+                return SpecialToken(c + c2, w_quote_syntax_symbol)
+            if c2 == "`":
+                return SpecialToken(c + c2, w_quasiquote_syntax_symbol)
+            if c2 == ",":
+                p = f.peek()
+                if p == "@":
+                    p = f.read(1)
+                    return SpecialToken(c + c2, w_unquote_syntax_splicing_symbol)
+                return SpecialToken(c + c2, w_unquote_syntax_symbol)
             if c2 == "t":
                 return BooleanToken(values.w_true)
             if c2 == "f":
