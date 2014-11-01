@@ -51,6 +51,7 @@ class BaseCont(object):
         v = self.find_cm(key)
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
 
+    # XXX: why isn't this in Cont?
     def get_mark_first(self, key):
         p = self
         while isinstance(p, Cont):
