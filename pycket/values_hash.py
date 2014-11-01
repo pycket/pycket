@@ -262,7 +262,7 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = SymbolHashmapStrategy.singleton
         elif isinstance(w_key, values_string.W_String):
             strategy = StringHashmapStrategy.singleton
-        elif type(w_key) is values.W_Bytes:
+        elif isinstance(w_key, values.W_Bytes):
             strategy = ByteHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton

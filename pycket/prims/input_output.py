@@ -22,6 +22,11 @@ quasiquote_symbol = values.W_Symbol.make("quasiquote")
 unquote_symbol = values.W_Symbol.make("unquote")
 unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
 
+quote_syntax_symbol = values.W_Symbol.make("quote-syntax")
+quasiquote_syntax_symbol = values.W_Symbol.make("quasisyntax")
+unquote_syntax_symbol = values.W_Symbol.make("unsyntax")
+unquote_syntax_splicing_symbol = values.W_Symbol.make("unsyntax-splicing")
+
 class Token(object): pass
 
 class ValueToken(Token):
@@ -739,6 +744,10 @@ def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
 def do_has_custom_write(v):
     return values.w_false
 
+def shutdown(env):
+    # called before the interpreter exits
+    stdout_port.flush()
+
 ############################ Values and Parameters
 
 expose_val("eof", values.eof_object)
@@ -746,8 +755,9 @@ expose_val("eof", values.eof_object)
 current_print_param = values.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "wb"))
-stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "rb"))
+# line buffer stdout
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
 current_out_param = values.W_Parameter(stdout_port)
 current_error_param = values.W_Parameter(stdout_port)
 current_in_param = values.W_Parameter(stdin_port)

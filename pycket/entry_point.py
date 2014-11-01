@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException
-from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module, GlobalConfig
+from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
 from pycket.values_string import W_String
@@ -31,11 +31,15 @@ def actual_entry(argv):
         ast = expand_to_ast(module_name)
     else:
         ast = load_json_ast_rpython(json_ast)
-    GlobalConfig.load(ast)
     env = ToplevelEnv()
+    env.globalconfig.load(ast)
     env.commandline_arguments = args_w
     env.module_env.add_module(module_name, ast)
-    val = interpret_module(ast, env)
+    try:
+        val = interpret_module(ast, env)
+    finally:
+        from pycket.prims.input_output import shutdown
+        shutdown(env)
     return 0
 
 def target(driver, args):

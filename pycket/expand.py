@@ -280,7 +280,6 @@ def mksym(json):
 def _to_module(json):
     v = json.value_object()
     if "body-forms" in v:
-        from interpreter import GlobalConfig
         config = {}
         if "config" in v:
             for (k, _v) in v["config"].value_object().iteritems():

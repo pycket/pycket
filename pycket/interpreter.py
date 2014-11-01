@@ -15,27 +15,6 @@ import sys
 # imported for side effects
 import pycket.prims.general
 
-class GlobalConfig(object):
-    config = {}
-    loaded = False
-
-    @staticmethod
-    def lookup(s):
-        return GlobalConfig.instance.config.get(s, None)
-
-    @staticmethod
-    def reset():
-        GlobalConfig.instance.loaded = False
-        GlobalConfig.instance.config = {}
-
-    @staticmethod
-    def load(ast):
-        if GlobalConfig.instance.loaded: return
-        GlobalConfig.instance.loaded = True
-        assert isinstance(ast, Module)
-        GlobalConfig.instance.config.update(ast.config)
-GlobalConfig.instance = GlobalConfig()
-
 
 class Done(Exception):
     def __init__(self, vals):
