@@ -568,13 +568,16 @@ class W_Flonum(W_Number):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
         return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
 
-    def equal(self, other):
-        if not isinstance(other, W_Flonum):
-            return False
-        return self.value == other.value
-
     def hash_equal(self):
         return compute_hash(self.value)
+
+    def eqv(self, other):
+        import math
+        if not isinstance(other, W_Flonum):
+            return False
+        v1 = self.value
+        v2 = other.value
+        return v1 == v2 or (math.isnan(v1) and math.isnan(v2))
 
 
 class W_Bignum(W_Integer):

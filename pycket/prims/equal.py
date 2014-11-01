@@ -6,7 +6,7 @@ from pycket              import values_struct
 from pycket              import values_string
 from pycket.cont         import continuation, label, loop_label
 from pycket.prims.expose import expose, procedure
-from rpython.rlib import jit, objectmodel
+from rpython.rlib        import jit, objectmodel
 
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
