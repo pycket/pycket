@@ -569,6 +569,12 @@ def test_read(doctest):
     '[1 [2 3] [a [b c]]]
     > (rs "(1 . 2)")
     (cons 1 2)
+    > (rs "(a . b)")
+    (cons 'a 'b)
+    > (rs "(a.b . c.d)")
+    (cons 'a.b 'c.d)
+    > (rs "...")
+    '...
     > (rs "'(1)")
     ''(1)
     > (rs "`(1)")

@@ -126,7 +126,10 @@ def read_token(f):
             v = read_string(f)
             return ValueToken(v)
         if c == ".":
-            return DotToken(c)
+            p = f.peek()
+            if p in [" ", "\n", "\t"]:
+                return DotToken(c)
+            return read_number_or_id(f, c)
         if c == "'":
             return SpecialToken(c, w_quote_symbol)
         if c ==  "`":
@@ -160,7 +163,11 @@ def read_token(f):
                 return LParenToken("#" + c2)
             if c2 == "\\":
                 ch = f.read(1)
-                return CharToken(values.W_Character.make(unichr(int(ch))))
+                l = list(ch)
+                assert len(l) == 1
+                c = l[0]
+                ch2 = ord(c)
+                return CharToken(values.W_Character.make(unichr(ch2)))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
@@ -784,6 +791,7 @@ print_box_param = values.W_Parameter(values.w_false)
 print_vector_length_param = values.W_Parameter(values.w_false)
 print_hash_table_param = values.W_Parameter(values.w_false)
 print_boolean_long_form_param = values.W_Parameter(values.w_false)
+print_as_expression_param = values.W_Parameter(values.w_true)
 
 expose_val("print-graph", print_graph_param)
 expose_val("print-struct", print_struct_param)
@@ -791,3 +799,4 @@ expose_val("print-box", print_box_param)
 expose_val("print-vector-length", print_vector_length_param)
 expose_val("print-hash-table", print_hash_table_param)
 expose_val("print-boolean-long-form", print_boolean_long_form_param)
+expose_val("print-as-expression", print_as_expression_param)

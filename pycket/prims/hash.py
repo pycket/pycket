@@ -139,7 +139,6 @@ def make_hasheqv(pairs):
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
-    from pycket import values
     return ht.hash_set(k, v, env, cont)
 
 define_nyi("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
@@ -160,7 +159,9 @@ def hash_ref_cont(default, env, cont, _vals):
 def hash_ref(ht, k, default, env, cont):
     return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
 
-define_nyi("hash-remove!", [W_HashTable, values.W_Object])
+@expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
+def hash_remove_bang(ht, k, env, cont):
+    return ht.hash_remove(k, env, cont)
 
 define_nyi("hash-remove", [W_HashTable, values.W_Object])
 
@@ -185,7 +186,10 @@ define_nyi("hash-copy", [W_HashTable])
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    print "NOT YET IMPLEMENTED: equal-hash-code"
     return values.W_Fixnum(0)
 
-define_nyi("equal-secondary-hash-code", [values.W_Object])
+@expose("equal-secondary-hash-code", [values.W_Object])
+def equal_secondary_hash_code(v):
+    return values.W_Fixnum(0)
+
+

@@ -21,6 +21,10 @@ class W_HashTable(W_Object):
     def hash_ref(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
+    @label
+    def hash_remove(self, k, env, cont):
+        raise NotImplementedError("abstract method")
+
     def length(self):
         raise NotImplementedError("abstract method")
 
@@ -57,6 +61,12 @@ class W_SimpleHashTable(W_HashTable):
     def hash_set(self, k, v, env, cont):
         from pycket.interpreter import return_value
         self.data[k] = v
+        return return_value(values.w_void, env, cont)
+
+    @label
+    def hash_remove(self, k, env, cont):
+        from pycket.interpreter import return_value
+        del self.data[k]
         return return_value(values.w_void, env, cont)
 
     @label
