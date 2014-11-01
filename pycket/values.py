@@ -604,11 +604,10 @@ class W_Complex(W_Number):
         self.real = re
         self.imag = im
 
-    def equal(self, other):
+    def eqv(self, other):
         if not isinstance(other, W_Complex):
             return False
-        return (self.real.equal(other.real) and
-                self.imag.equal(other.imag))
+        return self.real.eqv(other.real) and self.imag.equal(other.imag)
 
     def hash_equal(self):
         hash1 = compute_hash(self.real)
@@ -632,11 +631,10 @@ class W_Character(W_Object):
     def immutable(self):
         return True
 
-    def equal(self, other):
+    def eqv(self, other):
         if not isinstance(other, W_Character):
             return False
         return self.value == other.value
-    eqv = equal
 
     def hash_eqv(self):
         return ord(self.value)
@@ -762,7 +760,6 @@ class W_Bytes(W_Object):
             return W_ImmutableBytes(list(str))
         else:
             return W_MutableBytes(list(str))
-
 
     def __init__(self, bs):
         assert bs is not None

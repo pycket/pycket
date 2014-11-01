@@ -312,7 +312,7 @@ def test_eqv():
         "(eqv? 2 2.0)", "#f",
         "(eqv? (integer->char 955) (integer->char 955))", "#t",
     #run_top("(eqv? (make-string 3 #\z) (make-string 3 #\z))", "#f", stdlib=True)
-        "(eqv? +nan.0 +nan.0)", "#t"
+        "(eqv? +nan.0 +nan.0)", "#t",
 
         "(eqv? 'a 'a)", "#t",
         "(eqv? 'a 'b)", "#f",
