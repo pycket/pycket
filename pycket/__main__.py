@@ -3,15 +3,24 @@
 #
 from rpython.rlib.objectmodel import we_are_translated
 from rpython.translator.driver import TranslationDriver
+from rpython.config.translationoption import get_combined_translation_config
 
-from pycket.entry_point import target
+
+from pycket.entry_point import target, get_additional_config_options
 
 import sys
 import pdb, traceback
 
 def main():
     assert not we_are_translated()
-    tgt = target(TranslationDriver(), sys.argv)
+    driver = TranslationDriver()
+    optiondescr = get_additional_config_options()
+    config = get_combined_translation_config(
+                optiondescr,
+                existing_config=driver.config,
+                translating=True)
+    driver.config = config
+    tgt = target(driver, [])
     try:
         f, _1, _2  = tgt
     except TypeError:
