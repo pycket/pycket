@@ -82,7 +82,6 @@ def test_for_each_single(doctest):
     """
     assert doctest
 
-@pytest.mark.xfail
 def test_for_each_vararg(doctest):
     """
     ! (require (only-in '#%kernel for-each))

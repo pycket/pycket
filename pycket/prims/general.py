@@ -860,17 +860,31 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
-@expose("for-each", [procedure, values.W_List], simple=False)
-def for_each(f, l, env, cont):
+@expose("for-each", simple=False)
+def for_each(args, env, cont):
     from pycket.interpreter import return_value
-    return return_value(values.w_void, env, for_each_cont(f, l, env, cont))
+    if len(args) < 2:
+        raise SchemeException("for-each: expected at least a procedure and a list")
+    f = args[0]
+    if not f.iscallable():
+        raise SchemeException("for-each: expected a procedure, but got %s"%f)
+    ls = args[1:]
+    for l in ls:
+        if not isinstance(l, values.W_List):
+            raise SchemeException("for-each: expected a list, but got %s"%l)
+    return return_value(values.w_void, env, for_each_cont(f, ls, env, cont))
 
 @continuation
-def for_each_cont(f, l, env, cont, vals):
+def for_each_cont(f, ls, env, cont, vals):
     from pycket.interpreter import return_value
+    l = ls[0]
     if l is values.w_null:
+        for l in ls:
+            assert l is values.w_null
         return return_value(values.w_void, env, cont)
-    return f.call([l.car()], env, for_each_cont(f, l.cdr(), env, cont))
+    cars = [l.car() for l in ls]
+    cdrs = [l.cdr() for l in ls]
+    return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
 
 @expose("append")
