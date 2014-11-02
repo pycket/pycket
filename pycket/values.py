@@ -1077,8 +1077,8 @@ class W_Closure(W_Procedure):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
-        if not jit.we_are_jitted() and config.callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
@@ -1129,8 +1129,8 @@ class W_Closure1AsEnv(ConsEnv):
         jit.promote(self.caselam)
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
-        if not jit.we_are_jitted() and config.callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont)
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
         # specialize on the fact that often we end up executing in the
         # same environment.

@@ -1,6 +1,5 @@
 from pycket.AST               import AST
 from pycket                   import values, values_string
-from pycket                   import config
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -106,7 +105,9 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=config.fuse_conts, pruning_done=False):
+    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
+        if not env.pycketconfig().fuse_conts:
+            fuse = False
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -1006,6 +1007,7 @@ class CaseLambda(AST):
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
 
+    @jit.unroll_safe
     def enable_jitting(self):
         for l in self.lams:
             l.enable_jitting()
@@ -1014,6 +1016,8 @@ class CaseLambda(AST):
         return CaseLambda(self.lams, sym)
 
     def interpret_simple(self, env):
+        if not env.pycketconfig().callgraph:
+            self.enable_jitting() # XXX not perfectly pretty
         if not self.any_frees:
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
@@ -1095,12 +1099,8 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
-        if not config.callgraph:
-            self.body[0].should_enter = True
 
     def enable_jitting(self):
-        if config.log_callgraph:
-            print "enabling jitting", self.tostring()
         self.body[0].set_should_enter()
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
@@ -1602,65 +1602,59 @@ class DefineValues(AST):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 
-if config.two_state:
-    def get_printable_location(green_ast, came_from):
-        if green_ast is None:
-            return 'Green_Ast is None'
-        surrounding = green_ast.surrounding_lambda
-        if surrounding is not None and green_ast is surrounding.body[0]:
-            return green_ast.tostring() + ' from ' + came_from.tostring()
-        return green_ast.tostring()
 
-    driver = jit.JitDriver(reds=["env", "cont"],
-                           greens=["ast", "came_from"],
-                           get_printable_location=get_printable_location)
+def get_printable_location_two_state(green_ast, came_from):
+    if green_ast is None:
+        return 'Green_Ast is None'
+    surrounding = green_ast.surrounding_lambda
+    if surrounding is not None and green_ast is surrounding.body[0]:
+        return green_ast.tostring() + ' from ' + came_from.tostring()
+    return green_ast.tostring()
 
-    def interpret_one(ast, env=None):
-        cont = nil_continuation
+driver_two_state = jit.JitDriver(reds=["env", "cont"],
+                                 greens=["ast", "came_from"],
+                                 get_printable_location=get_printable_location_two_state)
+
+def inner_interpret_two_state(ast, env, cont):
+    came_from = ast
+    while True:
+        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         came_from = ast
-        cont.update_cm(values.parameterization_key, values.top_level_config)
-        if env is None:
-            env = ToplevelEnv()
-        try:
-            while True:
-                driver.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-                came_from = ast
-                ast, env, cont = ast.interpret(env, cont)
-                if ast.should_enter:
-                    #print ast.tostring()
-                    driver.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
-        except Done, e:
-            return e.values
-        except SchemeException, e:
-            if e.context_ast is None:
-                e.context_ast = ast
-            raise
-else:
-    def get_printable_location(green_ast ):
-        if green_ast is None:
-            return 'Green_Ast is None'
-        return green_ast.tostring()
-    driver = jit.JitDriver(reds=["env", "cont"],
-                           greens=["ast"],
-                           get_printable_location=get_printable_location)
-    def interpret_one(ast, env=None):
-        cont = nil_continuation
-        cont.update_cm(values.parameterization_key, values.top_level_config)
-        if env is None:
-            env = ToplevelEnv()
-        try:
-            while True:
-                driver.jit_merge_point(ast=ast, env=env, cont=cont)
-                ast, env, cont = ast.interpret(env, cont)
-                if ast.should_enter:
-                    #print ast.tostring()
-                    driver.can_enter_jit(ast=ast, env=env, cont=cont)
-        except Done, e:
-            return e.values
-        except SchemeException, e:
-            if e.context_ast is None:
-                e.context_ast = ast
-            raise
+        ast, env, cont = ast.interpret(env, cont)
+        if ast.should_enter:
+            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+
+def get_printable_location_one_state(green_ast ):
+    if green_ast is None:
+        return 'Green_Ast is None'
+    return green_ast.tostring()
+driver_one_state = jit.JitDriver(reds=["env", "cont"],
+                       greens=["ast"],
+                       get_printable_location=get_printable_location_one_state)
+def inner_interpret_one_state(ast, env, cont):
+    while True:
+        driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)
+        ast, env, cont = ast.interpret(env, cont)
+        if ast.should_enter:
+            driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
+
+def interpret_one(ast, env=None):
+    if env is None:
+        env = ToplevelEnv()
+    if env.pycketconfig().two_state:
+        inner_interpret = inner_interpret_two_state
+    else:
+        inner_interpret = inner_interpret_two_state
+    cont = nil_continuation
+    cont.update_cm(values.parameterization_key, values.top_level_config)
+    try:
+        inner_interpret(ast, env, cont)
+    except Done, e:
+        return e.values
+    except SchemeException, e:
+        if e.context_ast is None:
+            e.context_ast = ast
+        raise
 
 def interpret_toplevel(a, env):
     if isinstance(a, Begin):

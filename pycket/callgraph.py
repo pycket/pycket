@@ -1,12 +1,11 @@
 from rpython.rlib import jit
-from pycket       import config
 
 class CallGraph(object):
     def __init__(self):
         self.calls     = {}
         self.recursive = {}
 
-    def register_call(self, lam, calling_app, cont):
+    def register_call(self, lam, calling_app, cont, env):
         if jit.we_are_jitted():
             return
         if not calling_app:
@@ -18,9 +17,12 @@ class CallGraph(object):
         if subdct is None:
             self.calls[calling_lam] = subdct = {}
         cont_ast = cont.get_next_executed_ast()
+        config = env.pycketconfig()
         if lam not in subdct:
             subdct[lam] = None
             if self.is_recursive(calling_lam, lam):
+                if config.log_callgraph:
+                    print "enabling jitting", calling_lam.tostring()
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.

@@ -511,9 +511,8 @@ def test_callgraph_reconstruction():
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
 
-    if config.callgraph:
-        assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
-        assert g.body[0].should_enter
+    assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
+    assert g.body[0].should_enter
 
 def test_should_enter_downrecursion():
     from pycket.expand import expand_string, parse_module
@@ -546,13 +545,12 @@ def test_should_enter_downrecursion():
     append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]
     f = m.defs[W_Symbol.make("n->f")].closure.caselam.lams[0]
 
-    if config.callgraph:
-        assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
+    assert env.callgraph.calls == {append: {append: None}, f: {f: None}}
 
-        assert append.body[0].should_enter
-        # This is long to account for let conversion
-        assert append.body[0].body[0].els.body[0].body[0].body[0].should_enter
+    assert append.body[0].should_enter
+    # This is long to account for let conversion
+    assert append.body[0].body[0].els.body[0].body[0].body[0].should_enter
 
-        assert f.body[0].should_enter
-        assert f.body[0].body[0].els.body[0].should_enter
+    assert f.body[0].should_enter
+    assert f.body[0].body[0].els.body[0].should_enter
 

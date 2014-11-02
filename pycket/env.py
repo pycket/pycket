@@ -1,8 +1,9 @@
-from rpython.rlib             import jit
-from small_list               import inline_small_list
+from rpython.rlib             import jit, objectmodel
+from pycket.small_list        import inline_small_list
 from pycket.error             import SchemeException
 from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
+from pycket.config            import get_testing_config
 
 
 class SymList(object):
@@ -114,6 +115,9 @@ class Env(W_Object):
         assert isinstance(self, ToplevelEnv)
         return self
 
+    def pycketconfig(self):
+        return self.toplevel_env()._pycketconfig.pycket
+
 
 class Version(object):
     pass
@@ -121,13 +125,19 @@ class Version(object):
 
 class ToplevelEnv(Env):
     _immutable_fields_ = ["version?", "module_env"]
-    def __init__(self):
+    def __init__(self, pycketconfig=None):
+        from rpython.config.config import Config
         self.bindings = {}
         self.version = Version()
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
         self.globalconfig = GlobalConfig()
+        if pycketconfig is None:
+            assert not objectmodel.we_are_translated()
+            pycketconfig = get_testing_config()
+        assert isinstance(pycketconfig, Config)
+        self._pycketconfig = pycketconfig
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
