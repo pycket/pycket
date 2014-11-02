@@ -1345,3 +1345,28 @@ def do_collect_garbage():
     from rpython.rlib import rgc
     rgc.collect()
     return values.w_void
+
+@continuation
+def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
+    from pycket.interpreter import return_multi_vals, check_one_val
+    new  = check_one_val(new_vals)
+    vals[n] = new
+    if s+n+1 == l:
+        return return_multi_vals(values.Values.make(vals), env, cont)
+    else:
+        return vec.vector_ref(values.W_Fixnum.make(s+n+1), env, vec2val_cont(vals, vec, n+1, s, l, env, cont))
+
+
+@expose("vector->values", [values_vector.W_Vector,
+                           default(values.W_Fixnum, values.W_Fixnum.make(0)),
+                           default(values.W_Fixnum, None)],
+        simple=False)
+def vector_to_values(v, start, end, env, cont):
+    from pycket.interpreter import return_multi_vals
+    l = end.value if end else v.length()
+    s = start.value
+    if s == l:
+        return return_multi_vals(values.Values.make([]), env, cont)
+    else:
+        vals = [None] * (l - s)
+        return v.vector_ref(values.W_Fixnum.make(s), env, vec2val_cont(vals, v, 0, s, l, env, cont))

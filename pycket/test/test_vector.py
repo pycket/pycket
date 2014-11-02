@@ -105,3 +105,8 @@ def test_make_vector_imp():
 def test_bug_symbol_in_vector():
     # FIXME somebody who knows expand
     run("#('a)")
+
+def test_vec_values():
+    run_fix("(let-values ([(a b c) (vector->values (vector 1 2 3))]) (+ a b c))", 6)
+    run_fix("(let-values ([(b c) (vector->values (vector 1 2 3) 1)]) (+ b c))", 5)
+    run_fix("(let-values ([(b) (vector->values (vector 1 2 3) 1 2)]) (+ b))", 2)
