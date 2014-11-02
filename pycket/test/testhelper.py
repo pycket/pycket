@@ -4,7 +4,7 @@
 # Assorted test helpers
 #
 import os
-from pycket.expand import expand, to_ast, expand_string, parse_module, ModTable
+from pycket.expand import expand, to_ast, expand_string, parse_module
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.env import ToplevelEnv
@@ -18,7 +18,6 @@ from pycket import values
 
 def run_mod(m, stdlib=False, srcloc=True):
     assert (not stdlib)
-    ModTable.reset()
     mod = interpret_module(parse_module(expand_string(m, srcloc=srcloc)))
     return mod
 
@@ -75,7 +74,6 @@ def run_std(c, v):
     return run_top(c, v, stdlib=True)
 
 def run_file(fname, *replacements):
-    ModTable.reset()
     ast = parse_file(fname, *replacements)
     env = ToplevelEnv()
     env.globalconfig.load(ast)
