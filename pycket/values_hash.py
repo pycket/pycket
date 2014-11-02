@@ -454,8 +454,8 @@ class Entry(ExtRegistryEntry):
 
     def compute_result_annotation(self, s_d, s_i):
         from rpython.annotator.model import SomeTuple, SomeInteger
-        s_key = s_d.dictdef.dictkey.s_value
-        s_value = s_d.dictdef.dictvalue.s_value
+        s_key = s_d.dictdef.read_key()
+        s_value = s_d.dictdef.read_value()
         return SomeTuple([s_key, s_value])
 
     def specialize_call(self, hop):
