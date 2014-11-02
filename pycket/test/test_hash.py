@@ -255,5 +255,15 @@ def test_hash_iteration_enables_jitting(source):
     assert f.closure.caselam.lams[0].body[0].should_enter
 
 
-
-
+def test_hash_for(doctest):
+    """
+    ! (require racket/private/for)
+    > (define ht (make-hash))
+    > (hash-set! ht 'a 1)
+    > (hash-set! ht 'b 2)
+    > (hash-set! ht 'c 3)
+    > (for/sum ([(k v) (in-hash ht)]) v)
+    6
+    > (for/sum ([(k v) ht]) v)
+    6
+    """

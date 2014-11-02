@@ -8,6 +8,40 @@ from pycket.cont         import continuation
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
 
+@expose("hash-iterate-first", [W_HashTable])
+def hash_iterate_first(ht):
+    if ht.length() == 0:
+        return values.w_false
+    return values.W_Fixnum.make(0)
+
+@expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
+def hash_iterate_next(ht, pos):
+    if ht.length()-1 == pos.value:
+        return values.w_false
+    return values.W_Fixnum.make(pos.value + 1)
+
+def hash_iter_ref(ht, pos, key=False):
+    n = pos.value
+    try:
+        w_key, w_val = ht.get_item(n)
+        if key:
+            return w_key
+        else:
+            return w_val
+    except KeyError:
+        raise SchemeException("hash-iterate-key: invalid position")
+    except IndexError:
+        raise SchemeException("hash-iterate-key: invalid position")
+
+
+@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
+def hash_iterate_key(ht, pos):
+    return hash_iter_ref(ht, pos, key=True)
+
+@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum])
+def hash_iterate_value(ht, pos):
+    return hash_iter_ref(ht, pos, key=False)
+
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(h, f, env, cont):
     from pycket.interpreter import return_value
@@ -40,11 +74,8 @@ def hash_map(h, f, env, cont):
 
 @continuation
 def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
-    from pycket.interpreter import return_value
-    vals = vals._get_full_list()
-    if len(vals) != 1:
-        raise SchemeException("hash-map: wrong number of results")
-    w_val, = vals
+    from pycket.interpreter import return_value, check_one_val
+    w_val = check_one_val(vals)
     if w_val is not None:
         w_acc = values.W_Cons.make(w_val, w_acc)
     nextindex = index + 1
@@ -173,14 +204,6 @@ define_nyi("hash-clear", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
 
-define_nyi("hash-iterate-first", False, [W_HashTable])
-
-define_nyi("hash-iterate-next", [W_HashTable, values.W_Fixnum])
-
-define_nyi("hash-iterate-key", [W_HashTable, values.W_Fixnum])
-
-define_nyi("hash-iterate-value", [W_HashTable, values.W_Fixnum])
-
 define_nyi("hash-copy", [W_HashTable])
 
 # FIXME: not implemented
@@ -191,5 +214,3 @@ def equal_hash_code(v):
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
     return values.W_Fixnum(0)
-
-
