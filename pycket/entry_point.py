@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException
+from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
 from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
 from pycket.error import SchemeException
 from pycket.option_helper import parse_args, ensure_json_ast
@@ -28,10 +28,11 @@ def make_entry_point(pycketconfig=None):
             return retval
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
         module_name, json_ast = ensure_json_ast(config, names)
+        modtable = ModTable()
         if json_ast is None:
-            ast = expand_to_ast(module_name)
+            ast = expand_to_ast(module_name, modtable)
         else:
-            ast = load_json_ast_rpython(json_ast)
+            ast = load_json_ast_rpython(json_ast, modtable)
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)
         env.commandline_arguments = args_w

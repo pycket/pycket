@@ -1305,7 +1305,7 @@ def load(lib, env, cont):
     if json_ast is None:
         raise SchemeException(
             "can't gernerate load-file for %s " % lib.tostring())
-    ast = load_json_ast_rpython(json_ast)
+    #ast = load_json_ast_rpython(json_ast)
     raise NotImplementedError(
         "would crash anyway when trying to interpret the Module")
     #return ast, env, cont

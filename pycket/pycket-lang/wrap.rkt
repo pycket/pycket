@@ -1,6 +1,9 @@
 #lang racket/base
 (provide (rename-out (module-begin #%module-begin)) include time
-         (except-out (all-from-out racket/base) #%module-begin))
+         (except-out (all-from-out racket/base) #%module-begin
+           positive? negative? zero?
+           quotient modulo remainder odd? even? min max
+           > < >= <= = - + / *))
 
 (require racket/include
          (for-syntax racket/base racket/list))
@@ -21,7 +24,10 @@
                               '(nothing))))
   #`(#%module-begin
      #,(datum->syntax stx (if r5rs?
-                              '(require r5rs)
+                              '(require (except-in r5rs
+                                        positive? negative? zero? abs sin cos tan atan
+                                        quotient modulo remainder odd? even? min max
+                                        > < >= <= = - + / *))
                               '(include "../configuration/one-armed-if.rkt")))
      #,(datum->syntax stx '(include "../configuration/definitions-racket.rkt"))
      #,(datum->syntax stx '(include "../configuration/iterations.rkt"))

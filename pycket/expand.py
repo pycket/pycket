@@ -104,17 +104,17 @@ def expand_file_rpython(rkt_file):
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
 
-def expand_file_cached(rkt_file):
+def expand_file_cached(rkt_file, modtable):
     try:
         json_file = ensure_json_ast_run(rkt_file)
     except PermException:
-        return expand_to_ast(rkt_file)
-    return load_json_ast_rpython(json_file)
+        return expand_to_ast(rkt_file, modtable)
+    return load_json_ast_rpython(json_file, modtable)
 
 # Expand and load the module without generating intermediate JSON files.
-def expand_to_ast(fname):
+def expand_to_ast(fname, modtable):
     data = expand_file_rpython(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert_module()
+    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
 
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
@@ -203,23 +203,25 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 def load_json_ast(fname):
     data = readfile(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert_module()
+    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
 
-def load_json_ast_rpython(fname):
+def load_json_ast_rpython(fname, modtable):
     data = readfile_rpython(fname)
-    return _to_module(pycket_json.loads(data)).assign_convert_module()
+    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
-    return to_ast(json)
+    modtable = ModTable()
+    return to_ast(json, modtable)
 
 def parse_module(json_string):
     json = pycket_json.loads(json_string)
-    return _to_module(json).assign_convert_module()
+    modtable = ModTable()
+    return _to_module(json, modtable).assign_convert_module()
 
 
-def to_ast(json):
-    ast = _to_ast(json)
+def to_ast(json, modtable):
+    ast = _to_ast(json, modtable)
     return ast.assign_convert(variable_set(), None)
 
 
@@ -257,14 +259,14 @@ def to_formals(json):
         return [make(lex(x)) for x in arr], None
     assert 0
 
-def to_bindings(arr):
+def to_bindings(arr, modtable):
     dbgprint("to_bindings", arr)
     varss = []
     rhss = []
     for v in arr:
         varr = v.value_array()
         fmls = [values.W_Symbol.make(x.value_string()) for x in varr[0].value_array()]
-        rhs = _to_ast(varr[1])
+        rhs = _to_ast(varr[1], modtable)
         varss.append(fmls)
         rhss.append(rhs)
     return varss, rhss
@@ -277,7 +279,8 @@ def mksym(json):
             return values.W_Symbol.make(j[i].value_string())
     assert 0, json.tostring()
 
-def _to_module(json):
+def _to_module(json, modtable):
+    # YYY
     v = json.value_object()
     if "body-forms" in v:
         config = {}
@@ -285,61 +288,53 @@ def _to_module(json):
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
 
-        lang = [_to_require(l) for l in [v["language"].value_string()] if l != ""]
+        lang = [_to_require(l, modtable) for l in [v["language"].value_string()] if l != ""]
         return Module(v["module-name"].value_string(),
-                      lang + [_to_ast(x) for x in v["body-forms"].value_array()],
+                      lang + [_to_ast(x, modtable) for x in v["body-forms"].value_array()],
                       config)
     else:
         assert 0
 
-# A global table listing all the module files that have been loaded.
+# A table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
 
-    class TableState(object):
-        table = {}
-        current_modules = []
+    def __init__(self):
+        self.table = {}
+        self.current_modules = []
 
-    _state = TableState()
+    def add_module(self, fname):
+        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, self.current_module or "")
+        self.table[fname] = None
 
-    @staticmethod
-    def add_module(fname):
-        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, ModTable.current_module or "")
-        ModTable._state.table[fname] = None
+    def reset(self):
+        self.table = {}
 
-    @staticmethod
-    def reset():
-        ModTable._state.table = {}
+    def push(self, fname):
+        self.current_modules.append(fname)
 
-    @staticmethod
-    def push(fname):
-        ModTable._state.current_modules.append(fname)
-
-    @staticmethod
-    def pop():
-        if not ModTable._state.current_modules:
+    def pop(self):
+        if not self.current_modules:
             raise SchemeException("No current module")
-        ModTable._state.current_modules.pop()
+        self.current_modules.pop()
 
-    @staticmethod
-    def current_mod():
-        if not ModTable._state.current_modules:
+    def current_mod(self):
+        if not self.current_modules:
             return None
-        return ModTable._state.current_modules[-1]
+        return self.current_modules[-1]
 
-    @staticmethod
-    def has_module(fname):
-        return fname.startswith("#%") or fname in ModTable._state.table
+    def has_module(self, fname):
+        return fname.startswith("#%") or fname in self.table
 
-def _to_require(fname):
-    if ModTable.has_module(fname):
+def _to_require(fname, modtable):
+    if modtable.has_module(fname):
         return Quote(values.w_void)
-    ModTable.add_module(fname)
-    ModTable.push(fname)
-    module = expand_file_cached(fname)
-    ModTable.pop()
+    modtable.add_module(fname)
+    modtable.push(fname)
+    module = expand_file_cached(fname, modtable)
+    modtable.pop()
     return Require(fname, module)
 
 def get_srcloc(o):
@@ -357,14 +352,15 @@ def get_srcloc(o):
         sourcefile = None
     return (pos, sourcefile)
 
-def to_lambda(o):
+def to_lambda(o, modtable):
     fmls, rest = to_formals(o["lambda"])
     pos, sourcefile = get_srcloc(o)
-    return make_lambda(fmls, rest, [_to_ast(x) for x in o["body"].value_array()],
+    return make_lambda(fmls, rest, [_to_ast(x, modtable) for x in o["body"].value_array()],
                        pos, sourcefile)
 
 
-def _to_ast(json):
+def _to_ast(json, modtable):
+    # YYY
     dbgprint("_to_ast", json)
     if json.is_array:
         arr = json.value_array()
@@ -372,9 +368,9 @@ def _to_ast(json):
         if "source-name" in rator and (("source-module" not in rator) or (rator["source-module"].value_string() == "#%kernel")):
             ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
-                return Begin([_to_ast(x) for x in arr[1:]])
+                return Begin([_to_ast(x, modtable) for x in arr[1:]])
             if ast_elem == "#%expression":
-                return _to_ast(arr[1])
+                return _to_ast(arr[1], modtable)
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
@@ -390,7 +386,7 @@ def _to_ast(json):
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 elif "toplevel" in target:
                     var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
-                return SetBang(var, _to_ast(arr[2]))
+                return SetBang(var, _to_ast(arr[2], modtable))
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
@@ -412,45 +408,45 @@ def _to_ast(json):
             paths = obj["require"].value_array()
             if not paths:
                 return Quote(values.w_void)
-            return Begin.make([_to_require(path.value_string()) for path in paths])
+            return Begin.make([_to_require(path.value_string(), modtable) for path in paths])
         if "begin0" in obj:
-            fst = _to_ast(obj["begin0"])
-            rst = [_to_ast(x) for x in obj["begin0-rest"].value_array()]
+            fst = _to_ast(obj["begin0"], modtable)
+            rst = [_to_ast(x, modtable) for x in obj["begin0-rest"].value_array()]
             if len(rst) == 0:
                 return fst
             else:
                 return Begin0.make(fst, rst)
 
         if "wcm-key" in obj:
-            return WithContinuationMark(_to_ast(obj["wcm-key"]),
-                                        _to_ast(obj["wcm-val"]),
-                                        _to_ast(obj["wcm-body"]))
+            return WithContinuationMark(_to_ast(obj["wcm-key"], modtable),
+                                        _to_ast(obj["wcm-val"], modtable),
+                                        _to_ast(obj["wcm-body"], modtable))
         if "define-values" in obj:
             binders = obj["define-values"].value_array()
             display_names = obj["define-values-names"].value_array()
             fmls = [values.W_Symbol.make(x.value_string()) for x in binders]
             disp_syms = [values.W_Symbol.make(x.value_string()) for x in display_names]
-            body = _to_ast(obj["define-values-body"])
+            body = _to_ast(obj["define-values-body"], modtable)
             return DefineValues(fmls, body, disp_syms)
         if "letrec-bindings" in obj:
-            body = [_to_ast(x) for x in obj["letrec-body"].value_array()]
+            body = [_to_ast(x, modtable) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
             if len(bindings) == 0:
                 return Begin.make(body)
             else:
-                vs, rhss = to_bindings(bindings)
+                vs, rhss = to_bindings(bindings, modtable)
                 for v in vs:
                     for var in v:
                         assert isinstance(var, values.W_Symbol)
                 assert isinstance(rhss[0], AST)
                 return make_letrec(list(vs), list(rhss), body)
         if "let-bindings" in obj:
-            body = [_to_ast(x) for x in obj["let-body"].value_array()]
+            body = [_to_ast(x, modtable) for x in obj["let-body"].value_array()]
             bindings = obj["let-bindings"].value_array()
             if len(bindings) == 0:
                 return Begin.make(body)
             else:
-                vs, rhss = to_bindings(bindings)
+                vs, rhss = to_bindings(bindings, modtable)
                 for v in vs:
                     for var in v:
                         assert isinstance(var, values.W_Symbol)
@@ -458,18 +454,18 @@ def _to_ast(json):
                 return make_let(list(vs), list(rhss), body)
         if "variable-reference" in obj:
             if obj["variable-reference"].is_bool: # assumes that only boolean here is #f
-                return VariableReference(None, ModTable.current_mod())
+                return VariableReference(None, modtable.current_mod())
             else:
-                return VariableReference(_to_ast(obj["variable-reference"]), ModTable.current_mod())
+                return VariableReference(_to_ast(obj["variable-reference"], modtable), modtable.current_mod())
         if "lambda" in obj:
-                return CaseLambda([to_lambda(obj)])
+                return CaseLambda([to_lambda(obj, modtable)])
         if "case-lambda" in obj:
-                lams = [to_lambda(v.value_object()) for v in obj["case-lambda"].value_array()]
+                lams = [to_lambda(v.value_object(), modtable) for v in obj["case-lambda"].value_array()]
                 return CaseLambda(lams)
         if "operator" in obj:
-            return App.make_let_converted(_to_ast(obj["operator"]), [_to_ast(x) for x in obj["operands"].value_array()])
+            return App.make_let_converted(_to_ast(obj["operator"], modtable), [_to_ast(x, modtable) for x in obj["operands"].value_array()])
         if "test" in obj:
-            return If.make_let_converted(_to_ast(obj["test"]), _to_ast(obj["then"]), _to_ast(obj["else"]))
+            return If.make_let_converted(_to_ast(obj["test"], modtable), _to_ast(obj["then"], modtable), _to_ast(obj["else"], modtable))
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
         if "quote-syntax" in obj:
