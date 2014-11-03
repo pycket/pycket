@@ -14,7 +14,7 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--log-callgraph",
                requires=[("pycket.callgraph", True)]),
     BoolOption("fuse_conts", "fuse the continuations",
-               default=True, cmdline="--fuse-conts"),
+               default=False, cmdline="--fuse-conts"),
     BoolOption("with_branch", "but the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
 ])
