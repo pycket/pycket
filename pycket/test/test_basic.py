@@ -126,6 +126,16 @@ def test_mcons():
     with pytest.raises(SchemeException):
         run("(mcar 1 2)", None)
 
+def test_mcons(doctest):
+    """
+    > (equal? (mcons 1 2) (mcons 1 2))
+    #t
+    > (equal? (mcons 1 2) (mcons 1 4))
+    #f
+    > (equal? (mcons 1 2) (cons 1 2))
+    #f
+    """
+
 def test_cons():
     run_fix ("(car (cons 1 2))", 1)
     run_fix ("(cdr (cons 1 2))", 2)
