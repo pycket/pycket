@@ -57,9 +57,10 @@ class LParenToken(DelimToken): pass
 class RParenToken(DelimToken): pass
 class DotToken(DelimToken): pass
 
-allowed_char = list("!?.-_:=*$%<>+^@&~/")
+allowed_char = "!?.-_:=*$%<>+^@&~/"
 
 def idchar(c):
+    c = c[0] # tell the annotator it's really a single char
     if c.isalnum() or (c in allowed_char):
         return True
     return False
