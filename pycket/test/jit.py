@@ -391,3 +391,6 @@ class TestLLtype(LLJitMixin):
     def test_shadow_bug(self):
         self.run_file("bugtest2.rkt", run_untranslated=False)
 
+    def test_dot_ex(self):
+        self.run_file("dot-jit.rkt", run_untranslated=False)
+
