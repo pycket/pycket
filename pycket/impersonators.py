@@ -324,19 +324,18 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
-        self.inner        = inner
-        acc               = []
-        self.mutators     = {}
+        self.inner   = inner
+        accessors    = []
+        mutators     = []
         self.struct_props = {}
-        self.properties   = {}
+        self.properties = {}
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                #self.accessors[base.field.value].append((op, handlers[i]))
-                acc.append((base.field.value, op, handlers[i]))
+                accessors.append((base.field.value, op, handlers[i]))
             elif isinstance(base, values_struct.W_StructFieldMutator):
-                self.mutators[base.field.value] = (op, handlers[i])
+                mutators.append((base.field.value, op, handlers[i]))
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 self.struct_props[base] = (op, handlers[i])
             else:
@@ -344,7 +343,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
             self.properties[k] = prop_vals[i]
-        self.accessors = acc[:]
+        self.accessors = accessors[:]
+        self.mutators  = mutators[:]
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -361,18 +361,18 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         assert isinstance(struct, values_struct.W_Struct)
         return struct.struct_type()
 
+    @staticmethod
     @jit.unroll_safe
-    def lookup_accessor(self, field):
+    def lookup(lst, field):
         field = jit.promote(field)
-        for f, op, h in self.accessors:
+        for f, op, h in lst:
             if f == field:
-                return (op, h)
-        return (None, None)
+                return op, h
+        return None, None
 
     @label
     def ref(self, struct_id, field, env, cont):
-        #op, interp = self.accessors.get(field, (None, None))
-        (op, interp) = self.lookup_accessor(field)
+        op, interp = self.lookup(self.accessors, field)
         if op is None or interp is None:
             return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
@@ -380,7 +380,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        op, interp = self.mutators.get(field, (None, None))
+        op, interp = self.lookup(self.mutators, field)
         if op is None or interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, val, env, cont)
