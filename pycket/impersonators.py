@@ -325,7 +325,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
         self.inner        = inner
-        self.accessors    = {}
+        acc               = []
         self.mutators     = {}
         self.struct_props = {}
         self.properties   = {}
@@ -333,7 +333,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                self.accessors[base.field.value] = (op, handlers[i])
+                #self.accessors[base.field.value].append((op, handlers[i]))
+                acc.append((base.field.value, op, handlers[i]))
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 self.mutators[base.field.value] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
@@ -343,6 +344,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
             self.properties[k] = prop_vals[i]
+        self.accessors = acc[:]
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -359,9 +361,18 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         assert isinstance(struct, values_struct.W_Struct)
         return struct.struct_type()
 
+    @jit.unroll_safe
+    def lookup_accessor(self, field):
+        field = jit.promote(field)
+        for f, op, h in self.accessors:
+            if f == field:
+                return (op, h)
+        return (None, None)
+
     @label
     def ref(self, struct_id, field, env, cont):
-        op, interp = self.accessors.get(field, (None, None))
+        #op, interp = self.accessors.get(field, (None, None))
+        (op, interp) = self.lookup_accessor(field)
         if op is None or interp is None:
             return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
