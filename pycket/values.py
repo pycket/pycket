@@ -1472,6 +1472,10 @@ class W_FileInputPort(W_InputPort):
         return self.file.readline()
 
     def peek(self):
+        offset, string = self.file.peek()
+        if offset < len(string):
+            # fast path:
+            return string[offset]
         pos = self.file.tell()
         res = self.file.read(1)
         self.file.seek(pos, 0)

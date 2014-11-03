@@ -130,6 +130,11 @@ def equal_func(a, b, info, env, cont):
             a, b = a.car(), b.car()
             continue
 
+        if isinstance(a, values.W_MCons) and isinstance(b, values.W_MCons):
+            cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
+            a, b = a.car(), b.car()
+            continue
+
         if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
             is_chaperone = for_chaperone == EqualInfo.CHAPERONE
             if is_chaperone and (not a.immutable() or not b.immutable()):
