@@ -14,11 +14,10 @@ from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
 from pycket.test.testhelper import parse_file
-from pycket.expand import expand, to_ast
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
-from pycket.expand import expand, to_ast, expand_string, parse_module
+from pycket.expand import expand, to_ast, expand_string, parse_module, parse_ast
 
 
 class TestLLtype(LLJitMixin):
@@ -136,6 +135,7 @@ class TestLLtype(LLJitMixin):
         env = ToplevelEnv()
         env.globalconfig.load(ast)
         def interp_w():
+            parse_ast('{"quote":{"number":{"integer":"0"}}}')
             val = interpret_module(ast, env)
             return val
 
