@@ -19,7 +19,8 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--with-branch"),
 ])
 
-def get_testing_config():
+def get_testing_config(**overrides):
     return get_combined_translation_config(
             pycketoption_descr,
-            translating=False)
+            translating=False,
+            overrides=overrides)
