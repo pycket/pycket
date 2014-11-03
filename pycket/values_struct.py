@@ -204,9 +204,8 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
-        self.offsets = {}
-        self.mutables = [] # in compare to immutables, it stores _absolut_ positions
-        self.init_field_positions()
+        self.field_types = [None] * self.total_field_cnt
+        self.calculate_offsets()
 
         self.constr = W_StructConstructor(self)
         self.pred = W_StructPredicate(self)
@@ -214,15 +213,16 @@ class W_StructType(values.W_Object):
         self.mut = W_StructMutator(self)
 
     @jit.unroll_safe
-    def init_field_positions(self):
+    def calculate_offsets(self):
+        self.offsets = {}
+        self.immutable_fields = [] # absolut indexies
         struct_type = self
         while isinstance(struct_type, W_StructType):
             offset = struct_type.total_field_cnt - \
             struct_type.init_field_cnt - struct_type.auto_field_cnt
             self.offsets[struct_type] = offset
-            for i in range(struct_type.init_field_cnt):
-                if i not in struct_type.immutables:
-                    self.mutables.append(i + offset)
+            for immutable_field in struct_type.immutables:
+                self.immutable_fields.append(immutable_field + offset)
             struct_type = struct_type.super
 
     @jit.elidable
@@ -471,6 +471,8 @@ class W_RootStruct(values.W_Object):
             if isinstance(proc, values.W_Fixnum):
                 offset = typ.get_offset(typ.procedure_source)
                 proc = self._get_list(proc.value + offset)
+                if isinstance(proc, values.W_Cell):
+                    proc = proc.get_val()
                 return proc.get_arity()
             else:
                 # -1 for the self argument
@@ -517,9 +519,8 @@ class W_Struct(W_RootStruct):
     @jit.unroll_safe
     def vals(self):
         values = self._get_full_list()
-        for i, value in enumerate(values):
-            if i in self._type.mutables:
-                values[i] = value.get_val()
+        for i, val in enumerate(values):
+            values[i] = val if i in self._type.immutable_fields else val.get_val()
         return values
 
     def struct_type(self):
@@ -609,11 +610,13 @@ class W_StructConstructor(values.W_Procedure):
         guard_super_values = _vals._get_full_list()
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
-        for i in self.type.mutables:
-            mutable_value = field_values[i]
-            field_values[i] = values.W_Cell(mutable_value)
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
+        
+        for i, value in enumerate(field_values):
+            if i not in self.type.immutable_fields:
+                field_values[i] = values.W_Cell(value)
+
         result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
