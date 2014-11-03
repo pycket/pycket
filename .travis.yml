@@ -23,7 +23,7 @@ before_install:
 #  - sudo sh racket-current-x86_64-linux-precise.sh --unix-style --dest /usr --create-dir
 ###
   - wget http://pre-release.racket-lang.org/installers/racket-6.1.0.900-x86_64-linux-ubuntu-precise.sh
-  - sudo sh racket-6.1.0.900-x86_64-linux-precise.sh --unix-style --dest /usr --create-dir
+  - sudo sh racket-6.1.0.900-x86_64-linux-ubuntu-precise.sh --unix-style --dest /usr --create-dir
 install:
   - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
   - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
