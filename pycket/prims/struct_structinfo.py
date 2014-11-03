@@ -5,6 +5,7 @@ from pycket import values
 from pycket import values_struct
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, procedure
+from rpython.rlib        import jit
 
 @expose("make-inspector", [default(values_struct.W_StructInspector, None)])
 def do_make_instpector(inspector):
@@ -208,8 +209,7 @@ def mk_stp(sym, guard, supers, _can_imp):
 # Unsafe struct ops
 @expose("unsafe-struct-ref", [values.W_Object, unsafe(values.W_Fixnum)])
 def unsafe_struct_ref(v, k):
-    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.inner
+    v = imp.get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value <= v.struct_type().total_field_cnt
     return v._ref(k.value)
