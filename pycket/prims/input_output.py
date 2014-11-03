@@ -163,12 +163,11 @@ def read_token(f):
             if c2 in ["(", "[", "{"]:
                 return LParenToken("#" + c2)
             if c2 == "\\":
-                ch = f.read(1)
-                l = list(ch)
-                assert len(l) == 1
-                c = l[0]
-                ch2 = ord(c)
-                return CharToken(values.W_Character.make(unichr(ch2)))
+                s = f.read(1)
+                if not s:
+                    raise SchemeException("unexpected end of file")
+                c = ord(s[0]) # XXX deal with unicode
+                return CharToken(values.W_Character.make(unichr(c)))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
