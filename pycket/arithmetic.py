@@ -271,12 +271,13 @@ class __extend__(values.W_Fixnum):
         assert isinstance(other, values.W_Fixnum)
         x = self.value
         y = other.value
-        if y == 0:
+        if y:
+            try:
+                res = int_floordiv_ovf(x, y) # misnomer, should be int_truncdiv or so
+            except OverflowError:
+                return self.arith_quotient(values.W_Bignum(rbigint.fromint(other.value)))
+        else:
             raise SchemeException("zero_divisor")
-        try:
-            res = int_floordiv_ovf(x, y) # misnomer, should be int_truncdiv or so
-        except OverflowError:
-            return self.arith_quotient(values.W_Bignum(rbigint.fromint(other.value)))
         return values.W_Fixnum(res)
 
     def arith_pow_same(self, other):
@@ -317,14 +318,15 @@ class __extend__(values.W_Fixnum):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Fixnum)
-        if other.value == 0:
+        if other.value:
+            try:
+                res = rarithmetic.ovfcheck(self.value % other.value)
+                return other.arith_gcd(values.W_Fixnum(res))
+            except OverflowError:
+                return values.W_Bignum(
+                    rbigint.fromint(self.value)).arith_gcd(other)
+        else:
             return self
-        try:
-            res = rarithmetic.ovfcheck(self.value % other.value)
-            return other.arith_gcd(values.W_Fixnum(res))
-        except OverflowError:
-            return values.W_Bignum(
-                rbigint.fromint(self.value)).arith_gcd(other)
 
     # ------------------ abs ------------------
     def arith_abs(self):
