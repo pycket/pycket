@@ -394,3 +394,6 @@ class TestLLtype(LLJitMixin):
     def test_dot_ex(self):
         self.run_file("dot-jit.rkt", run_untranslated=False)
 
+    def test_ctak(self):
+        self.run_file("ctak.rkt", run_untranslated=False)
+
