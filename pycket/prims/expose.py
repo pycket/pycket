@@ -186,6 +186,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
             if sym in prim_env:
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
+        func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
 
