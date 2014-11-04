@@ -158,14 +158,23 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
             func_arg_unwrap = func
             _arity = arity or ([], 0)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
-        return values.W_Prim(name, func_result_handling, _arity)
+        return values.W_Prim(name, make_remove_extra_info(func_result_handling), _arity)
     return wrapper
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
+def make_remove_extra_info(func):
+    def remove_extra_info(*args):
+        args = args[:-1]
+        return func(*args)
+    remove_extra_info.__name__ += func.__name__
+    return remove_extra_info
+
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False):
     def wrapper(func):
         from pycket import values
         names = [n] if isinstance(n, str) else n
         name = names[0]
+        if extra_info:
+            assert not simple
         if nyi:
             def func_arg_unwrap(*args):
                 raise SchemeException(
@@ -179,6 +188,8 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
             func_arg_unwrap = func
             _arity = arity or ([], 0)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
+        if not extra_info:
+            func_result_handling = make_remove_extra_info(func_result_handling)
         cls = values.W_Prim
         p = cls(name, func_result_handling, _arity)
         for nam in names:
@@ -186,6 +197,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False):
             if sym in prim_env:
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
+        func_arg_unwrap.w_prim = p
         return func_arg_unwrap
     return wrapper
 
