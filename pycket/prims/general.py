@@ -823,6 +823,7 @@ def do_set_mcdr(a, b):
 
 @expose("map", simple=False)
 def do_map(args, env, cont):
+    # XXX this is currently not properly jitted
     from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
@@ -876,6 +877,7 @@ def for_each(args, env, cont):
 
 @continuation
 def for_each_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
     from pycket.interpreter import return_value
     l = ls[0]
     if l is values.w_null:
