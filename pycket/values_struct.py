@@ -503,7 +503,7 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
-@inline_small_list(immutable=True, attrname="values")
+@inline_small_list(immutable=True, attrname="values", unbox_num=True)
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type", "values"]
