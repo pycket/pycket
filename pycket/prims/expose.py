@@ -169,6 +169,20 @@ def make_remove_extra_info(func):
     return remove_extra_info
 
 def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False):
+    """
+    n:          names that the function should be exposed under
+    argstypes:  if None, the list of args is passed directly to the function
+                otherwise the function arguments are typechecked and passed
+                individually
+    simple:     if the function does not need access to env and cont and just
+                returns a value
+    nyi:        the function is not yet implemented and will always raise
+    extra_info: the function gets an extra argument extra_call_info, which
+                contains information about the caller. The only useful thing to
+                do with it is to pass it into a w_value.call_with_extra_info as
+                the last argument. This will ensure that the call graph
+                information stays correct.
+    """
     def wrapper(func):
         from pycket import values
         names = [n] if isinstance(n, str) else n
