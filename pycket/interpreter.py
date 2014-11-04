@@ -956,6 +956,7 @@ class If(AST):
             return self.els, env, cont
         else:
             return self.thn, env, cont
+    interpret._always_inline_ = True
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = env_structure
@@ -1418,6 +1419,7 @@ class Let(SequencedBodyAST):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
                 [], self, 0, env, cont)
+    interpret._always_inline_ = True
 
     def direct_children(self):
         return self.rhss + self.body
@@ -1620,7 +1622,12 @@ def inner_interpret_two_state(ast, env, cont):
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         came_from = ast
-        ast, env, cont = ast.interpret(env, cont)
+        if isinstance(ast, Let):
+            ast, env, cont = ast.interpret(env, cont)
+        elif isinstance(ast, If):
+            ast, env, cont = ast.interpret(env, cont)
+        else:
+            ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
             driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
 
