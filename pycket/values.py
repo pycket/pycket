@@ -975,8 +975,11 @@ class W_Prim(W_Procedure):
         return self.arity
 
     def call(self, args, env, cont):
+        return self.call_with_extra_info(args, env, cont, None)
+
+    def call_with_extra_info(self, args, env, cont, extra_call_info):
         jit.promote(self)
-        return self.code(args, env, cont)
+        return self.code(args, env, cont, extra_call_info)
 
     def tostring(self):
         return "#<procedure:%s>" % self.name

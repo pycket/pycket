@@ -524,6 +524,26 @@ def test_callgraph_reconstruction():
     assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
     assert g.body[0].should_enter
 
+def test_callgraph_reconstruction_through_primitives():
+    from pycket.expand import expand_string, parse_module
+    from pycket        import config
+    str = """
+        #lang pycket
+        (define (f k) (k (apply h '(5))))
+        (define (g x) (+ (call/cc f) 7))
+        (define (h x) x)
+        (g 5)
+        """
+
+    ast = parse_module(expand_string(str))
+    env = ToplevelEnv()
+    m = interpret_module(ast, env)
+    f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
+    g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
+    h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
+
+    assert env.callgraph.calls == {g: {f: None}, f: {h: None}}
+
 def test_should_enter_downrecursion():
     from pycket.expand import expand_string, parse_module
     from pycket        import config

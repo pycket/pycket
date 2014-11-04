@@ -160,7 +160,7 @@ def equal_func(a, b, info, env, cont):
                             w_equal_proc, w_hash_proc, w_hash2_proc = \
                                 w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
                             # FIXME: it should work with cycles properly and be an equal?-recur
-                            w_equal_recur = values.W_Prim("equal?-recur", equalp)
+                            w_equal_recur = equalp.w_prim
                             return w_equal_proc.call([a, b, w_equal_recur], env, cont)
             if not a.struct_type().isopaque and not b.struct_type().isopaque:
                 # This is probably not correct even if struct2vector were done

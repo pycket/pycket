@@ -570,10 +570,10 @@ def module_pathp(v):
 def do_values(args_w):
     return values.Values.make(args_w)
 
-@expose("call-with-values", [procedure] * 2, simple=False)
-def call_with_values (producer, consumer, env, cont):
+@expose("call-with-values", [procedure] * 2, simple=False, extra_info=True)
+def call_with_values (producer, consumer, env, cont, extra_call_info):
     # FIXME: check arity
-    return producer.call([], env, call_cont(consumer, env, cont))
+    return producer.call_with_extra_info([], env, call_cont(consumer, env, cont), extra_call_info)
 
 @continuation
 def time_apply_cont(initial, env, cont, vals):
@@ -598,9 +598,9 @@ define_nyi("dynamic-wind", False)
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
-        [procedure], simple=False)
-def callcc(a, env, cont):
-    return a.call([values.W_Continuation(cont)], env, cont)
+        [procedure], simple=False, extra_info=True)
+def callcc(a, env, cont, extra_call_info):
+    return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("time-apply", [procedure, values.W_List], simple=False)
 def time_apply(a, args, env, cont):
@@ -608,8 +608,8 @@ def time_apply(a, args, env, cont):
     return  a.call(values.from_list(args),
                    env, time_apply_cont(initial, env, cont))
 
-@expose("apply", simple=False)
-def apply(args, env, cont):
+@expose("apply", simple=False, extra_info=True)
+def apply(args, env, cont, extra_call_info):
     if not args:
         raise SchemeException("apply expected at least one argument, got 0")
     fn = args[0]
@@ -623,7 +623,7 @@ def apply(args, env, cont):
     assert args_len >= 0
     others = args[1:args_len]
     new_args = others + values.from_list(lst)
-    return fn.call(new_args, env, cont)
+    return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
 @expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
 def make_semaphore(n):
@@ -823,6 +823,7 @@ def do_set_mcdr(a, b):
 
 @expose("map", simple=False)
 def do_map(args, env, cont):
+    # XXX this is currently not properly jitted
     from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
@@ -876,6 +877,7 @@ def for_each(args, env, cont):
 
 @continuation
 def for_each_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
     from pycket.interpreter import return_value
     l = ls[0]
     if l is values.w_null:
