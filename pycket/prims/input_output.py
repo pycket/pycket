@@ -590,7 +590,7 @@ def flush_output(port, env, cont):
     return return_void(env, cont)
 
 
-def cur_print_proc(args, env, cont):
+def cur_print_proc(args, env, cont, extra_call_info):
     from pycket.interpreter import return_value
     v = args[0]
     port = current_out_param.get(cont)
