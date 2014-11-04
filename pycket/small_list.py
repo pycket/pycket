@@ -68,11 +68,18 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
 
         def make(elems, *args):
+            if elems is None or len(elems) == 0:
+                return make0(*args)
             if sizemin <= len(elems) < sizemax:
                 cls = classes[len(elems) - sizemin]
             else:
                 cls = cls_arbitrary
             return cls(elems, *args)
+        # XXX could be done more nicely
+        def make0(*args):
+            w_result = objectmodel.instantiate(classes[0])
+            cls.__init__(w_result, *args)
+            return w_result
         def make1(elem, *args):
             # XXX could be done more nicely
             w_result = objectmodel.instantiate(classes[1])
@@ -81,16 +88,19 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             return w_result
 
         if unbox_num:
-            make, make1 = _add_num_classes(cls, make, make1)
+            make, make1 = _add_num_classes(cls, make, make0, make1)
         setattr(cls, factoryname, staticmethod(make))
+        setattr(cls, factoryname + "0", staticmethod(make0))
         setattr(cls, factoryname + "1", staticmethod(make1))
         return cls
     return wrapper
 
-def _add_num_classes(cls, orig_make, orig_make1):
+def _add_num_classes(cls, orig_make, orig_make0, orig_make1):
     # XXX quite brute force
     def make(vals, *args):
         from pycket.values import W_Fixnum
+        if vals is None or len(vals) == 0:
+            return orig_make0(*args)
         if len(vals) == 1:
             return make1(vals[0], *args)
         if len(vals) == 2:

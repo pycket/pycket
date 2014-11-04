@@ -180,9 +180,9 @@ class FusedLet0Let0Cont(Cont):
         ast1, index1 = ast1.unpack(Let)
         ast2, index2 = ast2.unpack(Let)
         actual_cont = LetCont.make(
-                [], ast1, index1, self.env,
+                None, ast1, index1, self.env,
                 LetCont.make(
-                    [], ast2, index2, self.env, self.prev, fuse=False,
+                    None, ast2, index2, self.env, self.prev, fuse=False,
                     pruning_done=True),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
@@ -201,7 +201,7 @@ class FusedLet0BeginCont(Cont):
         ast1, ast2 = self.combined_ast.unpack()
         ast1, index1 = ast1.unpack(Let)
         actual_cont = LetCont.make(
-                [], ast1, index1, self.env,
+                None, ast1, index1, self.env,
                 BeginCont(ast2, self.env, self.prev),
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
@@ -956,6 +956,7 @@ class If(AST):
             return self.els, env, cont
         else:
             return self.thn, env, cont
+    interpret._always_inline_ = True
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = env_structure
@@ -1417,7 +1418,8 @@ class Let(SequencedBodyAST):
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
-                [], self, 0, env, cont)
+                None, self, 0, env, cont)
+    interpret._always_inline_ = True
 
     def direct_children(self):
         return self.rhss + self.body
@@ -1620,7 +1622,12 @@ def inner_interpret_two_state(ast, env, cont):
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         came_from = ast
-        ast, env, cont = ast.interpret(env, cont)
+        if isinstance(ast, Let):
+            ast, env, cont = ast.interpret(env, cont)
+        elif isinstance(ast, If):
+            ast, env, cont = ast.interpret(env, cont)
+        else:
+            ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
             driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
 
