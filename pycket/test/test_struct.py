@@ -472,8 +472,8 @@ def test_make_prefab_struct(doctest):
     '#s(clown "Binky" "pie")
     > (make-prefab-struct '(clown 2 (0 #f) #()) "Binky" "pie")
     '#s(clown "Binky" "pie")
-    ;> (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
-    ;'#s((clown (1 #f)) "Binky" "pie")
+    > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
+    '#s((clown (1 #f)) "Binky" "pie")
     ;> (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
     ;'#s((clown (1 #f) #(0)) "Binky" "pie")
     """

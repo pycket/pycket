@@ -204,7 +204,6 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
-        self.field_types = [None] * self.total_field_cnt
         self.calculate_offsets()
 
         self.constr = W_StructConstructor(self)
@@ -514,6 +513,9 @@ class W_Struct(W_RootStruct):
     @staticmethod
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
+        for i, value in enumerate(w_values):
+            if i not in w_struct_type.immutable_fields:
+                w_values[i] = values.W_Cell(value)
         return W_Struct.make(w_values, w_struct_type)
 
     @jit.unroll_safe
@@ -612,11 +614,9 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
-        
         for i, value in enumerate(field_values):
             if i not in self.type.immutable_fields:
                 field_values[i] = values.W_Cell(value)
-
         result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
