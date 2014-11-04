@@ -504,7 +504,7 @@ class W_RootStruct(values.W_Object):
 @inline_small_list(immutable=True, attrname="values")
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["_type", "values"]
+    _immutable_fields_ = ["_type"]
 
     def __init__(self, type):
         self._type = type
