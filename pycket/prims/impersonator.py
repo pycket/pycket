@@ -6,16 +6,19 @@ from pycket import values_hash
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, expose_val
 from pycket.prims.equal import equal_func, EqualInfo
+from rpython.rlib import jit
 
 expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
 
 # Used to find the first impersonator-property
+@jit.unroll_safe
 def find_prop_start_index(args):
     for i, v in enumerate(args):
         if isinstance(v, imp.W_ImpPropertyDescriptor):
             return i
     return len(args)
 
+@jit.unroll_safe
 def unpack_properties(args, name):
     idx = find_prop_start_index(args)
     args, props = args[:idx], args[idx:]
@@ -181,6 +184,7 @@ def impersonate_struct(args):
     return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-struct")
+@jit.unroll_safe
 def chaperone_struct(args):
     args, prop_keys, prop_vals = unpack_properties(args, "chaperone-struct")
     if len(args) < 1 or len(args) % 2 != 1:

@@ -318,15 +318,16 @@ def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties[*]"]
+    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
 
+    @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
-        self.inner   = inner
-        accessors    = []
-        mutators     = []
+        self.inner = inner
+        accessors  = []
+        mutators   = []
         self.struct_props = {}
         self.properties = {}
         # Does not deal with properties as of yet
