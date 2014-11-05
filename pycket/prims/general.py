@@ -1205,7 +1205,9 @@ def call_w_paramz(f, paramz, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
+    # XXX seems untested?
     paramz = cont.get_mark_first(values.parameterization_key)
+    assert isinstance(paramz, values.W_Parameterization) # XXX is this always right?
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 
