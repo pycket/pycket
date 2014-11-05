@@ -518,6 +518,7 @@ class W_Struct(W_RootStruct):
         w_res = self._get_list(i)
         immutable = jit.promote(self._type).is_immutable_field_index(i)
         if not immutable:
+            assert isinstance(w_res, values.W_Cell)
             w_res = w_res.get_val()
         return w_res
 
@@ -528,9 +529,10 @@ class W_Struct(W_RootStruct):
 
     @jit.unroll_safe
     def vals(self):
-        values = self._get_full_list()
-        for i, val in enumerate(values):
-            values[i] = val if self._type.is_immutable_field_index(i) else val.get_val()
+        size = self._get_size_list()
+        values = [None] * size
+        for i in range(size):
+            values[i] = self._get_field_val(i)
         return values
 
     def struct_type(self):
