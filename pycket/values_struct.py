@@ -614,7 +614,7 @@ class W_StructConstructor(values.W_Procedure):
     @jit.unroll_safe
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        guard_super_values = _vals._get_full_list()
+        guard_super_values = _vals.get_all_values()
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
@@ -644,7 +644,7 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
         env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
-        guard_values = _vals._get_full_list()
+        guard_values = _vals.get_all_values()
         if guard_values:
             field_values = guard_values
         super_type = jit.promote(self.type.super)

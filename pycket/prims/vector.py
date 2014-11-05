@@ -153,7 +153,8 @@ def unsafe_vector_set(v, i, new, env, cont):
         return v.vector_set(i, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
-        return return_value(v.unsafe_set(i.value, new), env, cont)
+        v.unsafe_set(i.value, new)
+        return return_value(values.w_void, env, cont)
 
 @expose("unsafe-vector*-set!",
         [unsafe(values_vector.W_Vector), unsafe(values.W_Fixnum), values.W_Object])
