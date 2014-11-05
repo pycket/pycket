@@ -7,13 +7,11 @@ from pycket.config            import get_testing_config
 
 
 class SymList(object):
-    _immutable_fields_ = ["elems[*]", "prev", "_fixnum_index?", "_flonum_index?"]
+    _immutable_fields_ = ["elems[*]", "prev"]
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
         self.prev = prev
-        self._fixnum_index = -1
-        self._flonum_index = -1
 
     def check_plausibility(self, env):
         if self.elems:
@@ -182,12 +180,6 @@ class ConsEnv(Env):
     def make(vals, prev):
         if vals:
             return ConsEnv._make(vals, prev)
-        return prev
-
-    @staticmethod
-    def make_n(n_vals, prev):
-        if n_vals:
-            return ConsEnv._make_n(n_vals, prev)
         return prev
 
     @jit.unroll_safe

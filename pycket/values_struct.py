@@ -254,11 +254,6 @@ class W_StructType(values.W_Object):
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
 
-    @jit.elidable
-    def is_immutable_field_index(self, i):
-        return i in self.immutable_fields
-
-
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
@@ -514,13 +509,6 @@ class W_Struct(W_RootStruct):
     def __init__(self, type):
         self._type = type
 
-    def _get_field_val(self, i):
-        w_res = self._get_list(i)
-        immutable = jit.promote(self._type).is_immutable_field_index(i)
-        if not immutable:
-            w_res = w_res.get_val()
-        return w_res
-
     @staticmethod
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
@@ -530,7 +518,7 @@ class W_Struct(W_RootStruct):
     def vals(self):
         values = self._get_full_list()
         for i, val in enumerate(values):
-            values[i] = val if self._type.is_immutable_field_index(i) else val.get_val()
+            values[i] = val if i in self._type.immutable_fields else val.get_val()
         return values
 
     def struct_type(self):
@@ -545,7 +533,9 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        value = self._get_field_val(field + offset)
+        value = self._get_list(field + offset)
+        if isinstance(value, values.W_Cell):
+            value = value.get_val()
         return return_value(value, env, cont)
 
     @label
@@ -558,8 +548,11 @@ class W_Struct(W_RootStruct):
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
-    _ref = _get_field_val
-
+    def _ref(self, k):
+        value = self._get_list(k)
+        if isinstance(value, values.W_Cell):
+            return value.get_val()
+        return value
     def _set(self, k, val):
         value = self._get_list(k).set_val(val)
 
@@ -580,7 +573,9 @@ class W_Struct(W_RootStruct):
             proc = typ.prop_procedure
             if isinstance(proc, values.W_Fixnum):
                 offset = typ.get_offset(typ.procedure_source)
-                proc = self._get_field_val(proc.value + offset)
+                proc = self._get_list(proc.value + offset)
+                if isinstance(proc, values.W_Cell):
+                    proc = proc.get_val()
                 return proc.get_arity()
             else:
                 # -1 for the self argument
@@ -638,7 +633,7 @@ class W_StructConstructor(values.W_Procedure):
             field_values = field_values + self.type.auto_values
 
         for i, value in enumerate(field_values):
-            if not self.type.is_immutable_field_index(i):
+            if i not in self.type.immutable_fields:
                 field_values[i] = values.W_Cell(value)
 
         result = W_Struct.make(field_values, self.type)
