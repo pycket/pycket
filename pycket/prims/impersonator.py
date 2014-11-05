@@ -171,10 +171,10 @@ def impersonate_struct(args):
         if not imp.valid_struct_proc(i):
             raise SchemeException("impersonate-struct: not given valid field accessor")
         elif (isinstance(i, values_struct.W_StructFieldMutator) and
-                i.field.value in immutables):
+                i.field in immutables):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
         elif (isinstance(i, values_struct.W_StructFieldAccessor) and
-                i.field.value in immutables):
+                i.field in immutables):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
 
     for i in handlers:
