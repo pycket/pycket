@@ -593,12 +593,16 @@ class W_Flonum(W_Number):
         return compute_hash(self.value)
 
     def eqv(self, other):
+        from rpython.rlib.longlong2float import float2longlong
         import math
         if not isinstance(other, W_Flonum):
             return False
         v1 = self.value
         v2 = other.value
-        return v1 == v2 or (math.isnan(v1) and math.isnan(v2))
+        ll1 = float2longlong(v1)
+        ll2 = float2longlong(v2)
+        # Assumes that all non-NaN values are canonical
+        return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
 
 class W_Bignum(W_Integer):
