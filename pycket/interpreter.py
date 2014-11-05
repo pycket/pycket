@@ -648,6 +648,7 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
@@ -712,6 +713,7 @@ class Begin(SequencedBodyAST):
             x.update(r.mutated_vars())
         return x
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
@@ -950,13 +952,13 @@ class If(AST):
                        [tst],
                        [If(LexicalVar(fresh), thn, els)])
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if w_val is values.w_false:
             return self.els, env, cont
         else:
             return self.thn, env, cont
-    interpret._always_inline_ = True
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = env_structure
@@ -1415,11 +1417,11 @@ class Let(SequencedBodyAST):
             env_structure = env_structure.prev
         return env
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
-    interpret._always_inline_ = True
 
     def direct_children(self):
         return self.rhss + self.body
@@ -1622,9 +1624,12 @@ def inner_interpret_two_state(ast, env, cont):
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         came_from = ast
-        if isinstance(ast, Let):
+        t = type(ast)
+        if t is Let:
             ast, env, cont = ast.interpret(env, cont)
-        elif isinstance(ast, If):
+        elif t is If:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is Begin:
             ast, env, cont = ast.interpret(env, cont)
         else:
             ast, env, cont = ast.interpret(env, cont)
