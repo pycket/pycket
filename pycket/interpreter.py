@@ -815,7 +815,6 @@ class ModuleVar(Var):
         else:
             return w_res
 
-    @jit.unroll_safe
     def is_mutable(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env().module_env
