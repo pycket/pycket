@@ -5,6 +5,12 @@ from pycket.cont import continuation, label
 from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
 from rpython.rlib import rerased
 
+class W_Missing(W_Object):
+    def __init__(self):
+        pass
+
+w_missing = W_Missing() # sentinel for missing values
+
 class W_HashTable(W_Object):
     errorname = "hash"
     _attrs_ = []
@@ -72,7 +78,7 @@ class W_SimpleHashTable(W_HashTable):
     @label
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
-        return return_value(self.data.get(k, None), env, cont)
+        return return_value(self.data.get(k, w_missing), env, cont)
 
     def length(self):
         return len(self.data)
@@ -111,7 +117,7 @@ def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
     from pycket.prims.equal import equal_func, EqualInfo
     if idx >= len(data):
-        return return_value(None, env, cont)
+        return return_value(w_missing, env, cont)
     k, v = data[idx]
     info = EqualInfo.BASIC_SINGLETON
     return equal_func(k, key, info, env,
@@ -195,7 +201,7 @@ class UnwrappedHashmapStrategyMixin(object):
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
         if self.is_correct_type(w_key):
-            w_res = self.unerase(w_dict.hstorage).get(self.unwrap(w_key), None)
+            w_res = self.unerase(w_dict.hstorage).get(self.unwrap(w_key), w_missing)
             return return_value(w_res, env, cont)
         # XXX should not dehomogenize always
         self.switch_to_object_strategy(w_dict)
@@ -245,7 +251,7 @@ class EmptyHashmapStrategy(HashmapStrategy):
 
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
-        return return_value(None, env, cont) # contains nothing
+        return return_value(w_missing, env, cont) # contains nothing
 
     def set(self, w_dict, w_key, w_val, env, cont):
         self.switch_to_correct_strategy(w_dict, w_key)

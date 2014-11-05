@@ -3,7 +3,8 @@
 from pycket              import impersonators as imp
 from pycket              import values
 from pycket.values_hash  import (
-    W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable)
+    W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
+    w_missing)
 from pycket.cont         import continuation
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -69,20 +70,20 @@ def hash_map(h, f, env, cont):
     from pycket.interpreter import return_value
     acc = values.w_null
     f.enable_jitting()
-    return return_value(None, env,
+    return return_value(w_missing, env,
             hash_map_cont(f, h, 0, acc, env, cont))
 
 @continuation
 def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
     from pycket.interpreter import return_value, check_one_val
     w_val = check_one_val(vals)
-    if w_val is not None:
+    if w_val is not w_missing:
         w_acc = values.W_Cons.make(w_val, w_acc)
     nextindex = index + 1
     try:
         w_key, w_value = ht.get_item(index)
     except KeyError:
-        return return_value(None, env,
+        return return_value(w_missing, env,
                 hash_map_cont(f, ht, nextindex, w_acc, env, cont))
     except IndexError:
         return return_value(w_acc, env, cont)
@@ -178,7 +179,7 @@ define_nyi("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=F
 def hash_ref_cont(default, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(_vals)
-    if val is not None:
+    if val is not w_missing:
         return return_value(val, env, cont)
     if default is None:
         raise SchemeException("key not found")

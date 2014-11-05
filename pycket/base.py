@@ -3,14 +3,42 @@ from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib import jit, objectmodel
 
+class W_ProtoObject(object):
+    """ abstract base class of both actual values (W_Objects) and multiple
+    return values (Values)"""
+    _attrs_ = []
+    _settled_ = True
+
+    def as_real_value(self):
+        raise NotImplementedError("not a real value!")
+
+    def num_values(val):
+        raise NotImplementedError("not a real value!")
+
+    def get_value(val, index):
+        raise NotImplementedError("not a real value!")
+
+    def get_all_values(self):
+        raise NotImplementedError("not a real value!")
 
 
-class W_Object(object):
+
+class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
+    def num_values(self):
+        return 1
+
+    def get_value(self, index):
+        assert index == 0
+        return self
+
+    def get_all_values(self):
+        return [self]
 
     def iscallable(self):
         return False

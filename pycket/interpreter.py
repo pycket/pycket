@@ -47,10 +47,9 @@ def variables_equal(a, b):
     return True
 
 def check_one_val(vals):
-    if vals._get_size_list() != 1:
-        raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
-    w_val = vals._get_list(0)
-    return w_val
+    if not isinstance(vals, values.W_Object):
+        raise SchemeException("expected 1 value but got %s"%(vals.num_values()))
+    return vals
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
@@ -68,12 +67,12 @@ class LetrecCont(Cont):
         return ast.rhss[rhsindex + 1]
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals, env):
-        vals = _vals._get_full_list()
+    def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(Letrec)
-        if ast.counts[i] != _vals._get_size_list():
+        if ast.counts[i] != vals.num_values():
             raise SchemeException("wrong number of values")
-        for j, w_val in enumerate(vals):
+        for j in range(vals.num_values()):
+            w_val = vals.get_value(j)
             v = self.env.lookup(ast.args.elems[ast.total_counts[i] + j], ast.args)
             assert isinstance(v, values.W_Cell)
             v.set_val(w_val)
@@ -133,7 +132,8 @@ class LetCont(Cont):
 
     @jit.unroll_safe
     def plug_reduce(self, vals, _env):
-        len_vals = vals._get_size_list()
+        # XXX remove copy
+        len_vals = vals.num_values()
         jit.promote(len_vals)
         len_self = self._get_size_list()
         jit.promote(len_self)
@@ -143,7 +143,7 @@ class LetCont(Cont):
             vals_w[i] = self._get_list(j)
             i += 1
         for j in range(len_vals):
-            vals_w[i] = vals._get_list(j)
+            vals_w[i] = vals.get_value(j)
             i += 1
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
@@ -222,7 +222,7 @@ class CellCont(Cont):
         ast = jit.promote(self.ast)
         vals_w = []
         for i, needs_cell in enumerate(ast.need_cell_flags):
-            w_val = vals._get_list(i)
+            w_val = vals.get_value(i)
             if needs_cell:
                 w_val = values.W_Cell(w_val)
             vals_w.append(w_val)
@@ -375,7 +375,7 @@ class Module(object):
             # whereas in Racket it's around the whole `define-values`
             if isinstance(f, DefineValues):
                 e = f.rhs
-                vs = interpret_one(e, self.env)._get_full_list()
+                vs = interpret_one(e, self.env).get_all_values()
                 if len(f.names) == len(vs):
                     for n in range(len(vs)):
                         self.defs[f.names[n]] = vs[n]
