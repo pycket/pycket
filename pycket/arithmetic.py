@@ -48,6 +48,89 @@ def gcd(u, v):
         result = result.neg()
     return result
 
+class __extend__(values.W_Object):
+    # default implementations that all raise
+    def arith_unaryadd(self):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_add(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_sub(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_sub1(self):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_mul(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_div(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_mod(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_quotient(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_remainder(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_pow(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_shl(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_shr(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_min(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_max(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_or(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_and(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_xor(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_eq(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_ne(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_lt(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_le(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_gt(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_ge(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_gcd(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_lcm(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def arith_exp(self):
+        raise SchemeException("not a number: %s" % self.tostring())
+
+    def same_numeric_class_reversed(self, other):
+        raise SchemeException("not a number: %s" % self.tostring())
+
 
 class __extend__(values.W_Number):
     def arith_unaryadd(self):
