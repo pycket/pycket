@@ -430,6 +430,8 @@ class W_PrefabKey(values.W_Object):
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
+    _attrs_ = []
+    _settled_ = True
 
     def __init__(self):
         raise NotImplementedError("abstract base class")
@@ -472,25 +474,7 @@ class W_RootStruct(values.W_Object):
         return self.checked_call(proc, args, env, cont)
 
     def get_arity(self):
-        if self.iscallable():
-            typ = self.struct_type()
-            proc = typ.prop_procedure
-            if isinstance(proc, values.W_Fixnum):
-                offset = typ.get_offset(typ.procedure_source)
-                proc = self._get_list(proc.value + offset)
-                if isinstance(proc, values.W_Cell):
-                    proc = proc.get_val()
-                return proc.get_arity()
-            else:
-                # -1 for the self argument
-                (ls, at_least) = proc.get_arity()
-                for i, val in enumerate(ls):
-                    ls[i] = val - 1
-                if at_least != -1:
-                    at_least -= 1
-                return ([val for val in ls if val != -1], at_least)
-        else:
-            raise SchemeException("%s does not have arity" % self.tostring())
+        raise NotImplementedError("abstract base class")
 
     def struct_type(self):
         raise NotImplementedError("abstract base class")
@@ -501,6 +485,13 @@ class W_RootStruct(values.W_Object):
 
     @label
     def set(self, struct_type, field, val, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    # unsafe versions
+    def _ref(self, k):
+        raise NotImplementedError("abstract base class")
+
+    def _set(self, k, val):
         raise NotImplementedError("abstract base class")
 
     @label
@@ -575,6 +566,27 @@ class W_Struct(W_RootStruct):
                 return return_value(val, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
+
+    def get_arity(self):
+        if self.iscallable():
+            typ = self.struct_type()
+            proc = typ.prop_procedure
+            if isinstance(proc, values.W_Fixnum):
+                offset = typ.get_offset(typ.procedure_source)
+                proc = self._get_list(proc.value + offset)
+                if isinstance(proc, values.W_Cell):
+                    proc = proc.get_val()
+                return proc.get_arity()
+            else:
+                # -1 for the self argument
+                (ls, at_least) = proc.get_arity()
+                for i, val in enumerate(ls):
+                    ls[i] = val - 1
+                if at_least != -1:
+                    at_least -= 1
+                return ([val for val in ls if val != -1], at_least)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):

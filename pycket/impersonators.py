@@ -397,6 +397,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_ref_cont(interp, env, cont)
         return op.call([self.inner], env, after)
 
+    def get_arity(self):
+        return self.inner.get_arity()
+
     # FIXME: This is incorrect
     def vals(self):
         return self.inner.vals()
