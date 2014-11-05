@@ -315,10 +315,11 @@ class WCMValCont(Cont):
 
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
-        if isinstance(self.key, values.W_ContinuationMarkKey):
+        key = self.key
+        if isinstance(key, values.W_ContinuationMarkKey):
             body = values.W_ThunkBodyCMK(self.ast.body)
-            return self.key.set_cmk(body, val, self.prev, env, self.prev)
-        self.prev.update_cm(self.key, val)
+            return key.set_cmk(body, val, self.prev, env, self.prev)
+        self.prev.update_cm(key, val)
         return self.ast.body, self.env, self.prev
 
 class Module(object):
