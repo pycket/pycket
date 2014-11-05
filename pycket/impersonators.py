@@ -248,6 +248,8 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth", "properties"]
+
+    @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
         assert len(prop_keys) == len(prop_vals)
