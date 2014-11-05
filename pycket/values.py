@@ -12,7 +12,7 @@ from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
 from rpython.rlib.rarithmetic import r_longlong, intmask
 from pycket.prims.expose      import make_call_method
-from pycket.base              import W_Object
+from pycket.base              import W_Object, W_ProtoObject
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
@@ -35,9 +35,32 @@ def memoize_constructor(cls):
     setattr(cls, "make", staticmethod(memoize(cls)))
     return cls
 
-# This is not a real value, so it's not a W_Object
-@inline_small_list(immutable=True, attrname="vals")
-class Values(object):
+
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make")
+class Values(W_ProtoObject):
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make(values_w):
+        if len(values_w) == 1:
+            return Values.make1(values_w[0])
+        return Values._make(values_w)
+
+    @staticmethod
+    def make1(w_value):
+        assert w_value is not None
+        return w_value
+
+    def num_values(self):
+        return self._get_size_list()
+
+    def get_value(self, index):
+        return self._get_list(index)
+
+    def get_all_values(self):
+        return self._get_full_list()
+
     def tostring(self):
         vals = self._get_full_list()
         if len(vals) == 1:
@@ -46,8 +69,6 @@ class Values(object):
             return "(values)"
         else: #fixme
             return "MULTIPLE VALUES"
-    def __init__(self):
-        pass
 
 
 class W_Cell(W_Object): # not the same as Racket's box

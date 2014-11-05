@@ -29,8 +29,8 @@ class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = ["name", "super", "init_field_cnt", \
         "auto_field_cnt", "total_field_cnt", "auto_v", "props", "inspector", \
-        "immutables", "guard", "constr_name", "auto_values[*]", "offsets[*]",
-        "constr", "pred", "acc", "mut"]
+        "immutables[*]", "immutable_fields[*]", "guard", "constr_name", "auto_values[*]",
+        "offsets[*]", "constr", "pred", "acc", "mut"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -185,12 +185,13 @@ class W_StructType(values.W_Object):
         self.prop_procedure = None
         self.procedure_source = None
         self.inspector = inspector
-        self.immutables = []
+        imm = []
         if isinstance(proc_spec, values.W_Fixnum):
-            self.immutables.append(proc_spec.value)
+            imm.append(proc_spec.value)
         for i in values.from_list(immutables):
             assert isinstance(i, values.W_Fixnum)
-            self.immutables.append(i.value)
+            imm.append(i.value)
+        self.immutables = imm[:]
         self.guard = guard
         if isinstance(constr_name, values.W_Symbol):
             self.constr_name = constr_name.utf8value
@@ -213,20 +214,26 @@ class W_StructType(values.W_Object):
 
     @jit.unroll_safe
     def calculate_offsets(self):
-        self.offsets = {}
-        self.immutable_fields = [] # absolut indexies
+        offsets = []
+        immutable_fields = [] # absolut indices
         struct_type = self
         while isinstance(struct_type, W_StructType):
             offset = struct_type.total_field_cnt - \
-            struct_type.init_field_cnt - struct_type.auto_field_cnt
-            self.offsets[struct_type] = offset
+                struct_type.init_field_cnt - struct_type.auto_field_cnt
+            offsets.append((struct_type, offset))
             for immutable_field in struct_type.immutables:
-                self.immutable_fields.append(immutable_field + offset)
+                immutable_fields.append(immutable_field + offset)
             struct_type = struct_type.super
+        self.offsets = offsets[:]
+        self.immutable_fields = immutable_fields[:]
 
-    @jit.elidable
+    @jit.unroll_safe
     def get_offset(self, type):
-        return self.offsets.get(type, -1)
+        for t, v in self.offsets:
+            if t == type:
+                return v
+        return -1
+        #return self.offsets.get(type, -1)
 
     def struct_type_info(self):
         name = values.W_Symbol.make(self.name)
@@ -505,7 +512,7 @@ class W_RootStruct(values.W_Object):
 @inline_small_list(immutable=True, attrname="values", unbox_num=True)
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["_type", "values"]
+    _immutable_fields_ = ["_type"]
 
     def __init__(self, type):
         self._type = type
@@ -609,7 +616,7 @@ class W_StructConstructor(values.W_Procedure):
     @jit.unroll_safe
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
-        guard_super_values = _vals._get_full_list()
+        guard_super_values = _vals.get_all_values()
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
@@ -637,7 +644,7 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
         env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
-        guard_values = _vals._get_full_list()
+        guard_values = _vals.get_all_values()
         if guard_values:
             field_values = guard_values
         super_type = jit.promote(self.type.super)

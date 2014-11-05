@@ -47,10 +47,9 @@ def variables_equal(a, b):
     return True
 
 def check_one_val(vals):
-    if vals._get_size_list() != 1:
-        raise SchemeException("expected 1 value but got %s"%(vals._get_size_list()))
-    w_val = vals._get_list(0)
-    return w_val
+    if not isinstance(vals, values.W_Object):
+        raise SchemeException("expected 1 value but got %s"%(vals.num_values()))
+    return vals
 
 class LetrecCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
@@ -68,12 +67,12 @@ class LetrecCont(Cont):
         return ast.rhss[rhsindex + 1]
 
     @jit.unroll_safe
-    def plug_reduce(self, _vals, env):
-        vals = _vals._get_full_list()
+    def plug_reduce(self, vals, env):
         ast, i = self.counting_ast.unpack(Letrec)
-        if ast.counts[i] != _vals._get_size_list():
+        if ast.counts[i] != vals.num_values():
             raise SchemeException("wrong number of values")
-        for j, w_val in enumerate(vals):
+        for j in range(vals.num_values()):
+            w_val = vals.get_value(j)
             v = self.env.lookup(ast.args.elems[ast.total_counts[i] + j], ast.args)
             assert isinstance(v, values.W_Cell)
             v.set_val(w_val)
@@ -133,7 +132,8 @@ class LetCont(Cont):
 
     @jit.unroll_safe
     def plug_reduce(self, vals, _env):
-        len_vals = vals._get_size_list()
+        # XXX remove copy
+        len_vals = vals.num_values()
         jit.promote(len_vals)
         len_self = self._get_size_list()
         jit.promote(len_self)
@@ -143,7 +143,7 @@ class LetCont(Cont):
             vals_w[i] = self._get_list(j)
             i += 1
         for j in range(len_vals):
-            vals_w[i] = vals._get_list(j)
+            vals_w[i] = vals.get_value(j)
             i += 1
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
@@ -222,7 +222,7 @@ class CellCont(Cont):
         ast = jit.promote(self.ast)
         vals_w = []
         for i, needs_cell in enumerate(ast.need_cell_flags):
-            w_val = vals._get_list(i)
+            w_val = vals.get_value(i)
             if needs_cell:
                 w_val = values.W_Cell(w_val)
             vals_w.append(w_val)
@@ -375,7 +375,7 @@ class Module(object):
             # whereas in Racket it's around the whole `define-values`
             if isinstance(f, DefineValues):
                 e = f.rhs
-                vs = interpret_one(e, self.env)._get_full_list()
+                vs = interpret_one(e, self.env).get_all_values()
                 if len(f.names) == len(vs):
                     for n in range(len(vs)):
                         self.defs[f.names[n]] = vs[n]
@@ -648,6 +648,7 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
@@ -712,6 +713,7 @@ class Begin(SequencedBodyAST):
             x.update(r.mutated_vars())
         return x
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
@@ -813,7 +815,6 @@ class ModuleVar(Var):
         else:
             return w_res
 
-    @jit.elidable
     def is_mutable(self, env):
         if self.modenv is None:
             self.modenv = env.toplevel_env().module_env
@@ -950,13 +951,13 @@ class If(AST):
                        [tst],
                        [If(LexicalVar(fresh), thn, els)])
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if w_val is values.w_false:
             return self.els, env, cont
         else:
             return self.thn, env, cont
-    interpret._always_inline_ = True
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = env_structure
@@ -1415,11 +1416,11 @@ class Let(SequencedBodyAST):
             env_structure = env_structure.prev
         return env
 
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
-    interpret._always_inline_ = True
 
     def direct_children(self):
         return self.rhss + self.body
@@ -1622,9 +1623,12 @@ def inner_interpret_two_state(ast, env, cont):
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         came_from = ast
-        if isinstance(ast, Let):
+        t = type(ast)
+        if t is Let:
             ast, env, cont = ast.interpret(env, cont)
-        elif isinstance(ast, If):
+        elif t is If:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is Begin:
             ast, env, cont = ast.interpret(env, cont)
         else:
             ast, env, cont = ast.interpret(env, cont)

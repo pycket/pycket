@@ -232,11 +232,11 @@ def label(func):
 # This is just a simple way to place a function call onto the continuation.
 @continuation
 def call_cont(proc, env, cont, vals):
-    return proc.call(vals._get_full_list(), env, cont)
+    return proc.call(vals.get_all_values(), env, cont)
 
 # A useful continuation constructor. This invokes the given procedure with
 # the enviroment and continuation when values are supplied.
 # This is just a simple way to place a function call onto the continuation.
 @continuation
 def call_extra_cont(proc, calling_app, env, cont, vals):
-    return proc.call_with_extra_info(vals._get_full_list(), env, cont, calling_app)
+    return proc.call_with_extra_info(vals.get_all_values(), env, cont, calling_app)

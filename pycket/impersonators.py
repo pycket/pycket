@@ -60,19 +60,19 @@ def lookup_property(obj, prop):
 def check_chaperone_results(args, env, cont, vals):
     # We are allowed to receive more values than arguments to compare them to.
     # Additional ones are ignored for this checking routine.
-    assert vals._get_size_list() >= len(args)
+    assert vals.num_values() >= len(args)
     return check_chaperone_results_loop(vals, args, 0, env, cont)
 
 @jit.unroll_safe
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     from pycket.prims.equal import equal_func, EqualInfo
-    while idx < len(args) and vals._get_list(idx) is None and args[idx] is None:
+    while idx < len(args) and vals.get_value(idx) is None and args[idx] is None:
         idx += 1
     if idx >= len(args):
         return return_multi_vals(vals, env, cont)
     info = EqualInfo.CHAPERONE_SINGLETON
-    return equal_func(vals._get_list(idx), args[idx], info, env,
+    return equal_func(vals.get_value(idx), args[idx], info, env,
             catch_equal_cont(vals, args, idx, env, cont))
 
 @continuation
@@ -85,12 +85,12 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
 
 @continuation
 def chaperone_reference_cont(f, args, env, cont, _vals):
-    old = _vals._get_full_list()
+    old = _vals.get_all_values()
     return f.call(args + old, env, check_chaperone_results(old, env, cont))
 
 @continuation
 def impersonate_reference_cont(f, args, env, cont, _vals):
-    old = _vals._get_full_list()
+    old = _vals.get_all_values()
     return f.call(args + old, env, cont)
 
 # Procedures
@@ -98,7 +98,7 @@ def impersonate_reference_cont(f, args, env, cont, _vals):
 # Continuation used when calling an impersonator of a procedure.
 @continuation
 def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
-    vals = _vals._get_full_list()
+    vals = _vals.get_all_values()
     if len(vals) == arg_count:
         return proc.call_with_extra_info(vals, env, cont, calling_app)
     if len(vals) == arg_count + 1:
@@ -111,7 +111,7 @@ def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
 # Have to examine the results before checking
 @continuation
 def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
-    vals = _vals._get_full_list()
+    vals = _vals.get_all_values()
     arg_count = len(orig)
     if len(vals) == arg_count:
         return proc.call_with_extra_info(vals, env, cont, calling_app)
@@ -248,6 +248,8 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth", "properties"]
+
+    @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
         assert len(prop_keys) == len(prop_vals)
@@ -318,15 +320,16 @@ def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties[*]"]
+    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
 
+    @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
-        self.inner   = inner
-        accessors    = []
-        mutators     = []
+        self.inner = inner
+        accessors  = []
+        mutators   = []
         self.struct_props = {}
         self.properties = {}
         # Does not deal with properties as of yet
@@ -526,10 +529,10 @@ class W_InterposeHashTable(values_hash.W_HashTable):
 @continuation
 def imp_hash_table_ref_cont(ht, old, env, cont, _vals):
     from pycket.interpreter import return_value
-    if _vals._get_size_list() != 2:
+    if _vals.num_values() != 2:
         return return_value(None, env, cont)
         raise SchemeException("hash-ref handler produced the wrong number of results")
-    key, post = _vals._get_full_list()
+    key, post = _vals.get_all_values()
     after = imp_hash_table_post_ref_cont(post, ht, old, env, cont)
     return ht.hash_ref(key, env, after)
 
@@ -538,14 +541,16 @@ def imp_hash_table_post_ref_cont(post, ht, old, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_multi_vals
     val = check_one_val(_vals)
     if val is None:
+        # XXX this looks wrong, check_one_val raises if there are multiple
+        # values
         return return_multi_vals(_vals, env, cont)
     return post.call([ht, old, val], env, cont)
 
 @continuation
 def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
-    if _vals._get_size_list() != 2:
+    if _vals.num_values() != 2:
         raise SchemeException("hash-ref handler produced the wrong number of results")
-    key, post = _vals._get_full_list()
+    key, post = _vals.get_all_values()
     after = check_chaperone_results([key], env,
                 imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)

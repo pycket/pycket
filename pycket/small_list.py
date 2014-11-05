@@ -75,23 +75,35 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             else:
                 cls = cls_arbitrary
             return cls(elems, *args)
-        # XXX could be done more nicely
+
+        # XXX those could be done more nicely
         def make0(*args):
-            w_result = objectmodel.instantiate(classes[0])
-            cls.__init__(w_result, *args)
-            return w_result
+            result = objectmodel.instantiate(classes[0])
+            cls.__init__(result, *args)
+            return result
         def make1(elem, *args):
-            # XXX could be done more nicely
-            w_result = objectmodel.instantiate(classes[1])
-            w_result._set_list(0, elem)
-            cls.__init__(w_result, *args)
-            return w_result
+            result = objectmodel.instantiate(classes[1])
+            result._set_list(0, elem)
+            cls.__init__(result, *args)
+            return result
+        def make_n(size, *args):
+            if sizemin <= size < sizemax:
+                subcls = classes[size - sizemin]
+            else:
+                subcls = cls_arbitrary
+            result = objectmodel.instantiate(subcls)
+            if subcls is cls_arbitrary:
+                assert isinstance(result, subcls)
+                setattr(result, attrname, [None] * size)
+            cls.__init__(result, *args)
+            return result
 
         if unbox_num:
             make, make1 = _add_num_classes(cls, make, make0, make1)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "0", staticmethod(make0))
         setattr(cls, factoryname + "1", staticmethod(make1))
+        setattr(cls, factoryname + "_n", staticmethod(make_n))
         return cls
     return wrapper
 
