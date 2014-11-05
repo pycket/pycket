@@ -137,14 +137,7 @@ class LetCont(Cont):
         jit.promote(len_vals)
         len_self = self._get_size_list()
         jit.promote(len_self)
-        vals_w = [None] * (len_self + len_vals)
-        i = 0
-        for j in range(len_self):
-            vals_w[i] = self._get_list(j)
-            i += 1
-        for j in range(len_vals):
-            vals_w[i] = vals.get_value(j)
-            i += 1
+        new_length = len_self + len_vals
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
@@ -158,12 +151,32 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = ConsEnv.make(vals_w, prev)
+            env = ConsEnv.make_n(new_length, prev)
+            self._copy_to_env(len_self, vals, len_vals, new_length, env)
             return ast.make_begin_cont(env, self.prev)
         else:
+            vals_w = [None] * new_length
+            i = 0
+            for j in range(len_self):
+                vals_w[i] = self._get_list(j)
+                i += 1
+            for j in range(len_vals):
+                vals_w[i] = vals.get_value(j)
+                i += 1
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast, rhsindex + 1,
                                  self.env, self.prev))
+
+    @jit.unroll_safe
+    def _copy_to_env(self, len_self, vals, len_vals, new_length, env):
+        i = 0
+        for j in range(len_self):
+            env._set_list(i, self._get_list(j))
+            i += 1
+        for j in range(len_vals):
+            env._set_list(i, vals.get_value(j))
+            i += 1
+
 
 
 class FusedLet0Let0Cont(Cont):
@@ -1271,7 +1284,12 @@ class Letrec(SequencedBodyAST):
 
     @jit.unroll_safe
     def interpret(self, env, cont):
-        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env)
+        n_elems = len(self.args.elems)
+        env_new = ConsEnv.make_n(n_elems, env)
+        if n_elems:
+            assert isinstance(env_new, ConsEnv)
+            for i in range(n_elems):
+                env_new._set_list(i, values.W_Cell(None))
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):
