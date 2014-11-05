@@ -556,14 +556,16 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        self._get_list(field + offset).set_val(val)
+        w_cell = self._set(field + offset, val)
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
     _ref = _get_field_val
 
     def _set(self, k, val):
-        value = self._get_list(k).set_val(val)
+        w_cell = self._get_list(k)
+        assert isinstance(w_cell, values.W_Cell)
+        w_cell.set_val(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
