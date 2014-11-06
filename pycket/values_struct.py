@@ -638,6 +638,7 @@ class W_StructConstructor(values.W_Procedure):
         guard_super_values = _vals.get_all_values()
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
+        jit.promote(self.type)
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
 
@@ -668,7 +669,7 @@ class W_StructConstructor(values.W_Procedure):
         guard_values = _vals.get_all_values()
         if guard_values:
             field_values = guard_values
-        super_type = jit.promote(self.type.super)
+        super_type = jit.promote(self.type).super
         if isinstance(super_type, W_StructType):
             split_position = len(field_values) - self.type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
@@ -703,6 +704,7 @@ class W_StructConstructor(values.W_Procedure):
     @label
     @make_call_method(simple=False)
     def call(self, args, env, cont):
+        jit.promote(self)
         return self.code(args, self.type.name, False, env, cont)
 
     def tostring(self):
