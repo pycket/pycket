@@ -12,7 +12,7 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    if v.asciivalue:
+    if v.asciivalue is not None:
         return W_String.fromascii(v.asciivalue)
     return W_String.fromunicode(v.unicodevalue)
 
