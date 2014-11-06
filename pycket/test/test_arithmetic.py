@@ -879,3 +879,8 @@ def test_expt(doctest):
     > (expt 2. -5)
     0.03125
     """
+
+def test_error(doctest):
+    """
+    E (+ 'a 1)
+    """
