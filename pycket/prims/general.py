@@ -616,13 +616,15 @@ def apply(args, env, cont, extra_call_info):
     if not fn.iscallable():
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
-    if not listp_loop(lst):
+    try:
+        rest = values.from_list(lst)
+    except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
     args_len = len(args)-1
     assert args_len >= 0
     others = args[1:args_len]
-    new_args = others + values.from_list(lst)
+    new_args = others + rest
     return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
 @expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
