@@ -338,8 +338,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.properties = {}
 
         field_cnt = self.base.struct_type().total_field_cnt
-        accessors = [(None, None) for _ in range(field_cnt)]
-        mutators  = [(None, None) for _ in range(field_cnt)]
+        accessors = [(None, None)] * field_cnt
+        mutators  = [(None, None)] * field_cnt
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
