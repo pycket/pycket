@@ -868,31 +868,31 @@ class W_Symbol(W_Object):
 
     @staticmethod
     def make(string):
-        # assume that string is a utf-8 encoded unicode string
-        value = string.decode("utf-8")
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        w_result = W_Symbol.all_symbols.get(value, None)
+        w_result = W_Symbol.all_symbols.get(string, None)
         if w_result is None:
-            W_Symbol.all_symbols[value] = w_result = W_Symbol(value)
+            # assume that string is a utf-8 encoded unicode string
+            value = string.decode("utf-8")
+            W_Symbol.all_symbols[string] = w_result = W_Symbol(value)
         return w_result
 
     @staticmethod
     def make_unreadable(string):
-        # assume that string is a utf-8 encoded unicode string
-        value = string.decode("utf-8")
-        if value in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[value]
+        if string in W_Symbol.unreadable_symbols:
+            return W_Symbol.unreadable_symbols[string]
         else:
-            W_Symbol.unreadable_symbols[value] = w_result = W_Symbol(value, True)
+            # assume that string is a utf-8 encoded unicode string
+            value = string.decode("utf-8")
+            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(value, True)
             return w_result
 
     def __repr__(self):
         return self.utf8value
 
     def is_interned(self):
-        string = self.unicodevalue
+        string = self.utf8value
         if string in W_Symbol.all_symbols:
             return W_Symbol.all_symbols[string] is self
         if string in W_Symbol.unreadable_symbols:
