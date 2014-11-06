@@ -661,3 +661,15 @@ def test_peek_bug(tmpdir):
     c = w_p.read(1)
     assert c == ''
     w_p.close()
+
+def test_listp(doctest):
+    """
+    > (list? '(1 2))
+    #t
+    > (list? (cons 1 (cons 2 '())))
+    #t
+    > (list? (cons 1 2))
+    #f
+    > (list? 1)
+    #f
+    """

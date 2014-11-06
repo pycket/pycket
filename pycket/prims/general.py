@@ -1002,8 +1002,15 @@ def listp_loop(v):
         return False
 
 @expose("list?", [values.W_Object])
-def consp(v):
-    return values.W_Bool.make(listp_loop(v))
+def listp(v):
+    if not isinstance(v, values.W_List):
+        res = False
+    elif v is values.w_null:
+        res = True
+    else:
+        assert isinstance(v, values.W_Cons)
+        res = listp_loop(v.cdr())
+    return values.W_Bool.make(res)
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):
