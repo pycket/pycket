@@ -622,10 +622,6 @@ class W_Struct(W_RootStruct):
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-@jit.elidable
-def contains(xs, i):
-    return i in xs
-
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
@@ -676,7 +672,7 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_values
         super_type = jit.promote(self.type).super
         if isinstance(super_type, W_StructType):
-            split_position = len(field_values) - type.init_field_cnt
+            split_position = len(field_values) - self.type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
             field_values = self._splice(field_values, len(field_values),\
