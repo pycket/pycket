@@ -11,6 +11,8 @@ from rpython.rlib import jit
 
 @jit.unroll_safe
 def get_base_object(x):
+    if isinstance(x, W_InterposeStructBase):
+        return x.base
     while x.is_proxy():
         x = x.get_proxied()
     return x
@@ -320,7 +322,7 @@ def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
+    _immutable_fields = ["inner", "base", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
@@ -328,17 +330,23 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
         self.inner = inner
-        accessors  = []
-        mutators   = []
+        self.base  = inner.base if isinstance(inner, W_InterposeStructBase) else inner
+
+        assert isinstance(self.base, values_struct.W_Struct)
+
         self.struct_props = {}
         self.properties = {}
+
+        field_cnt = self.base.struct_type().total_field_cnt
+        accessors = [(None, None) for _ in range(field_cnt)]
+        mutators  = [(None, None) for _ in range(field_cnt)]
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                accessors.append((base.field, op, handlers[i]))
+                accessors[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
-                mutators.append((base.field, op, handlers[i]))
+                mutators[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 self.struct_props[base] = (op, handlers[i])
             else:
@@ -356,26 +364,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         raise NotImplementedError("abstract method")
 
     def struct_type(self):
-        return self._struct_type()
-
-    @jit.elidable
-    def _struct_type(self):
-        struct = get_base_object(self.inner)
-        assert isinstance(struct, values_struct.W_Struct)
-        return struct.struct_type()
-
-    @staticmethod
-    @jit.unroll_safe
-    def lookup(lst, field):
-        field = jit.promote(field)
-        for f, op, h in lst:
-            if f == field:
-                return op, h
-        return None, None
+        return self.base.struct_type()
 
     @label
     def ref(self, struct_id, field, env, cont):
-        op, interp = self.lookup(self.accessors, field)
+        op, interp = self.accessors[field]
         if op is None or interp is None:
             return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
@@ -383,7 +376,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        op, interp = self.lookup(self.mutators, field)
+        op, interp = self.mutators[field]
         if op is None or interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, val, env, cont)
