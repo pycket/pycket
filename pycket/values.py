@@ -1088,7 +1088,7 @@ class W_Closure(W_Procedure):
                 actuals = lam.match_args(args)
             except SchemeException:
                 if len(self.caselam.lams) == 1:
-                    raise
+                    lam.raise_nice_error(args)
             else:
                 frees = self._get_list(i)
                 return (actuals, frees, lam)

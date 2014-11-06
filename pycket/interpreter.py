@@ -1167,6 +1167,20 @@ class Lambda(SequencedBodyAST):
         fmls_len = len(self.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.rest:
+            # don't format errors here, this is often caught and discarded
+            raise SchemeException("wrong args")
+        if fmls_len > args_len:
+            raise SchemeException("not enough args")
+        if self.rest:
+            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        else:
+            actuals = args
+        return actuals
+
+    def raise_nice_error(self, args):
+        fmls_len = len(self.formals)
+        args_len = len(args)
+        if fmls_len != args_len and not self.rest:
             raise SchemeException(
                 "wrong number of arguments to %s, expected %s but got %s" % (
                     self.tostring(), fmls_len,args_len))
@@ -1174,11 +1188,6 @@ class Lambda(SequencedBodyAST):
             raise SchemeException(
                 "wrong number of arguments to %s, expected at least %s but got %s" % (
                     self.tostring(), fmls_len,args_len))
-        if self.rest:
-            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
-        else:
-            actuals = args
-        return actuals
 
     @jit.unroll_safe
     def collect_frees(self, recursive_sym, env, closure):
@@ -1200,6 +1209,7 @@ class Lambda(SequencedBodyAST):
                 vals.append(env.lookup(v, self.enclosing_env_structure))
         return vals[:]
 
+    @jit.elidable
     def tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
