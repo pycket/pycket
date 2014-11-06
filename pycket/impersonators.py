@@ -336,9 +336,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                accessors.append((base.field.value, op, handlers[i]))
+                accessors.append((base.field, op, handlers[i]))
             elif isinstance(base, values_struct.W_StructFieldMutator):
-                mutators.append((base.field.value, op, handlers[i]))
+                mutators.append((base.field, op, handlers[i]))
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 self.struct_props[base] = (op, handlers[i])
             else:

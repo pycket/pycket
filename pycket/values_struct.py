@@ -205,6 +205,7 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
+        self.field_types = [None] * self.total_field_cnt
         self.calculate_offsets()
 
         self.constr = W_StructConstructor(self)
@@ -520,9 +521,6 @@ class W_Struct(W_RootStruct):
     @staticmethod
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
-        for i, value in enumerate(w_values):
-            if i not in w_struct_type.immutable_fields:
-                w_values[i] = values.W_Cell(value)
         return W_Struct.make(w_values, w_struct_type)
 
     @jit.unroll_safe
@@ -621,9 +619,11 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(self.type.auto_values) > 0:
             field_values = field_values + self.type.auto_values
+
         for i, value in enumerate(field_values):
             if i not in self.type.immutable_fields:
                 field_values[i] = values.W_Cell(value)
+
         result = W_Struct.make(field_values, self.type)
         return return_value(result, env, cont)
 
@@ -708,11 +708,12 @@ class W_StructPredicate(values.W_Procedure):
 
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
-    _immutable_fields_ = ["accessor", "field"]
+    _immutable_fields_ = ["accessor", "field", "field_name"]
     def __init__ (self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
+        assert isinstance(field, values.W_Fixnum)
         self.accessor = accessor
-        self.field = field
+        self.field = field.value
         self.field_name = field_name
 
     @label
@@ -730,9 +731,12 @@ class W_StructAccessor(values.W_Procedure):
         self.type = type
 
     def access(self, struct, field, env, cont):
-        return struct.ref(self.type, field.value, env, cont)
+        return struct.ref(self.type, field, env, cont)
 
-    call = label(make_call_method([W_RootStruct, values.W_Fixnum], simple=False)(access))
+    @label
+    @make_call_method([W_RootStruct, values.W_Fixnum], simple=False)
+    def call(self, struct, field, env, cont):
+        return struct.ref(self.type, field.value, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -742,8 +746,9 @@ class W_StructFieldMutator(values.W_Procedure):
     _immutable_fields_ = ["mutator", "field"]
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
+        assert isinstance(field, values.W_Fixnum)
         self.mutator = mutator
-        self.field = field
+        self.field = field.value
         self.field_name = field_name
 
     @label
@@ -761,9 +766,12 @@ class W_StructMutator(values.W_Procedure):
         self.type = type
 
     def mutate(self, struct, field, val, env, cont):
-        return struct.set(self.type, field.value, val, env, cont)
+        return struct.set(self.type, field, val, env, cont)
 
-    call = label(make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)(mutate))
+    @label
+    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)
+    def call(self, struct, field, val, env, cont):
+        return struct.set(self.type, field.value, val, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
