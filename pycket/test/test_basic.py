@@ -384,6 +384,13 @@ def test_eqv():
     run("""(let ((x '(a)))
            (eqv? x x))""", w_true)
 
+def test_eqv_doc(doctest):
+    """
+    > (eqv? 0.0 -0.0)
+    #f
+    """
+
+
 def test_caselambda():
     run("(case-lambda [(x) 1])")
     run("(case-lambda [(x) x])")

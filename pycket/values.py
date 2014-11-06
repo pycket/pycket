@@ -577,13 +577,16 @@ class W_Fixnum(W_Integer):
         return self.value
 
 
-@memoize_constructor
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
     errorname = "flonum"
 
     def __init__(self, val):
         self.value = val
+
+    @staticmethod
+    def make(val):
+        return W_Flonum(val)
 
     def tostring(self):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
