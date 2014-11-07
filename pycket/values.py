@@ -255,12 +255,20 @@ class W_Cons(W_List):
     @staticmethod
     def make(car, cdr):
         if not _enable_cons_specialization:
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
+            if cdr.is_proper_list():
+                return W_UnwrappedFixnumConsProper(car, cdr)
             return W_UnwrappedFixnumCons(car, cdr)
         elif isinstance(car, W_Flonum):
+            if cdr.is_proper_list():
+                return W_UnwrappedFlonumConsProper(car, cdr)
             return W_UnwrappedFlonumCons(car, cdr)
         else:
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
 
     def car(self):
@@ -309,6 +317,10 @@ class W_UnwrappedFixnumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
+    def is_proper_list(self):
+        return True
+
 class W_UnwrappedFlonumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -322,6 +334,10 @@ class W_UnwrappedFlonumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+class W_UnwrappedFlonumConsProper(W_UnwrappedFlonumCons):
+    def is_proper_list(self):
+        return True
+
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -332,6 +348,9 @@ class W_WrappedCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+class W_WrappedConsProper(W_WrappedCons):
+    def is_proper_list(self):
+        return True
 
 class W_Box(W_Object):
     errorname = "box"
@@ -723,8 +742,14 @@ class W_Void(W_Object):
         return "#<void>"
 
 class W_Null(W_List):
-    def __init__(self): pass
-    def tostring(self): return "()"
+    def __init__(self):
+        pass
+
+    def tostring(self):
+        return "()"
+
+    def is_proper_list(self):
+        return True
 
 w_void = W_Void()
 w_null = W_Null()

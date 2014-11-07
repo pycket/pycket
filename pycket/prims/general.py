@@ -994,25 +994,9 @@ def make_hasheq_placeholder(vals):
 def make_hasheqv_placeholder(vals):
     return values.W_HashTablePlaceholder([], [])
 
-# my kingdom for a tail call
-def listp_loop(v):
-    while True:
-        if v is values.w_null: return True
-        if isinstance(v, values.W_Cons):
-            v = v.cdr()
-            continue
-        return False
-
 @expose("list?", [values.W_Object])
 def listp(v):
-    if not isinstance(v, values.W_List):
-        res = False
-    elif v is values.w_null:
-        res = True
-    else:
-        assert isinstance(v, values.W_Cons)
-        res = listp_loop(v.cdr())
-    return values.W_Bool.make(res)
+    return values.W_Bool.make(v.is_proper_list())
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):

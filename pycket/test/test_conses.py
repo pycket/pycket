@@ -9,13 +9,14 @@ from pycket.test.testhelper import execute, run_fix, run
 class TestConses(object):
 
     def test_basics(self):
-        c =  W_Cons.make(1, 2)
-        assert c.car() == 1
-        assert c.cdr() == 2
-        l = to_list([1, 2, 3])
-        assert l.car() == 1
-        assert l.cdr().car() == 2
-        assert l.cdr().cdr().car() == 3
+        _1, _2, _3 = W_Fixnum(1), W_Fixnum(2), W_Fixnum(3)
+        c =  W_Cons.make(_1, _2)
+        assert c.car().value == _1.value
+        assert c.cdr().value == _2.value
+        l = to_list([_1, _2, _3])
+        assert l.car().value == _1.value
+        assert l.cdr().car().value == _2.value
+        assert l.cdr().cdr().car().value == _3.value
         assert l.cdr().cdr().cdr() == w_null
 
 
@@ -51,3 +52,18 @@ class TestConses(object):
         assert isinstance(c.car(), W_Flonum)
         assert isinstance(c.cdr(), W_Flonum)
 
+    def test_proper(self):
+        assert w_null.is_proper_list()
+        _1 = W_Flonum(1.2)
+        _2 = W_Flonum(2.2)
+        c =  W_Cons.make(_1, _2)
+        assert not c.is_proper_list()
+
+        c = W_Cons.make(_1, w_null)
+        assert c.is_proper_list()
+
+        c = W_Cons.make(c, c)
+        assert c.is_proper_list()
+
+        c =  W_Cons.make(W_Fixnum(1), c)
+        assert c.is_proper_list()

@@ -60,6 +60,9 @@ class W_Object(W_ProtoObject):
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 
+    def is_proper_list(self):
+        return False
+
     def is_impersonator(self):
         return self.is_chaperone()
     def is_chaperone(self):
