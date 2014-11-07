@@ -684,6 +684,9 @@ def test_inexact_to_exact(doctest):
     102222222222222223892324523663483522756187192341561344
     """
 
+
+# racket behavior, probably uninteresting
+@pytest.mark.skipif("True")
 def test_unsafe_weirdness(doctest):
     """
     ! (require '#%flfxnum '#%unsafe)
