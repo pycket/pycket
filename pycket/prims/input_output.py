@@ -560,6 +560,7 @@ def printf(args):
 
 # XXX: copied code from printf, the format code is really slow
 @expose("format")
+@jit.look_inside_iff(lambda args: jit.isconstant(args[0]))
 def do_format(args):
     if len(args) == 0:
         raise SchemeException("format: expects format string")
@@ -570,26 +571,44 @@ def do_format(args):
     i = 0
     j = 1
     result = StringBuilder()
-    while i < len(fmt):
-        if fmt[i] == '~':
-            if i+1 == len(fmt):
-                raise SchemeException("bad format string")
-            s = fmt[i+1]
-            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
-                # print a value
-                # FIXME: different format chars
-                if j >= len(args):
-                    raise SchemeException("not enough arguments for format string")
-                result.append(args[j].tostring())
-                j += 1
-            elif s == 'n':
-                result.append("\n") # newline
-            else:
-                raise SchemeException("unexpected format character")
-            i += 2
-        else:
-            result.append(fmt[i])
+    len_fmt = len(fmt)
+    while True:
+        i0 = i
+        while i < len_fmt:
+            if fmt[i] == '~':
+                break
             i += 1
+        else:
+            # not left via break, so we're done
+            result.append_slice(fmt, i0, len_fmt)
+            break
+        result.append_slice(fmt, i0, i)
+        if i+1 == len_fmt:
+            raise SchemeException("bad format string")
+        s = fmt[i+1]
+        if (s == 'a' or # turns into switch
+                s == 'A' or
+                s == 's' or
+                s == 'S' or
+                s == 'v' or
+                s == 'V' or
+                s == 'e' or
+                s == 'E'):
+            # print a value
+            # FIXME: different format chars
+            if j >= len(args):
+                raise SchemeException("not enough arguments for format string")
+            result.append(args[j].tostring())
+            j += 1
+        elif s == 'n' or s == '%':
+            result.append("\n") # newline
+        elif s == '~':
+            result.append("~")
+        else:
+            raise SchemeException("unexpected format character")
+        i += 2
+    if j != len(args):
+        raise SchemeException("not all values used")
     return values_string.W_String.fromstr_utf8(result.build())
 
 @expose("fprintf", simple=False)
