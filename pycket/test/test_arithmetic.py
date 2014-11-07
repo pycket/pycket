@@ -696,6 +696,10 @@ def test_flonum_unsafe(doctest):
     1.0
     > (unsafe-fl/ 2.0 0.5)
     4.0
+    > (unsafe-flmin 3.0 5.4)
+    3.0
+    > (unsafe-flmax 3.0 5.4)
+    5.4
     """
 
 def test_fixnum_unsafe(doctest):

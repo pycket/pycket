@@ -257,6 +257,19 @@ class W_StructType(values.W_Object):
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
 
+    @jit.elidable_promote('all')
+    def read_prop_precise(self, prop):
+        for p, val in self.props:
+            if p is prop:
+                return val
+        return None
+
+    @jit.elidable_promote('all')
+    def read_prop(self, prop):
+        for p, val in self.props:
+            if p.isinstance(prop):
+                return val
+        return None
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
@@ -459,9 +472,9 @@ class W_RootStruct(values.W_Object):
         args_len = len(args)
         (ls, at_least) = proc.get_arity()
         if (args_len < at_least or at_least == -1) and args_len not in ls:
-            for w_prop, w_prop_val in self.struct_type().props:
-                if w_prop.isinstance(w_prop_arity_string):
-                    return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
+            w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
+            if w_prop_val:
+                return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
         return proc.call(args, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
@@ -515,7 +528,7 @@ class W_Struct(W_RootStruct):
 
     def _get_field_val(self, i):
         w_res = self._get_list(i)
-        immutable = jit.promote(self._type).is_immutable_field_index(i)
+        immutable = self.struct_type().is_immutable_field_index(i)
         if not immutable:
             assert isinstance(w_res, values.W_Cell)
             w_res = w_res.get_val()
@@ -535,7 +548,7 @@ class W_Struct(W_RootStruct):
         return values
 
     def struct_type(self):
-        return self._type
+        return jit.promote(self._type)
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
@@ -543,7 +556,7 @@ class W_Struct(W_RootStruct):
     @label
     def ref(self, type, field, env, cont):
         from pycket.interpreter import return_value
-        offset = jit.promote(self._type).get_offset(type)
+        offset = self.struct_type().get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         value = self._get_field_val(field + offset)
@@ -552,7 +565,7 @@ class W_Struct(W_RootStruct):
     @label
     def set(self, type, field, val, env, cont):
         from pycket.interpreter import return_value
-        offset = jit.promote(self._type).get_offset(type)
+        offset = self.struct_type().get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         w_cell = self._set(field + offset, val)
@@ -571,9 +584,9 @@ class W_Struct(W_RootStruct):
     @label
     def get_prop(self, property, env, cont):
         from pycket.interpreter import return_value
-        for p, val in self._type.props:
-            if p is property:
-                return return_value(val, env, cont)
+        val = self.struct_type().read_prop_precise(property)
+        if val is not None:
+            return return_value(val, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
 
@@ -598,27 +611,28 @@ class W_Struct(W_RootStruct):
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):
-        for w_prop, w_val in self._type.props:
-            if w_prop.isinstance(w_prop_custom_write):
-                assert isinstance(w_val, values_vector.W_Vector)
-                w_write_proc = w_val.ref(0)
-                port = values.W_StringOutputPort()
-                # TODO: #t for write mode, #f for display mode,
-                # or 0 or 1 indicating the current quoting depth for print mode
-                mode = values.w_false
-                return w_write_proc.call([self, port, mode], env, cont)
+        w_val = self.struct_type().read_prop(w_prop_custom_write)
+        if w_val is not None:
+            assert isinstance(w_val, values_vector.W_Vector)
+            w_write_proc = w_val.ref(0)
+            port = values.W_StringOutputPort()
+            # TODO: #t for write mode, #f for display mode,
+            # or 0 or 1 indicating the current quoting depth for print mode
+            mode = values.w_false
+            return w_write_proc.call([self, port, mode], env, cont)
         return self.tostring()
 
     def tostring(self):
-        if self._type.isopaque:
-            result =  "#<%s>" % self._type.name
+        typ = self.struct_type()
+        if typ.isopaque:
+            result =  "#<%s>" % typ.name
         else:
-            if self._type.isprefab:
+            if typ.isprefab:
                 result = "#s(%s %s)" %\
-                    (W_PrefabKey.from_struct_type(self._type).short_key()\
+                    (W_PrefabKey.from_struct_type(typ).short_key()\
                         .tostring(), ' '.join([val.tostring() for val in self.vals()]))
             else:
-                result = "(%s %s)" % (self._type.name,\
+                result = "(%s %s)" % (typ.name,\
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
@@ -839,10 +853,9 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def call(self, arg):
         if not isinstance(arg, W_RootStruct):
             return values.w_false
-        props = arg.struct_type().props
-        for p, val in props:
-            if p is self.property:
-                return values.w_true
+        w_val = arg.struct_type().read_prop_precise(self.property)
+        if w_val is not None:
+            return values.w_true
         return values.w_false
 
 class W_StructPropertyAccessor(values.W_Procedure):
@@ -856,9 +869,9 @@ class W_StructPropertyAccessor(values.W_Procedure):
         from pycket.interpreter import return_value
         arg = args[0]
         if isinstance(arg, W_StructType):
-            for p, val in arg.props:
-                if p is self.property:
-                    return return_value(val, env, cont)
+            w_val = arg.read_prop_precise(self.property)
+            if w_val is not None:
+                return return_value(w_val, env, cont)
         elif isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
         elif len(args) > 1:

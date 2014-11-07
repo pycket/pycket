@@ -422,3 +422,11 @@ def unsafe_fltimes(a, b):
 @expose("unsafe-fl/", [unsafe(values.W_Flonum)] * 2)
 def unsafe_fldiv(a, b):
     return values.W_Flonum(a.value / b.value)
+
+@expose("unsafe-flmin", [unsafe(values.W_Flonum)] * 2)
+def unsafe_flmin(a, b):
+    return values.W_Flonum(min(a.value, b.value))
+
+@expose("unsafe-flmax", [unsafe(values.W_Flonum)] * 2)
+def unsafe_flmax(a, b):
+    return values.W_Flonum(max(a.value, b.value))

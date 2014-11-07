@@ -152,16 +152,16 @@ def equal_func(a, b, info, env, cont):
         if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
             a_type = a.struct_type()
             b_type = b.struct_type()
-            for w_car, w_prop in a_type.props:
-                if w_car.isinstance(values_struct.w_prop_equal_hash):
-                    for w_car, w_prop in b_type.props:
-                        if w_car.isinstance(values_struct.w_prop_equal_hash):
-                            assert isinstance(w_prop, values_vector.W_Vector)
-                            w_equal_proc, w_hash_proc, w_hash2_proc = \
-                                w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
-                            # FIXME: it should work with cycles properly and be an equal?-recur
-                            w_equal_recur = equalp.w_prim
-                            return w_equal_proc.call([a, b, w_equal_recur], env, cont)
+            w_prop = a_type.read_prop(values_struct.w_prop_equal_hash)
+            if w_prop:
+                w_prop = b_type.read_prop(values_struct.w_prop_equal_hash)
+                if w_prop:
+                    assert isinstance(w_prop, values_vector.W_Vector)
+                    w_equal_proc, w_hash_proc, w_hash2_proc = \
+                        w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+                    # FIXME: it should work with cycles properly and be an equal?-recur
+                    w_equal_recur = equalp.w_prim
+                    return w_equal_proc.call([a, b, w_equal_recur], env, cont)
             if not a.struct_type().isopaque and not b.struct_type().isopaque:
                 # This is probably not correct even if struct2vector were done
                 # correct, due to side effects, but it is close enough for now.
