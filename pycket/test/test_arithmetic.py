@@ -685,15 +685,6 @@ def test_inexact_to_exact(doctest):
     """
 
 
-# racket behavior, probably uninteresting
-@pytest.mark.skipif("True")
-def test_unsafe_weirdness(doctest):
-    """
-    ! (require '#%flfxnum '#%unsafe)
-    > (unsafe-fl= 2 2.0)
-    #t
-    """
-
 def test_flonum_unsafe(doctest):
     """
     ! (require '#%flfxnum '#%unsafe)
