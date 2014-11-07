@@ -4,6 +4,7 @@
 from pycket.cont import continuation, label, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
+from pycket.values import UNROLLING_CUTOFF
 from pycket import values
 from pycket import values_struct
 from pycket import values_hash
@@ -324,29 +325,44 @@ def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals)
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "base", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
+    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]",
+                         "struct_props[*]", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
+
         self.inner = inner
-        self.base  = inner.base if isinstance(inner, W_InterposeStructBase) else inner
+
+        field_cnt = inner.struct_type().total_field_cnt
+        accessors = [(None, None)] * field_cnt
+        mutators  = [(None, None)] * field_cnt
+
+        # The mask field contains an array of pointers to the next object
+        # in the proxy stack that overrides a given field operation.
+        # In some cases, this allows us to jump straight to the base struct,
+        # but in general may allow us to skip many levels of ref operations at
+        # once.
+        if isinstance(inner, W_InterposeStructBase):
+            self.base  = inner.base
+            mask       = inner.mask[:]
+        else:
+            self.base  = inner
+            mask       = [inner] * field_cnt
 
         assert isinstance(self.base, values_struct.W_Struct)
 
         self.struct_props = {}
         self.properties = {}
 
-        field_cnt = self.base.struct_type().total_field_cnt
-        accessors = [(None, None)] * field_cnt
-        mutators  = [(None, None)] * field_cnt
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 op = None if type(op) is values_struct.W_StructFieldAccessor else op
+                mask[base.field] = self
                 accessors[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 op = None if type(op) is values_struct.W_StructFieldMutator else op
@@ -360,6 +376,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             self.properties[k] = prop_vals[i]
         self.accessors = accessors[:]
         self.mutators  = mutators[:]
+        self.mask      = mask
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -372,9 +389,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def ref(self, struct_id, field, env, cont):
+        goto = self.mask[field]
+        if goto is not self:
+            return goto.ref(struct_id, field, env, cont)
         op, interp = self.accessors[field]
-        if interp is None:
-            return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
         if op is None:
             return self.inner.ref(struct_id, field, env, after)
