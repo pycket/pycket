@@ -4,6 +4,7 @@
 from pycket.cont import continuation, label, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
+from pycket.values import UNROLLING_CUTOFF
 from pycket import values
 from pycket import values_struct
 from pycket import values_hash
@@ -11,6 +12,8 @@ from rpython.rlib import jit
 
 @jit.unroll_safe
 def get_base_object(x):
+    if isinstance(x, W_InterposeStructBase):
+        return x.base
     while x.is_proxy():
         x = x.get_proxied()
     return x
@@ -50,7 +53,8 @@ def make_impersonator(cls):
 @jit.unroll_safe
 def lookup_property(obj, prop):
     while obj.is_proxy():
-        val = obj.get_properties().get(prop, None)
+        props = obj.get_properties()
+        val   = props.get(prop, None) if props is not None else None
         if val is not None:
             return val
         obj = obj.get_proxied()
@@ -311,91 +315,113 @@ def valid_struct_proc(x):
             isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
+    if setter is None:
+        return orig_struct.set(struct_id, field, val, env, cont)
     return setter.call([orig_struct, val], env, cont)
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "accessors[*]", "mutators[*]", "struct_props[*]", "properties"]
+    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert len(prop_keys) == len(prop_vals)
+
         self.inner = inner
-        accessors  = []
-        mutators   = []
-        self.struct_props = {}
-        self.properties = {}
+
+        field_cnt = inner.struct_type().total_field_cnt
+        accessors = [(None, None)] * field_cnt
+        mutators  = [(None, None)] * field_cnt
+
+        # The mask field contains an array of pointers to the next object
+        # in the proxy stack that overrides a given field operation.
+        # In some cases, this allows us to jump straight to the base struct,
+        # but in general may allow us to skip many levels of ref operations at
+        # once.
+        if isinstance(inner, W_InterposeStructBase):
+            self.base  = inner.base
+            mask       = inner.mask[:]
+        else:
+            self.base  = inner
+            mask       = [inner] * field_cnt
+
+        assert isinstance(self.base, values_struct.W_Struct)
+
+        self.struct_props = None
+        self.properties   = None
+
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                accessors.append((base.field, op, handlers[i]))
+                op = None if type(op) is values_struct.W_StructFieldAccessor else op
+                mask[base.field] = self
+                accessors[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
-                mutators.append((base.field, op, handlers[i]))
+                op = None if type(op) is values_struct.W_StructFieldMutator else op
+                mutators[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
+                if self.struct_props is None:
+                    self.struct_props = {}
                 self.struct_props[base] = (op, handlers[i])
             else:
                 assert False
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
+            if self.properties is None:
+                self.properties = {}
             self.properties[k] = prop_vals[i]
         self.accessors = accessors[:]
         self.mutators  = mutators[:]
+        self.mask      = mask
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
 
-    def post_set_cont(self, op, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
         raise NotImplementedError("abstract method")
 
     def struct_type(self):
-        return self._struct_type()
-
-    @jit.elidable
-    def _struct_type(self):
-        struct = get_base_object(self.inner)
-        assert isinstance(struct, values_struct.W_Struct)
-        return struct.struct_type()
-
-    @staticmethod
-    @jit.unroll_safe
-    def lookup(lst, field):
-        field = jit.promote(field)
-        for f, op, h in lst:
-            if f == field:
-                return op, h
-        return None, None
+        return self.base.struct_type()
 
     @label
     def ref(self, struct_id, field, env, cont):
-        op, interp = self.lookup(self.accessors, field)
-        if op is None or interp is None:
-            return self.inner.ref(struct_id, field, env, cont)
+        goto = self.mask[field]
+        if goto is not self:
+            return goto.ref(struct_id, field, env, cont)
+        op, interp = self.accessors[field]
         after = self.post_ref_cont(interp, env, cont)
+        if op is None:
+            return self.inner.ref(struct_id, field, env, after)
         return op.call([self.inner], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        op, interp = self.lookup(self.mutators, field)
-        if op is None or interp is None:
+        op, interp = self.mutators[field]
+        if interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
-        after = self.post_set_cont(op, val, env, cont)
+        after = self.post_set_cont(op, struct_id, field, val, env, cont)
         return interp.call([self.inner, val], env, after)
 
     @label
     def get_prop(self, property, env, cont):
+        if self.struct_props is None:
+            return self.inner.get_prop(property, env, cont)
         op, interp = self.struct_props.get(property, (None, None))
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
         after = self.post_ref_cont(interp, env, cont)
         return op.call([self.inner], env, after)
+
+    def get_arity(self):
+        return self.inner.get_arity()
 
     # FIXME: This is incorrect
     def vals(self):
@@ -408,8 +434,8 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, env, cont):
         return impersonate_reference_cont(interp, [self.inner], env, cont)
 
-    def post_set_cont(self, op, val, env, cont):
-        return imp_struct_set_cont(self.inner, op, env, cont)
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
+        return imp_struct_set_cont(self.inner, op, struct_id, field, env, cont)
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
@@ -417,9 +443,9 @@ class W_ChpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, env, cont):
         return chaperone_reference_cont(interp, [self.inner], env, cont)
 
-    def post_set_cont(self, op, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
         return check_chaperone_results([val], env,
-                imp_struct_set_cont(self.inner, op, env, cont))
+                imp_struct_set_cont(self.inner, op, struct_id, field, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):

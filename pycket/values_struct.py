@@ -27,10 +27,10 @@ current_inspector = W_StructInspector(None)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
-    _immutable_fields_ = ["name", "super", "init_field_cnt", \
-        "auto_field_cnt", "total_field_cnt", "auto_v", "props", "inspector", \
-        "immutables[*]", "immutable_fields[*]", "guard", "constr_name", "auto_values[*]",
-        "offsets[*]", "constr", "pred", "acc", "mut"]
+    _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
+            "total_field_cnt", "auto_v", "props", "inspector",
+            "immutables[*]", "immutable_fields[*]", "guard", "constr_name", "auto_values[*]",
+            "offsets[*]", "constr", "pred", "acc", "mut"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -231,10 +231,9 @@ class W_StructType(values.W_Object):
     @jit.unroll_safe
     def get_offset(self, type):
         for t, v in self.offsets:
-            if t == type:
+            if t is type:
                 return v
         return -1
-        #return self.offsets.get(type, -1)
 
     def struct_type_info(self):
         name = values.W_Symbol.make(self.name)
@@ -253,6 +252,11 @@ class W_StructType(values.W_Object):
 
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
+
+    @jit.elidable
+    def is_immutable_field_index(self, i):
+        return i in self.immutable_fields
+
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
@@ -408,7 +412,7 @@ class W_PrefabKey(values.W_Object):
         key.append(values.W_Symbol.make(self.name))
         key.append(values.W_Fixnum.make(self.init_field_cnt))
         if self.auto_field_cnt > 0:
-            key.append(values.to_list(\
+            key.append(values.to_list(
                 [values.W_Fixnum.make(self.auto_field_cnt), self.auto_v]))
         mutables = []
         for i in self.mutables:
@@ -430,6 +434,8 @@ class W_PrefabKey(values.W_Object):
 
 class W_RootStruct(values.W_Object):
     errorname = "root-struct"
+    _attrs_ = []
+    _settled_ = True
 
     def __init__(self):
         raise NotImplementedError("abstract base class")
@@ -472,25 +478,7 @@ class W_RootStruct(values.W_Object):
         return self.checked_call(proc, args, env, cont)
 
     def get_arity(self):
-        if self.iscallable():
-            typ = self.struct_type()
-            proc = typ.prop_procedure
-            if isinstance(proc, values.W_Fixnum):
-                offset = typ.get_offset(typ.procedure_source)
-                proc = self._get_list(proc.value + offset)
-                if isinstance(proc, values.W_Cell):
-                    proc = proc.get_val()
-                return proc.get_arity()
-            else:
-                # -1 for the self argument
-                (ls, at_least) = proc.get_arity()
-                for i, val in enumerate(ls):
-                    ls[i] = val - 1
-                if at_least != -1:
-                    at_least -= 1
-                return ([val for val in ls if val != -1], at_least)
-        else:
-            raise SchemeException("%s does not have arity" % self.tostring())
+        raise NotImplementedError("abstract base class")
 
     def struct_type(self):
         raise NotImplementedError("abstract base class")
@@ -501,6 +489,13 @@ class W_RootStruct(values.W_Object):
 
     @label
     def set(self, struct_type, field, val, env, cont):
+        raise NotImplementedError("abstract base class")
+
+    # unsafe versions
+    def _ref(self, k):
+        raise NotImplementedError("abstract base class")
+
+    def _set(self, k, val):
         raise NotImplementedError("abstract base class")
 
     @label
@@ -518,6 +513,14 @@ class W_Struct(W_RootStruct):
     def __init__(self, type):
         self._type = type
 
+    def _get_field_val(self, i):
+        w_res = self._get_list(i)
+        immutable = jit.promote(self._type).is_immutable_field_index(i)
+        if not immutable:
+            assert isinstance(w_res, values.W_Cell)
+            w_res = w_res.get_val()
+        return w_res
+
     @staticmethod
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
@@ -525,9 +528,10 @@ class W_Struct(W_RootStruct):
 
     @jit.unroll_safe
     def vals(self):
-        values = self._get_full_list()
-        for i, val in enumerate(values):
-            values[i] = val if i in self._type.immutable_fields else val.get_val()
+        size = self._get_size_list()
+        values = [None] * size
+        for i in range(size):
+            values[i] = self._get_field_val(i)
         return values
 
     def struct_type(self):
@@ -542,9 +546,7 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        value = self._get_list(field + offset)
-        if isinstance(value, values.W_Cell):
-            value = value.get_val()
+        value = self._get_field_val(field + offset)
         return return_value(value, env, cont)
 
     @label
@@ -553,17 +555,16 @@ class W_Struct(W_RootStruct):
         offset = jit.promote(self._type).get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        self._get_list(field + offset).set_val(val)
+        w_cell = self._set(field + offset, val)
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
-    def _ref(self, k):
-        value = self._get_list(k)
-        if isinstance(value, values.W_Cell):
-            return value.get_val()
-        return value
+    _ref = _get_field_val
+
     def _set(self, k, val):
-        value = self._get_list(k).set_val(val)
+        w_cell = self._get_list(k)
+        assert isinstance(w_cell, values.W_Cell)
+        w_cell.set_val(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
@@ -575,6 +576,25 @@ class W_Struct(W_RootStruct):
                 return return_value(val, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
+
+    def get_arity(self):
+        if self.iscallable():
+            typ = self.struct_type()
+            proc = typ.prop_procedure
+            if isinstance(proc, values.W_Fixnum):
+                offset = typ.get_offset(typ.procedure_source)
+                proc = self._get_field_val(proc.value + offset)
+                return proc.get_arity()
+            else:
+                # -1 for the self argument
+                (ls, at_least) = proc.get_arity()
+                for i, val in enumerate(ls):
+                    ls[i] = val - 1
+                if at_least != -1:
+                    at_least -= 1
+                return ([val for val in ls if val != -1], at_least)
+        else:
+            raise SchemeException("%s does not have arity" % self.tostring())
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):
@@ -615,16 +635,17 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         guard_super_values = _vals.get_all_values()
+        type = jit.promote(self.type)
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
-        if len(self.type.auto_values) > 0:
-            field_values = field_values + self.type.auto_values
+        if len(type.auto_values) > 0:
+            field_values = field_values + type.auto_values
 
         for i, value in enumerate(field_values):
-            if i not in self.type.immutable_fields:
+            if not type.is_immutable_field_index(i):
                 field_values[i] = values.W_Cell(value)
 
-        result = W_Struct.make(field_values, self.type)
+        result = W_Struct.make(field_values, type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe
@@ -645,11 +666,12 @@ class W_StructConstructor(values.W_Procedure):
         env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
         guard_values = _vals.get_all_values()
+        type = jit.promote(self.type)
         if guard_values:
             field_values = guard_values
-        super_type = jit.promote(self.type.super)
+        super_type = jit.promote(type.super)
         if isinstance(super_type, W_StructType):
-            split_position = len(field_values) - self.type.init_field_cnt
+            split_position = len(field_values) - type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
             field_values = self._splice(field_values, len(field_values),\
@@ -669,13 +691,14 @@ class W_StructConstructor(values.W_Procedure):
 
     def code(self, field_values, struct_type_name, issuper, env, cont):
         from pycket.interpreter import jump
-        if self.type.guard is values.w_false:
+        type = jit.promote(self.type)
+        if type.guard is values.w_false:
             return jump(env, self.constr_proc_wrapper_cont(field_values,
                 struct_type_name, issuper, env, cont))
         else:
             guard_args = field_values + [values.W_Symbol.make(struct_type_name)]
             jit.promote(self)
-            return self.type.guard.call(guard_args, env,
+            return type.guard.call(guard_args, env,
                 self.constr_proc_wrapper_cont(field_values, struct_type_name,
                     issuper, env, cont))
 
@@ -690,10 +713,11 @@ class W_StructConstructor(values.W_Procedure):
 class W_StructPredicate(values.W_Procedure):
     errorname = "struct-predicate"
     _immutable_fields_ = ["type"]
-    def __init__ (self, type):
+    def __init__(self, type):
         self.type = type
 
     @make_call_method([values.W_Object])
+    @jit.unroll_safe
     def call(self, struct):
         if isinstance(struct, W_RootStruct):
             struct_type = struct.struct_type()
@@ -709,7 +733,7 @@ class W_StructPredicate(values.W_Procedure):
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
     _immutable_fields_ = ["accessor", "field", "field_name"]
-    def __init__ (self, accessor, field, field_name):
+    def __init__(self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
         assert isinstance(field, values.W_Fixnum)
         self.accessor = accessor
@@ -727,7 +751,7 @@ class W_StructFieldAccessor(values.W_Procedure):
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
     _immutable_fields_ = ["type"]
-    def __init__ (self, type):
+    def __init__(self, type):
         self.type = type
 
     def access(self, struct, field, env, cont):
@@ -743,7 +767,7 @@ class W_StructAccessor(values.W_Procedure):
 
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
-    _immutable_fields_ = ["mutator", "field"]
+    _immutable_fields_ = ["mutator", "field", "field_name"]
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
         assert isinstance(field, values.W_Fixnum)
@@ -809,7 +833,9 @@ class W_StructPropertyPredicate(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
+
     @make_call_method([values.W_Object])
+    @jit.unroll_safe
     def call(self, arg):
         if not isinstance(arg, W_RootStruct):
             return values.w_false

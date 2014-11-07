@@ -616,13 +616,15 @@ def apply(args, env, cont, extra_call_info):
     if not fn.iscallable():
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
-    if not listp_loop(lst):
+    try:
+        rest = values.from_list(lst)
+    except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
     args_len = len(args)-1
     assert args_len >= 0
     others = args[1:args_len]
-    new_args = others + values.from_list(lst)
+    new_args = others + rest
     return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
 @expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
@@ -1002,8 +1004,15 @@ def listp_loop(v):
         return False
 
 @expose("list?", [values.W_Object])
-def consp(v):
-    return values.W_Bool.make(listp_loop(v))
+def listp(v):
+    if not isinstance(v, values.W_List):
+        res = False
+    elif v is values.w_null:
+        res = True
+    else:
+        assert isinstance(v, values.W_Cons)
+        res = listp_loop(v.cdr())
+    return values.W_Bool.make(res)
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
 def list_ref(lst, pos):
@@ -1205,7 +1214,9 @@ def call_w_paramz(f, paramz, env, cont):
     return call_with_parameterization(f, [], paramz, env, cont)
 
 def call_with_extended_paramz(f, args, keys, vals, env, cont):
+    # XXX seems untested?
     paramz = cont.get_mark_first(values.parameterization_key)
+    assert isinstance(paramz, values.W_Parameterization) # XXX is this always right?
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 
