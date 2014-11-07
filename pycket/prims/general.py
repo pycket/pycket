@@ -505,9 +505,9 @@ def do_is_procedure_arity(n):
 def procedure_arity_includes(proc, k, kw_ok):
     if kw_ok is values.w_false:
         if isinstance(proc, values_struct.W_RootStruct):
-            for w_prop, w_prop_val in proc.struct_type().props:
-                  if w_prop.isinstance(values_struct.w_prop_incomplete_arity):
-                      return values.w_false
+            w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
+            if w_prop_val is not None:
+                return values.w_false
     (ls, at_least) = proc.get_arity()
     if isinstance(k, values.W_Fixnum):
         k_val = k.value

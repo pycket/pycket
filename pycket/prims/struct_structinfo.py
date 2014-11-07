@@ -169,9 +169,9 @@ def expose_struct2vector(struct):
 
 @expose("prefab-struct-key", [values.W_Object])
 def do_prefab_struct_key(v):
-    if not (isinstance(v, values_struct.W_Struct) and v._type.isprefab):
+    if not (isinstance(v, values_struct.W_Struct) and v.struct_type().isprefab):
         return values.w_false
-    prefab_key = values_struct.W_PrefabKey.from_struct_type(v._type)
+    prefab_key = values_struct.W_PrefabKey.from_struct_type(v.struct_type())
     return prefab_key.short_key()
 
 @expose("make-prefab-struct")
