@@ -246,6 +246,8 @@ class W_List(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
+_enable_cons_specialization = True
+
 class W_Cons(W_List):
     "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
@@ -293,6 +295,43 @@ class W_Cons(W_List):
             w_curr1 = w_curr1.cdr()
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
+
+class W_UnwrappedFixnumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Fixnum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Fixnum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_UnwrappedFlonumCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        assert isinstance(a, W_Flonum)
+        self._car = a.value
+        self._cdr = d
+
+    def car(self):
+        return W_Flonum(self._car)
+
+    def cdr(self):
+        return self._cdr
+
+class W_WrappedCons(W_Cons):
+    _immutable_fields_ = ["_car", "_cdr"]
+    def __init__(self, a, d):
+        self._car = a
+        self._cdr = d
+    def car(self):
+        return self._car
+    def cdr(self):
+        return self._cdr
+
 
 class W_Box(W_Object):
     errorname = "box"
@@ -395,44 +434,6 @@ class W_HashTablePlaceholder(W_Object):
         pass
     def tostring(self):
         return "#<hash-table-placeholder>"
-
-class W_UnwrappedFixnumCons(W_Cons):
-    _immutable_fields_ = ["_car", "_cdr"]
-    def __init__(self, a, d):
-        assert isinstance(a, W_Fixnum)
-        self._car = a.value
-        self._cdr = d
-
-    def car(self):
-        return W_Fixnum(self._car)
-
-    def cdr(self):
-        return self._cdr
-
-class W_UnwrappedFlonumCons(W_Cons):
-    _immutable_fields_ = ["_car", "_cdr"]
-    def __init__(self, a, d):
-        assert isinstance(a, W_Flonum)
-        self._car = a.value
-        self._cdr = d
-
-    def car(self):
-        return W_Flonum(self._car)
-
-    def cdr(self):
-        return self._cdr
-
-class W_WrappedCons(W_Cons):
-    _immutable_fields_ = ["_car", "_cdr"]
-    def __init__(self, a, d):
-        self._car = a
-        self._cdr = d
-    def car(self):
-        return self._car
-    def cdr(self):
-        return self._cdr
-
-_enable_cons_specialization = True
 
 
 class W_MList(W_Object):
