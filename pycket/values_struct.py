@@ -32,7 +32,7 @@ class W_StructType(values.W_Object):
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
             "total_field_cnt", "auto_v", "props", "inspector",
             "immutables[*]", "immutable_fields[*]", "guard", "constr_name", "auto_values[*]",
-            "offsets[*]", "constr", "pred", "acc", "mut"]
+            "offsets[*]", "constr", "pred", "acc", "mut", "prop_procedure"]
     unbound_prefab_types = {}
 
     @staticmethod
