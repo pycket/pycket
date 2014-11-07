@@ -53,7 +53,8 @@ def make_impersonator(cls):
 @jit.unroll_safe
 def lookup_property(obj, prop):
     while obj.is_proxy():
-        val = obj.get_properties().get(prop, None)
+        props = obj.get_properties()
+        val   = props.get(prop, None) if props is not None else None
         if val is not None:
             return val
         obj = obj.get_proxied()
@@ -325,8 +326,7 @@ def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals)
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]",
-                         "struct_props[*]", "properties"]
+    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
@@ -354,8 +354,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         assert isinstance(self.base, values_struct.W_Struct)
 
-        self.struct_props = {}
-        self.properties = {}
+        self.struct_props = None
+        self.properties   = None
 
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
@@ -368,11 +368,15 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 op = None if type(op) is values_struct.W_StructFieldMutator else op
                 mutators[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
+                if self.struct_props is None:
+                    self.struct_props = {}
                 self.struct_props[base] = (op, handlers[i])
             else:
                 assert False
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
+            if self.properties is None:
+                self.properties = {}
             self.properties[k] = prop_vals[i]
         self.accessors = accessors[:]
         self.mutators  = mutators[:]
@@ -408,6 +412,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def get_prop(self, property, env, cont):
+        if self.struct_props is None:
+            return self.inner.get_prop(property, env, cont)
         op, interp = self.struct_props.get(property, (None, None))
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)

@@ -26,6 +26,7 @@ class BaseCont(object):
     def get_next_executed_ast(self):
         return None # best effort
 
+    @jit.unroll_safe
     def find_cm(self, k):
         from pycket.prims.equal import eqp_logic
         l = self.marks
