@@ -558,11 +558,39 @@ def printf(args):
             i += 1
 
 
+# XXX: copied code from printf, the format code is really slow
 @expose("format")
 def do_format(args):
-    form, v = args[0], args[1:]
-    assert isinstance(form, values_string.W_String)
-    return values_string.W_String.fromstr_utf8(format(form, v))
+    if len(args) == 0:
+        raise SchemeException("format: expects format string")
+    fmt = args[0]
+    if not isinstance(fmt, values_string.W_String):
+        raise SchemeException("format: expected a format string, got something else")
+    fmt = fmt.as_str_utf8() # XXX for now
+    i = 0
+    j = 1
+    result = StringBuilder()
+    while i < len(fmt):
+        if fmt[i] == '~':
+            if i+1 == len(fmt):
+                raise SchemeException("bad format string")
+            s = fmt[i+1]
+            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
+                # print a value
+                # FIXME: different format chars
+                if j >= len(args):
+                    raise SchemeException("not enough arguments for format string")
+                result.append(args[j].tostring())
+                j += 1
+            elif s == 'n':
+                result.append("\n") # newline
+            else:
+                raise SchemeException("unexpected format character")
+            i += 2
+        else:
+            result.append(fmt[i])
+            i += 1
+    return values_string.W_String.fromstr_utf8(result.build())
 
 @expose("fprintf", simple=False)
 def do_fprintf(args, env, cont):
