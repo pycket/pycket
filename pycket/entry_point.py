@@ -21,7 +21,7 @@ def make_entry_point(pycketconfig=None):
             raise # to see interpreter-level traceback
 
     def actual_entry(argv):
-        jit.set_param(None, "trace_limit", 20000)
+        jit.set_param(None, "trace_limit", 1000000)
 
         config, names, args, retval = parse_args(argv)
         if retval != 0 or config is None:
