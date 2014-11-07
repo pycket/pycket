@@ -5,6 +5,7 @@ from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
 from pycket.cont              import Cont, nil_continuation, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
+from pycket.arity             import Arity
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
@@ -1009,6 +1010,7 @@ class CaseLambda(AST):
                 break
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
+        self._arity = None
 
     @jit.unroll_safe
     def enable_jitting(self):
@@ -1070,7 +1072,10 @@ class CaseLambda(AST):
             return "#<procedure:%s>" % (lam.srcfile)
         return "#<procedure>"
 
+    @jit.elidable
     def get_arity(self):
+        if self._arity is not None:
+            return self._arity
         arities = []
         rest = -1
         for l in self.lams:
@@ -1083,7 +1088,8 @@ class CaseLambda(AST):
                     rest = r
             else:
                 arities = arities + [n]
-        return (arities, rest)
+        self._arity = Arity(arities[:], rest)
+        return self._arity
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",

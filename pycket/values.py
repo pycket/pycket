@@ -6,13 +6,15 @@ from pycket.cont              import continuation, label, BaseCont
 from pycket                   import config
 from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
+from pycket.arity             import Arity
+from pycket.prims.expose      import make_call_method
+from pycket.base              import W_Object, W_ProtoObject
+
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
 from rpython.rlib.rarithmetic import r_longlong, intmask
-from pycket.prims.expose      import make_call_method
-from pycket.base              import W_Object, W_ProtoObject
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
@@ -976,7 +978,7 @@ class W_ThunkProcCMK(W_Procedure):
 
 class W_SimplePrim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
-    def __init__ (self, name, code, arity=([],0)):
+    def __init__ (self, name, code, arity=Arity.unknown):
         self.name = name
         self.code = code
         self.arity = arity
@@ -994,9 +996,10 @@ class W_SimplePrim(W_Procedure):
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
-    def __init__ (self, name, code, arity=([],0)):
+    def __init__ (self, name, code, arity=Arity.unknown):
         self.name = name
         self.code = code
+        assert isinstance(arity, Arity)
         self.arity = arity
 
     def get_arity(self):
@@ -1047,7 +1050,7 @@ class W_Continuation(W_Procedure):
         self.cont = cont
     def get_arity(self):
         # FIXME: see if Racket ever does better than this
-        return ([],0)
+        return Arity.unknown
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(Values.make(args), env, self.cont)

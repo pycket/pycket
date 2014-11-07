@@ -473,11 +473,11 @@ def proc_arity_cont(result, env, cont, _vals):
 def do_procedure_arity(proc, env, cont):
     from pycket.interpreter import return_value
     result = []
-    (ls, at_least) = proc.get_arity()
-    for item in ls:
+    arity = proc.get_arity()
+    for item in arity.arity_list:
         result.append(values.W_Fixnum(item))
-    if at_least != -1:
-        val = [values.W_Fixnum(at_least)]
+    if arity.at_least != -1:
+        val = [values.W_Fixnum(arity.at_least)]
         return arity_at_least.constr.call(val, env, proc_arity_cont(result, env, cont))
     if len(result) == 1:
         return return_value(result[0], env, cont)
@@ -508,16 +508,16 @@ def procedure_arity_includes(proc, k, kw_ok):
             w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
             if w_prop_val is not None:
                 return values.w_false
-    (ls, at_least) = proc.get_arity()
+    arity = proc.get_arity()
     if isinstance(k, values.W_Fixnum):
         k_val = k.value
-        if k_val in ls:
+        if arity.list_includes(k_val):
             return values.w_true
-        if at_least != -1 and k_val >= at_least:
+        if arity.at_least != -1 and k_val >= arity.at_least:
             return values.w_true
     elif isinstance(k, values.W_Bignum):
         k_val = k.value
-        if at_least != -1 and k_val.ge(rbigint.fromint(at_least)):
+        if arity.at_least != -1 and k_val.ge(rbigint.fromint(arity.at_least)):
             return values.w_true
     return values.w_false
 

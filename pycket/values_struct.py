@@ -4,6 +4,8 @@ from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
+from pycket.arity import Arity
+
 from rpython.rlib import jit
 
 PREFAB = values.W_Symbol.make("prefab")
@@ -470,8 +472,8 @@ class W_RootStruct(values.W_Object):
 
     def checked_call(self, proc, args, env, cont):
         args_len = len(args)
-        (ls, at_least) = proc.get_arity()
-        if (args_len < at_least or at_least == -1) and args_len not in ls:
+        arity = proc.get_arity()
+        if (args_len < arity.at_least or arity.at_least == -1) and not arity.list_includes(args_len):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
                 return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
@@ -600,12 +602,14 @@ class W_Struct(W_RootStruct):
                 return proc.get_arity()
             else:
                 # -1 for the self argument
-                (ls, at_least) = proc.get_arity()
-                for i, val in enumerate(ls):
+                arity = proc.get_arity()
+                ls = [-1] * len(arity.arity_list)
+                for i, val in enumerate(arity.arity_list):
                     ls[i] = val - 1
-                if at_least != -1:
+                at_least = arity.at_least
+                if arity.at_least != -1:
                     at_least -= 1
-                return ([val for val in ls if val != -1], at_least)
+                return Arity([val for val in ls if val != -1], at_least)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 
