@@ -638,13 +638,11 @@ class W_StructConstructor(values.W_Procedure):
         type = jit.promote(self.type)
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
-
-        jit.promote(self.type)
-        if len(self.type.auto_values) > 0:
-            field_values = field_values + self.type.auto_values
+        if len(type.auto_values) > 0:
+            field_values = field_values + type.auto_values
 
         for i, value in enumerate(field_values):
-            if not self.type.is_immutable_field_index(i):
+            if not type.is_immutable_field_index(i):
                 field_values[i] = values.W_Cell(value)
 
         result = W_Struct.make(field_values, type)
@@ -668,11 +666,12 @@ class W_StructConstructor(values.W_Procedure):
         env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
         guard_values = _vals.get_all_values()
+        type = jit.promote(self.type)
         if guard_values:
             field_values = guard_values
-        super_type = jit.promote(self.type).super
+        super_type = jit.promote(type.super)
         if isinstance(super_type, W_StructType):
-            split_position = len(field_values) - self.type.init_field_cnt
+            split_position = len(field_values) - type.init_field_cnt
             super_auto = super_type.constr.type.auto_values
             assert split_position >= 0
             field_values = self._splice(field_values, len(field_values),\
@@ -706,7 +705,6 @@ class W_StructConstructor(values.W_Procedure):
     @label
     @make_call_method(simple=False)
     def call(self, args, env, cont):
-        jit.promote(self)
         return self.code(args, self.type.name, False, env, cont)
 
     def tostring(self):
