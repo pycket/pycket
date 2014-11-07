@@ -313,9 +313,11 @@ def valid_struct_proc(x):
             isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
+    if setter is None:
+        return orig_struct.set(struct_id, field, val, env, cont)
     return setter.call([orig_struct, val], env, cont)
 
 # Representation of a struct that allows interposition of operations
@@ -344,8 +346,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
+                op = None if type(op) is values_struct.W_StructFieldAccessor else op
                 accessors[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructFieldMutator):
+                op = None if type(op) is values_struct.W_StructFieldMutator else op
                 mutators[base.field] = (op, handlers[i])
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 self.struct_props[base] = (op, handlers[i])
@@ -360,7 +364,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
 
-    def post_set_cont(self, op, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
         raise NotImplementedError("abstract method")
 
     def struct_type(self):
@@ -369,17 +373,19 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     @label
     def ref(self, struct_id, field, env, cont):
         op, interp = self.accessors[field]
-        if op is None or interp is None:
+        if interp is None:
             return self.inner.ref(struct_id, field, env, cont)
         after = self.post_ref_cont(interp, env, cont)
+        if op is None:
+            return self.inner.ref(struct_id, field, env, after)
         return op.call([self.inner], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
         op, interp = self.mutators[field]
-        if op is None or interp is None:
+        if interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
-        after = self.post_set_cont(op, val, env, cont)
+        after = self.post_set_cont(op, struct_id, field, val, env, cont)
         return interp.call([self.inner, val], env, after)
 
     @label
@@ -404,8 +410,8 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, env, cont):
         return impersonate_reference_cont(interp, [self.inner], env, cont)
 
-    def post_set_cont(self, op, val, env, cont):
-        return imp_struct_set_cont(self.inner, op, env, cont)
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
+        return imp_struct_set_cont(self.inner, op, struct_id, field, env, cont)
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
@@ -413,9 +419,9 @@ class W_ChpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, env, cont):
         return chaperone_reference_cont(interp, [self.inner], env, cont)
 
-    def post_set_cont(self, op, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, env, cont):
         return check_chaperone_results([val], env,
-                imp_struct_set_cont(self.inner, op, env, cont))
+                imp_struct_set_cont(self.inner, op, struct_id, field, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
