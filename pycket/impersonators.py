@@ -326,7 +326,7 @@ def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals)
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]"]
+    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_props", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
@@ -337,8 +337,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.inner = inner
 
         field_cnt = inner.struct_type().total_field_cnt
-        accessors = [(None, None)] * field_cnt
-        mutators  = [(None, None)] * field_cnt
+        accessors = [None] * field_cnt * 2
+        mutators  = [None] * field_cnt * 2
 
         # The mask field contains an array of pointers to the next object
         # in the proxy stack that overrides a given field operation.
@@ -346,16 +346,16 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         # but in general may allow us to skip many levels of ref operations at
         # once.
         if isinstance(inner, W_InterposeStructBase):
-            self.base  = inner.base
-            mask       = inner.mask[:]
+            self.base = inner.base
+            mask      = inner.mask[:]
         else:
-            self.base  = inner
-            mask       = [inner] * field_cnt
+            self.base = inner
+            mask      = [inner] * field_cnt
 
         assert isinstance(self.base, values_struct.W_Struct)
 
-        self.struct_props = None
-        self.properties   = None
+        struct_props = None
+        properties   = None
 
         # Does not deal with properties as of yet
         for i, op in enumerate(overrides):
@@ -363,24 +363,29 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 op = None if type(op) is values_struct.W_StructFieldAccessor else op
                 mask[base.field] = self
-                accessors[base.field] = (op, handlers[i])
+                accessors[2 * base.field] = op
+                accessors[2 * base.field + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 op = None if type(op) is values_struct.W_StructFieldMutator else op
-                mutators[base.field] = (op, handlers[i])
+                mutators[2 * base.field] = op
+                mutators[2 * base.field + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
-                if self.struct_props is None:
-                    self.struct_props = {}
-                self.struct_props[base] = (op, handlers[i])
+                if struct_props is None:
+                    struct_props = {}
+                struct_props[base] = (op, handlers[i])
             else:
                 assert False
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
-            if self.properties is None:
-                self.properties = {}
-            self.properties[k] = prop_vals[i]
-        self.accessors = accessors[:]
-        self.mutators  = mutators[:]
-        self.mask      = mask
+            if properties is None:
+                properties = {}
+            properties[k] = prop_vals[i]
+
+        self.accessors    = accessors[:]
+        self.mutators     = mutators[:]
+        self.properties   = properties
+        self.struct_props = struct_props
+        self.mask         = mask
 
     def post_ref_cont(self, interp, env, cont):
         raise NotImplementedError("abstract method")
@@ -396,7 +401,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         goto = self.mask[field]
         if goto is not self:
             return goto.ref(struct_id, field, env, cont)
-        op, interp = self.accessors[field]
+        op = self.accessors[2 * field]
+        interp = self.accessors[2 * field + 1]
         after = self.post_ref_cont(interp, env, cont)
         if op is None:
             return self.inner.ref(struct_id, field, env, after)
@@ -404,7 +410,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def set(self, struct_id, field, val, env, cont):
-        op, interp = self.mutators[field]
+        op = self.mutators[2 * field]
+        interp = self.mutators[2 * field + 1]
         if interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, struct_id, field, val, env, cont)
