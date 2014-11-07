@@ -684,6 +684,12 @@ def test_inexact_to_exact(doctest):
     102222222222222223892324523663483522756187192341561344
     """
 
+def test_unsafe_weirdness(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (unsafe-fl= 2 2.0)
+    #t
+    """
 
 def test_flonum_unsafe(doctest):
     """
