@@ -13,7 +13,7 @@ translate-no-loop-opts:
 	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state --no-callgraph
 
 translate-no-type-specialization:
-	python ./pypy/rpython/bin/rpython --Ojit --batch targetpycket.py
+	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
 
 translate-no-jit:
 	python ./pypy/rpython/bin/rpython --batch targetpycket.py
