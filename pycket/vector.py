@@ -2,19 +2,18 @@
 from pycket.cont import label
 from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from pycket.base import W_Object, SingletonMeta
+from pycket import config
 
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
 from rpython.rlib import debug, jit
 
-# Setting this to True will break the tests. Used to compare performance.
-_always_use_object_strategy = False
 
 @jit.look_inside_iff(lambda elements, immutable:
         jit.loop_unrolling_heuristic(
                 elements, len(elements), UNROLLING_CUTOFF))
 def _find_strategy_class(elements, immutable):
-    if _always_use_object_strategy or len(elements) == 0:
+    if not config.type_specialization or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
         return ObjectVectorStrategy.singleton
     single_class = type(elements[0])
@@ -90,6 +89,8 @@ class W_Vector(W_MVector):
         return self.strategy
 
     def set_strategy(self, strategy):
+        if not config.type_specialization:
+            assert strategy is ObjectVectorStrategy.singleton
         self.strategy = strategy
 
     @staticmethod

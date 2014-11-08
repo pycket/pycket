@@ -91,6 +91,10 @@ class W_Cell(W_Object): # not the same as Racket's box
         return w_value
 
     def set_val(self, w_value):
+        from pycket import config
+        if not config.type_specialization:
+            self.w_value = w_value
+            return
         if isinstance(w_value, W_Fixnum):
             w_v = self.w_value
             if isinstance(w_v, W_CellIntegerStrategy):
@@ -246,15 +250,14 @@ class W_List(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-_enable_cons_specialization = True
-
 class W_Cons(W_List):
     "Abstract for specialized conses. Concrete general in W_WrappedCons"
     errorname = "pair"
 
     @staticmethod
     def make(car, cdr):
-        if not _enable_cons_specialization:
+        from pycket import config
+        if not config.type_specialization:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)

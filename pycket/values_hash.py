@@ -1,9 +1,11 @@
 from pycket.base import W_Object, SingletonMeta
 from pycket import values, values_string
-from pycket.cont import continuation, label
+from pycket.cont import continuation, label, loop_label
+from pycket import config
 
 from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
 from rpython.rlib import rerased
+
 
 class W_Missing(W_Object):
     def __init__(self):
@@ -113,6 +115,7 @@ class W_EqHashTable(W_SimpleHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+@loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
     from pycket.prims.equal import equal_func, EqualInfo
@@ -175,10 +178,11 @@ class HashmapStrategy(object):
 
 
 def _find_strategy_class(keys):
+    if not config.type_specialization:
+        return ObjectHashmapStrategy.singleton
     if len(keys) == 0:
         return EmptyHashmapStrategy.singleton
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
-        return ObjectVectorStrategy.singleton
     single_class = type(keys[0])
     for elem in keys:
         if not isinstance(elem, single_class):
