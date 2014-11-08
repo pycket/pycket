@@ -1,17 +1,17 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
-from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
-from pycket.error import SchemeException
-from pycket.option_helper import parse_args, ensure_json_ast
-from pycket.values_string import W_String
-
-from rpython.rlib import jit
-
 # _____ Define and setup target ___
 
 def make_entry_point(pycketconfig=None):
+    from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
+    from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
+    from pycket.error import SchemeException
+    from pycket.option_helper import parse_args, ensure_json_ast
+    from pycket.values_string import W_String
+
+    from rpython.rlib import jit
+
     def entry_point(argv):
         try:
             return actual_entry(argv)
@@ -45,10 +45,9 @@ def make_entry_point(pycketconfig=None):
         return 0
     return entry_point
 
-entry_point = make_entry_point()
-
 def target(driver, args):
     from rpython.config.config import to_optparse
+    from pycket.config import expose_options, compute_executable_suffix
     config = driver.config
     parser = to_optparse(config, useoptions=["pycket.*"])
     parser.parse_args(args)
@@ -57,10 +56,14 @@ def target(driver, args):
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
         base_name = 'pycket'
-    if config.translation.jit:
-        driver.exe_name = base_name + '-%(backend)s'
-    else:
-        driver.exe_name = base_name + '-%(backend)s-nojit'
+    base_name += '-%(backend)s'
+    if not config.translation.jit:
+        base_name += '-%(backend)s-nojit'
+
+    driver.exe_name = base_name + compute_executable_suffix(config)
+    # it's important that the very first thing we do, before importing anything
+    # else from pycket is call expose_options
+    expose_options(config)
     entry_point = make_entry_point(config)
     return entry_point, None
 

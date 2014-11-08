@@ -4,11 +4,12 @@
 # Testing entrypoint
 #
 import pytest
-from pycket.entry_point import entry_point
+from pycket.entry_point import make_entry_point
 from pycket.option_helper import parse_args
 from pycket import option_helper
 from rpython.rlib import jit
 
+entry_point = make_entry_point()
 
 class TestOptions(object):
 
