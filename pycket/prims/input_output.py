@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from rpython.rlib.rsre import rsre_re as re
 from rpython.rlib import jit
 from rpython.rlib             import streamio as sio
 from rpython.rlib.rbigint     import rbigint
