@@ -113,6 +113,7 @@ class W_EqHashTable(W_SimpleHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+@loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
     from pycket.prims.equal import equal_func, EqualInfo
