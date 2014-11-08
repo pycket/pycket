@@ -44,6 +44,8 @@ def compute_executable_suffix(config):
         res.append("-no-type-specialization")
     if config.fuse_conts:
         res.append("-fuse-conts")
+    if config.track_header:
+        res.append("-track-header")
     return "".join(res)
 
 
