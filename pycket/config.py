@@ -17,6 +17,8 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--fuse-conts"),
     BoolOption("with_branch", "but the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
+    BoolOption("track_header", "track loops headers instead of last AST element",
+               default=False, cmdline="--track-header"),
 ])
 
 def get_testing_config(**overrides):

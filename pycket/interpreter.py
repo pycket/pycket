@@ -1637,9 +1637,13 @@ driver_two_state = jit.JitDriver(reds=["env", "cont"],
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
+    config = env.pycketconfig()
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-        came_from = ast
+        if config.track_header:
+            came_from = ast if ast.should_enter else came_from
+        else:
+            came_from = ast
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
