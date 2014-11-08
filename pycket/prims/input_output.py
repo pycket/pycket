@@ -494,28 +494,46 @@ def format(form, vals, name):
     fmt = form.as_str_utf8() # XXX for now
     i = 0
     j = 0
-    result = StringBuilder()
-    while i < len(fmt):
-        if fmt[i] == '~':
-            if i+1 == len(fmt):
-                raise SchemeException(name + ": bad format string")
-            s = fmt[i+1]
-            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
-                # print a value
-                # FIXME: different format chars
-                if j >= len(vals):
-                    raise SchemeException(name + ": not enough arguments for format string")
-                result.append(vals[j].tostring())
-                j += 1
-            elif s == 'n':
-                result.append("\n") # newline
-            else:
-                raise SchemeException(name +": unexpected format character")
-            i += 2
-        else:
-            result.append(fmt[i])
+    result = []
+    len_fmt = len(fmt)
+    while True:
+        i0 = i
+        while i < len_fmt:
+            if fmt[i] == '~':
+                break
             i += 1
-    return result.build()
+        else:
+            # not left via break, so we're done
+            result.append(fmt[i0:len_fmt])
+            break
+        result.append(fmt[i0:i])
+        if i+1 == len_fmt:
+            raise SchemeException(name + ": bad format string")
+        s = fmt[i+1]
+        if (s == 'a' or # turns into switch
+                s == 'A' or
+                s == 's' or
+                s == 'S' or
+                s == 'v' or
+                s == 'V' or
+                s == 'e' or
+                s == 'E'):
+            # print a value
+            # FIXME: different format chars
+            if j >= len(vals):
+                raise SchemeException(name + ": not enough arguments for format string")
+            result.append(vals[j].tostring())
+            j += 1
+        elif s == 'n' or s == '%':
+            result.append("\n") # newline
+        elif s == '~':
+            result.append("~")
+        else:
+            raise SchemeException(name + ": unexpected format character")
+        i += 2
+    if j != len(vals):
+        raise SchemeException(name + ": not all values used")
+    return "".join(result)
 
 @expose("printf", simple=False)
 def printf(args, env, cont):
@@ -527,6 +545,7 @@ def printf(args, env, cont):
     return do_print(format(fmt, args[1:], "printf"), None, env, cont)
 
 @expose("format")
+@jit.look_inside_iff(lambda args: jit.isconstant(args[0]))
 def do_format(args):
     if len(args) == 0:
         raise SchemeException("format: expects format string")
