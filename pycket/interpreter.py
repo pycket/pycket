@@ -6,6 +6,8 @@ from pycket.error             import SchemeException
 from pycket.cont              import Cont, nil_continuation, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
+from pycket                   import config
+
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
@@ -1493,6 +1495,11 @@ class Let(SequencedBodyAST):
         return result
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
+        if not config.prune_env:
+            remove_num_envs = [0] * (len(self.rhss) + 1)
+            env_structures = [sub_env_structure.prev] * len(self.rhss)
+            env_structures.append(sub_env_structure)
+            return self, sub_env_structure, remove_num_envs
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = {}
         for b in self.body:
