@@ -46,8 +46,6 @@ def compute_executable_suffix(config):
         res.append("-fuse-conts")
     if config.track_header:
         res.append("-track-header")
-    if not config.immutable_specialization:
-        res.append("-no-immutable-specialization")
     return "".join(res)
 
 
