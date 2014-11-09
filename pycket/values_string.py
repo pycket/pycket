@@ -524,10 +524,14 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("unicode-mutable-string-strategy")
 
     def as_charlist_ascii(self, w_str):
-        assert 0
+        raise ValueError("can't convert")
 
     def as_charlist_utf8(self, w_str):
-        assert 0
+        return list(self.as_str_utf8(w_str))
+
+    def as_str_utf8(self, w_str):
+        return u''.join(self.unerase(w_str.get_storage())).encode('utf-8')
+
 
     def as_unicharlist(self, w_str):
         return self.unerase(w_str.get_storage())[:]

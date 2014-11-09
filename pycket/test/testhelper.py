@@ -150,6 +150,6 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
         if isinstance(src, list):
             src = "(let ()\n" + "\n".join(src) + ")"
         wrong = execute(src, extra=extra)
-        assert 0, "%s is %s, which is different from %s" % (
+        assert 0, u"%s is %s, which is different from %s" % (
             pairs_of_equal_stuff[res.value * 2], wrong.tostring(),
             pairs_of_equal_stuff[res.value * 2 + 1])
