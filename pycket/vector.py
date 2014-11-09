@@ -19,15 +19,15 @@ def _find_strategy_class(elements, immutable):
     single_class = type(elements[0])
     for elem in elements:
         if not isinstance(elem, single_class):
-            if immutable:
+            if config.immutable_specialization and immutable:
                 return ObjectImmutableVectorStrategy.singleton
             return ObjectVectorStrategy.singleton
     if single_class is W_Fixnum:
-        if immutable:
+        if config.immutable_specialization and immutable:
             return FixnumImmutableVectorStrategy.singleton
         return FixnumVectorStrategy.singleton
     if single_class is W_Flonum:
-        if immutable:
+        if config.immutable_specialization and immutable:
             return FlonumImmutableVectorStrategy.singleton
         return FlonumVectorStrategy.singleton
     return ObjectVectorStrategy.singleton

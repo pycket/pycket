@@ -38,7 +38,7 @@ class W_String(W_Object):
             assert s.decode("ascii") == s
         strategy = AsciiStringStrategy.singleton
         storage = strategy.erase(s)
-        if immutable:
+        if config.immutable_specialization and immutable:
             cls = W_AsciiImmutableString
         else:
             cls = W_MutableString
@@ -48,7 +48,7 @@ class W_String(W_Object):
     def fromunicode(u, immutable=False):
         strategy = UnicodeStringStrategy.singleton
         storage = strategy.erase(u)
-        if immutable:
+        if config.immutable_specialization and immutable:
             cls = W_UnicodeImmutableString
         else:
             cls = W_MutableString
