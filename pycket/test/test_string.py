@@ -361,3 +361,12 @@ def test_string_unicode(doctest):
     >  (string #\Ä #\p #\f #\e #\l)
     "Äpfel"
     """
+
+def test_mutable_unicode_to_bytes(doctest):
+    ur"""
+    ! (define st (substring "hello fuß" 6 9))
+    ! (string-set! st 0 #\s)
+    ! (string-set! st 1 #\ü)
+    > (string->bytes/utf-8 st)
+    #"s\303\274\303\237"
+    """

@@ -1,3 +1,5 @@
+from pycket import config
+
 from rpython.rlib  import jit, debug, objectmodel
 
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_num=False):
@@ -16,6 +18,9 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
     @staticmethod
     make(listcontent, *args): makes a new instance with the list's content set to listcontent
     """
+    if not config.type_specialization:
+        sizemin = sizemax = 0
+        unbox_num = False
     def wrapper(cls):
         from rpython.rlib.unroll import unrolling_iterable
         classes = []
@@ -68,8 +73,12 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
 
         def make(elems, *args):
-            if elems is None or len(elems) == 0:
-                return make0(*args)
+            if classes:
+                if (elems is None or len(elems) == 0):
+                    return make0(*args)
+            else:
+                if elems is None:
+                    elems = []
             if sizemin <= len(elems) < sizemax:
                 cls = classes[len(elems) - sizemin]
             else:
@@ -78,10 +87,14 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
 
         # XXX those could be done more nicely
         def make0(*args):
+            if not classes: # no type specialization
+                return make([], *args)
             result = objectmodel.instantiate(classes[0])
             cls.__init__(result, *args)
             return result
         def make1(elem, *args):
+            if not classes: # no type specialization
+                return make([elem], *args)
             result = objectmodel.instantiate(classes[1])
             result._set_list(0, elem)
             cls.__init__(result, *args)

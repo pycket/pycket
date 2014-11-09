@@ -145,6 +145,7 @@ def chaperone_vector(args):
 
 # Need to check that fields are mutable
 @expose("impersonate-struct")
+@jit.unroll_safe
 def impersonate_struct(args):
     args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
     if len(args) < 1 or len(args) % 2 != 1:

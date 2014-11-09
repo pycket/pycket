@@ -54,10 +54,14 @@ class W_Object(W_ProtoObject):
 
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
     def get_arity(self):
+        from pycket.interpreter import Arity
         if self.iscallable():
-            return ([],0)
+            return Arity.unknown
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
+
+    def is_proper_list(self):
+        return False
 
     def is_impersonator(self):
         return self.is_chaperone()

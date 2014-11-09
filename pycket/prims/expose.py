@@ -1,5 +1,6 @@
 from rpython.rlib import jit, unroll
 from pycket.error import SchemeException
+from pycket.arity import Arity
 
 prim_env = {}
 
@@ -72,7 +73,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
         aritystring = "%s to %s" % (min_arg, max_arity)
     errormsg_arity = "expected %s arguments to %s, got " % (
         aritystring, funcname)
-    _arity = range(min_arg, max_arity+1), -1
+    _arity = Arity(range(min_arg, max_arity+1), -1)
     def func_arg_unwrap(*allargs):
         from pycket import values
         if has_self:
@@ -156,7 +157,8 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
                 _arity = arity
         else:
             func_arg_unwrap = func
-            _arity = arity or ([], 0)
+            _arity = arity or Arity.unknown
+            assert isinstance(_arity, Arity)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         return values.W_Prim(name, make_remove_extra_info(func_result_handling), _arity)
     return wrapper
@@ -193,14 +195,14 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
             def func_arg_unwrap(*args):
                 raise SchemeException(
                     "primitive %s is not yet implemented" % name)
-            _arity = arity or ([], 0)
+            _arity = arity or Arity.unknown
         elif argstypes is not None:
             func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
             if arity is not None:
                 _arity = arity
         else:
             func_arg_unwrap = func
-            _arity = arity or ([], 0)
+            _arity = arity or Arity.unknown
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)

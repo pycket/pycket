@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from rpython.rlib.rsre import rsre_re as re
 from rpython.rlib import jit
 from rpython.rlib             import streamio as sio
 from rpython.rlib.rbigint     import rbigint
@@ -490,86 +489,78 @@ def do_print(str, port, env, cont):
     port.write(str)
     return return_void(env, cont)
 
-format_dict = {
-    '~n': '\n',
-    '~%': '\n',
-    '~a': None,
-    '~A': None,
-    '~e': None,
-    '~E': None,
-    '~s': None,
-    '~S': None,
-    '~v': None,
-    '~V': None,
-}
-format_regex = re.compile("|".join(format_dict.keys()))
-
 @jit.unroll_safe
-def format(form, v):
-    text = form.as_str_utf8()
-    result = StringBuilder()
-    pos = 0
-    vindex = 0
-    for match in format_regex.finditer(text):
-        match_start = match.start()
-        assert match_start >= 0
-        result.append_slice(text, pos, match_start)
-        val = format_dict[match.group()]
-        if val is None:
-            val = v[vindex].tostring()
-            vindex += 1
-        result.append(val)
-        pos = match.end()
-        assert pos >= 0
-    result.append_slice(text, pos, len(text))
-    return result.build()
-
-@expose("printf")
-def printf(args):
-    if not args:
-        raise SchemeException("printf expected at least one argument, got 0")
-    fmt = args[0]
-    if not isinstance(fmt, values_string.W_String):
-        raise SchemeException("printf expected a format string, got something else")
-    fmt = fmt.as_str_utf8() # XXX for now
-    vals = args[1:]
+def format(form, vals, name):
+    fmt = form.as_str_utf8() # XXX for now
     i = 0
     j = 0
-    # XXX what's the difference to the algorithm in format?
-    while i < len(fmt):
-        if fmt[i] == '~':
-            if i+1 == len(fmt):
-                raise SchemeException("bad format string")
-            s = fmt[i+1]
-            if s in ['a', 'A', 's', 'S', 'v', 'V', 'e', 'E']:
-                # print a value
-                # FIXME: different format chars
-                if j >= len(vals):
-                    raise SchemeException("not enough arguments for format string")
-                os.write(1, vals[j].tostring())
-                j += 1
-            elif s == 'n':
-                os.write(1,"\n") # newline
-            else:
-                raise SchemeException("unexpected format character")
-            i += 2
-        else:
-            os.write(1,fmt[i])
+    result = []
+    len_fmt = len(fmt)
+    while True:
+        i0 = i
+        while i < len_fmt:
+            if fmt[i] == '~':
+                break
             i += 1
+        else:
+            # not left via break, so we're done
+            result.append(fmt[i0:len_fmt])
+            break
+        result.append(fmt[i0:i])
+        if i+1 == len_fmt:
+            raise SchemeException(name + ": bad format string")
+        s = fmt[i+1]
+        if (s == 'a' or # turns into switch
+                s == 'A' or
+                s == 's' or
+                s == 'S' or
+                s == 'v' or
+                s == 'V' or
+                s == 'e' or
+                s == 'E'):
+            # print a value
+            # FIXME: different format chars
+            if j >= len(vals):
+                raise SchemeException(name + ": not enough arguments for format string")
+            result.append(vals[j].tostring())
+            j += 1
+        elif s == 'n' or s == '%':
+            result.append("\n") # newline
+        elif s == '~':
+            result.append("~")
+        else:
+            raise SchemeException(name + ": unexpected format character")
+        i += 2
+    if j != len(vals):
+        raise SchemeException(name + ": not all values used")
+    return "".join(result)
 
+@expose("printf", simple=False)
+def printf(args, env, cont):
+    if not args:
+        raise SchemeException("printf: expected at least one argument, got 0")
+    fmt = args[0]
+    if not isinstance(fmt, values_string.W_String):
+        raise SchemeException("printf: expected a format string, got something else")
+    return do_print(format(fmt, args[1:], "printf"), None, env, cont)
 
 @expose("format")
+@jit.look_inside_iff(lambda args: jit.isconstant(args[0]))
 def do_format(args):
-    form, v = args[0], args[1:]
-    assert isinstance(form, values_string.W_String)
-    return values_string.W_String.fromstr_utf8(format(form, v))
+    if len(args) == 0:
+        raise SchemeException("format: expects format string")
+    fmt = args[0]
+    if not isinstance(fmt, values_string.W_String):
+        raise SchemeException("format: expected a format string, got something else")
+    vals = args[1:]
+    return values_string.W_String.fromstr_utf8(format(fmt, vals, "format"))
 
 @expose("fprintf", simple=False)
 def do_fprintf(args, env, cont):
     out, form, v = args[0], args[1], args[2:]
     assert isinstance(out, values.W_OutputPort)
     assert isinstance(form, values_string.W_String)
-    out.write(format(form, v))
+    out.write(format(form, v, "fprintf"))
     return return_void(env, cont)
 
 # Why is this different than format/fprintf?

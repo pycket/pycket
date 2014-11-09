@@ -3,6 +3,8 @@
 #
 # conftest - configuring pytest, especially funcargs
 #
+import pycket.config # to configure early
+
 import pytest
 
 def _doctstring_tempfile_named(request, name):

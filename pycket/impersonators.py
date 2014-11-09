@@ -362,10 +362,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 op = None if type(op) is values_struct.W_StructFieldAccessor else op
+                jit.promote(base.field)
                 mask[base.field] = self
                 accessors[2 * base.field] = op
                 accessors[2 * base.field + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructFieldMutator):
+                jit.promote(base.field)
                 op = None if type(op) is values_struct.W_StructFieldMutator else op
                 mutators[2 * base.field] = op
                 mutators[2 * base.field + 1] = handlers[i]

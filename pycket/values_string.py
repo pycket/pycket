@@ -1,5 +1,6 @@
 from pycket.base import W_Object, SingletonMeta
 from pycket.error import SchemeException
+from pycket import config
 
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import compute_hash, we_are_translated
@@ -17,19 +18,22 @@ class W_String(W_Object):
     @staticmethod
     def fromstr_utf8(s, immutable=False):
         # try to see whether it's ascii first
-        ascii = True
-        for c in s:
-            if ord(c) >= 128:
-                ascii = False
-                break
-        if ascii:
-            return W_String.fromascii(s, immutable)
-        else:
-            u = s.decode("utf-8")
-            return W_String.fromunicode(u, immutable)
+        if config.type_specialization:
+            ascii = True
+            for c in s:
+                if ord(c) >= 128:
+                    ascii = False
+                    break
+            if ascii:
+                return W_String.fromascii(s, immutable)
+        u = s.decode("utf-8")
+        return W_String.fromunicode(u, immutable)
 
     @staticmethod
     def fromascii(s, immutable=False):
+        if not config.type_specialization:
+            u = s.decode("utf-8")
+            return W_String.fromunicode(u, immutable)
         if not we_are_translated():
             assert s.decode("ascii") == s
         strategy = AsciiStringStrategy.singleton
@@ -520,10 +524,14 @@ class UnicodeMutableStringStrategy(MutableStringStrategy):
     erase, unerase = rerased.new_static_erasing_pair("unicode-mutable-string-strategy")
 
     def as_charlist_ascii(self, w_str):
-        assert 0
+        raise ValueError("can't convert")
 
     def as_charlist_utf8(self, w_str):
-        assert 0
+        return list(self.as_str_utf8(w_str))
+
+    def as_str_utf8(self, w_str):
+        return u''.join(self.unerase(w_str.get_storage())).encode('utf-8')
+
 
     def as_unicharlist(self, w_str):
         return self.unerase(w_str.get_storage())[:]

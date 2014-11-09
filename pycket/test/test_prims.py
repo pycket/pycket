@@ -673,3 +673,15 @@ def test_listp(doctest):
     > (list? 1)
     #f
     """
+
+def test_format(doctest):
+    r"""
+    > (format "a")
+    "a"
+    E (format "a~a")
+    E (format "a" 1)
+    > (format "~~~n~%")
+    "~\n\n"
+    > (format "abc~adef~aghi" 1 2)
+    "abc1def2ghi"
+    """
