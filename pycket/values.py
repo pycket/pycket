@@ -257,7 +257,9 @@ class W_Cons(W_List):
     @staticmethod
     def make(car, cdr):
         from pycket import config
-        if not config.type_specialization:
+        # NOTE: This is using the inline_small_list config option rather than
+        # the type_specialization option that other strategies use.
+        if not config.inline_small_list:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
