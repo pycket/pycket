@@ -21,8 +21,8 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--track-header"),
     BoolOption("type_specialization", "strategies for data structures (vectors, cons cells, cells, hashmaps, etc)",
                default=True, cmdline="--type-specialization"),
-    BoolOption("inline_small_lists", "unbox small data structure fields (environments, continuations, structs, etc)",
-               default=True, cmdline="--inline-small-lists"),
+    BoolOption("inline_small_list", "unbox small data structure fields (environments, continuations, structs, etc)",
+               default=True, cmdline="--inline-small-list"),
 ])
 
 def get_testing_config(**overrides):
@@ -57,7 +57,7 @@ def compute_executable_suffix(config):
 # we expose them here. this code must not be changed, the flags are mutated
 # from entry_point.
 
-exposed_options = ['type_specialization', "inline_small_lists"]
+exposed_options = ['type_specialization', "inline_small_list"]
 
 def expose_options(config):
     import sys
