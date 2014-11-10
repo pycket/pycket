@@ -1,22 +1,22 @@
 translate-all: translate-jit translate-no-callgraph translate-no-two-state translate-no-loop-opts translate-no-strategies
 
 translate-jit:
-	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
 
 translate-no-two-state:
-	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state
 
 translate-no-callgraph:
-	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-callgraph
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-callgraph
 
 translate-no-loop-opts:
-	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state --no-callgraph
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state --no-callgraph
 
 translate-no-strategies:
-	python ./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-strategies
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-strategies
 
 translate-no-jit:
-	python ./pypy/rpython/bin/rpython --batch targetpycket.py
+	./pypy/rpython/bin/rpython --batch targetpycket.py
 
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || raco pkg update --link pycket/pycket-lang
