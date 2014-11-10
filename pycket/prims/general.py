@@ -644,7 +644,7 @@ def notp(a):
 def length(a):
     n = 0
     while True:
-        if isinstance(a, values.W_Null):
+        if a is values.w_null:
             return values.W_Fixnum(n)
         if isinstance(a, values.W_Cons):
             a = a.cdr()

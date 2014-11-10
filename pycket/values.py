@@ -285,7 +285,7 @@ class W_Cons(W_List):
             acc.append(cur.car().tostring())
             cur = cur.cdr()
         # Are we a dealing with a proper list?
-        if isinstance(cur, W_Null):
+        if cur is w_null:
             return "(%s)" % " ".join(acc)
         # Must be an improper list
         return "(%s . %s)" % (" ".join(acc), cur.tostring())
