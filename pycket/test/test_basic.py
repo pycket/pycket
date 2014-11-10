@@ -531,6 +531,25 @@ def test_callgraph_reconstruction():
     assert env.callgraph.calls == {f: {g: None}, g: {h: None, g: None}}
     assert g.body[0].should_enter
 
+    str = """
+        #lang pycket
+        (define (f x) (g (+ x 1)))
+        (define (g x) (if (= x 0) (f 5) (h x)))
+        (define (h x) x)
+        (g 0)
+        """
+
+    ast = parse_module(expand_string(str))
+    env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
+    m = interpret_module(ast, env)
+    f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
+    g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
+    h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
+
+    assert env.callgraph.calls == {f: {g: None}, g: {h: None, f: None}}
+    assert env.callgraph.recursive == {f: None, g: None}
+    assert g.body[0].should_enter
+
 def test_callgraph_reconstruction_through_primitives():
     from pycket.expand import expand_string, parse_module
     from pycket        import config

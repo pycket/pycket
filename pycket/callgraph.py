@@ -45,16 +45,35 @@ class CallGraph(object):
             return True
         if starting_from is None:
             starting_from = lam
-        todo = self.calls.get(starting_from, {}).keys()
+        reachable = self.calls.get(starting_from, None)
+        if reachable is None:
+            return False
+        todo = []
+        for key in reachable:
+            todo.append((key, Path(starting_from, None)))
         visited = {}
         while todo:
-            current = todo.pop()
+            current, path = todo.pop()
             if current is lam:
                 self.recursive[lam] = None
+                # all the lambdas in the path are recursive too
+                while path:
+                    self.recursive[path.node] = None
+                    path = path.prev
                 return True
             if current in visited:
                 continue
-            todo.extend(self.calls.get(current, {}).keys())
+            reachable = self.calls.get(current, None)
+            if reachable:
+                for key in reachable:
+                    todo.append((key, Path(current, path)))
             visited[current] = None
         return False
 
+class Path(object):
+    def __init__(self, node, prev):
+        self.node = node
+        self.prev = prev
+
+    def __repr__(self):
+        return "%s -> %s" % (self.node, self.prev)
