@@ -635,6 +635,10 @@ class App(AST):
         args_w = [None] * len(self.rands)
         for i, rand in enumerate(self.rands):
             args_w[i] = rand.interpret_simple(env)
+        if isinstance(w_callable, values.W_PromotableClosure):
+            # fast path
+            jit.promote(w_callable)
+            w_callable = w_callable.closure
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _tostring(self):
