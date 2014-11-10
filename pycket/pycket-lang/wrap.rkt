@@ -10,7 +10,8 @@
 
 (define-syntax-rule (time expr1 expr ...)
   (let-values ([(v cpu user gc) (time-apply (lambda () expr1 expr ...) null)])
-    (printf "RESULT-cpu: ~a.0\nRESULT-gc: ~a.0\nRESULT-total: ~a.0\n"
+    (fprintf (current-error-port)
+            "RESULT-cpu: ~a.0\nRESULT-gc: ~a.0\nRESULT-total: ~a.0\n"
             cpu gc user)
     (apply values v)))
 
