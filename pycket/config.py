@@ -23,6 +23,8 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--type-specialization"),
     BoolOption("inline_small_list", "unbox small data structure fields (environments, continuations, structs, etc)",
                default=True, cmdline="--inline-small-list"),
+    BoolOption("prune_env", "prune environment",
+               default=True, cmdline="--prune-env"),
 ])
 
 def get_testing_config(**overrides):
@@ -57,7 +59,10 @@ def compute_executable_suffix(config):
 # we expose them here. this code must not be changed, the flags are mutated
 # from entry_point.
 
-exposed_options = ['type_specialization', "inline_small_list"]
+exposed_options = ['type_specialization',
+                   'inline_small_list',
+                   'prune_env',
+]
 
 def expose_options(config):
     import sys
