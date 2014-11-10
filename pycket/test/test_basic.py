@@ -522,7 +522,7 @@ def test_callgraph_reconstruction():
         """
 
     ast = parse_module(expand_string(str))
-    env = ToplevelEnv()
+    env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
     f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
@@ -543,7 +543,7 @@ def test_callgraph_reconstruction_through_primitives():
         """
 
     ast = parse_module(expand_string(str))
-    env = ToplevelEnv()
+    env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
     f = m.defs[W_Symbol.make("f")].closure.caselam.lams[0]
     g = m.defs[W_Symbol.make("g")].closure.caselam.lams[0]
