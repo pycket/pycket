@@ -41,12 +41,12 @@ class CallGraph(object):
 
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
-        visited = {}
         if starting_from is None:
             starting_from = lam
         if (lam, starting_from) in self.recursive:
             return True
         todo = self.calls.get(starting_from, {}).keys()
+        visited = {}
         while todo:
             current = todo.pop()
             if current is lam:
