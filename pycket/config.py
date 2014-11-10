@@ -39,7 +39,7 @@ def compute_executable_suffix(config):
     res = []
     if config.callgraph:
         res.append("-callgraph")
-    if config.prune_env:
+    if not config.prune_env:
         res.append("-no-prune-env")
     if not config.two_state:
         res.append("-no-two-state")
