@@ -411,7 +411,7 @@ class Require(AST):
         self.module.interpret_mod(top)
         return values.w_void
 
-    def tostring(self):
+    def _tostring(self):
         return "(require %s)"%self.modname
 
 empty_vals = values.Values.make([])
@@ -452,7 +452,7 @@ class Cell(AST):
     def _mutated_vars(self):
         return self.expr.mutated_vars()
 
-    def tostring(self):
+    def _tostring(self):
         return "Cell(%s)"%self.expr.tostring()
 
 class Quote(AST):
@@ -473,7 +473,7 @@ class Quote(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def tostring(self):
+    def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
                 isinstance(self.w_val, values.W_Number) or
                 isinstance(self.w_val, values_string.W_String) or
@@ -499,7 +499,7 @@ class QuoteSyntax(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def tostring(self):
+    def _tostring(self):
         return "#'%s" % self.w_val.tostring()
 
 class VariableReference(AST):
@@ -538,7 +538,7 @@ class VariableReference(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def tostring(self):
+    def _tostring(self):
         return "#<#%variable-reference>"
 
 
@@ -550,7 +550,7 @@ class WithContinuationMark(AST):
         self.value = value
         self.body = body
 
-    def tostring(self):
+    def _tostring(self):
         return "(with-continuation-mark %s %s %s)"%(self.key.tostring(),
                                                     self.value.tostring(),
                                                     self.body.tostring())
@@ -637,7 +637,7 @@ class App(AST):
             args_w[i] = rand.interpret_simple(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def tostring(self):
+    def _tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
 class SequencedBodyAST(AST):
@@ -690,7 +690,7 @@ class Begin0(AST):
             x.update(r.mutated_vars())
         return x
 
-    def tostring(self):
+    def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
 
     def interpret(self, env, cont):
@@ -721,7 +721,7 @@ class Begin(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
-    def tostring(self):
+    def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
 class Var(AST):
@@ -748,7 +748,7 @@ class Var(AST):
     def free_vars(self):
         return {self.sym: None}
 
-    def tostring(self):
+    def _tostring(self):
         return "%s" % self.sym.variable_name()
 
 
@@ -756,8 +756,8 @@ class CellRef(Var):
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
 
-    def tostring(self):
-        return "CellRef(%s)" % Var.tostring(self)
+    def _tostring(self):
+        return "CellRef(%s)" % Var._tostring(self)
 
     def _set(self, w_val, env):
         v = env.lookup(self.sym, self.env_structure)
@@ -875,7 +875,7 @@ class ModuleVar(Var):
 #         self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
 #     def assign_convert(self, vars, env_structure):
 #         return ModCellRef(self.sym, self.srcmod, self.srcsym)
-#     def tostring(self):
+#     def _tostring(self):
 #         return "ModCellRef(%s)" %variable_name(self.sym)
 #     def _set(self, w_val, env):
 #         w_res = self.modvar._lookup(env)
@@ -933,7 +933,7 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
-    def tostring(self):
+    def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
@@ -978,7 +978,7 @@ class If(AST):
             x.update(b.mutated_vars())
         return x
 
-    def tostring(self):
+    def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, srcpos, srcfile):
@@ -1058,7 +1058,7 @@ class CaseLambda(AST):
         ls = [l.assign_convert(vars, env_structure) for l in self.lams]
         return CaseLambda(ls, recursive_sym=self.recursive_sym)
 
-    def tostring(self):
+    def _tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
         return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
@@ -1217,8 +1217,7 @@ class Lambda(SequencedBodyAST):
                 vals.append(env.lookup(v, self.enclosing_env_structure))
         return vals[:]
 
-    @jit.elidable
-    def tostring(self):
+    def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
         if self.rest:
@@ -1256,7 +1255,7 @@ class CombinedAstAndIndex(AST):
             self.combinations[key] = result
         return result
 
-    def tostring(self):
+    def _tostring(self):
         return "<%s of %s>" % (self.index, self.ast.tostring())
 
 class CombinedAstAndAst(AST):
@@ -1327,7 +1326,7 @@ class Letrec(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
-    def tostring(self):
+    def _tostring(self):
         vars = []
         len = 0
         for i in self.counts:
@@ -1562,7 +1561,7 @@ class Let(SequencedBodyAST):
         remove_num_envs.reverse()
         return self, sub_env_structure, env_structures, remove_num_envs[:]
 
-    def tostring(self):
+    def _tostring(self):
         result = ["(let ("]
         j = 0
         for i, count in enumerate(self.counts):
@@ -1625,7 +1624,7 @@ class DefineValues(AST):
         # which is the only thing defined by define-values
         return self.rhs.free_vars()
 
-    def tostring(self):
+    def _tostring(self):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 

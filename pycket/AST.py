@@ -1,10 +1,12 @@
+from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter?", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
+    _stringrepr = None # default value
     mvars = None
     surrounding_lambda = None
 
@@ -70,6 +72,12 @@ class AST(object):
         raise NotImplementedError("abstract base class")
 
     def tostring(self):
+        _stringrepr = self._stringrepr
+        if _stringrepr is None:
+            _stringrepr = self._stringrepr = self._tostring()
+        return _stringrepr
+
+    def _tostring(self):
         return "UNKNOWN AST: "
 
     def __str__(self):
