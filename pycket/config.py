@@ -9,13 +9,13 @@ pycketoption_descr = OptionDescription(
     BoolOption("two_state", "enable the two-state JIT driver",
                default=True, cmdline="--two-state"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
-               default=True, cmdline="--callgraph"),
+               default=False, cmdline="--callgraph"),
     BoolOption("log_callgraph", "log the callgraph decisions",
                default=False, cmdline="--log-callgraph",
                requires=[("pycket.callgraph", True)]),
     BoolOption("fuse_conts", "fuse the continuations",
                default=False, cmdline="--fuse-conts"),
-    BoolOption("with_branch", "but the git branch name into the executable name",
+    BoolOption("with_branch", "build the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
     BoolOption("track_header", "track loops headers instead of last AST element",
                default=False, cmdline="--track-header"),
@@ -37,12 +37,11 @@ def get_testing_config(**overrides):
 def compute_executable_suffix(config):
     config = config.pycket
     res = []
-    if not config.callgraph:
-        if not config.two_state:
-            res.append("-no-loop")
-        else:
-            res.append("-no-callgraph")
-    elif not config.two_state:
+    if config.callgraph:
+        res.append("-callgraph")
+    if config.prune_env:
+        res.append("-no-prune-env")
+    if not config.two_state:
         res.append("-no-two-state")
     if not config.strategies:
         res.append("-no-strategies")

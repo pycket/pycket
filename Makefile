@@ -3,14 +3,14 @@ translate-all: translate-jit translate-no-callgraph translate-no-two-state trans
 translate-jit:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
 
+translate-no-prune-env:
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-prune-env
+
 translate-no-two-state:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state
 
-translate-no-callgraph:
-	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-callgraph
-
-translate-no-loop-opts:
-	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-two-state --no-callgraph
+translate-callgraph:
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --callgraph
 
 translate-no-strategies:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-strategies
