@@ -767,9 +767,10 @@ expose_val("current-print", current_print_param)
 
 # line buffer stdout
 stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
+stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1))
 stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
 current_out_param = values.W_Parameter(stdout_port)
-current_error_param = values.W_Parameter(stdout_port)
+current_error_param = values.W_Parameter(stderr_port)
 current_in_param = values.W_Parameter(stdin_port)
 
 expose_val("current-output-port", current_out_param)
