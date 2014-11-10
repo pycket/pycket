@@ -178,7 +178,7 @@ class HashmapStrategy(object):
 
 
 def _find_strategy_class(keys):
-    if not config.type_specialization:
+    if not config.strategies:
         return ObjectHashmapStrategy.singleton
     if len(keys) == 0:
         return EmptyHashmapStrategy.singleton

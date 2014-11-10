@@ -92,7 +92,7 @@ class W_Cell(W_Object): # not the same as Racket's box
 
     def set_val(self, w_value):
         from pycket import config
-        if not config.type_specialization:
+        if not config.strategies:
             self.w_value = w_value
             return
         if isinstance(w_value, W_Fixnum):
@@ -257,9 +257,7 @@ class W_Cons(W_List):
     @staticmethod
     def make(car, cdr):
         from pycket import config
-        # NOTE: This is using the inline_small_list config option rather than
-        # the type_specialization option that other strategies use.
-        if not config.inline_small_list:
+        if not config.type_size_specialization:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)

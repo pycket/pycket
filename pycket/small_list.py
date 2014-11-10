@@ -18,7 +18,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
     @staticmethod
     make(listcontent, *args): makes a new instance with the list's content set to listcontent
     """
-    if not config.inline_small_list:
+    if not config.type_size_specialization:
         sizemin = sizemax = 0
         unbox_num = False
     def wrapper(cls):

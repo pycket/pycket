@@ -19,10 +19,10 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--with-branch"),
     BoolOption("track_header", "track loops headers instead of last AST element",
                default=False, cmdline="--track-header"),
-    BoolOption("type_specialization", "strategies for data structures (vectors, cons cells, cells, hashmaps, etc)",
-               default=True, cmdline="--type-specialization"),
-    BoolOption("inline_small_list", "unbox small data structure fields (environments, continuations, structs, etc)",
-               default=True, cmdline="--inline-small-list"),
+    BoolOption("strategies", "strategies for data structures (vectors, cells, hashmaps, etc)",
+               default=True, cmdline="--strategies"),
+    BoolOption("type_size_specialization", "unbox small data structure fields and type specialize (environments, continuations, structs, cons cells, etc)",
+               default=True, cmdline="--type-size-specialization"),
     BoolOption("prune_env", "prune environment",
                default=True, cmdline="--prune-env"),
 ])
@@ -44,8 +44,10 @@ def compute_executable_suffix(config):
             res.append("-no-callgraph")
     elif not config.two_state:
         res.append("-no-two-state")
-    if not config.type_specialization:
-        res.append("-no-type-specialization")
+    if not config.strategies:
+        res.append("-no-strategies")
+    if not config.type_size_specialization:
+        res.append("-no-type-size-specialization")
     if config.fuse_conts:
         res.append("-fuse-conts")
     if config.track_header:
@@ -59,8 +61,8 @@ def compute_executable_suffix(config):
 # we expose them here. this code must not be changed, the flags are mutated
 # from entry_point.
 
-exposed_options = ['type_specialization',
-                   'inline_small_list',
+exposed_options = ['strategies',
+                   'type_size_specialization',
                    'prune_env',
 ]
 

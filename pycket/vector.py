@@ -13,7 +13,7 @@ from rpython.rlib import debug, jit
         jit.loop_unrolling_heuristic(
                 elements, len(elements), UNROLLING_CUTOFF))
 def _find_strategy_class(elements, immutable):
-    if not config.type_specialization or len(elements) == 0:
+    if not config.strategies or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
         return ObjectVectorStrategy.singleton
     single_class = type(elements[0])
@@ -89,7 +89,7 @@ class W_Vector(W_MVector):
         return self.strategy
 
     def set_strategy(self, strategy):
-        if not config.type_specialization:
+        if not config.strategies:
             assert strategy is ObjectVectorStrategy.singleton
         self.strategy = strategy
 

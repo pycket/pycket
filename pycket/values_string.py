@@ -18,7 +18,7 @@ class W_String(W_Object):
     @staticmethod
     def fromstr_utf8(s, immutable=False):
         # try to see whether it's ascii first
-        if config.type_specialization:
+        if config.strategies:
             ascii = True
             for c in s:
                 if ord(c) >= 128:
@@ -31,7 +31,7 @@ class W_String(W_Object):
 
     @staticmethod
     def fromascii(s, immutable=False):
-        if not config.type_specialization:
+        if not config.strategies:
             u = s.decode("utf-8")
             return W_String.fromunicode(u, immutable)
         if not we_are_translated():
