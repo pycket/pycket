@@ -1007,23 +1007,6 @@ class W_ThunkProcCMK(W_Procedure):
     def call(self, env, cont):
         return self.proc.call(self.args, env, cont)
 
-class W_SimplePrim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "arity"]
-    def __init__ (self, name, code, arity=Arity.unknown):
-        self.name = name
-        self.code = code
-        self.arity = arity
-
-    def get_arity(self):
-        return self.arity
-
-    def call(self, args, env, cont):
-        from pycket.interpreter import return_value
-        jit.promote(self)
-        return return_value(self.code(args), env, cont)
-
-    def tostring(self):
-        return "<procedure:%s>" % self.name
 
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity"]
