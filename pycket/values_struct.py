@@ -237,6 +237,10 @@ class W_StructType(values.W_Object):
                 return v
         return -1
 
+    @jit.elidable
+    def is_immutable_field_index(self, i):
+        return i in self.immutable_fields
+
     def struct_type_info(self):
         name = values.W_Symbol.make(self.name)
         init_field_cnt = values.W_Fixnum.make(self.init_field_cnt)
@@ -254,10 +258,6 @@ class W_StructType(values.W_Object):
 
     def make_struct_tuple(self):
         return [self, self.constr, self.pred, self.acc, self.mut]
-
-    @jit.elidable
-    def is_immutable_field_index(self, i):
-        return i in self.immutable_fields
 
     @jit.elidable_promote('all')
     def read_prop_precise(self, prop):
@@ -525,6 +525,14 @@ class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type"]
 
+    @staticmethod
+    def make_prefab(w_key, w_values):
+        w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
+        for i, value in enumerate(w_values):
+            if not w_struct_type.is_immutable_field_index(i):
+                w_values[i] = values.W_Cell(value)
+        return W_Struct.make(w_values, w_struct_type)
+
     def __init__(self, type):
         self._type = type
 
@@ -535,11 +543,6 @@ class W_Struct(W_RootStruct):
             assert isinstance(w_res, values.W_Cell)
             w_res = w_res.get_val()
         return w_res
-
-    @staticmethod
-    def make_prefab(w_key, w_values):
-        w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
-        return W_Struct.make(w_values, w_struct_type)
 
     @jit.unroll_safe
     def vals(self):
@@ -658,11 +661,9 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(type.auto_values) > 0:
             field_values = field_values + type.auto_values
-
         for i, value in enumerate(field_values):
             if not type.is_immutable_field_index(i):
                 field_values[i] = values.W_Cell(value)
-
         result = W_Struct.make(field_values, type)
         return return_value(result, env, cont)
 
