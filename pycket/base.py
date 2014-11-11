@@ -90,6 +90,16 @@ class W_Object(W_ProtoObject):
     def tostring(self):
         return str(self)
 
+    # for expose
+    @classmethod
+    def make_unwrapper(cls):
+        if cls is W_Object:
+            return lambda x: x, ''
+        def unwrap(w_object):
+            if isinstance(w_object, cls):
+                return w_object
+            return None
+        return unwrap, cls.errorname
 
 class SingletonMeta(type):
     def __new__(cls, name, bases, dct):

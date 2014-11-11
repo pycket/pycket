@@ -16,6 +16,18 @@ class unsafe(object):
     def __init__(self, typ):
         self.typ = typ
 
+    def make_unwrapper(self):
+        typ = self.typ
+        def unwrapper(w_arg):
+            assert w_arg is not None
+            # the following precise type check is intentional.
+            # record_known_class records a precise class to the JIT,
+            # excluding subclasses
+            assert type(w_arg) is typ
+            jit.record_known_class(w_arg, typ)
+            return w_arg
+        return unwrapper, typ.errorname
+
 
 class subclass_unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
@@ -26,6 +38,17 @@ class subclass_unsafe(object):
 
     def __init__(self, typ):
         self.typ = typ
+
+    def make_unwrapper(self):
+        typ = self.typ
+        def unwrapper(w_arg):
+            # this is not really communicating much to the jit
+            # but at least type inference knows the unsafe type
+            # (and if we come up with better ideas when know the place to
+            # use it)
+            assert isinstance(w_arg, typ)
+            return w_arg
+        return unwrapper, typ.errorname
 
 
 class default(object):
@@ -38,13 +61,21 @@ class default(object):
 
 class procedure(object):
     errorname = "procedure"
+    def make_unwrapper(self):
+        return unwrap_procedure, "procedure"
 
-def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
+def unwrap_procedure(w_arg):
+    if w_arg.iscallable():
+        return w_arg
+    return None
+
+procedure = procedure()
+
+def _make_arg_unwrapper(func, argstypes, funcname, has_self=False, simple=False):
     argtype_tuples = []
     min_arg = 0
     isdefault = False
     for i, typ in enumerate(argstypes):
-        isunsafe = SAFE
         default_value = None
         if isinstance(typ, default):
             isdefault = True
@@ -53,18 +84,10 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
         else:
             assert not isdefault, "non-default argument %s after default argument" % typ
             min_arg += 1
-        if isinstance(typ, unsafe):
-            typ = typ.typ
-            subclasses = typ.__subclasses__()
-            if subclasses:
-                raise ValueError("type %s cannot be used unsafely, since it has subclasses %s" % (typ, subclasses))
-            isunsafe = UNSAFE
-        elif isinstance(typ, subclass_unsafe):
-            typ = typ.typ
-            isunsafe = SUBCLASS_UNSAFE
+        unwrapper, errorname = typ.make_unwrapper()
         type_errormsg = "expected %s as argument %s to %s, got " % (
-                            typ.errorname, i, funcname)
-        argtype_tuples.append((i, typ, isunsafe, isdefault, default_value, type_errormsg))
+                            errorname, i, funcname)
+        argtype_tuples.append((i, unwrapper, isdefault, default_value, type_errormsg))
     unroll_argtypes = unroll.unrolling_iterable(argtype_tuples)
     max_arity = len(argstypes)
     if min_arg == max_arity:
@@ -89,33 +112,16 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False):
         if not min_arg <= lenargs <= max_arity:
             raise SchemeException(errormsg_arity + str(lenargs))
         type_errormsg = None
-        for i, typ, unsafe, default, default_value, type_errormsg in unroll_argtypes:
+        for i, unwrapper, default, default_value, type_errormsg in unroll_argtypes:
             if i >= min_arg and i >= lenargs:
                 assert default
                 typed_args += (default_value, )
                 continue
             arg = args[i]
-
-            if not unsafe:
-                if typ is not values.W_Object and not (
-                    typ is procedure and arg.iscallable() or \
-                        isinstance(arg, typ)):
-                    break
-            elif unsafe == UNSAFE:
-                assert arg is not None
-                # the following precise type check is intentional.
-                # record_known_class records a precise class to the JIT,
-                # excluding subclasses
-                assert type(arg) is typ
-                jit.record_known_class(arg, typ)
-            else:
-                assert unsafe == SUBCLASS_UNSAFE
-                # this is not really communicating much to the jit
-                # but at least type inference knows the unsafe type
-                # (and if we come up with better ideas when know the place to
-                # use it)
-                assert isinstance(arg, typ)
-            typed_args += (arg, )
+            typed_arg = unwrapper(arg)
+            if typed_arg is None:
+                break
+            typed_args += (typed_arg, )
         else:
             typed_args += rest
             return func(*typed_args)
@@ -152,7 +158,7 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
         names = [n] if isinstance(n, str) else n
         name = names[0]
         if argstypes is not None:
-            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
+            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name, simple=simple)
             if arity is not None:
                 _arity = arity
         else:
@@ -197,7 +203,7 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
                     "primitive %s is not yet implemented" % name)
             _arity = arity or Arity.unknown
         elif argstypes is not None:
-            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name)
+            func_arg_unwrap, _arity = _make_arg_unwrapper(func, argstypes, name, simple=simple)
             if arity is not None:
                 _arity = arity
         else:
