@@ -687,7 +687,12 @@ class App(AST):
     # are simple.
     @jit.unroll_safe
     def interpret(self, env, cont):
-        w_callable = self.rator.interpret_simple(env)
+        rator = self.rator
+        if (not env.pycketconfig().callgraph and
+                isinstance(rator, ModuleVar) and
+                rator.is_primitive()):
+            self.set_should_enter() # to jit downrecursion
+        w_callable = rator.interpret_simple(env)
         args_w = [None] * len(self.rands)
         for i, rand in enumerate(self.rands):
             args_w[i] = rand.interpret_simple(env)
@@ -712,6 +717,8 @@ class SimplePrimApp1(App):
         self.w_prim = w_prim
 
     def interpret(self, env, cont):
+        if not env.pycketconfig().callgraph:
+            self.set_should_enter() # to jit downrecursion
         result = self.w_prim.simple1(self.rand1.interpret_simple(env))
         return return_multi_vals_direct(result, env, cont)
 
@@ -727,6 +734,8 @@ class SimplePrimApp2(App):
         self.w_prim = w_prim
 
     def interpret(self, env, cont):
+        if not env.pycketconfig().callgraph:
+            self.set_should_enter() # to jit downrecursion
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
