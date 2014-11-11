@@ -708,7 +708,7 @@ class App(AST):
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
-    simple = False
+    simple = True
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
@@ -716,16 +716,25 @@ class SimplePrimApp1(App):
         self.rand1, = rands
         self.w_prim = w_prim
 
+    def run(self, env):
+        result = self.w_prim.simple1(self.rand1.interpret_simple(env))
+        if result is None:
+            result = values.w_void
+        return result
+
+    def interpret_simple(self, env):
+        return check_one_val(self.run(env))
+
     def interpret(self, env, cont):
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
-        result = self.w_prim.simple1(self.rand1.interpret_simple(env))
+        result = self.run(env)
         return return_multi_vals_direct(result, env, cont)
 
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
-    simple = False
+    simple = True
 
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
@@ -733,16 +742,22 @@ class SimplePrimApp2(App):
         self.rand1, self.rand2 = rands
         self.w_prim = w_prim
 
-    def interpret(self, env, cont):
-        if not env.pycketconfig().callgraph:
-            self.set_should_enter() # to jit downrecursion
+    def run(self, env):
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
         if result is None:
             result = values.w_void
-        return return_multi_vals_direct(result, env, cont)
+        return result
 
+    def interpret_simple(self, env):
+        return check_one_val(self.run(env))
+
+    def interpret(self, env, cont):
+        if not env.pycketconfig().callgraph:
+            self.set_should_enter() # to jit downrecursion
+        result = self.run(env)
+        return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
@@ -1318,11 +1333,16 @@ class Lambda(SequencedBodyAST):
 
     @jit.unroll_safe
     def collect_frees_without_recursive(self, recursive_sym, env):
-        vals = []
+        num_vals = len(self.frees.elems)
+        if recursive_sym is not None:
+            num_vals -= 1
+        vals = [None] * num_vals
+        i = 0
         for v in self.frees.elems:
             if v is not recursive_sym:
-                vals.append(env.lookup(v, self.enclosing_env_structure))
-        return vals[:]
+                vals[i] = env.lookup(v, self.enclosing_env_structure)
+                i += 1
+        return vals
 
     def _tostring(self):
         if self.rest and not self.formals:

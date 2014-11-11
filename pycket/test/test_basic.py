@@ -605,8 +605,8 @@ def test_should_enter_downrecursion():
 
     assert append.body[0].should_enter
     # This is long to account for let conversion
-    assert append.body[0].body[0].els.body[0].body[0].body[0].should_enter
+    assert append.body[0].els.body[0].should_enter
 
     assert f.body[0].should_enter
-    assert f.body[0].body[0].els.body[0].should_enter
+    assert f.body[0].els.body[0].should_enter
 
