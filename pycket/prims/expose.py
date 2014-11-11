@@ -152,8 +152,7 @@ def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
             else:
                 type_errormsg = type_errormsg1
                 arg = arg1
-            if typed_arg1 is None:
-                raise SchemeException(type_errormsg + arg.tostring())
+            raise SchemeException(type_errormsg + arg.tostring())
         func_direct_unwrap.func_name = "%s_fast2" % (func.func_name, )
         return func_arg_unwrap, None, func_direct_unwrap
 
