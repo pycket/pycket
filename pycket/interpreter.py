@@ -625,8 +625,7 @@ class App(AST):
         self.env_structure = env_structure
 
     @staticmethod
-    def make(rator, rands, env_structure):
-        # only needs to be called from assign_convert
+    def make(rator, rands, env_structure=None):
         if isinstance(rator, ModuleVar) and rator.is_primitive():
             try:
                 w_prim = rator._lookup_primitive()
@@ -665,10 +664,10 @@ class App(AST):
             name = "AppRand%s_"%i
         # The body is an App operating on the freshly bound symbols
         if fresh_vars:
-            fresh_body = [App(all_args[0], all_args[1:])]
+            fresh_body = [App.make(all_args[0], all_args[1:])]
             return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
         else:
-            return App(rator, rands)
+            return App.make(rator, rands)
 
     def assign_convert(self, vars, env_structure):
         return App.make(self.rator.assign_convert(vars, env_structure),
@@ -704,6 +703,8 @@ class App(AST):
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
+    simple = False
+
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 1
@@ -717,6 +718,8 @@ class SimplePrimApp1(App):
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
+    simple = False
+
     def __init__(self, rator, rands, env_structure, w_prim):
         App.__init__(self, rator, rands, env_structure)
         assert len(rands) == 2

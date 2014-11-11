@@ -5,6 +5,7 @@ from pycket.expand import _to_ast, to_ast, parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
+                                SimplePrimApp1, SimplePrimApp2
                                 )
 from pycket.test.testhelper import format_pycket_mod
 
@@ -184,3 +185,17 @@ def test_bottom_up_let_conversion_bug_append():
         assert let.rhss[0].rator.sym is fn
         let = let.body[0]
     assert let.rator.sym is cons
+
+
+def test_specialized_app_for_simple_prims():
+    p = expr_ast("(car 1)")
+    assert isinstance(p, SimplePrimApp1)
+
+    p = expr_ast("(cons 1 2)")
+    assert isinstance(p, SimplePrimApp2)
+
+
+def test_simple_prim_calls_are_simple_expressions():
+    p = expr_ast("(car (cons 1 2))")
+    assert isinstance(p, SimplePrimApp1)
+
