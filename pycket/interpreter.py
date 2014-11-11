@@ -140,14 +140,7 @@ class LetCont(Cont):
         jit.promote(len_vals)
         len_self = self._get_size_list()
         jit.promote(len_self)
-        vals_w = [None] * (len_self + len_vals)
-        i = 0
-        for j in range(len_self):
-            vals_w[i] = self._get_list(j)
-            i += 1
-        for j in range(len_vals):
-            vals_w[i] = vals.get_value(j)
-            i += 1
+        new_length = len_self + len_vals
         ast, rhsindex = self.counting_ast.unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
@@ -161,12 +154,57 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = ConsEnv.make(vals_w, prev)
+            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
+            vals_w = [None] * new_length
+            i = 0
+            for j in range(len_self):
+                vals_w[i] = self._get_list(j)
+                i += 1
+            for j in range(len_vals):
+                vals_w[i] = vals.get_value(j)
+                i += 1
             return (ast.rhss[rhsindex + 1], self.env,
                     LetCont.make(vals_w, ast, rhsindex + 1,
                                  self.env, self.prev))
+
+    @jit.unroll_safe
+    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+        # this is a complete mess. however, it really helps warmup a lot
+        if new_length == 0:
+            return ConsEnv.make0(prev)
+        if new_length == 1:
+            if len_self == 1:
+                elem = self._get_list(0)
+            else:
+                assert len_self == 0 and len_vals == 1
+                elem = vals.get_value(0)
+            return ConsEnv.make1(elem, prev)
+        if new_length == 2:
+            if len_self == 0:
+                assert len_vals == 2
+                elem1 = vals.get_value(0)
+                elem2 = vals.get_value(1)
+            elif len_self == 1:
+                assert len_vals == 1
+                elem1 = self._get_list(0)
+                elem2 = vals.get_value(0)
+            else:
+                assert len_self == 2 and len_vals == 0
+                elem1 = self._get_list(0)
+                elem2 = self._get_list(1)
+            return ConsEnv.make2(elem1, elem2, prev)
+        env = ConsEnv.make_n(new_length, prev)
+        i = 0
+        for j in range(len_self):
+            env._set_list(i, self._get_list(j))
+            i += 1
+        for j in range(len_vals):
+            env._set_list(i, vals.get_value(j))
+            i += 1
+        return env
+
 
 
 class FusedLet0Let0Cont(Cont):
@@ -1293,7 +1331,12 @@ class Letrec(SequencedBodyAST):
 
     @jit.unroll_safe
     def interpret(self, env, cont):
-        env_new = ConsEnv.make([values.W_Cell(None) for var in self.args.elems], env)
+        n_elems = len(self.args.elems)
+        env_new = ConsEnv.make_n(n_elems, env)
+        if n_elems:
+            assert isinstance(env_new, ConsEnv)
+            for i in range(n_elems):
+                env_new._set_list(i, values.W_Cell(None))
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):

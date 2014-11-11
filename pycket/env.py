@@ -182,6 +182,24 @@ class ConsEnv(Env):
             return ConsEnv._make(vals, prev)
         return prev
 
+    @staticmethod
+    def make0(prev):
+        return prev
+
+    @staticmethod
+    def make1(w_val, prev):
+        return ConsEnv._make1(w_val, prev)
+
+    @staticmethod
+    def make2(w_val1, w_val2, prev):
+        return ConsEnv._make2(w_val1, w_val2, prev)
+
+    @staticmethod
+    def make_n(n_vals, prev):
+        if n_vals:
+            return ConsEnv._make_n(n_vals, prev)
+        return prev
+
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         jit.promote(env_structure)

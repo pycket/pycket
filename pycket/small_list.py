@@ -99,6 +99,15 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             result._set_list(0, elem)
             cls.__init__(result, *args)
             return result
+        def make2(elem1, elem2, *args):
+            if not classes: # no type specialization
+                return make([elem1, elem2], *args)
+            result = objectmodel.instantiate(classes[2])
+            result._set_list(0, elem1)
+            result._set_list(1, elem2)
+            cls.__init__(result, *args)
+            return result
+
         def make_n(size, *args):
             if sizemin <= size < sizemax:
                 subcls = classes[size - sizemin]
@@ -112,15 +121,16 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             return result
 
         if unbox_num:
-            make, make1 = _add_num_classes(cls, make, make0, make1)
+            make, make1, make2 = _add_num_classes(cls, make, make0, make1, make2)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "0", staticmethod(make0))
         setattr(cls, factoryname + "1", staticmethod(make1))
+        setattr(cls, factoryname + "2", staticmethod(make2))
         setattr(cls, factoryname + "_n", staticmethod(make_n))
         return cls
     return wrapper
 
-def _add_num_classes(cls, orig_make, orig_make0, orig_make1):
+def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     # XXX quite brute force
     def make(vals, *args):
         from pycket.values import W_Fixnum
@@ -129,14 +139,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1):
         if len(vals) == 1:
             return make1(vals[0], *args)
         if len(vals) == 2:
-            w_a, w_b = vals
-            if isinstance(w_a, W_Fixnum):
-                if isinstance(w_b, W_Fixnum):
-                    return Size2Fixed11(w_a.value, w_b.value, *args)
-                else:
-                    return Size2Fixed10(w_a.value, w_b, *args)
-            elif isinstance(w_b, W_Fixnum):
-                return Size2Fixed01(w_a, w_b.value, *args)
+            return make2(vals[0], vals[1], *args)
         return orig_make(vals, *args)
     def make1(w_a, *args):
         from pycket.values import W_Fixnum, W_Flonum
@@ -145,6 +148,16 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1):
         if isinstance(w_a, W_Flonum):
             return Size1Flo(w_a.value, *args)
         return orig_make1(w_a, *args)
+    def make2(w_a, w_b, *args):
+        from pycket.values import W_Fixnum
+        if isinstance(w_a, W_Fixnum):
+            if isinstance(w_b, W_Fixnum):
+                return Size2Fixed11(w_a.value, w_b.value, *args)
+            else:
+                return Size2Fixed10(w_a.value, w_b, *args)
+        elif isinstance(w_b, W_Fixnum):
+            return Size2Fixed01(w_a, w_b.value, *args)
+        return orig_make2(w_a, w_b, *args)
 
     class Size1Fixed(cls):
         def __init__(self, vals_fixed_0, *args):
@@ -259,4 +272,4 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1):
             raise NotImplementedError()
     Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
 
-    return make, make1
+    return make, make1, make2
