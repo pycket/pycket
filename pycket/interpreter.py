@@ -135,7 +135,6 @@ class LetCont(Cont):
 
     @jit.unroll_safe
     def plug_reduce(self, vals, _env):
-        # XXX remove copy
         len_vals = vals.num_values()
         jit.promote(len_vals)
         len_self = self._get_size_list()
@@ -157,6 +156,7 @@ class LetCont(Cont):
             env = self._construct_env(len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
+            # XXX remove copy
             vals_w = [None] * new_length
             i = 0
             for j in range(len_self):
