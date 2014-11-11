@@ -194,7 +194,7 @@ def test_specialized_app_for_simple_prims():
     p = expr_ast("(cons 1 2)")
     assert isinstance(p, SimplePrimApp2)
 
-
+@pytest.mark.xfail
 def test_simple_prim_calls_are_simple_expressions():
     p = expr_ast("(car (cons 1 2))")
     assert isinstance(p, SimplePrimApp1)
