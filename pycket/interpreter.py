@@ -1610,7 +1610,7 @@ class Let(SequencedBodyAST):
             remove_num_envs = [0] * (len(self.rhss) + 1)
             env_structures = [sub_env_structure.prev] * len(self.rhss)
             env_structures.append(sub_env_structure)
-            return self, sub_env_structure, remove_num_envs
+            return self, sub_env_structure, env_structures, remove_num_envs
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = {}
         for b in self.body:
