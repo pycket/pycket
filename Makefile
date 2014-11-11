@@ -1,4 +1,4 @@
-translate-all: translate-jit translate-no-callgraph translate-no-two-state translate-no-loop-opts translate-no-strategies translate-no-type-size-specialization
+translate-all: translate-jit translate-callgraph translate-no-two-state translate-callgraph-only translate-no-strategies translate-no-type-size-specialization
 
 translate-jit:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
@@ -11,6 +11,9 @@ translate-no-two-state:
 
 translate-callgraph:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --callgraph
+
+translate-callgraph-only:
+	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --callgraph --no-two-state
 
 translate-no-strategies:
 	./pypy/rpython/bin/rpython -Ojit --batch targetpycket.py --no-strategies
