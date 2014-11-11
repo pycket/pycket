@@ -622,6 +622,22 @@ class App(AST):
         self.env_structure = env_structure
 
     @staticmethod
+    def make(rator, rands, env_structure):
+        # only needs to be called from assign_convert
+        if isinstance(rator, ModuleVar) and rator.is_primitive():
+            try:
+                w_prim = rator._lookup_primitive()
+            except SchemeException:
+                pass
+            else:
+                if isinstance(w_prim, values.W_Prim):
+                    if w_prim.simple1 and len(rands) == 1:
+                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
+                    if w_prim.simple2 and len(rands) == 2:
+                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+        return App(rator, rands, env_structure)
+
+    @staticmethod
     def make_let_converted(rator, rands):
         all_args = [rator] + rands
         fresh_vars = []
@@ -652,7 +668,7 @@ class App(AST):
             return App(rator, rands)
 
     def assign_convert(self, vars, env_structure):
-        return App(self.rator.assign_convert(vars, env_structure),
+        return App.make(self.rator.assign_convert(vars, env_structure),
                    [e.assign_convert(vars, env_structure) for e in self.rands],
                    env_structure=env_structure)
 
@@ -681,6 +697,37 @@ class App(AST):
 
     def _tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
+
+
+class SimplePrimApp1(App):
+    _immutable_fields_ = ['w_prim', 'rand1']
+    def __init__(self, rator, rands, env_structure, w_prim):
+        App.__init__(self, rator, rands, env_structure)
+        assert len(rands) == 1
+        self.rand1, = rands
+        self.w_prim = w_prim
+
+    def interpret(self, env, cont):
+        result = self.w_prim.simple1(self.rand1.interpret_simple(env))
+        return return_multi_vals(result, env, cont)
+
+
+class SimplePrimApp2(App):
+    _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
+    def __init__(self, rator, rands, env_structure, w_prim):
+        App.__init__(self, rator, rands, env_structure)
+        assert len(rands) == 2
+        self.rand1, self.rand2 = rands
+        self.w_prim = w_prim
+
+    def interpret(self, env, cont):
+        arg1 = self.rand1.interpret_simple(env)
+        arg2 = self.rand2.interpret_simple(env)
+        result = self.w_prim.simple2(arg1, arg2)
+        if result is None:
+            result = values.w_void
+        return return_multi_vals(result, env, cont)
+
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
@@ -878,17 +925,20 @@ class ModuleVar(Var):
         if self.srcmod is None:
             mod = modenv.current_module
         elif self.is_primitive():
-            # we don't separate these the way racket does
-            # but maybe we should
-            try:
-                return prim_env[self.srcsym]
-            except KeyError:
-                raise SchemeException("can't find primitive %s" % (self.srcsym.tostring()))
+            return self._lookup_primitive()
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:
                 raise SchemeException("can't find module %s for %s" % (self.srcmod, self.srcsym.tostring()))
         return mod.lookup(self.srcsym)
+
+    def _lookup_primitive(self):
+        # we don't separate these the way racket does
+        # but maybe we should
+        try:
+            return prim_env[self.srcsym]
+        except KeyError:
+            raise SchemeException("can't find primitive %s" % (self.srcsym.tostring()))
 
     def assign_convert(self, vars, env_structure):
         return self

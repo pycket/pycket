@@ -1007,12 +1007,15 @@ class W_ThunkProcCMK(W_Procedure):
 
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "arity"]
-    def __init__ (self, name, code, arity=Arity.unknown):
+    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
+
+    def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
         self.name = name
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity
+        self.simple1 = simple1
+        self.simple2 = simple2
 
     def get_arity(self):
         return self.arity
