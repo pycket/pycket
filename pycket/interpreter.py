@@ -470,6 +470,9 @@ def return_value_direct(w_val, env, cont):
 def return_multi_vals(vals, env, cont):
     return cont.plug_reduce(vals, env)
 
+def return_multi_vals_direct(vals, env, cont):
+    return cont.plug_reduce(vals, env)
+
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
     def __init__(self, expr, need_cell_flags=None):
@@ -709,7 +712,7 @@ class SimplePrimApp1(App):
 
     def interpret(self, env, cont):
         result = self.w_prim.simple1(self.rand1.interpret_simple(env))
-        return return_multi_vals(result, env, cont)
+        return return_multi_vals_direct(result, env, cont)
 
 
 class SimplePrimApp2(App):
@@ -726,7 +729,7 @@ class SimplePrimApp2(App):
         result = self.w_prim.simple2(arg1, arg2)
         if result is None:
             result = values.w_void
-        return return_multi_vals(result, env, cont)
+        return return_multi_vals_direct(result, env, cont)
 
 
 class SequencedBodyAST(AST):
