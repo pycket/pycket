@@ -469,6 +469,10 @@ def file_position(args):
 ###############################################################################
 @expose("display", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def display(datum, out, env, cont):
+    if isinstance(datum, values.W_Bytes):
+        bytes = datum.value
+        write_bytes_avail(bytes, current_out_param.get(cont), 0, len(bytes))
+        return return_void(env, cont)
     return do_print(datum.tostring(), out, env, cont)
 
 @expose("newline", [default(values.W_OutputPort, None)], simple=False)
@@ -717,37 +721,39 @@ def write_char(w_char, w_port, env, cont):
     s = unicode_encode_utf_8(c, len(c), "strict")
     return do_print(s, w_port, env, cont)
 
+def write_bytes_avail(w_bstr, w_port, start, stop):
+    # FIXME: discern the available from the non-available form
+
+    if start == stop:
+        w_port.flush()
+        return 0
+
+    if start == 0 and stop == len(w_bstr):
+        to_write = w_bstr
+    else:
+        slice_stop = stop - 1
+        assert start >= 0 and slice_stop < len(w_bstr)
+        assert slice_stop >= 0
+        to_write = w_bstr[start:slice_stop]
+
+    # FIXME: we fake here
+    w_port.write("".join(to_write))
+    return stop - start
+
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
           default(values.W_Fixnum, values.W_Fixnum(0)),
           default(values.W_Fixnum, None)], simple=False)
-def write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
-    # FIXME: discern the available from the non-available form
+def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
     from pycket.interpreter import return_value
-
     # FIXME: custom ports
     if w_port is None:
         w_port = current_out_param.get(cont)
-    start = w_start.value
-    stop = len(w_bstr.value) if w_end is None else w_end.value
-
-    if start == stop:
-        w_port.flush()
-        return return_value(values.W_Fixnum(0), env, cont)
-
-    if start == 0 and stop == len(w_bstr.value):
-        to_write = w_bstr.value
-    else:
-        slice_stop = stop - 1
-        assert start >= 0 and slice_stop < len(w_bstr.value)
-        assert slice_stop >= 0
-        to_write = w_bstr.value[start:slice_stop]
-
-    # FIXME: we fake here
-    w_port.write("".join(to_write))
-    return return_value(values.W_Fixnum(stop - start), env, cont)
-
-
+    bytes = w_bstr.value
+    start = 0 if w_start is None else w_start.value
+    stop = len(bytes) if w_end is None else w_end.value
+    n = write_bytes_avail(bytes, w_port, start, stop)
+    return return_value(values.W_Fixnum(n), env, cont)
 
 # FIXME:
 @expose("custom-write?", [values.W_Object])
