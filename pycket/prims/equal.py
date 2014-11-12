@@ -102,7 +102,6 @@ def equal_func(a, b, info, env, cont):
     # Enter into chaperones/impersonators if we have permission to do so
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
-        a = a.get_proxied()
         return equal_func(a.get_proxied(), b, info, env, cont)
 
     # If we are doing a chaperone/impersonator comparison, then we do not have
