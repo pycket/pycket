@@ -91,8 +91,21 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = values.W_Fixnum(idx.value + 1)
     return equal_vec_func(a, b, inc, info, env, cont)
 
-@loop_label
 def equal_func(a, b, info, env, cont):
+    return equal_func_loop(a, b, info, env, cont)
+
+def equal_func_unroll_n(a, b, info, env, cont, n):
+    # n says how many times to call equal_func before going through loop label
+    if n > 0:
+        return equal_func_impl(a, b, info, env, cont, n - 1)
+    return equal_func_loop(a, b, info, env, cont)
+
+
+@loop_label
+def equal_func_loop(a, b, info, env, cont):
+    return equal_func_impl(a, b, info, env, cont, 0)
+
+def equal_func_impl(a, b, info, env, cont, n):
     from pycket.interpreter import return_value
 
     for_chaperone = jit.promote(info.for_chaperone)
@@ -102,7 +115,7 @@ def equal_func(a, b, info, env, cont):
     # Enter into chaperones/impersonators if we have permission to do so
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
-        return equal_func(a.get_proxied(), b, info, env, cont)
+        return equal_func_unroll_n(a.get_proxied(), b, info, env, cont, n)
 
     # If we are doing a chaperone/impersonator comparison, then we do not have
     # a chaperone-of/impersonator-of relation if `a` is not a proxy and
@@ -124,11 +137,11 @@ def equal_func(a, b, info, env, cont):
 
     if isinstance(a, values.W_Cons) and isinstance(b, values.W_Cons):
         cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
-        return equal_func(a.car(), b.car(), info, env, cont)
+        return equal_func_unroll_n(a.car(), b.car(), info, env, cont, n)
 
     if isinstance(a, values.W_MCons) and isinstance(b, values.W_MCons):
         cont = equal_car_cont(a.cdr(), b.cdr(), info, env, cont)
-        return equal_func(a.car(), b.car(), info, env, cont)
+        return equal_func_unroll_n(a.car(), b.car(), info, env, cont, n)
 
     if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
         is_chaperone = for_chaperone == EqualInfo.CHAPERONE
@@ -166,7 +179,7 @@ def equal_func(a, b, info, env, cont):
             b_imm = len(b_type.immutables) == b_type.total_field_cnt
             a = values_struct.struct2vector(a, immutable=a_imm)
             b = values_struct.struct2vector(b, immutable=b_imm)
-            return equal_func(a, b, info, env, cont)
+            return equal_func_unroll_n(a, b, info, env, cont, n)
 
     if a.equal(b):
         return return_value(values.w_true, env, cont)
