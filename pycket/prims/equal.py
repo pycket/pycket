@@ -96,40 +96,41 @@ def equal_func(a, b, info, env, cont):
     from pycket.interpreter import return_value
 
     for_chaperone = jit.promote(info.for_chaperone)
-    if a.eqv(b):
-        return return_value(values.w_true, env, cont)
+    while True:
+        if a.eqv(b):
+            return return_value(values.w_true, env, cont)
 
-    # Enter into chaperones/impersonators if we have permission to do so
-    if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
-        (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
-        a = a.get_proxied()
-        continue
+        # Enter into chaperones/impersonators if we have permission to do so
+        if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
+            (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
+            a = a.get_proxied()
+            continue
 
-    # If we are doing a chaperone/impersonator comparison, then we do not have
-    # a chaperone-of/impersonator-of relation if `a` is not a proxy and
-    # `b` is a proxy.
-    if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
-        return return_value(values.w_false, env, cont)
-
-    if isinstance(a, values_string.W_String) and isinstance(b, values_string.W_String):
-        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
+        # If we are doing a chaperone/impersonator comparison, then we do not have
+        # a chaperone-of/impersonator-of relation if `a` is not a proxy and
+        # `b` is a proxy.
+        if for_chaperone != EqualInfo.BASIC and not a.is_proxy() and b.is_proxy():
             return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
 
-    if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
-        is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        return return_value(values.W_Bool.make(a.equal(b)), env, cont)
+        if isinstance(a, values_string.W_String) and isinstance(b, values_string.W_String):
+            is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return return_value(values.W_Bool.make(a.equal(b)), env, cont)
 
-    if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
-        is_chaperone = for_chaperone == EqualInfo.CHAPERONE
-        if is_chaperone and (not a.immutable() or not b.immutable()):
-            return return_value(values.w_false, env, cont)
-        return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
+        if isinstance(a, values.W_Bytes) and isinstance(b, values.W_Bytes):
+            is_chaperone = info.for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return return_value(values.W_Bool.make(a.equal(b)), env, cont)
 
-    return equal_body(a, b, info, env, cont)
+        if isinstance(a, values.W_Box) and isinstance(b, values.W_Box):
+            is_chaperone = for_chaperone == EqualInfo.CHAPERONE
+            if is_chaperone and (not a.immutable() or not b.immutable()):
+                return return_value(values.w_false, env, cont)
+            return a.unbox(env, equal_unbox_right_cont(b, info, env, cont))
+
+        return equal_body(a, b, info, env, cont)
 
 @loop_label
 def equal_body(a, b, info, env, cont):
