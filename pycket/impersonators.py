@@ -78,7 +78,7 @@ def check_chaperone_results_loop(vals, args, idx, env, cont):
     info = EqualInfo.CHAPERONE_SINGLETON
     # XXX it would be best to store the parameter on the toplevel env and make
     # it changeable via a cmdline parameter to pycket-c
-    unroll_n_times = 3 # XXX needs tuning
+    unroll_n_times = 2 # XXX needs tuning
     return equal_func_unroll_n(vals.get_value(idx), args[idx], info, env,
             catch_equal_cont(vals, args, idx, env, cont), unroll_n_times)
 
