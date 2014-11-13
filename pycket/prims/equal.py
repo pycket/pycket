@@ -97,6 +97,7 @@ def equal_func(a, b, info, env, cont):
 def equal_func_unroll_n(a, b, info, env, cont, n):
     # n says how many times to call equal_func before going through loop label
     if n > 0:
+        jit.promote(n)
         return equal_func_impl(a, b, info, env, cont, n - 1)
     return equal_func_loop(a, b, info, env, cont)
 
