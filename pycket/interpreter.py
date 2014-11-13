@@ -1814,7 +1814,7 @@ def interpret_one(ast, env=None):
     if env.pycketconfig().two_state:
         inner_interpret = inner_interpret_two_state
     else:
-        inner_interpret = inner_interpret_two_state
+        inner_interpret = inner_interpret_one_state
     cont = nil_continuation
     cont.update_cm(values.parameterization_key, values.top_level_config)
     try:
