@@ -51,6 +51,8 @@ def compute_executable_suffix(config):
         res.append("-fuse-conts")
     if config.track_header:
         res.append("-track-header")
+    if config.log_callgraph:
+        res.append("-log")
     return "".join(res)
 
 
