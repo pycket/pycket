@@ -64,8 +64,5 @@ def test_church():
 #def test_minikanren():
 #    run_file("minikanren.sch")
 
-def test_struct0():
-    run_file("struct-test0.rkt")
-
-def test_struct1():
-    run_file("struct-test1.rkt")
+def test_struct():
+    run_file("struct-test.rkt")
