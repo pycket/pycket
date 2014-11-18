@@ -685,3 +685,27 @@ def test_format(doctest):
     > (format "abc~adef~aghi" 1 2)
     "abc1def2ghi"
     """
+
+def test_procedure_closure_contents_eq(doctest):
+    r"""
+    ! (define (f x) (lambda () x))
+    ! (define a "abc")
+    ! (define (g x) (lambda () (g x)))
+    > (procedure-closure-contents-eq? (f a) (f a))
+    #t
+    > (procedure-closure-contents-eq? (f a) (f "abc"))
+    #t
+    > (procedure-closure-contents-eq? (f 1) (f 1))
+    #t
+    > (procedure-closure-contents-eq? (f a) (f "c"))
+    #f
+    > (procedure-closure-contents-eq? (g a) (g a))
+    #t
+    > (procedure-closure-contents-eq? (g a) ((g a)))
+    #t
+    > (procedure-closure-contents-eq? (g a) (((g a))))
+    #t
+    > (procedure-closure-contents-eq? (g a) (((g "c"))))
+    #f
+    """
+
