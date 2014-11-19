@@ -11,9 +11,8 @@ notifications:
 env:
   matrix:
     - TEST_TYPE=tests
-    - TEST_TYPE=racket-tests
     - TEST_TYPE=translate
-    - TEST_TYPE=translate-nojit
+    - TEST_TYPE=translate-nojit-and-racket-tests
 before_install:
 #  - sudo add-apt-repository -y ppa:plt/racket
 #  - sudo apt-get update
@@ -39,14 +38,12 @@ script:
       tests)
          ../pypy/pytest.py --duration 20
          ;;
-      racket-tests)
-         ./racket-tests.sh
-         ;;
       translate)
         python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
         ;;
-      translate-nojit)
+      translate-nojit-and-racket-tests)
         python ../pypy/rpython/bin/rpython --batch targetpycket.py
+        ./racket-tests.sh
         ;;
     esac"
 

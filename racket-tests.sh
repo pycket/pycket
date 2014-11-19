@@ -4,15 +4,14 @@ tests=( "pycket/test/struct-test.rkt" )
 
 for test in "${tests[@]}"
 do
-    echo "Running $test.."
-    eval read $testResult <<< $(./pycket-c-nojit $test | awk 'BEGIN { RS = ""; FS = "\n"; } /Errors were:/ {print $0}')
-    testResult=$(echo $testResult | xargs)
-    echo $testResult
-    if [ ! -z "$testResult" -a "$testResult" != " " ]; then
-        echo $testResult
+    printf "Running $test.. "
+    result=$(./pycket-c-nojit $test | awk '/#<void>Errors/{y=1;next;}y')
+    if [ ! -z "$result" -a "$result" != " " ]; then
+        printf "failed:\n$result\n"
         exit 1
+    else
+        printf "passed\n"
     fi
-    echo -e
 done
 
 exit 0
