@@ -5,7 +5,7 @@ tests=( "pycket/test/struct-test.rkt" )
 for test in "${tests[@]}"
 do
     printf "Running $test.. "
-    result=$(./pycket-c-nojit $test | awk '/Errors/{y=1;next;}y')
+    result=$(./pycket-c-c-nojit $test | awk '/Errors/{y=1;next;}y')
     if [ ! -z "$result" -a "$result" != " " ]; then
         printf "failed:\n$result\n"
         exit 1
