@@ -42,8 +42,7 @@ script:
         python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
         ;;
       translate-nojit-and-racket-tests)
-        python ../pypy/rpython/bin/rpython --batch targetpycket.py
-        ./racket-tests.sh
+        python ../pypy/rpython/bin/rpython --batch targetpycket.py && ./racket-tests.sh
         ;;
     esac"
 
