@@ -5,6 +5,7 @@ branch = True
 omit =
      pycket/__main__.py
      pycket/test/jit.py
+     pycket/pypy/
 
 [report]
 # Regexes for lines to exclude from consideration
@@ -18,3 +19,6 @@ exclude_lines =
     # Don't complain if tests don't hit defensive assertion code:
     raise NotImplementedError
 
+
+[html]
+directory = pycket/test/coverage_report
