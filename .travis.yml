@@ -11,6 +11,7 @@ notifications:
 env:
   matrix:
     - TEST_TYPE=tests
+    - TEST_TYPE=racket-tests
     - TEST_TYPE=translate
     - TEST_TYPE=translate-nojit
 before_install:
@@ -35,8 +36,11 @@ install:
 script:
   - export PYTHONPATH=$PYTHONPATH:../pypy:pycket
   - "case \"$TEST_TYPE\" in
-       tests)
+      tests)
          ../pypy/pytest.py --duration 20
+         ;;
+      racket-tests)
+         ./racket-tests.sh
          ;;
       translate)
         python ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
