@@ -411,7 +411,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_ref_cont(interp, env, cont)
         if op is None:
             return self.inner.ref(struct_id, field, env, after)
-        return op.call([self.inner], env, after)
+        return op.call([self], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
@@ -420,7 +420,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         if interp is None:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, struct_id, field, val, env, cont)
-        return interp.call([self.inner, val], env, after)
+        return interp.call([self, val], env, after)
 
     @label
     def get_prop(self, property, env, cont):
