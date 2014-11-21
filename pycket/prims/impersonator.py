@@ -109,39 +109,37 @@ def unpack_hash_args(args, name):
 
 @expose("impersonate-hash")
 def impersonate_hash(args):
-    hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
-            unpack_hash_args(args, "impersonate-hash")
-    return imp.W_ImpHashTable(hash, ref_proc, set_proc, remove_proc,
-                              key_proc, clear_proc, prop_keys, prop_vals)
+    unpacked = unpack_hash_args(args, "impersonate-hash")
+    if unpacked[0].immutable():
+        raise SchemeException("impersonate-hash: cannot impersonate immutable hash")
+    return imp.W_ImpHashTable(*unpacked)
 
 @expose("chaperone-hash")
 def chaperone_hash(args):
-    hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals = \
-            unpack_hash_args(args, "chaperone-hash")
-    return imp.W_ChpHashTable(hash, ref_proc, set_proc, remove_proc,
-                              key_proc, clear_proc, prop_keys, prop_vals)
+    unpacked = unpack_hash_args(args, "chaperone-hash")
+    return imp.W_ImpHashTable(*unpacked)
 
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
-    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "impersonate-procedure")
-    return imp.W_ImpProcedure(proc, check, prop_keys, prop_vals)
+    unpacked = unpack_procedure_args(args, "impersonate-procedure")
+    return imp.W_ImpProcedure(*unpacked)
 
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
-    proc, check, prop_keys, prop_vals = unpack_procedure_args(args, "chaperone-procedure")
-    return imp.W_ChpProcedure(proc, check, prop_keys, prop_vals)
+    unpacked = unpack_procedure_args(args, "chaperone-procedure")
+    return imp.W_ChpProcedure(*unpacked)
 
 @expose("impersonate-vector")
 def impersonate_vector(args):
-    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "impersonate-vector")
-    if v.immutable():
+    unpacked = unpack_vector_args(args, "impersonate-vector")
+    if unpacked[0].immutable():
         raise SchemeException("impersonate-vector: cannot impersonate immutable vector")
-    return imp.W_ImpVector(v, refh, seth, prop_keys, prop_vals)
+    return imp.W_ImpVector(*unpacked)
 
 @expose("chaperone-vector")
 def chaperone_vector(args):
-    v, refh, seth, prop_keys, prop_vals = unpack_vector_args(args, "chaperone-vector")
-    return imp.W_ChpVector(v, refh, seth, prop_keys, prop_vals)
+    unpacked = unpack_vector_args(args, "chaperone-vector")
+    return imp.W_ChpVector(*unpacked)
 
 # Need to check that fields are mutable
 @expose("impersonate-struct")
@@ -214,30 +212,26 @@ def chaperone_struct(args):
 
 @expose("chaperone-box")
 def chaperone_box(args):
-    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "chaperone-box")
-    return imp.W_ChpBox(b, unbox, set, prop_keys, prop_vals)
+    unpacked = unpack_box_args(args, "chaperone-box")
+    return imp.W_ChpBox(*unpacked)
 
 @expose("impersonate-box")
 def impersonate_box(args):
-    b, unbox, set, prop_keys, prop_vals = unpack_box_args(args, "impersonate-box")
-    if b.immutable():
+    unpacked = unpack_box_args(args, "impersonate-box")
+    if unpacked[0].immutable():
         raise SchemeException("Cannot impersonate immutable box")
-    return imp.W_ImpBox(b, unbox, set, prop_keys, prop_vals)
+    return imp.W_ImpBox(*unpacked)
 
 @expose("chaperone-continuation-mark-key")
 def ccmk(args):
-    key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "chaperone-continuation-mark-key")
-    return imp.W_ChpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
+    unpacked = unpack_cmk_args(args, "chaperone-continuation-mark-key")
+    return imp.W_ChpContinuationMarkKey(*unpacked)
 
 @expose("impersonate-continuation-mark-key")
 def icmk(args):
-    key, getter, setter, prop_keys, prop_vals = unpack_cmk_args(args, "impersonate-continuation-mark-key")
-    return imp.W_ImpContinuationMarkKey(key, getter, setter, prop_keys, prop_vals)
+    unpacked = unpack_cmk_args(args, "impersonate-continuation-mark-key")
+    return imp.W_ImpContinuationMarkKey(*unpacked)
 
-# TODO: This is not correct, based on Racket's internal implementation.
-# The addition checking for immutablity should be done recursively, rather
-# than at just the top level of the data structure.
-# See: https://github.com/plt/racket/blob/106cd16d359c7cb594f4def8f427c55992d41a6d/racket/src/racket/src/bool.c
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
     info = EqualInfo.CHAPERONE_SINGLETON
