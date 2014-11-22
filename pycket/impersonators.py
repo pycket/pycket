@@ -411,7 +411,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_ref_cont(interp, env, cont)
         if op is None:
             return self.inner.ref(struct_id, field, env, after)
-        return op.call([self], env, after)
+        return op.call([self.inner], env, after)
 
     @label
     def set(self, struct_id, field, val, env, cont):
@@ -444,7 +444,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 class W_ImpStruct(W_InterposeStructBase):
 
     def post_ref_cont(self, interp, env, cont):
-        return impersonate_reference_cont(interp, [self.inner], env, cont)
+        return impersonate_reference_cont(interp, [self], env, cont)
 
     def post_set_cont(self, op, struct_id, field, val, env, cont):
         return imp_struct_set_cont(self.inner, op, struct_id, field, env, cont)
@@ -453,7 +453,7 @@ class W_ImpStruct(W_InterposeStructBase):
 class W_ChpStruct(W_InterposeStructBase):
 
     def post_ref_cont(self, interp, env, cont):
-        return chaperone_reference_cont(interp, [self.inner], env, cont)
+        return chaperone_reference_cont(interp, [self], env, cont)
 
     def post_set_cont(self, op, struct_id, field, val, env, cont):
         return check_chaperone_results([val], env,
