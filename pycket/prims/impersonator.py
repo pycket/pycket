@@ -177,7 +177,7 @@ def impersonate_struct(args):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
 
     for i in handlers:
-        if not i.iscallable():
+        if not i.iscallable() and i is not values.w_false:
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
     return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)

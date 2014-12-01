@@ -18,6 +18,9 @@ def get_base_object(x):
         x = x.get_proxied()
     return x
 
+def is_noninterposing_chaperone(obj):
+    pass
+
 def make_proxy(proxied="inner", properties="properties"):
     def wrapper(cls):
         def get_proxied(self):
@@ -321,7 +324,7 @@ def valid_struct_proc(x):
 def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    if setter is None:
+    if setter is values.w_false:
         return orig_struct.set(struct_id, field, val, env, cont)
     return setter.call([orig_struct, val], env, cont)
 
@@ -340,8 +343,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.inner = inner
 
         field_cnt = inner.struct_type().total_field_cnt
-        accessors = [None] * field_cnt * 2
-        mutators  = [None] * field_cnt * 2
+        accessors = [values.w_false] * field_cnt * 2
+        mutators  = [values.w_false] * field_cnt * 2
 
         # The mask field contains an array of pointers to the next object
         # in the proxy stack that overrides a given field operation.
@@ -364,14 +367,14 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
-                op = None if type(op) is values_struct.W_StructFieldAccessor else op
+                op = values.w_false if type(op) is values_struct.W_StructFieldAccessor else op
                 jit.promote(base.field)
                 mask[base.field] = self
                 accessors[2 * base.field] = op
                 accessors[2 * base.field + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 jit.promote(base.field)
-                op = None if type(op) is values_struct.W_StructFieldMutator else op
+                op = values.w_false if type(op) is values_struct.W_StructFieldMutator else op
                 mutators[2 * base.field] = op
                 mutators[2 * base.field + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
@@ -409,7 +412,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
         after = self.post_ref_cont(interp, env, cont)
-        if op is None:
+        if op is values.w_false:
             return self.inner.ref(struct_id, field, env, after)
         return op.call([self.inner], env, after)
 
@@ -417,7 +420,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def set(self, struct_id, field, val, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
-        if interp is None:
+        if interp is values.w_false:
             return self.inner.set(struct_id, field, val, env, cont)
         after = self.post_set_cont(op, struct_id, field, val, env, cont)
         return interp.call([self, val], env, after)

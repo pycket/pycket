@@ -1761,27 +1761,28 @@ class DefineValues(AST):
             self.display_names, self.rhs.tostring())
 
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_two_state(green_ast, s1, s2, s3, s4, s5, s6):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
     if surrounding is not None and green_ast is surrounding.body[0]:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
+        return green_ast.tostring() + ' from ' + s1.tostring()
     return green_ast.tostring()
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
-                                 greens=["ast", "came_from"],
+                                 greens=["ast", "s1", "s2", "s3", "s4", "s5", "s6"],
                                  get_printable_location=get_printable_location_two_state)
 
 def inner_interpret_two_state(ast, env, cont):
-    came_from = ast
     config = env.pycketconfig()
+    s1, s2, s3, s4, s5, s6 = [ast] * 6
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-        if config.track_header:
-            came_from = ast if ast.should_enter else came_from
-        else:
-            came_from = ast if isinstance(ast, App) else came_from
+        driver_two_state.jit_merge_point(ast=ast, s1=s1, s2=s2, s3=s3, s4=s4, s5=s5, s6=s6, env=env, cont=cont)
+        #if config.track_header:
+            #came_from = ast if ast.should_enter else came_from
+        if isinstance(ast, App):
+            #came_from = ast if isinstance(ast, App) else came_from
+            s1, s2, s3, s4, s5, s6 = ast, s1, s2, s3, s4, s5
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
@@ -1792,7 +1793,7 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            driver_two_state.can_enter_jit(ast=ast, s1=s1, s2=s2, s3=s3, s4=s4, s5=s5, s6=s6, env=env, cont=cont)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
