@@ -44,7 +44,7 @@ def unpack_vector_args(args, name):
     v, refh, seth = args
     if not isinstance(v, values.W_MVector):
         raise SchemeException(name + ": first arg not a vector")
-    if not refh.iscallable() or not seth.iscallable:
+    if not refh.iscallable() or not seth.iscallable():
         raise SchemeException(name + ": provided handler is not callable")
 
     return v, refh, seth, prop_keys, prop_vals
