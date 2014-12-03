@@ -18,9 +18,6 @@ def get_base_object(x):
         x = x.get_proxied()
     return x
 
-def is_noninterposing_chaperone(obj):
-    pass
-
 def make_proxy(proxied="inner", properties="properties"):
     def wrapper(cls):
         def get_proxied(self):

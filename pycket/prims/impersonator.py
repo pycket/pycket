@@ -176,9 +176,15 @@ def impersonate_struct(args):
                 i.field in immutables):
             raise SchemeException("impersonate-struct: cannot impersonate immutable field")
 
+    all_false = True
     for i in handlers:
+        if i is not values.w_false:
+            all_false = False
         if not i.iscallable() and i is not values.w_false:
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
+
+    if all_false and not prop_keys:
+        return struct
 
     return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
 
@@ -204,9 +210,16 @@ def chaperone_struct(args):
         if not imp.valid_struct_proc(i):
             raise SchemeException("chaperone-struct: not given valid field accessor")
 
+    all_false = True
+
     for i in handlers:
-        if not i.iscallable():
+        if i is not values.w_false:
+            all_false = False
+        if not i.iscallable() and i is not values.w_false:
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
+
+    if all_false and not prop_keys:
+        return struct
 
     return imp.W_ChpStruct(struct, overrides, handlers, prop_keys, prop_vals)
 
