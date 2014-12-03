@@ -126,7 +126,7 @@ def test_mcons():
     with pytest.raises(SchemeException):
         run("(mcar 1 2)", None)
 
-def test_mcons(doctest):
+def test_mcons_equal(doctest):
     """
     > (equal? (mcons 1 2) (mcons 1 2))
     #t
@@ -200,7 +200,7 @@ def test_box():
     run("(unbox (box-immutable #f))", w_false)
     run("(let ([b (box 5)]) (begin (set-box! b #f) (unbox b)))", w_false)
 
-def test_fib():
+def test_fib_ycombinator():
     Y = """
   (lambda (f)
     ((lambda (x) (x x))
