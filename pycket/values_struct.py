@@ -154,7 +154,7 @@ class W_StructType(values.W_Object):
     @jit.unroll_safe
     def initialize_props(self, props, proc_spec, env, cont):
         """
-        Properties initialisation contains few steps:
+        Properties initialization contains few steps:
             1. call initialize_prop for each property from the input list,
                it extracts all super values and stores them into props array
                with a flat structure
@@ -164,7 +164,7 @@ class W_StructType(values.W_Object):
                  of calling value procedure with a sub value as an argument
                * if the current property has a guard, the value is the result of
                  calling guard with a value and struct type info as arguments
-               * in other case just keep the current value
+               * in other case, just keep the current value
         """
         proplist = values.from_list(props)
         props = []
@@ -176,6 +176,8 @@ class W_StructType(values.W_Object):
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
+        self.classes = []
+
         self.name = name.utf8value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value
@@ -207,7 +209,6 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
-        self.field_types = [None] * self.total_field_cnt
         self.calculate_offsets()
 
         self.constr = W_StructConstructor(self)
@@ -520,10 +521,26 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
-@inline_small_list(immutable=True, attrname="values", unbox_num=True)
+@inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
     errorname = "struct"
     _immutable_fields_ = ["_type"]
+
+    @staticmethod
+    @jit.unroll_safe
+    def make(w_values, w_struct_type):
+        booleans = {}
+        for i, value in enumerate(w_values):
+            if isinstance(value, values.W_Bool) and w_struct_type.is_immutable_field_index(i):
+                booleans[i] = value
+        w_values = [value for idx, value in enumerate(w_values) if idx not in booleans.keys()]
+        classname = structure_class_name(booleans)
+        for clazz in w_struct_type.classes:
+            if clazz.__name__ == classname:
+                return clazz.make(w_values, w_struct_type)
+        clazz = generate_structure_class(booleans)
+        w_struct_type.classes.append(clazz)
+        return clazz.make(w_values, w_struct_type)
 
     @staticmethod
     def make_prefab(w_key, w_values):
@@ -643,6 +660,42 @@ class W_Struct(W_RootStruct):
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
+def structure_class_name(booleans):
+    from rpython.rlib.rstring import StringBuilder
+    classname = StringBuilder()
+    classname.append("W_Struct")
+    for key, value in booleans.items():
+        classname.append("%d%s" % (key, value.tostring()))
+    return classname.build()
+
+def generate_structure_class(booleans):
+    from rpython.rlib.unroll import unrolling_iterable
+    attrs = {i:"_boolean_%d" % i for i in booleans.keys()}
+    unrolling_enumerate_attrs = unrolling_iterable(attrs.iteritems())
+
+    class structure_class(W_Struct):
+        _immutable_fields_ = [attr for i, attr in unrolling_enumerate_attrs]
+
+        def _get_field_val(self, i):
+            for j, attr in unrolling_enumerate_attrs:
+                if i == j:
+                    return values.W_Bool.make(getattr(self, attr))
+            return super(structure_class, self)._get_field_val(self.get_offset(i))
+
+        @jit.unroll_safe
+        def get_offset(self, i):
+            for j, attr in unrolling_enumerate_attrs:
+                if j <= i:
+                    i -= 1
+                else:
+                    break
+            return i
+    
+    for i, attr in unrolling_enumerate_attrs:
+        setattr(structure_class, attr, booleans[i] is values.w_true)
+    structure_class.__name__ = structure_class_name(booleans)
+    return structure_class
+
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
@@ -656,15 +709,16 @@ class W_StructConstructor(values.W_Procedure):
     def constr_proc_cont(self, field_values, env, cont, _vals):
         from pycket.interpreter import return_value
         guard_super_values = _vals.get_all_values()
-        type = jit.promote(self.type)
+        struct_type = jit.promote(self.type)
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
-        if len(type.auto_values) > 0:
-            field_values = field_values + type.auto_values
+        if len(struct_type.auto_values) > 0:
+            field_values = field_values + struct_type.auto_values
         for i, value in enumerate(field_values):
-            if not type.is_immutable_field_index(i):
-                field_values[i] = values.W_Cell(value)
-        result = W_Struct.make(field_values, type)
+            if not struct_type.is_immutable_field_index(i):
+                value = values.W_Cell(value)
+                field_values[i] = value
+        result = W_Struct.make(field_values, struct_type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe
