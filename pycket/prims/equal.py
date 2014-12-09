@@ -5,6 +5,7 @@ from pycket              import values
 from pycket              import values_struct
 from pycket              import values_string
 from pycket.cont         import continuation, label, loop_label
+from pycket.error        import SchemeException
 from pycket.prims.expose import expose, procedure
 from rpython.rlib        import jit, objectmodel
 
@@ -113,6 +114,9 @@ def equal_func_impl(a, b, info, env, cont, n):
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
+    if (for_chaperone >= EqualInfo.CHAPERONE and b.is_non_interposing_chaperone()):
+        return equal_func_unroll_n(a, b.get_proxied(), info, env, cont, n)
+
     # Enter into chaperones/impersonators if we have permission to do so
     if ((for_chaperone == EqualInfo.CHAPERONE and a.is_chaperone()) or
         (for_chaperone == EqualInfo.IMPERSONATOR and a.is_impersonator())):
@@ -165,9 +169,7 @@ def equal_func_impl(a, b, info, env, cont, n):
         if w_prop:
             w_prop = b_type.read_prop(values_struct.w_prop_equal_hash)
             if w_prop:
-                assert isinstance(w_prop, values_vector.W_Vector)
-                w_equal_proc, w_hash_proc, w_hash2_proc = \
-                    w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+                w_equal_proc, w_hash_proc, w_hash2_proc = equal_hash_args(w_prop)
                 # FIXME: it should work with cycles properly and be an equal?-recur
                 w_equal_recur = equalp.w_prim
                 return w_equal_proc.call([a, b, w_equal_recur], env, cont)
@@ -186,6 +188,17 @@ def equal_func_impl(a, b, info, env, cont, n):
         return return_value(values.w_true, env, cont)
 
     return return_value(values.w_false, env, cont)
+
+# TODO: Should probably store these values in a uniform manner in the
+# struct property rather than parsing them every use.
+def equal_hash_args(w_prop):
+    if isinstance(w_prop, values_vector.W_Vector):
+        return w_prop.ref(0), w_prop.ref(1), w_prop.ref(2)
+    if isinstance(w_prop, values.W_List):
+        lst = values.from_list(w_prop)
+        assert len(lst) >= 3
+        return lst[0], lst[1], lst[2]
+    raise SchemeException("invalid prop:equal+hash arg " + w_prop.tostring())
 
 def eqp_logic(a, b):
     if a is b:

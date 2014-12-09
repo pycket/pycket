@@ -398,6 +398,14 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_set_cont(self, op, struct_id, field, val, env, cont):
         raise NotImplementedError("abstract method")
 
+    @jit.unroll_safe
+    def is_non_interposing_chaperone(self):
+        acc = self.accessors
+        for i in range(1, len(self.accessors), 2):
+            if acc[i] is not values.w_false:
+                return False
+        return bool(self.properties)
+
     def struct_type(self):
         return self.base.struct_type()
 
