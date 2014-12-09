@@ -21,8 +21,6 @@ class W_ProtoObject(object):
     def get_all_values(self):
         raise NotImplementedError("not a real value!")
 
-
-
 class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []
@@ -73,6 +71,8 @@ class W_Object(W_ProtoObject):
         return self
     def get_properties(self):
         return {}
+    def is_non_interposing_chaperone(self):
+        return False
 
     def immutable(self):
         return False
