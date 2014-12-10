@@ -132,7 +132,7 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties", "extra_arg"]
+    _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check.iscallable()
