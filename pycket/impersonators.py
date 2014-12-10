@@ -132,13 +132,14 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties"]
-    def __init__(self, code, check, prop_keys, prop_vals):
+    _immutable_fields_ = ["inner", "check", "properties", "extra_arg"]
+    def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check.iscallable()
         assert len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
+        self.self_arg = self_arg
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
@@ -164,6 +165,8 @@ class W_InterposeProcedure(values.W_Procedure):
                 body = W_ThunkProcCMK(self.check, args)
                 return key.set_cmk(body, val, cont, env, after)
             cont.update_cm(key, val)
+        if self.self_arg:
+            args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
 @make_impersonator

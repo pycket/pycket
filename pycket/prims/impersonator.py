@@ -124,10 +124,20 @@ def impersonate_procedure(args):
     unpacked = unpack_procedure_args(args, "impersonate-procedure")
     return imp.W_ImpProcedure(*unpacked)
 
+@expose("impersonate-procedure*")
+def impersonate_procedure_star(args):
+    unpacked = unpack_procedure_args(args, "impersonate-procedure*")
+    return imp.W_ImpProcedure(*unpacked, self_arg=True)
+
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
     unpacked = unpack_procedure_args(args, "chaperone-procedure")
     return imp.W_ChpProcedure(*unpacked)
+
+@expose("chaperone-procedure*")
+def chaperone_procedure_star(args):
+    unpacked = unpack_procedure_args(args, "chaperone-procedure*")
+    return imp.W_ChpProcedure(*unpacked, self_arg=True)
 
 @expose("impersonate-vector")
 def impersonate_vector(args):

@@ -87,3 +87,18 @@ def test_noninterposing_chaperone():
     assert m.defs[W_Symbol.make("t6")] is w_false
     assert m.defs[W_Symbol.make("t7")] is w_false
 
+def test_chaperone_star():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define val #f)
+    (define proc (lambda (x) x))
+    (define g
+      (chaperone-procedure* proc (lambda (p x) (set! val p) x)))
+    (g 1)
+    """)
+    proc = m.defs[W_Symbol.make("g")]
+    val  = m.defs[W_Symbol.make("val")]
+    assert isinstance(val, W_Cell)
+    assert proc is val.get_val()
+
