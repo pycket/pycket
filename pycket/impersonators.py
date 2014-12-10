@@ -132,13 +132,14 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties"]
-    def __init__(self, code, check, prop_keys, prop_vals):
+    _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
+    def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
-        assert check.iscallable()
+        assert check is values.w_false or check.iscallable()
         assert len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
+        self.self_arg = self_arg
         self.properties = {}
         for i, k in enumerate(prop_keys):
             assert isinstance(k, W_ImpPropertyDescriptor)
@@ -154,8 +155,13 @@ class W_InterposeProcedure(values.W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
+    def is_non_interposing_chaperone(self):
+        return self.check is values.w_false
+
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.values import W_ThunkProcCMK
+        if self.check is values.w_false:
+            return self.inner.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):
@@ -164,6 +170,8 @@ class W_InterposeProcedure(values.W_Procedure):
                 body = W_ThunkProcCMK(self.check, args)
                 return key.set_cmk(body, val, cont, env, after)
             cont.update_cm(key, val)
+        if self.self_arg:
+            args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
 @make_impersonator
