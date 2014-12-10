@@ -135,7 +135,7 @@ class W_InterposeProcedure(values.W_Procedure):
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
-        assert check.iscallable()
+        assert check is values.w_false or check.iscallable()
         assert len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
@@ -155,8 +155,13 @@ class W_InterposeProcedure(values.W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
+    def is_non_interposing_chaperone(self):
+        return self.check is values.w_false
+
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.values import W_ThunkProcCMK
+        if self.check is values.w_false:
+            return self.inner.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):

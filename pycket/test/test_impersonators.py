@@ -87,7 +87,31 @@ def test_noninterposing_chaperone():
     assert m.defs[W_Symbol.make("t6")] is w_false
     assert m.defs[W_Symbol.make("t7")] is w_false
 
-def test_chaperone_star():
+def test_noninterposing_chaperone_procedure():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define-values (prop:blue blue? blue-ref) (make-impersonator-property 'blue))
+    (define wrapper (lambda (x) x))
+    (define f1 (lambda (a) a))
+    (define f2 (lambda (b) b))
+    (define f3 (lambda (c) c))
+    (define g1 (chaperone-procedure f1 wrapper))
+    (define g2 (chaperone-procedure f2 wrapper))
+    (define g3 (chaperone-procedure f2 wrapper))
+    (define t1 (chaperone-of? g1 (chaperone-procedure g1 #f prop:blue 'color)))
+    (define t2 (chaperone-of? g2 (chaperone-procedure g2 #f prop:blue 'color)))
+    (define t3 (chaperone-of? g3 (chaperone-procedure g3 #f prop:blue 'color)))
+    (define t4 (chaperone-of? f3 (chaperone-procedure f3 #f prop:blue 'color)))
+    (define t5 (chaperone-of? f3 (chaperone-procedure g3 #f prop:blue 'color)))
+    """)
+    assert m.defs[W_Symbol.make("t1")] is values.w_true
+    assert m.defs[W_Symbol.make("t2")] is values.w_true
+    assert m.defs[W_Symbol.make("t3")] is values.w_true
+    assert m.defs[W_Symbol.make("t4")] is values.w_true
+    assert m.defs[W_Symbol.make("t5")] is values.w_false
+
+def test_chaperone_procedure_star():
     m = run_mod(
     """
     #lang racket/base
@@ -101,4 +125,5 @@ def test_chaperone_star():
     val  = m.defs[W_Symbol.make("val")]
     assert isinstance(val, W_Cell)
     assert proc is val.get_val()
+
 

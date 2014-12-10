@@ -56,8 +56,8 @@ def unpack_procedure_args(args, name):
     proc, check = args
     if not proc.iscallable():
         raise SchemeException(name + ": first argument is not a procedure")
-    if not check.iscallable():
-        raise SchemeException(name + ": handler is not a procedure")
+    if check is not values.w_false and not check.iscallable():
+        raise SchemeException(name + ": handler is not a procedure or #f")
     return proc, check, prop_keys, prop_vals
 
 def unpack_box_args(args, name):
@@ -122,21 +122,33 @@ def chaperone_hash(args):
 @expose("impersonate-procedure")
 def impersonate_procedure(args):
     unpacked = unpack_procedure_args(args, "impersonate-procedure")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
     return imp.W_ImpProcedure(*unpacked)
 
 @expose("impersonate-procedure*")
 def impersonate_procedure_star(args):
     unpacked = unpack_procedure_args(args, "impersonate-procedure*")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
     return imp.W_ImpProcedure(*unpacked, self_arg=True)
 
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
     unpacked = unpack_procedure_args(args, "chaperone-procedure")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
     return imp.W_ChpProcedure(*unpacked)
 
 @expose("chaperone-procedure*")
 def chaperone_procedure_star(args):
     unpacked = unpack_procedure_args(args, "chaperone-procedure*")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
     return imp.W_ChpProcedure(*unpacked, self_arg=True)
 
 @expose("impersonate-vector")
