@@ -19,14 +19,14 @@ before_install:
 #  - sudo apt-get install -qq racket
 ###
 #  - wget http://plt.eecs.northwestern.edu/snapshots/current/installers/racket-test-current-x86_64-linux-precise.sh
-#  - wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh
-#  - sudo sh racket-current-x86_64-linux-precise.sh --unix-style --dest /usr --create-dir
+  - wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh
+  - sudo sh racket-current-x86_64-linux-precise.sh --unix-style --dest /usr --create-dir
 ###
 #  - wget http://pre-release.racket-lang.org/installers/racket-6.1.0.900-x86_64-linux-ubuntu-precise.sh
 #  - sudo sh racket-6.1.0.900-x86_64-linux-ubuntu-precise.sh --unix-style --dest /usr --create-dir
 ###
-  - wget http://mirror.racket-lang.org/installers/6.1.1/racket-6.1.1-x86_64-linux-ubuntu-precise.sh
-  - sudo sh racket-6.1.1-x86_64-linux-ubuntu-precise.sh  --unix-style --dest /usr --create-dir
+#  - wget http://mirror.racket-lang.org/installers/6.1.1/racket-6.1.1-x86_64-linux-ubuntu-precise.sh
+#  - sudo sh racket-6.1.1-x86_64-linux-ubuntu-precise.sh  --unix-style --dest /usr --create-dir
 install:
   - wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2 || wget https://bitbucket.org/pypy/pypy/get/default.tar.bz2 -O `pwd`/../pypy.tar.bz2
   - tar -xf `pwd`/../pypy.tar.bz2 -C `pwd`/../
