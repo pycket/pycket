@@ -231,6 +231,7 @@ class W_StructType(values.W_Object):
         self.offsets = offsets[:]
         self.immutable_fields = immutable_fields[:]
 
+    @jit.elidable
     @jit.unroll_safe
     def get_offset(self, type):
         for t, v in self.offsets:
@@ -527,22 +528,6 @@ class W_Struct(W_RootStruct):
     _immutable_fields_ = ["_type"]
 
     @staticmethod
-    @jit.unroll_safe
-    def make(w_values, w_struct_type):
-        booleans = {}
-        for i, value in enumerate(w_values):
-            if isinstance(value, values.W_Bool) and w_struct_type.is_immutable_field_index(i):
-                booleans[i] = value
-        w_values = [value for idx, value in enumerate(w_values) if idx not in booleans.keys()]
-        classname = structure_class_name(booleans)
-        for clazz in w_struct_type.classes:
-            if clazz.__name__ == classname:
-                return clazz.make(w_values, w_struct_type)
-        clazz = generate_structure_class(booleans)
-        w_struct_type.classes.append(clazz)
-        return clazz.make(w_values, w_struct_type)
-
-    @staticmethod
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
         for i, value in enumerate(w_values):
@@ -659,42 +644,6 @@ class W_Struct(W_RootStruct):
                 result = "(%s %s)" % (typ.name,\
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
-
-def structure_class_name(booleans):
-    from rpython.rlib.rstring import StringBuilder
-    classname = StringBuilder()
-    classname.append("W_Struct")
-    for key, value in booleans.items():
-        classname.append("%d%s" % (key, value.tostring()))
-    return classname.build()
-
-def generate_structure_class(booleans):
-    from rpython.rlib.unroll import unrolling_iterable
-    attrs = {i:"_boolean_%d" % i for i in booleans.keys()}
-    unrolling_enumerate_attrs = unrolling_iterable(attrs.iteritems())
-
-    class structure_class(W_Struct):
-        _immutable_fields_ = [attr for i, attr in unrolling_enumerate_attrs]
-
-        def _get_field_val(self, i):
-            for j, attr in unrolling_enumerate_attrs:
-                if i == j:
-                    return values.W_Bool.make(getattr(self, attr))
-            return super(structure_class, self)._get_field_val(self.get_offset(i))
-
-        @jit.unroll_safe
-        def get_offset(self, i):
-            for j, attr in unrolling_enumerate_attrs:
-                if j <= i:
-                    i -= 1
-                else:
-                    break
-            return i
-    
-    for i, attr in unrolling_enumerate_attrs:
-        setattr(structure_class, attr, booleans[i] is values.w_true)
-    structure_class.__name__ = structure_class_name(booleans)
-    return structure_class
 
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type"]
