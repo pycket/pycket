@@ -43,7 +43,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install cov-core
+  pip install pytest-cov
 }
 
 install_racket() {
