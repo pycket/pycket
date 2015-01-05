@@ -43,9 +43,6 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  sudo apt-get update
-  sudo apt-get install -qq timeout
-
   pip install cov-core
 }
 
