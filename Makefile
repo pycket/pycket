@@ -66,7 +66,7 @@ test: $(PYFILES)
 	$(PYTEST) pycket
 
 
-coverage: pycket/test/coverage_report
-pycket/test/coverage_report: $(PYFILES)
+coverage: pycket/test/coverage_report .coverage
+pycket/test/coverage_report .coverage: $(PYFILES)
 	$(PYTEST) pycket --cov pycket \
 		--cov-report=term-missing --cov-report=html
