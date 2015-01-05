@@ -27,7 +27,7 @@ do_tests() {
 }
 
 do_coverage() {
-  ../pypy/pytest.py --cov . --cov-report=term
+  ../pypy/pytest.py -v -k 'not test_larger' --cov . --cov-report=term
   # todo: generate html and store somewhere
 }
 
