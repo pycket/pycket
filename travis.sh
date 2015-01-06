@@ -23,13 +23,13 @@ EOF
 
 ############### test targets ################################
 do_tests() {
-  ../pypy/pytest.py --duration 20
-  echo '>> Testing whether coverage is over 80%'
-  coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
+  ../pypy/pytest.py -n 3 --duration 20
 }
 
 do_coverage() {
-  ../pypy/pytest.py -v -k 'not test_larger' --cov . --cov-report=term
+  ../pypy/pytest.py -n 3 -k 'not test_larger' --cov . --cov-report=term
+  echo '>> Testing whether coverage is over 80%'
+  coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
   # todo: generate html and store somewhere
 }
 
@@ -45,7 +45,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-cov cov-core coverage
+  pip install pytest-xdist pytest-cov cov-core coverage
 }
 
 install_racket() {
