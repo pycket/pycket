@@ -57,12 +57,13 @@ install_racket() {
   # sudo apt-get update
   # sudo apt-get install -qq racket
   ### Nightly from northwestern or utha
-  # wget http://plt.eecs.northwestern.edu/snapshots/current/installers/racket-test-current-x86_64-linux-precise.sh
+  wget http://plt.eecs.northwestern.edu/snapshots/current/installers/racket-test-6.1.1.6-x86_64-linux-precise.sh
+  sh racket-test-6.1.1.6-x86_64-linux-precise.sh --in-place --dest racket
   # wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh
   # sh racket-current-x86_64-linux-precise.sh --in-place --dest racket
   ### Specific stable version from racket-lang
-  wget http://mirror.racket-lang.org/installers/6.1.1/racket-6.1.1-x86_64-linux-ubuntu-precise.sh
-  sh racket-6.1.1-x86_64-linux-ubuntu-precise.sh  --in-place --dest racket
+  # wget http://mirror.racket-lang.org/installers/6.1.1/racket-6.1.1-x86_64-linux-ubuntu-precise.sh
+  # sh racket-6.1.1-x86_64-linux-ubuntu-precise.sh  --in-place --dest racket
 }
 
 fetch_pypy() {
