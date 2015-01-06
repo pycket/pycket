@@ -24,6 +24,8 @@ EOF
 ############### test targets ################################
 do_tests() {
   ../pypy/pytest.py --duration 20
+  echo '>> Testing whether coverage is over 80%'
+  coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
 }
 
 do_coverage() {
@@ -43,7 +45,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-cov
+  pip install pytest-cov cov-core coverage
 }
 
 install_racket() {
