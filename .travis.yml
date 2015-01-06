@@ -10,6 +10,8 @@ notifications:
     use_notice: false
     skip_join: true
 env:
+  global:
+    - PATH=./racket/bin:$PATH
   matrix:
     - TEST_TYPE=tests
     - TEST_TYPE=coverage
