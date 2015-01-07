@@ -142,7 +142,11 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
             tail.append("  " * (ind + 1) + "%s)" % i)
     code.append("  " * (ind + 1) + "#t")
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
+    try:
+        print code
+    except UnicodeDecodeError:
+        print code.encode("ascii", 'replace')
+
     extra = kwargs.get("extra", "")
     res = execute(code, extra=extra)
     if res is not values.w_true:
