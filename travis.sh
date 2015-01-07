@@ -45,7 +45,8 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist pytest-cov cov-core coverage
+  pip install pytest-xdist pytest-cov cov-core coverage || \
+      pip install --user pytest-xdist pytest-cov cov-core coverage
 }
 
 install_racket() {
