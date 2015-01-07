@@ -23,11 +23,11 @@ EOF
 
 ############### test targets ################################
 do_tests() {
-  ../pypy/pytest.py -n 3 --duration 20
+  py.test -n 3 --duration 20 pycket
 }
 
 do_coverage() {
-  ../pypy/pytest.py -n 3 -k 'not test_larger' --cov . --cov-report=term
+  py.test -n 3 -k 'not test_larger' --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
   # todo: generate html and store somewhere
