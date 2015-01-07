@@ -57,8 +57,13 @@ install_racket() {
   # sudo apt-get update
   # sudo apt-get install -qq racket
   ### Nightly from northwestern or utha
-  wget http://plt.eecs.northwestern.edu/snapshots/current/installers/racket-test-6.1.1.6-x86_64-linux-precise.sh
-  sh racket-test-6.1.1.6-x86_64-linux-precise.sh --in-place --dest racket
+  if [ "$(lsb_release -s -i)" = 'Debian' ]; then
+    INSTALLER=racket-test-6.1.1.6-i386-linux-wheezy.sh
+  else
+    INSTALLER=racket-test-6.1.1.6-x86_64-linux-precise.sh
+  fi
+  wget http://plt.eecs.northwestern.edu/snapshots/current/installers/$INSTALLER
+  sh $INSTALLER --in-place --dest racket
   # wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh
   # sh racket-current-x86_64-linux-precise.sh --in-place --dest racket
   ### Specific stable version from racket-lang
