@@ -144,7 +144,7 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
     try:
         print code
-    except UnicodeDecodeError:
+    except UnicodeEncodeError:
         print code.encode("ascii", 'replace')
 
     extra = kwargs.get("extra", "")
