@@ -82,6 +82,17 @@ fetch_pypy() {
   mv ../pypy-pypy* ../pypy
 }
 
+prepare_racket() {
+  raco pkg install -t dir pycket/pycket-lang/
+
+  PRIVATE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "stx.rkt" "racket/private"))))')
+  find $PRIVATE_MODULES -type f -name \*.rkt | \
+      while read F; do
+        echo -n .
+        racket -l pycket/expand $F 2>&1 >/dev/null
+      done
+}
+
 ############################################################
 
 
@@ -101,9 +112,9 @@ case "$COMMAND" in
     install_deps
     ;;
   install)
-    echo "Preparing pypy and pycket-lang"
+    echo "Preparing pypy and racket"
     fetch_pypy
-    raco pkg install -t dir pycket/pycket-lang/
+    prepare_racket
     ;;
   test)
     export PYTHONPATH=$PYTHONPATH:../pypy:pycket
