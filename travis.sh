@@ -89,7 +89,9 @@ prepare_racket() {
   find $PRIVATE_MODULES -type f -name \*.rkt | \
       while read F; do
         echo -n .
-        racket -l pycket/expand $F 2>&1 >/dev/null
+        set +e
+        racket -l pycket/expand $F 2>/dev/null >/dev/null
+        set -e
       done
 }
 
