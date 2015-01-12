@@ -27,7 +27,7 @@ do_tests() {
 }
 
 do_coverage() {
-  py.test -n 3 -k 'not test_larger' --cov . --cov-report=term pycket
+  py.test -n 3 -k 'not test_larger and not test_bug and not test_or_parsing' --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
   # todo: generate html and store somewhere
