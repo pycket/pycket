@@ -69,10 +69,11 @@ install_racket() {
   # sudo apt-get update
   # sudo apt-get install -qq racket
   ### Nightly from northwestern or utha
+  VERSION=6.1.1.8
   if [ "$(lsb_release -s -i)" = 'Debian' ]; then
-    INSTALLER=racket-test-6.1.1.6-i386-linux-wheezy.sh
+    INSTALLER=racket-test-$VERSION-i386-linux-wheezy.sh
   else
-    INSTALLER=racket-test-6.1.1.6-x86_64-linux-precise.sh
+    INSTALLER=racket-test-$VERSION-x86_64-linux-precise.sh
   fi
   wget http://plt.eecs.northwestern.edu/snapshots/current/installers/$INSTALLER
   sh $INSTALLER --in-place --dest racket
