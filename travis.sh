@@ -52,6 +52,8 @@ do_prepare_coverage_deployment() {
   mv $COVERAGE_HTML_DIR /tmp
   rm -rf ./*
   cp -a "/tmp/$(basename "$COVERAGE_HTML_DIR")/"* .
+  echo "web: vendor/bin/heroku-php-nginx" > Procfile
+  echo '{}' > composer.json
 }
 
 do_translate() {
