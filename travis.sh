@@ -26,17 +26,27 @@ do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
+COVERAGE_TESTSUITE='not test_larger and not test_bug and not test_or_parsing'
+COVERAGE_HTML_DIR=pycket/test/coverage_report
+
 do_coverage() {
-  py.test \
-      -n 3 -k 'not test_larger and not test_bug and not test_or_parsing' \
-      --cov . --cov-report=term --cov-report=html \
-      pycket
+  py.test -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
 }
 
+do_coverage_push() {
+  # always succeed to allow coverage push on test failure
+  py.test -n 3 -k "$COVERAGE_TESTSUITE" \
+          --cov . --cov-report=html pycket || true
+  # but fail if the report is not there
+  [ -f .coverage -a \
+       -d "$COVERAGE_HTML_DIR" -a \
+       -f "$COVERAGE_HTML_DIR/index.html" ]
+}
+
+
 do_prepare_coverage_deployment() {
-  COVERAGE_HTML_DIR=pycket/test/coverage_report
   [ -f .coverage ] || exit 1
   [ -d $COVERAGE_HTML_DIR ] || exit 1
   mv $COVERAGE_HTML_DIR /tmp

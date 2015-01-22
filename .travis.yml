@@ -15,6 +15,7 @@ env:
   matrix:
   - TEST_TYPE=tests
   - TEST_TYPE=coverage
+  - TEST_TYPE=coverage_push
   - TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
 before_install: ./travis.sh prepare
@@ -27,6 +28,6 @@ deploy:
   app: pycket-cover
   skip_cleanup: true
   on:
-      condition: "$TEST_TYPE = coverage"
+      condition: "$TEST_TYPE = coverage_push"
 before_deploy: ./travis.sh prepare_coverage_deployment
 
