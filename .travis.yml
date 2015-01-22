@@ -2,23 +2,31 @@ language: python
 cache: apt
 sudo: false
 python:
-  - pypy
+- pypy
 notifications:
   irc:
     channels:
-      - "chat.freenode.net#pycket"
+    - chat.freenode.net#pycket
     use_notice: false
     skip_join: true
 env:
   global:
-    - PATH=./racket/bin:$PATH
+  - PATH=./racket/bin:$PATH
   matrix:
-    - TEST_TYPE=tests
-    - TEST_TYPE=coverage
-    - TEST_TYPE=translate
-    - TEST_TYPE=translate_nojit_and_racket_tests
+  - TEST_TYPE=tests
+  - TEST_TYPE=coverage
+  - TEST_TYPE=translate
+  - TEST_TYPE=translate_nojit_and_racket_tests
 before_install: ./travis.sh prepare
 install: ./travis.sh install
 script: ./travis.sh test $TEST_TYPE
+deploy:
+  provider: heroku
+  api_key:
+    secure: V30lYs1EyPT4BiAoAg0tSq8IJqbquGWL2kVcbc4DqpOmD5vTq6jGsIaeJcPB3hn6cEXfdiFVj/CxJvE1sziATsgJTyvx55gfoT3U3Znij/A4CUQKEgrxUQ44Q2RsiuixDKKYQjKxanTAvbKFOov6PlwSiNHx15p47yoWtB6C1tc=
+  app: pycket-cover
+  skip_cleanup: true
+  on:
+      condition: "$TEST_TYPE = coverage"
+before_deploy: ./travis.sh prepare_coverage_deployment
 
-# EOF

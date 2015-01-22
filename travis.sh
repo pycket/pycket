@@ -27,10 +27,21 @@ do_tests() {
 }
 
 do_coverage() {
-  py.test -n 3 -k 'not test_larger and not test_bug and not test_or_parsing' --cov . --cov-report=term pycket
+  py.test \
+      -n 3 -k 'not test_larger and not test_bug and not test_or_parsing' \
+      --cov . --cov-report=term --cov-report=html \
+      pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
-  # todo: generate html and store somewhere
+}
+
+do_prepare_coverage_deployment() {
+  COVERAGE_HTML_DIR=pycket/test/coverage_report
+  [ -f .coverage ] || exit 1
+  [ -d $COVERAGE_HTML_DIR ] || exit 1
+  mv $COVERAGE_HTML_DIR /tmp
+  rm -rf ./*
+  cp -a "/tmp/$(basename "$COVERAGE_HTML_DIR")/"* .
 }
 
 do_translate() {
@@ -130,6 +141,9 @@ case "$COMMAND" in
     fi
     echo "Running $TEST_TYPE"
     do_$TEST_TYPE
+    ;;
+  prepare_coverage_deployment)
+    do_prepare_coverage_deployment
     ;;
   *)
     _help
