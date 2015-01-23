@@ -132,7 +132,7 @@ fetch_pypy() {
 prepare_racket() {
   raco pkg install -t dir pycket/pycket-lang/
 
-  PRIVATE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "stx.rkt" "racket/private"))))')
+  PRIVATE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "base.rkt" "racket"))))')
   find $PRIVATE_MODULES -type f -name \*.rkt | \
       while read F; do
         echo -n .
