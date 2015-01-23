@@ -21,13 +21,23 @@ command is one of
 EOF
 }
 
+
+# config
+if type timeout >/dev/null 2>/dev/null; then
+  TIMEOUT=timeout
+else
+  # hope..
+  TIMEOUT=gtimeout
+fi
+
+COVERAGE_TESTSUITE='not test_larger and not test_bug and not test_or_parsing'
+COVERAGE_HTML_DIR=pycket/test/coverage_report
+
 ############### test targets ################################
 do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
-COVERAGE_TESTSUITE='not test_larger and not test_bug and not test_or_parsing'
-COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 do_coverage() {
   py.test -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
@@ -58,6 +68,19 @@ do_prepare_coverage_deployment() {
 
 do_translate() {
   ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
+  do_performance_smoke
+}
+
+do_performance_smoke() {
+  echo ">> Performance smoke test"
+  set -x
+  $TIMEOUT -k10 2s ./pycket-c pycket/test/fannkuch-redux.rkt 10
+  $TIMEOUT -k10 3s ./pycket-c pycket/test/triangle.rkt
+  $TIMEOUT -k10 4s ./pycket-c pycket/test/earley.rkt
+  $TIMEOUT -k10 4s ./pycket-c pycket/test/nucleic2.rkt
+  $TIMEOUT -k20 8s ./pycket-c pycket/test/nqueens.rkt
+  $TIMEOUT -k20 8s ./pycket-c pycket/test/treerec.rkt
+  set +x
 }
 
 do_translate_nojit_and_racket_tests() {
