@@ -442,16 +442,16 @@ def get_dict_item(d, i):
 
 def ll_get_dict_item(RES, dict, i):
     from rpython.rtyper.lltypesystem import lltype
-    from rpython.rtyper.lltypesystem.rdict import recast
+    from rpython.rtyper.lltypesystem.rordereddict import recast
     entries = dict.entries
-    entries_len = len(entries)
     assert i >= 0
-    if i >= entries_len:
+    if i >= dict.num_ever_used_items:
         raise IndexError
     if entries.valid(i):
+        entry = entries[i]
         r = lltype.malloc(RES.TO)
-        r.item0 = recast(RES.TO.item0, entries[i].key)
-        r.item1 = recast(RES.TO.item1, entries[i].value)
+        r.item0 = recast(RES.TO.item0, entry.key)
+        r.item1 = recast(RES.TO.item1, entry.value)
         return r
     else:
         raise KeyError

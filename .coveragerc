@@ -5,6 +5,10 @@ branch = True
 omit =
      pycket/__main__.py
      pycket/test/jit.py
+     pycket/test/bubble.py
+     pycket/test/test_larger.py
+     pycket/test/racket-tests.py
+     pycket/test/targetjson.py
      pycket/pypy/
 
 [report]

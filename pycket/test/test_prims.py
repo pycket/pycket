@@ -709,3 +709,24 @@ def test_procedure_closure_contents_eq(doctest):
     #f
     """
 
+
+def test_unsafe_undefined(doctest):
+    """
+    ! (require '#%unsafe)
+    ! (struct p (x y) #:mutable #:transparent)
+    > (check-not-unsafe-undefined 1 'a)
+    1
+    E (check-not-unsafe-undefined unsafe-undefined 'a)
+    > (check-not-unsafe-undefined/assign 1 'a)
+    1
+    E (check-not-unsafe-undefined/assign unsafe-undefined 'a)
+    > (chaperone-struct-unsafe-undefined 1)
+    1
+    > (let* ([x (p 1 2)]
+             [y (chaperone-struct-unsafe-undefined x)]
+             [_ (set-p-y! y 3)]
+             [z (p-y y)])
+        z)
+    3
+    """
+

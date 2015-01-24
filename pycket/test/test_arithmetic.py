@@ -254,7 +254,8 @@ def test_atan(doctest):
     2.356194490192345
     """
 
-@pytest.mark.xfail
+# doesn't run yet and takes awefully long
+@pytest.mark.skipif("True")
 def test_trigonometry(doctest):
     """
     ! (require racket/math)
