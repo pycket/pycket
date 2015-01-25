@@ -670,7 +670,7 @@ def generate_struct_class(constant_false):
         def _get_field_val(self, i):
             pos = i
             for j, attr in unrolling_enumerate_attrs:
-                if j < i:
+                if i > j:
                     pos -= 1
                 elif i == j:
                     return values.w_false
@@ -680,11 +680,11 @@ def generate_struct_class(constant_false):
         setattr(structure_class, attr, False)
     return structure_class
 
-MAX_CONST_FALSE_POS = 5 # the complexity grows exponentially
+CONST_FALSE_SIZE = 5 # the complexity grows exponentially
 
 struct_classes = []
-for i in range(1, MAX_CONST_FALSE_POS):
-    for comb in itertools.combinations(range(MAX_CONST_FALSE_POS+1), i):
+for i in range(0, CONST_FALSE_SIZE):
+    for comb in itertools.combinations(range(CONST_FALSE_SIZE), i+1):
         struct_classes.append(generate_struct_class(comb))
 struct_class_iter = unrolling_iterable(enumerate(struct_classes))
 
@@ -694,22 +694,27 @@ def fac(n):
 
 @jit.elidable
 def ncr(n,r):
+    if n == 0:
+        return 0
     return fac(n) / fac(r) / fac(n-r)
 
 @jit.unroll_safe
 def lookup_struct_class(constant_false):
-    if constant_false and constant_false[-1] < MAX_CONST_FALSE_POS:
-        # find the position of a constant_false combination
-        n = MAX_CONST_FALSE_POS + 1
+    if constant_false and constant_false[-1] < CONST_FALSE_SIZE:
+        n = CONST_FALSE_SIZE
+        pos = 0
+        # offset of combinations with smaller amount of fields
+        for r in range(1, len(constant_false)):
+            pos += ncr(n, r)
+        # and the precise position
         r = len(constant_false)
-        pos = ncr(n, r) - ncr(n-1, r)
         last_idx = 0
         for idx in constant_false:
-            pos += ncr(n-1, r) - ncr(n-idx+last_idx, r)
+            pos += ncr(n, r) - ncr(n-idx+last_idx, r)
+            n -= idx - last_idx + 1
             r -= 1
-            n -= idx - last_idx
-            last_idx = idx
-        # lookup class by the found position
+            last_idx = idx + 1
+        # lookup class by its position
         for i, cls in struct_class_iter:
             if i == pos:
                 return cls
