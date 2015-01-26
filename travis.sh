@@ -56,7 +56,6 @@ COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
 do_tests() {
-  expand_rkt no
   py.test -n 3 --duration 20 pycket
 }
 
@@ -108,7 +107,7 @@ do_performance_smoke() {
     $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
   }
   echo ; echo ">> Performance smoke test" ; echo
-  echo ">>> Preparing racket files"
+  echo ">>> Preparing racket files to not skew test"
   expand_rkt yes
   echo ">>> Smoke"
   _smoke 1.1 pycket/test/fannkuch-redux.rkt 10
