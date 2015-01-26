@@ -113,25 +113,22 @@ do_performance_smoke() {
     shift
     echo "> $1"
     raco make $1 >/dev/null
-    # RACKET_TIME=$(
-      $TIME_IT racket "$@"
-               # )
-    # TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
-    # KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
+    RACKET_TIME=$($TIME_IT racket "$@")
+    TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
+    KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
-    # $TIMEOUT -k$KILLME_TIME $TARGET_TIME
-    $TIME_IT ./pycket-c "$@"
+    $TIMEOUT -k$KILLME_TIME $TARGET_TIME
   }
   echo ; echo ">> Performance smoke test" ; echo
   echo ">>> Preparing racket files to not skew test"
   expand_rkt yes
   echo ">>> Smoke"
-  _smoke 1.1 pycket/test/fannkuch-redux.rkt 10
-  _smoke 0.5 pycket/test/triangle.rkt
-  _smoke 1.0 pycket/test/earley.rkt
+  _smoke 1.2 pycket/test/fannkuch-redux.rkt 10
+  _smoke 0.7 pycket/test/triangle.rkt
+  _smoke 1.5 pycket/test/earley.rkt
   _smoke 0.5 pycket/test/nucleic2.rkt
-  _smoke 2.0 pycket/test/nqueens.rkt
-  _smoke 1.4 pycket/test/treerec.rkt
+  _smoke 2.5 pycket/test/nqueens.rkt
+  _smoke 2.5 pycket/test/treerec.rkt
   echo ; echo ">> Smoke cleared" ; echo
 }
 
