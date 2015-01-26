@@ -1839,7 +1839,7 @@ def interpret_toplevel(a, env):
     else:
         return interpret_one(a, env)
 
-def interpret_module(m, env=None):
+def interpret_module(m, env):
     env = env if env else ToplevelEnv()
     m.interpret_mod(env)
     return m
