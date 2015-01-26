@@ -22,6 +22,7 @@ EOF
 }
 
 
+
 _time_gnu() {
   export TIME="%e"
   (/usr/bin/time "$@" 3>&2 2>&1 1>&3) 2>/dev/null
@@ -29,6 +30,16 @@ _time_gnu() {
 
 _time_bsd() {
   (/usr/bin/time -p "$@" 3>&2 2>&1 1>&3) 2>/dev/null | \
+      grep '^real' | \
+      awk '{ print $2; }'
+}
+
+_time_builtin() {
+  #
+  # so there's no /usr/bin/time.
+  # lets hope we have a bash/zsh/csh which has a time builtin thats knows -p
+  #
+  (time -p "$@" >/dev/null) 2>&1 | \
       grep '^real' | \
       awk '{ print $2; }'
 }
@@ -43,7 +54,9 @@ else
   TIMEOUT=gtimeout
 fi
 
-if /usr/bin/time --version 2>/dev/null >/dev/null; then
+if [ ! -e /usr/bin/time ]; then # oh travis...
+  TIME_IT=_time_builtin
+elif /usr/bin/time --version 2>/dev/null >/dev/null; then
   TIME_IT=_time_gnu
 else
   TIME_IT=_time_bsd
