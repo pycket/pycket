@@ -132,7 +132,7 @@ def wrap_for_tempfile(fn):
         from tempfile import mktemp
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
-        out = expand_file_to_json(rkt_file, tmp_json_file)
+        out = fn(rkt_file, tmp_json_file)
         assert tmp_json_file == out
         os.rename(tmp_json_file, json_file)
         return json_file
