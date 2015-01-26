@@ -51,7 +51,7 @@ fi
 
 
 
-COVERAGE_TESTSUITE='not test_larger and not test_bug and not test_or_parsing'
+COVERAGE_TESTSUITE='not test_larger'
 COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
@@ -98,10 +98,11 @@ do_performance_smoke() {
   _smoke() {
     RATIO=$1
     shift
+    echo "> $1"
     raco make $1
     RACKET_TIME=$($TIME_IT racket "$@")
-    TARGET_TIME=$(echo "$RATIO * $RACKET_TIME" | bc -sq)
-    KILLME_TIME=$(echo "$TARGET_TIME * 5" | bc -sq)
+    TARGET_TIME=$(awk "BEGIN { print $RATIO * $RACKET_TIME; }" )
+    KILLME_TIME=$(awk "BEGIN { print $TARGET_TIME * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
     $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
   }
@@ -166,8 +167,8 @@ prepare_racket() {
 
   BASE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "base.rkt" "racket"))))')
   SYNTAX_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "wrap-modbeg.rkt" "syntax"))))')
-  find $BASE_MODULES $SYNTAX_MODULES -type f -name \*.rkt | \
-      while read F; do
+  find $BASE_MODULES $SYNTAX_MODULES -type f -name \*.rkt -print0 | \
+      while IFS= read -r -d '' F; do
         echo -n .
         set +e
         racket -l pycket/expand $F 2>/dev/null >/dev/null
