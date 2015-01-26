@@ -1,7 +1,7 @@
 #/bin/sh
 
 set -e
-set -x
+
 _help() {
   cat <<EOF
 $0 <command>
