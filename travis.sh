@@ -1,7 +1,7 @@
 #/bin/sh
 
 set -e
-
+set -x
 _help() {
   cat <<EOF
 $0 <command>
@@ -101,8 +101,8 @@ do_performance_smoke() {
     echo "> $1"
     raco make $1
     RACKET_TIME=$($TIME_IT racket "$@")
-    TARGET_TIME=$(awk "BEGIN { print $RATIO * $RACKET_TIME; }" )
-    KILLME_TIME=$(awk "BEGIN { print $TARGET_TIME * 5; }")
+    TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
+    KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
     $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
   }
