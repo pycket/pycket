@@ -56,6 +56,7 @@ COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
 do_tests() {
+  expand_rkt no
   py.test -n 3 --duration 20 pycket
 }
 
@@ -107,6 +108,9 @@ do_performance_smoke() {
     $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
   }
   echo ; echo ">> Performance smoke test" ; echo
+  echo ">>> Preparing racket files"
+  expand_rkt yes
+  echo ">>> Smoke"
   _smoke 1.1 pycket/test/fannkuch-redux.rkt 10
   _smoke 0.5 pycket/test/triangle.rkt
   _smoke 1.0 pycket/test/earley.rkt
@@ -164,9 +168,21 @@ fetch_pypy() {
 
 prepare_racket() {
   raco pkg install -t dir pycket/pycket-lang/
+}
+
+expand_rkt() {
+  if [ $# -gt 0 ]; then
+    ALL=$1
+    shift
+  else
+    ALL="no"
+  fi
 
   BASE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "base.rkt" "racket"))))')
-  SYNTAX_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "wrap-modbeg.rkt" "syntax"))))')
+  if [ $ALL != "no" ]; then
+      SYNTAX_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "wrap-modbeg.rkt" "syntax"))))')
+  fi
+
   find $BASE_MODULES $SYNTAX_MODULES -type f -name \*.rkt -print0 | \
       while IFS= read -r -d '' F; do
         echo -n .
