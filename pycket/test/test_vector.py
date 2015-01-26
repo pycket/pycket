@@ -5,7 +5,7 @@ from pycket.values import *
 from pycket.impersonators import *
 from pycket.vector import *
 from pycket.prims import *
-from pycket.test.testhelper import run_fix, run, execute
+from pycket.test.testhelper import run_fix, run, run_mod, execute, check_equal
 
 def test_vec():
     assert isinstance(run('(vector 1)'), W_Vector)
@@ -74,15 +74,18 @@ def run_unsafe(e,v):
 def run_fix_unsafe(e,v):
     run_fix(e,v,extra="")
 
-def test_unsafe():
+def test_unsafe_impersonators():
     run_unsafe("(equal? 3 (unsafe-vector-length (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))))", w_true)
     run_unsafe("(equal? 3 (unsafe-vector-ref (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z)) 2))", w_true)
     run_fix_unsafe("(let ([v (impersonate-vector (vector 1 2 3) (lambda (x y z) z) (lambda (x y z) z))]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
 
-def test_unsafe_impersonators():
+def test_unsafe():
     run_unsafe("(equal? 3 (unsafe-vector-length (vector 1 2 3)))", w_true)
+    run_unsafe("(equal? 3 (unsafe-vector*-length (vector 1 2 3)))", w_true)
     run_unsafe("(equal? 3 (unsafe-vector-ref (vector 1 2 3) 2))", w_true)
+    run_unsafe("(equal? 3 (unsafe-vector*-ref (vector 1 2 3) 2))", w_true)
     run_fix_unsafe("(let ([v (vector 1 2 3)]) (unsafe-vector-set! v 0 0) (unsafe-vector-ref v 0))", 0)
+    run_fix_unsafe("(let ([v (vector 1 2 3)]) (unsafe-vector*-set! v 0 0) (unsafe-vector*-ref v 0))", 0)
 
 
 def test_vec_imp():
@@ -110,3 +113,60 @@ def test_vec_values():
     run_fix("(let-values ([(a b c) (vector->values (vector 1 2 3))]) (+ a b c))", 6)
     run_fix("(let-values ([(b c) (vector->values (vector 1 2 3) 1)]) (+ b c))", 5)
     run_fix("(let-values ([(b) (vector->values (vector 1 2 3) 1 2)]) (+ b))", 2)
+
+
+def test_flvector(doctest):
+    """
+    ! (require '#%flfxnum '#%unsafe)
+    > (flvector-ref (flvector 0.0) 0)
+    0.0
+    > (define v (flvector 0.0 1.0))
+    > (flvector-ref v 0)
+    0.0
+    > (flvector-ref v 1)
+    1.0
+    > (flvector-set! v 0 2.0)
+    (void)
+    > (flvector-ref v 0)
+    2.0
+    > (unsafe-flvector-ref v 0)
+    2.0
+    > (unsafe-flvector-set! v 0 3.0)
+    (void)
+    > (flvector-ref v 0)
+    3.0
+    > (define v2 (make-flvector 5))
+    > (flvector-ref v2 4)
+    0.0
+    > (define v3 (make-flvector 5 3.0))
+    > (flvector-ref v3 4)
+    3.0
+    """
+    assert doctest
+
+def test_flvector_set_wrong_type():
+    with pytest.raises(SchemeException):
+        run_mod("""
+            #lang pycket
+            (require '#%flfxnum '#%unsafe)
+            (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
+        """)
+
+def test_vector_copy_bang(doctest):
+    """
+    > (define v (vector 'A 'p 'p 'l 'e))
+    > (vector-copy! v 4 #(y))
+    > (vector-copy! v 0 v 3 4)
+    > v
+    '#(l p p l y)
+    """
+
+def test_list_vector_conversion():
+    check_equal(
+        "(vector->list #(1 2 3 4))", "(list 1 2 3 4)",
+        "(vector->list #())", "'()",
+        "(vector->list #(1.1 a))", "(list 1.1 'a)",
+        "#(1 2 3 4)", "(list->vector (list 1 2 3 4))",
+        "#()", "(list->vector '())",
+        "#(1.1 a)", "(list->vector (list 1.1 'a))",
+    )
