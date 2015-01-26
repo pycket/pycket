@@ -124,23 +124,25 @@ def expand(s, wrap=False, stdlib=False):
 def with_tempfile(fn):
     if we_are_translated():
         return fn
-    def wrap(rkt_file, json_file):
-        try:
-            os.remove(json_file)
-        except IOError:
-            pass
-        except OSError:
-            pass
-        from tempfile import mktemp
-        tmp_json_file = mktemp(suffix='.json',
-                               prefix=json_file[:json_file.rfind('.')])
-        out = fn(rkt_file, tmp_json_file)
-        assert tmp_json_file == out
-        os.rename(tmp_json_file, json_file)
-        return json_file
+    else:
+        def wrap(rkt_file, json_file):
+            "NOT_RPYTHON""
+            try:
+                os.remove(json_file)
+            except IOError:
+                pass
+            except OSError:
+                pass
+            from tempfile import mktemp
+            tmp_json_file = mktemp(suffix='.json',
+                                   prefix=json_file[:json_file.rfind('.')])
+            out = fn(rkt_file, tmp_json_file)
+            assert tmp_json_file == out
+            os.rename(tmp_json_file, json_file)
+            return json_file
 
-    wrap.__name__ = fn.__name__
-    return wrap
+        wrap.__name__ = fn.__name__
+        return wrap
 
 @with_tempfile
 def expand_file_to_json(rkt_file, json_file):
