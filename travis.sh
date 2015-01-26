@@ -51,7 +51,7 @@ fi
 
 
 
-COVERAGE_TESTSUITE='not test_larger'
+COVERAGE_TESTSUITE='not test_larger and not (test_regexp and test_bug) and not test_or_parsing'
 COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
