@@ -127,7 +127,7 @@ do_performance_smoke() {
   echo ">>> Preparing racket files to not skew test"
   expand_rkt yes
   echo ">>> Smoke"
-  _smoke 1.2 pycket/test/fannkuch-redux.rkt 10
+  _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
   _smoke 0.7 pycket/test/triangle.rkt
   _smoke 1.5 pycket/test/earley.rkt
   _smoke 0.5 pycket/test/nucleic2.rkt
