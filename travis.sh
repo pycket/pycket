@@ -133,6 +133,7 @@ do_performance_smoke() {
   _smoke 0.5 pycket/test/nucleic2.rkt
   _smoke 2.5 pycket/test/nqueens.rkt
   _smoke 2.5 pycket/test/treerec.rkt
+  _smoke 0.5 pycket/test/hashtable-benchmark.rkt
   echo ; echo ">> Smoke cleared" ; echo
 }
 
