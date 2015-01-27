@@ -17,6 +17,7 @@ omit =
      pycket/test/bubble.py
      pycket/test/test_larger.py
      pycket/test/racket-tests.py
+     pycket/test/conftest.py
 
      # this is pypy.
      pycket/pypy/
