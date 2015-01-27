@@ -118,7 +118,7 @@ do_performance_smoke() {
     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
-    $TIMEOUT -k$KILLME_TIME $TARGET_TIME
+    $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
     set +x
   }
   echo ; echo ">> Performance smoke test" ; echo
