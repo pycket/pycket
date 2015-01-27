@@ -576,7 +576,7 @@ def test_round(doctest):
 
 def test_flround(doctest):
     """
-    ! (require racket/flonum)
+    ! (require '#%flfxnum)
     > (flround 0.1)
     0.0
     > (flround 0.0)
