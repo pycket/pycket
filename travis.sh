@@ -118,7 +118,10 @@ do_performance_smoke() {
     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
-    time $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
+    # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
+    PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
+    echo "Pycket took $PYCKET_TIME"
+    [ "OK" = $(awk "BEGIN { if ($PYCKET_TIME > $TARGET_TIME) { print OK } else { print  NO } }") ]
   }
   echo ; echo ">> Performance smoke test" ; echo
   echo ">>> Preparing racket files to not skew test"
