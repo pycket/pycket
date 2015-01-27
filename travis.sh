@@ -114,14 +114,14 @@ do_performance_smoke() {
     echo "> $1"
     raco make $1 >/dev/null
     RACKET_TIME=$($TIME_IT racket "$@")
-    echo "Racket took $RACKET_TIME"
+    echo "    Racket took $RACKET_TIME"
     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
     # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
     PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
-    echo "Pycket took $PYCKET_TIME"
-    [ "OK" = $(awk "BEGIN { if ($PYCKET_TIME > $TARGET_TIME) { print OK } else { print  NO } }") ]
+    echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
+    [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
   }
   echo ; echo ">> Performance smoke test" ; echo
   echo ">>> Preparing racket files to not skew test"
@@ -201,10 +201,10 @@ expand_rkt() {
 
   find $BASE_MODULES $SYNTAX_MODULES -type f -name \*.rkt -print0 | \
       while IFS= read -r -d '' F; do
-        echo -n .
-        set +e
-        racket -l pycket/expand $F 2>/dev/null >/dev/null
-        set -e
+        if [ ! -f "$F.json" ]; then
+            printf "%s" .
+            racket -l pycket/expand $F 2>/dev/null >/dev/null || true
+        fi
       done
 }
 
