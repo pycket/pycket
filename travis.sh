@@ -112,14 +112,13 @@ do_performance_smoke() {
     RATIO=$1
     shift
     echo "> $1"
-    set -x
     raco make $1 >/dev/null
     RACKET_TIME=$($TIME_IT racket "$@")
+    echo "Racket took $RACKET_TIME"
     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
     racket -l pycket/expand $1 2>/dev/null >/dev/null
-    $TIMEOUT -k$KILLME_TIME $TARGET_TIME ./pycket-c "$@"
-    set +x
+    $TIMEOUT -k$KILLME_TIME $TARGET_TIME time ./pycket-c "$@"
   }
   echo ; echo ">> Performance smoke test" ; echo
   echo ">>> Preparing racket files to not skew test"
