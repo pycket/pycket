@@ -45,7 +45,7 @@ def make_entry_point(pycketconfig=None):
         return 0
     return entry_point
 
-def target(driver, args):
+def target(driver, args): #pragma: no cover
     from rpython.config.config import to_optparse
     from pycket.config import expose_options, compute_executable_suffix
     config = driver.config
@@ -67,7 +67,7 @@ def target(driver, args):
     entry_point = make_entry_point(config)
     return entry_point, None
 
-def get_additional_config_options():
+def get_additional_config_options(): #pragma: no cover
     from pycket.config import pycketoption_descr
     return pycketoption_descr
 

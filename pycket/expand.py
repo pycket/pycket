@@ -6,7 +6,7 @@ import sys
 
 from rpython.rlib import streamio
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
 from pycket import pycket_json
@@ -120,7 +120,32 @@ def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
     return pycket_json.loads(data)
 
+def wrap_for_tempfile(fn):
+    def wrap(rkt_file, json_file):
+        "NOT_RPYTHON"
+        try:
+            os.remove(json_file)
+        except IOError:
+            pass
+        except OSError:
+            pass
+        from tempfile import mktemp
+        tmp_json_file = mktemp(suffix='.json',
+                               prefix=json_file[:json_file.rfind('.')])
+        out = fn(rkt_file, tmp_json_file)
+        assert tmp_json_file == out
+        os.rename(tmp_json_file, json_file)
+        return json_file
+
+    wrap.__name__ = fn.__name__
+    return wrap
+
+
 def expand_file_to_json(rkt_file, json_file):
+    if not we_are_translated():
+        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
+    return _expand_file_to_json(rkt_file, json_file)
+def _expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -144,6 +169,7 @@ def expand_file_to_json(rkt_file, json_file):
     if err != 0:
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return json_file
+
 
 
 def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):

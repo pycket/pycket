@@ -1,5 +1,6 @@
 from pycket.test.testhelper import run_mod_expr, run_mod
-from pycket.values_hash import get_dict_item, StringHashmapStrategy
+from pycket.values_hash import (ll_get_dict_item, get_dict_item,
+                                StringHashmapStrategy)
 from pycket.values_hash import ByteHashmapStrategy
 from pycket import values
 
@@ -198,6 +199,51 @@ def test_get_item():
             i += 1
     tg("1", 2, "3", 4)
     interpret(tg, [1, 2, 334, 4])
+
+def test_ll_get_dict_item():
+    """
+    Tests the low-level implementation of get_dict_item.
+    """
+    from rpython.annotator.annrpython import RPythonAnnotator
+    from rpython.annotator.model import SomeTuple, SomeInteger, SomeString
+
+    from rpython.rtyper.rtyper import RPythonTyper
+    from rpython.rtyper.rmodel import inputconst
+    from rpython.rtyper.annlowlevel import llstr, hlstr
+
+    from rpython.rtyper.lltypesystem import lltype, rffi
+    from rpython.rtyper.lltypesystem import rordereddict, rstr
+
+    dummykeyobj = None
+    dummyvalueobj = None
+
+    def _get_str_dict():
+        # STR -> lltype.Signed
+        DICT = rordereddict.get_ll_dict(lltype.Ptr(rstr.STR), lltype.Signed,
+                            ll_fasthash_function=rstr.LLHelpers.ll_strhash,
+                            ll_hash_function=rstr.LLHelpers.ll_strhash,
+                            ll_eq_function=rstr.LLHelpers.ll_streq,
+                            dummykeyobj=dummykeyobj,
+                            dummyvalueobj=dummyvalueobj)
+        return DICT
+    s_tuple = SomeTuple([SomeString(), SomeInteger()])
+    DICT = _get_str_dict()
+
+    ll_d = rordereddict.ll_newdict(DICT)
+    a = RPythonAnnotator()
+    rtyper = RPythonTyper(a)
+    a.translator.rtyper = rtyper
+    r_tuple = rtyper.getrepr(s_tuple)
+    cTUPLE = inputconst(lltype.Void, r_tuple.lowleveltype)
+    s_tuple = rtyper.annotation(cTUPLE)
+    rtyper.call_all_setups()
+
+    for i in range(20):
+        rordereddict.ll_dict_setitem(ll_d, llstr(str(i)), i)
+    for i in range(20):
+        element = ll_get_dict_item(s_tuple.const, ll_d, i)
+        assert (str(i), i) == (hlstr(element.item0), element.item1)
+
 
 
 def test_whitebox_str(source):

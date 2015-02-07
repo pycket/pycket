@@ -1099,64 +1099,64 @@
 (err/rt-test (make-srcloc 'ok 1 2 3 'no))
 (err/rt-test (make-srcloc 'ok 1 2 3 -1))
 
-; ;; ------------------------------------------------------------
-; ;; Custom write
+;; ------------------------------------------------------------
+;; Custom write
 
-; (define (custom-write-check normal?)
-;   (define (tuple-print tuple port write?)
-;     (when write? (write-string "<" port))
-;     (let ([l (tuple-ref tuple 0)])
-;       (unless (null? l)
-; 	((if write? write display) (car l) port)
-; 	(for-each (lambda (e)
-; 		    (write-string ", " port)
-; 		    (if normal?
-; 			;; Test normal recusrive write:
-; 			((if write? write display) e port)
-; 			;; Test writing recursively to a string:
-; 			(let ([p (open-output-string)])
-; 			  (port-write-handler p (port-write-handler port))
-; 			  (port-display-handler p (port-display-handler port))
-; 			  (port-print-handler p (port-print-handler port))
-; 			  ((if write? write display) e p)
-; 			  (write-string (get-output-string p) port))))
-; 		  (cdr l))))
-;     (when write? (write-string ">" port)))
+(define (custom-write-check normal?)
+  (define (tuple-print tuple port write?)
+    (when write? (write-string "<" port))
+    (let ([l (tuple-ref tuple 0)])
+      (unless (null? l)
+	((if write? write display) (car l) port)
+	(for-each (lambda (e)
+		    (write-string ", " port)
+		    (if normal?
+			;; Test normal recusrive write:
+			((if write? write display) e port)
+			;; Test writing recursively to a string:
+			(let ([p (open-output-string)])
+			  (port-write-handler p (port-write-handler port))
+			  (port-display-handler p (port-display-handler port))
+			  (port-print-handler p (port-print-handler port))
+			  ((if write? write display) e p)
+			  (write-string (get-output-string p) port))))
+		  (cdr l))))
+    (when write? (write-string ">" port)))
 
-;   (define-values (s:tuple make-tuple tuple? tuple-ref tuple-set!)
-;     (make-struct-type 'tuple #f 1 0 #f
-; 		      (list (cons prop:custom-write tuple-print))))
+  (define-values (s:tuple make-tuple tuple? tuple-ref tuple-set!)
+    (make-struct-type 'tuple #f 1 0 #f
+		      (list (cons prop:custom-write tuple-print))))
   
-;   (define (with-output-string thunk)
-;     (let ([p (open-output-string)])
-;       (parameterize ([current-output-port p])
-; 	(thunk))
-;       (get-output-string p)))
+  (define (with-output-string thunk)
+    (let ([p (open-output-string)])
+      (parameterize ([current-output-port p])
+	(thunk))
+      (get-output-string p)))
 
-;   (test "<1, 2, \"a\">" with-output-string 
-; 	(lambda ()
-; 	  (tuple-print (make-tuple '(1 2 "a")) (current-output-port) #t)))
+  (test "<1, 2, \"a\">" with-output-string 
+	(lambda ()
+	  (tuple-print (make-tuple '(1 2 "a")) (current-output-port) #t)))
 
-;   (test "1, 2, a" with-output-string 
-; 	(lambda ()
-; 	  (display (make-tuple '(1 2 "a")))))
-;   (test "#0=<#&#0#, 2, \"a\">" with-output-string 
-; 	(lambda ()
-; 	  (let ([t (make-tuple (list (box 1) 2 "a"))])
-; 	    (set-box! (car (tuple-ref t 0)) t)
-; 	    (write t))))
-;   (test "ack: here: <10, 2, \"a\">" with-output-string 
-; 	(lambda ()
-; 	  (with-handlers ([exn:fail? (lambda (exn)
-; 				       (printf "~a" (exn-message exn)))])
-; 	    (error 'ack "here: ~e" (make-tuple (list 10 2 "a"))))))
+ ;  (test "1, 2, a" with-output-string 
+	; (lambda ()
+	;   (display (make-tuple '(1 2 "a")))))
+ ;  (test "#0=<#&#0#, 2, \"a\">" with-output-string 
+	; (lambda ()
+	;   (let ([t (make-tuple (list (box 1) 2 "a"))])
+	;     (set-box! (car (tuple-ref t 0)) t)
+	;     (write t))))
+ ;  (test "ack: here: <10, 2, \"a\">" with-output-string 
+	; (lambda ()
+	;   (with-handlers ([exn:fail? (lambda (exn)
+	; 			       (printf "~a" (exn-message exn)))])
+	;     (error 'ack "here: ~e" (make-tuple (list 10 2 "a"))))))
   
-;   (test "ack: here: <100000..." with-output-string 
-; 	(lambda ()
-; 	  (parameterize ([error-print-width 10])  
-; 	    (with-handlers ([exn:fail? (lambda (exn)
-; 					 (printf "~a" (exn-message exn)))])
-; 	      (error 'ack "here: ~e" (make-tuple (list 10000000000000000000000000000000000 2 "a"))))))))
+  (test "ack: here: <100000..." with-output-string 
+	(lambda ()
+	  (parameterize ([error-print-width 10])  
+	    (with-handlers ([exn:fail? (lambda (exn)
+					 (printf "~a" (exn-message exn)))])
+	      (error 'ack "here: ~e" (make-tuple (list 10000000000000000000000000000000000 2 "a"))))))))
 
 ; (custom-write-check #t)
 ; (custom-write-check #f)
@@ -1166,16 +1166,16 @@
 (let ()
   (define-struct t1 (a b) #:transparent)
   (define-struct t2 (c d) #:transparent #:mutable)
-  ; (define-struct o (x y z)
-  ;   #:property prop:equal+hash (list
-  ;                               (lambda (a b equal?)
-  ;                                 (and (equal? (o-x a) (o-x b))
-  ;                                      (equal? (o-z a) (o-z b))))
-  ;                               (lambda (a hash)
-  ;                                 (+ (hash (o-x a)) (* 9 (hash (o-z a)))))
-  ;                               (lambda (a hash)
-  ;                                 (+ (hash (o-x a)) (hash (o-z a)))))
-  ;   #:mutable)
+  (define-struct o (x y z)
+    #:property prop:equal+hash (list
+                                (lambda (a b equal?)
+                                  (and (equal? (o-x a) (o-x b))
+                                       (equal? (o-z a) (o-z b))))
+                                (lambda (a hash)
+                                  (+ (hash (o-x a)) (* 9 (hash (o-z a)))))
+                                (lambda (a hash)
+                                  (+ (hash (o-x a)) (hash (o-z a)))))
+    #:mutable)
 
   (test #f equal? (make-t1 0 1) (make-t2 0 1))
   (test #t equal? (make-t1 0 1) (make-t1 0 1))

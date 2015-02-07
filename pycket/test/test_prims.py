@@ -44,15 +44,6 @@ def test_equal():
         '(equal? "abc" "def")',
     )
 
-def test_list_vector_conversion():
-    check_equal(
-        "(vector->list #(1 2 3 4))", "(list 1 2 3 4)",
-        "(vector->list #())", "'()",
-        "(vector->list #(1.1 a))", "(list 1.1 'a)",
-        "#(1 2 3 4)", "(list->vector (list 1 2 3 4))",
-        "#()", "(list->vector '())",
-        "#(1.1 a)", "(list->vector (list 1.1 'a))",
-    )
 
 ###############################################################################
 
@@ -181,42 +172,6 @@ def test_random_seed():
     run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
 
 
-def test_flvector(doctest):
-    """
-    ! (require '#%flfxnum '#%unsafe)
-    > (flvector-ref (flvector 0.0) 0)
-    0.0
-    > (define v (flvector 0.0 1.0))
-    > (flvector-ref v 0)
-    0.0
-    > (flvector-ref v 1)
-    1.0
-    > (flvector-set! v 0 2.0)
-    (void)
-    > (flvector-ref v 0)
-    2.0
-    > (unsafe-flvector-ref v 0)
-    2.0
-    > (unsafe-flvector-set! v 0 3.0)
-    (void)
-    > (flvector-ref v 0)
-    3.0
-    > (define v2 (make-flvector 5))
-    > (flvector-ref v2 4)
-    0.0
-    > (define v3 (make-flvector 5 3.0))
-    > (flvector-ref v3 4)
-    3.0
-    """
-    assert doctest
-
-def test_flvector_set_wrong_type():
-    with pytest.raises(SchemeException):
-        run_mod("""
-            #lang pycket
-            (require '#%flfxnum '#%unsafe)
-            (let [(a (flvector 1.2 1.3))] (flvector-set! a 1 'a))
-        """)
 #############################################################################
 def test_byte_huh(doctest):
     """
@@ -707,5 +662,26 @@ def test_procedure_closure_contents_eq(doctest):
     #t
     > (procedure-closure-contents-eq? (g a) (((g "c"))))
     #f
+    """
+
+
+def test_unsafe_undefined(doctest):
+    """
+    ! (require '#%unsafe)
+    ! (struct p (x y) #:mutable #:transparent)
+    > (check-not-unsafe-undefined 1 'a)
+    1
+    E (check-not-unsafe-undefined unsafe-undefined 'a)
+    > (check-not-unsafe-undefined/assign 1 'a)
+    1
+    E (check-not-unsafe-undefined/assign unsafe-undefined 'a)
+    > (chaperone-struct-unsafe-undefined 1)
+    1
+    > (let* ([x (p 1 2)]
+             [y (chaperone-struct-unsafe-undefined x)]
+             [_ (set-p-y! y 3)]
+             [z (p-y y)])
+        z)
+    3
     """
 

@@ -7,31 +7,13 @@ import pycket.config # to configure early
 
 import pytest
 
-def _doctstring_tempfile_named(request, name):
+def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
+    name = 'prog.rkt'
     assert request.function.__doc__ is not None
     file_name = tmpdir / name
     file_name.write(request.function.__doc__)
     return str(file_name)
-
-def _make_ast(request, wrap=False, stdlib=False):
-    from pycket.expand import expand, to_ast, _to_module
-    assert request.function.__doc__ is not None
-    code = request.function.__doc__
-    e = expand(code, wrap, stdlib)
-    ast = _to_module(e)
-    return ast
-
-def _make_source(request):
-    assert request.function.__doc__ is not None
-    code = request.function.__doc__
-    return code
-
-def pytest_funcarg__json(request):
-    return _doctstring_tempfile_named(request, "ast.json")
-
-def pytest_funcarg__racket_file(request):
-    return _doctstring_tempfile_named(request, "prog.rkt")
 
 def pytest_funcarg__empty_json(request):
     def make_filename():
@@ -41,14 +23,9 @@ def pytest_funcarg__empty_json(request):
     return request.cached_setup(setup=make_filename, scope="session")
 
 def pytest_funcarg__source(request):
-    return _make_source(request)
-
-def pytest_funcarg__ast(request):
-    return _make_ast(request)
-def pytest_funcarg__ast_wrap(request):
-    return _make_ast(request, wrap=True)
-def pytest_funcarg__ast_std(request):
-    return _make_ast(request, wrap=True, stdlib=True)
+    assert request.function.__doc__ is not None
+    code = request.function.__doc__
+    return code
 
 def pytest_funcarg__doctest(request):
     from textwrap import dedent

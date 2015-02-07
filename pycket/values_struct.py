@@ -176,8 +176,6 @@ class W_StructType(values.W_Object):
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
-        self.classes = []
-
         self.name = name.utf8value
         self.super = super_type
         self.init_field_cnt = init_field_cnt.value

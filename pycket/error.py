@@ -8,7 +8,8 @@ class SchemeException(Exception):
         self.context_ast = None
         self.context_module = None
 
-    def format_error(self):
+    def format_error(self): # pragma: no cover
+        # only error printing
         result = self.msg
         if self.context_ast:
             result += "\n  while executing: %s" % (
