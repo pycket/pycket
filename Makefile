@@ -11,7 +11,7 @@ RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython --batch
 
 
 TRANSLATE_TARGETS := translate-jit translate-callgraph translate-no-two-state \
-		translate-callgraph-no-two-state translate-no-strategies \
+		translate-callgraph-only translate-no-strategies \
 		translate-no-type-size-specialization
 
 PYFILES := $(shell find . -name '*.py' -type f)
@@ -55,6 +55,7 @@ pycket-c-no-type-size-specialization: $(PYFILES)
 
 pycket-c-nojit: $(PYFILES)
 	$(RPYTHON) targetpycket.py
+
 
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
