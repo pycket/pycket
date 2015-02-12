@@ -55,7 +55,7 @@ def target(driver, args): #pragma: no cover
         import subprocess
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
-        base_name = 'pycket'
+        base_name = 'pycket-6'
     base_name += '-%(backend)s'
     if not config.translation.jit:
         base_name += '-%(backend)s-nojit'

@@ -449,6 +449,9 @@
            (FLOAT* (tfo-tz A) (tfo-i B))
            (tfo-tz B))))
 
+;;(define (tfo-combine A B)
+;;  (tfo-combine^ (tfo-combine^ A B) B))
+
 ; The function "tfo-inv-ortho" computes the inverse of a homogeneous
 ; transformation matrix.
 
@@ -3306,7 +3309,7 @@
         (if (null? lst)
           domains
           (let ((nuc (car lst)))
-            (let ((tfo-60 (tfo-combine (nuc-P-O3*-60-tfo nuc) align))
+            (let ((tfo-60  (tfo-combine (nuc-P-O3*-60-tfo nuc) align))
                   (tfo-180 (tfo-combine (nuc-P-O3*-180-tfo nuc) align))
                   (tfo-275 (tfo-combine (nuc-P-O3*-275-tfo nuc) align)))
               (loop (cdr lst)
@@ -3506,4 +3509,4 @@
 
 ; To run program, evaluate: (run)
 
-(time (let loop ((i 100)) (if (zero? i) 'done (begin (run) (loop (- i 1))))))
+(time (let loop ((i 1000)) (if (zero? i) 'done (begin (run) (loop (- i 1))))))
