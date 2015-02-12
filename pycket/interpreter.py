@@ -615,6 +615,7 @@ class WithContinuationMark(AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    app_like = True
 
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
@@ -1781,7 +1782,7 @@ def inner_interpret_two_state(ast, env, cont):
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
         else:
-            came_from = ast if isinstance(ast, App) else came_from
+            came_from = ast if ast.app_like else came_from
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
