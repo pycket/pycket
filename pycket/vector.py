@@ -1,5 +1,4 @@
 
-from pycket.cont import label
 from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
 from pycket.base import W_Object, SingletonMeta
 from pycket import config
