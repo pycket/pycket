@@ -495,3 +495,16 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
+
+@skip
+def test_struct_info(doctest):
+    """
+    ! (require racket/struct-info)
+    > (struct-info? #f)
+    #f
+    > (struct x ())
+    > (struct-info (x))
+    > (struct-info? (struct-info (x)))
+    #t
+    """
+    assert doctest
