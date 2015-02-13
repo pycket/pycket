@@ -210,11 +210,9 @@ class W_VectorSuper(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    @label
     def vector_set(self, i, new, env, cont):
         raise NotImplementedError("abstract base class")
 
-    @label
     def vector_ref(self, i, env, cont):
         raise NotImplementedError("abstract base class")
 
@@ -360,11 +358,9 @@ class W_Box(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    @label
     def unbox(self, env, cont):
         raise NotImplementedError("abstract base class")
 
-    @label
     def set_box(self, val, env, cont):
         raise NotImplementedError("abstract base class")
 
@@ -374,12 +370,10 @@ class W_MBox(W_Box):
     def __init__(self, value):
         self.value = value
 
-    @label
     def unbox(self, env, cont):
         from pycket.interpreter import return_value
         return return_value(self.value, env, cont)
 
-    @label
     def set_box(self, val, env, cont):
         from pycket.interpreter import return_value
         self.value = val
@@ -398,12 +392,10 @@ class W_IBox(W_Box):
     def immutable(self):
         return True
 
-    @label
     def unbox(self, env, cont):
         from pycket.interpreter import return_value
         return return_value(self.value, env, cont)
 
-    @label
     def set_box(self, val, env, cont):
         raise SchemeException("set-box!: not supported on immutable boxes")
 
