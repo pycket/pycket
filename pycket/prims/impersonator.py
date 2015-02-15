@@ -21,23 +21,36 @@ def find_prop_start_index(args):
 @jit.unroll_safe
 def unpack_properties(args, name):
     idx = find_prop_start_index(args)
-    args, props = args[:idx], args[idx:]
-    prop_len = len(props)
+
+    if idx == len(args):
+        props    = None
+        prop_len = 0
+    else:
+        args, props = args[:idx], args[idx:]
+        prop_len = len(props)
 
     if prop_len % 2 != 0:
         raise SchemeException(name + ": not all properties have corresponding values")
 
     count = prop_len / 2
-    prop_keys = [None] * count
-    prop_vals = [None] * count
+
+    # Avoid allocation in the event that we don't need to do anything
+    if prop_len == 0:
+        count = 0
+        prop_keys = None
+        prop_vals = None
+    else:
+        count = prop_len / 2
+        prop_keys = [None] * count
+        prop_vals = [None] * count
 
     for i in range(count):
-        prop_keys[i] = props[i*2]
+        key = props[i*2]
+        prop_keys[i] = key
         prop_vals[i] = props[i*2+1]
 
-    for k in prop_keys:
-        if not isinstance(k, imp.W_ImpPropertyDescriptor):
-            desc = "%s: %s is not a property descriptor" % (name, k.tostring())
+        if not isinstance(key, imp.W_ImpPropertyDescriptor):
+            desc = "%s: %s is not a property descriptor" % (name, key.tostring())
             raise SchemeException(desc)
 
     return args, prop_keys, prop_vals

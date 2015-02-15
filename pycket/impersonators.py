@@ -136,14 +136,15 @@ class W_InterposeProcedure(values.W_Procedure):
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
         self.self_arg = self_arg
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def get_arity(self):
         return self.inner.get_arity()
@@ -194,14 +195,15 @@ class W_InterposeBox(values.W_Box):
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = box
         self.unboxh = unboxh
         self.seth = seth
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def immutable(self):
         return self.inner.immutable()
@@ -264,14 +266,15 @@ class W_InterposeVector(values.W_MVector):
     @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = v
         self.refh = r
         self.seth = s
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def length(self):
         return self.inner.length()
@@ -338,7 +341,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
 
         self.inner = inner
 
@@ -383,11 +386,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 struct_props[base] = (op, handlers[i])
             else:
                 assert False
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            if properties is None:
-                properties = {}
-            properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                if properties is None:
+                    properties = {}
+                properties[k] = prop_vals[i]
 
         self.accessors    = accessors
         self.mutators     = mutators
@@ -474,14 +478,15 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
         assert get_proc.iscallable()
         assert set_proc.iscallable()
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner    = mark
         self.get_proc = get_proc
         self.set_proc = set_proc
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_vals is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def post_set_cont(self, body, value, env, cont):
         raise NotImplementedError("abstract method")
@@ -548,9 +553,10 @@ class W_InterposeHashTable(values_hash.W_HashTable):
         self.key_proc    = key_proc
         self.clear_proc  = clear_proc
         self.properties  = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def post_ref_cont(self, key, env, cont):
         raise NotImplementedError("abstract method")
