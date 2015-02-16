@@ -103,7 +103,7 @@ def equal_func_unroll_n(a, b, info, env, cont, n):
     return equal_func_loop(a, b, info, env, cont)
 
 
-@loop_label
+@label
 def equal_func_loop(a, b, info, env, cont):
     return equal_func_impl(a, b, info, env, cont, 0)
 

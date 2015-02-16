@@ -17,6 +17,12 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
+    _immutable_fields_ = ['return_safe']
+
+    # This field denotes whether or not it is safe to directly invoke the
+    # plug_reduce operation of the continuation.
+    return_safe = False
+
     def __init__(self):
         self.marks = None
 

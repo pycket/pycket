@@ -498,11 +498,9 @@ class W_RootStruct(values.W_Object):
     def struct_type(self):
         raise NotImplementedError("abstract base class")
 
-    @label
     def ref(self, struct_type, field, env, cont):
         raise NotImplementedError("abstract base class")
 
-    @label
     def set(self, struct_type, field, val, env, cont):
         raise NotImplementedError("abstract base class")
 
@@ -558,7 +556,6 @@ class W_Struct(W_RootStruct):
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
     # continuations.
-    @label
     def ref(self, type, field, env, cont):
         from pycket.interpreter import return_value
         offset = self.struct_type().get_offset(type)
@@ -567,7 +564,6 @@ class W_Struct(W_RootStruct):
         value = self._get_field_val(field + offset)
         return return_value(value, env, cont)
 
-    @label
     def set(self, type, field, val, env, cont):
         from pycket.interpreter import return_value
         offset = self.struct_type().get_offset(type)
@@ -760,7 +756,6 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
-    @label
     @make_call_method([W_RootStruct], simple=False)
     def call(self, struct, env, cont):
         return self.accessor.access(struct, self.field, env, cont)
@@ -777,7 +772,6 @@ class W_StructAccessor(values.W_Procedure):
     def access(self, struct, field, env, cont):
         return struct.ref(self.type, field, env, cont)
 
-    @label
     @make_call_method([W_RootStruct, values.W_Fixnum], simple=False)
     def call(self, struct, field, env, cont):
         return struct.ref(self.type, field.value, env, cont)
@@ -795,7 +789,6 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
-    @label
     @make_call_method([W_RootStruct, values.W_Object], simple=False, name="<struct-field-mutator-method>")
     def call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
@@ -812,7 +805,6 @@ class W_StructMutator(values.W_Procedure):
     def mutate(self, struct, field, val, env, cont):
         return struct.set(self.type, field, val, env, cont)
 
-    @label
     @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False, name="<struct-mutator-method>")
     def call(self, struct, field, val, env, cont):
         return struct.set(self.type, field.value, val, env, cont)
@@ -869,7 +861,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
-    @label
+
     @make_call_method(simple=False)
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
