@@ -1,6 +1,6 @@
 import pytest
 from pycket.expand import expand, expand_string
-from pycket.values import W_Symbol
+from pycket.values import W_Symbol, W_Fixnum
 from pycket.expand import _to_ast, to_ast, parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
@@ -197,4 +197,23 @@ def test_specialized_app_for_simple_prims():
 def test_simple_prim_calls_are_simple_expressions():
     p = expr_ast("(car (cons 1 2))")
     assert isinstance(p, SimplePrimApp1)
+
+
+def test_green_key():
+    ast1 = Quote(W_Fixnum(1))
+    ast2 = Quote(W_Fixnum(2))
+    ast3 = Quote(W_Fixnum(3))
+    assert ast1.get_green_key() is ast1.get_green_key()
+    gk1 = ast1.get_green_key()
+    gk2 = gk1.add(ast2)
+    assert gk2 is gk1.add(ast2)
+    assert gk2.ast is ast2
+    assert gk2.next is gk1
+
+    assert gk2.cut(4) is gk2
+    assert gk2.cut(1) is ast2.get_green_key()
+
+    assert gk1.combine(ast2, 1) is ast2.get_green_key()
+    assert gk1.combine(ast2, 2) is gk1.add(ast2)
+    assert gk1.combine(ast2, 2).combine(ast3, 2) is ast2.get_green_key().add(ast3)
 

@@ -1,12 +1,13 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like", "green_key"]
     _immutable_fields_ = ["should_enter?", "surrounding_lambda", "app_like"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
+    green_key = None # default value
     mvars = None
     surrounding_lambda = None
     app_like = False
@@ -84,3 +85,50 @@ class AST(object):
     def __str__(self):
         return self.tostring()
 
+    @jit.elidable
+    def get_green_key(self):
+        if self.green_key is None:
+            self.green_key = GreenKey(self)
+        return self.green_key
+
+
+class GreenKey(object):
+    _immutable_fields_ = ['ast', 'next']
+
+    def __init__(self, ast, next=None):
+        self.ast = ast
+        self.next = next
+        self._cache = None
+
+    @jit.elidable
+    def add(self, next):
+        assert isinstance(next, AST)
+        cache = self._cache
+        if cache is None:
+            cache = self._cache = {}
+        res = cache.get(next, None)
+        if res is None:
+            cache[next] = res = GreenKey(next, self)
+        return res
+
+    @jit.elidable
+    def cut(self, depth_limit):
+        if depth_limit <= 1:
+            return self.ast.get_green_key()
+        if self.next is None:
+            return self
+        return self.next.cut(depth_limit - 1).add(self.ast)
+
+    @jit.elidable
+    def combine(self, next, depth_limit):
+        if depth_limit == 1:
+            return next.get_green_key()
+        return self.cut(depth_limit - 1).add(next)
+
+    def __repr__(self):
+        return self.tostring()
+
+    def tostring(self):
+        if self.next is not None:
+            return self.ast.tostring() + "=>" + self.next.tostring()
+        return self.ast.tostring()
