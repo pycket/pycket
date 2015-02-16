@@ -230,7 +230,6 @@ class W_StructType(values.W_Object):
         self.immutable_fields = immutable_fields[:]
 
     @jit.elidable
-    @jit.unroll_safe
     def get_offset(self, type):
         for t, v in self.offsets:
             if t is type:
@@ -558,6 +557,7 @@ class W_Struct(W_RootStruct):
     # continuations.
     def ref(self, type, field, env, cont):
         from pycket.interpreter import return_value
+        jit.promote(type)
         offset = self.struct_type().get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
@@ -566,6 +566,7 @@ class W_Struct(W_RootStruct):
 
     def set(self, type, field, val, env, cont):
         from pycket.interpreter import return_value
+        jit.promote(type)
         offset = self.struct_type().get_offset(type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")

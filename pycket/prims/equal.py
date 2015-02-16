@@ -213,6 +213,7 @@ def eqp_logic(a, b):
 def eqp(a, b):
     return values.W_Bool.make(eqp_logic(a, b))
 
+@jit.unroll_safe
 def procedure_closure_contents_eq_n(a, b, n):
     # FIXME: provide actual information
     if a is b:
