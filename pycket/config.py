@@ -7,7 +7,7 @@ from rpython.config.translationoption import get_combined_translation_config
 pycketoption_descr = OptionDescription(
         "pycket", "Pycket Options", [
     IntOption("numberstates", "enable the n-state JIT driver",
-               default=0, cmdline="--number-states"),
+               default=2, cmdline="--number-states"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
                default=False, cmdline="--callgraph"),
     BoolOption("log_callgraph", "log the callgraph decisions",
@@ -41,7 +41,7 @@ def compute_executable_suffix(config):
         res.append("-callgraph")
     if not config.prune_env:
         res.append("-no-prune-env")
-    if config.numberstates:
+    if config.numberstates != 2:
         res.append("-number-states-%s" % (config.numberstates, ))
     if not config.strategies:
         res.append("-no-strategies")

@@ -1786,7 +1786,9 @@ def inner_interpret_n_state(ast, env, cont):
     while True:
         driver_n_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         if (config.track_header and ast.should_enter) or ast.app_like:
-            came_from = came_from.combine(ast, depth_limit=config.numberstates)
+            # the ast itself is one state, so we substract that from the limit
+            # used in the came_from
+            came_from = came_from.combine(ast, depth_limit=config.numberstates - 1)
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
@@ -1816,7 +1818,7 @@ def inner_interpret_one_state(ast, env, cont):
 def interpret_one(ast, env=None):
     if env is None:
         env = ToplevelEnv()
-    if env.pycketconfig().numberstates:
+    if env.pycketconfig().numberstates != 1:
         inner_interpret = inner_interpret_n_state
     else:
         inner_interpret = inner_interpret_one_state
