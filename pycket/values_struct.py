@@ -582,7 +582,6 @@ class W_Struct(W_RootStruct):
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
-    @label
     def get_prop(self, property, env, cont):
         from pycket.interpreter import return_value
         val = self.struct_type().read_prop_precise(property)
