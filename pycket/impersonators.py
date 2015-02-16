@@ -152,6 +152,7 @@ class W_InterposeProcedure(values.W_Procedure):
     def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
+    @label
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
@@ -214,10 +215,12 @@ class W_InterposeBox(values.W_Box):
     def post_set_box_cont(self, val, env, cont):
         raise NotImplementedError("abstract method")
 
+    @label
     def unbox(self, env, cont):
         after = self.post_unbox_cont(env, cont)
         return self.inner.unbox(env, after)
 
+    @label
     def set_box(self, val, env, cont):
         after = self.post_set_box_cont(val, env, cont)
         return self.seth.call([self.inner, val], env, after)
@@ -277,7 +280,7 @@ class W_InterposeVector(values.W_MVector):
                 self.properties[k] = prop_vals[i]
 
     def length(self):
-        return self.inner.length()
+        return get_base_object(self.inner).length()
 
     def post_set_cont(self, new, i, env, cont):
         raise NotImplementedError("abstract method")
@@ -285,10 +288,12 @@ class W_InterposeVector(values.W_MVector):
     def post_ref_cont(self, i, env, cont):
         raise NotImplementedError("abstract method")
 
+    @label
     def vector_set(self, i, new, env, cont):
         after = self.post_set_cont(new, i, env, cont)
         return self.seth.call([self.inner, i, new], env, after)
 
+    @label
     def vector_ref(self, i, env, cont):
         after = self.post_ref_cont(i, env, cont)
         return self.inner.vector_ref(i, env, after)
@@ -346,8 +351,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.inner = inner
 
         field_cnt = inner.struct_type().total_field_cnt
-        accessors = [values.w_false] * field_cnt * 2
-        mutators  = [values.w_false] * field_cnt * 2
+        accessors = [values.w_false] * (field_cnt * 2)
+        mutators  = [values.w_false] * (field_cnt * 2)
 
         # The mask field contains an array of pointers to the next object
         # in the proxy stack that overrides a given field operation.
@@ -416,6 +421,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def struct_type(self):
         return self.base.struct_type()
 
+    @label
     def ref(self, struct_id, field, env, cont):
         goto = self.mask[field]
         if goto is not self:
@@ -427,6 +433,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return self.inner.ref(struct_id, field, env, after)
         return op.call([self.inner], env, after)
 
+    @label
     def set(self, struct_id, field, val, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
@@ -435,6 +442,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_set_cont(op, struct_id, field, val, env, cont)
         return interp.call([self, val], env, after)
 
+    @label
     def get_prop(self, property, env, cont):
         if self.struct_props is None:
             return self.inner.get_prop(property, env, cont)
@@ -494,10 +502,12 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     def post_get_cont(self, value, env, cont):
         raise NotImplementedError("abstract method")
 
+    @label
     def get_cmk(self, value, env, cont):
         return self.get_proc.call([value], env,
                 self.post_get_cont(value, env, cont))
 
+    @label
     def set_cmk(self, body, value, update, env, cont):
         return self.set_proc.call([value], env,
                 self.post_set_cont(body, value, env, cont))
@@ -567,9 +577,11 @@ class W_InterposeHashTable(values_hash.W_HashTable):
     def hash_keys(self):
         return get_base_object(self.inner).hash_keys()
 
+    @label
     def hash_set(self, key, val, env, cont):
         raise NotImplementedError("abstract method")
 
+    @label
     def hash_ref(self, key, env, cont):
         after = self.post_ref_cont(key, env, cont)
         return self.ref_proc.call([self.inner, key], env, after)
