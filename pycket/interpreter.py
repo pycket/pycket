@@ -1770,27 +1770,23 @@ class DefineValues(AST):
             self.display_names, self.rhs.tostring())
 
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_n_state(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
-    surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
-    return green_ast.tostring()
+    return green_ast.tostring() + ' from ' + came_from.tostring()
 
-driver_two_state = jit.JitDriver(reds=["env", "cont"],
+driver_n_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["ast", "came_from"],
-                                 get_printable_location=get_printable_location_two_state)
+                                 get_printable_location=get_printable_location_n_state)
 
-def inner_interpret_two_state(ast, env, cont):
-    came_from = ast
+
+def inner_interpret_n_state(ast, env, cont):
+    came_from = ast.get_green_key()
     config = env.pycketconfig()
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-        if config.track_header:
-            came_from = ast if ast.should_enter else came_from
-        else:
-            came_from = ast if ast.app_like else came_from
+        driver_n_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+        if (config.track_header and ast.should_enter) or ast.app_like:
+            came_from = came_from.combine(ast, depth_limit=config.numberstates)
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
@@ -1801,7 +1797,7 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            driver_n_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
@@ -1820,8 +1816,8 @@ def inner_interpret_one_state(ast, env, cont):
 def interpret_one(ast, env=None):
     if env is None:
         env = ToplevelEnv()
-    if env.pycketconfig().two_state:
-        inner_interpret = inner_interpret_two_state
+    if env.pycketconfig().numberstates:
+        inner_interpret = inner_interpret_n_state
     else:
         inner_interpret = inner_interpret_one_state
     cont = nil_continuation

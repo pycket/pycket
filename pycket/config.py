@@ -6,8 +6,8 @@ from rpython.config.translationoption import get_combined_translation_config
 
 pycketoption_descr = OptionDescription(
         "pycket", "Pycket Options", [
-    BoolOption("two_state", "enable the two-state JIT driver",
-               default=True, cmdline="--two-state"),
+    IntOption("numberstates", "enable the n-state JIT driver",
+               default=0, cmdline="--number-states"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
                default=False, cmdline="--callgraph"),
     BoolOption("log_callgraph", "log the callgraph decisions",
