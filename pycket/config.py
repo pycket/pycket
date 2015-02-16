@@ -41,8 +41,8 @@ def compute_executable_suffix(config):
         res.append("-callgraph")
     if not config.prune_env:
         res.append("-no-prune-env")
-    if not config.two_state:
-        res.append("-no-two-state")
+    if config.numberstates:
+        res.append("-number-states-%s" % (config.numberstates, ))
     if not config.strategies:
         res.append("-no-strategies")
     if not config.type_size_specialization:
