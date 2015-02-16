@@ -789,7 +789,7 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
-    @make_call_method([W_RootStruct, values.W_Object], simple=False)
+    @make_call_method([W_RootStruct, values.W_Object], simple=False, name="<struct-field-mutator-method>")
     def call(self, struct, val, env, cont):
         return self.mutator.mutate(struct, self.field, val, env, cont)
 
@@ -805,7 +805,7 @@ class W_StructMutator(values.W_Procedure):
     def mutate(self, struct, field, val, env, cont):
         return struct.set(self.type, field, val, env, cont)
 
-    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False)
+    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False, name="<struct-mutator-method>")
     def call(self, struct, field, val, env, cont):
         return struct.set(self.type, field.value, val, env, cont)
 

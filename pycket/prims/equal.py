@@ -213,11 +213,12 @@ def eqp_logic(a, b):
 def eqp(a, b):
     return values.W_Bool.make(eqp_logic(a, b))
 
-@expose("procedure-closure-contents-eq?", [procedure] * 2)
-def procedure_closure_contents_eq(a, b):
+def procedure_closure_contents_eq_n(a, b, n):
     # FIXME: provide actual information
     if a is b:
         return values.w_true
+    if n == 0:
+        return values.w_false
     if isinstance(a, values.W_Closure1AsEnv):
         if isinstance(b, values.W_Closure1AsEnv):
             if a.caselam is not b.caselam:
@@ -226,10 +227,19 @@ def procedure_closure_contents_eq(a, b):
             if size != b._get_size_list():
                 return values.w_false
             for i in range(size):
-                if not eqp_logic(a._get_list(i), b._get_list(i)):
+                a_i = a._get_list(i)
+                b_i = b._get_list(i)
+                if isinstance(a_i, values.W_Closure1AsEnv) and isinstance(b_i, values.W_Closure1AsEnv):
+                    if not procedure_closure_contents_eq_n(a_i, b_i, n-1):
+                        return values.w_false
+                elif not eqp_logic(a_i, b_i):
                     return values.w_false
             return values.w_true
     return values.w_false
+
+@expose("procedure-closure-contents-eq?", [procedure] * 2)
+def procedure_closure_contents_eq(a, b):
+    return procedure_closure_contents_eq_n(a, b, 2)
 
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):
