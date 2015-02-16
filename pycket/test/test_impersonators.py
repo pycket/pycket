@@ -132,7 +132,7 @@ def test_chaperone_stack_exhaustion():
     #lang racket/base
     (define d
       (for/fold ([v (vector 1 2 3)])
-          ([i 100000])
+          ([i 1000])
         (chaperone-vector v (lambda (x i val) val) (lambda (x i val) val))))
     (vector-ref d 0)
     """)
