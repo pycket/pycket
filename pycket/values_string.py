@@ -2,10 +2,17 @@ from pycket.base import W_Object, SingletonMeta
 from pycket.error import SchemeException
 from pycket import config
 
-from rpython.rlib import rerased
+from rpython.rlib import rerased, jit
 from rpython.rlib.objectmodel import compute_hash, we_are_translated
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
+
+@jit.elidable
+def _is_ascii(s):
+    for c in s:
+        if ord(c) >= 128:
+            return False
+    return True
 
 
 class W_String(W_Object):
@@ -19,12 +26,7 @@ class W_String(W_Object):
     def fromstr_utf8(s, immutable=False):
         # try to see whether it's ascii first
         if config.strategies:
-            ascii = True
-            for c in s:
-                if ord(c) >= 128:
-                    ascii = False
-                    break
-            if ascii:
+            if _is_ascii(s):
                 return W_String.fromascii(s, immutable)
         u = s.decode("utf-8")
         return W_String.fromunicode(u, immutable)
