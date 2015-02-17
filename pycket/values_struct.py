@@ -73,6 +73,7 @@ class W_StructType(values.W_Object):
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
     @staticmethod
+    @jit.unroll_safe
     def make_prefab(prefab_key):
         if prefab_key in W_StructType.unbound_prefab_types:
             w_struct_type = W_StructType.unbound_prefab_types[prefab_key]
@@ -523,6 +524,7 @@ class W_Struct(W_RootStruct):
     _immutable_fields_ = ["_type"]
 
     @staticmethod
+    @jit.unroll_safe
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(W_PrefabKey.from_raw_key(w_key, len(w_values)))
         for i, value in enumerate(w_values):
