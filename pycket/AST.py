@@ -1,7 +1,7 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like", "count"]
     _immutable_fields_ = ["should_enter?", "surrounding_lambda", "app_like"]
     _settled_ = True
 
@@ -12,6 +12,8 @@ class AST(object):
     app_like = False
 
     simple = False
+
+    count = 0
 
     def defined_vars(self): return {}
 

@@ -1786,6 +1786,10 @@ def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
     while True:
+        if not jit.we_are_jitted():
+            ast.count += 1
+            if ast.count >= 10000:
+                print "hot ast not jitted: \n\t%s"%(ast.tostring())
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
