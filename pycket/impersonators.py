@@ -372,6 +372,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         properties   = None
 
         # Does not deal with properties as of yet
+        # TODO: Avoid allocating the mutators and accessors when they are empty
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):

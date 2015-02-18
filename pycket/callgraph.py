@@ -1,5 +1,8 @@
 from rpython.rlib import jit
 
+# TODO: Find heavily executed lambdas that do not participate in a loop in the
+# callgraph.
+
 class CallGraph(object):
     def __init__(self):
         self.calls     = {}

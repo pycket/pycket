@@ -465,32 +465,35 @@ class W_RootStruct(values.W_Object):
         raise SchemeException("expected: " + msg.tostring())
 
     @continuation
-    def receive_proc_cont(self, args, env, cont, _vals):
+    def receive_proc_cont(self, args, calling_app, env, cont, _vals):
         from pycket.interpreter import check_one_val
         proc = check_one_val(_vals)
-        return self.checked_call(proc, args, env, cont)
+        return self.checked_call(proc, args, calling_app, env, cont)
 
-    def checked_call(self, proc, args, env, cont):
+    def checked_call(self, proc, args, calling_app, env, cont):
         args_len = len(args)
         arity = proc.get_arity()
         if (args_len < arity.at_least or arity.at_least == -1) and not arity.list_includes(args_len):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
-                return w_prop_val.call([self], env, self.arity_error_cont(env, cont))
-        return proc.call(args, env, cont)
+                return w_prop_val.call_with_extra_info([self], env, self.arity_error_cont(env, cont), calling_app)
+        return proc.call_with_extra_info(args, env, cont, calling_app)
+
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        typ = self.struct_type()
+        proc = typ.prop_procedure
+        if isinstance(proc, values.W_Fixnum):
+            return self.ref(typ.procedure_source, proc.value, env,
+                self.receive_proc_cont(args, calling_app, env, cont))
+        args = [self] + args
+        return self.checked_call(proc, args, calling_app, env, cont)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
     # struct_type for call and iscallable to work properly.
     @label
     @make_call_method(simple=False)
     def call(self, args, env, cont):
-        typ = self.struct_type()
-        proc = typ.prop_procedure
-        if isinstance(proc, values.W_Fixnum):
-            return self.ref(typ.procedure_source, proc.value, env,
-                self.receive_proc_cont(args, env, cont))
-        args = [self] + args
-        return self.checked_call(proc, args, env, cont)
+        return self.call_with_extra_info(args, env, cont, None)
 
     def get_arity(self):
         raise NotImplementedError("abstract base class")
@@ -865,8 +868,8 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
 
-    @make_call_method(simple=False)
-    def call(self, args, env, cont):
+    #@make_call_method(simple=False)
+    def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.interpreter import return_value
         arg = args[0]
         if isinstance(arg, W_StructType):
@@ -878,7 +881,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
         elif len(args) > 1:
             failure_result = args[1]
             if failure_result.iscallable():
-                return failure_result.call([], env, cont)
+                return failure_result.call_with_extra_info([], env, cont, calling_app)
             else:
                 return return_value(failure_result, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
