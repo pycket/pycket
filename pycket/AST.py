@@ -17,6 +17,8 @@ class AST(object):
 
     in_cycle = False
 
+    the_lam = None
+
     count = 0
 
     def defined_vars(self): return {}

@@ -1251,6 +1251,7 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+        self.body[0].the_lam = self
 
     def set_in_cycle(self):
         for b in self.body:
@@ -1794,12 +1795,14 @@ def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
     while True:
+        if ast.tostring() == "(cons s AppRand1_586)":
+            import pdb; pdb.set_trace()
         if (not jit.we_are_jitted()) and (not ast.is_label):
             ast.count += 1
             if ast.count >= 10000 and (ast.count % 10000 == 0):
-                if (ast.surrounding_lambda is not None) and (not ast.in_cycle):
+                if (ast.the_lam is not None) and (not ast.in_cycle) and (not "string->num" in ast.the_lam.tostring()):
+                    print "hot ast not jitted %s: %s"%(ast.count, ast.tostring())
                     import pdb; pdb.set_trace()
-                print "hot ast not jitted %s: \n\t%s"%(ast.count, ast.tostring())
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
