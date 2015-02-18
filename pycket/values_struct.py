@@ -760,6 +760,7 @@ class W_StructFieldAccessor(values.W_Procedure):
 
     @make_call_method([W_RootStruct], simple=False)
     def call(self, struct, env, cont):
+        jit.promote(self)
         return self.accessor.access(struct, self.field, env, cont)
 
     def tostring(self):
