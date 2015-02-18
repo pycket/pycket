@@ -9,7 +9,7 @@ pycketoption_descr = OptionDescription(
     BoolOption("two_state", "enable the two-state JIT driver",
                default=True, cmdline="--two-state"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
-               default=False, cmdline="--callgraph"),
+               default=True, cmdline="--callgraph"),
     BoolOption("log_callgraph", "log the callgraph decisions",
                default=False, cmdline="--log-callgraph",
                requires=[("pycket.callgraph", True)]),

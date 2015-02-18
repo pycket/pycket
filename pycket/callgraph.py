@@ -42,6 +42,7 @@ class CallGraph(object):
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
         if lam in self.recursive:
+            lam.set_in_cycle()
             return True
         if starting_from is None:
             starting_from = lam
@@ -55,9 +56,11 @@ class CallGraph(object):
         while todo:
             current, path = todo.pop()
             if current is lam:
+                lam.set_in_cycle()
                 self.recursive[lam] = None
                 # all the lambdas in the path are recursive too
                 while path:
+                    path.node.set_in_cycle()
                     self.recursive[path.node] = None
                     path = path.prev
                 return True
