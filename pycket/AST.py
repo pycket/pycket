@@ -13,6 +13,8 @@ class AST(object):
 
     simple = False
 
+    is_label = False
+
     count = 0
 
     def defined_vars(self): return {}
