@@ -170,3 +170,10 @@ def test_list_vector_conversion():
         "#()", "(list->vector '())",
         "#(1.1 a)", "(list->vector (list 1.1 'a))",
     )
+
+def test_eq_and_vectors_agree(doctest):
+    """
+    > (eq? 3.5 (vector-ref (vector 3.5) 0))
+    #t
+    """
+
