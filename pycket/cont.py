@@ -177,7 +177,6 @@ def make_label(func, enter=False):
         class Args(Cont):
             _immutable_fields_ = ["args"]
             def __init__(self, *args):
-                #BaseCont.__init__(self)
                 Cont.__init__(self, args[-2], args[-1])
                 self.args = args[:-2]
 

@@ -575,7 +575,7 @@ class W_Struct(W_RootStruct):
         value = self._get_field_val(field + offset)
         return return_value(value, env, cont)
 
-    def set(self, type, field, val, env, cont):
+    def set_with_extra_info(self, type, field, val, app, env, cont):
         from pycket.interpreter import return_value
         jit.promote(type)
         offset = self.struct_type().get_offset(type)
@@ -690,7 +690,7 @@ class W_StructConstructor(values.W_Procedure):
 
     @continuation
     def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
-        env, cont, _vals):
+        app, env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
         guard_values = _vals.get_all_values()
         type = jit.promote(self.type)
@@ -705,34 +705,33 @@ class W_StructConstructor(values.W_Procedure):
                 split_position, super_auto, len(super_auto))
             if issuper:
                 return super_type.constr.code(field_values[:split_position],
-                    struct_type_name, True, env, cont)
+                    struct_type_name, True, env, cont, app)
             else:
                 return super_type.constr.code(field_values[:split_position],
                     struct_type_name, True,
-                    env, self.constr_proc_cont(field_values, env, cont))
+                    env, self.constr_proc_cont(field_values, env, cont), app)
         else:
             if issuper:
                 return return_multi_vals(values.Values.make(field_values), env, cont)
             else:
                 return jump(env, self.constr_proc_cont(field_values, env, cont))
 
-    def code(self, field_values, struct_type_name, issuper, env, cont):
+    def code(self, field_values, struct_type_name, issuper, env, cont, app):
         from pycket.interpreter import jump
         type = jit.promote(self.type)
         if type.guard is values.w_false:
             return jump(env, self.constr_proc_wrapper_cont(field_values,
-                struct_type_name, issuper, env, cont))
+                struct_type_name, issuper, app, env, cont))
         else:
             guard_args = field_values + [values.W_Symbol.make(struct_type_name)]
             jit.promote(self)
-            return type.guard.call(guard_args, env,
+            return type.guard.call_with_extra_info(guard_args, env,
                 self.constr_proc_wrapper_cont(field_values, struct_type_name,
-                    issuper, env, cont))
+                    issuper, app, env, cont), app)
 
-    @label
     @make_call_method(simple=False)
-    def call(self, args, env, cont):
-        return self.code(args, self.type.name, False, env, cont)
+    def call_with_extra_info(self, args, env, cont, app):
+        return self.code(args, self.type.name, False, env, cont, app)
 
     def tostring(self):
         return "#<procedure:%s>" % self.type.name
@@ -768,9 +767,9 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field_name = field_name
 
     @make_call_method([W_RootStruct], simple=False)
-    def call(self, struct, env, cont):
+    def call_with_extra_info(self, struct, env, cont, app):
         jit.promote(self)
-        return self.accessor.access(struct, self.field, env, cont)
+        return self.accessor.access(struct, self.field, app, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name)
@@ -781,12 +780,12 @@ class W_StructAccessor(values.W_Procedure):
     def __init__(self, type):
         self.type = type
 
-    def access(self, struct, field, env, cont):
-        return struct.ref(self.type, field, env, cont)
+    def access(self, struct, field, app, env, cont):
+        return struct.ref_with_extra_info(self.type, field, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum], simple=False)
-    def call(self, struct, field, env, cont):
-        return struct.ref(self.type, field.value, env, cont)
+    def call_with_extra_info(self, struct, field, env, cont, app):
+        return struct.ref_with_extra_info(self.type, field.value, app, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -802,8 +801,8 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field_name = field_name
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False, name="<struct-field-mutator-method>")
-    def call(self, struct, val, env, cont):
-        return self.mutator.mutate(struct, self.field, val, env, cont)
+    def call_with_extra_info(self, struct, val, env, cont, app):
+        return self.mutator.mutate(struct, self.field, val, app, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name)
@@ -814,12 +813,12 @@ class W_StructMutator(values.W_Procedure):
     def __init__ (self, type):
         self.type = type
 
-    def mutate(self, struct, field, val, env, cont):
-        return struct.set(self.type, field, val, env, cont)
+    def mutate(self, struct, field, val, app, env, cont):
+        return struct.set_with_extra_info(self.type, field, val, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False, name="<struct-mutator-method>")
-    def call(self, struct, field, val, env, cont):
-        return struct.set(self.type, field.value, val, env, cont)
+    def call_with_extra_info(self, struct, field, val, env, cont, app):
+        return struct.set_with_extra_info(self.type, field.value, val, app, env, cont)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
@@ -874,7 +873,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
 
-    #@make_call_method(simple=False)
+    @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.interpreter import return_value
         arg = args[0]

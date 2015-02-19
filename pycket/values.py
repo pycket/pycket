@@ -967,6 +967,10 @@ class W_Procedure(W_Object):
         return True
     def immutable(self):
         return True
+    def call(self, args, env, cont):
+        return self.call_with_extra_info(args, env, cont, None)
+    def call_with_extra_info(self, args, env, cont, app):
+        return self.call(args, env, cont)
     def tostring(self):
         return "#<procedure>"
 
