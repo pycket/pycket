@@ -502,9 +502,15 @@ class W_RootStruct(values.W_Object):
         raise NotImplementedError("abstract base class")
 
     def ref(self, struct_type, field, env, cont):
+        return self.ref_with_extra_info(struct_type, field, None, env, cont)
+
+    def ref_with_extra_info(self, struct_type, field, app, env, cont):
         raise NotImplementedError("abstract base class")
 
     def set(self, struct_type, field, val, env, cont):
+        return self.set_with_extra_info(struct_type, field, val, None, env, cont)
+
+    def set_with_extra_info(self, struct_type, field, val, app, env, cont):
         raise NotImplementedError("abstract base class")
 
     # unsafe versions
@@ -560,7 +566,7 @@ class W_Struct(W_RootStruct):
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
     # continuations.
-    def ref(self, type, field, env, cont):
+    def ref_with_extra_info(self, type, field, app, env, cont):
         from pycket.interpreter import return_value
         jit.promote(type)
         offset = self.struct_type().get_offset(type)

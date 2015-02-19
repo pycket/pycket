@@ -91,14 +91,14 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
     return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
 @continuation
-def chaperone_reference_cont(f, args, env, cont, _vals):
+def chaperone_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
-    return f.call(args + old, env, check_chaperone_results(old, env, cont))
+    return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
 @continuation
-def impersonate_reference_cont(f, args, env, cont, _vals):
+def impersonate_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
-    return f.call(args + old, env, cont)
+    return f.call_with_extra_info(args + old, env, cont, app)
 
 # Procedures
 
@@ -231,7 +231,7 @@ class W_ChpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return chaperone_reference_cont(self.unboxh, [self.inner], env, cont)
+        return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return check_chaperone_results([val], env,
@@ -251,7 +251,7 @@ class W_ImpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return impersonate_reference_cont(self.unboxh, [self.inner], env, cont)
+        return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return imp_box_set_cont(self.inner, env, cont)
@@ -307,7 +307,7 @@ class W_ImpVector(W_InterposeVector):
         return imp_vec_set_cont(self.inner, i, env, cont)
 
     def post_ref_cont(self, i, env, cont):
-        return impersonate_reference_cont(self.refh, [self.inner, i], env, cont)
+        return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
 @make_chaperone
 class W_ChpVector(W_InterposeVector):
@@ -318,7 +318,7 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
-        return chaperone_reference_cont(self.refh, [self.inner, i], env, cont)
+        return chaperone_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -405,7 +405,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.struct_props = struct_props
         self.mask         = mask
 
-    def post_ref_cont(self, interp, env, cont):
+    def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
 
     def post_set_cont(self, op, struct_id, field, val, env, cont):
@@ -423,16 +423,16 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return self.base.struct_type()
 
     @label
-    def ref(self, struct_id, field, env, cont):
+    def ref_with_extra_info(self, struct_id, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
-            return goto.ref(struct_id, field, env, cont)
+            return goto.ref_with_extra_info(struct_id, field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        after = self.post_ref_cont(interp, env, cont)
+        after = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref(struct_id, field, env, after)
-        return op.call([self.inner], env, after)
+            return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
+        return op.call_with_extra_info([self.inner], env, after, app)
 
     @label
     def set(self, struct_id, field, val, env, cont):
@@ -450,7 +450,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         op, interp = self.struct_props.get(property, (None, None))
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
-        after = self.post_ref_cont(interp, env, cont)
+        after = self.post_ref_cont(interp, None, env, cont)
         return op.call([self.inner], env, after)
 
     def get_arity(self):
@@ -464,8 +464,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 @make_impersonator
 class W_ImpStruct(W_InterposeStructBase):
 
-    def post_ref_cont(self, interp, env, cont):
-        return impersonate_reference_cont(interp, [self], env, cont)
+    def post_ref_cont(self, interp, app, env, cont):
+        return impersonate_reference_cont(interp, [self], app, env, cont)
 
     def post_set_cont(self, op, struct_id, field, val, env, cont):
         return imp_struct_set_cont(self.inner, op, struct_id, field, env, cont)
@@ -473,8 +473,8 @@ class W_ImpStruct(W_InterposeStructBase):
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
 
-    def post_ref_cont(self, interp, env, cont):
-        return chaperone_reference_cont(interp, [self], env, cont)
+    def post_ref_cont(self, interp, app, env, cont):
+        return chaperone_reference_cont(interp, [self], app, env, cont)
 
     def post_set_cont(self, op, struct_id, field, val, env, cont):
         return check_chaperone_results([val], env,
