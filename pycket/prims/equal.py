@@ -205,6 +205,8 @@ def eqp_logic(a, b):
         return True
     elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
         return a.value == b.value
+    elif isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
+        return a.value == b.value
     elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
         return a.value == b.value
     return False
