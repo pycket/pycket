@@ -1797,6 +1797,8 @@ def inner_interpret_two_state(ast, env, cont):
     while True:
         if (not jit.we_are_jitted()) and (not ast.is_label):
             ast.count += 1
+            if ast.count >= 10000:
+                ast.set_should_enter()
             if ast.count >= 10000 and (ast.count % 10000 == 0):
                 if (ast.the_lam is not None) and (not ast.in_cycle) and (not "string->num" in ast.the_lam.tostring()) and (not ast.is_bad):
                     print "hot ast not jitted %s: %s"%(ast.count, ast.tostring())
