@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, label, call_cont, call_extra_cont
+from pycket.cont import continuation, label, loop_label, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket.values import UNROLLING_CUTOFF
@@ -422,7 +422,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def struct_type(self):
         return self.base.struct_type()
 
-    @label
+    @loop_label
     def ref_with_extra_info(self, struct_id, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
@@ -434,7 +434,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
         return op.call_with_extra_info([self.inner], env, after, app)
 
-    @label
+    @loop_label
     def set_with_extra_info(self, struct_id, field, val, app, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
