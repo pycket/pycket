@@ -566,7 +566,7 @@ def do_values(args_w):
     return values.Values.make(args_w)
 
 @expose("call-with-values", [procedure] * 2, simple=False, extra_info=True)
-def call_with_values(producer, consumer, env, cont, extra_call_info):
+def call_with_values (producer, consumer, env, cont, extra_call_info):
     # FIXME: check arity
     return producer.call_with_extra_info([], env, call_cont(consumer, env, cont), extra_call_info)
 
@@ -818,8 +818,8 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False, extra_info=True)
-def do_map(args, env, cont, extra_info):
+@expose("map", simple=False)
+def do_map(args, env, cont):
     # XXX this is currently not properly jitted
     from pycket.interpreter import jump
     if not args:
@@ -830,10 +830,10 @@ def do_map(args, env, cont, extra_info):
 
     # FIXME: more errorchecking
     assert len(args) >= 0
-    return map_loop(fn, lists, extra_info, env, cont)
+    return map_loop(fn, lists, env, cont)
 
 @loop_label
-def map_loop(f, lists, extra_info, env, cont):
+def map_loop(f, lists, env, cont):
     from pycket.interpreter import return_value
     lists_new = []
     args = []
@@ -844,17 +844,16 @@ def map_loop(f, lists, extra_info, env, cont):
             return return_value(values.w_null, env, cont)
         args.append(l.car())
         lists_new.append(l.cdr())
-    return f.call_with_extra_info(args, env,
-            map_first_cont(f, lists_new, extra_info, env, cont), extra_info)
+    return f.call(args, env, map_first_cont(f, lists_new, env, cont))
 
 @continuation
-def map_first_cont(f, lists, extra_info, env, cont, _vals):
+def map_first_cont(f, lists, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    return map_loop(f, lists, extra_info, env, map_cons_cont(f, lists, val, extra_info, env, cont))
+    return map_loop(f, lists, env, map_cons_cont(f, lists, val, env, cont))
 
 @continuation
-def map_cons_cont(f, lists, val, extra_info, env, cont, _vals):
+def map_cons_cont(f, lists, val, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
