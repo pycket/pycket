@@ -8,7 +8,7 @@ from pycket.values import UNROLLING_CUTOFF
 from pycket import values
 from pycket import values_struct
 from pycket import values_hash
-from rpython.rlib import jit, objectmodel
+from rpython.rlib import jit
 
 @jit.unroll_safe
 def get_base_object(x):
