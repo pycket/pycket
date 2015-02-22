@@ -26,7 +26,7 @@ all: translate-jit-all translate-no-jit
 translate-jit: pycket-c
 translate-no-prune-env: pycket-c-no-prune-env
 translate-no-two-state: pycket-c-no-two-state
-translate-callgraph: pycket-c-callgraph
+translate-no-callgraph: pycket-c-callgraph
 translate-callgraph-only: pycket-c-callgraph-no-two-state
 translate-no-strategies: pycket-c-no-strategies
 translate-no-type-size-specialization: pycket-c-no-type-size-specialization
@@ -41,11 +41,11 @@ pycket-c-no-prune-env: $(PYFILES)
 pycket-c-no-two-state: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-two-state
 
-pycket-c-callgraph: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --callgraph
+pycket-c-no-callgraph: $(PYFILES)
+	$(RPYTHON) -Ojit targetpycket.py --no-callgraph
 
 pycket-c-callgraph-no-two-state: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --callgraph --no-two-state
+	$(RPYTHON) -Ojit targetpycket.py --no-two-state
 
 pycket-c-no-strategies: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-strategies
