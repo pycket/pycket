@@ -422,7 +422,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def struct_type(self):
         return self.base.struct_type()
 
-    @guarded_loop(lambda self, *args : not self.inner.is_proxy())
+    @guarded_loop(lambda self, *args : self.inner.is_proxy())
     def ref_with_extra_info(self, struct_id, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
@@ -434,7 +434,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
         return op.call_with_extra_info([self.inner], env, after, app)
 
-    @guarded_loop(lambda self, *args : not self.inner.is_proxy())
+    @guarded_loop(lambda self, *args : self.inner.is_proxy())
     def set_with_extra_info(self, struct_id, field, val, app, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
