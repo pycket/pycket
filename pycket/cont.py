@@ -208,7 +208,7 @@ def make_label(func, enter=False):
                                 func.__code__.co_firstlineno)
     class Label(AST):
         should_enter = enter
-        app_like     = enter
+        app_like     = False
         def interpret(self, env, cont):
             assert type(cont) is Args
             args = cont._get_args()

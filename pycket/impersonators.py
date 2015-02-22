@@ -8,7 +8,7 @@ from pycket.values import UNROLLING_CUTOFF
 from pycket import values
 from pycket import values_struct
 from pycket import values_hash
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -49,6 +49,27 @@ def make_impersonator(cls):
         return True
     setattr(cls, "is_impersonator", is_impersonator)
     return cls
+
+def traceable_proxy(self, sid, field, *args):
+    if jit.we_are_jitted():
+        return True
+    goto = self.mask[field]
+    return goto is not self.base and self.inner is not self.base
+
+# Check if a proxied struct has more than n levels to descend through
+def enter_above_depth(n):
+    @jit.unroll_safe
+    def above_threshold(self, sid, field, *args):
+        if jit.we_are_jitted():
+            return True
+        for _ in range(n):
+            if not isinstance(self, W_InterposeStructBase):
+                return False
+            goto = self.mask[field]
+            if goto is self:
+                self = self.inner
+        return True
+    return above_threshold
 
 @jit.unroll_safe
 def lookup_property(obj, prop):
@@ -420,9 +441,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return bool(self.properties)
 
     def struct_type(self):
-        return self.base.struct_type()
+        return get_base_object(self.base).struct_type()
 
-    @guarded_loop(lambda self, *args : self.inner.is_proxy())
+    @guarded_loop(enter_above_depth(5))
     def ref_with_extra_info(self, struct_id, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
@@ -434,7 +455,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
         return op.call_with_extra_info([self.inner], env, after, app)
 
-    @guarded_loop(lambda self, *args : self.inner.is_proxy())
+    @guarded_loop(enter_above_depth(5))
     def set_with_extra_info(self, struct_id, field, val, app, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
@@ -454,7 +475,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return op.call([self.inner], env, after)
 
     def get_arity(self):
-        return self.inner.get_arity()
+        return get_base_object(self.inner).get_arity()
 
     # FIXME: This is incorrect
     def vals(self):
