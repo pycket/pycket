@@ -231,9 +231,7 @@ def guarded_loop(pred):
     def wrapper(func):
         loop   = make_label(func, enter=True)
         noloop = make_label(func, enter=False)
-        def get_args(*args):
-            return loop(*args) if pred(*args) else noloop(*args)
-        return get_args
+        return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
 
 
