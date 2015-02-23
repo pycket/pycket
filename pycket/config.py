@@ -37,8 +37,8 @@ def get_testing_config(**overrides):
 def compute_executable_suffix(config):
     config = config.pycket
     res = []
-    if config.callgraph:
-        res.append("-callgraph")
+    if not config.callgraph:
+        res.append("-no-callgraph")
     if not config.prune_env:
         res.append("-no-prune-env")
     if not config.two_state:
