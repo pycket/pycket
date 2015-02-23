@@ -130,7 +130,7 @@ do_performance_smoke() {
   _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
   _smoke 0.7 pycket/test/triangle.rkt
   _smoke 1.5 pycket/test/earley.rkt
-  _smoke 0.7 pycket/test/nucleic2.rkt
+  _smoke 2.0 pycket/test/nucleic2.rkt
   _smoke 2.5 pycket/test/nqueens.rkt
   _smoke 2.5 pycket/test/treerec.rkt
   _smoke 0.5 pycket/test/hashtable-benchmark.rkt
