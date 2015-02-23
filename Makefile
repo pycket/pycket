@@ -10,9 +10,8 @@ PYTEST ?= $(PYPYPATH)/pytest.py
 RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython --batch
 
 
-TRANSLATE_TARGETS := translate-jit translate-callgraph translate-no-two-state \
-		translate-callgraph-only translate-no-strategies \
-		translate-no-type-size-specialization
+TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state \
+		translate-no-strategies translate-no-type-size-specialization
 
 PYFILES := $(shell find . -name '*.py' -type f)
 
@@ -26,8 +25,7 @@ all: translate-jit-all translate-no-jit
 translate-jit: pycket-c
 translate-no-prune-env: pycket-c-no-prune-env
 translate-no-two-state: pycket-c-no-two-state
-translate-no-callgraph: pycket-c-callgraph
-translate-callgraph-only: pycket-c-callgraph-no-two-state
+translate-no-callgraph: pycket-c-no-callgraph
 translate-no-strategies: pycket-c-no-strategies
 translate-no-type-size-specialization: pycket-c-no-type-size-specialization
 translate-no-jit: pycket-c-nojit
@@ -43,9 +41,6 @@ pycket-c-no-two-state: $(PYFILES)
 
 pycket-c-no-callgraph: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-callgraph
-
-pycket-c-callgraph-no-two-state: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --no-two-state
 
 pycket-c-no-strategies: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-strategies
