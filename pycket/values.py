@@ -1279,6 +1279,7 @@ class W_Parameterization(W_Object):
                 new_vals[i] = self.vals[i-len(params)]
 
         return W_Parameterization(self.root, new_keys, new_vals)
+    @jit.unroll_safe
     def get(self, param):
         k = param.key
         for (i, key) in enumerate(self.keys):
