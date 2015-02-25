@@ -406,7 +406,6 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
     assert (src_end-src_start) <= dest_max
 
-
     for i in range(0, src_end - src_start):
         w_dest.value[dest_start + i] = w_src.value[src_start + i]
 
@@ -414,6 +413,7 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
 def define_bytes_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
@@ -469,6 +469,7 @@ def char_upcase(v):
 
 def define_char_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
