@@ -69,19 +69,6 @@ def is_struct_info(v):
     # with prop:struct-info and wrapped with make-set!-transformer
     return False
 
-@expose("struct-info?", [values.W_Object])
-def do_is_struct_info(v):
-    return values.W_Bool.make(is_struct_info(v))
-
-@expose("checked-struct-info?", [values.W_Object])
-def do_is_checked_struct_info(v):
-    if isinstance(v, values.W_Prim):
-        if v.name == "make-struct-info":
-            # TODO: only when no parent type is specified or
-            # the parent type is also specified through a transformer binding to such a value
-            return values.w_true
-    return values.w_false
-
 @expose("make-struct-info", [procedure])
 def do_make_struct_info(thunk):
     # FIXME: return values.W_Prim("make-struct-info", thunk.call)

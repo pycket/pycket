@@ -9,7 +9,7 @@ pycketoption_descr = OptionDescription(
     BoolOption("two_state", "enable the two-state JIT driver",
                default=True, cmdline="--two-state"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
-               default=False, cmdline="--callgraph"),
+               default=True, cmdline="--callgraph"),
     BoolOption("log_callgraph", "log the callgraph decisions",
                default=False, cmdline="--log-callgraph",
                requires=[("pycket.callgraph", True)]),
@@ -37,8 +37,8 @@ def get_testing_config(**overrides):
 def compute_executable_suffix(config):
     config = config.pycket
     res = []
-    if config.callgraph:
-        res.append("-callgraph")
+    if not config.callgraph:
+        res.append("-no-callgraph")
     if not config.prune_env:
         res.append("-no-prune-env")
     if not config.two_state:

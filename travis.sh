@@ -22,6 +22,30 @@ EOF
 }
 
 
+
+_time_gnu() {
+  export TIME="%e"
+  (/usr/bin/time "$@" 3>&2 2>&1 1>&3) 2>/dev/null
+}
+
+_time_bsd() {
+  (/usr/bin/time -p "$@" 3>&2 2>&1 1>&3) 2>/dev/null | \
+      grep '^real' | \
+      awk '{ print $2; }'
+}
+
+_time_builtin() {
+  #
+  # so there's no /usr/bin/time.
+  # lets hope we have a bash/zsh/csh which has a time builtin thats knows -p
+  #
+  (time -p "$@" >/dev/null) 2>&1 | \
+      grep '^real' | \
+      awk '{ print $2; }'
+}
+
+export LANG=C LC_ALL=C
+
 # config
 if type timeout >/dev/null 2>/dev/null; then
   TIMEOUT=timeout
@@ -30,7 +54,17 @@ else
   TIMEOUT=gtimeout
 fi
 
-COVERAGE_TESTSUITE='not test_larger and not test_bug and not test_or_parsing'
+if [ ! -e /usr/bin/time ]; then # oh travis...
+  TIME_IT=_time_builtin
+elif /usr/bin/time --version 2>/dev/null >/dev/null; then
+  TIME_IT=_time_gnu
+else
+  TIME_IT=_time_bsd
+fi
+
+
+
+COVERAGE_TESTSUITE='not test_larger'
 COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
@@ -71,16 +105,36 @@ do_translate() {
   do_performance_smoke
 }
 
+
+
 do_performance_smoke() {
-  echo ">> Performance smoke test"
-  set -x
-  $TIMEOUT -k10 2s ./pycket-c pycket/test/fannkuch-redux.rkt 10
-  $TIMEOUT -k10 3s ./pycket-c pycket/test/triangle.rkt
-  $TIMEOUT -k10 4s ./pycket-c pycket/test/earley.rkt
-  $TIMEOUT -k10 4s ./pycket-c pycket/test/nucleic2.rkt
-  $TIMEOUT -k20 8s ./pycket-c pycket/test/nqueens.rkt
-  $TIMEOUT -k20 8s ./pycket-c pycket/test/treerec.rkt
-  set +x
+  _smoke() {
+    RATIO=$1
+    shift
+    echo "> $1"
+    raco make $1 >/dev/null
+    RACKET_TIME=$($TIME_IT racket "$@")
+    echo "    Racket took $RACKET_TIME"
+    TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
+    KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
+    racket -l pycket/expand $1 2>/dev/null >/dev/null
+    # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
+    PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
+    echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
+    [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
+  }
+  echo ; echo ">> Performance smoke test" ; echo
+  echo ">>> Preparing racket files to not skew test"
+  expand_rkt yes
+  echo ">>> Smoke"
+  _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
+  _smoke 0.7 pycket/test/triangle.rkt
+  _smoke 1.5 pycket/test/earley.rkt
+  _smoke 2.0 pycket/test/nucleic2.rkt
+  _smoke 2.5 pycket/test/nqueens.rkt
+  _smoke 2.5 pycket/test/treerec.rkt
+  _smoke 0.5 pycket/test/hashtable-benchmark.rkt
+  echo ; echo ">> Smoke cleared" ; echo
 }
 
 do_translate_nojit_and_racket_tests() {
@@ -131,14 +185,27 @@ fetch_pypy() {
 
 prepare_racket() {
   raco pkg install -t dir pycket/pycket-lang/
+}
 
-  PRIVATE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "base.rkt" "racket"))))')
-  find $PRIVATE_MODULES -type f -name \*.rkt | \
-      while read F; do
-        echo -n .
-        set +e
-        racket -l pycket/expand $F 2>/dev/null >/dev/null
-        set -e
+expand_rkt() {
+  if [ $# -gt 0 ]; then
+    ALL=$1
+    shift
+  else
+    ALL="no"
+  fi
+
+  BASE_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "base.rkt" "racket"))))')
+  if [ $ALL != "no" ]; then
+      SYNTAX_MODULES=$(racket -e '(displayln (path->string (path-only (collection-file-path "wrap-modbeg.rkt" "syntax"))))')
+  fi
+
+  find $BASE_MODULES $SYNTAX_MODULES -type f -name \*.rkt -print0 | \
+      while IFS= read -r -d '' F; do
+        if [ ! -f "$F.json" ]; then
+            printf "%s" .
+            racket -l pycket/expand $F 2>/dev/null >/dev/null || true
+        fi
       done
 }
 

@@ -21,18 +21,36 @@ def find_prop_start_index(args):
 @jit.unroll_safe
 def unpack_properties(args, name):
     idx = find_prop_start_index(args)
-    args, props = args[:idx], args[idx:]
-    prop_len = len(props)
+
+    if idx == len(args):
+        props    = None
+        prop_len = 0
+    else:
+        args, props = args[:idx], args[idx:]
+        prop_len = len(props)
 
     if prop_len % 2 != 0:
         raise SchemeException(name + ": not all properties have corresponding values")
 
-    prop_keys = [props[i] for i in range(0, prop_len, 2)]
-    prop_vals = [props[i] for i in range(1, prop_len, 2)]
+    count = prop_len / 2
 
-    for k in prop_keys:
-        if not isinstance(k, imp.W_ImpPropertyDescriptor):
-            desc = "%s: %s is not a property descriptor" % (name, k.tostring())
+    # Avoid allocation in the event that we don't need to do anything
+    if prop_len == 0:
+        count = 0
+        prop_keys = None
+        prop_vals = None
+    else:
+        count = prop_len / 2
+        prop_keys = [None] * count
+        prop_vals = [None] * count
+
+    for i in range(count):
+        key = props[i*2]
+        prop_keys[i] = key
+        prop_vals[i] = props[i*2+1]
+
+        if not isinstance(key, imp.W_ImpPropertyDescriptor):
+            desc = "%s: %s is not a property descriptor" % (name, key.tostring())
             raise SchemeException(desc)
 
     return args, prop_keys, prop_vals
@@ -184,25 +202,29 @@ def impersonate_struct(args):
     # Consider storing immutables in an easier form in the structs implementation
     immutables = struct_type.immutables
 
-    # Slicing would be nicer
-    overrides = [args[i] for i in range(0, len(args), 2)]
-    handlers  = [args[i] for i in range(1, len(args), 2)]
-
-    for i in overrides:
-        if not imp.valid_struct_proc(i):
-            raise SchemeException("impersonate-struct: not given valid field accessor")
-        elif (isinstance(i, values_struct.W_StructFieldMutator) and
-                i.field in immutables):
-            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
-        elif (isinstance(i, values_struct.W_StructFieldAccessor) and
-                i.field in immutables):
-            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
-
     all_false = True
-    for i in handlers:
-        if i is not values.w_false:
+    count     = len(args) / 2
+    overrides = [None] * count
+    handlers  = [None] * count
+    for i in range(count):
+        ovr = args[i * 2]
+        hnd = args[i * 2 + 1]
+
+        overrides[i] = ovr
+        handlers[i]  = hnd
+
+        if not imp.valid_struct_proc(ovr):
+            raise SchemeException("impersonate-struct: not given valid field accessor")
+        elif (isinstance(ovr, values_struct.W_StructFieldMutator) and
+                ovr.field in immutables):
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+        elif (isinstance(ovr, values_struct.W_StructFieldAccessor) and
+                ovr.field in immutables):
+            raise SchemeException("impersonate-struct: cannot impersonate immutable field")
+
+        if hnd is not values.w_false:
             all_false = False
-        if not i.iscallable() and i is not values.w_false:
+        if not hnd.iscallable() and hnd is not values.w_false:
             raise SchemeException("impersonate-struct: supplied hander is not a procedure")
 
     if all_false and not prop_keys:
@@ -224,20 +246,22 @@ def chaperone_struct(args):
     if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("chaperone-struct: not given struct")
 
-    # Slicing would be nicer
-    overrides = [args[i] for i in range(0, len(args), 2)]
-    handlers  = [args[i] for i in range(1, len(args), 2)]
+    all_false = True
+    count     = len(args) / 2
+    overrides = [None] * count
+    handlers  = [None] * count
+    for i in range(count):
+        ovr = args[i * 2]
+        hnd = args[i * 2 + 1]
 
-    for i in overrides:
-        if not imp.valid_struct_proc(i):
+        overrides[i] = ovr
+        handlers[i]  = hnd
+        if not imp.valid_struct_proc(ovr):
             raise SchemeException("chaperone-struct: not given valid field accessor")
 
-    all_false = True
-
-    for i in handlers:
-        if i is not values.w_false:
+        if hnd is not values.w_false:
             all_false = False
-        if not i.iscallable() and i is not values.w_false:
+        if not hnd.iscallable() and hnd is not values.w_false:
             raise SchemeException("chaperone-struct: supplied hander is not a procedure")
 
     if all_false and not prop_keys:

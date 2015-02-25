@@ -118,13 +118,6 @@ for args in [
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
-    if isinstance(val, values.W_Bignum):
-        # XXX this should never be reachable
-        try:
-            v = val.value.toint()
-            return values.W_Bool.make(0 <= v <= 255)
-        except OverflowError:
-            return values.w_false
     return values.w_false
 
 @expose("procedure?", [values.W_Object])
@@ -398,6 +391,8 @@ for args in [ ("subprocess?",),
 
 @expose("object-name", [values.W_Object])
 def object_name(v):
+    if isinstance(v, values.W_Prim):
+        return values.W_Symbol.make(v.name)
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("namespace-variable-value", [values.W_Symbol,

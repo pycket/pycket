@@ -103,7 +103,7 @@ def equal_func_unroll_n(a, b, info, env, cont, n):
     return equal_func_loop(a, b, info, env, cont)
 
 
-@loop_label
+@label
 def equal_func_loop(a, b, info, env, cont):
     return equal_func_impl(a, b, info, env, cont, 0)
 
@@ -205,6 +205,8 @@ def eqp_logic(a, b):
         return True
     elif isinstance(a, values.W_Fixnum) and isinstance(b, values.W_Fixnum):
         return a.value == b.value
+    elif isinstance(a, values.W_Flonum) and isinstance(b, values.W_Flonum):
+        return a.value == b.value
     elif isinstance(a, values.W_Character) and isinstance(b, values.W_Character):
         return a.value == b.value
     return False
@@ -213,11 +215,12 @@ def eqp_logic(a, b):
 def eqp(a, b):
     return values.W_Bool.make(eqp_logic(a, b))
 
-@expose("procedure-closure-contents-eq?", [procedure] * 2)
-def procedure_closure_contents_eq(a, b):
-    # FIXME: provide actual information
+@jit.unroll_safe
+def procedure_closure_contents_eq_n(a, b, n):
     if a is b:
         return values.w_true
+    if n == 0:
+        return values.w_false
     if isinstance(a, values.W_Closure1AsEnv):
         if isinstance(b, values.W_Closure1AsEnv):
             if a.caselam is not b.caselam:
@@ -226,10 +229,21 @@ def procedure_closure_contents_eq(a, b):
             if size != b._get_size_list():
                 return values.w_false
             for i in range(size):
-                if not eqp_logic(a._get_list(i), b._get_list(i)):
+                a_i = a._get_list(i)
+                b_i = b._get_list(i)
+                if a_i is b_i:
+                    continue
+                if isinstance(a_i, values.W_Closure1AsEnv) and isinstance(b_i, values.W_Closure1AsEnv):
+                    if values.w_false is procedure_closure_contents_eq_n(a_i, b_i, n-1):
+                        return values.w_false
+                elif not eqp_logic(a_i, b_i):
                     return values.w_false
             return values.w_true
     return values.w_false
+
+@expose("procedure-closure-contents-eq?", [procedure] * 2)
+def procedure_closure_contents_eq(a, b):
+    return procedure_closure_contents_eq_n(a, b, 1)
 
 @expose("eqv?", [values.W_Object] * 2)
 def eqvp(a, b):

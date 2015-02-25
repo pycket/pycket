@@ -126,4 +126,14 @@ def test_chaperone_procedure_star():
     assert isinstance(val, W_Cell)
     assert proc is val.get_val()
 
+def test_chaperone_stack_exhaustion():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define d
+      (for/fold ([v (vector 1 2 3)])
+          ([i 1000])
+        (chaperone-vector v (lambda (x i val) val) (lambda (x i val) val))))
+    (vector-ref d 0)
+    """)
 

@@ -3,12 +3,23 @@
 [run]
 branch = True
 omit =
+     # these are done during translation
+     targetpycket.py
      pycket/__main__.py
+     pycket/config.py
+     
+     # these are tools
+     pycket/test/targetjson.py
+     pycket/expand_tofile.py
      pycket/test/jit.py
+
+     # these are helper tests that should not contribute to coverage
      pycket/test/bubble.py
      pycket/test/test_larger.py
      pycket/test/racket-tests.py
-     pycket/test/targetjson.py
+     pycket/test/conftest.py
+
+     # this is pypy.
      pycket/pypy/
 
 [report]

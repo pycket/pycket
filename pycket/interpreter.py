@@ -91,6 +91,7 @@ class LetrecCont(Cont):
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
+    return_safe = True
 
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -209,6 +210,7 @@ class LetCont(Cont):
 
 class FusedLet0Let0Cont(Cont):
     _immutable_fields_ = ["combined_ast"]
+    return_safe = True
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -231,6 +233,7 @@ class FusedLet0Let0Cont(Cont):
 
 class FusedLet0BeginCont(Cont):
     _immutable_fields_ = ["combined_ast"]
+    return_safe = True
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -285,6 +288,7 @@ class SetBangCont(Cont):
 
 class BeginCont(Cont):
     _immutable_fields_ = ["counting_ast", "env", "prev"]
+    return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -303,6 +307,7 @@ class BeginCont(Cont):
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
+    return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -327,6 +332,7 @@ class Begin0FinishCont(Cont):
 
 class WCMKeyCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev"]
+    return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -343,6 +349,7 @@ class WCMKeyCont(Cont):
 
 class WCMValCont(Cont):
     _immutable_fields_ = ["ast", "env", "prev", "key"]
+    return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -466,8 +473,15 @@ def return_value_direct(w_val, env, cont):
     val = values.Values.make1(w_val)
     return cont.plug_reduce(val, env)
 
-@label
 def return_multi_vals(vals, env, cont):
+    if cont.return_safe:
+        return cont.plug_reduce(vals, env)
+    return safe_return_multi_vals(vals, env, cont)
+
+# A safe variant which returns ensures control is handed back to
+# the CEK loop before applying the continuation.
+@label
+def safe_return_multi_vals(vals, env, cont):
     return cont.plug_reduce(vals, env)
 
 def return_multi_vals_direct(vals, env, cont):
@@ -615,6 +629,7 @@ class WithContinuationMark(AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    app_like = True
 
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
@@ -1574,7 +1589,6 @@ class Let(SequencedBodyAST):
 
     def direct_children(self):
         return self.rhss + self.body
-        #return self.body + self.rhss
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1751,11 +1765,6 @@ class DefineValues(AST):
     def _mutated_vars(self):
         return self.rhs.mutated_vars()
 
-    def free_vars(self):
-        # free_vars doesn't contain module-bound variables
-        # which is the only thing defined by define-values
-        return self.rhs.free_vars()
-
     def _tostring(self):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
@@ -1781,7 +1790,7 @@ def inner_interpret_two_state(ast, env, cont):
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
         else:
-            came_from = ast if isinstance(ast, App) else came_from
+            came_from = ast if ast.app_like else came_from
         t = type(ast)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
@@ -1839,7 +1848,7 @@ def interpret_toplevel(a, env):
     else:
         return interpret_one(a, env)
 
-def interpret_module(m, env=None):
+def interpret_module(m, env):
     env = env if env else ToplevelEnv()
     m.interpret_mod(env)
     return m

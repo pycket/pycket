@@ -16,10 +16,16 @@ from pycket import values
 
 # This is where all the work happens
 
+def run_ast(ast):
+    env = ToplevelEnv()
+    env.globalconfig.load(ast)
+    mod = interpret_module(ast, env)
+    return mod
+
 def run_mod(m, stdlib=False, srcloc=True):
     assert (not stdlib)
-    mod = interpret_module(parse_module(expand_string(m, srcloc=srcloc)))
-    return mod
+    ast = parse_module(expand_string(m, srcloc=srcloc))
+    return run_ast(ast)
 
 def format_pycket_mod(s, stdlib=False, extra=""):
     # pycket handles the stdlib, various requires
@@ -75,9 +81,7 @@ def run_std(c, v):
 
 def run_file(fname, *replacements):
     ast = parse_file(fname, *replacements)
-    env = ToplevelEnv()
-    env.globalconfig.load(ast)
-    val = interpret_module(ast, env)
+    return run_ast(ast)
 
 def parse_file(fname, *replacements):
     fname = os.path.join(os.path.dirname(__file__), fname)

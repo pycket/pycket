@@ -18,6 +18,11 @@ env:
   - TEST_TYPE=coverage_push
   - TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
+matrix:
+  fast_finish: true
+  allow_failures:
+  - env: TEST_TYPE=coverage
+  - env: TEST_TYPE=coverage_push
 before_install: ./travis.sh prepare
 install: ./travis.sh install
 script: ./travis.sh test $TEST_TYPE

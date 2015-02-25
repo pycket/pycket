@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, label, call_cont, call_extra_cont
+from pycket.cont import continuation, label, loop_label, guarded_loop, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
 from pycket.error import SchemeException
 from pycket.values import UNROLLING_CUTOFF
@@ -50,6 +50,27 @@ def make_impersonator(cls):
     setattr(cls, "is_impersonator", is_impersonator)
     return cls
 
+def traceable_proxy(self, sid, field, *args):
+    if jit.we_are_jitted():
+        return True
+    goto = self.mask[field]
+    return goto is not self.base and self.inner is not self.base
+
+# Check if a proxied struct has more than n levels to descend through
+def enter_above_depth(n):
+    @jit.unroll_safe
+    def above_threshold(self, sid, field, *args):
+        if jit.we_are_jitted():
+            return True
+        for _ in range(n):
+            if not isinstance(self, W_InterposeStructBase):
+                return False
+            goto = self.mask[field]
+            if goto is self:
+                self = self.inner
+        return True
+    return above_threshold
+
 @jit.unroll_safe
 def lookup_property(obj, prop):
     while obj.is_proxy():
@@ -91,14 +112,14 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
     return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
 @continuation
-def chaperone_reference_cont(f, args, env, cont, _vals):
+def chaperone_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
-    return f.call(args + old, env, check_chaperone_results(old, env, cont))
+    return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
 @continuation
-def impersonate_reference_cont(f, args, env, cont, _vals):
+def impersonate_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
-    return f.call(args + old, env, cont)
+    return f.call_with_extra_info(args + old, env, cont, app)
 
 # Procedures
 
@@ -136,14 +157,15 @@ class W_InterposeProcedure(values.W_Procedure):
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
         self.self_arg = self_arg
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def get_arity(self):
         return self.inner.get_arity()
@@ -195,14 +217,15 @@ class W_InterposeBox(values.W_Box):
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = box
         self.unboxh = unboxh
         self.seth = seth
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def immutable(self):
         return self.inner.immutable()
@@ -229,7 +252,7 @@ class W_ChpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return chaperone_reference_cont(self.unboxh, [self.inner], env, cont)
+        return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return check_chaperone_results([val], env,
@@ -249,7 +272,7 @@ class W_ImpBox(W_InterposeBox):
     _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
-        return impersonate_reference_cont(self.unboxh, [self.inner], env, cont)
+        return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
         return imp_box_set_cont(self.inner, env, cont)
@@ -267,17 +290,18 @@ class W_InterposeVector(values.W_MVector):
     @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = v
         self.refh = r
         self.seth = s
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def length(self):
-        return self.inner.length()
+        return get_base_object(self.inner).length()
 
     def post_set_cont(self, new, i, env, cont):
         raise NotImplementedError("abstract method")
@@ -304,7 +328,7 @@ class W_ImpVector(W_InterposeVector):
         return imp_vec_set_cont(self.inner, i, env, cont)
 
     def post_ref_cont(self, i, env, cont):
-        return impersonate_reference_cont(self.refh, [self.inner, i], env, cont)
+        return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
 @make_chaperone
 class W_ChpVector(W_InterposeVector):
@@ -315,7 +339,7 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
-        return chaperone_reference_cont(self.refh, [self.inner, i], env, cont)
+        return chaperone_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -326,12 +350,12 @@ def valid_struct_proc(x):
             isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, struct_id, field, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, struct_id, field, app, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     if setter is values.w_false:
-        return orig_struct.set(struct_id, field, val, env, cont)
-    return setter.call([orig_struct, val], env, cont)
+        return orig_struct.set_with_extra_info(struct_id, field, val, app, env, cont)
+    return setter.call_with_extra_info([orig_struct, val], env, cont, app)
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
@@ -343,13 +367,13 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
 
         self.inner = inner
 
         field_cnt = inner.struct_type().total_field_cnt
-        accessors = [values.w_false] * field_cnt * 2
-        mutators  = [values.w_false] * field_cnt * 2
+        accessors = [values.w_false] * (field_cnt * 2)
+        mutators  = [values.w_false] * (field_cnt * 2)
 
         # The mask field contains an array of pointers to the next object
         # in the proxy stack that overrides a given field operation.
@@ -369,6 +393,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         properties   = None
 
         # Does not deal with properties as of yet
+        # TODO: Avoid allocating the mutators and accessors when they are empty
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
@@ -388,22 +413,23 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 struct_props[base] = (op, handlers[i])
             else:
                 assert False
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            if properties is None:
-                properties = {}
-            properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                if properties is None:
+                    properties = {}
+                properties[k] = prop_vals[i]
 
-        self.accessors    = accessors[:]
-        self.mutators     = mutators[:]
+        self.accessors    = accessors
+        self.mutators     = mutators
         self.properties   = properties
         self.struct_props = struct_props
         self.mask         = mask
 
-    def post_ref_cont(self, interp, env, cont):
+    def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
 
-    def post_set_cont(self, op, struct_id, field, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
         raise NotImplementedError("abstract method")
 
     @jit.unroll_safe
@@ -415,28 +441,28 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return bool(self.properties)
 
     def struct_type(self):
-        return self.base.struct_type()
+        return get_base_object(self.base).struct_type()
 
-    @label
-    def ref(self, struct_id, field, env, cont):
+    @guarded_loop(enter_above_depth(5))
+    def ref_with_extra_info(self, struct_id, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
-            return goto.ref(struct_id, field, env, cont)
+            return goto.ref_with_extra_info(struct_id, field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        after = self.post_ref_cont(interp, env, cont)
+        after = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref(struct_id, field, env, after)
-        return op.call([self.inner], env, after)
+            return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
+        return op.call_with_extra_info([self.inner], env, after, app)
 
-    @label
-    def set(self, struct_id, field, val, env, cont):
+    @guarded_loop(enter_above_depth(5))
+    def set_with_extra_info(self, struct_id, field, val, app, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
         if interp is values.w_false:
-            return self.inner.set(struct_id, field, val, env, cont)
-        after = self.post_set_cont(op, struct_id, field, val, env, cont)
-        return interp.call([self, val], env, after)
+            return self.inner.set_with_extra_info(struct_id, field, val, app, env, cont)
+        after = self.post_set_cont(op, struct_id, field, val, app, env, cont)
+        return interp.call_with_extra_info([self, val], env, after, app)
 
     @label
     def get_prop(self, property, env, cont):
@@ -445,11 +471,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         op, interp = self.struct_props.get(property, (None, None))
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
-        after = self.post_ref_cont(interp, env, cont)
+        after = self.post_ref_cont(interp, None, env, cont)
         return op.call([self.inner], env, after)
 
     def get_arity(self):
-        return self.inner.get_arity()
+        return get_base_object(self.inner).get_arity()
 
     # FIXME: This is incorrect
     def vals(self):
@@ -459,21 +485,21 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 @make_impersonator
 class W_ImpStruct(W_InterposeStructBase):
 
-    def post_ref_cont(self, interp, env, cont):
-        return impersonate_reference_cont(interp, [self], env, cont)
+    def post_ref_cont(self, interp, app, env, cont):
+        return impersonate_reference_cont(interp, [self], app, env, cont)
 
-    def post_set_cont(self, op, struct_id, field, val, env, cont):
-        return imp_struct_set_cont(self.inner, op, struct_id, field, env, cont)
+    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
+        return imp_struct_set_cont(self.inner, op, struct_id, field, app, env, cont)
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
 
-    def post_ref_cont(self, interp, env, cont):
-        return chaperone_reference_cont(interp, [self], env, cont)
+    def post_ref_cont(self, interp, app, env, cont):
+        return chaperone_reference_cont(interp, [self], app, env, cont)
 
-    def post_set_cont(self, op, struct_id, field, val, env, cont):
+    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
         return check_chaperone_results([val], env,
-                imp_struct_set_cont(self.inner, op, struct_id, field, env, cont))
+                imp_struct_set_cont(self.inner, op, struct_id, field, app, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
@@ -482,14 +508,15 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
         assert get_proc.iscallable()
         assert set_proc.iscallable()
-        assert len(prop_keys) == len(prop_vals)
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner    = mark
         self.get_proc = get_proc
         self.set_proc = set_proc
         self.properties = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_vals is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def post_set_cont(self, body, value, env, cont):
         raise NotImplementedError("abstract method")
@@ -558,9 +585,10 @@ class W_InterposeHashTable(values_hash.W_HashTable):
         self.key_proc    = key_proc
         self.clear_proc  = clear_proc
         self.properties  = {}
-        for i, k in enumerate(prop_keys):
-            assert isinstance(k, W_ImpPropertyDescriptor)
-            self.properties[k] = prop_vals[i]
+        if prop_keys is not None:
+            for i, k in enumerate(prop_keys):
+                assert isinstance(k, W_ImpPropertyDescriptor)
+                self.properties[k] = prop_vals[i]
 
     def post_ref_cont(self, key, env, cont):
         raise NotImplementedError("abstract method")

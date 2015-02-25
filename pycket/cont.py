@@ -17,6 +17,12 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
+    _immutable_fields_ = ['return_safe']
+
+    # This field denotes whether or not it is safe to directly invoke the
+    # plug_reduce operation of the continuation.
+    return_safe = False
+
     def __init__(self):
         self.marks = None
 
@@ -53,6 +59,7 @@ class BaseCont(object):
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
 
     # XXX: why isn't this in Cont?
+    @jit.unroll_safe 
     def get_mark_first(self, key):
         p = self
         while isinstance(p, Cont):
@@ -171,7 +178,6 @@ def make_label(func, enter=False):
         class Args(Cont):
             _immutable_fields_ = ["args"]
             def __init__(self, *args):
-                #BaseCont.__init__(self)
                 Cont.__init__(self, args[-2], args[-1])
                 self.args = args[:-2]
 
@@ -203,6 +209,7 @@ def make_label(func, enter=False):
                                 func.__code__.co_firstlineno)
     class Label(AST):
         should_enter = enter
+        app_like     = False
         def interpret(self, env, cont):
             assert type(cont) is Args
             args = cont._get_args()
@@ -219,6 +226,15 @@ def make_label(func, enter=False):
         return the_label, env, Args(*args)
 
     return make
+
+# Choose whether or not to use a loop label based on a given predicate
+def guarded_loop(pred):
+    def wrapper(func):
+        loop   = make_label(func, enter=True)
+        noloop = make_label(func, enter=False)
+        return lambda *args: loop(*args) if pred(*args) else noloop(*args)
+    return wrapper
+
 
 def loop_label(func):
     return make_label(func, enter=True)

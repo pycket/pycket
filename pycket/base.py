@@ -1,5 +1,4 @@
 from pycket.error             import SchemeException
-from pycket.cont              import label
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib import jit, objectmodel
 

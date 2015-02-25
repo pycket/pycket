@@ -548,6 +548,15 @@ def printf(args, env, cont):
         raise SchemeException("printf: expected a format string, got something else")
     return do_print(format(fmt, args[1:], "printf"), None, env, cont)
 
+@expose("eprintf", simple=False)
+def eprintf(args, env, cont):
+    if not args:
+        raise SchemeException("eprintf: expected at least one argument, got 0")
+    fmt = args[0]
+    if not isinstance(fmt, values_string.W_String):
+        raise SchemeException("eprintf: expected a format string, got something else")
+    return do_print(format(fmt, args[1:], "eprintf"), current_error_param.get(cont), env, cont)
+
 @expose("format")
 @jit.look_inside_iff(lambda args: jit.isconstant(args[0]))
 def do_format(args):
