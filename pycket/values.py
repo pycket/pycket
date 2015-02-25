@@ -1263,7 +1263,8 @@ class W_Parameterization(W_Object):
         self.keys = keys
         self.vals = vals
         self.root = root
-    def extend(self, params, vals): 
+    @jit.unroll_safe
+    def extend(self, params, vals):
         # why doesn't it like this assert?
         # assert len(params) == len(vals)
         # FIXME this is awful
