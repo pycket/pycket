@@ -887,6 +887,8 @@ class Var(AST):
 
 
 class CellRef(Var):
+    simple = True
+
     def assign_convert(self, vars, env_structure):
         return CellRef(self.sym, env_structure)
 
@@ -902,6 +904,7 @@ class CellRef(Var):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
         return v.get_val()
+
 
 class Gensym(object):
     _counter = {}

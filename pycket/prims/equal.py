@@ -32,7 +32,7 @@ EqualInfo.IMPERSONATOR_SINGLETON = EqualInfo(EqualInfo.IMPERSONATOR)
 def equalp(a, b, env, cont):
     # FIXME: broken for cycles, etc
     info = EqualInfo.BASIC_SINGLETON
-    return equal_func(a, b, info, env, cont)
+    return equal_func_unroll_n(a, b, info, env, cont, n=5)
 
 @expose("equal?/recur", [values.W_Object, values.W_Object, procedure])
 def eqp_recur(v1, v2, recur_proc):
@@ -103,7 +103,7 @@ def equal_func_unroll_n(a, b, info, env, cont, n):
     return equal_func_loop(a, b, info, env, cont)
 
 
-@label
+@loop_label
 def equal_func_loop(a, b, info, env, cont):
     return equal_func_impl(a, b, info, env, cont, 0)
 
