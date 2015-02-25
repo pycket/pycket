@@ -112,13 +112,15 @@ def list_to_string(w_list):
 
 def define_string_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
-        head, tail = args[0], args[1:]
+        head = args[0]
         if not isinstance(head, W_String):
             raise SchemeException(name + ": not given a string")
-        for t in tail:
+        for i in range(1, len(args)):
+            t = args[i]
             if not isinstance(t, W_String):
                 raise SchemeException(name + ": not given a string")
             if not op(head, t):
