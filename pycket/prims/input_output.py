@@ -740,8 +740,8 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
     if start == 0 and stop == len(w_bstr):
         to_write = w_bstr
     else:
-        slice_stop = stop - 1
-        assert start >= 0 and slice_stop < len(w_bstr)
+        slice_stop = stop
+        assert start >= 0 and slice_stop <= len(w_bstr)
         assert slice_stop >= 0
         to_write = w_bstr[start:slice_stop]
 
