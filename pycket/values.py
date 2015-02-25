@@ -803,6 +803,7 @@ class W_ThreadCell(W_Object):
 @memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
+    _immutable_fields_ = ['value']
     _attrs_ = ['value']
 
     @staticmethod
