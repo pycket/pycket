@@ -597,11 +597,12 @@ define_nyi("dynamic-wind", False)
 def callcc(a, env, cont, extra_call_info):
     return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
-@expose("time-apply", [procedure, values.W_List], simple=False)
-def time_apply(a, args, env, cont):
+@expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
+def time_apply(a, args, env, cont, extra_call_info):
     initial = time.clock()
-    return  a.call(values.from_list(args),
-                   env, time_apply_cont(initial, env, cont))
+    return  a.call_with_extra_info(values.from_list(args),
+                                   env, time_apply_cont(initial, env, cont), 
+                                   extra_call_info)
 
 @expose("apply", simple=False, extra_info=True)
 def apply(args, env, cont, extra_call_info):
