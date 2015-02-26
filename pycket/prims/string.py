@@ -158,6 +158,7 @@ def make_string(k, char):
         return W_String.fromunicode(char * k.value)
 
 @expose("string")
+@jit.unroll_safe
 def string(args):
     if len(args) == 0:
         return W_String.fromascii("")

@@ -337,7 +337,7 @@ class CharacterVectorStrategy(VectorStrategy):
         return isinstance(w_obj, W_Character)
 
     def wrap(self, val):
-        assert isinstance(val, str)
+        assert isinstance(val, str) and len(val) == 1
         return W_Character(val)
 
     def unwrap(self, w_val):
