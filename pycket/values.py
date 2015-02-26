@@ -1502,6 +1502,7 @@ class W_StringInputPort(W_InputPort):
 
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
+    _immutable_fields_ = ["file"]
 
     def __init__(self, f):
         self.closed = False
@@ -1510,7 +1511,7 @@ class W_FileInputPort(W_InputPort):
     def close(self):
         self.closed = True
         self.file.close()
-        self.file = None
+        #self.file = None
 
     def read(self, n):
         return self.file.read(n)
@@ -1548,6 +1549,7 @@ class W_FileInputPort(W_InputPort):
 
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
+    _immutable_fields_ = ["file"]
 
     def __init__(self, f):
         self.closed = False
@@ -1562,7 +1564,7 @@ class W_FileOutputPort(W_OutputPort):
     def close(self):
         self.closed = True
         self.file.close()
-        self.file = None
+        #self.file = None
 
     def seek(self, offset, end=False):
         if end:
