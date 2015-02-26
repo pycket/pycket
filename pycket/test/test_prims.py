@@ -302,6 +302,25 @@ def test_open_input_and_read_line(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+def test_bytes_port(doctest):
+    r"""
+    ;> (define op1 (open-output-bytes))
+    ;> (write '((1 2 3) ("Tom" "Dick") ('a 'b 'c)) op1)
+    ;> (get-output-bytes op1)
+    ; #"((1 2 3) (\"Tom\" \"Dick\") ((quote a) (quote b) (quote c)))"
+    ;> (define op2 (open-output-bytes))
+    ;> (write "Hi " op2)
+    ;> (write "there" op2)
+    ;> (get-output-bytes op2)
+    ; #"\"Hi \"\"there\""
+    ! (define op3 (open-output-bytes))
+    > (write-bytes #"Hi " op3)
+    3
+    > (display #"there" op3)
+    > (get-output-bytes op3)
+    #"Hi there"
+    """
+
 
 ####################
 def test_procedure_arity(doctest):

@@ -471,7 +471,8 @@ def file_position(args):
 def display(datum, out, env, cont):
     if isinstance(datum, values.W_Bytes):
         bytes = datum.value
-        write_bytes_avail(bytes, current_out_param.get(cont), 0, len(bytes))
+        port = current_out_param.get(cont) if out is None else out
+        write_bytes_avail(bytes, port , 0, len(bytes))
         return return_void(env, cont)
     return do_print(datum.tostring(), out, env, cont)
 
@@ -623,8 +624,14 @@ def open_input_string(w_str, name):
     return values.W_StringInputPort(w_str.as_str_utf8())
 
 @expose("get-output-string", [values.W_StringOutputPort])
-def open_output_string(w_port):
+def get_output_string(w_port):
     return values_string.W_String.fromascii(w_port.contents()) # XXX
+
+@expose("get-output-bytes", [values.W_StringOutputPort])
+def get_output_bytes(w_port):
+    return values.W_Bytes.from_string(w_port.contents(),
+                                      immutable=False) # XXX
+
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
