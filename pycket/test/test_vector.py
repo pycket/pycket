@@ -69,6 +69,21 @@ def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
 
+def test_vec_strategies_character():
+    vec1 = run(r"(vector #\A #\B #\C)")
+    assert isinstance(vec1.strategy, CharacterVectorStrategy)
+    vec2 = run(r"(vector #\a)")
+    assert isinstance(vec2.strategy, CharacterVectorStrategy)
+
+def test_vec_strategies_stays_character():
+    vec = run(r"(let ([vec (make-vector 3 #\A)]) (vector-set! vec 1 #\D) vec)")
+    assert isinstance(vec.strategy, CharacterVectorStrategy)
+
+def test_vec_strategies_character_singleton():
+    vec1 = run(r"(vector #\A #\A #\A)")
+    vec2 = run(r"(make-vector 2 #\B)")
+    assert vec1.strategy is vec2.strategy
+
 def run_unsafe(e,v):
     run(e,v,extra="")
 def run_fix_unsafe(e,v):
