@@ -330,7 +330,7 @@ class CharacterVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
     erase, unerase = rerased.new_erasing_pair("character-vector-strategy")
-    erased = staticmethod(erase)
+    erase = staticmethod(erase)
     unerase = staticmethod(unerase)
 
     def is_correct_type(self, w_obj):
