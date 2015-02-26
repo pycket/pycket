@@ -1159,6 +1159,10 @@ class CaseLambda(AST):
         for l in self.lams:
             l.enable_jitting()
 
+    def set_in_cycle(self):
+        for l in self.lams:
+            l.set_in_cycle()
+
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym)
 
@@ -1250,6 +1254,11 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+        self.body[0].the_lam = self
+
+    def set_in_cycle(self):
+        for b in self.body:
+            b.in_cycle = True
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1789,6 +1798,15 @@ def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
     while True:
+        if (not jit.we_are_jitted()) and (not ast.is_label):
+            ast.count += 1
+            if ast.count >= 10000:
+                ast.set_should_enter()
+            if ast.count >= 10000 and (ast.count % 10000 == 0):
+                if (ast.the_lam is not None) and (not ast.in_cycle) and (not "string->num" in ast.the_lam.tostring()) and (not ast.is_bad):
+                    print "hot ast not jitted %s: %s"%(ast.count, ast.tostring())
+                    ast.is_bad = True
+                    #import pdb; pdb.set_trace()
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from

@@ -1,8 +1,8 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like"]
-    _immutable_fields_ = ["should_enter?", "surrounding_lambda", "app_like"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like", "count", "the_lam", "in_cycle", "is_bad"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda", "app_like"]
     _settled_ = True
 
     should_enter = False # default value
@@ -12,6 +12,16 @@ class AST(object):
     app_like = False
 
     simple = False
+
+    is_label = False
+
+    in_cycle = False
+
+    the_lam = None
+
+    is_bad = False
+
+    count = 0
 
     def defined_vars(self): return {}
 
@@ -35,8 +45,14 @@ class AST(object):
 
     def set_should_enter(self):
         """ Set the should_enter field and returns whether or not the field was
-        already set. The field is only actually mutated when it was originally
-        false, as the should_enter field is marked as quasi-mutable.
+        already set. This looks potentially dangerous: the field is marked
+        immutable above. It works however, because should_enter MUST only be
+        used for deciding whether to use can_enter_jit or not. As long as that
+        is the case, mutating it without informing the JIT is fine: We don't
+        want the existing JIT code to be thrown out just because we set a flag
+        on an AST somewhere that was already traced. The interpreter is not
+        affected and will see the change, thus potentially newly tracing the
+        AST.
         """
         if not self.should_enter:
             self.should_enter = True

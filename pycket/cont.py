@@ -208,6 +208,7 @@ def make_label(func, enter=False):
     strrepr = "%s(%s:%s:%s)" % (clsname, func.func_name, func.__module__,
                                 func.__code__.co_firstlineno)
     class Label(AST):
+        is_label = True
         should_enter = enter
         app_like     = False
         def interpret(self, env, cont):
