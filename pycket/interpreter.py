@@ -1813,6 +1813,9 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             came_from = ast if ast.app_like else came_from
         t = type(ast)
+        # Manual conditionals to force specialization in translation
+        # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
+        # (see Jones, Gomard, Sestof 1993)
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
         elif t is If:
