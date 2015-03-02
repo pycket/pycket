@@ -24,77 +24,15 @@ def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
                               not v.struct_type().isopaque)
 
-def is_struct_info(v):
-    if isinstance(v, values.W_Cons):
-        struct_info = values.from_list(v)
-        if len(struct_info) == 6:
-            if not isinstance(struct_info[0], values_struct.W_StructType) and\
-                struct_info[0] is not values.w_false:
-                return False
-            if not isinstance(struct_info[1], values_struct.W_StructConstructor) and\
-                struct_info[1] is not values.w_false:
-                return False
-            if not isinstance(struct_info[2], values_struct.W_StructPredicate) and\
-                struct_info[2] is not values.w_false:
-                return False
-            accessors = struct_info[3]
-            if isinstance(accessors, values.W_Cons):
-                for accessor in values.from_list(accessors):
-                    if not isinstance(accessor, values_struct.W_StructFieldAccessor):
-                        if accessor is not values.w_false and\
-                            accessor is values.from_list(accessors)[-1]:
-                            return False
-            else:
-                return False
-            mutators = struct_info[4]
-            if isinstance(mutators, values.W_Cons):
-                for mutator in values.from_list(mutators):
-                    if not isinstance(mutator, values_struct.W_StructFieldAccessor):
-                        if mutator is not values.w_false and\
-                          mutator is values.from_list(mutators)[-1]:
-                          return False
-            else:
-                return False
-            if not isinstance(struct_info[5], values_struct.W_StructType) and\
-                not isinstance(struct_info[5], values.W_Bool):
-                return False
-            return True
-        return False
-    elif isinstance(v, values.W_Prim):
-        if v.name == "make-struct-info":
-            return True
-    # TODO: it can be also:
-    # 1. a structure with the prop:struct-info property
-    # 2. a structure type derived from struct:struct-info or
-    # with prop:struct-info and wrapped with make-set!-transformer
-    return False
-
-@expose("make-struct-info", [procedure])
-def do_make_struct_info(thunk):
-    # FIXME: return values.W_Prim("make-struct-info", thunk.call)
-    return values.w_void
-
-@expose("extract-struct-info", [values.W_Object], simple=False)
-def do_extract_struct_info(v, env, cont):
-    assert is_struct_info(v)
-    from pycket.interpreter import return_value
-    if isinstance(v, values.W_Cons):
-        return return_value(v, env, cont)
-    elif isinstance(v, values.W_Prim):
-        return v.call([], env, cont)
+@expose("struct-info", [values.W_Object])
+def do_struct_info(v):
+    if (isinstance(v, values_struct.W_RootStruct) and
+        v.struct_type().inspector == values_struct.current_inspector):
+        struct_type = v.struct_type()
+        skipped = values.w_false
     else:
-        # TODO: it can be also:
-        # 1. a structure with the prop:struct-info property
-        # 2. a structure type derived from struct:struct-info or
-        # with prop:struct-info and wrapped with make-set!-transformer
-        return return_value(values.w_void, env, cont)
-
-@expose("struct-info", [values_struct.W_RootStruct])
-def do_struct_info(struct):
-    # TODO: if the current inspector does not control any
-    # structure type for which the struct is an instance then return w_false
-    struct_type = struct.struct_type() if True else values.w_false
-    skipped = values.w_false
+        struct_type = values.w_false
+        skipped = values.w_true
     return values.Values.make([struct_type, skipped])
 
 @expose("struct-type-info", [values_struct.W_StructType])
@@ -103,14 +41,16 @@ def do_struct_type_info(struct_type):
 
 @expose("struct-type-make-constructor", [values_struct.W_StructType])
 def do_struct_type_make_constructor(struct_type):
-    # TODO: if the type for struct-type is not controlled by the current inspector,
-    # the exn:fail:contract exception should be raised
+    if struct_type.inspector != values_struct.current_inspector:
+        # TODO: we should raise exn:fail:contract
+        raise SchemeException("fail_contract")
     return struct_type.constr
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType])
 def do_struct_type_make_predicate(struct_type):
-    # TODO: if the type for struct-type is not controlled by the current inspector,
-    #the exn:fail:contract exception should be raised
+    if struct_type.inspector != values_struct.current_inspector:
+        # TODO: we should raise exn:fail:contract
+        raise SchemeException("fail_contract")
     return struct_type.pred
 
 @expose("make-struct-type",
@@ -132,7 +72,7 @@ def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
 
 @expose("struct-accessor-procedure?", [values.W_Object])
 def do_is_struct_accessor_procedure(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_StructAccessor) or\
+    return values.W_Bool.make(isinstance(v, values_struct.W_StructAccessor) or
         isinstance(v, values_struct.W_StructFieldAccessor))
 
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor,
@@ -142,7 +82,7 @@ def do_make_struct_field_accessor(accessor, field, field_name):
 
 @expose("struct-mutator-procedure?", [values.W_Object])
 def do_is_struct_mutator_procedure(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_StructMutator) or\
+    return values.W_Bool.make(isinstance(v, values_struct.W_StructMutator) or
         isinstance(v, values_struct.W_StructFieldMutator))
 
 @expose("make-struct-field-mutator", [values_struct.W_StructMutator,

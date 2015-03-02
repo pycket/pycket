@@ -480,6 +480,21 @@ def test_make_prefab_struct(doctest):
     assert doctest
 
 
+# Structure Type Transformer Binding
+@skip
+def test_struct_info(doctest):
+    """
+    > (struct x ())
+    > (struct-info (x))
+    > (define-values (struct-type skipped?) (struct-info (x)))
+    > struct-type
+    #f
+    > skipped?
+    #t
+    """
+    assert doctest
+
+
 # Other
 
 def test_procedure():
@@ -495,16 +510,3 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
-
-@skip
-def test_struct_info(doctest):
-    """
-    ! (require racket/struct-info)
-    > (struct-info? #f)
-    #f
-    > (struct x ())
-    > (struct-info (x))
-    > (struct-info? (struct-info (x)))
-    #t
-    """
-    assert doctest

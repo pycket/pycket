@@ -176,6 +176,7 @@ expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
+expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
@@ -376,7 +377,6 @@ for args in [ ("subprocess?",),
               ("relative-path?",),
               ("absolute-path?",),
               ("internal-definition-context?",),
-              ("set!-transformer?",),
               ("rename-transformer?",),
               ("identifier?",),
               ("port?",),
@@ -387,6 +387,14 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
+
+@expose("set!-transformer?", [values.W_Object])
+def set_bang_transformer(v):
+    if isinstance(v, values_struct.W_RootStruct):
+        w_prop = v.struct_type().read_prop(values_struct.w_prop_set_bang_transformer)
+        return values.W_Bool.make(w_prop is not None)
+    else:
+        raise NotImplementedError()
 
 
 @expose("object-name", [values.W_Object])
