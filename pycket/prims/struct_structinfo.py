@@ -27,7 +27,7 @@ def do_is_struct(v):
 @expose("struct-info", [values.W_Object])
 def do_struct_info(v):
     if (isinstance(v, values_struct.W_RootStruct) and
-        v.struct_type().inspector == values_struct.current_inspector):
+        v.struct_type().inspector is values_struct.current_inspector):
         struct_type = v.struct_type()
         skipped = values.w_false
     else:
@@ -41,14 +41,14 @@ def do_struct_type_info(struct_type):
 
 @expose("struct-type-make-constructor", [values_struct.W_StructType])
 def do_struct_type_make_constructor(struct_type):
-    if struct_type.inspector != values_struct.current_inspector:
+    if struct_type.inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
     return struct_type.constr
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType])
 def do_struct_type_make_predicate(struct_type):
-    if struct_type.inspector != values_struct.current_inspector:
+    if struct_type.inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
     return struct_type.pred
