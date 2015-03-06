@@ -976,11 +976,7 @@ class W_Procedure(W_Object):
         return "#<procedure>"
 
 
-class W_Transformer(W_Object):
-    def __init__(self):
-        raise NotImplementedError("Abstract base class")
-
-class W_AssignmentTransformer(W_Transformer):
+class W_AssignmentTransformer(W_Object):
     def __init__(self):
         raise NotImplementedError("Abstract base class")
 
