@@ -485,12 +485,15 @@ def test_make_prefab_struct(doctest):
 def test_struct_info(doctest):
     """
     > (struct x ())
-    > (struct-info (x))
     > (define-values (struct-type skipped?) (struct-info (x)))
     > struct-type
     #f
     > skipped?
     #t
+    > (struct y () #:transparent)
+    > (define-values (struct-type skipped?) (struct-info (y)))
+    > skipped?
+    #f
     """
     assert doctest
 

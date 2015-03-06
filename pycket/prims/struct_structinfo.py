@@ -27,6 +27,7 @@ def do_is_struct(v):
 @expose("struct-info", [values.W_Object])
 def do_struct_info(v):
     if (isinstance(v, values_struct.W_RootStruct) and
+        not v.struct_type().isopaque and
         v.struct_type().inspector is values_struct.current_inspector):
         struct_type = v.struct_type()
         skipped = values.w_false

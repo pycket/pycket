@@ -202,7 +202,7 @@ class W_StructType(values.W_Object):
             self.constr_name = "make-" + self.name
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
-        self.isprefab = self.inspector is PREFAB
+        self.isprefab = inspector is PREFAB
         if self.isprefab:
             self.isopaque = False
         else:
