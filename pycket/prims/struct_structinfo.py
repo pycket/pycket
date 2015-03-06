@@ -4,14 +4,15 @@ from pycket import impersonators as imp
 from pycket import values
 from pycket import values_struct
 from pycket.error import SchemeException
-from pycket.prims.expose import unsafe, default, expose, procedure
-from rpython.rlib        import jit
+from pycket.prims.expose import unsafe, default, expose
 
-@expose("make-inspector", [default(values_struct.W_StructInspector, None)])
+@expose("make-inspector", [default(values_struct.W_StructInspector,
+    values_struct.current_inspector)])
 def do_make_instpector(inspector):
     return values_struct.W_StructInspector.make(inspector)
 
-@expose("make-sibling-inspector", [default(values_struct.W_StructInspector, None)])
+@expose("make-sibling-inspector", [default(values_struct.W_StructInspector,
+    values_struct.current_inspector)])
 def do_make_sibling_instpector(inspector):
     return values_struct.W_StructInspector.make(inspector, True)
 
@@ -22,13 +23,12 @@ def do_current_instpector(args):
 @expose("struct?", [values.W_Object])
 def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
-                              not v.struct_type().isopaque)
+        values_struct.current_inspector.has_control(v.struct_type()))
 
 @expose("struct-info", [values.W_Object])
 def do_struct_info(v):
     if (isinstance(v, values_struct.W_RootStruct) and
-        not v.struct_type().isopaque and
-        v.struct_type().inspector is values_struct.current_inspector):
+        values_struct.current_inspector.has_control(v.struct_type())):
         struct_type = v.struct_type()
         skipped = values.w_false
     else:
@@ -58,7 +58,7 @@ def do_struct_type_make_predicate(struct_type):
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
-         default(values.W_Object, values.w_false),
+         default(values.W_Object, values_struct.current_inspector),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),

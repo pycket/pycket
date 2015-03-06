@@ -10,7 +10,6 @@ from rpython.rlib import jit
 
 PREFAB = values.W_Symbol.make("prefab")
 
-# TODO: inspector currently does nothing
 class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
     _immutable_fields_ = ["super"]
@@ -24,6 +23,18 @@ class W_StructInspector(values.W_Object):
 
     def __init__(self, super):
         self.super = super
+
+    def has_control(self, struct_type):
+        inspector = struct_type.inspector
+        if not isinstance(inspector, W_StructInspector):
+            return True
+        else:
+            inspector = inspector.super
+            while isinstance(inspector, W_StructInspector):
+                if inspector is self:
+                    return True
+                inspector = inspector.super
+            return False
 
 current_inspector = W_StructInspector(None)
 
