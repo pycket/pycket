@@ -390,11 +390,13 @@ for args in [ ("subprocess?",),
 
 @expose("set!-transformer?", [values.W_Object])
 def set_bang_transformer(v):
-    if isinstance(v, values_struct.W_RootStruct):
+    if isinstance(v, values.W_AssignmentTransformer):
+        return values.w_true
+    elif isinstance(v, values_struct.W_RootStruct):
         w_prop = v.struct_type().read_prop(values_struct.w_prop_set_bang_transformer)
         return values.W_Bool.make(w_prop is not None)
     else:
-        raise NotImplementedError()
+        return values.w_false
 
 
 @expose("object-name", [values.W_Object])

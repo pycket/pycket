@@ -975,6 +975,16 @@ class W_Procedure(W_Object):
     def tostring(self):
         return "#<procedure>"
 
+
+class W_Transformer(W_Object):
+    def __init__(self):
+        raise NotImplementedError("Abstract base class")
+
+class W_AssignmentTransformer(W_Transformer):
+    def __init__(self):
+        raise NotImplementedError("Abstract base class")
+
+
 # These next two classes allow for a uniform input to the `set_cmk` operation.
 # They are procedures which do the appropriate processing after `set_cmk` is done
 # computing.
