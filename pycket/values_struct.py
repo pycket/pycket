@@ -42,7 +42,7 @@ class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
             "total_field_cnt", "auto_v", "props", "inspector",
-            "immutables[*]", "immutable_fields[*]", "guard", "constr_name", "auto_values[*]",
+            "immutables[*]", "immutable_fields[*]", "guard", "auto_values[*]",
             "offsets[*]", "constr", "pred", "acc", "mut", "prop_procedure"]
     unbound_prefab_types = {}
 
@@ -207,10 +207,6 @@ class W_StructType(values.W_Object):
             imm.append(i.value)
         self.immutables = imm[:]
         self.guard = guard
-        if isinstance(constr_name, values.W_Symbol):
-            self.constr_name = constr_name.utf8value
-        else:
-            self.constr_name = "make-" + self.name
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
         self.isprefab = inspector is PREFAB
@@ -221,7 +217,9 @@ class W_StructType(values.W_Object):
 
         self.calculate_offsets()
 
-        self.constr = W_StructConstructor(self)
+        constr_name = (constr_name.utf8value if
+            isinstance(constr_name, values.W_Symbol) else "make-" + self.name)
+        self.constr = W_StructConstructor(self, constr_name)
         self.pred = W_StructPredicate(self)
         self.acc = W_StructAccessor(self)
         self.mut = W_StructMutator(self)
@@ -662,9 +660,10 @@ class W_Struct(W_RootStruct):
         return result
 
 class W_StructConstructor(values.W_Procedure):
-    _immutable_fields_ = ["type"]
-    def __init__(self, type):
+    _immutable_fields_ = ["type", "constr_name"]
+    def __init__(self, type, constr_name):
         self.type = type
+        self.constr_name = constr_name
 
     def make_struct(self, field_values):
         raise NotImplementedError("abstract base class")
