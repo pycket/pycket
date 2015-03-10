@@ -242,7 +242,11 @@
      (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
     [((module _ ...) _) #f] ;; ignore these
-    [((module* _ ...) _) #f] ;; ignore these
+    [((module* i  mp  e  ...)
+      (module* i* mp* e* ...))
+     (hash 'module-name (symbol->string (syntax-e #'i))
+           'module-path (to-json #'mp #'mp*)
+           'module-body (to-json #'(e ...) #'(e* ...)))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_

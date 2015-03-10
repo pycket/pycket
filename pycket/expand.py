@@ -513,6 +513,9 @@ def _to_ast(json, modtable):
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
+        if "module-name" in obj:
+            # stub for now
+            return Quote(values.w_void)
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 INF = values.W_Flonum(float("inf"))
