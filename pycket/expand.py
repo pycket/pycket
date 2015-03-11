@@ -145,6 +145,7 @@ def expand_file_to_json(rkt_file, json_file):
     if not we_are_translated():
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
     return _expand_file_to_json(rkt_file, json_file)
+
 def _expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
@@ -169,8 +170,6 @@ def _expand_file_to_json(rkt_file, json_file):
     if err != 0:
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return json_file
-
-
 
 def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     from rpython.rlib.rfile import create_popen_file
@@ -314,10 +313,9 @@ def _to_module(json, modtable):
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
 
-        lang = [_to_require(l, modtable) for l in [v["language"].value_string()] if l != ""]
-        return Module(v["module-name"].value_string(),
-                      lang + [_to_ast(x, modtable) for x in v["body-forms"].value_array()],
-                      config)
+        lang = [parse_require(v["language"], modtable)]
+        body = [_to_ast(x, modtable) for x in v["body-forms"].value_array()]
+        return Module(v["module-name"].value_string(), lang + body, config)
     else:
         assert 0
 
@@ -362,6 +360,18 @@ def _to_require(fname, modtable):
     module = expand_file_cached(fname, modtable)
     modtable.pop()
     return Require(fname, module)
+
+def parse_require(json, modtable):
+    assert json.is_object
+    obj = json.value_object()
+    if "sub-module" in obj:
+        return Quote(values.w_void)
+    if "module" in obj:
+        fname = obj["module"].value_string()
+        if not fname:
+            return Quote(values.w_void)
+        return _to_require(fname, modtable)
+    assert 0, "malformed require"
 
 def get_srcloc(o):
     pos = o["position"].value_int() if "position" in o else -1
@@ -434,7 +444,7 @@ def _to_ast(json, modtable):
             paths = obj["require"].value_array()
             if not paths:
                 return Quote(values.w_void)
-            return Begin.make([_to_require(path.value_string(), modtable) for path in paths])
+            return Begin.make([parse_require(path, modtable) for path in paths])
         if "begin0" in obj:
             fst = _to_ast(obj["begin0"], modtable)
             rst = [_to_ast(x, modtable) for x in obj["begin0-rest"].value_array()]
@@ -513,7 +523,7 @@ def _to_ast(json, modtable):
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
-        if "module-name" in obj:
+        if "module*-name" in obj:
             # stub for now
             return Quote(values.w_void)
     assert 0, "Unexpected json object: %s" % json.tostring()

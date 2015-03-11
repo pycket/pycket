@@ -68,31 +68,37 @@
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
+(define (resolve-module mod-name)
+  (with-handlers
+    ([exn:fail:filesystem:missing-module?
+      (lambda (e) (hash 'sub-module (symbol->string mod-name)))])
+    (hash 'module
+      (path->string
+        (simplify-path
+          (resolve-module-path mod-name #f)
+          #f)))))
+
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
 ;; This ensures that all path names are normalized.
 (define (require-json v)
-  (define (to-path v)
-    (path->string
-      (simplify-path
-        (resolve-module-path v #f) #f)))
   (define (translate v)
     (let* ([str (symbol->string v)]
            [pre (substring str 0 (min 2 (string-length str)))])
       (if (string=? pre "#%")
-        str
-        (to-path v))))
+        (hash 'module str)
+        (resolve-module v))))
     ;;(case v
     ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
     ;;  [else (to-path v)]))
   (syntax-parse v
-    [v:str        (list (to-path (syntax-e #'v)))]
+    [v:str        (list (resolve-module (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
     [p #:when (path? (syntax-e #'p))
-       (list (to-path (syntax-e #'p)))]
+       (list (resolve-module (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
-     (list (to-path (syntax-e #'x)))]
+     (list (resolve-module (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
@@ -108,7 +114,7 @@
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (list (to-path (syntax-e #'s)))]
+    [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
@@ -244,9 +250,11 @@
     [((module _ ...) _) #f] ;; ignore these
     [((module* i  mp  e  ...)
       (module* i* mp* e* ...))
-     (hash 'module-name (symbol->string (syntax-e #'i))
-           'module-path (to-json #'mp #'mp*)
-           'module-body (to-json #'(e ...) #'(e* ...)))]
+     (hash 'module*-name (symbol->string (syntax-e #'i))
+           'module*-path (to-json #'mp #'mp*)
+           'module*-body (map to-json
+                              (syntax->list #'(e ...))
+                              (syntax->list #'(e* ...))))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
