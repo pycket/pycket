@@ -374,7 +374,8 @@ class Module(object):
     _immutable_fields_ = ["name", "body"]
     def __init__(self, name, body, config):
         self.name = name
-        self.body = body
+        self.body = ([b for b in body if isinstance(b, Require)] +
+                     [b for b in body if not isinstance(b, Require)])
         self.env = None
         self.config = config
         defs = {}
