@@ -116,7 +116,8 @@
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     ;; XXX Add submodule case
-    [((~datum submod) p ...) (list (append-map require-json (syntax->list #'(p ...))))]
+    [((~datum submod) p ...)
+     (list (append-map require-json (syntax->list #'(p ...))))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
@@ -249,14 +250,18 @@
      #:when (quoted?)
      (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
-    [((module _ ...) _) #f] ;; ignore these
-    [((module* i  mp  e  ...)
-      (module* i* mp* e* ...))
-     (hash 'module*-name (symbol->string (syntax-e #'i))
-           'module*-path (to-json #'mp #'mp*)
-           'module*-body (map to-json
-                              (syntax->list #'(e ...))
-                              (syntax->list #'(e* ...))))]
+    [((module _ ...) _)
+     (convert v v/loc #f)]
+    [((module* _ ...) _)
+     (convert v v/loc #f)]
+    ;;[((module _ ...) _) #f] ;; ignore these
+    ;;[((module* i  mp  e  ...)
+    ;;  (module* i* mp* e* ...))
+    ;; (hash 'module*-name (symbol->string (syntax-e #'i))
+    ;;       'module*-path (to-json #'mp #'mp*)
+    ;;       'body-forms   (map to-json
+    ;;                          (syntax->list #'(e ...))
+    ;;                          (syntax->list #'(e* ...))))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
@@ -413,6 +418,20 @@
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
                          (require-json #'lang))])
+       (hash* 'module-name (symbol->string (syntax-e #'name))
+              'body-forms (filter-map to-json
+                                      (syntax->list #'(forms ...))
+                                      (syntax->list #'(forms* ...)))
+              'language (first lang-req)
+              'config (and config? global-config)))]
+    [((module* name:id lang:expr (#%plain-module-begin forms ...))
+      (_ _ _                    (#%plain-module-begin forms* ...)))
+     (let ([lang-req (cond
+                       [(not (syntax-e #'lang)) (list #f)]
+                       [(or (eq? (syntax-e #'lang) 'pycket)
+                        (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
+                        (require-json #'#%kernel)]
+                       [else (require-json #'lang)])])
        (hash* 'module-name (symbol->string (syntax-e #'name))
               'body-forms (filter-map to-json
                                       (syntax->list #'(forms ...))
