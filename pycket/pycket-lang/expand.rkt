@@ -115,6 +115,8 @@
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
+    ;; XXX Add submodule case
+    [((~datum submod) p ...) (list (append-map require-json (syntax->list #'(p ...))))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
