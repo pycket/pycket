@@ -68,6 +68,16 @@
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
+;;(define (resolve-module mod-name)
+;;  (with-handlers
+;;    ([exn:fail:filesystem:missing-module?
+;;      (lambda (e) (hash 'sub-module (symbol->string mod-name)))])
+;;    (hash 'module
+;;      (path->string
+;;        (simplify-path
+;;          (resolve-module-path mod-name #f)
+;;          #f)))))
+
 (define (resolve-module mod-name)
   (with-handlers
     ([exn:fail:filesystem:missing-module?
@@ -250,10 +260,8 @@
      #:when (quoted?)
      (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
-    [((module _ ...) _)
-     (convert v v/loc #f)]
-    [((module* _ ...) _)
-     (convert v v/loc #f)]
+    [((module _ ...) _)  (convert v v/loc #f)]
+    [((module* _ ...) _) (convert v v/loc #f)]
     ;;[((module _ ...) _) #f] ;; ignore these
     ;;[((module* i  mp  e  ...)
     ;;  (module* i* mp* e* ...))
