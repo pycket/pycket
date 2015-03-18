@@ -68,21 +68,12 @@
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
-;;(define (resolve-module mod-name)
-;;  (with-handlers
-;;    ([exn:fail:filesystem:missing-module?
-;;      (lambda (e) (hash 'sub-module (symbol->string mod-name)))])
-;;    (hash 'module
-;;      (path->string
-;;        (simplify-path
-;;          (resolve-module-path mod-name #f)
-;;          #f)))))
-
 (define (resolve-module mod-name)
-  (with-handlers
-    ([exn:fail:filesystem:missing-module?
-      (lambda (e) (hash 'sub-module (symbol->string mod-name)))])
-    (hash 'module
+  (if (memv mod-name (list "." ".."))
+    mod-name
+    (with-handlers
+      ([exn:fail:filesystem:missing-module?
+         (lambda (e) mod-name)])
       (path->string
         (simplify-path
           (resolve-module-path mod-name #f)
@@ -96,11 +87,13 @@
     (let* ([str (symbol->string v)]
            [pre (substring str 0 (min 2 (string-length str)))])
       (if (string=? pre "#%")
-        (hash 'module str)
+        str
         (resolve-module v))))
-    ;;(case v
-    ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
-    ;;  [else (to-path v)]))
+  (define (desymbolize s)
+    (let ([s (syntax-e s)])
+      (if (symbol? s)
+        (symbol->string s)
+        s)))
   (syntax-parse v
     [v:str        (list (resolve-module (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
@@ -126,8 +119,9 @@
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     ;; XXX Add submodule case
-    [((~datum submod) p ...)
-     (list (append-map require-json (syntax->list #'(p ...))))]
+    [((~datum submod) path subs ...)
+     (cons (resolve-module (syntax-e #'path))
+           (map desymbolize (syntax->list #'(subs ...))))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
@@ -262,14 +256,6 @@
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
     [((module _ ...) _)  (convert v v/loc #f)]
     [((module* _ ...) _) (convert v v/loc #f)]
-    ;;[((module _ ...) _) #f] ;; ignore these
-    ;;[((module* i  mp  e  ...)
-    ;;  (module* i* mp* e* ...))
-    ;; (hash 'module*-name (symbol->string (syntax-e #'i))
-    ;;       'module*-path (to-json #'mp #'mp*)
-    ;;       'body-forms   (map to-json
-    ;;                          (syntax->list #'(e ...))
-    ;;                          (syntax->list #'(e* ...))))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
@@ -382,6 +368,7 @@
         (define modsym (symbol->string (syntax-e v)))
         (hash* 'source-module (cond [(path? src) (path->string (simplify-path src #f))]
                                     [(eq? src '#%kernel) #f] ;; omit these
+                                    [(list? src) (cons "." (map symbol->string (cdr src)))]
                                     [src (symbol->string src)]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
