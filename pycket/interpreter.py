@@ -370,18 +370,32 @@ class WCMValCont(Cont):
         self.prev.update_cm(key, val)
         return self.ast.body, self.env, self.prev
 
-class Module(object):
-    _immutable_fields_ = ["name", "body"]
+class Module(AST):
+    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?"]
     def __init__(self, name, body, config):
+        self.parent = None
+        self.submodules = [b for b in body if isinstance(b, Module)]
+        body = [b for b in body if not isinstance(b, Module)]
         self.name = name
-        self.body = ([b for b in body if isinstance(b, Require)] +
-                     [b for b in body if not isinstance(b, Require)])
+        self.body = [b for b in body if not isinstance(b, Require)]
+        self.requires = [b for b in body if isinstance(b, Require)]
         self.env = None
+        self.interpreted = False
         self.config = config
+        for s in self.submodules:
+            assert isinstance(s, Module)
+            s.set_parent(self)
         defs = {}
         for b in body:
             defs.update(b.defined_vars())
         self.defs = defs
+
+    def rebuild_body(self):
+        return self.requires + self.submodules + self.body
+
+    def set_parent(self, parent):
+        assert isinstance(parent, Module)
+        self.parent = parent
 
     @jit.elidable
     def lookup(self, sym):
@@ -399,27 +413,54 @@ class Module(object):
             x.update(r.mutated_vars())
         return x
 
+    def assign_convert(self, vars, env_structure):
+        return self.assign_convert_module()
+
+    def direct_children(self):
+        return self.rebuild_body()
+
     def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
-        new_body = [b.assign_convert(local_muts, None) for b in self.body]
+        new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
         return Module(self.name, new_body, self.config)
 
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
     def interpret_mod(self, env):
+        if self.interpreted:
+            return values.w_void
         try:
+            self.interpreted = True
             return self._interpret_mod(env)
         except SchemeException, e:
             if e.context_module is None:
                 e.context_module = self
             raise
 
+    def root_module(self):
+        while self.parent is not None:
+            self = self.parent
+        return self
+
+    def find_submodule(self, name):
+        if name == ".":
+            return self
+        if name == "..":
+            return self.parent
+        for s in self.submodules:
+            assert isinstance(s, Module)
+            if s.name == name:
+                return s
+        return None
+
     def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
+        for r in self.requires:
+            interpret_one(r, self.env)
         for f in self.body:
             # FIXME: this is wrong -- the continuation barrier here is around the RHS,
             # whereas in Racket it's around the whole `define-values`
@@ -437,12 +478,13 @@ class Module(object):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["modname", "module"]
+    _immutable_fields_ = ["modname", "module", "path"]
     simple = True
 
-    def __init__(self, modname, module):
+    def __init__(self, modname, module, path=None):
         self.modname = modname
         self.module  = module
+        self.path    = path if path is not None else []
 
     def _mutated_vars(self):
         return variable_set()
@@ -450,11 +492,25 @@ class Require(AST):
     def assign_convert(self, vars, env_structure):
         return self
 
+    def find_module(self, env):
+        if self.module is not None:
+            module = self.module
+        else:
+            module = env.toplevel_env().module_env.current_module
+        if self.modname == "..":
+            assert module.parent is not None
+            module = module.parent
+        for p in self.path:
+            module = module.find_submodule(p)
+            assert module is not None
+        return module
+
     # Interpret the module and add it to the module environment
     def interpret_simple(self, env):
+        module = self.find_module(env)
         top = env.toplevel_env()
-        top.module_env.add_module(self.modname, self.module)
-        self.module.interpret_mod(top)
+        top.module_env.add_module(self.modname, module.root_module())
+        module.interpret_mod(top)
         return values.w_void
 
     def _tostring(self):

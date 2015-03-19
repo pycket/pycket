@@ -79,6 +79,7 @@ class ModuleEnv(object):
         from pycket.interpreter import Module
         # note that `name` and `module.name` are different!
         assert isinstance(module, Module)
+        #if name not in self.modules:
         self.modules[name] = module
 
     @jit.elidable

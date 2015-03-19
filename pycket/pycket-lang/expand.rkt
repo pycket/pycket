@@ -94,14 +94,16 @@
       (if (symbol? s)
         (symbol->string s)
         s)))
+  (define (unit x)
+    (list (list x)))
   (syntax-parse v
-    [v:str        (list (resolve-module (syntax-e #'v)))]
-    [s:identifier (list (translate (syntax-e #'s)))]
+    [v:str        (unit (resolve-module (syntax-e #'v)))]
+    [s:identifier (unit (translate (syntax-e #'s)))]
     [p #:when (path? (syntax-e #'p))
-       (list (resolve-module (syntax-e #'p)))]
+       (unit (resolve-module (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
-     (list (resolve-module (syntax-e #'x)))]
+     (unit (resolve-module (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
@@ -116,12 +118,12 @@
     [((~datum just-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
-    [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
+    [((~datum quote) s:id) (unit (translate (syntax-e #'s)))]
+    [((~datum file) s:str) (unit (resolve-module (syntax-e #'s)))]
     ;; XXX Add submodule case
     [((~datum submod) path subs ...)
-     (cons (resolve-module (syntax-e #'path))
-           (map desymbolize (syntax->list #'(subs ...))))]
+     (list (cons (resolve-module (syntax-e #'path))
+                 (map desymbolize (syntax->list #'(subs ...)))))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
