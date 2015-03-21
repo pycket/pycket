@@ -392,6 +392,16 @@ def to_lambda(o, modtable):
     return make_lambda(fmls, rest, [_to_ast(x, modtable) for x in o["body"].value_array()],
                        pos, sourcefile)
 
+def parse_path(arr):
+    assert len(arr) >= 1
+    srcmod, path = arr[0], arr[1:]
+    # Relative module names go into the path.
+    # None value for the srcmod indicate the current module
+    if srcmod in [".", ".."]:
+        path   = arr
+        srcmod = None
+    return srcmod, path
+
 def _to_ast(json, modtable):
     # YYY
     dbgprint("_to_ast", json)
@@ -410,11 +420,16 @@ def _to_ast(json, modtable):
                 if "source-name" in target:
                     srcname = values.W_Symbol.make(target["source-name"].value_string())
                     if "source-module" in target:
-                        srcmod = target["source-module"].value_string() if target["source-module"].is_string else None
+                        if target["source-module"].is_array:
+                            path_arr = [t.value_string() for t in target["source-module"].value_array()]
+                            srcmod, path = parse_path(path_arr)
+                        else:
+                            srcmod = path = None
                     else:
                         srcmod = "#%kernel"
+                        path   = None
                     modname = values.W_Symbol.make(target["module"].value_string()) if "module" in target else srcname
-                    var = ModuleVar(modname, srcmod, srcname)
+                    var = ModuleVar(modname, srcmod, srcname, path)
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 elif "toplevel" in target:
@@ -514,13 +529,15 @@ def _to_ast(json, modtable):
             srcsym = values.W_Symbol.make(srcname)
             modsym = values.W_Symbol.make(modname) if modname else srcsym
             if "source-module" in obj:
-                if obj["source-module"].is_string:
-                    srcmod = obj["source-module"].value_string()
+                if obj["source-module"].is_array:
+                    path_arr = [p.value_string() for p in obj["source-module"].value_array()]
+                    srcmod, path = parse_path(path_arr)
                 else:
-                    srcmod = None
+                    srcmod = path = None
             else:
                 srcmod = "#%kernel"
-            return ModuleVar(modsym, srcmod, srcsym)
+                path   = None
+            return ModuleVar(modsym, srcmod, srcsym, path=path)
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:

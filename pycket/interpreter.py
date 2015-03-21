@@ -438,11 +438,13 @@ class Module(AST):
                 e.context_module = self
             raise
 
+    @jit.unroll_safe
     def root_module(self):
         while self.parent is not None:
             self = self.parent
         return self
 
+    @jit.unroll_safe
     def find_submodule(self, name):
         if name == ".":
             return self
@@ -453,6 +455,13 @@ class Module(AST):
             if s.name == name:
                 return s
         return None
+
+    @jit.unroll_safe
+    def resolve_submodule_path(self, path):
+        for p in path:
+            self = self.find_submodule(p)
+            assert self is not None
+        return self
 
     def _interpret_mod(self, env):
         self.env = env
@@ -500,9 +509,7 @@ class Require(AST):
         if self.modname == "..":
             assert module.parent is not None
             module = module.parent
-        for p in self.path:
-            module = module.find_submodule(p)
-            assert module is not None
+        module = module.resolve_submodule_path(self.path)
         return module
 
     # Interpret the module and add it to the module environment
@@ -990,11 +997,12 @@ class LexicalVar(Var):
             return LexicalVar(self.sym, env_structure)
 
 class ModuleVar(Var):
-    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?"]
-    def __init__(self, sym, srcmod, srcsym):
+    _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
+    def __init__(self, sym, srcmod, srcsym, path=None):
         Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
+        self.path   = path if path is not None else []
         self.modenv = None
         self.w_value = None
 
@@ -1035,7 +1043,7 @@ class ModuleVar(Var):
             mod = modenv._find_module(self.srcmod)
             if mod is None:
                 raise SchemeException("can't find module %s for %s" % (self.srcmod, self.srcsym.tostring()))
-        return mod.lookup(self.srcsym)
+        return mod.resolve_submodule_path(self.path).lookup(self.srcsym)
 
     def _lookup_primitive(self):
         # we don't separate these the way racket does
@@ -1060,7 +1068,6 @@ class ModuleVar(Var):
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
-
 
 # class ModCellRef(Var):
 #     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]

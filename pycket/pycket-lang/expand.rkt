@@ -368,10 +368,12 @@
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
         (define modsym (symbol->string (syntax-e v)))
-        (hash* 'source-module (cond [(path? src) (path->string (simplify-path src #f))]
+        (hash* 'source-module (cond ;; XXX This is not quite correct
+                                    [self? 'null]
+                                    [(path? src) (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [(list? src) (cons "." (map symbol->string (cdr src)))]
-                                    [src (symbol->string src)]
+                                    [src (list (symbol->string src))]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
                'source-name (id->sym #'i)
