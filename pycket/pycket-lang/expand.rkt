@@ -68,19 +68,29 @@
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
+(define (desymbolize s)
+  (if (symbol? s) (symbol->string s) s))
+
+(define (make-path-strings xs)
+  (define (path-string p)
+    (if (path? p)
+      (path->string
+        (simplify-path p))
+      p))
+  (map path-string xs))
+
 (define (resolve-module mod-name)
   (if (memv mod-name (list "." ".."))
     mod-name
     (with-handlers
       ([exn:fail:filesystem:missing-module?
-         (lambda (e) mod-name)])
+         (lambda (e)
+           (make-path-strings
+             (append (current-module) (list (desymbolize mod-name)))))])
       (path->string
         (simplify-path
           (resolve-module-path mod-name #f)
           #f)))))
-
-(define (desymbolize s)
-  (if (symbol? s) (symbol->string s) s))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -356,7 +366,8 @@
     [(((~literal begin-for-syntax) b ...) _) #f]
 
     [((#%require x ...) _)
-     (hash 'require (append-map require-json (syntax->list #'(x ...))))]
+     (let ([reqs (append-map require-json (syntax->list #'(x ...)))])
+       (hash 'require reqs))]
     [((#%variable-reference) _)
      (hash 'variable-reference #f)]
     [((#%variable-reference id) (#%variable-reference id*))
