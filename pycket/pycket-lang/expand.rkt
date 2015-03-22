@@ -63,7 +63,7 @@
 (define current-module (make-parameter #f))
 
 (define (index->path i)
-  (define-values (v _) (module-path-index-split i))
+  (define-values (v u) (module-path-index-split i))
   (if v
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
@@ -237,6 +237,11 @@
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
+  (define (push-module path m)
+    (define str (symbol->string m))
+    (if (list? path)
+      (append path (list str))
+      (list path str)))
   (syntax-parse (list v v/loc)
                 #:literals
                 (let-values letrec-values begin0 if #%plain-lambda #%top
@@ -256,8 +261,12 @@
      #:when (quoted?)
      (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
-    [((module _ ...) _)  (convert v v/loc #f)]
-    [((module* _ ...) _) (convert v v/loc #f)]
+    [((module name _ ...) _)
+     (parameterize ([current-module (push-module (current-module) (syntax-e #'name))])
+       (convert v v/loc #f))]
+    [((module* name _ ...) _)
+     (parameterize ([current-module (push-module (current-module) (syntax-e #'name))])
+       (convert v v/loc #f))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
@@ -364,12 +373,13 @@
      (match (identifier-binding* #'i)
        ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
-       [(list (app index->path (list src self?)) src-id _ nom-src-id
+       [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
         (define modsym (symbol->string (syntax-e v)))
         (hash* 'source-module (cond ;; XXX This is not quite correct
-                                    [self? 'null]
+                                    [(not src) 'null]
+                                    [self? (cons (path->string (car src)) (cdr src))]
                                     [(path? src) (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [(list? src) (cons "." (map symbol->string (cdr src)))]
@@ -497,7 +507,7 @@
 
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
-    (current-module (object-name input))
+    (current-module (list (object-name input)))
     (current-directory in-dir))
 
   (read-accept-reader #t)
