@@ -79,6 +79,9 @@
           (resolve-module-path mod-name #f)
           #f)))))
 
+(define (desymbolize s)
+  (if (symbol? s) (symbol->string s) s))
+
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
 ;; This ensures that all path names are normalized.
@@ -89,11 +92,8 @@
       (if (string=? pre "#%")
         str
         (resolve-module v))))
-  (define (desymbolize s)
-    (let ([s (syntax-e s)])
-      (if (symbol? s)
-        (symbol->string s)
-        s)))
+  (define (desym stx)
+    (desymbolize (syntax-e stx)))
   (define (unit x)
     (list (list x)))
   (syntax-parse v
@@ -123,7 +123,7 @@
     ;; XXX Add submodule case
     [((~datum submod) path subs ...)
      (list (cons (resolve-module (syntax-e #'path))
-                 (map desymbolize (syntax->list #'(subs ...)))))]
+                 (map desym (syntax->list #'(subs ...)))))]
     [((~datum lib) _ ...)
      (error 'expand "`lib` require forms are not supported yet")]
     [((~datum planet) _ ...)
@@ -377,12 +377,14 @@
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
         (define modsym (symbol->string (syntax-e v)))
-        (hash* 'source-module (cond ;; XXX This is not quite correct
-                                    [(not src) 'null]
-                                    [self? (cons (path->string (car src)) (cdr src))]
-                                    [(path? src) (list (path->string (simplify-path src #f)))]
+        (hash* 'source-module (cond [(not src) 'null]
+                                    [(and self? (path? (car src)))
+                                     (cons (path->string (car src)) (cdr src))]
+                                    [(path? src)
+                                     (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
-                                    [(list? src) (cons "." (map symbol->string (cdr src)))]
+                                    [(list? src)
+                                     (cons "." (map desymbolize (cdr src)))]
                                     [src (list (symbol->string src))]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
