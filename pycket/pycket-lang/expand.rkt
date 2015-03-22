@@ -130,12 +130,12 @@
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (unit (translate (syntax-e #'s)))]
     [((~datum file) s:str) (unit (resolve-module (syntax-e #'s)))]
-    ;; XXX Add submodule case
     [((~datum submod) path subs ...)
      (list (cons (resolve-module (syntax-e #'path))
                  (map desym (syntax->list #'(subs ...)))))]
-    [((~datum lib) _ ...)
-     (error 'expand "`lib` require forms are not supported yet")]
+    ;; XXX May not be 100% correct
+    ;;[((~datum lib) path) (unit (resolve-module (syntax-e #'path)))]
+    [((~datum lib) path) '()];;(unit (resolve-module (syntax-e #'path)))]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
