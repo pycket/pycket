@@ -487,14 +487,13 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["modname", "module", "path[*]", "table"]
+    _immutable_fields_ = ["modname", "modtable", "path[*]"]
     simple = True
 
-    def __init__(self, fname, module, path=None):
-        self.fname  = fname
-        self.module = module
-        self.path   = path if path is not None else []
-        self.table  = None
+    def __init__(self, fname, modtable, path=None):
+        self.fname    = fname
+        self.path     = path if path is not None else []
+        self.modtable = modtable
 
     def _mutated_vars(self):
         return variable_set()
@@ -503,13 +502,10 @@ class Require(AST):
         return self
 
     def find_module(self, env):
-        if self.module is not None:
-            module = self.module
+        if self.modtable is not None:
+            module = self.modtable.lookup(self.fname)
         else:
             module = env.toplevel_env().module_env.current_module
-        if self.fname == "..":
-            assert module.parent is not None
-            module = module.parent
         module = module.resolve_submodule_path(self.path)
         return module
 

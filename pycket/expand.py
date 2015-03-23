@@ -322,13 +322,13 @@ void = Quote(values.w_void)
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
+    _immutable_fields_ = ["table"]
 
     def __init__(self):
         self.table = {}
         self.current_modules = []
 
     def add_module(self, fname, module):
-        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, self.current_module or "")
         self.table[fname] = module
 
     def push(self, fname):
@@ -357,17 +357,20 @@ def _to_require(fname, modtable, path=None):
         mod = modtable.lookup(fname)
         if mod is None:
             return void
-        return Require(fname, modtable.lookup(fname))
+        return Require(fname, modtable, path=None)
     modtable.push(fname)
+    # Pre-emptive pushing to prevent recursive expansion due to submodules
     modtable.add_module(fname, None)
     module = expand_file_cached(fname, modtable)
     modtable.add_module(fname, module)
     modtable.pop()
-    return Require(fname, module, path=path)
+    return Require(fname, modtable, path=path)
 
 def parse_require(path, modtable):
     fname, subs = path[0], path[1:]
     if fname in [".", ".."]:
+        # fname field is not used in this case, so we just give an idea of which
+        # module we are in
         return Require(modtable.current_mod(), None, path=subs)
     return _to_require(fname, modtable, path=subs)
     assert 0, "malformed require"
