@@ -314,8 +314,9 @@ def _to_module(json, modtable):
         else:
             # XXX Need to have the module look for the parent's language
             lang = []
+        lang = lang[0] if lang else None
         body = [_to_ast(x, modtable) for x in v["body-forms"].value_array()]
-        return Module(v["module-name"].value_string(), lang + body, config)
+        return Module(v["module-name"].value_string(), body, config, lang=lang)
     else:
         assert 0
 

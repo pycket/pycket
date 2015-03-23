@@ -371,9 +371,10 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class Module(AST):
-    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?"]
-    def __init__(self, name, body, config):
+    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?", "lang"]
+    def __init__(self, name, body, config, lang=None):
         self.parent = None
+        self.lang = lang
         self.submodules = [b for b in body if isinstance(b, Module)]
         body = [b for b in body if not isinstance(b, Module)]
         self.name = name
@@ -422,7 +423,7 @@ class Module(AST):
     def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
         new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
-        return Module(self.name, new_body, self.config)
+        return Module(self.name, new_body, self.config, lang=self.lang)
 
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
@@ -463,11 +464,23 @@ class Module(AST):
             assert self is not None
         return self
 
+    @jit.unroll_safe
+    def get_language(self):
+        while self is not None:
+            if self.lang:
+                return self.lang
+            self = self.parent
+        return None
+
     def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
+
+        lang = self.get_language()
+        if lang is not None:
+            interpret_one(self.get_language(), self.env)
         for r in self.requires:
             interpret_one(r, self.env)
         for f in self.body:
