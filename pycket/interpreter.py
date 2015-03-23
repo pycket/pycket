@@ -487,13 +487,14 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["modname", "module", "path", "table"]
+    _immutable_fields_ = ["modname", "module", "path[*]", "table"]
     simple = True
 
     def __init__(self, fname, module, path=None):
         self.fname  = fname
         self.module = module
         self.path   = path if path is not None else []
+        self.table  = None
 
     def _mutated_vars(self):
         return variable_set()
