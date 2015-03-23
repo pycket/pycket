@@ -359,6 +359,7 @@ def _to_require(fname, modtable, path=None):
             return void
         return Require(fname, modtable.lookup(fname))
     modtable.push(fname)
+    modtable.add_module(fname, None)
     module = expand_file_cached(fname, modtable)
     modtable.add_module(fname, module)
     modtable.pop()
@@ -367,7 +368,7 @@ def _to_require(fname, modtable, path=None):
 def parse_require(path, modtable):
     fname, subs = path[0], path[1:]
     if fname in [".", ".."]:
-        return Require(modtable.current_mod(), None, subs)
+        return Require(modtable.current_mod(), None, path=subs)
     return _to_require(fname, modtable, path=subs)
     assert 0, "malformed require"
 
@@ -453,7 +454,6 @@ def _to_ast(json, modtable):
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
-            #paths = [o.value_string() for o in obj["require"].value_array()]
             paths = obj["require"].value_array()
             requires = []
             for path in paths:

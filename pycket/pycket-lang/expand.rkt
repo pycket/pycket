@@ -81,16 +81,17 @@
 
 (define (resolve-module mod-name)
   (if (memv mod-name (list "." ".."))
-    mod-name
+    (list mod-name)
     (with-handlers
       ([exn:fail:filesystem:missing-module?
          (lambda (e)
            (make-path-strings
              (append (current-module) (list (desymbolize mod-name)))))])
-      (path->string
-        (simplify-path
-          (resolve-module-path mod-name #f)
-          #f)))))
+      (list
+        (path->string
+          (simplify-path
+            (resolve-module-path mod-name #f)
+            #f))))))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -100,20 +101,18 @@
     (let* ([str (symbol->string v)]
            [pre (substring str 0 (min 2 (string-length str)))])
       (if (string=? pre "#%")
-        str
+        (list str)
         (resolve-module v))))
   (define (desym stx)
     (desymbolize (syntax-e stx)))
-  (define (unit x)
-    (list (list x)))
   (syntax-parse v
-    [v:str        (unit (resolve-module (syntax-e #'v)))]
-    [s:identifier (unit (translate (syntax-e #'s)))]
+    [v:str        (list (resolve-module (syntax-e #'v)))]
+    [s:identifier (list (translate (syntax-e #'s)))]
     [p #:when (path? (syntax-e #'p))
-       (unit (resolve-module (syntax-e #'p)))]
+     (list (resolve-module (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
-     (unit (resolve-module (syntax-e #'x)))]
+     (list (resolve-module (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
@@ -128,11 +127,11 @@
     [((~datum just-meta) 0 p ...)
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
-    [((~datum quote) s:id) (unit (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (unit (resolve-module (syntax-e #'s)))]
+    [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
+    [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     [((~datum submod) path subs ...)
-     (list (cons (resolve-module (syntax-e #'path))
-                 (map desym (syntax->list #'(subs ...)))))]
+     (list (append (resolve-module (syntax-e #'path))
+                   (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
     ;;[((~datum lib) path) (unit (resolve-module (syntax-e #'path)))]
     [((~datum lib) path) '()];;(unit (resolve-module (syntax-e #'path)))]

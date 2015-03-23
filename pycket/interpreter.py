@@ -487,13 +487,13 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["modname", "module", "path"]
+    _immutable_fields_ = ["modname", "module", "path", "table"]
     simple = True
 
-    def __init__(self, modname, module, path=None):
-        self.modname = modname
-        self.module  = module
-        self.path    = path if path is not None else []
+    def __init__(self, fname, module, path=None):
+        self.fname  = fname
+        self.module = module
+        self.path   = path if path is not None else []
 
     def _mutated_vars(self):
         return variable_set()
@@ -506,7 +506,7 @@ class Require(AST):
             module = self.module
         else:
             module = env.toplevel_env().module_env.current_module
-        if self.modname == "..":
+        if self.fname == "..":
             assert module.parent is not None
             module = module.parent
         module = module.resolve_submodule_path(self.path)
@@ -516,12 +516,12 @@ class Require(AST):
     def interpret_simple(self, env):
         module = self.find_module(env)
         top = env.toplevel_env()
-        top.module_env.add_module(self.modname, module.root_module())
+        top.module_env.add_module(self.fname, module.root_module())
         module.interpret_mod(top)
         return values.w_void
 
     def _tostring(self):
-        return "(require %s)"%self.modname
+        return "(require %s)" % self.fname
 
 empty_vals = values.Values.make([])
 
