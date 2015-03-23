@@ -4,7 +4,8 @@
          (only-in racket/list append-map last-pair filter-map first add-between)
          racket/path
          racket/dict racket/match
-         racket/format)
+         racket/format
+         racket/extflonum)
 
 (define keep-srcloc (make-parameter #t))
 
@@ -407,6 +408,9 @@
        (hash 'box (to-json (unbox (syntax-e v)) (unbox (syntax-e v/loc))))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
+    ;; These numeric types seem excessive
+    [_ #:when (extflonum? (syntax-e v))
+       (hash 'number (num (extfl->inexact (syntax-e v))))]
     [_ #:when (number? (syntax-e v))
        (hash 'number (num (syntax-e v)))]
     [_ #:when (char? (syntax-e v))

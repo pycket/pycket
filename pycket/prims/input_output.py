@@ -522,7 +522,8 @@ def format(form, vals, name):
                 s == 'v' or
                 s == 'V' or
                 s == 'e' or
-                s == 'E'):
+                s == 'E' or
+                s == '.'):
             # print a value
             # FIXME: different format chars
             if j >= len(vals):
@@ -534,7 +535,7 @@ def format(form, vals, name):
         elif s == '~':
             result.append("~")
         else:
-            raise SchemeException(name + ": unexpected format character")
+            raise SchemeException("%s: undexpected format character '%s'" % (name, s))
         i += 2
     if j != len(vals):
         raise SchemeException(name + ": not all values used")

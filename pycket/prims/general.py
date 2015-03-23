@@ -177,6 +177,7 @@ expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
 expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
+expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
