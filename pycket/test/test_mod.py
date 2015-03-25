@@ -127,3 +127,20 @@ def test_submodule_operations():
     assert isinstance(a, W_Integer) and a.value == 1
 
 
+@pytest.mark.xfail
+def test_module_star():
+    m = run_mod(
+    """
+    #lang pycket
+    (module outer pycket
+      (define a 1)
+      (module* inner #f
+        (provide b)
+        (define b (+ a 2))))
+    (module snd pycket
+      (require (submod ".." outer inner))
+      (provide c)
+      (define c (+ b 1)))
+    (require (submod "." snd))
+    """)
+
