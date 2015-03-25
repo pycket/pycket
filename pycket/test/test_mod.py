@@ -140,5 +140,17 @@ def test_module_star():
       (provide c)
       (define c (+ b 1)))
     (require (submod "." snd))
+    (define d c)
     """)
+    assert len(m.submodules) == 2
+    outer = m.find_submodule("outer")
+    snd   = m.find_submodule("snd")
+
+    assert outer.parent is m
+    assert snd.parent is m
+    assert len(outer.submodules) == 1
+    assert len(snd.submodules) == 0
+
+    d = m.defs[W_Symbol.make("d")]
+    assert isinstance(d, W_Integer) and d.value == 4
 
