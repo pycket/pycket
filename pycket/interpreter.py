@@ -478,9 +478,11 @@ class Module(AST):
         old = module_env.current_module
         module_env.current_module = self
 
-        lang = self.get_language()
-        if lang is not None:
-            interpret_one(self.get_language(), self.env)
+        if self.lang is not None:
+            interpret_one(self.lang, self.env)
+        elif self.parent is not None:
+            self.parent.interpret_mod(self.env)
+
         for r in self.requires:
             interpret_one(r, self.env)
         for f in self.body:

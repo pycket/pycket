@@ -365,6 +365,7 @@ def _to_require(fname, modtable, path=None):
         return Require(fname, modtable, path=None)
     modtable.push(fname)
     # Pre-emptive pushing to prevent recursive expansion due to submodules
+    # which reference the enclosing module
     modtable.add_module(fname, None)
     module = expand_file_cached(fname, modtable)
     modtable.add_module(fname, module)
@@ -376,7 +377,7 @@ def parse_require(path, modtable):
     if fname in [".", ".."]:
         # fname field is not used in this case, so we just give an idea of which
         # module we are in
-        return Require(modtable.current_mod(), None, path=subs)
+        return Require(modtable.current_mod(), None, path=path)
     return _to_require(fname, modtable, path=subs)
     assert 0, "malformed require"
 
@@ -401,8 +402,12 @@ def to_lambda(o, modtable):
     return make_lambda(fmls, rest, [_to_ast(x, modtable) for x in o["body"].value_array()],
                        pos, sourcefile)
 
-def parse_path(arr):
-    assert len(arr) >= 1
+def convert_path(path):
+    return [p.value_string() for p in path]
+
+def parse_path(p):
+    assert len(p) >= 1
+    arr = convert_path(p)
     srcmod, path = arr[0], arr[1:]
     # Relative module names go into the path.
     # None value for the srcmod indicate the current module
@@ -430,7 +435,7 @@ def _to_ast(json, modtable):
                     srcname = values.W_Symbol.make(target["source-name"].value_string())
                     if "source-module" in target:
                         if target["source-module"].is_array:
-                            path_arr = [t.value_string() for t in target["source-module"].value_array()]
+                            path_arr = target["source-module"].value_array()
                             srcmod, path = parse_path(path_arr)
                         else:
                             srcmod = path = None
@@ -465,7 +470,7 @@ def _to_ast(json, modtable):
             paths = obj["require"].value_array()
             requires = []
             for path in paths:
-                path = [o.value_string() for o in path.value_array()]
+                path = convert_path(path.value_array())
                 if not path:
                     continue
                 requires.append(parse_require(path, modtable))
@@ -538,7 +543,7 @@ def _to_ast(json, modtable):
             modsym = values.W_Symbol.make(modname) if modname else srcsym
             if "source-module" in obj:
                 if obj["source-module"].is_array:
-                    path_arr = [p.value_string() for p in obj["source-module"].value_array()]
+                    path_arr = obj["source-module"].value_array()
                     srcmod, path = parse_path(path_arr)
                 else:
                     srcmod = path = None

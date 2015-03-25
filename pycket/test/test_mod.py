@@ -126,8 +126,6 @@ def test_submodule_operations():
     assert isinstance(b, W_Integer) and b.value == 2
     assert isinstance(a, W_Integer) and a.value == 1
 
-
-@pytest.mark.xfail
 def test_module_star():
     m = run_mod(
     """

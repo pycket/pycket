@@ -61,7 +61,7 @@
         (dynamic-require in-path 'stx))
       stx))
 
-(define current-module (make-parameter #f))
+(define current-module (make-parameter (list #f)))
 
 (define (index->path i)
   (define-values (v u) (module-path-index-split i))
@@ -242,6 +242,15 @@
                    'module   (syntax-source-module->hash
                               (syntax-source-module v/loc #f))))))
 
+(define (expanded-module)
+  (let ([mod (car (current-module))]
+        [path (cdr (current-module))])
+    (if (not mod)
+      ;; If we don't have the module name, encode it relative to
+      ;; the current module
+      (if (null? path) '(".") (map (λ (_) "..") (cdr (current-module))))
+      (list (path->string mod)))))
+
 (define (to-json* v v/loc)
   (define (proper l)
     (match l
@@ -395,7 +404,7 @@
                                      (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [(list? src)
-                                     (cons "." (map desymbolize (cdr src)))]
+                                     (append (expanded-module) (map desymbolize (cdr src)))]
                                     [src (list (symbol->string src))]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
