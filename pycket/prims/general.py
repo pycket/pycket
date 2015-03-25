@@ -558,6 +558,13 @@ def varref_ms(varref):
     # FIXME: not implemented
     return values.W_Symbol.make("dummy_module")
 
+@expose("variable-reference->module-path-index", [values.W_VariableReference])
+def varref_to_mpi(ref):
+    from pycket.interpreter import ModuleVar
+    if not isinstance(ref, ModuleVar):
+        return values.w_false
+    return values.W_ModulePathIndex()
+
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
     return rmp.name
@@ -568,6 +575,8 @@ def module_pathp(v):
         # FIXME: not always right
         return values.w_true
     if isinstance(v, values.W_Path):
+        return values.w_true
+    if isinstance(v, values_string.W_String):
         return values.w_true
     # FIXME
     return values.w_false
