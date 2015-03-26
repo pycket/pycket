@@ -145,6 +145,21 @@ def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
     return values.W_Syntax(v)
 
+@expose("syntax-source", [values.W_Syntax])
+def syntax_source(stx):
+    # XXX Obviously not correct
+    return values.w_false
+
+@expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
+def syntax_source_module(stx, src):
+    # XXX Obviously not correct
+    return values.w_false
+
+@expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
+def syntax_numbers(stx):
+    # XXX Obviously not correct
+    return values.w_false
+
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
     return values.w_false
@@ -564,6 +579,11 @@ def varref_to_mpi(ref):
     if not isinstance(ref, ModuleVar):
         return values.w_false
     return values.W_ModulePathIndex()
+
+@expose("variable-reference->module-base-phase", [values.W_VariableReference])
+def varref_to_mbp(ref):
+    # XXX Obviously not correct
+    return values.W_Fixnum(0)
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
