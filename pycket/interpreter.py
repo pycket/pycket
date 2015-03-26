@@ -1041,8 +1041,7 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return self.srcmod.startswith("#%")
-        #return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils", "#%place" "#%foreign"]
+        return self.srcmod is not None and self.srcmod.startswith("#%")
 
     @jit.elidable
     def _elidable_lookup(self):
