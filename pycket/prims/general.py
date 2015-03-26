@@ -21,6 +21,7 @@ from rpython.rlib.rsre import rsre_re as re
 # import for side effects
 from pycket.prims import continuation_marks
 from pycket.prims import equal as eq_prims
+from pycket.prims import foreign
 from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import input_output
@@ -1134,6 +1135,14 @@ def path2string(p):
 def path2bytes(p):
     return values.W_Bytes.from_string(p.path)
 
+@expose("cleanse-path", [values.W_Object])
+def cleanse_path(p):
+    if isinstance(p, values_string.W_String):
+        return values.W_Path(p.value)
+    if isinstance(p, values.W_Path):
+        return p
+    raise SchemeException("cleanse-path expects string or path")
+
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
     from pycket.interpreter import return_multi_vals
@@ -1351,8 +1360,6 @@ def cur_load_rel_dir():
 def cur_dir():
     return values.W_Path(os.getcwd())
 
-
-
 w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
 w_macosx_sym = values.W_Symbol.make("macosx")
@@ -1368,14 +1375,16 @@ def detect_platform():
 
 w_system_sym = detect_platform()
 
-
 w_os_sym = values.W_Symbol.make("os")
-
+w_os_so_suffix = values.W_Symbol.make("so-suffix")
+w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
 @expose("system-type", [default(values.W_Symbol, w_os_sym)])
 def system_type(w_what):
     if w_what is w_os_sym:
         return w_system_sym
+    if w_what is w_os_so_suffix:
+        return w_unix_so_suffix
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
 

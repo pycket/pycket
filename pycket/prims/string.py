@@ -98,6 +98,24 @@ def string_to_bytes_locale(str, errbyte, start, end):
     # FIXME: This ignores the locale
     return values.W_Bytes(str.as_charlist_utf8())
 
+@expose("bytes->string/latin-1",
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)])
+def bytes_to_string_latin(str, err, start, end):
+    # XXX Not a valid implementation
+    return W_String.fromascii("")
+
+@expose("string->bytes/latin-1",
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)])
+def bytes_to_string_latin(str, err, start, end):
+    # XXX Not a valid implementation
+    return W_Bytes.from_string("")
+
 @expose("string->list", [W_String])
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.as_unicode()])
