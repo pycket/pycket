@@ -1138,7 +1138,7 @@ def path2bytes(p):
 @expose("cleanse-path", [values.W_Object])
 def cleanse_path(p):
     if isinstance(p, values_string.W_String):
-        return values.W_Path(p.value)
+        return values.W_Path("".join(p.as_str_ascii()))
     if isinstance(p, values.W_Path):
         return p
     raise SchemeException("cleanse-path expects string or path")

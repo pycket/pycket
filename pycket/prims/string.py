@@ -114,7 +114,7 @@ def bytes_to_string_latin(str, err, start, end):
          default(values.W_Fixnum, None)])
 def bytes_to_string_latin(str, err, start, end):
     # XXX Not a valid implementation
-    return W_Bytes.from_string("")
+    return values.W_Bytes.from_string("")
 
 @expose("string->list", [W_String])
 def string_to_list(s):
