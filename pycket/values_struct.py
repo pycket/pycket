@@ -474,28 +474,30 @@ class W_RootStruct(values.W_Object):
         raise SchemeException("expected: " + msg.tostring())
 
     @continuation
-    def receive_proc_cont(self, args, calling_app, env, cont, _vals):
+    def receive_proc_cont(self, args, app, env, cont, _vals):
         from pycket.interpreter import check_one_val
         proc = check_one_val(_vals)
-        return self.checked_call(proc, args, calling_app, env, cont)
+        return self.checked_call(proc, args, env, cont, app)
 
-    def checked_call(self, proc, args, calling_app, env, cont):
+    def checked_call(self, proc, args, env, cont, app):
         args_len = len(args)
         arity = proc.get_arity()
-        if (args_len < arity.at_least or arity.at_least == -1) and not arity.list_includes(args_len):
+        if ((args_len < arity.at_least or arity.at_least == -1) and
+            not arity.list_includes(args_len)):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
-                return w_prop_val.call_with_extra_info([self], env, self.arity_error_cont(env, cont), calling_app)
-        return proc.call_with_extra_info(args, env, cont, calling_app)
+                return w_prop_val.call_with_extra_info([self], env,
+                    self.arity_error_cont(env, cont), app)
+        return proc.call_with_extra_info(args, env, cont, app)
 
-    def call_with_extra_info(self, args, env, cont, calling_app):
-        typ = self.struct_type()
-        proc = typ.prop_procedure
+    def call_with_extra_info(self, args, env, cont, app):
+        type = self.struct_type()
+        proc = type.prop_procedure
         if isinstance(proc, values.W_Fixnum):
-            return self.ref(typ.procedure_source, proc.value, env,
-                self.receive_proc_cont(args, calling_app, env, cont))
+            return type.procedure_source.acc.access(self, proc.value,
+                env, self.receive_proc_cont(args, app, env, cont), app)
         args = [self] + args
-        return self.checked_call(proc, args, calling_app, env, cont)
+        return self.checked_call(proc, args, env, cont, app)
 
     # For all subclasses, it should be sufficient to implement ref, set, and
     # struct_type for call and iscallable to work properly.
@@ -510,14 +512,14 @@ class W_RootStruct(values.W_Object):
     def struct_type(self):
         raise NotImplementedError("abstract base class")
 
-    def ref(self, struct_type, field, env, cont):
-        return self.ref_with_extra_info(struct_type, field, None, env, cont)
+    def ref(self, field, env, cont):
+        return self.ref_with_extra_info(None, field, None, env, cont)
 
     def ref_with_extra_info(self, struct_type, field, app, env, cont):
         raise NotImplementedError("abstract base class")
 
-    def set(self, struct_type, field, val, env, cont):
-        return self.set_with_extra_info(struct_type, field, val, None, env, cont)
+    def set(self, field, val, env, cont):
+        return self.set_with_extra_info(None, field, val, None, env, cont)
 
     def set_with_extra_info(self, struct_type, field, val, app, env, cont):
         raise NotImplementedError("abstract base class")
@@ -553,48 +555,38 @@ class W_Struct(W_RootStruct):
     def __init__(self, type):
         self._type = type
 
-    def _get_field_val(self, i):
-        w_res = self._get_list(i)
-        immutable = self.struct_type().is_immutable_field_index(i)
-        if not immutable:
-            assert isinstance(w_res, values.W_Cell)
-            w_res = w_res.get_val()
-        return w_res
+    def struct_type(self):
+        return jit.promote(self._type)
 
     @jit.unroll_safe
     def vals(self):
         size = self._get_size_list()
         values = [None] * size
         for i in range(size):
-            values[i] = self._get_field_val(i)
+            values[i] = self._ref(i)
         return values
-
-    def struct_type(self):
-        return jit.promote(self._type)
 
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
     # continuations.
-    def ref_with_extra_info(self, type, field, app, env, cont):
+    def ref_with_extra_info(self, struct_type, field, app, env, cont):
         from pycket.interpreter import return_value
-        jit.promote(type)
-        offset = self.struct_type().get_offset(type)
-        if offset == -1:
-            raise SchemeException("cannot reference an identifier before its definition")
-        value = self._get_field_val(field + offset)
+        value = self._ref(field)
         return return_value(value, env, cont)
 
-    def set_with_extra_info(self, type, field, val, app, env, cont):
+    def set_with_extra_info(self, struct_type, field, val, app, env, cont):
         from pycket.interpreter import return_value
-        jit.promote(type)
-        offset = self.struct_type().get_offset(type)
-        if offset == -1:
-            raise SchemeException("cannot reference an identifier before its definition")
-        w_cell = self._set(field + offset, val)
+        w_cell = self._set(field, val)
         return return_value(values.w_void, env, cont)
 
     # unsafe versions
-    _ref = _get_field_val
+    def _ref(self, i):
+        w_res = self._get_list(i)
+        immutable = self.struct_type().is_immutable_field_index(i)
+        if not immutable:
+            assert isinstance(w_res, values.W_Cell)
+            w_res = w_res.get_val()
+        return w_res
 
     def _set(self, k, val):
         w_cell = self._get_list(k)
@@ -617,7 +609,7 @@ class W_Struct(W_RootStruct):
             proc = typ.prop_procedure
             if isinstance(proc, values.W_Fixnum):
                 offset = typ.get_offset(typ.procedure_source)
-                proc = self._get_field_val(proc.value + offset)
+                proc = self._ref(proc.value + offset)
                 return proc.get_arity()
             else:
                 # -1 for the self argument
@@ -776,10 +768,11 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
-    @make_call_method([W_RootStruct], simple=False)
+    @make_call_method([W_RootStruct], simple=False,
+        name="<struct-field-accessor-method>")
     def call_with_extra_info(self, struct, env, cont, app):
         jit.promote(self)
-        return self.accessor.access(struct, self.field, app, env, cont)
+        return self.accessor.access(struct, self.field, env, cont, app)
 
     def tostring(self):
         return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name)
@@ -790,12 +783,18 @@ class W_StructAccessor(values.W_Procedure):
     def __init__(self, type):
         self.type = type
 
-    def access(self, struct, field, app, env, cont):
-        return struct.ref_with_extra_info(self.type, field, app, env, cont)
+    def access(self, struct, field, env, cont, app):
+        assert isinstance(struct, W_RootStruct)
+        jit.promote(self)
+        offset = struct.struct_type().get_offset(self.type)
+        if offset == -1:
+            raise SchemeException("cannot reference an identifier before its definition")
+        return struct.ref_with_extra_info(None, field + offset, app, env, cont)
 
-    @make_call_method([W_RootStruct, values.W_Fixnum], simple=False)
+    @make_call_method([W_RootStruct, values.W_Fixnum], simple=False,
+        name="<struct-accessor-method>")
     def call_with_extra_info(self, struct, field, env, cont, app):
-        return struct.ref_with_extra_info(self.type, field.value, app, env, cont)
+        return self.access(struct, field.value, env, cont, app)
 
     def tostring(self):
         return "#<procedure:%s-ref>" % self.type.name
@@ -810,9 +809,10 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
-    @make_call_method([W_RootStruct, values.W_Object], simple=False, name="<struct-field-mutator-method>")
+    @make_call_method([W_RootStruct, values.W_Object], simple=False,
+        name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
-        return self.mutator.mutate(struct, self.field, val, app, env, cont)
+        return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
     def tostring(self):
         return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name)
@@ -823,12 +823,18 @@ class W_StructMutator(values.W_Procedure):
     def __init__ (self, type):
         self.type = type
 
-    def mutate(self, struct, field, val, app, env, cont):
-        return struct.set_with_extra_info(self.type, field, val, app, env, cont)
+    def mutate(self, struct, field, val, env, cont, app):
+        assert isinstance(struct, W_RootStruct)
+        jit.promote(self)
+        offset = struct.struct_type().get_offset(self.type)
+        if offset == -1:
+            raise SchemeException("cannot reference an identifier before its definition")
+        return struct.set_with_extra_info(None, field + offset, val, app, env, cont)
 
-    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object], simple=False, name="<struct-mutator-method>")
+    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object],
+        simple=False, name="<struct-mutator-method>")
     def call_with_extra_info(self, struct, field, val, env, cont, app):
-        return struct.set_with_extra_info(self.type, field.value, val, app, env, cont)
+        return self.mutate(struct, field.value, val, env, cont, app)
 
     def tostring(self):
         return "#<procedure:%s-set!>" % self.type.name
@@ -885,7 +891,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
         self.property = prop
 
     @make_call_method(simple=False)
-    def call_with_extra_info(self, args, env, cont, calling_app):
+    def call_with_extra_info(self, args, env, cont, app):
         from pycket.interpreter import return_value
         arg = args[0]
         if isinstance(arg, W_StructType):
@@ -897,7 +903,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
         elif len(args) > 1:
             failure_result = args[1]
             if failure_result.iscallable():
-                return failure_result.call_with_extra_info([], env, cont, calling_app)
+                return failure_result.call_with_extra_info([], env, cont, app)
             else:
                 return return_value(failure_result, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
