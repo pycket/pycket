@@ -554,7 +554,8 @@ def do_procedure_extract_target(proc, env, cont):
         prop_procedure = proc.struct_type().prop_procedure
         procedure_source = proc.struct_type().procedure_source
         if isinstance(prop_procedure, values.W_Fixnum):
-            return proc.ref(procedure_source, prop_procedure.value, env, cont)
+            return proc.struct_type().acc.access(
+                procedure_source, prop_procedure.value, env, cont, None)
     return return_value(values.w_false, env, cont)
 
 @expose("variable-reference-constant?",
