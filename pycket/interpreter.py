@@ -464,14 +464,6 @@ class Module(AST):
             assert self is not None
         return self
 
-    @jit.unroll_safe
-    def get_language(self):
-        while self is not None:
-            if self.lang:
-                return self.lang
-            self = self.parent
-        return None
-
     def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
@@ -516,6 +508,7 @@ class Require(AST):
     def assign_convert(self, vars, env_structure):
         return self
 
+    @jit.elidable
     def find_module(self, env):
         if self.modtable is not None:
             module = self.modtable.lookup(self.fname)

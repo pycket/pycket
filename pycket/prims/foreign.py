@@ -4,7 +4,7 @@
 # XXX: This whole module is wrong
 
 from pycket              import values
-from pycket.prims.expose import (default, expose, expose_val, procedure)
+from pycket.prims.expose import default, expose, expose_val, procedure
 
 expose_val("_int8"   , values.W_Fixnum.make(0))
 expose_val("_int16"  , values.W_Fixnum.make(1))
