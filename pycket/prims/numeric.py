@@ -78,11 +78,14 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
     return values.w_false
 
+def is_real(obj):
+    return (isinstance(obj, values.W_Fixnum) or
+            isinstance(obj, values.W_Bignum) or
+            isinstance(obj, values.W_Flonum))
+
 @expose("real?", [values.W_Object])
 def realp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum) or
-                              isinstance(n, values.W_Flonum))
+    return values.W_Bool.make(is_real(n))
 
 @expose("inexact-real?", [values.W_Object])
 def inexact_real(n):
@@ -95,6 +98,12 @@ def single_flonum(n):
 @expose("double-flonum?", [values.W_Object])
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("real->double-flonum", [values.W_Number])
+def real_to_double_flonum(num):
+    if is_real(num):
+        return num.arith_exact_inexact()
+    raise SchemeException("real->double-flonum: %s is not real" % num.tostring())
 
 @expose("rational?", [values.W_Object])
 def rationalp(n):

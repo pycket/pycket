@@ -45,6 +45,11 @@ def test_quotient():
     res = run(str(big / 2))
     run("(quotient %s 2)" % (big, ), res)
 
+    res = run("(quotient 8.0 2.0)")
+    assert isinstance(res, W_Flonum) and res.value == 4.0
+    res = run("(quotient 1.0 2.0)")
+    assert isinstance(res, W_Flonum) and res.value == 0.5
+
 def test_remainder(doctest):
     """
     > (remainder 0 1)
