@@ -229,8 +229,6 @@ def read_list(stream, so_far, end):
             assert isinstance(next_token, ValueToken)
             v = next_token.val
         so_far = values.W_Cons.make(v, so_far)
-        #return read_list(stream, values.W_Cons.make(v, so_far), end)
-
 
 
 linefeed_sym        = values.W_Symbol.make("linefeed")

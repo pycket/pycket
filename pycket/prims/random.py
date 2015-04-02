@@ -1,6 +1,6 @@
 from rpython.rlib import rrandom, rarithmetic
 
-from pycket.prims.expose import default, expose
+from pycket.prims.expose import default, expose, expose_val
 from pycket import values
 from pycket import vector as values_vector
 
@@ -26,11 +26,8 @@ def random_seed(seed):
 def make_pseudo_random_generator():
     return values.W_PseudoRandomGenerator()
 
-@expose("current-pseudo-random-generator")
-def current_pseudo_random_generator(args):
-    if not args:
-        return values.W_PseudoRandomGenerator()
-    return values.w_void
+current_pseudo_random_generator = values.W_Parameter(values.W_PseudoRandomGenerator())
+expose_val("current-pseudo-random-generator", current_pseudo_random_generator)
 
 @expose("pseudo-random-generator->vector", [values.W_PseudoRandomGenerator])
 def pseudo_random_generator_to_vector(gen):
