@@ -1,20 +1,26 @@
 from rpython.rlib import rrandom, rarithmetic
 
 from pycket.prims.expose import default, expose, expose_val
-from pycket import values
-from pycket import vector as values_vector
+from pycket              import values
+from pycket              import vector as values_vector
+from pycket.error        import SchemeException
 
 # XXX for now just always use a global rng
 
 rng = rrandom.Random()
 
-@expose("random", [default(values.W_Fixnum, None)])
-def random(w_k):
-    if w_k is None:
+@expose("random")
+def random(args):
+    if not args:
         # random flonum
         return values.W_Flonum(rng.random())
-    upper = w_k.value
-    return values.W_Fixnum(int(rng.random() * upper))
+    a1 = args[0]
+    if isinstance(a1, values.W_Fixnum):
+        upper = a1.value
+        return values.W_Fixnum(int(rng.random() * upper))
+    if isinstance(a1, values.W_PseudoRandomGenerator):
+        return values.W_Flonum(rng.random())
+    raise SchemeException("random: invalid arguments")
 
 @expose("random-seed", [values.W_Fixnum])
 def random_seed(seed):
