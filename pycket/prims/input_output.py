@@ -174,7 +174,7 @@ def read_token(f):
 def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
-        port = current_out_param.get(cont)
+        port = current_in_param.get(cont)
     v = read_stream(port)
     return return_value(v, env, cont)
 
