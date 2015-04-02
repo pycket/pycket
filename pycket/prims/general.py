@@ -591,17 +591,26 @@ def varref_to_mbp(ref):
 def rmp_name(rmp):
     return rmp.name
 
-@expose("module-path?", [values.W_Object])
-def module_pathp(v):
+def is_module_path(v):
     if isinstance(v, values.W_Symbol):
         # FIXME: not always right
-        return values.w_true
+        return True
     if isinstance(v, values.W_Path):
-        return values.w_true
+        return True
     if isinstance(v, values_string.W_String):
-        return values.w_true
+        return True
+    if isinstance(v, values.W_List):
+        vs = values.from_list(v)
+        for p in vs:
+            if not is_module_path(p):
+                return False
+        return True
     # FIXME
-    return values.w_false
+    return False
+
+@expose("module-path?", [values.W_Object])
+def module_pathp(v):
+    return values.W_Bool.make(is_module_path(v))
 
 @expose("values")
 def do_values(args_w):
