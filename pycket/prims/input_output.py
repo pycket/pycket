@@ -207,27 +207,29 @@ def check_matches(s1, s2):
         assert s2 == "}"
 
 def read_list(stream, so_far, end):
-    next_token = read_token(stream)
-    if isinstance(next_token, DotToken):
-        last = read_stream(stream)
-        close = read_token(stream)
-        if isinstance(close, RParenToken):
-            check_matches(end, close.str)
-            return reverse(so_far, acc=last)
+    while True:
+        next_token = read_token(stream)
+        if isinstance(next_token, DotToken):
+            last = read_stream(stream)
+            close = read_token(stream)
+            if isinstance(close, RParenToken):
+                check_matches(end, close.str)
+                return reverse(so_far, acc=last)
+            else:
+                raise SchemeException("read: illegal use of `.`")
+        elif isinstance(next_token, RParenToken):
+            check_matches(end, next_token.str)
+            return reverse(so_far)
+        elif isinstance(next_token, LParenToken):
+            v = read_list(stream, values.w_null, next_token.str)
+        elif isinstance(next_token, SpecialToken):
+            arg = read_stream(stream)
+            v = next_token.finish(arg)
         else:
-            raise SchemeException("read: illegal use of `.`")
-    elif isinstance(next_token, RParenToken):
-        check_matches(end, next_token.str)
-        return reverse(so_far)
-    elif isinstance(next_token, LParenToken):
-        v = read_list(stream, values.w_null, next_token.str)
-    elif isinstance(next_token, SpecialToken):
-        arg = read_stream(stream)
-        v = next_token.finish(arg)
-    else:
-        assert isinstance(next_token, ValueToken)
-        v = next_token.val
-    return read_list(stream, values.W_Cons.make(v, so_far), end)
+            assert isinstance(next_token, ValueToken)
+            v = next_token.val
+        so_far = values.W_Cons.make(v, so_far)
+        #return read_list(stream, values.W_Cons.make(v, so_far), end)
 
 
 
