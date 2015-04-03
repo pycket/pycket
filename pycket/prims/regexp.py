@@ -73,6 +73,12 @@ def regexp_matchp(w_r, w_o):
     else:
         return values.w_false
 
+@expose("regexp-max-lookbehind", [values.W_Object])
+def regexp_max_lookbehind(obj):
+    if not isinstance(obj, values_regex.W_Regexp) and not isinstance(obj, values_regex.W_ByteRegexp):
+        raise SchemeException("regexp-max-lookbehind: expected regexp or bytes-regexp")
+    return values.W_Fixnum(1000)
+
 # FIXME: implementation
 define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
                            default(values.W_Bytes, None)])

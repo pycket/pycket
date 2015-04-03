@@ -554,7 +554,6 @@ def _to_ast(json, modtable):
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
         if "module-name" in obj:
-            # stub for now
             return _to_module(json, modtable)
     assert 0, "Unexpected json object: %s" % json.tostring()
 

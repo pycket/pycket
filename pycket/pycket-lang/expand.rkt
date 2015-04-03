@@ -70,7 +70,10 @@
       (list (current-module) #t)))
 
 (define (desymbolize s)
-  (if (symbol? s) (symbol->string s) s))
+  (cond
+    [(symbol? s) (symbol->string s)]
+    [(path? s)   (path->string s)]
+    [else        s]))
 
 (define (make-path-strings xs)
   (define (path-string p)
@@ -251,6 +254,11 @@
       (if (null? path) '(".") (map (λ (_) "..") (cdr (current-module))))
       (list (path->string mod)))))
 
+(define (list-module-path p)
+  (if (not (path? (car p)))
+    (append (expanded-module) (map desymbolize (cdr p)))
+    (map desymbolize p)))
+
 (define (to-json* v v/loc)
   (define (proper l)
     (match l
@@ -403,8 +411,7 @@
                                     [(path? src)
                                      (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
-                                    [(list? src)
-                                     (append (expanded-module) (map desymbolize (cdr src)))]
+                                    [(list? src) (list-module-path src)]
                                     [src (list (symbol->string src))]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
