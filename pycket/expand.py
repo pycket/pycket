@@ -347,8 +347,12 @@ class ModTable(object):
             return None
         return self.current_modules[-1]
 
+    @staticmethod
+    def builtin(fname):
+        return fname.startswith("#%")
+
     def has_module(self, fname):
-        return fname.startswith("#%") or fname in self.table
+        return ModTable.builtin(fname) or fname in self.table
 
     def lookup(self, fname):
         if fname.startswith("#%"):
@@ -357,10 +361,9 @@ class ModTable(object):
 
 def _to_require(fname, modtable, path=None):
     if modtable.has_module(fname):
-        mod = modtable.lookup(fname)
-        if mod is None:
+        if modtable.builtin(fname):
             return VOID
-        return Require(fname, modtable, path=None)
+        return Require(fname, modtable, path=path)
     modtable.push(fname)
     # Pre-emptive pushing to prevent recursive expansion due to submodules
     # which reference the enclosing module
