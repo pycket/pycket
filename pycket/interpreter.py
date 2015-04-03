@@ -25,7 +25,8 @@ BUILTIN_MODULES = [
     "#%utils",
     "#%place",
     "#%foreign",
-    "#%builtin"]
+    "#%builtin",
+    "#%extfl" ]
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
