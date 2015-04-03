@@ -17,6 +17,18 @@ import sys
 # imported for side effects
 import pycket.prims.general
 
+BUILTIN_MODULES = [
+    "#%kernel",
+    "#%unsafe",
+    "#%paramz",
+    "#%flfxnum",
+    "#%utils",
+    "#%place",
+    "#%foreign",
+    "#%builtin"]
+
+def is_builtin_module(mod):
+    return mod in BUILTIN_MODULES
 
 class Done(Exception):
     def __init__(self, vals):
@@ -1003,6 +1015,7 @@ class LexicalVar(Var):
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
+
     def __init__(self, sym, srcmod, srcsym, path=None):
         Var.__init__(self, sym)
         self.srcmod = srcmod
@@ -1034,7 +1047,7 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return self.srcmod in ["#%kernel", "#%unsafe", "#%paramz", "#%flfxnum", "#%utils", "#%place", "#%foreign"]
+        return is_builtin_module(self.srcmod)
 
     @jit.elidable
     def _elidable_lookup(self):
