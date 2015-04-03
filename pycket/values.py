@@ -24,6 +24,7 @@ UNROLLING_CUTOFF = 5
 
 def memoize(f):
     cache = {}
+    @jit.elidable
     def wrapper(*val):
         lup = cache.get(val, None)
         if lup is None:
