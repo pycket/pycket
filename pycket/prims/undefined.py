@@ -50,8 +50,8 @@ def csuu(obj):
         return obj
     typ    = obj.struct_type()
     fields = typ.total_field_cnt
-    acc    = [make_accessor(typ.acc, i) for i in range(fields)]
-    mut    = [make_mutator(typ.mut, i) for i in range(fields)]
+    acc    = [make_accessor(typ.accessor, i) for i in range(fields)]
+    mut    = [make_mutator(typ.mutator, i) for i in range(fields)]
     h1     = [accessor_handler] * fields
     h2     = [mutator_handler] * fields
     return imp.W_ChpStruct(obj, acc + mut, h1 + h2, [], [])
