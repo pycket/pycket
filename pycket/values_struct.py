@@ -513,15 +513,15 @@ class W_RootStruct(values.W_Object):
         raise NotImplementedError("abstract base class")
 
     def ref(self, field, env, cont):
-        return self.ref_with_extra_info(None, field, None, env, cont)
+        return self.ref_with_extra_info(field, None, env, cont)
 
-    def ref_with_extra_info(self, struct_type, field, app, env, cont):
+    def ref_with_extra_info(self, field, app, env, cont):
         raise NotImplementedError("abstract base class")
 
     def set(self, field, val, env, cont):
-        return self.set_with_extra_info(None, field, val, None, env, cont)
+        return self.set_with_extra_info(field, val, None, env, cont)
 
-    def set_with_extra_info(self, struct_type, field, val, app, env, cont):
+    def set_with_extra_info(self, field, val, app, env, cont):
         raise NotImplementedError("abstract base class")
 
     # unsafe versions
@@ -569,12 +569,12 @@ class W_Struct(W_RootStruct):
     # Rather than reference functions, we store the continuations. This is
     # necessarray to get constant stack usage without adding extra preamble
     # continuations.
-    def ref_with_extra_info(self, struct_type, field, app, env, cont):
+    def ref_with_extra_info(self, field, app, env, cont):
         from pycket.interpreter import return_value
         value = self._ref(field)
         return return_value(value, env, cont)
 
-    def set_with_extra_info(self, struct_type, field, val, app, env, cont):
+    def set_with_extra_info(self, field, val, app, env, cont):
         from pycket.interpreter import return_value
         w_cell = self._set(field, val)
         return return_value(values.w_void, env, cont)
@@ -789,7 +789,7 @@ class W_StructAccessor(values.W_Procedure):
         offset = struct.struct_type().get_offset(self.type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        return struct.ref_with_extra_info(None, field + offset, app, env, cont)
+        return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum], simple=False,
         name="<struct-accessor-method>")
@@ -829,7 +829,7 @@ class W_StructMutator(values.W_Procedure):
         offset = struct.struct_type().get_offset(self.type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
-        return struct.set_with_extra_info(None, field + offset, val, app, env, cont)
+        return struct.set_with_extra_info(field + offset, val, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object],
         simple=False, name="<struct-mutator-method>")
