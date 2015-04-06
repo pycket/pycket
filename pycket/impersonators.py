@@ -50,7 +50,7 @@ def make_impersonator(cls):
     setattr(cls, "is_impersonator", is_impersonator)
     return cls
 
-def traceable_proxy(self, sid, field, *args):
+def traceable_proxy(self, field, *args):
     if jit.we_are_jitted():
         return True
     goto = self.mask[field]
@@ -59,7 +59,7 @@ def traceable_proxy(self, sid, field, *args):
 # Check if a proxied struct has more than n levels to descend through
 def enter_above_depth(n):
     @jit.unroll_safe
-    def above_threshold(self, sid, field, *args):
+    def above_threshold(self, field, *args):
         if jit.we_are_jitted():
             return True
         for _ in range(n):
@@ -350,11 +350,11 @@ def valid_struct_proc(x):
             isinstance(v, values_struct.W_StructPropertyAccessor))
 
 @continuation
-def imp_struct_set_cont(orig_struct, setter, struct_id, field, app, env, cont, _vals):
+def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
     if setter is values.w_false:
-        return orig_struct.set_with_extra_info(struct_id, field, val, app, env, cont)
+        return orig_struct.set_with_extra_info(field, val, app, env, cont)
     return setter.call_with_extra_info([orig_struct, val], env, cont, app)
 
 # Representation of a struct that allows interposition of operations
@@ -429,7 +429,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
 
-    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
+    def post_set_cont(self, op, field, val, app, env, cont):
         raise NotImplementedError("abstract method")
 
     @jit.unroll_safe
@@ -444,24 +444,24 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return get_base_object(self.base).struct_type()
 
     @guarded_loop(enter_above_depth(5))
-    def ref_with_extra_info(self, struct_id, field, app, env, cont):
+    def ref_with_extra_info(self, field, app, env, cont):
         goto = self.mask[field]
         if goto is not self:
-            return goto.ref_with_extra_info(struct_id, field, app, env, cont)
+            return goto.ref_with_extra_info(field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
         after = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref_with_extra_info(struct_id, field, app, env, after)
+            return self.inner.ref_with_extra_info(field, app, env, after)
         return op.call_with_extra_info([self.inner], env, after, app)
 
     @guarded_loop(enter_above_depth(5))
-    def set_with_extra_info(self, struct_id, field, val, app, env, cont):
+    def set_with_extra_info(self, field, val, app, env, cont):
         op = self.mutators[2 * field]
         interp = self.mutators[2 * field + 1]
         if interp is values.w_false:
-            return self.inner.set_with_extra_info(struct_id, field, val, app, env, cont)
-        after = self.post_set_cont(op, struct_id, field, val, app, env, cont)
+            return self.inner.set_with_extra_info(field, val, app, env, cont)
+        after = self.post_set_cont(op, field, val, app, env, cont)
         return interp.call_with_extra_info([self, val], env, after, app)
 
     @label
@@ -488,8 +488,8 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, app, env, cont):
         return impersonate_reference_cont(interp, [self], app, env, cont)
 
-    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
-        return imp_struct_set_cont(self.inner, op, struct_id, field, app, env, cont)
+    def post_set_cont(self, op, field, val, app, env, cont):
+        return imp_struct_set_cont(self.inner, op, field, app, env, cont)
 
 @make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
@@ -497,9 +497,9 @@ class W_ChpStruct(W_InterposeStructBase):
     def post_ref_cont(self, interp, app, env, cont):
         return chaperone_reference_cont(interp, [self], app, env, cont)
 
-    def post_set_cont(self, op, struct_id, field, val, app, env, cont):
+    def post_set_cont(self, op, field, val, app, env, cont):
         return check_chaperone_results([val], env,
-                imp_struct_set_cont(self.inner, op, struct_id, field, app, env, cont))
+                imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):

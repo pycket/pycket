@@ -52,7 +52,7 @@ def do_struct_type_make_predicate(struct_type):
     if struct_type.inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return struct_type.pred
+    return struct_type.predicate
 
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
@@ -65,7 +65,8 @@ def do_struct_type_make_predicate(struct_type):
          default(values.W_Object, values.w_false)], simple=False)
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    if not (isinstance(super_type, values_struct.W_StructType) or super_type is values.w_false):
+    if not (isinstance(super_type, values_struct.W_StructType) or
+            super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
     return values_struct.W_StructType.make(name, super_type, init_field_cnt,
         auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
