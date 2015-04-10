@@ -143,8 +143,8 @@ def wrap_for_tempfile(fn):
 
 
 def expand_file_to_json(rkt_file, json_file):
-    if not we_are_translated():
-        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
+    #if not we_are_translated():
+        #return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
     return _expand_file_to_json(rkt_file, json_file)
 
 def _expand_file_to_json(rkt_file, json_file):
@@ -360,7 +360,22 @@ class ModTable(object):
             return None
         return self.table[fname]
 
+def shorten_submodule_path(path):
+    if path is None:
+        return None
+    acc = []
+    for p in path:
+        if p == ".":
+            continue
+        if p == "..":
+            assert acc, "Malformed submodule path"
+            acc.pop()
+        else:
+            acc.append(p)
+    return acc[:]
+
 def _to_require(fname, modtable, path=None):
+    path = shorten_submodule_path(path)
     if modtable.has_module(fname):
         if modtable.builtin(fname):
             return VOID

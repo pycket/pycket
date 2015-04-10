@@ -259,6 +259,11 @@
     (append (expanded-module) (map desymbolize (cdr p)))
     (map desymbolize p)))
 
+(define (symbol-module-path p)
+  (if (string=? (symbol->string p) "expanded module")
+    (expanded-module)
+    (list (symbol->string p))))
+
 (define (to-json* v v/loc)
   (define (proper l)
     (match l
@@ -412,7 +417,7 @@
                                      (list (path->string (simplify-path src #f)))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [(list? src) (list-module-path src)]
-                                    [src (list (symbol->string src))]
+                                    [src (symbol-module-path src)]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
                'source-name (id->sym #'i)
