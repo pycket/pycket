@@ -143,8 +143,8 @@ def wrap_for_tempfile(fn):
 
 
 def expand_file_to_json(rkt_file, json_file):
-    #if not we_are_translated():
-        #return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
+    if not we_are_translated():
+        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
     return _expand_file_to_json(rkt_file, json_file)
 
 def _expand_file_to_json(rkt_file, json_file):
