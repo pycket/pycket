@@ -69,10 +69,13 @@
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
 
+(define (full-path-string p)
+  (path->string (simplify-path p #f)))
+
 (define (desymbolize s)
   (cond
     [(symbol? s) (symbol->string s)]
-    [(path? s)   (path->string s)]
+    [(path? s)   (full-path-string s)]
     [else        s]))
 
 (define (make-path-strings xs)
@@ -92,10 +95,8 @@
            (make-path-strings
              (append (current-module) (list (desymbolize mod-name)))))])
       (list
-        (path->string
-          (simplify-path
-            (resolve-module-path mod-name #f)
-            #f))))))
+        (full-path-string
+          (resolve-module-path mod-name #f))))))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
@@ -151,7 +152,7 @@
       (for/hash ([k '(collects-dir temp-dir init-dir pref-dir home-dir
                                    pref-file init-file config-dir addon-dir
                                    exec-file run-file sys-dir doc-dir orig-dir)])
-        (values k (path->string (simplify-path (find-system-path k) #f)))))
+        (values k (full-path-string (find-system-path k)))))
     (hash-set* sysconfig
                'version (version))))
 
@@ -220,7 +221,7 @@
 
 (define (to-json v v/loc)
   (define (path/symbol/list->string o)
-    (cond [(path-string? o) (hash '%p (path->string (simplify-path o #f)))]
+    (cond [(path-string? o) (hash '%p (full-path-string o #f))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
           [(list? o)        (map path/symbol/list->string o)]
           [else o]))
@@ -252,7 +253,7 @@
       ;; If we don't have the module name, encode it relative to
       ;; the current module
       (if (null? path) '(".") (map (λ (_) "..") (cdr (current-module))))
-      (list (path->string mod)))))
+      (list (full-path-string mod #f)))))
 
 (define (list-module-path p)
   (if (not (path? (car p)))
@@ -283,7 +284,7 @@
     [(v:str _) (hash 'string (syntax-e #'v))]
     [(v _)
      #:when (path? (syntax-e #'v))
-     (hash 'path (path->string (simplify-path (syntax-e #'v) #f)))]
+     (hash 'path (full-path-string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
     [((_ ...) _)
@@ -412,9 +413,9 @@
         (define modsym (symbol->string (syntax-e v)))
         (hash* 'source-module (cond [(not src) 'null]
                                     [(and self? (path? (car src)))
-                                     (cons (path->string (car src)) (cdr src))]
+                                     (cons (full-path-string (car src)) (cdr src))]
                                     [(path? src)
-                                     (list (path->string (simplify-path src #f)))]
+                                     (list (full-path-string src))]
                                     [(eq? src '#%kernel) #f] ;; omit these
                                     [(list? src) (list-module-path src)]
                                     [src (symbol-module-path src)]

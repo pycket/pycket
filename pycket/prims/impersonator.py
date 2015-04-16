@@ -291,6 +291,11 @@ def icmk(args):
     unpacked = unpack_cmk_args(args, "impersonate-continuation-mark-key")
     return imp.W_ImpContinuationMarkKey(*unpacked)
 
+@expose(["chaperone-struct-type", "impersonate-struct-type"])
+def cst(args):
+    # XXX Not correct
+    return args[0]
+
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):
     info = EqualInfo.CHAPERONE_SINGLETON
