@@ -704,3 +704,9 @@ def test_unsafe_undefined(doctest):
     3
     """
 
+def test_dynamic_wind(doctest):
+    """
+    > (dynamic-wind (lambda () 1) (lambda () 2) (lambda () 3))
+    2
+    """
+

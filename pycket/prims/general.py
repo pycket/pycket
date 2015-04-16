@@ -640,7 +640,23 @@ def cont_prompt_avail(args):
 def cont_prompt_tag(args):
     return values.w_false
 
-define_nyi("dynamic-wind", False)
+@continuation
+def dynamic_wind_pre_cont(value, post, env, cont, _vals):
+    return value.call([], env, dynamic_wind_value_cont(post, env, cont))
+
+@continuation
+def dynamic_wind_value_cont(post, env, cont, _vals):
+    return post.call([], env, dynamic_wind_post_cont(_vals, env, cont))
+
+@continuation
+def dynamic_wind_post_cont(val, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(val, env, cont)
+
+@expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
+def dynamic_wind(pre, value, post, env, cont):
+    return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
+
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
