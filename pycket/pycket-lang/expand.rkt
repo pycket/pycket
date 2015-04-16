@@ -221,7 +221,7 @@
 
 (define (to-json v v/loc)
   (define (path/symbol/list->string o)
-    (cond [(path-string? o) (hash '%p (full-path-string o #f))]
+    (cond [(path-string? o) (hash '%p (full-path-string o))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
           [(list? o)        (map path/symbol/list->string o)]
           [else o]))
@@ -253,7 +253,7 @@
       ;; If we don't have the module name, encode it relative to
       ;; the current module
       (if (null? path) '(".") (map (λ (_) "..") (cdr (current-module))))
-      (list (full-path-string mod #f)))))
+      (list (full-path-string mod)))))
 
 (define (list-module-path p)
   (if (not (path? (car p)))
