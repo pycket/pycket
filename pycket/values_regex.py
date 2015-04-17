@@ -56,6 +56,16 @@ class W_AnyRegexp(W_Object):
             return None
         return _extract_result(ctx, self.groupcount)
 
+    def match_string_positions(self, s):
+        self.ensure_compiled()
+        ctx = rsre_core.search(self.code, s)
+        if ctx is None:
+            return []
+        return _extract_spans(ctx, self.groupcount)
+
+    def match_port_positions(self, w_port):
+        raise NotImplementedError("match_port_position: not yet implemented")
+
     def match_port(self, w_port):
         self.ensure_compiled()
         if isinstance(w_port, values.W_StringInputPort):
@@ -73,7 +83,6 @@ class W_AnyRegexp(W_Object):
             return None
         return _extract_result(ctx, self.groupcount)
 
-
     def equal(self, other):
         if not isinstance(other, W_AnyRegexp):
             return False
@@ -81,6 +90,10 @@ class W_AnyRegexp(W_Object):
             return self.source == other.source
         return False
 
+@rsre_core.specializectx
+@jit.unroll_safe
+def _extract_spans(ctx, groupcount):
+    return [ctx.span(i) for i in range(groupcount + 1)]
 
 @rsre_core.specializectx
 @jit.unroll_safe
