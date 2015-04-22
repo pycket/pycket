@@ -135,11 +135,11 @@
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     [((~datum submod) path subs ...)
-     (list (append (resolve-module (syntax-e #'path))
+     (list (append (car (require-json #'path))
                    (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
     ;;[((~datum lib) path) (unit (resolve-module (syntax-e #'path)))]
-    [((~datum lib) path) '()];;(unit (resolve-module (syntax-e #'path)))]
+    [((~datum lib) path) (require-json #'path)]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
@@ -442,11 +442,11 @@
     [_ #:when (pregexp? (syntax-e v))
        (hash 'pregexp (object-name (syntax-e v)))]
     [_ #:when (byte-regexp? (syntax-e v))
-       (hash 'byte-regexp (bytes->string/utf-8 (object-name (syntax-e v))))]
+       (hash 'byte-regexp (bytes->list (object-name (syntax-e v))))]
     [_ #:when (byte-pregexp? (syntax-e v))
-       (hash 'byte-pregexp (bytes->string/utf-8 (object-name (syntax-e v))))]
+       (hash 'byte-pregexp (bytes->list (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
-       (hash 'bytes (bytes->string/utf-8 (syntax-e v)))]
+       (hash 'bytes (bytes->list (syntax-e v)))]
     [_ #:when (hash? (syntax-e v))
        (let ([ht (syntax-e v)]
              [ht* (syntax-e v/loc)])

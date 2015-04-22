@@ -612,6 +612,9 @@ def _to_num(json):
             return values.W_Bignum(val)
     assert False
 
+def decode_byte_array(arr):
+    return [chr(i.value_int()) for i in arr.value_array()]
+
 def to_value(json):
     dbgprint("to_value", json)
     if json is pycket_json.json_false:
@@ -642,13 +645,16 @@ def to_value(json):
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
-            return values_regex.W_ByteRegexp(obj["byte-regexp"].value_string())
+            arr = decode_byte_array(obj["byte-regexp"])
+            return values_regex.W_ByteRegexp("".join(arr))
         if "pregexp" in obj:
             return values_regex.W_PRegexp(obj["pregexp"].value_string())
-        if "byte-regexp" in obj:
-            return values_regex.W_BytePRegexp(obj["byte-pregexp"].value_string())
+        if "byte-pregexp" in obj:
+            arr = decode_byte_array(obj["byte-pregexp"])
+            return values_regex.W_BytePRegexp("".join(arr))
         if "bytes" in obj:
-            return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
+            arr = decode_byte_array(obj["bytes"])
+            return values.W_ImmutableBytes(arr)
         if "string" in obj:
             return values_string.W_String.make(str(obj["string"].value_string()))
         if "keyword" in obj:
