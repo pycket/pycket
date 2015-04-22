@@ -80,6 +80,18 @@ def match_positions(w_re, w_str):
     raise SchemeException("regexp-match-positions: can't deal with this type")
 
 @expose("regexp-match-positions", [values.W_Object, values.W_Object])
+@jit.unroll_safe
+def rmp(pat, input):
+    matches = match_positions(pat, input)
+    xs = []
+    for start, end in matches:
+        s = values.W_Fixnum(start)
+        e = values.W_Fixnum(end)
+        xs.append(values.W_Cons.make(s, e))
+    return values.to_list(xs)
+
+@expose("regexp-match-positions-end", [values.W_Object, values.W_Object])
+@jit.unroll_safe
 def rmp(pat, input):
     matches = match_positions(pat, input)
     xs = []
