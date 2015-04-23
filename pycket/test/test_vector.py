@@ -185,6 +185,7 @@ def test_vector_copy_bang(doctest):
     > (vector-copy! v 0 v 3 4)
     > v
     '#(l p p l y)
+    > (vector-copy v 0 #() 0 0)
     """
 
 def test_list_vector_conversion():
