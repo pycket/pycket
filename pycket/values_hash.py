@@ -36,6 +36,10 @@ class W_HashTable(W_Object):
     def length(self):
         raise NotImplementedError("abstract method")
 
+    @staticmethod
+    def make_empty():
+        raise NotImplementedError("abstract method")
+
     def get_item(self, i):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
@@ -86,6 +90,11 @@ class W_SimpleHashTable(W_HashTable):
         return len(self.data)
 
 class W_EqvHashTable(W_SimpleHashTable):
+
+    @staticmethod
+    def make_empty():
+        return W_EqvHashTable([], [])
+
     @staticmethod
     def hash_value(k):
         return k.hash_eqv()
@@ -98,6 +107,11 @@ class W_EqvHashTable(W_SimpleHashTable):
         return get_dict_item(self.data, i)
 
 class W_EqHashTable(W_SimpleHashTable):
+
+    @staticmethod
+    def make_empty():
+        return W_EqHashTable([], [])
+
     @staticmethod
     def hash_value(k):
         if isinstance(k, values.W_Fixnum):
@@ -427,6 +441,10 @@ class W_EqualHashTable(W_HashTable):
 
     def length(self):
         return self.strategy.length(self)
+
+    @staticmethod
+    def make_empty():
+        return W_EqualHashTable([], [])
 
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]

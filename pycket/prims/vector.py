@@ -89,7 +89,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
 
     if not (0 <= dest_start < dest.length()):
         raise SchemeException("vector-copy!: destination start out of bounds")
-    if not (0 <= src_start < src.length()) or not (0 <= src_start < src.length()):
+    if not (0 <= src_start <= src.length()) or not (0 <= src_start <= src.length()):
         raise SchemeException("vector-copy!: source start/end out of bounds")
     if dest_range < src_range:
         raise SchemeException("vector-copy!: not enough room in target vector")
