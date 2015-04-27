@@ -139,7 +139,7 @@
                    (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
     ;;[((~datum lib) path) (unit (resolve-module (syntax-e #'path)))]
-    [((~datum lib) path) (require-json #'path)]
+    [((~datum lib) path) '()];;(require-json #'path)]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
