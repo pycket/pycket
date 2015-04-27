@@ -185,11 +185,12 @@ def chaperone_vector(args):
 @expose("impersonate-struct")
 @jit.unroll_safe
 def impersonate_struct(args):
+    if len(args) == 1 and isinstance(args[0], values_struct.W_RootStruct):
+        return args[0]
+
     args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
     if len(args) < 1 or len(args) % 2 != 1:
         raise SchemeException("impersonate-struct: arity mismatch")
-    if len(args) == 1:
-        return args[0]
 
     struct, args = args[0], args[1:]
 
