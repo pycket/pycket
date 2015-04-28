@@ -1780,7 +1780,19 @@ class Let(SequencedBodyAST):
                 # we can reuse the var names
                 copied_vars = free_vars_not_from_let.keys()
                 new_rhss = self.rhss[:-1] + [LexicalVar(v) for v in copied_vars] + [self.rhss[-1]]
-                new_lhs_vars = body_env_structure.elems[:-1] + copied_vars + [body_env_structure.elems[-1]]
+
+                # Perform the proper splicing. The extra complexity here is
+                # due to limitations on slicing in RPython
+                idx = self.counts[-1]
+                cutoff = len(body_env_structure.elems) - idx
+                new_lhs_vars = []
+                for i in range(cutoff):
+                    new_lhs_vars.append(body_env_structure.elems[i])
+                new_lhs_vars += copied_vars
+                for i in range(cutoff, len(body_env_structure.elems)):
+                    new_lhs_vars.append(body_env_structure.elems[i])
+                new_lhs_vars = new_lhs_vars[:]
+
                 counts = self.counts[:-1] + [1] * len(copied_vars) + [self.counts[-1]]
                 body_env_structure = SymList(new_lhs_vars)
                 sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)

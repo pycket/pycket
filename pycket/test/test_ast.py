@@ -1,13 +1,13 @@
 import pytest
 from pycket.expand import expand, expand_string
-from pycket.values import W_Symbol
+from pycket.values import W_Symbol, W_Fixnum
 from pycket.expand import _to_ast, to_ast, parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
                                 SimplePrimApp1, SimplePrimApp2
                                 )
-from pycket.test.testhelper import format_pycket_mod
+from pycket.test.testhelper import format_pycket_mod, run_mod
 
 def make_symbols(d):
     v = variable_set()
@@ -65,6 +65,30 @@ def test_let_remove_num_envs():
 
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a d))))")
     assert p.body[0].body[0].remove_num_envs == [0, 1, 2]
+
+def test_let_remove_num_envs_edge_case():
+    m = run_mod(
+    """
+    #lang pycket
+    (define d
+      (let-values (((es) values))
+        (let-values (((adj) '0))
+          (let-values ((() (es)))
+            adj))))
+    """)
+    d = W_Symbol.make("d")
+    assert type(m.defs[d]) is W_Fixnum and m.defs[d].value == 0
+
+    m = run_mod(
+    """
+    #lang pycket
+    (define d
+      (let-values (((es) '0))
+        (let-values (((adj) '1))
+          (let-values (((a b c) (begin es (values '2 '3 '4))))
+            (+ adj a)))))
+    """)
+    assert type(m.defs[d]) is W_Fixnum and m.defs[d].value == 3
 
 def test_copy_to_env():
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
