@@ -98,6 +98,10 @@
         (full-path-string
           (resolve-module-path mod-name #f))))))
 
+(define (join-first x xs)
+  (if (null? x) '()
+    (append (car x) xs)))
+
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
 ;; This ensures that all path names are normalized.
@@ -135,10 +139,9 @@
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
     [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
     [((~datum submod) path subs ...)
-     (list (append (car (require-json #'path))
-                   (map desym (syntax->list #'(subs ...)))))]
+     (list (join-first (require-json #'path)
+                       (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
-    ;;[((~datum lib) path) (unit (resolve-module (syntax-e #'path)))]
     [((~datum lib) path) '()];;(require-json #'path)]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]

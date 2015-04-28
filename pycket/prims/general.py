@@ -6,6 +6,7 @@ from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
+from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_hash
 from pycket import values_regex
@@ -26,6 +27,7 @@ from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import input_output
 from pycket.prims import numeric
+from pycket.prims import parameter
 from pycket.prims import random
 from pycket.prims import regexp
 from pycket.prims import string
@@ -96,8 +98,8 @@ for args in [
         ("impersonator-property-accessor-procedure?",
          imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
-        ("parameter?", values.W_Parameter),
-        ("parameterization?", values.W_Parameterization),
+        ("parameter?", values_parameter.W_Parameter),
+        ("parameterization?", values_parameter.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!
         ("hash?", values_hash.W_HashTable),
@@ -170,9 +172,6 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("break-enabled-key", values.break_enabled_key)
 expose_val("exception-handler-key", values.exn_handler_key)
-expose_val("parameterization-key", values.parameterization_key)
-expose_val("print-mpair-curly-braces", values.W_Parameter(values.w_false))
-expose_val("print-pair-curly-braces", values.W_Parameter(values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -238,11 +237,6 @@ def current_logger():
 @expose("make-logger", [values.W_Symbol, values.W_Logger])
 def make_logger(name, parent):
     return values.W_Logger()
-
-@expose("make-parameter",
-        [values.W_Object, default(values.W_Object, values.w_false)])
-def make_parameter(init, guard):
-    return values.W_Parameter(init, guard)
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
@@ -1248,34 +1242,6 @@ def mcpt(s):
     from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
-
-@expose("extend-parameterization",
-        [values.W_Object, values.W_Object, values.W_Object])
-def extend_paramz(paramz, key, val):
-    if not isinstance(key, values.W_Parameter):
-        raise SchemeException("Not a parameter")
-    if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend([key], [val])
-    else:
-        return paramz # This really is the Racket behavior
-
-def call_with_parameterization(f, args, paramz, env, cont):
-    cont.update_cm(values.parameterization_key, paramz)
-    return f.call(args, env, cont)
-
-@expose("call-with-parameterization",
-        [values.W_Object, values.W_Parameterization], simple=False)
-def call_w_paramz(f, paramz, env, cont):
-    return call_with_parameterization(f, [], paramz, env, cont)
-
-def call_with_extended_paramz(f, args, keys, vals, env, cont):
-    # XXX seems untested?
-    paramz = cont.get_mark_first(values.parameterization_key)
-    assert isinstance(paramz, values.W_Parameterization) # XXX is this always right?
-    paramz_new = paramz.extend(keys, vals)
-    return call_with_parameterization(f, args, paramz_new, env, cont)
-
-
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):

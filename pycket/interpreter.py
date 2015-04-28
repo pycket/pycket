@@ -1,5 +1,5 @@
 from pycket.AST               import AST
-from pycket                   import values, values_string
+from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -1928,7 +1928,7 @@ def interpret_one(ast, env=None):
     else:
         inner_interpret = inner_interpret_one_state
     cont = nil_continuation
-    cont.update_cm(values.parameterization_key, values.top_level_config)
+    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)
     except Done, e:

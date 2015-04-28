@@ -1,7 +1,7 @@
 from rpython.rlib import rrandom, rarithmetic
 
 from pycket.prims.expose import default, expose, expose_val
-from pycket              import values
+from pycket              import values, values_parameter
 from pycket              import vector as values_vector
 from pycket.error        import SchemeException
 
@@ -32,7 +32,7 @@ def random_seed(seed):
 def make_pseudo_random_generator():
     return values.W_PseudoRandomGenerator()
 
-current_pseudo_random_generator = values.W_Parameter(values.W_PseudoRandomGenerator())
+current_pseudo_random_generator = values_parameter.W_Parameter(values.W_PseudoRandomGenerator())
 expose_val("current-pseudo-random-generator", current_pseudo_random_generator)
 
 @expose("pseudo-random-generator->vector", [values.W_PseudoRandomGenerator])
