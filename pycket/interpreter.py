@@ -1444,7 +1444,7 @@ class Lambda(SequencedBodyAST):
     @jit.unroll_safe
     def collect_frees_without_recursive(self, recursive_sym, env):
         num_vals = len(self.frees.elems)
-        if recursive_sym is not None:
+        if recursive_sym is not None and recursive_sym in self.frees.elems:
             num_vals -= 1
         vals = [None] * num_vals
         i = 0
