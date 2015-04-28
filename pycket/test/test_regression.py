@@ -86,4 +86,5 @@ class TestRegressions(object):
         (define result (y-c (contract (yopt) (make-y 1 1) 'pos 'neg)))
         """
         m = run_mod(source)
-        assert m.defs[W_Symbol.make("result")] == 1
+        result = W_Symbol.make("result")
+        assert type(m.defs[result]) is W_Fixnum and m.defs[result].value == 1
