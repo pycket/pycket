@@ -439,3 +439,8 @@ def unsafe_flmin(a, b):
 @expose("unsafe-flmax", [unsafe(values.W_Flonum)] * 2)
 def unsafe_flmax(a, b):
     return values.W_Flonum(max(a.value, b.value))
+
+@expose("unsafe-flabs", [unsafe(values.W_Flonum)])
+def unsafe_flabs(a):
+    return values.W_Flonum(abs(a.value))
+

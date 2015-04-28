@@ -98,7 +98,7 @@ for args in [
         ("impersonator-property-accessor-procedure?",
          imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
-        ("parameter?", values_parameter.W_Parameter),
+        ("parameter?", values_parameter.W_BaseParameter),
         ("parameterization?", values_parameter.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!

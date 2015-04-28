@@ -1,9 +1,9 @@
 
-from pycket       import values
-from pycket.base  import W_Object
-from pycket.cont  import continuation, BaseCont
-from pycket.error import SchemeException
-from rpython.rlib import jit
+from pycket              import values
+from pycket.base         import W_Object
+from pycket.cont         import call_cont, continuation, BaseCont
+from pycket.error        import SchemeException
+from rpython.rlib        import jit
 
 # This is a Scheme_Parameterization in Racket
 class RootParameterization(object):
@@ -77,20 +77,27 @@ def param_set_cont(cell, env, cont, vals):
 class ParamKey(object):
     pass
 
-class W_Parameter(W_Object):
+class W_BaseParameter(W_Object):
     errorname = "parameter"
-    _immutable_fields_ = ["guard", "key"]
-    def __init__(self, val, guard=None):
-        self.key = ParamKey()
-        if guard is values.w_false:
-            self.guard = None
-        else:
-            self.guard = guard
-        cell = values.W_ThreadCell(val, True)
-        top_level_config.root.table[self.key] = cell
+    _immutable_fields_ = ["guard"]
+
+    def __init__(self, guard=None):
+        self.guard = None if guard is values.w_false else guard
 
     def iscallable(self):
         return True
+
+    def tostring(self):
+        return "#<parameter-procedure>"
+
+class W_Parameter(W_BaseParameter):
+    _immutable_fields_ = ["key"]
+
+    def __init__(self, val, guard=None):
+        W_BaseParameter.__init__(self, guard)
+        self.key = ParamKey()
+        cell = values.W_ThreadCell(val, True)
+        top_level_config.root.table[self.key] = cell
 
     def get(self, cont):
         return self.get_cell(cont).get()
@@ -115,6 +122,30 @@ class W_Parameter(W_Object):
         else:
             raise SchemeException("wrong number of arguments to parameter")
 
-    def tostring(self):
-        return "#<parameter-procedure>"
+class W_DerivedParameter(W_BaseParameter):
+    _immutable_fields_ = ["parameter", "wrap"]
+
+    def __init__(self, param, guard, wrap):
+        W_BaseParameter.__init__(self, guard)
+        self.parameter = param
+        self.wrap      = wrap
+
+    def get(self, cont):
+        return self.parameter.get(cont)
+
+    def get_cell(self, cont):
+        return self.parameter.get_cell(cont)
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_value
+
+        if len(args) == 0:
+            return self.parameter.call(args, env, call_cont(self.wrap, env, cont))
+        elif len(args) == 1:
+            if self.guard:
+                return self.guard.call(args, env,
+                        call_cont(self.parameter, env, cont))
+            return self.parameter.call(args, env, cont)
+        else:
+            raise SchemeException("wrong number of arguments to parameter")
 
