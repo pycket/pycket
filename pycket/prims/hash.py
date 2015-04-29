@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from pycket              import impersonators as imp
 from pycket              import values
+from pycket              import values_hash
 from pycket.values_hash  import (
     W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
     w_missing)
@@ -98,16 +99,27 @@ def make_weak_hasheq():
 
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
-    # FIXME: Not annotated as immutable
-    lsts = values.from_list(assocs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return W_EqualHashTable(keys, vals)
+    pairs = values.from_list(assocs)
+    keys  = [None] * len(pairs)
+    vals  = [None] * len(pairs)
+    for i, pair in enumerate(pairs):
+        if not isinstance(pair, values.W_Cons):
+            raise SchemeException("make-immutable-hash: expected list of pairs")
+        keys[i] = pair.car()
+        vals[i] = pair.cdr()
+    return W_EqualHashTable(keys, vals, immutable=True)
+
+@expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
+def make_immutable_hasheq(assocs):
+    pairs = values.from_list(assocs)
+    keys  = [None] * len(pairs)
+    vals  = [None] * len(pairs)
+    for i, pair in enumerate(pairs):
+        if not isinstance(pair, values.W_Cons):
+            raise SchemeException("make-immutable-hasheq: expected list of pairs")
+        keys[i] = pair.car()
+        vals[i] = pair.cdr()
+    return W_EqHashTable(keys, vals, immutable=True)
 
 @expose("hash")
 def hash(args):
@@ -173,7 +185,21 @@ def make_hasheqv(pairs):
 def hash_set_bang(ht, k, v, env, cont):
     return ht.hash_set(k, v, env, cont)
 
-define_nyi("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
+@continuation
+def hash_set_cont(key, val, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    table = check_one_val(_vals)
+    return table.hash_set(key, val, env, return_table_cont(table, env, cont))
+
+@continuation
+def return_table_cont(table, env, cont, _vals):
+    from pycket.interpreter import return_value
+    return return_value(table, env, cont)
+
+@expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
+def hash_set(table, key, val, env, cont):
+    return hash_copy(table, env,
+            hash_set_cont(key, val, env, cont))
 
 @continuation
 def hash_ref_cont(default, env, cont, _vals):
@@ -224,10 +250,11 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
     return src.hash_ref(keys[idx][0], env,
             hash_copy_ref_cont(keys, idx, src, new, env, cont))
 
-@expose("hash-copy", [W_HashTable], simple=False)
 def hash_copy(src, env, cont):
     new = src.make_empty()
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
+
+expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
