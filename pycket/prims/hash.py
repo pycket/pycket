@@ -183,6 +183,8 @@ def make_hasheqv(pairs):
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
+    if ht.immutable():
+        raise SchemeException("hash-set!: given immutable table")
     return ht.hash_set(k, v, env, cont)
 
 @continuation
@@ -198,6 +200,8 @@ def return_table_cont(table, env, cont, _vals):
 
 @expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set(table, key, val, env, cont):
+    if not table.immutable():
+        raise SchemeException("hash-set: not given an immutable table")
     return hash_copy(table, env,
             hash_set_cont(key, val, env, cont))
 
