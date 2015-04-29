@@ -1,10 +1,10 @@
+from pycket      import config
+from pycket      import values, values_string
 from pycket.base import W_Object, SingletonMeta
-from pycket import values, values_string
 from pycket.cont import continuation, label, loop_label
-from pycket import config
 
-from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
-from rpython.rlib import rerased
+from rpython.rlib             import rerased
+from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
 
 
 class W_Missing(W_Object):
@@ -47,6 +47,15 @@ class W_HashTable(W_Object):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
 
+@specialize.arg(0)
+def make_simple_table(cls, keys=None, vals=None, immutable=False):
+    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
+    if keys is not None and vals is not None:
+        assert len(keys) == len(vals)
+        for i, k in enumerate(keys):
+            data[k] = vals[i]
+    return cls(data, immutable)
+
 class W_SimpleHashTable(W_HashTable):
     _attrs_ = ['data']
 
@@ -58,12 +67,12 @@ class W_SimpleHashTable(W_HashTable):
     def cmp_value(a, b):
         raise NotImplementedError("abstract method")
 
-    def __init__(self, keys, vals, immutable=False):
-        assert len(keys) == len(vals)
+    def __init__(self, data, immutable):
         self.is_immutable = immutable
-        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
-        for i, k in enumerate(keys):
-            self.data[k] = vals[i]
+        self.data         = data
+
+    def make_copy(self):
+        raise NotImplementedError("abstract method")
 
     def hash_items(self):
         return self.data.items()
@@ -95,7 +104,10 @@ class W_SimpleHashTable(W_HashTable):
 class W_EqvHashTable(W_SimpleHashTable):
 
     def make_empty(self):
-        return W_EqvHashTable([], [], immutable=self.is_immutable)
+        return make_simple_table(W_EqvHashTable, immutable=self.is_immutable)
+
+    def make_copy(self):
+        return W_EqvHashTable(self.data.copy(), immutable=self.is_immutable)
 
     @staticmethod
     def hash_value(k):
@@ -110,8 +122,11 @@ class W_EqvHashTable(W_SimpleHashTable):
 
 class W_EqHashTable(W_SimpleHashTable):
 
+    def make_copy(self):
+        return W_EqHashTable(self.data.copy(), immutable=self.is_immutable)
+
     def make_empty(self):
-        return W_EqHashTable([], [], immutable=self.is_immutable)
+        return make_simple_table(W_EqHashTable, immutable=self.is_immutable)
 
     @staticmethod
     def hash_value(k):

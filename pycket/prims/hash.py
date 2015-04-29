@@ -4,8 +4,8 @@ from pycket              import impersonators as imp
 from pycket              import values
 from pycket              import values_hash
 from pycket.values_hash  import (
-    W_HashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
-    w_missing)
+    W_HashTable, W_SimpleHashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
+    make_simple_table, w_missing)
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -95,7 +95,7 @@ def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
-    return W_EqvHashTable([], [])
+    return make_simple_table(W_EqvHashTable, [], [])
 
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
@@ -119,7 +119,7 @@ def make_immutable_hasheq(assocs):
             raise SchemeException("make-immutable-hasheq: expected list of pairs")
         keys[i] = pair.car()
         vals[i] = pair.cdr()
-    return W_EqHashTable(keys, vals, immutable=True)
+    return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
 
 @expose("hash")
 def hash(args):
@@ -135,7 +135,7 @@ def hasheq(args):
         raise SchemeException("hasheq: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return W_EqHashTable(keys, vals)
+    return make_simple_table(W_EqHashTable, keys, vals)
 
 @expose("hasheqv")
 def hasheqv(args):
@@ -143,7 +143,7 @@ def hasheqv(args):
         raise SchemeException("hasheqv: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return W_EqvHashTable(keys, vals)
+    return make_simple_table(W_EqvHashTable, keys, vals)
 
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
@@ -167,7 +167,7 @@ def make_hasheq(pairs):
             raise SchemeException("make-hash: expected list of pairs")
         keys.append(lst.car())
         vals.append(lst.cdr())
-    return W_EqHashTable(keys, vals)
+    return make_simple_table(W_EqHashTable, keys, vals)
 
 @expose("make-hasheqv", [default(values.W_List, values.w_null)])
 def make_hasheqv(pairs):
@@ -179,7 +179,7 @@ def make_hasheqv(pairs):
             raise SchemeException("make-hash: expected list of pairs")
         keys.append(lst.car())
         vals.append(lst.cdr())
-    return W_EqvHashTable(keys, vals)
+    return make_simple_table(W_EqvHashTable, keys, vals)
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
@@ -200,8 +200,16 @@ def return_table_cont(table, env, cont, _vals):
 
 @expose("hash-set", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set(table, key, val, env, cont):
+    from pycket.interpreter import return_value
     if not table.immutable():
         raise SchemeException("hash-set: not given an immutable table")
+
+    # Fast path
+    if isinstance(table, W_SimpleHashTable):
+        copy = table.make_copy()
+        copy.data[key] = val
+        return return_value(copy, env, cont)
+
     return hash_copy(table, env,
             hash_set_cont(key, val, env, cont))
 
