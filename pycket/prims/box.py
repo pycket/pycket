@@ -1,7 +1,7 @@
 
 from pycket              import values
 from pycket.prims        import equal as eq_prims
-from pycket.prims.expose import default, expose
+from pycket.prims.expose import default, expose, subclass_unsafe
 
 @expose("box", [values.W_Object])
 def box(v):
@@ -15,13 +15,9 @@ def box_immutable(v):
 def unbox(b, env, cont):
     return b.unbox(env, cont)
 
-@expose("unsafe-unbox", [values.W_Object])
-def unsafe_unbox(b):
-    if isinstance(b, values.W_MBox):
-        return b.value
-    if isinstance(b, values.W_IBox):
-        return b.value
-    assert False, "unsafe-unbox: not given a box"
+@expose("unsafe-unbox", [subclass_unsafe(values.W_Box)], simple=False)
+def unsafe_unbox(b, env, cont):
+    return b.unbox(env, cont)
 
 @expose("set-box!", [values.W_Box, values.W_Object], simple=False)
 def set_box(box, v, env, cont):
