@@ -406,6 +406,10 @@ def fxfl(a):
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
 
+@expose("->fl", [values.W_Fixnum])
+def to_fl(n):
+    return values.W_Flonum(float(n.value))
+
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
 def is_fxvector(v):
