@@ -73,6 +73,21 @@ def flvector_set(v, i, new, env, cont):
         raise SchemeException("flvector-set!: index out of bounds")
     return v.vector_set(i, new, env, cont)
 
+@expose("vector->immutable-vector", [values_vector.W_MVector])
+def vector2immutablevector(v):
+    from pycket.impersonators import get_base_object
+    # XXX: does not properly handle chaperones
+    v = get_base_object(v)
+    if v.immutable():
+        return v
+
+    assert type(v) is values_vector.W_Vector
+    len = v.length()
+    data = [None] * len
+    for i in range(len):
+        data[i] = v.ref(i)
+    return values_vector.W_Vector.fromelements(data, immutable=True)
+
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)],

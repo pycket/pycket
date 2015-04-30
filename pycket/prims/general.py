@@ -1078,11 +1078,6 @@ def vector2list(v):
         es.append(v.ref(i))
     return values.to_list(es)
 
-@expose("vector->immutable-vector", [values_vector.W_Vector])
-def vector2immutablevector(v):
-    # FIXME: it should be immutable
-    return v
-
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
 def current_command_line_arguments(env, cont):
