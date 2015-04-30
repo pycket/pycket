@@ -22,6 +22,10 @@ def random(args):
         return values.W_Flonum(rng.random())
     raise SchemeException("random: invalid arguments")
 
+@expose(["flrandom", "unsafe-flrandom"], [values.W_PseudoRandomGenerator])
+def flrandom(gen):
+    return values.W_Flonum(rng.random())
+
 @expose("random-seed", [values.W_Fixnum])
 def random_seed(seed):
     key = [rarithmetic.r_uint(seed.value)]
