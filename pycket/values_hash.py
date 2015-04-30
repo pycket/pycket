@@ -1,7 +1,7 @@
-from pycket      import config
-from pycket      import values, values_string
-from pycket.base import W_Object, SingletonMeta
-from pycket.cont import continuation, label, loop_label
+from pycket       import config
+from pycket       import values, values_string
+from pycket.base  import W_Object, SingletonMeta
+from pycket.cont  import continuation, label, loop_label
 
 from rpython.rlib             import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
@@ -58,6 +58,7 @@ def make_simple_table(cls, keys=None, vals=None, immutable=False):
 
 class W_SimpleHashTable(W_HashTable):
     _attrs_ = ['data']
+    _immutable_fields_ = ["data"]
 
     @staticmethod
     def hash_value(v):
