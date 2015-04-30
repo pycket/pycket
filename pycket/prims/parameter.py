@@ -18,8 +18,8 @@ def make_derived_parameter(param, guard, wrap):
 @expose("extend-parameterization",
         [values.W_Object, values.W_Object, values.W_Object])
 def extend_paramz(paramz, key, val):
-    if not isinstance(key, values_parameter.W_Parameter):
-        raise SchemeException("Not a parameter")
+    if not isinstance(key, values_parameter.W_BaseParameter):
+        raise SchemeException("Not a parameter: " + key.tostring())
     if isinstance(paramz, values_parameter.W_Parameterization):
         return paramz.extend([key], [val])
     else:
