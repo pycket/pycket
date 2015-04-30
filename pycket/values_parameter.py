@@ -28,7 +28,7 @@ class W_Parameterization(W_Object):
         # assert len(params) == len(vals)
         # FIXME this is awful
         total = len(params) + len(self.keys)
-        keys = [p.key for p in params]
+        keys = [p.get_key() for p in params]
         new_keys = [None] * total
         new_vals = [None] * total
         for i in range(total):
@@ -79,6 +79,7 @@ class ParamKey(object):
 
 class W_BaseParameter(W_Object):
     errorname = "parameter"
+    _attrs_ = ["guard"]
     _immutable_fields_ = ["guard"]
 
     def __init__(self, guard=None):
@@ -86,6 +87,9 @@ class W_BaseParameter(W_Object):
 
     def iscallable(self):
         return True
+
+    def get_key(self):
+        raise NotImplementedError("abstract base class")
 
     def tostring(self):
         return "#<parameter-procedure>"
@@ -106,6 +110,9 @@ class W_Parameter(W_BaseParameter):
         cell = find_param_cell(cont, self)
         assert isinstance(cell, values.W_ThreadCell)
         return cell
+
+    def get_key(self):
+        return self.key
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
@@ -135,6 +142,9 @@ class W_DerivedParameter(W_BaseParameter):
 
     def get_cell(self, cont):
         return self.parameter.get_cell(cont)
+
+    def get_key(self):
+        return self.parameter.get_key()
 
     def call(self, args, env, cont):
         from pycket.interpreter import return_value
