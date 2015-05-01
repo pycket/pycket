@@ -406,7 +406,7 @@ def fxfl(a):
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
 
-@expose("->fl", [values.W_Number])
+@expose("->fl", [values.W_Object])
 def to_fl(n):
     if isinstance(n, values.W_Fixnum):
         return values.W_Flonum(float(n.value))
