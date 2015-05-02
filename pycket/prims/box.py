@@ -23,6 +23,10 @@ def unsafe_unbox(b, env, cont):
 def set_box(box, v, env, cont):
     return box.set_box(v, env, cont)
 
+@expose("unsafe-set-box!", [subclass_unsafe(values.W_Box), values.W_Object], simple=False)
+def unsafe_set_box(box, v, env, cont):
+    return box.set_box(v, env, cont)
+
 # This implementation makes no guarantees about atomicity
 @expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
 def box_cas(box, old, new):
