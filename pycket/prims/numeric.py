@@ -7,7 +7,7 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit, rarithmetic
+from rpython.rlib         import jit, longlong2float, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
                                         UnsignedLongLong
@@ -413,6 +413,25 @@ def to_fl(n):
     if isinstance(n, values.W_Bignum):
         return values.W_Flonum(rbigint.tofloat(n.value))
     raise SchemeException("->fl: expected an exact-integer")
+
+@expose("real->floating-point-bytes", [values.W_Number, values.W_Fixnum])
+def real_floating_point_bytes(n, _size):
+    if isinstance(n, values.W_Flonum):
+        v = n.value
+    elif isinstance(n, values.W_Fixnum):
+        v = float(n.value)
+    elif isinstance(n, values.W_Bignum):
+        v = rbigint.tofloat(n.value)
+    else:
+        raise SchemeException("real->floating-point-bytes: expected real")
+
+    size = _size.value
+    if size != 4 and size != 8:
+        raise SchemeException("real->floating-point-bytes: size not 4 or 8")
+
+    intval = longlong2float.float2longlong(v)
+    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
+    return values.W_Bytes(chars)
 
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
