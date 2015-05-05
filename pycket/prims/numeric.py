@@ -414,8 +414,9 @@ def to_fl(n):
         return values.W_Flonum(rbigint.tofloat(n.value))
     raise SchemeException("->fl: expected an exact-integer")
 
-@expose("real->floating-point-bytes", [values.W_Number, values.W_Fixnum])
-def real_floating_point_bytes(n, _size):
+@expose("real->floating-point-bytes",
+        [values.W_Number, values.W_Fixnum, default(values.W_Bool, values.w_false)])
+def real_floating_point_bytes(n, _size, big_endian):
     if isinstance(n, values.W_Flonum):
         v = n.value
     elif isinstance(n, values.W_Fixnum):
@@ -430,6 +431,10 @@ def real_floating_point_bytes(n, _size):
         raise SchemeException("real->floating-point-bytes: size not 4 or 8")
 
     intval = longlong2float.float2longlong(v)
+
+    if big_endian is not values.w_false:
+        intval = rarithmetic.byteswap(intval)
+
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes(chars)
 
