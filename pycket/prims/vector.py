@@ -4,7 +4,7 @@
 from pycket import impersonators as imp
 from pycket import values
 from pycket import vector as values_vector
-from pycket.cont import continuation, label
+from pycket.cont import continuation, label, loop_label
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
 
@@ -112,7 +112,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     return vector_copy_loop(src, src_start, src_end,
                 dest, dest_start, values.W_Fixnum(0), env, cont)
 
-@label
+@loop_label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     from pycket.interpreter import return_value
     src_idx = i.value + src_start
