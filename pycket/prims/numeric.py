@@ -140,6 +140,9 @@ for args in [
         ]:
     make_binary_arith(*args)
 
+@expose("flexpt", [values.W_Flonum] * 2)
+def flexpt(n, m):
+    return n.arith_pow_same(m)
 
 def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
@@ -438,12 +441,27 @@ def real_floating_point_bytes(n, _size, big_endian):
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes(chars)
 
+@expose("floating-point-bytes->real",
+        [values.W_Bytes, default(values.W_Object, values.w_false)])
+def integer_bytes_to_integer(bstr, signed):
+    # XXX Currently does not make use of the signed parameter
+    bytes = bstr.value
+    if len(bytes) not in (4, 8):
+        raise SchemeException(
+                "floating-point-bytes->real: byte string must have length 2, 4, or 8")
+
+    val = 0
+    for i, v in enumerate(bytes):
+        val += ord(v) << (i * 8)
+
+    return values.W_Flonum(longlong2float.longlong2float(val))
+
 @expose("integer-bytes->integer",
         [values.W_Bytes, default(values.W_Object, values.w_false)])
 def integer_bytes_to_integer(bstr, signed):
     # XXX Currently does not make use of the signed parameter
     bytes = bstr.value
-    if len(bytes) not in [2, 4, 8]:
+    if len(bytes) not in (2, 4, 8):
         raise SchemeException(
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
 
@@ -452,6 +470,26 @@ def integer_bytes_to_integer(bstr, signed):
         val += ord(v) << (i * 8)
 
     return values.W_Fixnum(val)
+
+@expose("integer->integer-bytes",
+        [values.W_Number, values.W_Fixnum, default(values.W_Object, values.w_false)])
+def integer_to_integer_bytes(n, _size, signed):
+    if isinstance(n, values.W_Fixnum):
+        intval = n.value
+    elif isinstance(n, values.W_Bignum):
+        raise NotImplementedError("not implemented yet")
+    else:
+        raise SchemeException("integer->integer-bytes: expected exact integer")
+
+    size = _size.value
+    if size not in (2, 4, 8):
+        raise SchemeException("integer->integer-bytes: size not 2, 4, or 8")
+
+    #if big_endian is not values.w_false:
+        #intval = rarithmetic.byteswap(intval)
+
+    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
+    return values.W_Bytes(chars)
 
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
