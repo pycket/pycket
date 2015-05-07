@@ -817,7 +817,7 @@ class W_Bytes(W_Object):
         make_sure_not_resized(self.value)
 
     def tostring(self):
-        return "#\"%s\"" % "".join(self.value)
+        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
 
     def equal(self, other):
         if not isinstance(other, W_Bytes):
