@@ -4,7 +4,8 @@
          (only-in racket/list append-map last-pair filter-map first add-between)
          racket/path
          racket/dict racket/match
-         racket/format)
+         racket/format
+         racket/extflonum)
 
 (define keep-srcloc (make-parameter #t))
 
@@ -60,39 +61,67 @@
         (dynamic-require in-path 'stx))
       stx))
 
-(define current-module (make-parameter #f))
+(define current-module (make-parameter (list #f)))
 
 (define (index->path i)
-  (define-values (v _) (module-path-index-split i))
+  (define-values (v u) (module-path-index-split i))
   (if v
       (list (resolved-module-path-name (module-path-index-resolve i)) #f)
       (list (current-module) #t)))
+
+(define (full-path-string p)
+  (path->string (simplify-path p #f)))
+
+(define (desymbolize s)
+  (cond
+    [(symbol? s) (symbol->string s)]
+    [(path? s)   (full-path-string s)]
+    [else        s]))
+
+(define (make-path-strings xs)
+  (define (path-string p)
+    (if (path? p)
+      (path->string
+        (simplify-path p))
+      p))
+  (map path-string xs))
+
+(define (resolve-module mod-name)
+  (if (memv mod-name (list "." ".."))
+    (list mod-name)
+    (with-handlers
+      ([exn:fail:filesystem:missing-module?
+         (lambda (e)
+           (make-path-strings
+             (append (current-module) (list (desymbolize mod-name)))))])
+      (list
+        (full-path-string
+          (resolve-module-path mod-name #f))))))
+
+(define (join-first x xs)
+  (if (null? x) '()
+    (append (car x) xs)))
 
 ;; Extract the information from a require statement that tells us how to find
 ;; the desired file.
 ;; This ensures that all path names are normalized.
 (define (require-json v)
-  (define (to-path v)
-    (path->string
-      (simplify-path
-        (resolve-module-path v #f) #f)))
   (define (translate v)
     (let* ([str (symbol->string v)]
            [pre (substring str 0 (min 2 (string-length str)))])
       (if (string=? pre "#%")
-        str
-        (to-path v))))
-    ;;(case v
-    ;;  [(#%kernel #%unsafe #%utils #%builtin) (symbol->string v)]
-    ;;  [else (to-path v)]))
+        (list str)
+        (resolve-module v))))
+  (define (desym stx)
+    (desymbolize (syntax-e stx)))
   (syntax-parse v
-    [v:str        (list (to-path (syntax-e #'v)))]
+    [v:str        (list (resolve-module (syntax-e #'v)))]
     [s:identifier (list (translate (syntax-e #'s)))]
     [p #:when (path? (syntax-e #'p))
-       (list (to-path (syntax-e #'p)))]
+     (list (resolve-module (syntax-e #'p)))]
     [((~datum #%top) . x)
      (error 'never-happens)
-     (list (to-path (syntax-e #'x)))]
+     (list (resolve-module (syntax-e #'x)))]
     [((~datum rename) p _ ...) (require-json #'p)]
     [((~datum only) p _ ...) (require-json #'p)]
     [((~datum all-except) p _ ...) (require-json #'p)]
@@ -108,9 +137,12 @@
      (append-map require-json (syntax->list #'(p ...)))]
     [((~datum just-meta) _ p ...) '()]
     [((~datum quote) s:id) (list (translate (syntax-e #'s)))]
-    [((~datum file) s:str) (list (to-path (syntax-e #'s)))]
-    [((~datum lib) _ ...)
-     (error 'expand "`lib` require forms are not supported yet")]
+    [((~datum file) s:str) (list (resolve-module (syntax-e #'s)))]
+    [((~datum submod) path subs ...)
+     (list (join-first (require-json #'path)
+                       (map desym (syntax->list #'(subs ...)))))]
+    ;; XXX May not be 100% correct
+    [((~datum lib) path) '()];;(require-json #'path)]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
@@ -123,7 +155,7 @@
       (for/hash ([k '(collects-dir temp-dir init-dir pref-dir home-dir
                                    pref-file init-file config-dir addon-dir
                                    exec-file run-file sys-dir doc-dir orig-dir)])
-        (values k (path->string (simplify-path (find-system-path k) #f)))))
+        (values k (full-path-string (find-system-path k)))))
     (hash-set* sysconfig
                'version (version))))
 
@@ -192,7 +224,7 @@
 
 (define (to-json v v/loc)
   (define (path/symbol/list->string o)
-    (cond [(path-string? o) (hash '%p (path->string (simplify-path o #f)))]
+    (cond [(path-string? o) (hash '%p (full-path-string o))]
           [(symbol? o)      (hash 'quote (symbol->string o))]
           [(list? o)        (map path/symbol/list->string o)]
           [else o]))
@@ -217,11 +249,35 @@
                    'module   (syntax-source-module->hash
                               (syntax-source-module v/loc #f))))))
 
+(define (expanded-module)
+  (let ([mod (car (current-module))]
+        [path (cdr (current-module))])
+    (if (not mod)
+      ;; If we don't have the module name, encode it relative to
+      ;; the current module
+      (if (null? path) '(".") (map (λ (_) "..") (cdr (current-module))))
+      (list (full-path-string mod)))))
+
+(define (list-module-path p)
+  (if (not (path? (car p)))
+    (append (expanded-module) (map desymbolize (cdr p)))
+    (map desymbolize p)))
+
+(define (symbol-module-path p)
+  (if (string=? (symbol->string p) "expanded module")
+    (expanded-module)
+    (list (symbol->string p))))
+
 (define (to-json* v v/loc)
   (define (proper l)
     (match l
       [(cons a b) (cons a (proper b))]
       [_ null]))
+  (define (push-module path m)
+    (define str (symbol->string m))
+    (if (list? path)
+      (append path (list str))
+      (list path str)))
   (syntax-parse (list v v/loc)
                 #:literals
                 (let-values letrec-values begin0 if #%plain-lambda #%top
@@ -231,7 +287,7 @@
     [(v:str _) (hash 'string (syntax-e #'v))]
     [(v _)
      #:when (path? (syntax-e #'v))
-     (hash 'path (path->string (simplify-path (syntax-e #'v) #f)))]
+     (hash 'path (full-path-string (syntax-e #'v)))]
     ;; special case when under quote to avoid the "interesting"
     ;; behavior of various forms
     [((_ ...) _)
@@ -241,8 +297,12 @@
      #:when (quoted?)
      (hash 'improper (list (map to-json (proper (syntax-e v)) (proper (syntax-e v/loc)))
                            (to-json (cdr (last-pair (syntax-e v))) (cdr (last-pair (syntax-e v/loc))))))]
-    [((module _ ...) _) #f] ;; ignore these
-    [((module* _ ...) _) #f] ;; ignore these
+    [((module name _ ...) _)
+     (parameterize ([current-module (push-module (current-module) (syntax-e #'name))])
+       (convert v v/loc #f))]
+    [((module* name _ ...) _)
+     (parameterize ([current-module (push-module (current-module) (syntax-e #'name))])
+       (convert v v/loc #f))]
     [((#%declare _) _) #f] ;; ignore these
     ;; this is a simplification of the json output
     [_
@@ -332,7 +392,8 @@
     [(((~literal begin-for-syntax) b ...) _) #f]
 
     [((#%require x ...) _)
-     (hash 'require (append-map require-json (syntax->list #'(x ...))))]
+     (let ([reqs (append-map require-json (syntax->list #'(x ...)))])
+       (hash 'require reqs))]
     [((#%variable-reference) _)
      (hash 'variable-reference #f)]
     [((#%variable-reference id) (#%variable-reference id*))
@@ -349,13 +410,18 @@
      (match (identifier-binding* #'i)
        ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
-       [(list (app index->path (list src self?)) src-id _ nom-src-id
+       [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
         (define modsym (symbol->string (syntax-e v)))
-        (hash* 'source-module (cond [(path? src) (path->string (simplify-path src #f))]
+        (hash* 'source-module (cond [(not src) 'null]
+                                    [(and self? (path? (car src)))
+                                     (cons (full-path-string (car src)) (cdr src))]
+                                    [(path? src)
+                                     (list (full-path-string src))]
                                     [(eq? src '#%kernel) #f] ;; omit these
-                                    [src (symbol->string src)]
+                                    [(list? src) (list-module-path src)]
+                                    [src (symbol-module-path src)]
                                     [else 'null])
                'module (if (string=? idsym modsym) #f modsym)
                'source-name (id->sym #'i)
@@ -367,6 +433,9 @@
        (hash 'box (to-json (unbox (syntax-e v)) (unbox (syntax-e v/loc))))]
     [_ #:when (boolean? (syntax-e v)) (syntax-e v)]
     [_ #:when (keyword? (syntax-e v)) (hash 'keyword (keyword->string (syntax-e v)))]
+    ;; These numeric types seem excessive
+    [_ #:when (extflonum? (syntax-e v))
+       (hash 'number (num (extfl->inexact (syntax-e v))))]
     [_ #:when (number? (syntax-e v))
        (hash 'number (num (syntax-e v)))]
     [_ #:when (char? (syntax-e v))
@@ -376,11 +445,11 @@
     [_ #:when (pregexp? (syntax-e v))
        (hash 'pregexp (object-name (syntax-e v)))]
     [_ #:when (byte-regexp? (syntax-e v))
-       (hash 'byte-regexp (bytes->string/utf-8 (object-name (syntax-e v))))]
+       (hash 'byte-regexp (bytes->list (object-name (syntax-e v))))]
     [_ #:when (byte-pregexp? (syntax-e v))
-       (hash 'byte-pregexp (bytes->string/utf-8 (object-name (syntax-e v))))]
+       (hash 'byte-pregexp (bytes->list (object-name (syntax-e v))))]
     [_ #:when (bytes? (syntax-e v))
-       (hash 'bytes (bytes->string/utf-8 (syntax-e v)))]
+       (hash 'bytes (bytes->list (syntax-e v)))]
     [_ #:when (hash? (syntax-e v))
        (let ([ht (syntax-e v)]
              [ht* (syntax-e v/loc)])
@@ -399,6 +468,20 @@
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
                          (require-json #'lang))])
+       (hash* 'module-name (symbol->string (syntax-e #'name))
+              'body-forms (filter-map to-json
+                                      (syntax->list #'(forms ...))
+                                      (syntax->list #'(forms* ...)))
+              'language (first lang-req)
+              'config (and config? global-config)))]
+    [((module* name:id lang:expr (#%plain-module-begin forms ...))
+      (_ _ _                    (#%plain-module-begin forms* ...)))
+     (let ([lang-req (cond
+                       [(not (syntax-e #'lang)) (list #f)]
+                       [(or (eq? (syntax-e #'lang) 'pycket)
+                        (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
+                        (require-json #'#%kernel)]
+                       [else (require-json #'lang)])])
        (hash* 'module-name (symbol->string (syntax-e #'name))
               'body-forms (filter-map to-json
                                       (syntax->list #'(forms ...))
@@ -465,7 +548,7 @@
 
   (unless (input-port? in)
     (define in-dir (or (path-only in) "."))
-    (current-module (object-name input))
+    (current-module (list (object-name input)))
     (current-directory in-dir))
 
   (read-accept-reader #t)

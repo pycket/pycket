@@ -35,6 +35,16 @@ def test_regexp_match(doctest):
     #f
     """
 
+def test_regexp_match_positions(doctest):
+    """
+    > (regexp-match-positions #rx"a|b" "cat")
+    '((1 . 2))
+    > (regexp-match-positions #rx"[a-zA-Z]+(c)" "abc")
+    '((0 . 3) (2 . 3))
+    > (regexp-match-positions #rx"[a-zA-Z]+(c)" "______________________abc")
+    '((22 . 25) (24 . 25))
+    """
+
 def test_regexp_match_p(doctest):
     """
     > (regexp-match? #rx"x." "12x4x6")

@@ -1,10 +1,10 @@
-from pycket.base import W_Object, SingletonMeta
-from pycket import values, values_string
-from pycket.cont import continuation, label, loop_label
-from pycket import config
+from pycket       import config
+from pycket       import values, values_string
+from pycket.base  import W_Object, SingletonMeta
+from pycket.cont  import continuation, label, loop_label
 
-from rpython.rlib.objectmodel import r_dict, compute_hash, import_from_mixin
-from rpython.rlib import rerased
+from rpython.rlib             import rerased
+from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
 
 
 class W_Missing(W_Object):
@@ -15,7 +15,8 @@ w_missing = W_Missing() # sentinel for missing values
 
 class W_HashTable(W_Object):
     errorname = "hash"
-    _attrs_ = []
+    _attrs_ = ["is_immutable"]
+    _immutable_fields_ = ["is_immutable"]
     _settled_ = True
 
     def hash_items(self):
@@ -36,13 +37,28 @@ class W_HashTable(W_Object):
     def length(self):
         raise NotImplementedError("abstract method")
 
+    def make_empty(self):
+        raise NotImplementedError("abstract method")
+
+    def immutable(self):
+        return self.is_immutable
+
     def get_item(self, i):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
 
+@specialize.arg(0)
+def make_simple_table(cls, keys=None, vals=None, immutable=False):
+    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
+    if keys is not None and vals is not None:
+        assert len(keys) == len(vals)
+        for i, k in enumerate(keys):
+            data[k] = vals[i]
+    return cls(data, immutable)
 
 class W_SimpleHashTable(W_HashTable):
     _attrs_ = ['data']
+    _immutable_fields_ = ["data"]
 
     @staticmethod
     def hash_value(v):
@@ -52,11 +68,12 @@ class W_SimpleHashTable(W_HashTable):
     def cmp_value(a, b):
         raise NotImplementedError("abstract method")
 
-    def __init__(self, keys, vals):
-        assert len(keys) == len(vals)
-        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
-        for i, k in enumerate(keys):
-            self.data[k] = vals[i]
+    def __init__(self, data, immutable):
+        self.is_immutable = immutable
+        self.data         = data
+
+    def make_copy(self):
+        raise NotImplementedError("abstract method")
 
     def hash_items(self):
         return self.data.items()
@@ -86,6 +103,13 @@ class W_SimpleHashTable(W_HashTable):
         return len(self.data)
 
 class W_EqvHashTable(W_SimpleHashTable):
+
+    def make_empty(self):
+        return make_simple_table(W_EqvHashTable, immutable=self.is_immutable)
+
+    def make_copy(self):
+        return W_EqvHashTable(self.data.copy(), immutable=self.is_immutable)
+
     @staticmethod
     def hash_value(k):
         return k.hash_eqv()
@@ -98,6 +122,13 @@ class W_EqvHashTable(W_SimpleHashTable):
         return get_dict_item(self.data, i)
 
 class W_EqHashTable(W_SimpleHashTable):
+
+    def make_copy(self):
+        return W_EqHashTable(self.data.copy(), immutable=self.is_immutable)
+
+    def make_empty(self):
+        return make_simple_table(W_EqHashTable, immutable=self.is_immutable)
+
     @staticmethod
     def hash_value(k):
         if isinstance(k, values.W_Fixnum):
@@ -175,7 +206,6 @@ class HashmapStrategy(object):
 
     def create_storage(self, keys, vals):
         raise NotImplementedError("abstract base class")
-
 
 def _find_strategy_class(keys):
     if not config.strategies:
@@ -409,7 +439,8 @@ class ByteHashmapStrategy(HashmapStrategy):
 
 class W_EqualHashTable(W_HashTable):
     _attrs_ = ['strategy', 'hstorage']
-    def __init__(self, keys, vals):
+    def __init__(self, keys, vals, immutable=False):
+        self.is_immutable = immutable
         self.strategy = _find_strategy_class(keys)
         self.hstorage = self.strategy.create_storage(keys, vals)
 
@@ -428,11 +459,12 @@ class W_EqualHashTable(W_HashTable):
     def length(self):
         return self.strategy.length(self)
 
+    def make_empty(self):
+        return W_EqualHashTable([], [], immutable=self.is_immutable)
+
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
-
-
 
 def get_dict_item(d, i):
     """ return item of dict d at position i. Raises a KeyError if the index

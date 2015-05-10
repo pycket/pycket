@@ -98,6 +98,24 @@ def string_to_bytes_locale(str, errbyte, start, end):
     # FIXME: This ignores the locale
     return values.W_Bytes(str.as_charlist_utf8())
 
+@expose("bytes->string/latin-1",
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)])
+def bytes_to_string_latin(str, err, start, end):
+    # XXX Not a valid implementation
+    return W_String.fromascii("")
+
+@expose("string->bytes/latin-1",
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, None)])
+def bytes_to_string_latin(str, err, start, end):
+    # XXX Not a valid implementation
+    return values.W_Bytes.from_string("")
+
 @expose("string->list", [W_String])
 def string_to_list(s):
     return values.to_list([values.W_Character(i) for i in s.as_unicode()])
@@ -112,13 +130,15 @@ def list_to_string(w_list):
 
 def define_string_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
-        head, tail = args[0], args[1:]
+        head = args[0]
         if not isinstance(head, W_String):
             raise SchemeException(name + ": not given a string")
-        for t in tail:
+        for i in range(1, len(args)):
+            t = args[i]
             if not isinstance(t, W_String):
                 raise SchemeException(name + ": not given a string")
             if not op(head, t):
@@ -156,6 +176,7 @@ def make_string(k, char):
         return W_String.fromunicode(char * k.value)
 
 @expose("string")
+@jit.unroll_safe
 def string(args):
     if len(args) == 0:
         return W_String.fromascii("")
@@ -404,7 +425,6 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
     assert (src_end-src_start) <= dest_max
 
-
     for i in range(0, src_end - src_start):
         w_dest.value[dest_start + i] = w_src.value[src_start + i]
 
@@ -412,6 +432,7 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
 def define_bytes_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")
@@ -467,6 +488,7 @@ def char_upcase(v):
 
 def define_char_comp(name, op):
     @expose(name)
+    @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
             raise SchemeException(name + ": requires at least 2 arguments")

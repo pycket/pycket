@@ -113,7 +113,6 @@ def test_bytes_comparison(doctest):
     #t
     """
 
-
 def test_bytes_append(doctest):
     """
     > (bytes-append #"Apple" #"Banana")
@@ -353,7 +352,6 @@ def test_make_string(doctest):
     "\u0000\u0000"
     """
 
-
 def test_string_unicode(doctest):
     ur"""
     > (string #\A #\p #\p #\l #\e)
@@ -370,3 +368,4 @@ def test_mutable_unicode_to_bytes(doctest):
     > (string->bytes/utf-8 st)
     #"s\303\274\303\237"
     """
+

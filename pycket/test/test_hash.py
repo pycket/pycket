@@ -138,6 +138,18 @@ def test_hash_map(doctest):
     #t
     """
 
+def test_hash_copy(doctest):
+    """
+    ! (define h #hash((1 . 2) (2 . 3) (3 . 4)))
+    ! (define k (hash-copy h))
+    > (equal? 2 (hash-ref k 1))
+    #t
+    > (equal? 3 (hash-ref k 2))
+    #t
+    > (equal? 4 (hash-ref k 3))
+    #t
+    """
+
 def test_use_equal(doctest):
     """
     ! (define ht (make-hash))

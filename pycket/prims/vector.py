@@ -4,7 +4,7 @@
 from pycket import impersonators as imp
 from pycket import values
 from pycket import vector as values_vector
-from pycket.cont import continuation, label
+from pycket.cont import continuation, label, loop_label
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
 
@@ -73,6 +73,21 @@ def flvector_set(v, i, new, env, cont):
         raise SchemeException("flvector-set!: index out of bounds")
     return v.vector_set(i, new, env, cont)
 
+@expose("vector->immutable-vector", [values_vector.W_MVector])
+def vector2immutablevector(v):
+    from pycket.impersonators import get_base_object
+    # XXX: does not properly handle chaperones
+    v = get_base_object(v)
+    if v.immutable():
+        return v
+
+    assert type(v) is values_vector.W_Vector
+    len = v.length()
+    data = [None] * len
+    for i in range(len):
+        data[i] = v.ref(i)
+    return values_vector.W_Vector.fromelements(data, immutable=True)
+
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)],
@@ -89,7 +104,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
 
     if not (0 <= dest_start < dest.length()):
         raise SchemeException("vector-copy!: destination start out of bounds")
-    if not (0 <= src_start < src.length()) or not (0 <= src_start < src.length()):
+    if not (0 <= src_start <= src.length()) or not (0 <= src_start <= src.length()):
         raise SchemeException("vector-copy!: source start/end out of bounds")
     if dest_range < src_range:
         raise SchemeException("vector-copy!: not enough room in target vector")
@@ -97,7 +112,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     return vector_copy_loop(src, src_start, src_end,
                 dest, dest_start, values.W_Fixnum(0), env, cont)
 
-@label
+@loop_label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     from pycket.interpreter import return_value
     src_idx = i.value + src_start

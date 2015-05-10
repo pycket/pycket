@@ -1,5 +1,5 @@
 
-from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Character, UNROLLING_CUTOFF
 from pycket.base import W_Object, SingletonMeta
 from pycket import config
 
@@ -29,6 +29,10 @@ def _find_strategy_class(elements, immutable):
         if immutable:
             return FlonumImmutableVectorStrategy.singleton
         return FlonumVectorStrategy.singleton
+    if single_class is W_Character:
+        if immutable:
+            return CharacterImmutableVectorStrategy.singleton
+        return CharacterVectorStrategy.singleton
     return ObjectVectorStrategy.singleton
 
 
@@ -301,11 +305,10 @@ class ObjectVectorStrategy(VectorStrategy):
 class ObjectImmutableVectorStrategy(ObjectVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
-
 class FixnumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("fixnum-vector-strategry")
+    erase, unerase = rerased.new_erasing_pair("fixnum-vector-strategy")
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
 
@@ -320,10 +323,28 @@ class FixnumVectorStrategy(VectorStrategy):
         assert isinstance(w_val, W_Fixnum)
         return w_val.value
 
-
 class FixnumImmutableVectorStrategy(FixnumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
+class CharacterVectorStrategy(VectorStrategy):
+    import_from_mixin(UnwrappedVectorStrategyMixin)
+
+    erase, unerase = rerased.new_erasing_pair("character-vector-strategy")
+    erase = staticmethod(erase)
+    unerase = staticmethod(unerase)
+
+    def is_correct_type(self, w_obj):
+        return isinstance(w_obj, W_Character)
+
+    def wrap(self, val):
+        return W_Character(val)
+
+    def unwrap(self, w_val):
+        assert isinstance(w_val, W_Character)
+        return w_val.value
+
+class CharacterImmutableVectorStrategy(CharacterVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
 
 class FlonumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)

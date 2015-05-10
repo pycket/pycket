@@ -90,3 +90,67 @@ def test_shadowing_macro():
 """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 6
+
+def test_kw_submodule():
+    # Just test to see if this runs.
+    # It caused quite a few problems
+    # when implementing submodules.
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/private/kw)
+    procedure-arity-includes?
+    """)
+
+def test_submodule_operations():
+    m = run_mod(
+    """
+    #lang pycket
+    (module test-sub-module pycket
+      (provide a)
+      (define a 1))
+    (require (submod "." test-sub-module))
+    (define b (+ a a))
+    """)
+    assert len(m.submodules) == 1
+
+    # properties concerning relationships between modules and submodules
+    b   = m.defs[W_Symbol.make("b")]
+    sub = m.resolve_submodule_path(["test-sub-module"])
+    assert sub.parent is m
+    assert sub in m.submodules
+    assert m.root_module() is m
+    assert sub.root_module() is m
+
+    a   = sub.defs[W_Symbol.make("a")]
+    assert isinstance(b, W_Integer) and b.value == 2
+    assert isinstance(a, W_Integer) and a.value == 1
+
+def test_module_star():
+    m = run_mod(
+    """
+    #lang pycket
+    (module outer pycket
+      (define a 1)
+      (module* inner #f
+        (provide b)
+        (define b (+ a 2))))
+    (module snd pycket
+      (require (submod ".." outer inner))
+      (provide c)
+      (define c (+ b 1)))
+    (require (submod "." snd))
+    (define d c)
+    """)
+    assert len(m.submodules) == 2
+    outer = m.find_submodule("outer")
+    snd   = m.find_submodule("snd")
+
+    assert outer.parent is m
+    assert snd.parent is m
+    assert len(outer.submodules) == 1
+    assert len(snd.submodules) == 0
+
+    d = m.defs[W_Symbol.make("d")]
+    assert isinstance(d, W_Integer) and d.value == 4
+

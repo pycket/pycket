@@ -185,11 +185,12 @@ def chaperone_vector(args):
 @expose("impersonate-struct")
 @jit.unroll_safe
 def impersonate_struct(args):
+    if len(args) == 1 and isinstance(args[0], values_struct.W_RootStruct):
+        return args[0]
+
     args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
     if len(args) < 1 or len(args) % 2 != 1:
         raise SchemeException("impersonate-struct: arity mismatch")
-    if len(args) == 1:
-        return args[0]
 
     struct, args = args[0], args[1:]
 
@@ -235,11 +236,12 @@ def impersonate_struct(args):
 @expose("chaperone-struct")
 @jit.unroll_safe
 def chaperone_struct(args):
+    if len(args) == 1 and isinstance(args[0], values_struct.W_RootStruct):
+        return args[0]
+
     args, prop_keys, prop_vals = unpack_properties(args, "chaperone-struct")
     if len(args) < 1 or len(args) % 2 != 1:
         raise SchemeException("chaperone-struct: arity mismatch")
-    if len(args) == 1:
-        return args[0]
 
     struct, args = args[0], args[1:]
 
@@ -290,6 +292,11 @@ def ccmk(args):
 def icmk(args):
     unpacked = unpack_cmk_args(args, "impersonate-continuation-mark-key")
     return imp.W_ImpContinuationMarkKey(*unpacked)
+
+@expose(["chaperone-struct-type", "impersonate-struct-type"])
+def cst(args):
+    # XXX Not correct
+    return args[0]
 
 @expose("chaperone-of?", [values.W_Object, values.W_Object], simple=False)
 def chaperone_of(a, b, env, cont):

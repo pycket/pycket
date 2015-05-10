@@ -59,7 +59,7 @@ class BaseCont(object):
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
 
     # XXX: why isn't this in Cont?
-    @jit.unroll_safe 
+    @jit.unroll_safe
     def get_mark_first(self, key):
         p = self
         while isinstance(p, Cont):
@@ -208,6 +208,7 @@ def make_label(func, enter=False):
     strrepr = "%s(%s:%s:%s)" % (clsname, func.func_name, func.__module__,
                                 func.__code__.co_firstlineno)
     class Label(AST):
+        is_label = True
         should_enter = enter
         app_like     = False
         def interpret(self, env, cont):

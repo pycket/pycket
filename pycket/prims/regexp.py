@@ -42,16 +42,17 @@ def regexp_match(w_re, w_str):
                                if r else values.w_false
                                for r in result])
 
-def match(w_re, w_str):
-    # FIXME: more error checking
+def promote_to_regexp(w_re):
     if isinstance(w_re, values_string.W_String):
-        w_re = values_regex.W_Regexp(w_re.as_str_ascii()) # XXX for now
-    elif isinstance(w_re, values.W_Bytes):
-        w_re = values_regex.W_Regexp(w_re.as_str())
-    elif isinstance(w_re, values_regex.W_AnyRegexp):
-        pass
-    else:
-        raise SchemeException("regexp-match: unknown kind of regexp")
+        return values_regex.W_Regexp(w_re.as_str_ascii()) # XXX for now
+    if isinstance(w_re, values.W_Bytes):
+        return values_regex.W_Regexp(w_re.as_str())
+    if isinstance(w_re, values_regex.W_AnyRegexp):
+        return w_re
+    raise SchemeException("regexp-match: unknown kind of regexp")
+
+def match(w_re, w_str):
+    w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_ascii() # XXX for now
         result = w_re.match_string(s)
@@ -64,6 +65,41 @@ def match(w_re, w_str):
         return result
     raise SchemeException("regexp-match: can't deal with this type")
 
+def match_positions(w_re, w_str):
+    w_re = promote_to_regexp(w_re)
+    if isinstance(w_str, values_string.W_String):
+        s = w_str.as_str_ascii() # XXX for now
+        result = w_re.match_string_positions(s)
+        return result
+    if isinstance(w_str, values.W_Bytes):
+        result = w_re.match_string_positions(w_str.as_str())
+        return result
+    if isinstance(w_str, values.W_InputPort):
+        result = w_re.match_port_positions(w_str)
+        return result
+    raise SchemeException("regexp-match-positions: can't deal with this type")
+
+@expose("regexp-match-positions", [values.W_Object, values.W_Object])
+@jit.unroll_safe
+def rmp(pat, input):
+    matches = match_positions(pat, input)
+    xs = []
+    for start, end in matches:
+        s = values.W_Fixnum(start)
+        e = values.W_Fixnum(end)
+        xs.append(values.W_Cons.make(s, e))
+    return values.to_list(xs)
+
+@expose("regexp-match-positions-end", [values.W_Object, values.W_Object])
+@jit.unroll_safe
+def rmp(pat, input):
+    matches = match_positions(pat, input)
+    xs = []
+    for start, end in matches:
+        s = values.W_Fixnum(start)
+        e = values.W_Fixnum(end)
+        xs.append(values.W_Cons.make(s, e))
+    return values.to_list(xs)
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
@@ -72,6 +108,12 @@ def regexp_matchp(w_r, w_o):
         return values.w_true
     else:
         return values.w_false
+
+@expose("regexp-max-lookbehind", [values.W_Object])
+def regexp_max_lookbehind(obj):
+    if not isinstance(obj, values_regex.W_Regexp) and not isinstance(obj, values_regex.W_ByteRegexp):
+        raise SchemeException("regexp-max-lookbehind: expected regexp or bytes-regexp")
+    return values.W_Fixnum(1000)
 
 # FIXME: implementation
 define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,

@@ -75,3 +75,16 @@ class TestRegressions(object):
     # that knows the path to wraptest.rkt
     def test_name_shadowing_huh(self):
         run_file("bugtest2.rkt")
+
+    def test_contract_structs(self, source):
+        """
+        #lang racket/base
+        (require racket/contract)
+
+        (define-contract-struct y (c d))
+        (define-opt/c (yopt) (y/dc))
+        (define result (y-c (contract (yopt) (make-y 1 1) 'pos 'neg)))
+        """
+        m = run_mod(source)
+        result = W_Symbol.make("result")
+        assert type(m.defs[result]) is W_Fixnum and m.defs[result].value == 1

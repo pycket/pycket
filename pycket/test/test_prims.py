@@ -6,6 +6,7 @@
 
 import pytest
 import sys
+from pycket        import values
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
@@ -301,6 +302,25 @@ def test_open_input_and_read_line(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
+def test_bytes_port(doctest):
+    r"""
+    ;> (define op1 (open-output-bytes))
+    ;> (write '((1 2 3) ("Tom" "Dick") ('a 'b 'c)) op1)
+    ;> (get-output-bytes op1)
+    ; #"((1 2 3) (\"Tom\" \"Dick\") ((quote a) (quote b) (quote c)))"
+    ;> (define op2 (open-output-bytes))
+    ;> (write "Hi " op2)
+    ;> (write "there" op2)
+    ;> (get-output-bytes op2)
+    ; #"\"Hi \"\"there\""
+    ! (define op3 (open-output-bytes))
+    > (write-bytes #"Hi " op3)
+    3
+    > (display #"there" op3)
+    > (get-output-bytes op3)
+    #"Hi there"
+    """
 
 
 ####################
@@ -684,4 +704,23 @@ def test_unsafe_undefined(doctest):
         z)
     3
     """
+
+def test_dynamic_wind(doctest):
+    """
+    > (dynamic-wind (lambda () 1) (lambda () 2) (lambda () 3))
+    2
+    """
+
+def test_bytes_conversions():
+    m = run_mod(
+    """
+    #lang pycket
+    (define a (real->floating-point-bytes 1 8 #f))
+    (define b (integer-bytes->integer a #f))
+    """)
+    a = values.W_Symbol.make("a")
+    b = values.W_Symbol.make("b")
+
+    vb = m.defs[b]
+    assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
 

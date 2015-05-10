@@ -248,9 +248,6 @@ class __extend__(values.W_Number):
     def arith_ge_same(self, other):
         return other.arith_le_same(self)
 
-
-
-
     def arith_exp(self):
         self = self.arith_exact_inexact()
         assert isinstance(self, values.W_Flonum)
@@ -538,6 +535,14 @@ class __extend__(values.W_Flonum):
         if other.value == 0.0:
             raise SchemeException("zero_divisor")
         return values.W_Flonum(self.value / other.value)
+
+    def arith_quotient_same(self, other):
+        assert isinstance(other, values.W_Flonum)
+        v1 = self.value
+        v2 = other.value
+        if math.floor(v1) != v1 or math.floor(v2) != v2:
+            raise SchemeException("quotient: expected integer")
+        return values.W_Flonum(v1 / v2)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Flonum)
@@ -893,7 +898,13 @@ class __extend__(values.W_Rational):
         return values.W_Rational.frombigint(
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
-        return self.arith_mul(factor)
+
+    def arith_pow_same(self, other):
+        assert isinstance(other, values.W_Rational)
+        # XXX Not precise
+        v = self._numerator.tofloat()  / self._denominator.tofloat()
+        p = other._numerator.tofloat() / other._denominator.tofloat()
+        return values.W_Flonum(math.pow(v, p))
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Rational)

@@ -7,7 +7,7 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit, rarithmetic
+from rpython.rlib         import jit, longlong2float, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
                                         UnsignedLongLong
@@ -78,11 +78,14 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
     return values.w_false
 
+def is_real(obj):
+    return (isinstance(obj, values.W_Fixnum) or
+            isinstance(obj, values.W_Bignum) or
+            isinstance(obj, values.W_Flonum))
+
 @expose("real?", [values.W_Object])
 def realp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum) or
-                              isinstance(n, values.W_Flonum))
+    return values.W_Bool.make(is_real(n))
 
 @expose("inexact-real?", [values.W_Object])
 def inexact_real(n):
@@ -95,6 +98,12 @@ def single_flonum(n):
 @expose("double-flonum?", [values.W_Object])
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
+
+@expose("real->double-flonum", [values.W_Number])
+def real_to_double_flonum(num):
+    if is_real(num):
+        return num.arith_exact_inexact()
+    raise SchemeException("real->double-flonum: %s is not real" % num.tostring())
 
 @expose("rational?", [values.W_Object])
 def rationalp(n):
@@ -131,6 +140,9 @@ for args in [
         ]:
     make_binary_arith(*args)
 
+@expose("flexpt", [values.W_Flonum] * 2)
+def flexpt(n, m):
+    return n.arith_pow_same(m)
 
 def make_arith(name, neutral_element, methname, supports_zero_args):
     @expose(name, simple=True)
@@ -397,6 +409,88 @@ def fxfl(a):
 def unsafe_fxfl(a):
     return values.W_Flonum(float(a.value))
 
+@expose("->fl", [values.W_Object])
+def to_fl(n):
+    if isinstance(n, values.W_Fixnum):
+        return values.W_Flonum(float(n.value))
+    if isinstance(n, values.W_Bignum):
+        return values.W_Flonum(rbigint.tofloat(n.value))
+    raise SchemeException("->fl: expected an exact-integer")
+
+@expose("real->floating-point-bytes",
+        [values.W_Number, values.W_Fixnum, default(values.W_Bool, values.w_false)])
+def real_floating_point_bytes(n, _size, big_endian):
+    if isinstance(n, values.W_Flonum):
+        v = n.value
+    elif isinstance(n, values.W_Fixnum):
+        v = float(n.value)
+    elif isinstance(n, values.W_Bignum):
+        v = rbigint.tofloat(n.value)
+    else:
+        raise SchemeException("real->floating-point-bytes: expected real")
+
+    size = _size.value
+    if size != 4 and size != 8:
+        raise SchemeException("real->floating-point-bytes: size not 4 or 8")
+
+    intval = longlong2float.float2longlong(v)
+
+    if big_endian is not values.w_false:
+        intval = rarithmetic.byteswap(intval)
+
+    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
+    return values.W_Bytes(chars)
+
+@expose("floating-point-bytes->real",
+        [values.W_Bytes, default(values.W_Object, values.w_false)])
+def integer_bytes_to_integer(bstr, signed):
+    # XXX Currently does not make use of the signed parameter
+    bytes = bstr.value
+    if len(bytes) not in (4, 8):
+        raise SchemeException(
+                "floating-point-bytes->real: byte string must have length 2, 4, or 8")
+
+    val = 0
+    for i, v in enumerate(bytes):
+        val += ord(v) << (i * 8)
+
+    return values.W_Flonum(longlong2float.longlong2float(val))
+
+@expose("integer-bytes->integer",
+        [values.W_Bytes, default(values.W_Object, values.w_false)])
+def integer_bytes_to_integer(bstr, signed):
+    # XXX Currently does not make use of the signed parameter
+    bytes = bstr.value
+    if len(bytes) not in (2, 4, 8):
+        raise SchemeException(
+                "integer-bytes->integer: byte string must have length 2, 4, or 8")
+
+    val = 0
+    for i, v in enumerate(bytes):
+        val += ord(v) << (i * 8)
+
+    return values.W_Fixnum(val)
+
+@expose("integer->integer-bytes",
+        [values.W_Number, values.W_Fixnum, default(values.W_Object, values.w_false)])
+def integer_to_integer_bytes(n, _size, signed):
+    if isinstance(n, values.W_Fixnum):
+        intval = n.value
+    elif isinstance(n, values.W_Bignum):
+        raise NotImplementedError("not implemented yet")
+    else:
+        raise SchemeException("integer->integer-bytes: expected exact integer")
+
+    size = _size.value
+    if size not in (2, 4, 8):
+        raise SchemeException("integer->integer-bytes: size not 2, 4, or 8")
+
+    #if big_endian is not values.w_false:
+        #intval = rarithmetic.byteswap(intval)
+
+    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
+    return values.W_Bytes(chars)
+
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
 def is_fxvector(v):
@@ -430,3 +524,8 @@ def unsafe_flmin(a, b):
 @expose("unsafe-flmax", [unsafe(values.W_Flonum)] * 2)
 def unsafe_flmax(a, b):
     return values.W_Flonum(max(a.value, b.value))
+
+@expose("unsafe-flabs", [unsafe(values.W_Flonum)])
+def unsafe_flabs(a):
+    return values.W_Flonum(abs(a.value))
+

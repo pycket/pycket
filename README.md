@@ -81,3 +81,6 @@ Also, the `Makefile` reacts to some variables:
  * `RPYTHON` for when you want to use something other than the default `rpython` script, but  you probablywould not want that.  
    Defaults to `$(PYPYPATH)/rpython/bin/rpython --batch`.
 
+## Benchmarking
+
+Pycket's benchmarks are available at [this repository](https://github.com/krono/pycket-bench), along with instructions for running them.

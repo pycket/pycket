@@ -10,6 +10,7 @@ from rpython.rlib import runicode
 
 from pycket.cont import continuation, loop_label, call_cont
 from pycket                   import values
+from pycket                   import values_parameter
 from pycket                   import values_struct
 from pycket                   import values_string
 from pycket.error             import SchemeException
@@ -174,7 +175,7 @@ def read_token(f):
 def read(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
-        port = current_out_param.get(cont)
+        port = current_in_param.get(cont)
     v = read_stream(port)
     return return_value(v, env, cont)
 
@@ -207,28 +208,28 @@ def check_matches(s1, s2):
         assert s2 == "}"
 
 def read_list(stream, so_far, end):
-    next_token = read_token(stream)
-    if isinstance(next_token, DotToken):
-        last = read_stream(stream)
-        close = read_token(stream)
-        if isinstance(close, RParenToken):
-            check_matches(end, close.str)
-            return reverse(so_far, acc=last)
+    while True:
+        next_token = read_token(stream)
+        if isinstance(next_token, DotToken):
+            last = read_stream(stream)
+            close = read_token(stream)
+            if isinstance(close, RParenToken):
+                check_matches(end, close.str)
+                return reverse(so_far, acc=last)
+            else:
+                raise SchemeException("read: illegal use of `.`")
+        elif isinstance(next_token, RParenToken):
+            check_matches(end, next_token.str)
+            return reverse(so_far)
+        elif isinstance(next_token, LParenToken):
+            v = read_list(stream, values.w_null, next_token.str)
+        elif isinstance(next_token, SpecialToken):
+            arg = read_stream(stream)
+            v = next_token.finish(arg)
         else:
-            raise SchemeException("read: illegal use of `.`")
-    elif isinstance(next_token, RParenToken):
-        check_matches(end, next_token.str)
-        return reverse(so_far)
-    elif isinstance(next_token, LParenToken):
-        v = read_list(stream, values.w_null, next_token.str)
-    elif isinstance(next_token, SpecialToken):
-        arg = read_stream(stream)
-        v = next_token.finish(arg)
-    else:
-        assert isinstance(next_token, ValueToken)
-        v = next_token.val
-    return read_list(stream, values.W_Cons.make(v, so_far), end)
-
+            assert isinstance(next_token, ValueToken)
+            v = next_token.val
+        so_far = values.W_Cons.make(v, so_far)
 
 
 linefeed_sym        = values.W_Symbol.make("linefeed")
@@ -421,7 +422,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
                                  default(values.W_Symbol, w_binary_sym)],
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
-    from pycket.prims.general      import call_with_extended_paramz
+    from pycket.prims.parameter import call_with_extended_paramz
     m = "rb" if mode is w_binary_sym else "r"
     port = open_infile(s, m)
     return call_with_extended_paramz(proc, [], [current_in_param], [port],
@@ -430,7 +431,7 @@ def with_input_from_file(s, proc, mode, env, cont):
 @expose("with-output-to-file",
         [values_string.W_String, values.W_Object], simple=False)
 def with_output_to_file(s, proc, env, cont):
-    from pycket.prims.general      import call_with_extended_paramz
+    from pycket.prims.parameter import call_with_extended_paramz
     port = open_outfile(s, "wb")
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
@@ -471,7 +472,8 @@ def file_position(args):
 def display(datum, out, env, cont):
     if isinstance(datum, values.W_Bytes):
         bytes = datum.value
-        write_bytes_avail(bytes, current_out_param.get(cont), 0, len(bytes))
+        port = current_out_param.get(cont) if out is None else out
+        write_bytes_avail(bytes, port , 0, len(bytes))
         return return_void(env, cont)
     return do_print(datum.tostring(), out, env, cont)
 
@@ -521,7 +523,8 @@ def format(form, vals, name):
                 s == 'v' or
                 s == 'V' or
                 s == 'e' or
-                s == 'E'):
+                s == 'E' or
+                s == '.'):
             # print a value
             # FIXME: different format chars
             if j >= len(vals):
@@ -533,7 +536,7 @@ def format(form, vals, name):
         elif s == '~':
             result.append("~")
         else:
-            raise SchemeException(name + ": unexpected format character")
+            raise SchemeException("%s: undexpected format character '%s'" % (name, s))
         i += 2
     if j != len(vals):
         raise SchemeException(name + ": not all values used")
@@ -623,8 +626,14 @@ def open_input_string(w_str, name):
     return values.W_StringInputPort(w_str.as_str_utf8())
 
 @expose("get-output-string", [values.W_StringOutputPort])
-def open_output_string(w_port):
+def get_output_string(w_port):
     return values_string.W_String.fromascii(w_port.contents()) # XXX
+
+@expose("get-output-bytes", [values.W_StringOutputPort])
+def get_output_bytes(w_port):
+    return values.W_Bytes.from_string(w_port.contents(),
+                                      immutable=False) # XXX
+
 
 # FIXME: implementation
 @expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
@@ -740,8 +749,8 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
     if start == 0 and stop == len(w_bstr):
         to_write = w_bstr
     else:
-        slice_stop = stop - 1
-        assert start >= 0 and slice_stop < len(w_bstr)
+        slice_stop = stop
+        assert start >= 0 and slice_stop <= len(w_bstr)
         assert slice_stop >= 0
         to_write = w_bstr[start:slice_stop]
 
@@ -777,28 +786,28 @@ def shutdown(env):
 
 expose_val("eof", values.eof_object)
 
-current_print_param = values.W_Parameter(standard_printer)
+current_print_param = values_parameter.W_Parameter(standard_printer)
 expose_val("current-print", current_print_param)
 
 # line buffer stdout
 stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
 stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1))
 stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
-current_out_param = values.W_Parameter(stdout_port)
-current_error_param = values.W_Parameter(stderr_port)
-current_in_param = values.W_Parameter(stdin_port)
+current_out_param = values_parameter.W_Parameter(stdout_port)
+current_error_param = values_parameter.W_Parameter(stderr_port)
+current_in_param = values_parameter.W_Parameter(stdin_port)
 
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)
 expose_val("current-input-port", current_in_param)
 
-print_graph_param = values.W_Parameter(values.w_false)
-print_struct_param = values.W_Parameter(values.w_false)
-print_box_param = values.W_Parameter(values.w_false)
-print_vector_length_param = values.W_Parameter(values.w_false)
-print_hash_table_param = values.W_Parameter(values.w_false)
-print_boolean_long_form_param = values.W_Parameter(values.w_false)
-print_as_expression_param = values.W_Parameter(values.w_true)
+print_graph_param = values_parameter.W_Parameter(values.w_false)
+print_struct_param = values_parameter.W_Parameter(values.w_false)
+print_box_param = values_parameter.W_Parameter(values.w_false)
+print_vector_length_param = values_parameter.W_Parameter(values.w_false)
+print_hash_table_param = values_parameter.W_Parameter(values.w_false)
+print_boolean_long_form_param = values_parameter.W_Parameter(values.w_false)
+print_as_expression_param = values_parameter.W_Parameter(values.w_true)
 
 expose_val("print-graph", print_graph_param)
 expose_val("print-struct", print_struct_param)

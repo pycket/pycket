@@ -18,6 +18,7 @@ from pycket import vector
 from pycket import values_struct
 from pycket import values_hash
 
+
 class ExpandException(SchemeException):
     pass
 
@@ -145,6 +146,7 @@ def expand_file_to_json(rkt_file, json_file):
     if not we_are_translated():
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
     return _expand_file_to_json(rkt_file, json_file)
+
 def _expand_file_to_json(rkt_file, json_file):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
@@ -169,8 +171,6 @@ def _expand_file_to_json(rkt_file, json_file):
     if err != 0:
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return json_file
-
-
 
 def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
     from rpython.rlib.rfile import create_popen_file
@@ -214,9 +214,6 @@ def ensure_json_ast_run(file_name):
     else:
         return json
 
-def ensure_json_ast_load(file_name):
-    return ensure_json_ast_run(file_name)
-
 def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
     json = _json_name(file_name)
     if needs_update(file_name, json):
@@ -244,7 +241,6 @@ def parse_module(json_string):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     return _to_module(json, modtable).assign_convert_module()
-
 
 def to_ast(json, modtable):
     ast = _to_ast(json, modtable)
@@ -314,29 +310,30 @@ def _to_module(json, modtable):
             for (k, _v) in v["config"].value_object().iteritems():
                 config[k] = _v.value_string()
 
-        lang = [_to_require(l, modtable) for l in [v["language"].value_string()] if l != ""]
-        return Module(v["module-name"].value_string(),
-                      lang + [_to_ast(x, modtable) for x in v["body-forms"].value_array()],
-                      config)
+        if "language" in v:
+            lang = [parse_require([b.value_string()], modtable) for b in v["language"].value_array()]
+        else:
+            lang = None
+        lang = lang[0] if lang else None
+        body = [_to_ast(x, modtable) for x in v["body-forms"].value_array()]
+        return Module(v["module-name"].value_string(), body, config, lang=lang)
     else:
         assert 0
+
 
 # A table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
+    _immutable_fields_ = ["table"]
 
     def __init__(self):
         self.table = {}
         self.current_modules = []
 
-    def add_module(self, fname):
-        #print "Adding module '%s'\n\t\tbecause of '%s'" % (fname, self.current_module or "")
-        self.table[fname] = None
-
-    def reset(self):
-        self.table = {}
+    def add_module(self, fname, module):
+        self.table[fname] = module
 
     def push(self, fname):
         self.current_modules.append(fname)
@@ -351,17 +348,55 @@ class ModTable(object):
             return None
         return self.current_modules[-1]
 
-    def has_module(self, fname):
-        return fname.startswith("#%") or fname in self.table
+    @staticmethod
+    def builtin(fname):
+        return fname.startswith("#%")
 
-def _to_require(fname, modtable):
+    def has_module(self, fname):
+        return ModTable.builtin(fname) or fname in self.table
+
+    def lookup(self, fname):
+        if fname.startswith("#%"):
+            return None
+        return self.table[fname]
+
+def shorten_submodule_path(path):
+    if path is None:
+        return None
+    acc = []
+    for p in path:
+        if p == ".":
+            continue
+        if p == "..":
+            assert acc, "Malformed submodule path"
+            acc.pop()
+        else:
+            acc.append(p)
+    return acc[:]
+
+def _to_require(fname, modtable, path=None):
+    path = shorten_submodule_path(path)
     if modtable.has_module(fname):
-        return Quote(values.w_void)
-    modtable.add_module(fname)
+        if modtable.builtin(fname):
+            return VOID
+        return Require(fname, modtable, path=path)
     modtable.push(fname)
+    # Pre-emptive pushing to prevent recursive expansion due to submodules
+    # which reference the enclosing module
+    modtable.add_module(fname, None)
     module = expand_file_cached(fname, modtable)
+    modtable.add_module(fname, module)
     modtable.pop()
-    return Require(fname, module)
+    return Require(fname, modtable, path=path)
+
+def parse_require(path, modtable):
+    fname, subs = path[0], path[1:]
+    if fname in [".", ".."]:
+        # fname field is not used in this case, so we just give an idea of which
+        # module we are in
+        return Require(modtable.current_mod(), None, path=path)
+    return _to_require(fname, modtable, path=subs)
+    assert 0, "malformed require"
 
 def get_srcloc(o):
     pos = o["position"].value_int() if "position" in o else -1
@@ -384,6 +419,19 @@ def to_lambda(o, modtable):
     return make_lambda(fmls, rest, [_to_ast(x, modtable) for x in o["body"].value_array()],
                        pos, sourcefile)
 
+def convert_path(path):
+    return [p.value_string() for p in path]
+
+def parse_path(p):
+    assert len(p) >= 1
+    arr = convert_path(p)
+    srcmod, path = arr[0], arr[1:]
+    # Relative module names go into the path.
+    # None value for the srcmod indicate the current module
+    if srcmod in [".", ".."]:
+        path   = arr
+        srcmod = None
+    return srcmod, path
 
 def _to_ast(json, modtable):
     # YYY
@@ -403,11 +451,16 @@ def _to_ast(json, modtable):
                 if "source-name" in target:
                     srcname = values.W_Symbol.make(target["source-name"].value_string())
                     if "source-module" in target:
-                        srcmod = target["source-module"].value_string() if target["source-module"].is_string else None
+                        if target["source-module"].is_array:
+                            path_arr = target["source-module"].value_array()
+                            srcmod, path = parse_path(path_arr)
+                        else:
+                            srcmod = path = None
                     else:
                         srcmod = "#%kernel"
+                        path   = None
                     modname = values.W_Symbol.make(target["module"].value_string()) if "module" in target else srcname
-                    var = ModuleVar(modname, srcmod, srcname)
+                    var = ModuleVar(modname, srcmod, srcname, path)
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 elif "toplevel" in target:
@@ -417,24 +470,28 @@ def _to_ast(json, modtable):
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
             if ast_elem == "begin-for-syntax":
-                return Quote(values.w_void)
+                return VOID
             if ast_elem == "define-syntaxes":
-                return Quote(values.w_void)
+                return VOID
             # The parser now ignores `#%require` AST nodes.
             # The actual file to include is now generated by expander
             # as an object that is handled below.
             if ast_elem == "#%require":
-                return Quote(values.w_void)
+                return VOID
             if ast_elem == "#%provide":
-                return Quote(values.w_void)
+                return VOID
         assert 0, "Unexpected ast-element element: %s" % json.tostring()
     if json.is_object:
         obj = json.value_object()
         if "require" in obj:
             paths = obj["require"].value_array()
-            if not paths:
-                return Quote(values.w_void)
-            return Begin.make([_to_require(path.value_string(), modtable) for path in paths])
+            requires = []
+            for path in paths:
+                path = convert_path(path.value_array())
+                if not path:
+                    continue
+                requires.append(parse_require(path, modtable))
+            return Begin.make(requires) if requires else VOID
         if "begin0" in obj:
             fst = _to_ast(obj["begin0"], modtable)
             rst = [_to_ast(x, modtable) for x in obj["begin0-rest"].value_array()]
@@ -502,19 +559,24 @@ def _to_ast(json, modtable):
             srcsym = values.W_Symbol.make(srcname)
             modsym = values.W_Symbol.make(modname) if modname else srcsym
             if "source-module" in obj:
-                if obj["source-module"].is_string:
-                    srcmod = obj["source-module"].value_string()
+                if obj["source-module"].is_array:
+                    path_arr = obj["source-module"].value_array()
+                    srcmod, path = parse_path(path_arr)
                 else:
-                    srcmod = None
+                    srcmod = path = None
             else:
                 srcmod = "#%kernel"
-            return ModuleVar(modsym, srcmod, srcsym)
+                path   = None
+            return ModuleVar(modsym, srcmod, srcsym, path=path)
         if "lexical" in obj:
             return LexicalVar(values.W_Symbol.make(obj["lexical"].value_string()))
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
+        if "module-name" in obj:
+            return _to_module(json, modtable)
     assert 0, "Unexpected json object: %s" % json.tostring()
 
+VOID = Quote(values.w_void)
 INF = values.W_Flonum(float("inf"))
 NEGINF = values.W_Flonum(-float("inf"))
 NAN = values.W_Flonum(float("nan"))
@@ -550,6 +612,9 @@ def _to_num(json):
             return values.W_Bignum(val)
     assert False
 
+def decode_byte_array(arr):
+    return [chr(i.value_int()) for i in arr.value_array()]
+
 def to_value(json):
     dbgprint("to_value", json)
     if json is pycket_json.json_false:
@@ -580,13 +645,16 @@ def to_value(json):
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
-            return values_regex.W_ByteRegexp(obj["byte-regexp"].value_string())
+            arr = decode_byte_array(obj["byte-regexp"])
+            return values_regex.W_ByteRegexp("".join(arr))
         if "pregexp" in obj:
             return values_regex.W_PRegexp(obj["pregexp"].value_string())
-        if "byte-regexp" in obj:
-            return values_regex.W_BytePRegexp(obj["byte-pregexp"].value_string())
+        if "byte-pregexp" in obj:
+            arr = decode_byte_array(obj["byte-pregexp"])
+            return values_regex.W_BytePRegexp("".join(arr))
         if "bytes" in obj:
-            return values.W_Bytes.from_string(str(obj["bytes"].value_string()))
+            arr = decode_byte_array(obj["bytes"])
+            return values.W_ImmutableBytes(arr)
         if "string" in obj:
             return values_string.W_String.make(str(obj["string"].value_string()))
         if "keyword" in obj:

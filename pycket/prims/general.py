@@ -6,6 +6,7 @@ from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
+from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_hash
 from pycket import values_regex
@@ -20,11 +21,14 @@ from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
 from pycket.prims import continuation_marks
+from pycket.prims import box
 from pycket.prims import equal as eq_prims
+from pycket.prims import foreign
 from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import input_output
 from pycket.prims import numeric
+from pycket.prims import parameter
 from pycket.prims import random
 from pycket.prims import regexp
 from pycket.prims import string
@@ -95,8 +99,8 @@ for args in [
         ("impersonator-property-accessor-procedure?",
          imp.W_ImpPropertyAccessor),
         ("impersonator-property?", imp.W_ImpPropertyDescriptor),
-        ("parameter?", values.W_Parameter),
-        ("parameterization?", values.W_Parameterization),
+        ("parameter?", values_parameter.W_BaseParameter),
+        ("parameterization?", values_parameter.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!
         ("hash?", values_hash.W_HashTable),
@@ -145,6 +149,21 @@ def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
     return values.W_Syntax(v)
 
+@expose("syntax-source", [values.W_Syntax])
+def syntax_source(stx):
+    # XXX Obviously not correct
+    return values.w_false
+
+@expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
+def syntax_source_module(stx, src):
+    # XXX Obviously not correct
+    return values.w_false
+
+@expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
+def syntax_numbers(stx):
+    # XXX Obviously not correct
+    return values.w_false
+
 @expose("compiled-module-expression?", [values.W_Object])
 def compiled_module_expression(v):
     return values.w_false
@@ -154,9 +173,6 @@ expose_val("true", values.w_true)
 expose_val("false", values.w_false)
 expose_val("break-enabled-key", values.break_enabled_key)
 expose_val("exception-handler-key", values.exn_handler_key)
-expose_val("parameterization-key", values.parameterization_key)
-expose_val("print-mpair-curly-braces", values.W_Parameter(values.w_false))
-expose_val("print-pair-curly-braces", values.W_Parameter(values.w_false))
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
@@ -176,6 +192,8 @@ expose_val("prop:custom-write", values_struct.w_prop_custom_write)
 expose_val("prop:equal+hash", values_struct.w_prop_equal_hash)
 expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
+expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
+expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
@@ -220,11 +238,6 @@ def current_logger():
 @expose("make-logger", [values.W_Symbol, values.W_Logger])
 def make_logger(name, parent):
     return values.W_Logger()
-
-@expose("make-parameter",
-        [values.W_Object, default(values.W_Object, values.w_false)])
-def make_parameter(init, guard):
-    return values.W_Parameter(init, guard)
 
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
@@ -376,7 +389,6 @@ for args in [ ("subprocess?",),
               ("relative-path?",),
               ("absolute-path?",),
               ("internal-definition-context?",),
-              ("set!-transformer?",),
               ("rename-transformer?",),
               ("identifier?",),
               ("port?",),
@@ -387,6 +399,16 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
+
+@expose("set!-transformer?", [values.W_Object])
+def set_bang_transformer(v):
+    if isinstance(v, values.W_AssignmentTransformer):
+        return values.w_true
+    elif isinstance(v, values_struct.W_RootStruct):
+        w_prop = v.struct_type().read_prop(values_struct.w_prop_set_bang_transformer)
+        return values.W_Bool.make(w_prop is not None)
+    else:
+        return values.w_false
 
 
 @expose("object-name", [values.W_Object])
@@ -527,7 +549,8 @@ def do_procedure_extract_target(proc, env, cont):
         prop_procedure = proc.struct_type().prop_procedure
         procedure_source = proc.struct_type().procedure_source
         if isinstance(prop_procedure, values.W_Fixnum):
-            return proc.ref(procedure_source, prop_procedure.value, env, cont)
+            return proc.struct_type().accessor.access(
+                procedure_source, prop_procedure.value, env, cont, None)
     return return_value(values.w_false, env, cont)
 
 @expose("variable-reference-constant?",
@@ -547,19 +570,42 @@ def varref_ms(varref):
     # FIXME: not implemented
     return values.W_Symbol.make("dummy_module")
 
+@expose("variable-reference->module-path-index", [values.W_VariableReference])
+def varref_to_mpi(ref):
+    from pycket.interpreter import ModuleVar
+    if not isinstance(ref, ModuleVar):
+        return values.w_false
+    return values.W_ModulePathIndex()
+
+@expose("variable-reference->module-base-phase", [values.W_VariableReference])
+def varref_to_mbp(ref):
+    # XXX Obviously not correct
+    return values.W_Fixnum(0)
+
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
     return rmp.name
 
-@expose("module-path?", [values.W_Object])
-def module_pathp(v):
+def is_module_path(v):
     if isinstance(v, values.W_Symbol):
         # FIXME: not always right
-        return values.w_true
+        return True
     if isinstance(v, values.W_Path):
-        return values.w_true
+        return True
+    if isinstance(v, values_string.W_String):
+        return True
+    if isinstance(v, values.W_List):
+        vs = values.from_list(v)
+        for p in vs:
+            if not is_module_path(p):
+                return False
+        return True
     # FIXME
-    return values.w_false
+    return False
+
+@expose("module-path?", [values.W_Object])
+def module_pathp(v):
+    return values.W_Bool.make(is_module_path(v))
 
 @expose("values")
 def do_values(args_w):
@@ -589,7 +635,23 @@ def cont_prompt_avail(args):
 def cont_prompt_tag(args):
     return values.w_false
 
-define_nyi("dynamic-wind", False)
+@continuation
+def dynamic_wind_pre_cont(value, post, env, cont, _vals):
+    return value.call([], env, dynamic_wind_value_cont(post, env, cont))
+
+@continuation
+def dynamic_wind_value_cont(post, env, cont, _vals):
+    return post.call([], env, dynamic_wind_post_cont(_vals, env, cont))
+
+@continuation
+def dynamic_wind_post_cont(val, env, cont, _vals):
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(val, env, cont)
+
+@expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
+def dynamic_wind(pre, value, post, env, cont):
+    return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
+
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
@@ -597,11 +659,12 @@ define_nyi("dynamic-wind", False)
 def callcc(a, env, cont, extra_call_info):
     return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
-@expose("time-apply", [procedure, values.W_List], simple=False)
-def time_apply(a, args, env, cont):
+@expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
+def time_apply(a, args, env, cont, extra_call_info):
     initial = time.clock()
-    return  a.call(values.from_list(args),
-                   env, time_apply_cont(initial, env, cont))
+    return  a.call_with_extra_info(values.from_list(args),
+                                   env, time_apply_cont(initial, env, cont), 
+                                   extra_call_info)
 
 @expose("apply", simple=False, extra_info=True)
 def apply(args, env, cont, extra_call_info):
@@ -911,43 +974,6 @@ def reverse(w_l):
 @expose("void")
 def do_void(args): return values.w_void
 
-
-### Boxes
-
-@expose("box", [values.W_Object])
-def box(v):
-    return values.W_MBox(v)
-
-@expose("box-immutable", [values.W_Object])
-def box_immutable(v):
-    return values.W_IBox(v)
-
-@expose("unbox", [values.W_Box], simple=False)
-def unbox(b, env, cont):
-    return b.unbox(env, cont)
-
-@expose("set-box!", [values.W_Box, values.W_Object], simple=False)
-def set_box(box, v, env, cont):
-    return box.set_box(v, env, cont)
-
-# This implementation makes no guarantees about atomicity
-@expose("box-cas!", [values.W_MBox, values.W_Object, values.W_Object])
-def box_cas(box, old, new):
-    if eq_prims.eqp_logic(box.value, old):
-        box.value = new
-        return values.w_true
-    return values.w_false
-
-@expose("make-weak-box", [values.W_Object])
-def make_weak_box(val):
-    return values.W_WeakBox(val)
-
-@expose("weak-box-value",
-        [values.W_WeakBox, default(values.W_Object, values.w_false)])
-def weak_box_value(wb, default):
-    v = wb.get()
-    return v if v is not None else default
-
 @expose("make-ephemeron", [values.W_Object] * 2)
 def make_ephemeron(key, val):
     return values.W_Ephemeron(key, val)
@@ -1052,11 +1078,6 @@ def vector2list(v):
         es.append(v.ref(i))
     return values.to_list(es)
 
-@expose("vector->immutable-vector", [values_vector.W_Vector])
-def vector2immutablevector(v):
-    # FIXME: it should be immutable
-    return v
-
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
 def current_command_line_arguments(env, cont):
@@ -1092,6 +1113,14 @@ def path2string(p):
 @expose("path->bytes", [values.W_Path])
 def path2bytes(p):
     return values.W_Bytes.from_string(p.path)
+
+@expose("cleanse-path", [values.W_Object])
+def cleanse_path(p):
+    if isinstance(p, values_string.W_String):
+        return values.W_Path(p.as_str_ascii())
+    if isinstance(p, values.W_Path):
+        return p
+    raise SchemeException("cleanse-path expects string or path")
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
@@ -1172,34 +1201,6 @@ def mcpt(s):
     from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
-
-@expose("extend-parameterization",
-        [values.W_Object, values.W_Object, values.W_Object])
-def extend_paramz(paramz, key, val):
-    if not isinstance(key, values.W_Parameter):
-        raise SchemeException("Not a parameter")
-    if isinstance(paramz, values.W_Parameterization):
-        return paramz.extend([key], [val])
-    else:
-        return paramz # This really is the Racket behavior
-
-def call_with_parameterization(f, args, paramz, env, cont):
-    cont.update_cm(values.parameterization_key, paramz)
-    return f.call(args, env, cont)
-
-@expose("call-with-parameterization",
-        [values.W_Object, values.W_Parameterization], simple=False)
-def call_w_paramz(f, paramz, env, cont):
-    return call_with_parameterization(f, [], paramz, env, cont)
-
-def call_with_extended_paramz(f, args, keys, vals, env, cont):
-    # XXX seems untested?
-    paramz = cont.get_mark_first(values.parameterization_key)
-    assert isinstance(paramz, values.W_Parameterization) # XXX is this always right?
-    paramz_new = paramz.extend(keys, vals)
-    return call_with_parameterization(f, args, paramz_new, env, cont)
-
-
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
@@ -1291,9 +1292,9 @@ def mpi_join(a, b):
 # FIXME: Proper semantics.
 @expose("load", [values_string.W_String], simple=False)
 def load(lib, env, cont):
-    from pycket.expand import ensure_json_ast_load, load_json_ast_rpython
+    from pycket.expand import ensure_json_ast_run, load_json_ast_rpython
     lib_name = lib.tostring()
-    json_ast = ensure_json_ast_load(lib_name)
+    json_ast = ensure_json_ast_run(lib_name)
     if json_ast is None:
         raise SchemeException(
             "can't gernerate load-file for %s " % lib.tostring())
@@ -1310,8 +1311,6 @@ def cur_load_rel_dir():
 def cur_dir():
     return values.W_Path(os.getcwd())
 
-
-
 w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
 w_macosx_sym = values.W_Symbol.make("macosx")
@@ -1327,14 +1326,16 @@ def detect_platform():
 
 w_system_sym = detect_platform()
 
-
 w_os_sym = values.W_Symbol.make("os")
-
+w_os_so_suffix = values.W_Symbol.make("so-suffix")
+w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
 @expose("system-type", [default(values.W_Symbol, w_os_sym)])
 def system_type(w_what):
     if w_what is w_os_sym:
         return w_system_sym
+    if w_what is w_os_so_suffix:
+        return w_unix_so_suffix
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
 
