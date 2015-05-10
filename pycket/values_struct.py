@@ -679,14 +679,19 @@ def generate_struct_class(constant_false):
         _immutable_fields_ = [attr for i, attr in unrolling_enumerate_attrs]
 
         @jit.unroll_safe
-        def _get_field_val(self, i):
+        def _ref(self, i):
             pos = i
             for j, attr in unrolling_enumerate_attrs:
                 if i > j:
                     pos -= 1
                 elif i == j:
                     return values.w_false
-            return self._ref(pos)
+            w_res = self._get_list(i)
+            immutable = self.struct_type().is_immutable_field_index(i)
+            if not immutable:
+                assert isinstance(w_res, values.W_Cell)
+                w_res = w_res.get_val()
+            return w_res
 
     for i, attr in unrolling_enumerate_attrs:
         setattr(structure_class, attr, False)
