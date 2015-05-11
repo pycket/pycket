@@ -16,6 +16,9 @@ expose_val("_uint32" , values.W_Fixnum.make(6))
 expose_val("_uint64" , values.W_Fixnum.make(7))
 expose_val("_bytes"  , values.W_Fixnum.make(8))
 expose_val("_path"   , values.W_Fixnum.make(9))
+expose_val("_void"   , values.W_Fixnum.make(10))
+expose_val("_pointer"  , values.W_Fixnum.make(11))
+expose_val("_fpointer" , values.W_Fixnum.make(12))
 
 ctype = values.W_Fixnum
 
