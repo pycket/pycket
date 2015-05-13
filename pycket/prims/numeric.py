@@ -458,25 +458,17 @@ def integer_bytes_to_integer(bstr, signed):
 
 @expose("integer-bytes->integer",
         [values.W_Bytes, default(values.W_Object, values.w_false),
-         default(values.W_Object, None)])
+         default(values.W_Object, values.w_false)])
 def integer_bytes_to_integer(bstr, signed, big_endian):
-    # XXX Currently does not make use of the signed parameter
+    # XXX Currently does not make use of the signed or big endian parameter
     bytes = bstr.value
     if len(bytes) not in (2, 4, 8):
         raise SchemeException(
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
 
     val = 0
-
-    if big_endian is not values.w_false:
-        for i, v in reversed(enumerate(bytes)):
-            val += rarithmethic.byteswap(ord(v)) << (i * 8)
-    else:
-        for i, v in enumerate(bytes):
-            val += ord(v) << (i * 8)
-
-    #if big_endian is not values.w_false:
-        #val = rarithmetic.byteswap(val)
+    for i, v in enumerate(bytes):
+        val += ord(v) << (i * 8)
     return values.W_Fixnum(val)
 
 @expose("integer->integer-bytes",
