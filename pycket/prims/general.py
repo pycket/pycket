@@ -107,7 +107,8 @@ for args in [
         ("hash-eq?", values_hash.W_HashTable),
         ("hash-eqv?", values_hash.W_HashTable),
         ("hash-equal?", values_hash.W_HashTable),
-        ("hash-weak?", values_hash.W_HashTable)
+        ("hash-weak?", values_hash.W_HashTable),
+        ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
     make_pred(*args)
 
@@ -628,11 +629,6 @@ def time_apply_cont(initial, env, cont, vals):
 
 @expose("continuation-prompt-available?")
 def cont_prompt_avail(args):
-    return values.w_false
-
-# FIXME: this is a data type
-@expose("continuation-prompt-tag?")
-def cont_prompt_tag(args):
     return values.w_false
 
 @continuation
@@ -1201,6 +1197,10 @@ def mcpt(s):
     from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
+
+@expose("default-continuation-prompt-tag", [])
+def dcpt():
+    return values.w_default_continuation_prompt_tag
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
