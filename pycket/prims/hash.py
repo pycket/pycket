@@ -91,34 +91,35 @@ def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
     after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
     return f.call([w_key, w_value], env, after)
 
+def from_assocs(assocs, fname):
+    lsts = values.from_list(assocs)
+    keys = [None] * len(lsts)
+    vals = [None] * len(lsts)
+    for i, lst in enumerate(lsts):
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("%s: expected list of pairs" % fname)
+        keys[i], vals[i] = lst.car(), lst.cdr()
+    return keys, vals
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
-    return make_simple_table(W_EqvHashTable, [], [])
+    return make_simple_table(W_EqvHashTable, None, None)
+
+@expose("make-weak-hash", [default(values.W_List, None)])
+def make_weak_hash(assocs):
+    if assocs is None:
+        return W_EqualHashTable([], [], immutable=False)
+    return W_EqualHashTable(*from_assocs(assocs, "make-weak-hash"), immutable=False)
 
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
-    pairs = values.from_list(assocs)
-    keys  = [None] * len(pairs)
-    vals  = [None] * len(pairs)
-    for i, pair in enumerate(pairs):
-        if not isinstance(pair, values.W_Cons):
-            raise SchemeException("make-immutable-hash: expected list of pairs")
-        keys[i] = pair.car()
-        vals[i] = pair.cdr()
+    keys, vals = from_assocs(assocs, "make-immutable-hash")
     return W_EqualHashTable(keys, vals, immutable=True)
 
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
-    pairs = values.from_list(assocs)
-    keys  = [None] * len(pairs)
-    vals  = [None] * len(pairs)
-    for i, pair in enumerate(pairs):
-        if not isinstance(pair, values.W_Cons):
-            raise SchemeException("make-immutable-hasheq: expected list of pairs")
-        keys[i] = pair.car()
-        vals[i] = pair.cdr()
+    keys, vals = from_assocs(assocs, "make-immutable-hasheq")
     return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
 
 @expose("hash")
@@ -147,15 +148,7 @@ def hasheqv(args):
 
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
-    lsts = values.from_list(pairs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return W_EqualHashTable(keys, vals)
+    return W_EqualHashTable(*from_assocs(pairs, "make-hash"))
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
