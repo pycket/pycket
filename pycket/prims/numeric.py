@@ -457,8 +457,9 @@ def integer_bytes_to_integer(bstr, signed):
     return values.W_Flonum(longlong2float.longlong2float(val))
 
 @expose("integer-bytes->integer",
-        [values.W_Bytes, default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed):
+        [values.W_Bytes, default(values.W_Object, values.w_false),
+         default(values.W_Object, None)])
+def integer_bytes_to_integer(bstr, signed, big_endian):
     # XXX Currently does not make use of the signed parameter
     bytes = bstr.value
     if len(bytes) not in (2, 4, 8):
@@ -466,9 +467,16 @@ def integer_bytes_to_integer(bstr, signed):
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
 
     val = 0
-    for i, v in enumerate(bytes):
-        val += ord(v) << (i * 8)
 
+    if big_endian is not values.w_false:
+        for i, v in reversed(enumerate(bytes)):
+            val += rarithmethic.byteswap(ord(v)) << (i * 8)
+    else:
+        for i, v in enumerate(bytes):
+            val += ord(v) << (i * 8)
+
+    #if big_endian is not values.w_false:
+        #val = rarithmetic.byteswap(val)
     return values.W_Fixnum(val)
 
 @expose("integer->integer-bytes",
