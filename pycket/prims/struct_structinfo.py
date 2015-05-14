@@ -25,16 +25,16 @@ def do_is_struct(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
         values_struct.current_inspector.has_control(v.struct_type()))
 
-@expose("struct-info", [values.W_Object])
-def do_struct_info(v):
+@expose("struct-info", [values.W_Object], simple=False)
+def do_struct_info(v, env, cont):
+    from pycket.interpreter import return_multi_vals
     if (isinstance(v, values_struct.W_RootStruct) and
         values_struct.current_inspector.has_control(v.struct_type())):
-        struct_type = v.struct_type()
-        skipped = values.w_false
-    else:
-        struct_type = values.w_false
-        skipped = values.w_true
-    return values.Values.make([struct_type, skipped])
+        return v.get_struct_info(env, cont)
+    return return_multi_vals(
+            values.Values.make([values.w_false, values.w_true]), env, cont)
+
+struct_info = do_struct_info.w_prim
 
 @expose("struct-type-info", [values_struct.W_StructType])
 def do_struct_type_info(struct_type):
