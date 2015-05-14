@@ -34,3 +34,11 @@ def compiler_sizeof(sym):
 def make_stub_will_executor():
     return values.w_false
 
+@expose("ctype-sizeof", [ctype])
+def ctype_sizeof(c):
+    return values.W_Fixnum(8)
+
+@expose("ctype?", [ctype])
+def ctype(c):
+    return values.W_Bool.make(0 <= c.value <= 12)
+
