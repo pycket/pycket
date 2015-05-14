@@ -42,3 +42,12 @@ def ctype_sizeof(c):
 def ctype(c):
     return values.W_Bool.make(0 <= c.value <= 12)
 
+@expose("ffi-lib?", [values.W_Object])
+def ffi_lib(o):
+    # Naturally, since we don't have ffi values
+    return values.w_false
+
+@expose("ffi-lib")
+def ffi_lib(args):
+    return values.w_false
+
