@@ -1077,9 +1077,10 @@ class W_Continuation(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
-    _immutable_fields_ = ["caselam"]
+    _immutable_fields_ = ["caselam", "env"]
     @jit.unroll_safe
     def __init__ (self, caselam, env):
+        self.env = env
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)

@@ -592,6 +592,9 @@ class Cell(AST):
     def _tostring(self):
         return "Cell(%s)"%self.expr.tostring()
 
+    def _deepcopy(self):
+        return Cell(self.expr, self.need_cell_flags[:])
+
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
     simple = True
@@ -618,6 +621,9 @@ class Quote(AST):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
 
+    def _deepcopy(self):
+        return Quote(self.w_val)
+
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
     simple = True
@@ -638,6 +644,9 @@ class QuoteSyntax(AST):
 
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
+
+    def _deepcopy(self):
+        return QuoteSyntax(self.w_val)
 
 class VariableReference(AST):
     _immutable_fields_ = ["var", "is_mut", "path"]
@@ -678,6 +687,9 @@ class VariableReference(AST):
     def _tostring(self):
         return "#<#%variable-reference>"
 
+    def _deepcopy(self):
+        return VariableReference(self.var, self.path, self.is_mut)
+
 
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
@@ -708,6 +720,12 @@ class WithContinuationMark(AST):
 
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
+
+    def _deepcopy(self):
+        return WithContinuationMark(
+                self.key._deepcopy(),
+                self.value._deepcopy(),
+                self.body._deepcopy())
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
@@ -780,16 +798,26 @@ class App(AST):
             x.update(r.mutated_vars())
         return x
 
+    #@jit.unroll_safe
+    #def _cache_lookup_rator(self, env):
+        #rator = self.rator.interpret_simple(env)
+
+
     # Let conversion ensures that all the participants in an application
     # are simple.
     @jit.unroll_safe
     def interpret(self, env, cont):
+
         rator = self.rator
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
         w_callable = rator.interpret_simple(env)
+
+        #if isinstance(w_callable, values.W_Closure):
+            #test = values.W_Closure.make(w_callable.caselam._deepcopy(), w_callable.env)
+
         args_w = [None] * len(self.rands)
         for i, rand in enumerate(self.rands):
             args_w[i] = rand.interpret_simple(env)
@@ -801,6 +829,11 @@ class App(AST):
 
     def _tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
+
+    def _deepcopy(self):
+        rator = self.rator._deepcopy()
+        rands = [r._deepcopy() for r in self.rands]
+        return App(rator, rands, self.env_structure)
 
 
 class SimplePrimApp1(App):
@@ -828,6 +861,10 @@ class SimplePrimApp1(App):
         result = self.run(env)
         return return_multi_vals_direct(result, env, cont)
 
+    def _deepcopy(self):
+        rator = self.rator._deepcopy()
+        rand1 = self.rand1._deepcopy()
+        return SimplePrimApp1(rator, [rand1], self.env_structure, self.w_prim)
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
@@ -855,6 +892,12 @@ class SimplePrimApp2(App):
             self.set_should_enter() # to jit downrecursion
         result = self.run(env)
         return return_multi_vals_direct(result, env, cont)
+
+    def _deepcopy(self):
+        rator = self.rator._deepcopy()
+        rand1 = self.rand1._deepcopy()
+        rand2 = self.rand2._deepcopy()
+        return SimplePrimApp2(rator, [rand1, rand2], self.env_structure, self.w_prim)
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
@@ -912,6 +955,10 @@ class Begin0(AST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+    def _deepcopy(self):
+        first = self.first._deepcopy()
+        body  = self.body._deepcopy()
+        return Begin0(first, body)
 
 class Begin(SequencedBodyAST):
     @staticmethod
@@ -940,6 +987,9 @@ class Begin(SequencedBodyAST):
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
+    def _deepcopy(self):
+        return Begin([b._deepcopy() for b in self.body])
+
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
@@ -967,6 +1017,8 @@ class Var(AST):
     def _tostring(self):
         return "%s" % self.sym.variable_name()
 
+    def _deepcopy(self):
+        return Var(self.sym, self.env_structure)
 
 class CellRef(Var):
     simple = True
@@ -1013,6 +1065,9 @@ class LexicalVar(Var):
             return CellRef(self.sym, env_structure)
         else:
             return LexicalVar(self.sym, env_structure)
+
+    def _deepcopy(self):
+        return LexicalVar(self.sym, self.env_structure)
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
@@ -1088,6 +1143,10 @@ class ModuleVar(Var):
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
 
+    def _deepcopy(self):
+        return ModuleVar(self.sym, self.srcmod, self.srcsym, self.path[:])
+
+
 # class ModCellRef(Var):
 #     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
 
@@ -1124,6 +1183,9 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env().toplevel_set(self.sym, w_val)
 
+    def _deepcopy(self):
+        return ToplevelVar(self.sym, self.env_structure)
+
 # rewritten version for caching
 def to_modvar(m):
     return ModuleVar(m.sym, None, m.srcsym)
@@ -1158,6 +1220,9 @@ class SetBang(AST):
 
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
+
+    def _deepcopy(self):
+        return SetBang(self.var._deepcopy(), self.rhs._deepcopy())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -1203,6 +1268,9 @@ class If(AST):
 
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
+
+    def _deepcopy(self):
+        return If(self.tst._deepcopy(), self.thn._deepcopy(), self.els._deepcopy())
 
 def make_lambda(formals, rest, body, srcpos, srcfile):
     args = SymList(formals + ([rest] if rest else []))
@@ -1319,6 +1387,10 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
         return self._arity
+
+    def _deepcopy(self):
+        lams = [l._deepcopy() for l in self.lams]
+        return CaseLambda(lams, self.recursive_sym)
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
@@ -1466,6 +1538,12 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+    def _deepcopy(self):
+        body = [b._deepcopy() for b in self.body]
+        return Lambda(self.formals, self.rest, self.args, self.frees,
+                      body, self.srcpos, self.srcfile,
+                      self.enclosing_env_structure, self.env_structure)
+
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
 
@@ -1495,6 +1573,9 @@ class CombinedAstAndIndex(AST):
     def _tostring(self):
         return "<%s of %s>" % (self.index, self.ast.tostring())
 
+    def _deepcopy(self):
+        return CombinedAstAndIndex(self.ast._deepcopy(), self.index)
+
 class CombinedAstAndAst(AST):
     _immutable_fields_ = ["ast1", "ast2"]
 
@@ -1507,6 +1588,9 @@ class CombinedAstAndAst(AST):
         ast1 = self.ast1
         ast2 = self.ast2
         return ast1, ast2
+
+    def _deepcopy(self):
+        return CombinedAstAndAst(self.ast1._deepcopy(), self.ast2._deepcopy())
 
 class Letrec(SequencedBodyAST):
     _immutable_fields_ = ["args", "rhss[*]", "counts[*]", "total_counts[*]"]
@@ -1577,6 +1661,13 @@ class Letrec(SequencedBodyAST):
             [([v.variable_name() for v in vs],
               self.rhss[i].tostring()) for i, vs in enumerate(vars)],
             [b.tostring() for b in self.body])
+
+    def _deepcopy(self):
+        args = self.args
+        rhss = [r._deepcopy() for r in self.rhss]
+        counts = self.counts[:]
+        body = [b._deepcopy() for b in self.body]
+        return Letrec(args, counts, rhss, body)
 
 def _make_symlist_counts(varss):
     counts = []
@@ -1827,6 +1918,14 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
+    def _deepcopy(self):
+        args = self.args
+        counts = self.counts[:]
+        rhss = [r._deepcopy() for  r in self.rhss]
+        body = [b._deepcopy() for b in self.body]
+        return Let(args, counts, rhss, body)
+
+
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
     names = []
@@ -1869,6 +1968,8 @@ class DefineValues(AST):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 
+    def _deepcopy(self):
+        return DefineValues(self.names[:], self.rhs._deepcopy(), self.display_names)
 
 def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
