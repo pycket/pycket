@@ -813,7 +813,7 @@ class App(AST):
             return func
 
         # Currently only cache module level variables
-        if isinstance(self.rator, ModuleVar):
+        if isinstance(func, values.W_PromotableClosure):
             for k, v in self.cache:
                 if k is func:
                     return v
