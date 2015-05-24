@@ -814,9 +814,11 @@ class App(AST):
 
         # Currently only cache module level variables
         if isinstance(func, values.W_PromotableClosure):
+            func = jit.promote(func)
             for k, v in self.cache:
                 if k is func:
                     return v
+
             if (not jit.we_are_jitted() and
                 self.inline_depth < _INLINE_CUTOFF and
                 len(self.cache) < _CACHE_SIZE):
@@ -831,15 +833,13 @@ class App(AST):
     # are simple.
     @jit.unroll_safe
     def interpret(self, env, cont):
-
         rator = self.rator
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        #w_callable = rator.interpret_simple(env)
+
         w_callable = self._cache_lookup_rator(env)
-        #print w_callable
 
         args_w = [None] * len(self.rands)
         for i, rand in enumerate(self.rands):
