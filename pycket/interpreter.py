@@ -802,6 +802,7 @@ class App(AST):
     @jit.unroll_safe
     def _cache_lookup_rator(self, env):
         func = self.rator.interpret_simple(env)
+
         if (not isinstance(func, values.W_Closure) and
             not isinstance(func, values.W_Closure1AsEnv) and
             not isinstance(func, values.W_PromotableClosure)):
@@ -812,7 +813,7 @@ class App(AST):
             for k, v in self.cache:
                 if k is func:
                     return v
-            if len(self.cache) < 2:
+            if not jit.we_are_jitted() and len(self.cache) < 2:
                 copy = func._deepcopy()
                 self.cache = self.cache + [(func, copy)]
                 return copy
