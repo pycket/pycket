@@ -1143,8 +1143,8 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-    def _deepcopy(self):
-        return W_Closure.make(self.caselam._deepcopy(), self.env)
+    def _deepcopy(self, depth):
+        return W_Closure.make(self.caselam._deepcopy(depth), self.env)
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
@@ -1231,10 +1231,10 @@ class W_Closure1AsEnv(ConsEnv):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
-    def _deepcopy(self):
+    def _deepcopy(self, depth):
         return W_Closure1AsEnv.make(
                 self._get_full_list(),
-                self.caselam._deepcopy(),
+                self.caselam._deepcopy(depth),
                 self.env)
 
 
@@ -1265,8 +1265,8 @@ class W_PromotableClosure(W_Procedure):
     def tostring(self):
         return self.closure.tostring()
 
-    def _deepcopy(self):
-        return W_PromotableClosure(self.closure.caselam._deepcopy(), self.toplevel_env)
+    def _deepcopy(self, depth):
+        return W_PromotableClosure(self.closure.caselam._deepcopy(depth), self.toplevel_env)
 
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"

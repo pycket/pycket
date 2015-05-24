@@ -100,6 +100,6 @@ class AST(object):
     def __str__(self):
         return self.tostring()
 
-    def _deepcopy(self):
+    def _deepcopy(self, depth=1):
         raise NotImplementedError("abstract class")
 
