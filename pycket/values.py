@@ -1143,13 +1143,18 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
+    def _deepcopy(self):
+        return W_Closure.make(self.caselam._deepcopy(), self.env)
+
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
-    _immutable_fields_ = ['caselam']
+    _attrs_ = ['caselam', 'env']
+    _immutable_fields_ = ['caselam', 'env']
 
     def __init__(self, caselam, prev):
         ConsEnv.__init__(self, prev)
         self.caselam = caselam
+        self.env = prev
 
     @staticmethod
     @jit.unroll_safe
@@ -1226,15 +1231,22 @@ class W_Closure1AsEnv(ConsEnv):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
+    def _deepcopy(self):
+        return W_Closure1AsEnv.make(
+                self._get_full_list(),
+                self.caselam._deepcopy(),
+                self.env)
+
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
-    _immutable_fields_ = ["closure"]
+    _immutable_fields_ = ["closure", "toplevel_env"]
 
     def __init__(self, caselam, toplevel_env):
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        self.toplevel_env = toplevel_env
 
     def enable_jitting(self):
         self.closure.enable_jitting()
@@ -1252,6 +1264,9 @@ class W_PromotableClosure(W_Procedure):
 
     def tostring(self):
         return self.closure.tostring()
+
+    def _deepcopy(self):
+        return W_PromotableClosure(self.closure.caselam._deepcopy(), self.toplevel_env)
 
 class W_EnvVarSet(W_Object):
     errorname = "environment-variable-set"

@@ -169,6 +169,7 @@ class ToplevelEnv(Env):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class ConsEnv(Env):
+    _attrs_ = ['_prev']
     _immutable_fields_ = ["_prev"]
     def __init__ (self, prev):
         assert isinstance(prev, Env)

@@ -593,7 +593,7 @@ class Cell(AST):
         return "Cell(%s)"%self.expr.tostring()
 
     def _deepcopy(self):
-        return Cell(self.expr, self.need_cell_flags[:])
+        return Cell(self.expr._deepcopy(), self.need_cell_flags[:])
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
@@ -688,7 +688,7 @@ class VariableReference(AST):
         return "#<#%variable-reference>"
 
     def _deepcopy(self):
-        return VariableReference(self.var, self.path, self.is_mut)
+        return VariableReference(self.var._deepcopy(), self.path, self.is_mut)
 
 
 class WithContinuationMark(AST):
@@ -728,7 +728,7 @@ class WithContinuationMark(AST):
                 self.body._deepcopy())
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    _immutable_fields_ = ["rator", "rands[*]", "env_structure", "cache?[*]"]
     app_like = True
 
     def __init__ (self, rator, rands, env_structure=None):
@@ -738,6 +738,7 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
+        self.cache = []
 
     @staticmethod
     def make(rator, rands, env_structure=None):
@@ -798,10 +799,25 @@ class App(AST):
             x.update(r.mutated_vars())
         return x
 
-    #@jit.unroll_safe
-    #def _cache_lookup_rator(self, env):
-        #rator = self.rator.interpret_simple(env)
+    @jit.unroll_safe
+    def _cache_lookup_rator(self, env):
+        func = self.rator.interpret_simple(env)
+        if (not isinstance(func, values.W_Closure) and
+            not isinstance(func, values.W_Closure1AsEnv) and
+            not isinstance(func, values.W_PromotableClosure)):
+            return func
 
+        # Currently only cache module level variables
+        if isinstance(self.rator, ModuleVar):
+            for k, v in self.cache:
+                if k is func:
+                    return v
+            if len(self.cache) < 2:
+                copy = func._deepcopy()
+                self.cache = self.cache + [(func, copy)]
+                return copy
+
+        return func
 
     # Let conversion ensures that all the participants in an application
     # are simple.
@@ -813,10 +829,9 @@ class App(AST):
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        w_callable = rator.interpret_simple(env)
-
-        #if isinstance(w_callable, values.W_Closure):
-            #test = values.W_Closure.make(w_callable.caselam._deepcopy(), w_callable.env)
+        #w_callable = rator.interpret_simple(env)
+        w_callable = self._cache_lookup_rator(env)
+        #print w_callable
 
         args_w = [None] * len(self.rands)
         for i, rand in enumerate(self.rands):
@@ -1039,6 +1054,8 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
 
+    def _deepcopy(self):
+        return CellRef(self.sym, self.env_structure)
 
 class Gensym(object):
     _counter = {}
@@ -1052,8 +1069,8 @@ class Gensym(object):
 
 class LexicalVar(Var):
     def _lookup(self, env):
-        if not objectmodel.we_are_translated():
-            self.env_structure.check_plausibility(env)
+        #if not objectmodel.we_are_translated():
+            #self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
@@ -1390,7 +1407,7 @@ class CaseLambda(AST):
 
     def _deepcopy(self):
         lams = [l._deepcopy() for l in self.lams]
-        return CaseLambda(lams, self.recursive_sym)
+        return CaseLambda(lams, recursive_sym=self.recursive_sym)
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
@@ -1760,8 +1777,8 @@ class Let(SequencedBodyAST):
         if not objectmodel.we_are_translated():
             if env_structure is None:
                 assert isinstance(env, ToplevelEnv)
-            else:
-                env_structure.check_plausibility(env)
+            #else:
+                #env_structure.check_plausibility(env)
         for i in range(self.remove_num_envs[i] - already_pruned):
             env = env.get_prev(env_structure)
             env_structure = env_structure.prev
@@ -1923,7 +1940,8 @@ class Let(SequencedBodyAST):
         counts = self.counts[:]
         rhss = [r._deepcopy() for  r in self.rhss]
         body = [b._deepcopy() for b in self.body]
-        return Let(args, counts, rhss, body)
+        remove = self.remove_num_envs[:]
+        return Let(args, counts, rhss, body, remove_num_envs=remove)
 
 
 class DefineValues(AST):
