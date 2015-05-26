@@ -23,6 +23,17 @@
 
 (define max 0.0)
 
+(displayln 'direct)
+(time
+  (for ([_ (in-range iters)])
+    (set! max 0.0)
+    (for ([i (in-range (vector-length vec))])
+      (let ([vec^ (vector-ref vec i)])
+      (for ([j (in-range (vector-length vec^))])
+        (let ([v (vector-ref vec^ j)])
+          (when (< max v) (set! max v))))))))
+
+(displayln 'first)
 (time
   (for ([_ (in-range iters)])
     (set! max 0.0)
@@ -32,6 +43,7 @@
           (λ (v)
             (when (< max v) (set! max v))))))))
 
+(displayln 'second)
 ;; This copy runs ~5.5x slower than the one above, despite being a verbatim copy.
 (time
   (for ([_ (in-range iters)])
