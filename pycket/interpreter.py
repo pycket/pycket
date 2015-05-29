@@ -999,10 +999,20 @@ class Gensym(object):
 
 
 class LexicalVar(Var):
+
+    _immutable_fields_ = ['depth']
+
+    def __init__(self, sym, env_structure=None):
+        Var.__init__(self, sym, env_structure)
+        if env_structure is not None:
+            self.depth = env_structure.depth_of_var(sym)[1]
+        else:
+            self.depth = -1
+
     def _lookup(self, env):
         if not objectmodel.we_are_translated():
             self.env_structure.check_plausibility(env)
-        return env.lookup(self.sym, self.env_structure)
+        return env.lookup_fast(self.sym, self.depth, self.env_structure)
 
     def _set(self, w_val, env):
         assert 0
@@ -1587,9 +1597,27 @@ def _make_symlist_counts(varss):
     argsl = argsl[:] # copy to make fixed-size
     return SymList(argsl), counts
 
+def empty_intersect(a, b):
+    for x in a:
+        if x in b:
+            return False
+    return True
+
 def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
+
+    # Try to avoid creating Let frames if possible
+    frees = {}
+    for b in body:
+        frees.update(b.free_vars())
+
+    for vars in varss:
+        if not empty_intersect(vars, frees):
+            break
+    else:
+        return Begin.make(rhss + body)
+
     if 1 == len(varss) and 1 == len(varss[0]):
         return make_let_singlevar(varss[0][0], rhss[0], body)
     symlist, counts = _make_symlist_counts(varss)

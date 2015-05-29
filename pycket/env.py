@@ -212,6 +212,14 @@ class ConsEnv(Env):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
+    @jit.unroll_safe
+    def lookup_fast(self, sym, depth, env_structure):
+        jit.promote(depth)
+        for _ in range(depth):
+            self = self.get_prev(env_structure)
+            env_structure = env_structure.prev
+        return self.lookup(sym, env_structure)
+
     def get_prev(self, env_structure):
         jit.promote(env_structure)
         if env_structure.elems:
