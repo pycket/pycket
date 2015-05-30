@@ -943,15 +943,16 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-
 @expose("append")
+@jit.look_inside_iff(
+    lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
 def append(lists):
     if not lists:
         return values.w_null
     lists, acc = lists[:-1], lists[-1]
     while lists:
         vals = values.from_list(lists.pop())
-        acc = values.to_improper(vals, acc)
+        acc  = values.to_improper(vals, acc)
     return acc
 
 @expose("reverse", [values.W_List])
