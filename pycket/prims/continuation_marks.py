@@ -20,8 +20,9 @@ def current_cont_marks(prompt_tag, env, cont):
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
 @expose("continuation-mark-set->list",
-        [values.W_ContinuationMarkSet, values.W_Object], simple=False)
-def cms_list(cms, mark, env, cont):
+        [values.W_ContinuationMarkSet, values.W_Object,
+         default(values.W_ContinuationPromptTag, None)], simple=False)
+def cms_list(cms, mark, prompt_tag, env, cont):
     from pycket.interpreter import return_value
     from pycket.prims.general      import map_loop
     if isinstance(mark, values.W_ContinuationMarkKey):

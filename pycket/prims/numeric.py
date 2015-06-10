@@ -457,9 +457,10 @@ def integer_bytes_to_integer(bstr, signed):
     return values.W_Flonum(longlong2float.longlong2float(val))
 
 @expose("integer-bytes->integer",
-        [values.W_Bytes, default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed):
-    # XXX Currently does not make use of the signed parameter
+        [values.W_Bytes, default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false)])
+def integer_bytes_to_integer(bstr, signed, big_endian):
+    # XXX Currently does not make use of the signed or big endian parameter
     bytes = bstr.value
     if len(bytes) not in (2, 4, 8):
         raise SchemeException(
@@ -468,7 +469,6 @@ def integer_bytes_to_integer(bstr, signed):
     val = 0
     for i, v in enumerate(bytes):
         val += ord(v) << (i * 8)
-
     return values.W_Fixnum(val)
 
 @expose("integer->integer-bytes",

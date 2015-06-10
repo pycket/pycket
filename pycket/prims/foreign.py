@@ -16,6 +16,9 @@ expose_val("_uint32" , values.W_Fixnum.make(6))
 expose_val("_uint64" , values.W_Fixnum.make(7))
 expose_val("_bytes"  , values.W_Fixnum.make(8))
 expose_val("_path"   , values.W_Fixnum.make(9))
+expose_val("_void"   , values.W_Fixnum.make(10))
+expose_val("_pointer"  , values.W_Fixnum.make(11))
+expose_val("_fpointer" , values.W_Fixnum.make(12))
 
 ctype = values.W_Fixnum
 
@@ -29,5 +32,22 @@ def compiler_sizeof(sym):
 
 @expose("make-stubborn-will-executor", [])
 def make_stub_will_executor():
+    return values.w_false
+
+@expose("ctype-sizeof", [ctype])
+def ctype_sizeof(c):
+    return values.W_Fixnum(8)
+
+@expose("ctype?", [ctype])
+def ctype(c):
+    return values.W_Bool.make(0 <= c.value <= 12)
+
+@expose("ffi-lib?", [values.W_Object])
+def ffi_lib(o):
+    # Naturally, since we don't have ffi values
+    return values.w_false
+
+@expose("ffi-lib")
+def ffi_lib(args):
     return values.w_false
 

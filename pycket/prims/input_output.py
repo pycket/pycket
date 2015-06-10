@@ -429,8 +429,12 @@ def with_input_from_file(s, proc, mode, env, cont):
                                      env, close_cont(port, env, cont))
 
 @expose("with-output-to-file",
-        [values_string.W_String, values.W_Object], simple=False)
-def with_output_to_file(s, proc, env, cont):
+        [values_string.W_String, values.W_Object,
+         default(values.W_Object, None),
+         default(values.W_Object, None)], simple=False)
+def with_output_to_file(s, proc, mode, exists, env, cont):
+    # XXX mode and exists are currently ignored, they need to be translated into
+    # the proper mode string.
     from pycket.prims.parameter import call_with_extended_paramz
     port = open_outfile(s, "wb")
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
@@ -665,6 +669,28 @@ def port_print_handler(out, proc):
 @expose("port-count-lines!", [values.W_Port])
 def port_count_lines_bang(p):
     return values.w_void
+
+@expose("read-bytes", [values.W_Fixnum, default(values.W_InputPort, None)],
+        simple=False)
+def read_bytes(amt, w_port, env, cont):
+    from pycket.interpreter import return_value
+
+    n = amt.value
+    if n < 0:
+        raise SchemeException("read-bytes: expected non-negative integer for argument 0")
+    if n == 0:
+        return return_value(values.W_Bytes.from_string(""), env, cont)
+
+    if w_port is None:
+        w_port = current_in_param.get(cont)
+
+    res = w_port.read(n)
+    reslen = len(res)
+
+    if reslen == 0:
+        return return_value(values.eof_object, env, cont)
+
+    return return_value(values.W_Bytes.from_string(res), env, cont)
 
 @expose(["read-bytes!", "read-bytes-avail!"],
         [values.W_Bytes, default(values.W_InputPort, None),

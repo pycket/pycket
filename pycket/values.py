@@ -170,6 +170,8 @@ class W_ContinuationPromptTag(W_Object):
     def tostring(self):
         return "#<continuation-prompt-tag>"
 
+w_default_continuation_prompt_tag = W_ContinuationPromptTag(None)
+
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
     _immutable_fields_ = ["cont"]

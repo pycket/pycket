@@ -1,12 +1,12 @@
 
-from pycket import impersonators as imp
-from pycket import values
-from pycket import values_struct
-from pycket import values_hash
-from pycket.error import SchemeException
+from pycket              import impersonators as imp
+from pycket              import values
+from pycket              import values_struct
+from pycket              import values_hash
+from pycket.error        import SchemeException
 from pycket.prims.expose import expose, expose_val
-from pycket.prims.equal import equal_func, EqualInfo
-from rpython.rlib import jit
+from pycket.prims.equal  import equal_func, EqualInfo
+from rpython.rlib        import jit
 
 expose_val("impersonator-prop:application-mark", imp.w_impersonator_prop_application_mark)
 
@@ -189,10 +189,17 @@ def impersonate_struct(args):
         return args[0]
 
     args, prop_keys, prop_vals = unpack_properties(args, "impersonate-struct")
-    if len(args) < 1 or len(args) % 2 != 1:
+
+    if len(args) < 1:
         raise SchemeException("impersonate-struct: arity mismatch")
 
     struct, args = args[0], args[1:]
+
+    if args and isinstance(args[0], values_struct.W_StructType):
+        args = args[1:]
+
+    if len(args) % 2 != 0:
+        raise SchemeException("impersonate-struct: arity mismatch")
 
     if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("impersonate-struct: not given struct")
@@ -236,14 +243,21 @@ def impersonate_struct(args):
 @expose("chaperone-struct")
 @jit.unroll_safe
 def chaperone_struct(args):
+    from pycket.prims.struct_structinfo import struct_info
     if len(args) == 1 and isinstance(args[0], values_struct.W_RootStruct):
         return args[0]
 
     args, prop_keys, prop_vals = unpack_properties(args, "chaperone-struct")
-    if len(args) < 1 or len(args) % 2 != 1:
+    if len(args) < 1:
         raise SchemeException("chaperone-struct: arity mismatch")
 
     struct, args = args[0], args[1:]
+
+    if args and isinstance(args[0], values_struct.W_StructType):
+        args = args[1:]
+
+    if len(args) % 2 != 0:
+        raise SchemeException("chaperone-struct: arity mismatch")
 
     if not isinstance(struct, values_struct.W_RootStruct):
         raise SchemeException("chaperone-struct: not given struct")
@@ -258,9 +272,8 @@ def chaperone_struct(args):
 
         overrides[i] = ovr
         handlers[i]  = hnd
-        if not imp.valid_struct_proc(ovr):
+        if not imp.valid_struct_proc(ovr) and ovr is not struct_info:
             raise SchemeException("chaperone-struct: not given valid field accessor")
-
         if hnd is not values.w_false:
             all_false = False
         if not hnd.iscallable() and hnd is not values.w_false:

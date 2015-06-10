@@ -541,6 +541,9 @@ class W_RootStruct(values.W_Object):
     def get_prop(self, property, env, cont):
         raise NotImplementedError("abstract base class")
 
+    def get_struct_info(self, env, cont):
+        raise NotImplementedError("abstract base class")
+
     def vals(self):
         raise NotImplementedError("abstract base class")
 
@@ -636,6 +639,11 @@ class W_Struct(W_RootStruct):
                 return Arity([val for val in ls if val != -1], at_least)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
+
+    def get_struct_info(self, env, cont):
+        from pycket.interpreter import return_multi_vals
+        return return_multi_vals(
+                values.Values.make([self.struct_type(), values.w_false]), env, cont)
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):

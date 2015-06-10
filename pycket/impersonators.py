@@ -3,12 +3,12 @@
 
 from pycket.cont import continuation, label, loop_label, guarded_loop, call_cont, call_extra_cont
 from pycket.prims.expose import make_call_method
-from pycket.error import SchemeException
-from pycket.values import UNROLLING_CUTOFF
-from pycket import values
-from pycket import values_struct
-from pycket import values_hash
-from rpython.rlib import jit
+from pycket.error        import SchemeException
+from pycket.values       import UNROLLING_CUTOFF
+from pycket              import values
+from pycket              import values_struct
+from pycket              import values_hash
+from rpython.rlib        import jit
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -361,10 +361,11 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
 # onto accessors/mutators
 @make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_props", "properties"]
+    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
+        from pycket.prims.struct_structinfo import struct_info
         assert isinstance(inner, values_struct.W_RootStruct)
         assert len(overrides) == len(handlers)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
@@ -411,6 +412,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 if struct_props is None:
                     struct_props = {}
                 struct_props[base] = (op, handlers[i])
+            elif base is struct_info:
+                self.struct_info_handler = handlers[i]
             else:
                 assert False
         if prop_keys is not None:
@@ -473,6 +476,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return self.inner.get_prop(property, env, cont)
         after = self.post_ref_cont(interp, None, env, cont)
         return op.call([self.inner], env, after)
+
+    def get_struct_info(self, env, cont):
+        from pycket.interpreter import return_multi_vals
+        if self.struct_info_handler is not None:
+            cont = call_cont(self.struct_info_handler, env, cont)
+        return self.inner.get_struct_info(env, cont)
 
     def get_arity(self):
         return get_base_object(self.inner).get_arity()

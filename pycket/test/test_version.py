@@ -7,7 +7,7 @@
 import pytest
 from pycket.test.testhelper import check_equal
 
-EXPECTED_VERSION='6.2.0.3'
+EXPECTED_VERSION='6.2.0.4'
 
 
 def test_version():

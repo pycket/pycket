@@ -272,6 +272,15 @@ def test_open_input_bytes_and_read_bytes_line(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+def test_read_bytes(source):
+    """
+    (let ([ip (open-input-bytes (bytes 115 101 99 114 101 116))])
+      (read-bytes 6 ip))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert isinstance(result, values.W_Bytes)
+    assert result.value == list("secret")
+
 def test_read_utf8_bytes_chars(source):
     ur"""
     (let* ([b "ÄÖÜ"]

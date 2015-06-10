@@ -107,7 +107,8 @@ for args in [
         ("hash-eq?", values_hash.W_HashTable),
         ("hash-eqv?", values_hash.W_HashTable),
         ("hash-equal?", values_hash.W_HashTable),
-        ("hash-weak?", values_hash.W_HashTable)
+        ("hash-weak?", values_hash.W_HashTable),
+        ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
     make_pred(*args)
 
@@ -630,11 +631,6 @@ def time_apply_cont(initial, env, cont, vals):
 def cont_prompt_avail(args):
     return values.w_false
 
-# FIXME: this is a data type
-@expose("continuation-prompt-tag?")
-def cont_prompt_tag(args):
-    return values.w_false
-
 @continuation
 def dynamic_wind_pre_cont(value, post, env, cont, _vals):
     return value.call([], env, dynamic_wind_value_cont(post, env, cont))
@@ -651,7 +647,6 @@ def dynamic_wind_post_cont(val, env, cont, _vals):
 @expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
 def dynamic_wind(pre, value, post, env, cont):
     return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
-
 
 @expose(["call/cc", "call-with-current-continuation",
          "call/ec", "call-with-escape-continuation"],
@@ -948,15 +943,16 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-
 @expose("append")
+@jit.look_inside_iff(
+    lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
 def append(lists):
     if not lists:
         return values.w_null
     lists, acc = lists[:-1], lists[-1]
     while lists:
         vals = values.from_list(lists.pop())
-        acc = values.to_improper(vals, acc)
+        acc  = values.to_improper(vals, acc)
     return acc
 
 @expose("reverse", [values.W_List])
@@ -986,9 +982,6 @@ def ephemeron_value(ephemeron, default):
 
 # FIXME: implementation
 define_nyi("make-reader-graph", [values.W_Object])
-# def make_reader_graph(val):
-#     raise NotImplementedError()
-#     return val
 
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
@@ -1202,6 +1195,10 @@ def mcpt(s):
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
 
+@expose("default-continuation-prompt-tag", [])
+def dcpt():
+    return values.w_default_continuation_prompt_tag
+
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
@@ -1283,8 +1280,9 @@ def find_sys_path(sym, env, cont):
 def find_main_collects():
     return values.w_false
 
-@expose("module-path-index-join", [values.W_Object, values.W_Object])
-def mpi_join(a, b):
+@expose("module-path-index-join",
+        [values.W_Object, values.W_Object, default(values.W_Object, None)])
+def mpi_join(a, b, c):
     return values.W_ModulePathIndex()
 
 # Loading
@@ -1328,6 +1326,8 @@ w_system_sym = detect_platform()
 
 w_os_sym = values.W_Symbol.make("os")
 w_os_so_suffix = values.W_Symbol.make("so-suffix")
+w_os_so_mode_sym = values.W_Symbol.make("so-mode")
+w_local_mode = values.W_Symbol.make("local")
 w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
 @expose("system-type", [default(values.W_Symbol, w_os_sym)])
@@ -1336,8 +1336,9 @@ def system_type(w_what):
         return w_system_sym
     if w_what is w_os_so_suffix:
         return w_unix_so_suffix
+    if w_what is w_os_so_mode_sym:
+        return w_local_mode
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
-
 
 @expose("system-path-convention-type", [])
 def system_path_convetion_type():
