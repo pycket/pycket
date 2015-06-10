@@ -1,5 +1,13 @@
 #/bin/sh
 
+#
+
+# utah or northwestern for prerelease, racket for stable
+DLHOST=utah
+RACKET_VERSION=current
+
+#
+
 set -e
 
 _help() {
@@ -157,20 +165,30 @@ install_racket() {
   # sudo add-apt-repository -y ppa:plt/racket
   # sudo apt-get update
   # sudo apt-get install -qq racket
-  ### Nightly from northwestern or utha
-  VERSION=current
+
   if [ "$(lsb_release -s -i)" = 'Debian' ]; then
-    INSTALLER=racket-test-$VERSION-i386-linux-wheezy.sh
+    OS_PART=i386-linux-wheezy
   else
-    INSTALLER=racket-test-$VERSION-x86_64-linux-precise.sh
+    OS_PART=x86_64-linux-precise
   fi
-  wget http://plt.eecs.northwestern.edu/snapshots/current/installers/$INSTALLER
+
+  case "$DLHOST" in
+    utah)
+      INSTALLER=racket-$RACKET_VERSION-$OS_PART.sh
+      URL=http://www.cs.utah.edu/plt/snapshots/current/installers/$INSTALLER
+      ;;
+    northwestern)
+      INSTALLER=racket-test-$RACKET_VERSION-$OS_PART.sh
+      URL=http://plt.eecs.northwestern.edu/snapshots/current/installers/$INSTALLER
+      ;;
+    racket)
+      INSTALLER=racket-$RACKET_VERSION-$OS_PART.sh
+      URL=http://mirror.racket-lang.org/installers/$RACKET_VERSION/$INSTALLER
+      ;;
+    *) exit 1;;
+  esac
+  wget $URL
   sh $INSTALLER --in-place --dest racket
-  # wget http://www.cs.utah.edu/plt/snapshots/current/installers/racket-current-x86_64-linux-precise.sh
-  # sh racket-current-x86_64-linux-precise.sh --in-place --dest racket
-  ### Specific stable version from racket-lang
-  # wget http://mirror.racket-lang.org/installers/6.1.1/racket-6.1.1-x86_64-linux-ubuntu-precise.sh
-  # sh racket-6.1.1-x86_64-linux-ubuntu-precise.sh  --in-place --dest racket
 }
 
 fetch_pypy() {
