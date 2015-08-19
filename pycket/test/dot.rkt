@@ -21,7 +21,7 @@
   (let loop ([n 0] [sum 0.0])
     (if (unsafe-fx= len n) sum
         (loop (unsafe-fx+ 1 n) (unsafe-fl+ sum (unsafe-fl* (unsafe-vector-ref v1 n)
-                                                           (unsafe-vector-ref v1 n)))))))
+                                                           (unsafe-vector-ref v2 n)))))))
 
 (define (dot-flfastest v1 v2)
   (define len (flvector-length v1))
@@ -30,7 +30,7 @@
   (let loop ([n 0] [sum 0.0])
     (if (unsafe-fx= len n) sum
         (loop (unsafe-fx+ n 1) (unsafe-fl+ sum (unsafe-fl* (unsafe-flvector-ref v1 n)
-                                                           (unsafe-flvector-ref v1 n)))))))
+                                                           (unsafe-flvector-ref v2 n)))))))
 
 (define/contract (dot1c v1 v2)
   ((vectorof flonum?) (vectorof flonum?) . -> . flonum?)
