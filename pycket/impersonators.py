@@ -1,14 +1,15 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.cont import continuation, label, loop_label, guarded_loop, call_cont, call_extra_cont
-from pycket.prims.expose import make_call_method
-from pycket.error        import SchemeException
-from pycket.values       import UNROLLING_CUTOFF
-from pycket              import values
-from pycket              import values_struct
-from pycket              import values_hash
-from rpython.rlib        import jit
+from pycket.cont              import continuation, label, guarded_loop, call_cont, call_extra_cont
+from pycket.prims.expose      import make_call_method
+from pycket.error             import SchemeException
+from pycket.values            import UNROLLING_CUTOFF
+from pycket                   import values
+from pycket                   import values_struct
+from pycket                   import values_hash
+from rpython.rlib             import jit
+from rpython.rlib.objectmodel import import_from_mixin
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -18,37 +19,29 @@ def get_base_object(x):
         x = x.get_proxied()
     return x
 
-def make_proxy(proxied="inner", properties="properties"):
-    def wrapper(cls):
-        def get_proxied(self):
-            return getattr(self, proxied)
-        def is_proxy(self):
-            return True
-        def get_properties(self):
-            return getattr(self, properties)
-        def immutable(self):
-            return get_base_object(self).immutable()
-        def tostring(self):
-            return get_base_object(getattr(self, proxied)).tostring()
-        setattr(cls, "get_proxied", get_proxied)
-        setattr(cls, "is_proxy", is_proxy)
-        setattr(cls, "get_properties", get_properties)
-        setattr(cls, "immutable", immutable)
-        setattr(cls, "tostring", tostring)
-        return cls
-    return wrapper
+class ProxyMixin(object):
+    def get_proxied(self):
+        return self.inner
 
-def make_chaperone(cls):
+    def is_proxy(self):
+        return True
+
+    def get_properties(self):
+        return self.properties
+
+    def immutable(self):
+        return get_base_object(self.inner).immutable()
+
+    def tostring(self):
+        return get_base_object(self.inner).tostring()
+
+class ChaperoneMixin(object):
     def is_chaperone(self):
         return True
-    setattr(cls, "is_chaperone", is_chaperone)
-    return cls
 
-def make_impersonator(cls):
+class ImpersonatorMixin(object):
     def is_impersonator(self):
         return True
-    setattr(cls, "is_impersonator", is_impersonator)
-    return cls
 
 def traceable_proxy(self, field, *args):
     if jit.we_are_jitted():
@@ -150,8 +143,9 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
                     call_extra_cont(check, calling_app, env, cont)))
     assert False
 
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeProcedure(values.W_Procedure):
+    import_from_mixin(ProxyMixin)
+
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
@@ -196,22 +190,25 @@ class W_InterposeProcedure(values.W_Procedure):
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
-@make_impersonator
 class W_ImpProcedure(W_InterposeProcedure):
+    import_from_mixin(ImpersonatorMixin)
+
     errorname = "imp-procedure"
 
     def post_call_cont(self, args, env, cont, calling_app):
         return imp_proc_cont(len(args), self.inner, calling_app, env, cont)
 
-@make_chaperone
 class W_ChpProcedure(W_InterposeProcedure):
+    import_from_mixin(ChaperoneMixin)
+
     errorname = "chp-procedure"
 
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
 
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeBox(values.W_Box):
+    import_from_mixin(ProxyMixin)
+
     errorname = "interpose-box"
     _immutable_fields_ = ["inner", "unbox", "set", "properties"]
 
@@ -246,8 +243,9 @@ class W_InterposeBox(values.W_Box):
         after = self.post_set_box_cont(val, env, cont)
         return self.seth.call([self.inner, val], env, after)
 
-@make_chaperone
 class W_ChpBox(W_InterposeBox):
+    import_from_mixin(ChaperoneMixin)
+
     errorname = "chp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
@@ -266,8 +264,9 @@ def imp_box_set_cont(b, env, cont, vals):
     from pycket.interpreter import check_one_val
     return b.set_box(check_one_val(vals), env, cont)
 
-@make_impersonator
 class W_ImpBox(W_InterposeBox):
+    import_from_mixin(ImpersonatorMixin)
+
     errorname = "imp-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
 
@@ -282,8 +281,9 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return v.vector_set(i, check_one_val(vals), env, cont)
 
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeVector(values.W_MVector):
+    import_from_mixin(ProxyMixin)
+
     errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth", "properties"]
 
@@ -320,8 +320,9 @@ class W_InterposeVector(values.W_MVector):
         return self.inner.vector_ref(i, env, after)
 
 # Vectors
-@make_impersonator
 class W_ImpVector(W_InterposeVector):
+    import_from_mixin(ImpersonatorMixin)
+
     errorname = "impersonate-vector"
 
     def post_set_cont(self, new, i, env, cont):
@@ -330,8 +331,9 @@ class W_ImpVector(W_InterposeVector):
     def post_ref_cont(self, i, env, cont):
         return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
-@make_chaperone
 class W_ChpVector(W_InterposeVector):
+    import_from_mixin(ChaperoneMixin)
+
     errorname = "chaperone-vector"
 
     def post_set_cont(self, new, i, env, cont):
@@ -359,8 +361,9 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeStructBase(values_struct.W_RootStruct):
+    import_from_mixin(ProxyMixin)
+
     _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props", "properties"]
 
     @jit.unroll_safe
@@ -491,8 +494,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return self.inner.vals()
 
 # Need to add checks that we are only impersonating mutable fields
-@make_impersonator
 class W_ImpStruct(W_InterposeStructBase):
+    import_from_mixin(ImpersonatorMixin)
 
     def post_ref_cont(self, interp, app, env, cont):
         return impersonate_reference_cont(interp, [self], app, env, cont)
@@ -500,8 +503,8 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_set_cont(self, op, field, val, app, env, cont):
         return imp_struct_set_cont(self.inner, op, field, app, env, cont)
 
-@make_chaperone
 class W_ChpStruct(W_InterposeStructBase):
+    import_from_mixin(ChaperoneMixin)
 
     def post_ref_cont(self, interp, app, env, cont):
         return chaperone_reference_cont(interp, [self], app, env, cont)
@@ -510,8 +513,9 @@ class W_ChpStruct(W_InterposeStructBase):
         return check_chaperone_results([val], env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
+    import_from_mixin(ProxyMixin)
+
     errorname = "interpose-continuation-mark-key"
     _immutable_fields_ = ["inner", "get_proc", "set_proc", "properties"]
     def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
@@ -555,8 +559,9 @@ def imp_cmk_post_get_cont(key, env, cont, _vals):
     val = check_one_val(_vals)
     return key.get_cmk(val, env, cont)
 
-@make_chaperone
 class W_ChpContinuationMarkKey(W_InterposeContinuationMarkKey):
+    import_from_mixin(ChaperoneMixin)
+
     def post_get_cont(self, value, env, cont):
         return check_chaperone_results([value], env,
                 imp_cmk_post_get_cont(self.inner, env, cont))
@@ -565,8 +570,8 @@ class W_ChpContinuationMarkKey(W_InterposeContinuationMarkKey):
         return check_chaperone_results([value], env,
                 imp_cmk_post_set_cont(body, self.inner, env, cont))
 
-@make_impersonator
 class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
+    import_from_mixin(ImpersonatorMixin)
 
     def post_get_cont(self, value, env, cont):
         return imp_cmk_post_get_cont(self.inner, env, cont)
@@ -574,8 +579,9 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
-@make_proxy(proxied="inner", properties="properties")
 class W_InterposeHashTable(values_hash.W_HashTable):
+    import_from_mixin(ProxyMixin)
+
     errorname = "interpose-hash-table"
     _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc",
                           "key_proc", "clear_proc", "properties"]
@@ -646,8 +652,8 @@ def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
                 imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)
 
-@make_impersonator
 class W_ImpHashTable(W_InterposeHashTable):
+    import_from_mixin(ImpersonatorMixin)
 
     def post_set_cont(self, key, val, env, cont):
         pass
@@ -655,8 +661,8 @@ class W_ImpHashTable(W_InterposeHashTable):
     def post_ref_cont(self, key, env, cont):
         return imp_hash_table_ref_cont(self.inner, key, env, cont)
 
-@make_chaperone
 class W_ChpHashTable(W_InterposeHashTable):
+    import_from_mixin(ChaperoneMixin)
 
     def post_set_cont(self, key, val, env, cont):
         pass
