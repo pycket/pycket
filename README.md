@@ -22,7 +22,11 @@ You also need a reasonably recent version of Racket, at least version
 
 Afterwards you can run the unit-tests as follows:
 
-    $ pypy/pytest.py
+    $ pypy/pytest.py pycket
+
+or using `make`
+
+    $ make test
 
 To produce an executable, run:
 
