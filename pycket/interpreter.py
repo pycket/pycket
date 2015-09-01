@@ -1,5 +1,5 @@
 from pycket.AST               import AST
-from pycket                   import values, values_string, values_parameter
+from pycket                   import base, values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -1221,7 +1221,7 @@ def free_vars_lambda(body, args):
     return x
 
 class CaseLambda(AST):
-    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
+    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "hash_tag"]
     simple = True
 
     def __init__(self, lams, recursive_sym=None):
@@ -1233,6 +1233,7 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
+        self.hash_tag = base.HashableType.next_prime()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
         self._arity = None
@@ -1322,8 +1323,7 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure'
-                          ]
+                          "frees", "enclosing_env_structure", "env_structure"]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)

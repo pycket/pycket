@@ -1,6 +1,34 @@
-from pycket.error             import SchemeException
-from rpython.tool.pairtype    import extendabletype
-from rpython.rlib import jit, objectmodel
+from math                  import ceil, sqrt
+from pycket.error          import SchemeException
+from rpython.tool.pairtype import extendabletype
+from rpython.rlib          import jit, objectmodel
+
+def is_prime(n):
+    upper = int(ceil(sqrt(n)))
+    if n % 2 == 0:
+        return False
+    for i in range(3, upper, 2):
+        if n % i == 0:
+            return False
+    return True
+
+class HashableType(extendabletype):
+    seed = 7
+
+    @staticmethod
+    def next_prime():
+        s = HashableType.seed
+        while True:
+            s += 2
+            if is_prime(s):
+                HashableType.seed = s
+                return s
+
+    def __new__(cls, name, parents, dct):
+        if 'object_type_hash' not in dct:
+            val = HashableType.next_prime()
+            dct['object_type_hash'] = lambda self: val
+        return extendabletype.__new__(cls, name, parents, dct)
 
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
@@ -21,7 +49,7 @@ class W_ProtoObject(object):
         raise NotImplementedError("not a real value!")
 
 class W_Object(W_ProtoObject):
-    __metaclass__ = extendabletype
+    __metaclass__ = HashableType
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
