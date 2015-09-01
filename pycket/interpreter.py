@@ -1870,7 +1870,7 @@ class DefineValues(AST):
             self.display_names, self.rhs.tostring())
 
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_two_state(version, green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
@@ -1879,14 +1879,15 @@ def get_printable_location_two_state(green_ast, came_from):
     return green_ast.tostring()
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
-                                 greens=["ast", "came_from"],
+                                 greens=["version", "ast", "came_from"],
                                  get_printable_location=get_printable_location_two_state)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
+    version = 0
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, version=version, env=env, cont=cont)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
         else:
@@ -1904,21 +1905,24 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            version = env.type_hash()
+            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, version=version, env=env, cont=cont)
 
-def get_printable_location_one_state(green_ast ):
+def get_printable_location_one_state(version, green_ast):
     if green_ast is None:
         return 'Green_Ast is None'
     return green_ast.tostring()
 driver_one_state = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast"],
+                       greens=["version", "ast"],
                        get_printable_location=get_printable_location_one_state)
 def inner_interpret_one_state(ast, env, cont):
+    version = 0
     while True:
-        driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)
+        driver_one_state.jit_merge_point(ast=ast, version=version, env=env, cont=cont)
         ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
+            version = env.type_hash()
+            driver_one_state.can_enter_jit(ast=ast, version=version, env=env, cont=cont)
 
 def interpret_one(ast, env=None):
     if env is None:

@@ -12,16 +12,20 @@ def is_prime(n):
             return False
     return True
 
+class Box(object):
+    def __init__(self, value):
+        self.value = value
+
 class HashableType(extendabletype):
-    seed = 7
+    seed = Box(7)
 
     @staticmethod
     def next_prime():
-        s = HashableType.seed
+        s = HashableType.seed.value
         while True:
             s += 2
             if is_prime(s):
-                HashableType.seed = s
+                HashableType.seed.value = s
                 return s
 
     def __new__(cls, name, parents, dct):

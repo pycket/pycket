@@ -8,7 +8,7 @@ from pycket.error             import SchemeException
 from pycket.small_list        import inline_small_list
 from pycket.arity             import Arity
 from pycket.prims.expose      import make_call_method
-from pycket.base              import W_Object, W_ProtoObject
+from pycket.base              import W_Object, W_ProtoObject, HashableType
 
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
@@ -1010,7 +1010,7 @@ class W_ThunkProcCMK(W_Procedure):
 
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
+    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2", "hash_tag"]
 
     def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
         self.name = name
@@ -1019,6 +1019,10 @@ class W_Prim(W_Procedure):
         self.arity = arity
         self.simple1 = simple1
         self.simple2 = simple2
+        self.hash_tag = HashableType.next_prime()
+
+    def object_type_hash(self):
+        return self.hash_tag
 
     def get_arity(self):
         return self.arity
@@ -1122,6 +1126,9 @@ class W_Closure(W_Procedure):
                 return (actuals, frees, lam)
         raise SchemeException("No matching arity in case-lambda")
 
+    def object_type_hash(self):
+        return self.caselam.hash_tag
+
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
         if calling_app is not None:
@@ -1173,6 +1180,9 @@ class W_Closure1AsEnv(ConsEnv):
 
     def get_arity(self):
         return self.caselam.get_arity()
+
+    def object_type_hash(self):
+        return self.caselam.hash_tag
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
@@ -1245,6 +1255,9 @@ class W_PromotableClosure(W_Procedure):
     def call_with_extra_info(self, args, env, cont, calling_app):
         jit.promote(self)
         return self.closure.call_with_extra_info(args, env, cont, calling_app)
+
+    def object_type_hash(self):
+        return self.closure.object_type_hash()
 
     def get_arity(self):
         return self.closure.get_arity()
