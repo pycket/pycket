@@ -869,7 +869,6 @@ class W_MutableBytes(W_Bytes):
             raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
         self.value[n] = chr(v)
 
-
 class W_ImmutableBytes(W_Bytes):
     errorname = "bytes"
 
@@ -878,7 +877,6 @@ class W_ImmutableBytes(W_Bytes):
 
     def set(self, n, v):
         raise SchemeException("bytes-set!: can't mutate immutable bytes")
-
 
 class W_Symbol(W_Object):
     _immutable_fields_ = ["value", "unreadable", "asciivalue", "utf8value"]
@@ -1008,7 +1006,6 @@ class W_ThunkProcCMK(W_Procedure):
     def call(self, env, cont):
         return self.proc.call(self.args, env, cont)
 
-
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2", "hash_tag"]
 
@@ -1083,7 +1080,7 @@ class W_Continuation(W_Procedure):
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
-    def __init__ (self, caselam, env):
+    def __init__(self, caselam, env):
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
@@ -1234,7 +1231,6 @@ class W_Closure1AsEnv(ConsEnv):
             i += 1 # only count non-self references
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
-
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
