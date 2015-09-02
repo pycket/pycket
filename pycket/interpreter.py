@@ -1908,7 +1908,7 @@ def inner_interpret_two_state(ast, env, cont):
 
 def get_printable_location_one_state(version, green_ast):
     if green_ast is None:
-        return 'Green_Ast is None'
+        return "Green_Ast is None"
     return "%s version = %d" % (green_ast.tostring(), version)
 
 driver_one_state = jit.JitDriver(reds=["env", "cont"],
@@ -1918,7 +1918,18 @@ def inner_interpret_one_state(ast, env, cont):
     version = 0
     while True:
         driver_one_state.jit_merge_point(version=version, ast=ast, env=env, cont=cont)
-        ast, env, cont = ast.interpret(env, cont)
+        t = type(ast)
+        # Manual conditionals to force specialization in translation
+        # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
+        # (see Jones, Gomard, Sestof 1993)
+        if t is Let:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is If:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is Begin:
+            ast, env, cont = ast.interpret(env, cont)
+        else:
+            ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
             version = env.type_hash()
             driver_one_state.can_enter_jit(version=version, ast=ast, env=env, cont=cont)

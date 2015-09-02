@@ -71,3 +71,13 @@
           (λ (v)
             (when (< max v) (set! max v))))))))
 
+(displayln 'third)
+;; This copy runs ~5.5x slower than the one above, despite being a verbatim copy.
+(time
+  (for ([_ (in-range iters)])
+    (set! max 0.0)
+    (arr-for-each vec
+      (λ (vec^)
+        (arr-for-each vec^
+          (λ (v)
+            (when (< max v) (set! max v))))))))
