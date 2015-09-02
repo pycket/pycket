@@ -17,7 +17,7 @@ class Box(object):
         self.value = value
 
 class HashableType(extendabletype):
-    seed = Box(7)
+    seed = Box(3)
 
     @staticmethod
     def next_prime():
@@ -29,9 +29,8 @@ class HashableType(extendabletype):
                 return s
 
     def __new__(cls, name, parents, dct):
-        if 'object_type_hash' not in dct:
-            val = HashableType.next_prime()
-            dct['object_type_hash'] = lambda self: val
+        val = HashableType.next_prime()
+        dct['_object_type_hash'] = lambda self: val
         return extendabletype.__new__(cls, name, parents, dct)
 
 class W_ProtoObject(object):
@@ -71,6 +70,9 @@ class W_Object(W_ProtoObject):
 
     def iscallable(self):
         return False
+
+    def object_type_hash(self):
+        return self._object_type_hash()
 
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())

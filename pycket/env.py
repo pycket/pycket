@@ -124,7 +124,7 @@ class Env(W_Object):
         return self
 
     def type_hash(self):
-        return 0
+        return 0x345678
 
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
@@ -224,7 +224,7 @@ class ConsEnv(Env):
     def type_hash(self):
         from rpython.rlib.rarithmetic import intmask
         size = self._get_size_list()
-        x = 0x345678
+        x = self._prev.type_hash()
         for i in range(size):
             y = self._get_list(i).object_type_hash()
             x = intmask((1000003 * x) ^ y)
