@@ -31,7 +31,7 @@ class W_HashTable(W_Object):
         raise NotImplementedError("abstract method")
 
     @label
-    def hash_remove(self, k, env, cont):
+    def hash_remove_inplace(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
     def length(self):
@@ -89,7 +89,7 @@ class W_SimpleHashTable(W_HashTable):
         return return_value(values.w_void, env, cont)
 
     @label
-    def hash_remove(self, k, env, cont):
+    def hash_remove_inplace(self, k, env, cont):
         from pycket.interpreter import return_value
         del self.data[k]
         return return_value(values.w_void, env, cont)
