@@ -88,24 +88,3 @@ class TestRegressions(object):
         m = run_mod(source)
         result = W_Symbol.make("result")
         assert type(m.defs[result]) is W_Fixnum and m.defs[result].value == 1
-        
-    def test_callcc_not_prebase(self, source):
-        """
-        
-        #lang racket/base
-        (define pycket-expr (call/cc (lambda (k) 1)))
-        """
-        m = run_mod(source)
-        pycket_expr = W_Symbol.make("pycket-expr")
-        assert type(m.defs[pycket_expr]) is W_Fixnum and m.defs[pycket_expr].value == 1
-
-    def test_callcc_not_prebase_langpycket(self, source):
-        """
-        
-        #lang pycket
-        (define pycket-expr (call/cc (lambda (k) 1)))
-        """
-        m = run_mod(source)
-        pycket_expr = W_Symbol.make("pycket-expr")
-        assert type(m.defs[pycket_expr]) is W_Fixnum and m.defs[pycket_expr].value == 1
-

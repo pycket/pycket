@@ -230,12 +230,6 @@ def test_vararg():
     run_fix ("((lambda (a . x) a) 1)", 1)
     run ("((lambda (a . x) x) 1)", w_null)
 
-def test_callcc():
-    run_fix ("(call/cc (lambda (k) 1))", 1)
-    run_fix ("(+ 1 (call/cc (lambda (k) 1)))", 2)
-    run_fix ("(+ 1 (call/cc (lambda (k) (k 1))))", 2)
-    run_fix ("(+ 1 (call/cc (lambda (k) (+ 5 (k 1)))))", 2)
-
 def test_callwithcurrentcontinuation():
     run_fix ("(call-with-current-continuation (lambda (k) 1))", 1)
     run_fix ("(+ 1 (call-with-current-continuation (lambda (k) 1)))", 2)
@@ -246,7 +240,7 @@ def test_callwithcurrentcontinuation():
 def test_values():
     run_fix("(values 1)", 1)
     run_fix("(let () (values 1 2) (values 3))", 3)
-    prog = "(let () (call/cc (lambda (k) (k 1 2))) 3)"
+    prog = "(let () (call-with-current-continuation (lambda (k) (k 1 2))) 3)"
     run_fix(prog, 3)
     v = run_values("(values #t #f)")
     assert [w_true, w_false] == v
@@ -556,7 +550,7 @@ def test_callgraph_reconstruction_through_primitives():
     str = """
         #lang pycket
         (define (f k) (k (apply h '(5))))
-        (define (g x) (+ (call/cc f) 7))
+        (define (g x) (+ (call-with-current-continuation f) 7))
         (define (h x) x)
         (g 5)
         """
