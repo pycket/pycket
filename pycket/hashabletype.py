@@ -7,10 +7,12 @@ from rpython.tool.pairtype import extendabletype
 __all__ = ['HashableType']
 
 def is_prime(n):
-    upper = int(ceil(sqrt(n)))
-    if n % 2 == 0:
+    if n == 2:
+        return True
+    if n < 2 or n % 2 == 0:
         return False
-    for i in range(3, upper, 2):
+    upper = int(ceil(sqrt(n)))
+    for i in range(3, upper + 1, 2):
         if n % i == 0:
             return False
     return True
