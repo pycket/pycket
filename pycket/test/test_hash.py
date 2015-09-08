@@ -18,6 +18,22 @@ def test_hash_simple(doctest):
     2
     """
 
+def test_hash_immutable(doctest):
+    """
+    > (immutable? (hash))
+    #t
+    > (immutable? (hasheq))
+    #t
+    > (immutable? (hasheqv))
+    #t
+    > (immutable? (make-hash))
+    #f
+    > (immutable? (make-hasheq))
+    #f
+    > (immutable? (make-hasheqv))
+    #f
+    """
+
 def test_hasheqv(doctest):
     """
     ! (define ht (make-hasheqv))

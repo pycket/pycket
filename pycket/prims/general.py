@@ -648,8 +648,10 @@ def dynamic_wind_post_cont(val, env, cont, _vals):
 def dynamic_wind(pre, value, post, env, cont):
     return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
 
-@expose(["call/cc", "call-with-current-continuation",
-         "call/ec", "call-with-escape-continuation"],
+@expose(["call/cc", # Racket < 6.2.900.10
+        "call-with-current-continuation",
+         "call/ec", # Racket < 6.2.900.10
+         "call-with-escape-continuation"],
         [procedure], simple=False, extra_info=True)
 def callcc(a, env, cont, extra_call_info):
     return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)

@@ -7,7 +7,7 @@
 import pytest
 from pycket.test.testhelper import check_equal
 
-EXPECTED_VERSION='6.2.900.10'
+EXPECTED_VERSION='6.2.900.15'
 
 
 @pytest.mark.skipif("True")
