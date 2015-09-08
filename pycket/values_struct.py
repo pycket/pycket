@@ -291,7 +291,7 @@ class W_StructType(values.W_Object):
         return None
 
     def object_type_hash(self):
-        return self.hash_tag
+        return self.type_tag
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
