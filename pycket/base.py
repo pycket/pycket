@@ -2,36 +2,7 @@ from math                  import ceil, sqrt
 from pycket.error          import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib          import jit, objectmodel
-
-def is_prime(n):
-    upper = int(ceil(sqrt(n)))
-    if n % 2 == 0:
-        return False
-    for i in range(3, upper, 2):
-        if n % i == 0:
-            return False
-    return True
-
-class Box(object):
-    def __init__(self, value):
-        self.value = value
-
-class HashableType(extendabletype):
-    seed = Box(3)
-
-    @staticmethod
-    def next_prime():
-        s = HashableType.seed.value
-        while True:
-            s += 2
-            if is_prime(s):
-                HashableType.seed.value = s
-                return s
-
-    def __new__(cls, name, parents, dct):
-        val = HashableType.next_prime()
-        dct['_object_type_hash'] = lambda self: val
-        return extendabletype.__new__(cls, name, parents, dct)
+from pycket.hashabletype   import HashableType
 
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple

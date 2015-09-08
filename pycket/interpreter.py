@@ -7,6 +7,7 @@ from pycket.cont              import Cont, nil_continuation, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
+from pycket.hashabletype      import HashableType
 
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
@@ -1221,7 +1222,7 @@ def free_vars_lambda(body, args):
     return x
 
 class CaseLambda(AST):
-    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "hash_tag"]
+    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "type_tag"]
     simple = True
 
     def __init__(self, lams, recursive_sym=None):
@@ -1233,7 +1234,7 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
-        self.hash_tag = base.HashableType.next_prime()
+        self.type_tag = HashableType.next_prime()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
         self._arity = None

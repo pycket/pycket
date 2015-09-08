@@ -1007,7 +1007,7 @@ class W_ThunkProcCMK(W_Procedure):
         return self.proc.call(self.args, env, cont)
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2", "hash_tag"]
+    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2", "type_tag"]
 
     def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
         self.name = name
@@ -1016,10 +1016,10 @@ class W_Prim(W_Procedure):
         self.arity = arity
         self.simple1 = simple1
         self.simple2 = simple2
-        self.hash_tag = HashableType.next_prime()
+        self.type_tag = HashableType.next_prime()
 
     def object_type_hash(self):
-        return self.hash_tag
+        return self.type_tag
 
     def get_arity(self):
         return self.arity
@@ -1124,7 +1124,7 @@ class W_Closure(W_Procedure):
         raise SchemeException("No matching arity in case-lambda")
 
     def object_type_hash(self):
-        return self.caselam.hash_tag
+        return self.caselam.type_tag
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
@@ -1179,7 +1179,7 @@ class W_Closure1AsEnv(ConsEnv):
         return self.caselam.get_arity()
 
     def object_type_hash(self):
-        return self.caselam.hash_tag
+        return self.caselam.type_tag
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
