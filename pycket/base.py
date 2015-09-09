@@ -105,9 +105,9 @@ class W_Object(W_ProtoObject):
             return None
         return unwrap, cls.errorname
 
-class SingletonMeta(type):
+class SingletonMeta(HashableType):
     def __new__(cls, name, bases, dct):
-        result = type.__new__(cls, name, bases, dct)
+        result = HashableType.__new__(cls, name, bases, dct)
         result.singleton = result()
         return result
 
