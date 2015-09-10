@@ -1877,7 +1877,7 @@ def get_printable_location_two_state(version, green_ast, came_from):
     surrounding = green_ast.surrounding_lambda
     if surrounding is not None and green_ast is surrounding.body[0]:
         return green_ast.tostring() + ' from ' + came_from.tostring() + "verion = " + str(version)
-    return green_ast.tostring() + "verion = " + str(version)
+    return green_ast.tostring() + "version = " + str(version)
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["version", "ast", "came_from"],
