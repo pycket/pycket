@@ -8,7 +8,7 @@ from pycket.values            import UNROLLING_CUTOFF
 from pycket                   import values
 from pycket                   import values_struct
 from pycket                   import values_hash
-from rpython.rlib             import jit
+from rpython.rlib             import jit, objectmodel
 from rpython.rlib.objectmodel import import_from_mixin
 
 @jit.unroll_safe
@@ -18,6 +18,36 @@ def get_base_object(x):
     while x.is_proxy():
         x = x.get_proxied()
     return x
+
+def add_impersonator_counts(cls):
+    cls.counts = [0, 0]
+    old_init = cls.__init__
+
+    def counting_init(self, *args):
+        print "called on %s" % cls.__name__
+        old_init(self, *args)
+        if self.is_impersonator():
+            cls.counts[0] += 1
+        elif self.is_chaperone():
+            cls.counts[1] += 1
+        else:
+            assert False
+
+    counting_init.__name__ = old_init.__name__
+    cls.__init__ = counting_init
+    return cls
+
+@objectmodel.specialize.arg(0)
+def show_impersonator_counts(cls):
+    print "%s:\n    impersonators= %d\n    chaperones   = %d" % (cls.__name__, cls.counts[0], cls.counts[1])
+
+def show_all_counts():
+    show_impersonator_counts(W_InterposeProcedure)
+    show_impersonator_counts(W_InterposeBox)
+    show_impersonator_counts(W_InterposeVector)
+    show_impersonator_counts(W_InterposeStructBase)
+    show_impersonator_counts(W_InterposeContinuationMarkKey)
+    show_impersonator_counts(W_InterposeHashTable)
 
 class ProxyMixin(object):
     def get_proxied(self):
@@ -143,8 +173,11 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
                     call_extra_cont(check, calling_app, env, cont)))
     assert False
 
+# @add_impersonator_counts
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
+
+    counts = [0, 0]
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
@@ -152,6 +185,14 @@ class W_InterposeProcedure(values.W_Procedure):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
+
+        if self.is_impersonator():
+            W_InterposeProcedure.counts[0] += 1
+        elif self.is_chaperone():
+            W_InterposeProcedure.counts[1] += 1
+        else:
+            assert False
+
         self.inner = code
         self.check = check
         self.self_arg = self_arg
@@ -206,6 +247,7 @@ class W_ChpProcedure(W_InterposeProcedure):
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
 
+@add_impersonator_counts
 class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)
 
@@ -281,6 +323,7 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
     return v.vector_set(i, check_one_val(vals), env, cont)
 
+@add_impersonator_counts
 class W_InterposeVector(values.W_MVector):
     import_from_mixin(ProxyMixin)
 
@@ -359,8 +402,23 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
         return orig_struct.set_with_extra_info(field, val, app, env, cont)
     return setter.call_with_extra_info([orig_struct, val], env, cont, app)
 
+def compute_fingerprint(field_cnt, overrides):
+    mutators  = [None] * field_cnt
+    accessors = [None] * field_cnt
+
+    for i, op in enumerate(overrides):
+        base = get_base_object(op)
+        if isinstance(base, values_struct.W_StructFieldAccessor):
+            self.accessors[base.field] = base
+        elif isinstance(base, values_struct.W_StructFieldMutator):
+            self.mutators[base.field] = base
+
+    mutators  = tuple(mutators)
+    accessors = tuple(accessors)
+
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
+@add_impersonator_counts
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
@@ -513,6 +571,7 @@ class W_ChpStruct(W_InterposeStructBase):
         return check_chaperone_results([val], env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
+@add_impersonator_counts
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     import_from_mixin(ProxyMixin)
 
@@ -579,6 +638,7 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
+@add_impersonator_counts
 class W_InterposeHashTable(values_hash.W_HashTable):
     import_from_mixin(ProxyMixin)
 
@@ -652,6 +712,7 @@ def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
                 imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)
 
+@add_impersonator_counts
 class W_ImpHashTable(W_InterposeHashTable):
     import_from_mixin(ImpersonatorMixin)
 
