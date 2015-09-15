@@ -19,17 +19,27 @@ def get_base_object(x):
         x = x.get_proxied()
     return x
 
+class Counter(object):
+    __attrs__ = ['_value']
+    def __init__(self):
+        self._value = 0
+    def increment(self):
+        self._value += 1
+    @property
+    def value(self):
+        return self._value
+
 def add_impersonator_counts(cls):
-    cls.counts = [0, 0]
+    cls.impersonators = Counter()
+    cls.chaperones    = Counter()
     old_init = cls.__init__
 
     def counting_init(self, *args):
-        print "called on %s" % cls.__name__
         old_init(self, *args)
         if self.is_impersonator():
-            cls.counts[0] += 1
+            cls.impersonators.increment()
         elif self.is_chaperone():
-            cls.counts[1] += 1
+            cls.chaperones.increment()
         else:
             assert False
 
@@ -39,7 +49,9 @@ def add_impersonator_counts(cls):
 
 @objectmodel.specialize.arg(0)
 def show_impersonator_counts(cls):
-    print "%s:\n    impersonators= %d\n    chaperones   = %d" % (cls.__name__, cls.counts[0], cls.counts[1])
+    imps = cls.impersonators.value
+    chps = cls.chaperones.value
+    print "%s:\n    impersonators= %d\n    chaperones   = %d" % (cls.__name__, imps, chps)
 
 def show_all_counts():
     show_impersonator_counts(W_InterposeProcedure)
@@ -177,7 +189,8 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
 
-    counts = [0, 0]
+    impersonators = Counter()
+    chaperones    = Counter()
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
@@ -187,9 +200,9 @@ class W_InterposeProcedure(values.W_Procedure):
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
 
         if self.is_impersonator():
-            W_InterposeProcedure.counts[0] += 1
+            W_InterposeProcedure.impersonators.increment()
         elif self.is_chaperone():
-            W_InterposeProcedure.counts[1] += 1
+            W_InterposeProcedure.chaperones.increment()
         else:
             assert False
 
