@@ -182,7 +182,6 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
                     call_extra_cont(check, calling_app, env, cont)))
     assert False
 
-# @add_impersonator_counts
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
 
