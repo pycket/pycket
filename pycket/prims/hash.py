@@ -35,7 +35,6 @@ def hash_iter_ref(ht, pos, key=False):
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
-
 @expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
 def hash_iterate_key(ht, pos):
     return hash_iter_ref(ht, pos, key=True)
@@ -64,7 +63,6 @@ def hash_for_each_cont(f, ht, index, env, cont, _vals):
         return return_value(values.w_void, env, cont)
     after = hash_for_each_cont(f, ht, nextindex, env, cont)
     return f.call([w_key, w_value], env, after)
-
 
 @expose("hash-map", [W_HashTable, procedure], simple=False)
 def hash_map(h, f, env, cont):
