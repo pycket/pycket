@@ -20,14 +20,11 @@ def get_base_object(x):
     return x
 
 class Counter(object):
-    __attrs__ = ['_value']
+    __attrs__ = ['value']
     def __init__(self):
-        self._value = 0
-    def increment(self):
-        self._value += 1
-    @property
-    def value(self):
-        return self._value
+        self.value = 0
+    def inc(self):
+        self.value += 1
 
 def add_impersonator_counts(cls):
     cls.impersonators = Counter()
@@ -37,9 +34,9 @@ def add_impersonator_counts(cls):
     def counting_init(self, *args):
         old_init(self, *args)
         if self.is_impersonator():
-            cls.impersonators.increment()
+            cls.impersonators.inc()
         elif self.is_chaperone():
-            cls.chaperones.increment()
+            cls.chaperones.inc()
         else:
             assert False
 
@@ -51,7 +48,7 @@ def add_impersonator_counts(cls):
 def show_impersonator_counts(cls):
     imps = cls.impersonators.value
     chps = cls.chaperones.value
-    print "%s:\n    impersonators= %d\n    chaperones   = %d" % (cls.__name__, imps, chps)
+    print "%s:\n    impersonators = %d\n    chaperones    = %d" % (cls.__name__, imps, chps)
 
 def show_all_counts():
     show_impersonator_counts(W_InterposeProcedure)
