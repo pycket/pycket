@@ -1,15 +1,18 @@
 
-from pycket.cont               import call_extra_cont, continuation, label
 from pycket                    import values
-from rpython.rlib.objectmodel  import import_from_mixin
-from pycket.impersonators.base import ProxyMixin, ChaperoneMixin, ImpersonatorMixin, Counter, check_chaperone_results_loop
 from pycket.base               import SingletonMeta
+from pycket.cont               import call_extra_cont, continuation, label
+from pycket.impersonators      import (
+    ChaperoneMixin,
+    ImpersonatorMixin,
+    ProxyMixin,
+    W_ImpPropertyDescriptor,
+    check_chaperone_results_loop
+)
+from rpython.rlib.objectmodel  import import_from_mixin
 
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
-
-    impersonators = Counter()
-    chaperones    = Counter()
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
@@ -17,15 +20,6 @@ class W_InterposeProcedure(values.W_Procedure):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-
-        print len(prop_keys) if prop_keys is not None else 0
-
-        if self.is_impersonator():
-            W_InterposeProcedure.impersonators.inc()
-        elif self.is_chaperone():
-            W_InterposeProcedure.chaperones.inc()
-        else:
-            assert False
 
         self.inner = code
         self.check = check

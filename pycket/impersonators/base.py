@@ -1,8 +1,18 @@
 
 from pycket                          import values
 from pycket.cont                     import continuation
+from pycket.impersonators.properties import Map
+from pycket.prims.expose             import make_call_method
 from rpython.rlib                    import jit
-from pycket.impersonators.properties import EMPTY_MAP
+
+@jit.unroll_safe
+def lookup_property(obj, prop):
+    while obj.is_proxy():
+        val = obj.get_property(prop)
+        if val is not None:
+            return val
+        obj = obj.get_proxied()
+    return None
 
 class Counter(object):
     __attrs__ = ['value']
@@ -70,15 +80,17 @@ def get_base_object(x):
 
 class ProxyMixin(object):
 
-    _mixin_ = True
-    _immutable_fields_ = ['properties', 'property_map', 'property_storage']
+    EMPTY_MAP = Map.new_empty_map()
 
+    _immutable_fields_ = ['property_map', 'property_storage']
+
+    @jit.unroll_safe
     def init_properties(self, prop_keys, prop_vals):
         if prop_keys is None:
             self.property_storage = None
             return
 
-        map = EMPTY_MAP
+        map = ProxyMixin.EMPTY_MAP
         for key in prop_keys:
             map = map.add_attribute(key)
 
@@ -86,15 +98,17 @@ class ProxyMixin(object):
         self.property_map = map
         self.property_storage = prop_vals
 
-
     def get_proxied(self):
         return self.inner
 
     def is_proxy(self):
         return True
 
-    def get_properties(self):
-        return self.properties
+    def get_property(self, prop):
+        idx = self.property_map.get_index(prop)
+        if idx == -1:
+            return None
+        return self.property_storage[idx]
 
     def immutable(self):
         return get_base_object(self.inner).immutable()
@@ -103,11 +117,39 @@ class ProxyMixin(object):
         return get_base_object(self.inner).tostring()
 
 class ChaperoneMixin(object):
-    _mixin_ = True
     def is_chaperone(self):
         return True
 
 class ImpersonatorMixin(object):
-    _mixin_ = True
     def is_impersonator(self):
         return True
+
+class W_ImpPropertyDescriptor(values.W_Object):
+    errorname = "chaperone-property"
+    _immutable_fields_ = ["name"]
+    def __init__(self, name):
+        self.name = name
+    def tostring(self):
+        return "#<chaperone-property>"
+
+class W_ImpPropertyFunction(values.W_Procedure):
+    _immutable_fields_ = ["descriptor"]
+    def __init__(self, descriptor):
+        self.descriptor = descriptor
+
+class W_ImpPropertyPredicate(W_ImpPropertyFunction):
+    errorname = "impersonator-property-predicate"
+
+    @make_call_method([values.W_Object])
+    def call(self, obj):
+        return values.W_Bool.make(lookup_property(obj, self.descriptor) is not None)
+
+class W_ImpPropertyAccessor(W_ImpPropertyFunction):
+    errorname = "impersonator-property-accessor"
+
+    @make_call_method([values.W_Object])
+    def call(self, obj):
+        return lookup_property(obj, self.descriptor)
+
+w_impersonator_prop_application_mark = W_ImpPropertyDescriptor("impersonator-prop:application-mark")
+

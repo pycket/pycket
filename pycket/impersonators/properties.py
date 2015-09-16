@@ -1,8 +1,6 @@
 
 from rpython.rlib import jit
 
-__all__ = ['Map', 'EMPTY_MAP']
-
 class Map(object):
 
     _immutable_fields_ = ['indexes', 'other_maps']
@@ -28,5 +26,7 @@ class Map(object):
     def storage_size(self):
         return len(self.indexes)
 
-EMPTY_MAP = Map()
+    @staticmethod
+    def new_empty_map():
+        return Map()
 
