@@ -1,8 +1,9 @@
 
-from pycket.cont               import continuation, label
+from pycket.cont               import call_extra_cont, continuation, label
 from pycket                    import values
 from rpython.rlib.objectmodel  import import_from_mixin
-from pycket.impersonators.base import ProxyMixin, ChaperoneMixin, ImpersonatorMixin, Counter
+from pycket.impersonators.base import ProxyMixin, ChaperoneMixin, ImpersonatorMixin, Counter, check_chaperone_results_loop
+from pycket.base               import SingletonMeta
 
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
@@ -17,10 +18,12 @@ class W_InterposeProcedure(values.W_Procedure):
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
 
+        print len(prop_keys) if prop_keys is not None else 0
+
         if self.is_impersonator():
-            W_InterposeProcedure.impersonators.increment()
+            W_InterposeProcedure.impersonators.inc()
         elif self.is_chaperone():
-            W_InterposeProcedure.chaperones.increment()
+            W_InterposeProcedure.chaperones.inc()
         else:
             assert False
 
@@ -48,6 +51,7 @@ class W_InterposeProcedure(values.W_Procedure):
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.values import W_ThunkProcCMK
+        from pycket.impersonators.impersonators import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
@@ -105,3 +109,4 @@ def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
                 call_extra_cont(proc, calling_app, env,
                     call_extra_cont(check, calling_app, env, cont)))
     assert False
+
