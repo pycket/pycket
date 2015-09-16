@@ -1,6 +1,7 @@
 
 from pycket                          import values
 from pycket.cont                     import continuation
+from pycket.error                    import SchemeException
 from pycket.impersonators.properties import Map
 from pycket.prims.expose             import make_call_method
 from rpython.rlib                    import jit
@@ -69,9 +70,19 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
         raise SchemeException("Expecting original value or chaperone")
     return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
+@continuation
+def impersonate_reference_cont(f, args, app, env, cont, _vals):
+    old = _vals.get_all_values()
+    return f.call_with_extra_info(args + old, env, cont, app)
+
+@continuation
+def chaperone_reference_cont(f, args, app, env, cont, _vals):
+    old = _vals.get_all_values()
+    return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
+
 @jit.unroll_safe
 def get_base_object(x):
-    from pycket.impersonators.impersonators import W_InterposeStructBase
+    from pycket.impersonators.struct import W_InterposeStructBase
     if isinstance(x, W_InterposeStructBase):
         return x.base
     while x.is_proxy():
@@ -87,6 +98,7 @@ class ProxyMixin(object):
     @jit.unroll_safe
     def init_properties(self, prop_keys, prop_vals):
         if prop_keys is None:
+            self.property_map = ProxyMixin.EMPTY_MAP
             self.property_storage = None
             return
 
@@ -97,6 +109,9 @@ class ProxyMixin(object):
         assert map.storage_size() == len(prop_vals)
         self.property_map = map
         self.property_storage = prop_vals
+
+    def property_count(self):
+        return self.property_map.storage_size()
 
     def get_proxied(self):
         return self.inner
