@@ -43,8 +43,6 @@ def make_entry_point(pycketconfig=None):
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
-            from pycket.impersonators import show_all_counts
-            show_all_counts()
             shutdown(env)
         return 0
     return entry_point
