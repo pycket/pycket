@@ -24,11 +24,9 @@ class W_InterposeProcedure(values.W_Procedure):
         self.inner = code
         self.check = check
         self.self_arg = self_arg
-        self.properties = {}
-        if prop_keys is not None:
-            for i, k in enumerate(prop_keys):
-                assert isinstance(k, W_ImpPropertyDescriptor)
-                self.properties[k] = prop_vals[i]
+
+        # from ProxyMixin
+        self.init_properties(prop_keys, prop_vals)
 
     def get_arity(self):
         return self.inner.get_arity()
@@ -45,11 +43,11 @@ class W_InterposeProcedure(values.W_Procedure):
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         from pycket.values import W_ThunkProcCMK
-        from pycket.impersonators.impersonators import w_impersonator_prop_application_mark
+        from pycket.impersonators.base import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
-        prop = self.properties.get(w_impersonator_prop_application_mark, None)
+        prop = self.get_property(w_impersonator_prop_application_mark)
         if isinstance(prop, values.W_Cons):
             key, val = prop.car(), prop.cdr()
             if isinstance(key, values.W_ContinuationMarkKey):
@@ -75,7 +73,6 @@ class W_ChpProcedure(W_InterposeProcedure):
 
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
-
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
