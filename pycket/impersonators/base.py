@@ -93,7 +93,7 @@ class ProxyMixin(object):
 
     EMPTY_MAP = Map.new_empty_map()
 
-    _immutable_fields_ = ['property_map', 'property_storage']
+    _immutable_fields_ = ['property_map', 'property_storage[*]']
 
     @jit.unroll_safe
     def init_properties(self, prop_keys, prop_vals):
