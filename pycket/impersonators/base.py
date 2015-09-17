@@ -1,10 +1,10 @@
 
-from pycket                          import values
-from pycket.cont                     import continuation
-from pycket.error                    import SchemeException
-from pycket.impersonators.properties import Map
-from pycket.prims.expose             import make_call_method
-from rpython.rlib                    import jit
+from pycket                   import values
+from pycket.cont              import continuation
+from pycket.error             import SchemeException
+from pycket.impersonators.map import make_map_type
+from pycket.prims.expose      import make_call_method
+from rpython.rlib             import jit
 
 @jit.unroll_safe
 def lookup_property(obj, prop):
@@ -83,15 +83,13 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
 @jit.unroll_safe
 def get_base_object(x):
     from pycket.impersonators.struct import W_InterposeStructBase
-    if isinstance(x, W_InterposeStructBase):
-        return x.base
     while x.is_proxy():
         x = x.get_proxied()
     return x
 
 class ProxyMixin(object):
 
-    EMPTY_MAP = Map.new_empty_map()
+    EMPTY_MAP = make_map_type().EMPTY
 
     _immutable_fields_ = ['property_map', 'property_storage[*]']
 
