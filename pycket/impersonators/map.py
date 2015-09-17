@@ -19,7 +19,7 @@ def make_map_type():
             self.other_maps = {}
 
         def __iter__(self):
-            return self.indexes.iterkeys()
+            return self.indexes.iteritems()
 
         def iterkeys(self):
             return self.indexes.iterkeys()

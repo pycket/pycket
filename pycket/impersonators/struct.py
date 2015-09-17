@@ -52,7 +52,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     EMPTY_MAP = make_map_type().EMPTY
     INFO_IDX = -1
 
-    # _immutable_fields_ = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props"]
     _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
 
     @jit.unroll_safe
@@ -71,8 +70,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         struct_props = None
 
-        # Does not deal with properties as of yet
-        # TODO: Avoid allocating the mutators and accessors when they are empty
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
