@@ -91,8 +91,12 @@ def test_noninterposing_chaperone():
 
     a_pre_a = m.defs[sym("a-pre-a")]
     assert not a_pre_a.is_non_interposing_chaperone()
-    non_interposing = m.defs[sym("non-interposing")]
-    assert non_interposing.is_non_interposing_chaperone()
+    interp = m.defs[sym("non-interposing")]
+    assert interp.is_non_interposing_chaperone()
+
+    blue = m.defs[sym("prop:blue")]
+    assert isinstance(interp, W_InterposeStructBase)
+    assert interp.get_property(blue) == sym("color")
 
 def test_noninterposing_chaperone_procedure():
     m = run_mod(
