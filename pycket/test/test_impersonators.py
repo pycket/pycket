@@ -29,6 +29,7 @@ def test_chaperone_struct_self_arg():
     assert self is chap
 
 def test_noninterposing_chaperone():
+    sym = W_Symbol.make
     m = run_mod(
     """
     #lang pycket
@@ -78,14 +79,20 @@ def test_noninterposing_chaperone():
     (define t7
       (chaperone-of? a-pre-a
         (chaperone-struct a-pre-a green-ref (lambda (a v) v))))
+    (define non-interposing (chaperone-struct (make-pre-a 17 1) pre-a-y #f prop:blue 'color))
     """)
-    assert m.defs[W_Symbol.make("t1")] is w_true
-    assert m.defs[W_Symbol.make("t2")] is w_true
-    assert m.defs[W_Symbol.make("t3")] is w_false
-    assert m.defs[W_Symbol.make("t4")] is w_true
-    assert m.defs[W_Symbol.make("t5")] is w_true
-    assert m.defs[W_Symbol.make("t6")] is w_false
-    assert m.defs[W_Symbol.make("t7")] is w_false
+    assert m.defs[sym("t1")] is w_true
+    assert m.defs[sym("t2")] is w_true
+    assert m.defs[sym("t3")] is w_false
+    assert m.defs[sym("t4")] is w_true
+    assert m.defs[sym("t5")] is w_true
+    assert m.defs[sym("t6")] is w_false
+    assert m.defs[sym("t7")] is w_false
+
+    a_pre_a = m.defs[sym("a-pre-a")]
+    assert not a_pre_a.is_non_interposing_chaperone()
+    non_interposing = m.defs[sym("non-interposing")]
+    assert non_interposing.is_non_interposing_chaperone()
 
 def test_noninterposing_chaperone_procedure():
     m = run_mod(
