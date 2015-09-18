@@ -30,9 +30,6 @@
 
 (displayln 'simple)
 
-;; XXX Making use of W_PromotableClosure causes a significant performance hit here
-;; We should probably investiage why that is. Disabling W_PromotableClosures gives
-;; a more gradual performance degredation on these four runs
 (time (loop (lambda (x) (add1 x)) 0 0))
 (time (loop (lambda (x) (sub1 x)) 0 0))
 (time (loop (lambda (x) (add1 x)) 0 0))
