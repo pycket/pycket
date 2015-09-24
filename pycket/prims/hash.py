@@ -128,7 +128,7 @@ def hash(args):
         raise SchemeException("hash: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return W_EqualHashTable(keys, vals)
+    return W_EqualHashTable(keys, vals, immutable=True)
 
 @expose("hasheq")
 def hasheq(args):
@@ -136,7 +136,7 @@ def hasheq(args):
         raise SchemeException("hasheq: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return make_simple_table(W_EqHashTable, keys, vals)
+    return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
 
 @expose("hasheqv")
 def hasheqv(args):
@@ -144,7 +144,7 @@ def hasheqv(args):
         raise SchemeException("hasheqv: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return make_simple_table(W_EqvHashTable, keys, vals)
+    return make_simple_table(W_EqvHashTable, keys, vals, immutable=True)
 
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
@@ -224,7 +224,7 @@ def hash_ref(ht, k, default, env, cont):
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
-    return ht.hash_remove(k, env, cont)
+    return ht.hash_remove_inplace(k, env, cont)
 
 define_nyi("hash-remove", [W_HashTable, values.W_Object])
 

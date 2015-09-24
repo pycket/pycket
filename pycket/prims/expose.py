@@ -21,10 +21,10 @@ class unsafe(object):
         def unwrapper(w_arg):
             assert w_arg is not None
             # the following precise type check is intentional.
-            # record_known_class records a precise class to the JIT,
+            # record_exact_class records a precise class to the JIT,
             # excluding subclasses
             assert type(w_arg) is typ
-            jit.record_known_class(w_arg, typ)
+            jit.record_exact_class(w_arg, typ)
             return w_arg
         return unwrapper, typ.errorname
 
