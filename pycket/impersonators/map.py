@@ -50,6 +50,7 @@ def make_map_type():
 
     return Map
 
+# TODO Find a beter name for this
 class CachingMap(object):
     """ A map implementation which partitions its data into two groups, a collection
     of static data stored in the map itself, and a collection of indexes used to
@@ -89,6 +90,7 @@ class CachingMap(object):
 
     @jit.elidable
     def add_static_attribute(self, name, value):
+        assert name not in self.indexes and name not in self.static_data
         key = (name, value)
         if key not in self.static_submaps:
             newmap = CachingMap()
@@ -100,6 +102,7 @@ class CachingMap(object):
 
     @jit.elidable
     def add_dynamic_attribute(self, name):
+        assert name not in self.indexes and name not in self.static_data
         if name not in self.dynamic_submaps:
             newmap = CachingMap()
             newmap.indexes.update(self.indexes)
