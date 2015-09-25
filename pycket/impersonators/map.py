@@ -34,6 +34,12 @@ def make_map_type():
         def get_index(self, name):
             return self.indexes.get(name, -1)
 
+        def lookup(self, name, storage, default=None):
+            idx = self.get_index(name)
+            if idx == -1:
+                return default
+            return storage[idx]
+
         @jit.elidable
         def add_attribute(self, name):
             if name not in self.other_maps:
@@ -43,12 +49,21 @@ def make_map_type():
                 self.other_maps[name] = newmap
             return self.other_maps[name]
 
+        add_static_attribute  = 0
+        add_dynamic_attribute = add_attribute
+
         def storage_size(self):
             return len(self.indexes)
 
     Map.EMPTY = Map()
 
     return Map
+
+class Counter(object):
+    def __init__(self, value=0):
+        self._value = value
+    def inc(self):
+        self._value += 1
 
 # TODO Find a beter name for this
 class CachingMap(object):
@@ -62,17 +77,32 @@ class CachingMap(object):
     _immutable_fields_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
     _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
 
+    COUNTER = Counter(-1)
+
     def __init__(self):
         self.indexes = {}
         self.static_data = {}
         self.dynamic_submaps = {}
         self.static_submaps = {}
+        CachingMap.COUNTER.inc()
 
     def iterkeys(self):
         for key in self.indexes.iterkeys():
             yield key
         for key in self.static_data.iterkeys():
             yield key
+
+    def iteritems(self):
+        for item in self.indexes.iteritems():
+            yield item
+        for item in self.static_data.iteritems():
+            yield item
+
+    def itervalues(self):
+        for val in self.indexes.itervalues():
+            yield val
+        for val in self.static_data.itervalues():
+            yield val
 
     @jit.elidable
     def get_dynamic_index(self, name):
@@ -110,5 +140,22 @@ class CachingMap(object):
             newmap.indexes[name] = len(self.indexes)
             self.dynamic_submaps[name] = newmap
         return self.dynamic_submaps[name]
+
+    def is_leaf(self):
+        return not self.indexes and not self.static_data
+
+    def compute_path_data(self):
+        count_data = []
+        self._compute_path_data(count_data)
+        return count_data[:]
+
+    def _compute_path_data(self, count_data, static=0, dynamic=0):
+        if self.is_leaf():
+            count_data.append((static, dynamic))
+            return
+        for sub in self.static_submaps.itervalues():
+            sub._compute_path_data(count_data, static + 1, dynamic)
+        for sub in self.dynamic_submaps.itervalues():
+            sub._compute_path_data(count_data, static, dynamic + 1)
 
 CachingMap.EMPTY = CachingMap()

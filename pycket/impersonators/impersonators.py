@@ -22,20 +22,6 @@ from pycket.values             import UNROLLING_CUTOFF
 from rpython.rlib              import jit, objectmodel
 from rpython.rlib.objectmodel  import import_from_mixin
 
-@objectmodel.specialize.arg(0)
-def show_impersonator_counts(cls):
-    imps = cls.impersonators.value
-    chps = cls.chaperones.value
-    print "%s:\n    impersonators = %d\n    chaperones    = %d" % (cls.__name__, imps, chps)
-
-def show_all_counts():
-    show_impersonator_counts(W_InterposeProcedure)
-    show_impersonator_counts(W_InterposeBox)
-    show_impersonator_counts(W_InterposeVector)
-    show_impersonator_counts(W_InterposeStructBase)
-    show_impersonator_counts(W_InterposeContinuationMarkKey)
-    show_impersonator_counts(W_InterposeHashTable)
-
 class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)
 
