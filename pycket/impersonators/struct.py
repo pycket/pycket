@@ -11,9 +11,12 @@ from pycket.impersonators      import (
     get_base_object,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import make_map_type
-from rpython.rlib              import jit
+from pycket.impersonators.map  import make_map_type, CachingMap
+from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin
+
+def is_static_handler(func):
+    return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
 
 # Check if a proxied struct has more than n levels to descend through
 def enter_above_depth(n):
@@ -44,12 +47,20 @@ def is_accessor(key):
 def is_mutator(key):
     return key >= 0 and (key & 0x1) == 1
 
+def add_handler_field(map, handlers, name, val):
+    if is_static_handler(val):
+        map = map.add_static_attribute(name, val)
+    else:
+        map = map.add_dynamic_attribute(name)
+        handlers.append(val)
+    return map
+
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    EMPTY_MAP = make_map_type().EMPTY
+    EMPTY_MAP = CachingMap.EMPTY #make_map_type().EMPTY
     INFO_IDX = -1
 
     _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
@@ -75,27 +86,25 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 idx = tag_accessor(base.field)
                 if handlers[i] is not values.w_false:
-                    handler_map = handler_map.add_attribute(idx)
-                    self.handlers.append(handlers[i])
+                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
+                    # handler_map = handler_map.add_dynamic_attribute(idx)
+                    # self.handlers.append(handlers[i])
                 if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = override_map.add_attribute(idx)
-                    self.overrides.append(op)
+                    override_map = add_handler_field(override_map, self.overrides, idx, op)
+                    # override_map = override_map.add_dynamic_attribute(idx)
+                    # self.overrides.append(op)
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 idx = tag_mutator(base.field)
                 if handlers[i] is not values.w_false:
-                    handler_map = handler_map.add_attribute(idx)
-                    self.handlers.append(handlers[i])
+                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
                 if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = override_map.add_attribute(idx)
-                    self.overrides.append(op)
+                    override_map = add_handler_field(override_map, self.overrides, idx, op)
             elif base is struct_info:
                 idx = W_InterposeStructBase.INFO_IDX
                 if handlers[i] is not values.w_false:
-                    handler_map = handler_map.add_attribute(idx)
-                    self.handlers.append(handlers[i])
+                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
                 if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = override_map.add_attribute(idx)
-                    self.overrides.append(op)
+                    override_map = add_handler_field(override_map, self.overrides, idx, op)
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 # TODO: Can we make use of existing property maps for this?
                 if struct_props is None:
@@ -128,28 +137,24 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     @guarded_loop(enter_above_depth(5))
     def ref_with_extra_info(self, field, app, env, cont):
         tag = tag_accessor(field)
-        handler_idx = self.handler_map.get_index(tag)
-        override_idx = self.override_map.get_index(tag)
-        if handler_idx != -1:
-            handler = self.handlers[handler_idx]
+        handler = self.handler_map.lookup(tag, self.handlers)
+        override = self.override_map.lookup(tag, self.overrides)
+        if handler is not None:
             cont = self.post_ref_cont(handler, app, env, cont)
-        if override_idx != -1:
-            override = self.overrides[override_idx]
+        if override is not None:
             return override.call_with_extra_info([self.inner], env, cont, app)
         return self.inner.ref_with_extra_info(field, app, env, cont)
 
     @guarded_loop(enter_above_depth(5))
     def set_with_extra_info(self, field, val, app, env, cont):
         tag = tag_mutator(field)
-        handler_idx = self.handler_map.get_index(tag)
-        override_idx = self.override_map.get_index(tag)
-        override = self.overrides[override_idx] if override_idx != -1 else values.w_false
+        handler = self.handler_map.lookup(tag, self.handlers)
+        override = self.override_map.lookup(tag, self.overrides, values.w_false)
 
-        if handler_idx == -1:
+        if handler is None:
             return self.inner.set_with_extra_info(field, val, app, env, cont)
 
         after = self.post_set_cont(override, field, val, app, env, cont)
-        handler = self.handlers[handler_idx]
         return handler.call_with_extra_info([self, val], env, after, app)
 
     @label
@@ -164,9 +169,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     def get_struct_info(self, env, cont):
         from pycket.interpreter import return_multi_vals
-        idx = self.handler_map.get_index(W_InterposeStructBase.INFO_IDX)
-        if idx != -1:
-            cont = call_cont(self.handlers[idx], env, cont)
+        handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
+        # idx = self.handler_map.get_index(W_InterposeStructBase.INFO_IDX)
+        if handler is not None:
+            cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
     def get_arity(self):
