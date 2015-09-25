@@ -56,12 +56,6 @@ def make_map_type():
 
     return Map
 
-class Counter(object):
-    def __init__(self, value=0):
-        self._value = value
-    def inc(self):
-        self._value += 1
-
 # TODO Find a beter name for this
 class CachingMap(object):
     """ A map implementation which partitions its data into two groups, a collection
