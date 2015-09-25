@@ -16,7 +16,7 @@ from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin
 
 def is_static_handler(func):
-    return False #isinstance(func, values.W_Prim) # or isinstance(func, values.W_PromotableClosure)
+    return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
 
 # Check if a proxied struct has more than n levels to descend through
 def enter_above_depth(n):
@@ -60,9 +60,10 @@ def add_handler_field(map, handlers, name, val):
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    # EMPTY_MAP = CachingMap.EMPTY
-    EMPTY_MAP = make_map_type().EMPTY
+    EMPTY_MAP = CachingMap.EMPTY
     INFO_IDX = -1
+
+    counter = Counter()
 
     _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
 
@@ -170,7 +171,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     def get_struct_info(self, env, cont):
         handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
-        # idx = self.handler_map.get_index(W_InterposeStructBase.INFO_IDX)
         if handler is not None:
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
