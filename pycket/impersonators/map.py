@@ -49,9 +49,6 @@ def make_map_type():
                 self.other_maps[name] = newmap
             return self.other_maps[name]
 
-        add_static_attribute  = 0
-        add_dynamic_attribute = add_attribute
-
         def storage_size(self):
             return len(self.indexes)
 
@@ -77,14 +74,11 @@ class CachingMap(object):
     _immutable_fields_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
     _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
 
-    COUNTER = Counter(-1)
-
     def __init__(self):
         self.indexes = {}
         self.static_data = {}
         self.dynamic_submaps = {}
         self.static_submaps = {}
-        CachingMap.COUNTER.inc()
 
     def iterkeys(self):
         for key in self.indexes.iterkeys():
@@ -143,19 +137,5 @@ class CachingMap(object):
 
     def is_leaf(self):
         return not self.indexes and not self.static_data
-
-    def compute_path_data(self):
-        count_data = []
-        self._compute_path_data(count_data)
-        return count_data[:]
-
-    def _compute_path_data(self, count_data, static=0, dynamic=0):
-        if self.is_leaf():
-            count_data.append((static, dynamic))
-            return
-        for sub in self.static_submaps.itervalues():
-            sub._compute_path_data(count_data, static + 1, dynamic)
-        for sub in self.dynamic_submaps.itervalues():
-            sub._compute_path_data(count_data, static, dynamic + 1)
 
 CachingMap.EMPTY = CachingMap()

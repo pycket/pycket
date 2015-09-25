@@ -42,10 +42,7 @@ def make_entry_point(pycketconfig=None):
         try:
             val = interpret_module(ast, env)
         finally:
-            from pycket.prims.input_output import shutdown
-            from pycket.impersonators.map  import CachingMap
-            # print CachingMap.EMPTY.compute_path_data()
-            # print CachingMap.COUNTER._value
+            from pycket.prims.input_output   import shutdown
             shutdown(env)
         return 0
     return entry_point
