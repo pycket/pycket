@@ -118,10 +118,7 @@ class ProxyMixin(object):
         return True
 
     def get_property(self, prop):
-        idx = self.property_map.get_index(prop)
-        if idx == -1:
-            return None
-        return self.property_storage[idx]
+        return self.property_map.lookup(prop, self.property_storage)
 
     def immutable(self):
         return get_base_object(self.inner).immutable()

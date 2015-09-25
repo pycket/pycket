@@ -11,12 +11,12 @@ from pycket.impersonators      import (
     get_base_object,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import make_map_type, CachingMap
+from pycket.impersonators.map  import CachingMap, make_map_type
 from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin
 
 def is_static_handler(func):
-    return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
+    return False #isinstance(func, values.W_Prim) # or isinstance(func, values.W_PromotableClosure)
 
 # Check if a proxied struct has more than n levels to descend through
 def enter_above_depth(n):
@@ -49,18 +49,19 @@ def is_mutator(key):
 
 def add_handler_field(map, handlers, name, val):
     if is_static_handler(val):
-        map = map.add_static_attribute(name, val)
+        new_map = map.add_static_attribute(name, val)
     else:
-        map = map.add_dynamic_attribute(name)
+        new_map = map.add_dynamic_attribute(name)
         handlers.append(val)
-    return map
+    return new_map
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    EMPTY_MAP = CachingMap.EMPTY #make_map_type().EMPTY
+    # EMPTY_MAP = CachingMap.EMPTY
+    EMPTY_MAP = make_map_type().EMPTY
     INFO_IDX = -1
 
     _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
@@ -149,11 +150,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def set_with_extra_info(self, field, val, app, env, cont):
         tag = tag_mutator(field)
         handler = self.handler_map.lookup(tag, self.handlers)
-        override = self.override_map.lookup(tag, self.overrides, values.w_false)
 
         if handler is None:
             return self.inner.set_with_extra_info(field, val, app, env, cont)
 
+        override = self.override_map.lookup(tag, self.overrides, values.w_false)
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
@@ -168,7 +169,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return op.call([self.inner], env, after)
 
     def get_struct_info(self, env, cont):
-        from pycket.interpreter import return_multi_vals
         handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
         # idx = self.handler_map.get_index(W_InterposeStructBase.INFO_IDX)
         if handler is not None:
