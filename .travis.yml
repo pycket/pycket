@@ -1,6 +1,6 @@
 language: python
 cache: apt
-sudo: false
+sudo: required
 python:
 - pypy
 notifications:
