@@ -92,11 +92,11 @@ class CachingMap(object):
         for val in self.static_data.itervalues():
             yield val
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def get_dynamic_index(self, name):
         return self.indexes.get(name, -1)
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def get_static_data(self, name, default=None):
         return self.static_data.get(name, default)
 
