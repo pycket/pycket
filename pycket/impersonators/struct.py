@@ -1,6 +1,6 @@
 
 from pycket                    import values, values_struct
-from pycket.base               import SingletonMeta
+from pycket.base               import SingletonMeta, W_ProtoObject
 from pycket.cont               import call_cont, continuation, guarded_loop, label
 from pycket.impersonators      import (
     ChaperoneMixin,
@@ -47,13 +47,63 @@ def is_accessor(key):
 def is_mutator(key):
     return key >= 0 and (key & 0x1) == 1
 
-def add_handler_field(map, handlers, name, val):
+def add_handler_field(map, handler_array, name, val):
     if is_static_handler(val):
         new_map = map.add_static_attribute(name, val)
     else:
+        if handler_array is None:
+            handler_array = []
         new_map = map.add_dynamic_attribute(name)
-        handlers.append(val)
-    return new_map
+        handler_array.append(val)
+    return handler_array, new_map
+
+@jit.unroll_safe
+def impersonator_args(overrides, handlers):
+    from pycket.prims.struct_structinfo import struct_info
+    assert len(overrides) == len(handlers)
+
+    _handlers = None
+    _overrides = None
+    struct_props = None
+
+    handler_map = W_InterposeStructBase.EMPTY_MAP
+    override_map = W_InterposeStructBase.EMPTY_MAP
+
+    for i, op in enumerate(overrides):
+        base = get_base_object(op)
+        if isinstance(base, values_struct.W_StructFieldAccessor):
+            idx = tag_accessor(base.field)
+            if handlers[i] is not values.w_false:
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
+            if type(op) is not values_struct.W_StructFieldAccessor:
+                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+        elif isinstance(base, values_struct.W_StructFieldMutator):
+            idx = tag_mutator(base.field)
+            if handlers[i] is not values.w_false:
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
+            if type(op) is not values_struct.W_StructFieldAccessor:
+                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+        elif base is struct_info:
+            idx = W_InterposeStructBase.INFO_IDX
+            if handlers[i] is not values.w_false:
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
+            if type(op) is not values_struct.W_StructFieldAccessor:
+                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+        elif isinstance(base, values_struct.W_StructPropertyAccessor):
+            # TODO: Can we make use of existing property maps for this?
+            if struct_props is None:
+                struct_props = {}
+            struct_props[base] = (op, handlers[i])
+        else:
+            assert False
+
+    return handler_map, _handlers, override_map, _overrides, struct_props
+
+class Pair(W_ProtoObject):
+    _immutable_fields_ = ['fst', 'snd']
+    def __init__(self, fst, snd):
+        self.fst = fst
+        self.snd = snd
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
@@ -63,60 +113,19 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     EMPTY_MAP = CachingMap.EMPTY
     INFO_IDX = -1
 
-    _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
+    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]', 'struct_props']
 
-    @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
-        from pycket.prims.struct_structinfo import struct_info
         assert isinstance(inner, values_struct.W_RootStruct)
-        assert len(overrides) == len(handlers)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
 
         self.inner = inner
-        self.handlers = []
-        self.overrides = []
 
-        handler_map = W_InterposeStructBase.EMPTY_MAP
-        override_map = W_InterposeStructBase.EMPTY_MAP
-
-        struct_props = None
-
-        for i, op in enumerate(overrides):
-            base = get_base_object(op)
-            if isinstance(base, values_struct.W_StructFieldAccessor):
-                idx = tag_accessor(base.field)
-                if handlers[i] is not values.w_false:
-                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
-                    # handler_map = handler_map.add_dynamic_attribute(idx)
-                    # self.handlers.append(handlers[i])
-                if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = add_handler_field(override_map, self.overrides, idx, op)
-                    # override_map = override_map.add_dynamic_attribute(idx)
-                    # self.overrides.append(op)
-            elif isinstance(base, values_struct.W_StructFieldMutator):
-                idx = tag_mutator(base.field)
-                if handlers[i] is not values.w_false:
-                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
-                if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = add_handler_field(override_map, self.overrides, idx, op)
-            elif base is struct_info:
-                idx = W_InterposeStructBase.INFO_IDX
-                if handlers[i] is not values.w_false:
-                    handler_map = add_handler_field(handler_map, self.handlers, idx, handlers[i])
-                if type(op) is not values_struct.W_StructFieldAccessor:
-                    override_map = add_handler_field(override_map, self.overrides, idx, op)
-            elif isinstance(base, values_struct.W_StructPropertyAccessor):
-                # TODO: Can we make use of existing property maps for this?
-                if struct_props is None:
-                    struct_props = {}
-                struct_props[base] = (op, handlers[i])
-            else:
-                assert False
+        self.handler_map, self.handlers, \
+        self.override_map, self.overrides, \
+        self.struct_props = impersonator_args(overrides, handlers)
 
         self.init_properties(prop_keys, prop_vals)
-        self.struct_props = struct_props
-        self.override_map = override_map
-        self.handler_map  = handler_map
 
     def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
