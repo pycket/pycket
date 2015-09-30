@@ -51,9 +51,12 @@
     (values stx* (do-post-expand stx* in-path))))
 
 (define (do-post-expand stx in-path)
-  (define m `(module mod '#%kernel
-               (define-values (stx) (quote-syntax ,stx))
-               (#%provide stx)))
+  (define i (make-syntax-introducer))
+  (define m (i (datum->syntax
+                #f
+                `(module mod '#%kernel
+                  (define-values (stx) (quote-syntax ,(i stx)))
+                  (#%provide stx)))))
   (if (and in-path (keep-srcloc))
       (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
                      [current-module-declare-source in-path])
@@ -488,7 +491,8 @@
                                       (syntax->list #'(forms* ...)))
               'language (first lang-req)
               'config (and config? global-config)))]
-    [_ (error 'convert)]))
+    [_
+     (error 'convert "bad ~a ~a" mod (syntax->datum mod))]))
 
 
 (module+ main
