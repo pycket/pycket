@@ -1,8 +1,8 @@
 #lang racket/base
 
 (require syntax/parse syntax/modresolve
-         (only-in racket/list append-map last-pair filter-map first add-between)
-         racket/path
+         (only-in racket/list append-map last-pair filter-map first add-between third fourth)
+         racket/path racket/pretty
          racket/dict racket/match
          racket/format
          racket/extflonum)
@@ -380,8 +380,8 @@
      (hash 'quote-syntax
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
-    [(((~literal define-values) (i ...) b)
-      ((~literal define-values) (i* ...) b*))
+    [(((~datum define-values) (i ...) b)
+      ((~datum define-values) (i* ...) b*))
      (hash 'define-values (map id->sym (syntax->list #'(i ...)))
            'define-values-body (to-json #'b #'b*)
            ;; keep these separately because the real symbols
@@ -463,7 +463,9 @@
 (define (convert mod mod/loc [config? #t])
   (syntax-parse (list mod mod/loc) #:literals (module #%plain-module-begin)
     [((module name:id lang:expr (#%plain-module-begin forms ...))
-      (_ _ _                    (#%plain-module-begin forms* ...)))
+      (_ _ _                    (pmb forms* ...)))
+     (displayln (identifier-binding #'pmb))
+     (displayln (syntax->datum #'pmb))
      (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
@@ -488,7 +490,12 @@
                                       (syntax->list #'(forms* ...)))
               'language (first lang-req)
               'config (and config? global-config)))]
-    [_ (error 'convert)]))
+    [_
+     (pretty-print (syntax->datum mod))
+     (pretty-print (third (syntax-e mod)))
+     (displayln (identifier-binding (car (syntax-e (fourth (syntax-e mod))))))
+          
+     (error 'convert "bad ~a ~a" mod (syntax->datum mod))]))
 
 
 (module+ main
