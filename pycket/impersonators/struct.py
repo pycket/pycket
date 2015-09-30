@@ -63,8 +63,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     EMPTY_MAP = CachingMap.EMPTY
     INFO_IDX = -1
 
-    counter = Counter()
-
     _immutable_fields_ = ['inner', 'handlers', 'overrides', 'struct_props', 'handler_map']
 
     @jit.unroll_safe
