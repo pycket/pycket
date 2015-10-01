@@ -159,7 +159,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     EMPTY_MAP = CachingMap.EMPTY
     INFO_IDX = -1
 
-    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]', 'struct_props']
+    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]']
 
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
         assert isinstance(inner, values_struct.W_RootStruct)
@@ -188,7 +188,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def struct_type(self):
         return get_base_object(self.inner).struct_type()
 
-    @guarded_loop(enter_above_depth(5))
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def ref_with_extra_info(self, field, app, env, cont):
         tag = tag_accessor(field)
         handler = self.handler_map.lookup(tag, self.handlers)
@@ -199,7 +199,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return override.call_with_extra_info([self.inner], env, cont, app)
         return self.inner.ref_with_extra_info(field, app, env, cont)
 
-    @guarded_loop(enter_above_depth(5))
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def set_with_extra_info(self, field, val, app, env, cont):
         tag = tag_mutator(field)
         handler = self.handler_map.lookup(tag, self.handlers)
@@ -209,7 +209,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
-    @label
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_prop(self, property, env, cont):
         pair = self.get_property(property, NONE_PAIR)
         # Struct properties can only be associated with Pairs which contain both
@@ -221,7 +221,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_ref_cont(interp, None, env, cont)
         return op.call([self.inner], env, after)
 
-    @label
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_struct_info(self, env, cont):
         handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
         if handler is not None:
