@@ -79,7 +79,7 @@ class Pair(W_ProtoObject):
             return self.snd
         raise IndexError("Pair: index %s out of range" % idx)
 
-EMPTY_PAIR = Pair(None, None)
+NONE_PAIR = Pair(None, None)
 
 @jit.unroll_safe
 def impersonator_args(overrides, handlers):
@@ -116,7 +116,6 @@ def impersonator_args(overrides, handlers):
             if type(op) is not values_struct.W_StructFieldAccessor:
                 _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
-            # TODO: Can we make use of existing property maps for this?
             if prop_keys is None:
                 prop_keys = []
                 prop_vals = []
@@ -197,18 +196,17 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def set_with_extra_info(self, field, val, app, env, cont):
         tag = tag_mutator(field)
         handler = self.handler_map.lookup(tag, self.handlers)
-
         if handler is None:
             return self.inner.set_with_extra_info(field, val, app, env, cont)
-
         override = self.override_map.lookup(tag, self.overrides, values.w_false)
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
     @label
     def get_prop(self, property, env, cont):
-        pair = self.get_property(property, EMPTY_PAIR)
-        # Struct properties can only be associated with Pairs
+        pair = self.get_property(property, NONE_PAIR)
+        # Struct properties can only be associated with Pairs which contain both
+        # the override and handler for the property
         assert type(pair) is Pair
         op, interp = pair
         if op is None or interp is None:

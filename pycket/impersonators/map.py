@@ -30,7 +30,7 @@ def make_map_type():
         def iteritems(self):
             return self.indexes.iteritems()
 
-        @jit.elidable
+        @jit.elidable_promote('all')
         def get_index(self, name):
             return self.indexes.get(name, -1)
 
@@ -92,12 +92,12 @@ class CachingMap(object):
         for val in self.static_data.itervalues():
             yield val
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def get_dynamic_index(self, name):
         return self.indexes.get(name, -1)
 
-    @jit.elidable
-    def get_static_data(self, name, default=None):
+    @jit.elidable_promote('all')
+    def get_static_data(self, name, default):
         return self.static_data.get(name, default)
 
     def lookup(self, name, storage, default=None):
