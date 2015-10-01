@@ -229,13 +229,12 @@ def make_label(func, enter=False):
     return make
 
 # Choose whether or not to use a loop label based on a given predicate
-def guarded_loop(pred):
+def guarded_loop(pred, always_labels=True):
     def wrapper(func):
         loop   = make_label(func, enter=True)
-        noloop = make_label(func, enter=False)
+        noloop = make_label(func, enter=False) if always_labels else func
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
-
 
 def loop_label(func):
     return make_label(func, enter=True)

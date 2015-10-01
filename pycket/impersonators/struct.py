@@ -137,6 +137,20 @@ def concat(l1, l2):
         return l1
     return l1 + l2
 
+@jit.elidable
+def has_accessor(map):
+    for tag in map.iterkeys():
+        if is_accessor(tag):
+            return True
+    return False
+
+@jit.elidable
+def has_property_descriptor(map):
+    for key in map.iterkeys():
+        if type(key) is W_ImpPropertyDescriptor:
+            return True
+    return False
+
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
@@ -168,15 +182,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def post_set_cont(self, op, field, val, app, env, cont):
         raise NotImplementedError("abstract method")
 
-    @jit.unroll_safe
     def is_non_interposing_chaperone(self):
-        for tag in self.handler_map.iterkeys():
-            if is_accessor(tag):
-                return False
-        for k, _ in self.iterprops():
-            if type(k) is W_ImpPropertyDescriptor:
-                return True
-        return False
+        return not has_accessor(self.handler_map) and has_property_descriptor(self.property_map)
 
     def struct_type(self):
         return get_base_object(self.inner).struct_type()
@@ -214,6 +221,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_ref_cont(interp, None, env, cont)
         return op.call([self.inner], env, after)
 
+    @label
     def get_struct_info(self, env, cont):
         handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
         if handler is not None:
