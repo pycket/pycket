@@ -108,6 +108,9 @@ class ProxyMixin(object):
         self.property_map = map
         self.property_storage = prop_vals
 
+    def iterprops(self):
+        return self.property_map.iteritems()
+
     def property_count(self):
         return self.property_map.storage_size()
 
@@ -117,8 +120,8 @@ class ProxyMixin(object):
     def is_proxy(self):
         return True
 
-    def get_property(self, prop):
-        return self.property_map.lookup(prop, self.property_storage)
+    def get_property(self, prop, default=None):
+        return self.property_map.lookup(prop, self.property_storage, default)
 
     def immutable(self):
         return get_base_object(self.inner).immutable()

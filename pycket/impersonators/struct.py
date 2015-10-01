@@ -6,6 +6,7 @@ from pycket.impersonators      import (
     ChaperoneMixin,
     ImpersonatorMixin,
     ProxyMixin,
+    W_ImpPropertyDescriptor,
     chaperone_reference_cont,
     check_chaperone_results,
     get_base_object,
@@ -57,6 +58,29 @@ def add_handler_field(map, handler_array, name, val):
         handler_array.append(val)
     return handler_array, new_map
 
+class Pair(W_ProtoObject):
+    _immutable_fields_ = ['fst', 'snd']
+
+    def __init__(self, fst, snd):
+        self.fst = fst
+        self.snd = snd
+
+    def __iter__(self):
+        yield self.fst
+        yield self.snd
+
+    def __len__(self):
+        return 2
+
+    def __getitem__(self, idx):
+        if idx == 0:
+            return self.fst
+        if idx == 1:
+            return self.snd
+        raise IndexError("Pair: index %s out of range" % idx)
+
+EMPTY_PAIR = Pair(None, None)
+
 @jit.unroll_safe
 def impersonator_args(overrides, handlers):
     from pycket.prims.struct_structinfo import struct_info
@@ -65,6 +89,8 @@ def impersonator_args(overrides, handlers):
     _handlers = None
     _overrides = None
     struct_props = None
+    prop_keys = None
+    prop_vals = None
 
     handler_map = W_InterposeStructBase.EMPTY_MAP
     override_map = W_InterposeStructBase.EMPTY_MAP
@@ -91,19 +117,26 @@ def impersonator_args(overrides, handlers):
                 _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
             # TODO: Can we make use of existing property maps for this?
-            if struct_props is None:
-                struct_props = {}
-            struct_props[base] = (op, handlers[i])
+            if prop_keys is None:
+                prop_keys = []
+                prop_vals = []
+            prop_keys.append(base)
+            prop_vals.append(Pair(op, handlers[i]))
         else:
             assert False
 
-    return handler_map, _handlers, override_map, _overrides, struct_props
+    _handlers = _handlers[:] if _handlers is not None else None
+    _overrides = _overrides[:] if _overrides is not None else None
 
-class Pair(W_ProtoObject):
-    _immutable_fields_ = ['fst', 'snd']
-    def __init__(self, fst, snd):
-        self.fst = fst
-        self.snd = snd
+    return handler_map, _handlers, override_map, _overrides, prop_keys, prop_vals
+
+def concat(l1, l2):
+    """ Join two possibly None lists """
+    if l1 is None:
+        return l2
+    if l2 is None:
+        return l1
+    return l1 + l2
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
@@ -123,7 +156,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         self.handler_map, self.handlers, \
         self.override_map, self.overrides, \
-        self.struct_props = impersonator_args(overrides, handlers)
+        struct_prop_keys, struct_prop_vals = impersonator_args(overrides, handlers)
+
+        prop_keys = concat(prop_keys, struct_prop_keys)
+        prop_vals = concat(prop_vals, struct_prop_vals)
 
         self.init_properties(prop_keys, prop_vals)
 
@@ -138,7 +174,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         for tag in self.handler_map.iterkeys():
             if is_accessor(tag):
                 return False
-        return self.property_count() != 0
+        for k, _ in self.iterprops():
+            if type(k) is W_ImpPropertyDescriptor:
+                return True
+        return False
 
     def struct_type(self):
         return get_base_object(self.inner).struct_type()
@@ -168,9 +207,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @label
     def get_prop(self, property, env, cont):
-        if self.struct_props is None:
-            return self.inner.get_prop(property, env, cont)
-        op, interp = self.struct_props.get(property, (None, None))
+        pair = self.get_property(property, EMPTY_PAIR)
+        # Struct properties can only be associated with Pairs
+        assert type(pair) is Pair
+        op, interp = pair
         if op is None or interp is None:
             return self.inner.get_prop(property, env, cont)
         after = self.post_ref_cont(interp, None, env, cont)
