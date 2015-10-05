@@ -487,6 +487,11 @@ def proc_arity_cont(result, env, cont, _vals):
         return return_value(result[0], env, cont)
     return return_value(values.to_list(result[:]), env, cont)
 
+@expose("procedure->method", [procedure])
+def procedure_to_method(proc):
+    # TODO provide a real implementation
+    return proc
+
 @expose("procedure-arity", [procedure], simple=False)
 def do_procedure_arity(proc, env, cont):
     from pycket.interpreter import return_value
