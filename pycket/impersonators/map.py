@@ -106,7 +106,7 @@ class CachingMap(object):
             return storage[idx]
         return self.get_static_data(name, default)
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def add_static_attribute(self, name, value):
         assert name not in self.indexes and name not in self.static_data
         key = (name, value)
@@ -118,7 +118,7 @@ class CachingMap(object):
             self.static_submaps[key] = newmap
         return self.static_submaps[key]
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def add_dynamic_attribute(self, name):
         assert name not in self.indexes and name not in self.static_data
         if name not in self.dynamic_submaps:
@@ -132,4 +132,21 @@ class CachingMap(object):
     def is_leaf(self):
         return not self.indexes and not self.static_data
 
+    @jit.elidable_promote('all')
+    def has_key(self, key):
+        return key in self.indexes or key in self.static_data
+
+    @jit.elidable_promote('all')
+    def has_same_shape(self, other):
+        if self is other:
+            return True
+        for key in self.iterkeys():
+            if not other.has_key(key):
+                return False
+        for key in other.iterkeys():
+            if not self.has_key(key):
+                return False
+        return True
+
 CachingMap.EMPTY = CachingMap()
+
