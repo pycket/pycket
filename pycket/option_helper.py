@@ -38,6 +38,7 @@ def print_help(argv):
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
+  -j <json_file> : run pycket with a custom json (bypasses rkt to json expansion)
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
@@ -115,6 +116,17 @@ def parse_args(argv):
             if stop:
                 i += 1
                 break
+        elif argv[i] == "-j":
+            arg = argv[i][1]
+            if to <= i + 1:
+                print "missing argument after -&s" % arg
+                retval = 5
+                break
+
+            i += 1
+            
+            names['jsonFile'] = "%s.json" % (argv[i])
+            retval = 0
         else:
             if 'file' in names:
                 break
@@ -156,18 +168,26 @@ def ensure_json_ast(config, names):
         else:
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
-        json_file = ensure_json_ast_eval(code, file_name, stdlib)
+        
+        if 'jsonFile' in names:
+            json_file = names['jsonFile']
+        else:
+            json_file = ensure_json_ast_eval(code, file_name, stdlib)
+            
     elif config["mode"] is _run:
         assert not stdlib
         assert 'file' in names
         file_name = names['file']
-        if file_name.endswith('.json'):
-            json_file = file_name
+        if 'jsonFile' in names:
+            json_file = names['jsonFile']
         else:
-            try:
-                json_file = ensure_json_ast_run(file_name)
-            except PermException:
-                json_file = None
+            if file_name.endswith('.json'):
+                json_file = file_name
+            else:
+                try:
+                    json_file = ensure_json_ast_run(file_name)
+                except PermException:
+                    json_file = None
     else:
         raise SchemeException("unknown mode %s" % config["mode"])
     return os.path.abspath(file_name), json_file
