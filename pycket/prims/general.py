@@ -1073,33 +1073,27 @@ def list2vector(l):
 # FIXME: make this work with chaperones/impersonators
 @expose("vector->list", [values.W_MVector], simple=False)
 def vector2list(v, env, cont):
-    return vector_to_list_loop(v, 0, env, cont)
-    # es = []
-    # for i in range(v.len):
-        # es.append(v.ref(i))
-    # return values.to_list(es)
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        # Fast path for unproxied vectors
+        result = values.vector_to_improper(v, values.w_null)
+        return return_value(result, env, cont)
+    return vector_to_list_loop(v, v.length() - 1, values.w_null, env, cont)
 
 @loop_label
-def vector_to_list_loop(vector, idx, env, cont):
+def vector_to_list_loop(vector, idx, acc, env, cont):
     from pycket.interpreter import return_value
-    if idx >= vector.length():
-        return return_value(values.w_null, env, cont)
+    if idx < 0:
+        return return_value(acc, env, cont)
     return vector.vector_ref(idx, env,
-            vector_to_list_read_cont(vector, idx, env, cont))
+            vector_to_list_read_cont(vector, idx, acc, env, cont))
 
 @continuation
-def vector_to_list_read_cont(vector, idx, env, cont, _vals):
+def vector_to_list_read_cont(vector, idx, acc, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     val = check_one_val(_vals)
-    return vector_to_list_loop(vector, idx + 1, env,
-            vector_to_list_cons_cont(val, env, cont))
-
-@continuation
-def vector_to_list_cons_cont(val, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
-    rest = check_one_val(_vals)
-    return return_value(values.W_Cons.make(val, rest), env, cont)
-
+    acc = values.W_Cons.make(val, acc)
+    return vector_to_list_loop(vector, idx - 1, acc, env, cont)
 
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
