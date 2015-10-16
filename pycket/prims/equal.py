@@ -63,7 +63,7 @@ def equal_unbox_done_cont(l, info, env, cont, _vals):
 @loop_label
 def equal_vec_func(a, b, idx, info, env, cont):
     from pycket.interpreter import return_value
-    if idx.value >= a.length():
+    if idx >= a.length():
         return return_value(values.w_true, env, cont)
     return a.vector_ref(idx, env, equal_vec_left_cont(a, b, idx, info, env, cont))
 
@@ -89,7 +89,7 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     eq = check_one_val(_vals)
     if eq is values.w_false:
         return return_value(values.w_false, env, cont)
-    inc = values.W_Fixnum(idx.value + 1)
+    inc = idx + 1
     return equal_vec_func(a, b, inc, info, env, cont)
 
 def equal_func(a, b, info, env, cont):
@@ -160,7 +160,7 @@ def equal_func_impl(a, b, info, env, cont, n):
             return return_value(values.w_false, env, cont)
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
-        return equal_vec_func(a, b, values.W_Fixnum(0), info, env, cont)
+        return equal_vec_func(a, b, 0, info, env, cont)
 
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()

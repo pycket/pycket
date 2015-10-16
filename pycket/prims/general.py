@@ -1071,12 +1071,35 @@ def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 
 # FIXME: make this work with chaperones/impersonators
-@expose("vector->list", [values_vector.W_Vector])
-def vector2list(v):
-    es = []
-    for i in range(v.len):
-        es.append(v.ref(i))
-    return values.to_list(es)
+@expose("vector->list", [values.W_MVector], simple=False)
+def vector2list(v, env, cont):
+    return vector_to_list_loop(v, 0, env, cont)
+    # es = []
+    # for i in range(v.len):
+        # es.append(v.ref(i))
+    # return values.to_list(es)
+
+@loop_label
+def vector_to_list_loop(vector, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= vector.length():
+        return return_value(values.w_null, env, cont)
+    return vector.vector_ref(idx, env,
+            vector_to_list_read_cont(vector, idx, env, cont))
+
+@continuation
+def vector_to_list_read_cont(vector, idx, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    return vector_to_list_loop(vector, idx + 1, env,
+            vector_to_list_cons_cont(val, env, cont))
+
+@continuation
+def vector_to_list_cons_cont(val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    rest = check_one_val(_vals)
+    return return_value(values.W_Cons.make(val, rest), env, cont)
+
 
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
@@ -1369,7 +1392,7 @@ def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
     if s+n+1 == l:
         return return_multi_vals(values.Values.make(vals), env, cont)
     else:
-        return vec.vector_ref(values.W_Fixnum.make(s+n+1), env, vec2val_cont(vals, vec, n+1, s, l, env, cont))
+        return vec.vector_ref(s+n+1, env, vec2val_cont(vals, vec, n+1, s, l, env, cont))
 
 
 @expose("vector->values", [values_vector.W_Vector,
@@ -1384,4 +1407,4 @@ def vector_to_values(v, start, end, env, cont):
         return return_multi_vals(values.Values.make([]), env, cont)
     else:
         vals = [None] * (l - s)
-        return v.vector_ref(values.W_Fixnum.make(s), env, vec2val_cont(vals, v, 0, s, l, env, cont))
+        return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
