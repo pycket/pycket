@@ -82,15 +82,15 @@ class Pair(W_ProtoObject):
 NONE_PAIR = Pair(None, None)
 
 @jit.unroll_safe
-def impersonator_args(overrides, handlers):
+def impersonator_args(overrides, handlers, prop_keys, prop_vals):
     from pycket.prims.struct_structinfo import struct_info
     assert len(overrides) == len(handlers)
 
     _handlers = None
     _overrides = None
     struct_props = None
-    prop_keys = None
-    prop_vals = None
+    struct_prop_keys = None
+    struct_prop_vals = None
 
     handler_map = W_InterposeStructBase.EMPTY_MAP
     override_map = W_InterposeStructBase.EMPTY_MAP
@@ -116,18 +116,20 @@ def impersonator_args(overrides, handlers):
             if type(op) is not values_struct.W_StructFieldAccessor:
                 _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
-            if prop_keys is None:
-                prop_keys = []
-                prop_vals = []
-            prop_keys.append(base)
-            prop_vals.append(Pair(op, handlers[i]))
+            if struct_prop_keys is None:
+                struct_prop_keys = []
+                struct_prop_vals = []
+            struct_prop_keys.append(base)
+            struct_prop_vals.append(Pair(op, handlers[i]))
         else:
             assert False
 
     _handlers = _handlers[:] if _handlers is not None else None
     _overrides = _overrides[:] if _overrides is not None else None
+    keys = concat(prop_keys, struct_prop_keys)
+    vals = concat(prop_vals, struct_prop_vals)
 
-    return handler_map, _handlers, override_map, _overrides, prop_keys, prop_vals
+    return handler_map, _handlers, override_map, _overrides, keys, vals
 
 def concat(l1, l2):
     """ Join two possibly None lists """
@@ -169,10 +171,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         self.handler_map, self.handlers, \
         self.override_map, self.overrides, \
-        struct_prop_keys, struct_prop_vals = impersonator_args(overrides, handlers)
-
-        prop_keys = concat(prop_keys, struct_prop_keys)
-        prop_vals = concat(prop_vals, struct_prop_vals)
+        prop_keys, prop_vals = impersonator_args(overrides, handlers, prop_keys, prop_vals)
 
         self.init_properties(prop_keys, prop_vals)
 
@@ -234,6 +233,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     # FIXME: This is incorrect
     def vals(self):
         return self.inner.vals()
+
+class W_InterposeStructStack(values_struct.W_RootStruct):
+    import_from_mixin(ProxyMixin)
+
+    def __init__(self, handler_map, handler_stack):
+        pass
 
 # Need to add checks that we are only impersonating mutable fields
 class W_ImpStruct(W_InterposeStructBase):
