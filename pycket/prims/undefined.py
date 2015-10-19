@@ -21,14 +21,12 @@ def cnuua(obj, sym):
     return obj
 
 def make_accessor(acc, i):
-    idx = values.W_Fixnum(i)
     sym = values.W_Symbol.make("<internal-accessor>")
-    return values_struct.W_StructFieldAccessor(acc, idx, sym)
+    return values_struct.W_StructFieldAccessor(acc, i, sym)
 
 def make_mutator(mut, i):
-    idx = values.W_Fixnum(i)
     sym = values.W_Symbol.make("<internal-mutator>")
-    return values_struct.W_StructFieldMutator(mut, idx, sym)
+    return values_struct.W_StructFieldMutator(mut, i, sym)
 
 # Accessor handler for chaperone-struct-unsafe-undefined
 @make_procedure("<accessor-handler>", [values.W_Object, values.W_Object])

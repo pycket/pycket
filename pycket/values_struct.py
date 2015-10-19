@@ -775,9 +775,8 @@ class W_StructFieldAccessor(values.W_Procedure):
     _immutable_fields_ = ["accessor", "field", "field_name"]
     def __init__(self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
-        assert isinstance(field, values.W_Fixnum)
         self.accessor = accessor
-        self.field = field.value
+        self.field = field
         self.field_name = field_name
 
     @make_call_method([W_RootStruct], simple=False,
@@ -816,9 +815,8 @@ class W_StructFieldMutator(values.W_Procedure):
     _immutable_fields_ = ["mutator", "field", "field_name"]
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
-        assert isinstance(field, values.W_Fixnum)
         self.mutator = mutator
-        self.field = field.value
+        self.field = field
         self.field_name = field_name
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False,
