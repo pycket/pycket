@@ -32,21 +32,44 @@ def enter_above_depth(n):
         return True
     return above_threshold
 
+# Tag the lower two bits to distinguish the four cases.
+# The lowest order bit distinguishes between accessors and mutators,
+# and the second lowest bit distingiushes between handlers and overrides.
+HANDLER_ACCESSOR_TAG  = 0b00
+HANDLER_MUTATOR_TAG   = 0b01
+OVERRIDE_ACCESSOR_TAG = 0b10
+OVERRIDE_MUTATOR_TAG  = 0b11
+TAG_BITS = 2
+
 # Helper functions used for tagging accessor and mutator indices
 # so we can use a single map to store both without segregating them
-def tag_accessor(idx):
+def tag_handler_accessor(idx):
     assert idx >= 0
-    return idx << 1
+    return (idx << TAG_BITS) | HANDLER_ACCESSOR_TAG
 
-def tag_mutator(idx):
+def tag_handler_mutator(idx):
     assert idx >= 0
-    return (idx << 1) | 0x1
+    return (idx << TAG_BITS) | HANDLER_MUTATOR_TAG
+
+def tag_override_accessor(idx):
+    assert idx >= 0
+    return (idx << TAG_BITS) | OVERRIDE_ACCESSOR_TAG
+
+def tag_override_mutator(idx):
+    assert idx >= 0
+    return (idx << TAG_BITS) | OVERRIDE_MUTATOR_TAG
 
 def is_accessor(key):
-    return key >= 0 and (key & 0x1) == 0
+    return key >= 0 and (key & 0b01) == 0
 
 def is_mutator(key):
-    return key >= 0 and (key & 0x1) == 1
+    return key >= 0 and (key & 0b01) == 1
+
+def is_handler(key):
+    return key >= 0 and (key & 0b10) == 0
+
+def is_override(key):
+    return key >= 0 and (key & 0b10) == 1
 
 def add_handler_field(map, handler_array, name, val):
     if is_static_handler(val):
@@ -87,34 +110,36 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
     assert len(overrides) == len(handlers)
 
     _handlers = None
-    _overrides = None
     struct_props = None
     struct_prop_keys = None
     struct_prop_vals = None
 
     handler_map = W_InterposeStructBase.EMPTY_MAP
-    override_map = W_InterposeStructBase.EMPTY_MAP
 
     for i, op in enumerate(overrides):
         base = get_base_object(op)
         if isinstance(base, values_struct.W_StructFieldAccessor):
-            idx = tag_accessor(base.field)
             if handlers[i] is not values.w_false:
+                idx = tag_handler_accessor(base.field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
-                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+                idx = tag_override_accessor(base.field)
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif isinstance(base, values_struct.W_StructFieldMutator):
-            idx = tag_mutator(base.field)
             if handlers[i] is not values.w_false:
+                idx = tag_handler_mutator(base.field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
-                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+                idx = tag_override_mutator(base.field)
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif base is struct_info:
-            idx = W_InterposeStructBase.INFO_IDX
             if handlers[i] is not values.w_false:
+                idx = W_InterposeStructBase.INFO_HANDLER_IDX
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
-                _overrides, override_map = add_handler_field(override_map, _overrides, idx, op)
+                # XXX Can this happen?
+                idx = W_InterposeStructBase.INFO_OVERRIDE_IDX
+                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
             if struct_prop_keys is None:
                 struct_prop_keys = []
@@ -125,11 +150,10 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
             assert False
 
     _handlers = _handlers[:] if _handlers is not None else None
-    _overrides = _overrides[:] if _overrides is not None else None
     keys = concat(prop_keys, struct_prop_keys)
     vals = concat(prop_vals, struct_prop_vals)
 
-    return handler_map, _handlers, override_map, _overrides, keys, vals
+    return handler_map, _handlers, keys, vals
 
 def concat(l1, l2):
     """ Join two possibly None lists """
@@ -142,7 +166,7 @@ def concat(l1, l2):
 @jit.elidable
 def has_accessor(map):
     for tag in map.iterkeys():
-        if is_accessor(tag):
+        if is_handler(tag) and is_accessor(tag):
             return True
     return False
 
@@ -166,16 +190,15 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
     EMPTY_MAP = make_caching_map_type().EMPTY
-    INFO_IDX = -1
+    INFO_HANDLER_IDX  = -1
+    INFO_OVERRIDE_IDX = -2
 
-    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]']
+    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]']
 
-    def __init__(self, inner, handler_map, handlers, override_map, overrides, prop_keys, prop_vals):
+    def __init__(self, inner, handler_map, handlers, prop_keys, prop_vals):
         self.inner = inner
         self.handler_map = handler_map
         self.handlers = handlers
-        self.override_map = override_map
-        self.overrides = overrides
 
         self.init_properties(prop_keys, prop_vals)
 
@@ -191,11 +214,26 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def struct_type(self):
         return get_base_object(self.inner).struct_type()
 
+    def get_handler_accessor(self, field):
+        idx = tag_handler_accessor(field)
+        return self.handler_map.lookup(idx, self.handlers)
+
+    def get_override_accessor(self, field):
+        idx = tag_override_accessor(field)
+        return self.handler_map.lookup(idx, self.handlers)
+
+    def get_handler_mutator(self, field):
+        idx = tag_handler_mutator(field)
+        return self.handler_map.lookup(idx, self.handlers)
+
+    def get_override_mutator(self, field):
+        idx = tag_override_mutator(field)
+        return self.handler_map.lookup(idx, self.handlers)
+
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def ref_with_extra_info(self, field, app, env, cont):
-        tag = tag_accessor(field)
-        handler = self.handler_map.lookup(tag, self.handlers)
-        override = self.override_map.lookup(tag, self.overrides)
+        handler = self.get_handler_accessor(field)
+        override = self.get_override_accessor(field)
         if handler is not None:
             cont = self.post_ref_cont(handler, app, env, cont)
         if override is not None:
@@ -204,11 +242,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def set_with_extra_info(self, field, val, app, env, cont):
-        tag = tag_mutator(field)
-        handler = self.handler_map.lookup(tag, self.handlers)
+        handler = self.get_handler_mutator(field)
         if handler is None:
             return self.inner.set_with_extra_info(field, val, app, env, cont)
-        override = self.override_map.lookup(tag, self.overrides, values.w_false)
+        override = self.get_override_mutator(field)
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
@@ -226,7 +263,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_struct_info(self, env, cont):
-        handler = self.handler_map.lookup(W_InterposeStructBase.INFO_IDX, self.handlers)
+        handler = self.handler_map.lookup(W_InterposeStructBase.INFO_HANDLER_IDX, self.handlers)
         if handler is not None:
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
