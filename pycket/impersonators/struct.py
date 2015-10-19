@@ -14,7 +14,7 @@ from pycket.impersonators      import (
 )
 from pycket.impersonators.map  import CachingMap, make_map_type
 from rpython.rlib              import jit, unroll
-from rpython.rlib.objectmodel  import import_from_mixin
+from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
 def is_static_handler(func):
     return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
@@ -153,6 +153,13 @@ def has_property_descriptor(map):
             return True
     return False
 
+@specialize.arg(0)
+def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
+    assert isinstance(inner, values_struct.W_RootStruct)
+    assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
+    args = impersonator_args(overrides, handlers, prop_keys, prop_vals)
+    return cls(inner, *args)
+
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
@@ -163,15 +170,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]']
 
-    def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
-        assert isinstance(inner, values_struct.W_RootStruct)
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-
+    def __init__(self, inner, handler_map, handlers, override_map, overrides, prop_keys, prop_vals):
         self.inner = inner
-
-        self.handler_map, self.handlers, \
-        self.override_map, self.overrides, \
-        prop_keys, prop_vals = impersonator_args(overrides, handlers, prop_keys, prop_vals)
+        self.handler_map = handler_map
+        self.handlers = handlers
+        self.override_map = override_map
+        self.overrides = overrides
 
         self.init_properties(prop_keys, prop_vals)
 
@@ -234,12 +238,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def vals(self):
         return self.inner.vals()
 
-class W_InterposeStructStack(values_struct.W_RootStruct):
-    import_from_mixin(ProxyMixin)
-
-    def __init__(self, handler_map, handler_stack):
-        pass
-
 # Need to add checks that we are only impersonating mutable fields
 class W_ImpStruct(W_InterposeStructBase):
     import_from_mixin(ImpersonatorMixin)
@@ -259,6 +257,12 @@ class W_ChpStruct(W_InterposeStructBase):
     def post_set_cont(self, op, field, val, app, env, cont):
         return check_chaperone_results([val], env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
+
+class W_InterposeStructStack(values_struct.W_RootStruct):
+    import_from_mixin(ProxyMixin)
+
+    def __init__(self, handler_map, handler_stack):
+        pass
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.

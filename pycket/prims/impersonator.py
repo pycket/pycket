@@ -238,7 +238,8 @@ def impersonate_struct(args):
     if all_false and not prop_keys:
         return struct
 
-    return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
+    return imp.make_struct_proxy(imp.W_ImpStruct,
+            struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-struct")
 @jit.unroll_safe
@@ -282,7 +283,8 @@ def chaperone_struct(args):
     if all_false and not prop_keys:
         return struct
 
-    return imp.W_ChpStruct(struct, overrides, handlers, prop_keys, prop_vals)
+    return imp.make_struct_proxy(imp.W_ChpStruct,
+            struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-box")
 def chaperone_box(args):
