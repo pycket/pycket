@@ -12,7 +12,7 @@ from pycket.impersonators      import (
     get_base_object,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import CachingMap, make_map_type
+from pycket.impersonators.map  import make_caching_map_type, make_map_type
 from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
@@ -165,7 +165,7 @@ def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    EMPTY_MAP = CachingMap.EMPTY
+    EMPTY_MAP = make_caching_map_type().EMPTY
     INFO_IDX = -1
 
     _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'override_map', 'overrides[*]']
@@ -261,7 +261,7 @@ class W_ChpStruct(W_InterposeStructBase):
 class W_InterposeStructStack(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    def __init__(self, handler_map, handler_stack):
+    def __init__(self, handlers, handler_map, handler_stack):
         pass
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
