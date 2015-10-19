@@ -91,7 +91,7 @@ class W_ImpBox(W_InterposeBox):
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
-    return v.vector_set(i, check_one_val(vals), env, cont)
+    return v.vector_set(i.value, check_one_val(vals), env, cont)
 
 class W_InterposeVector(values.W_MVector):
     import_from_mixin(ProxyMixin)
@@ -119,12 +119,14 @@ class W_InterposeVector(values.W_MVector):
 
     @label
     def vector_set(self, i, new, env, cont):
-        after = self.post_set_cont(new, i, env, cont)
-        return self.seth.call([self.inner, i, new], env, after)
+        idx = values.W_Fixnum(i)
+        after = self.post_set_cont(new, idx, env, cont)
+        return self.seth.call([self.inner, idx, new], env, after)
 
     @label
     def vector_ref(self, i, env, cont):
-        after = self.post_ref_cont(i, env, cont)
+        idx = values.W_Fixnum(i)
+        after = self.post_ref_cont(idx, env, cont)
         return self.inner.vector_ref(i, env, after)
 
 # Vectors

@@ -148,3 +148,32 @@ def test_chaperone_stack_exhaustion():
     (vector-ref d 0)
     """)
 
+def test_chaperone_vector_to_list():
+    m = run_mod(
+    """
+    #lang pycket
+    (define v (vector 1 2 3 4 5))
+    (define cell 0)
+    (define imp
+      (impersonate-vector v
+        (lambda (self i v) (set! cell (+ cell 1)) v)
+        (lambda (self i v) v)))
+    (define chp
+      (impersonate-vector v
+        (lambda (self i v) (set! cell (+ cell 1)) v)
+        (lambda (self i v) v)))
+    (define base (vector->list v))
+    (define lst1 (vector->list imp))
+    (define lst2 (vector->list chp))
+    (define cmp1 (equal? base lst1))
+    (define cmp2 (equal? base lst2))
+    """)
+    cmp1 = m.defs[W_Symbol.make("cmp1")]
+    cmp2 = m.defs[W_Symbol.make("cmp2")]
+    cell = m.defs[W_Symbol.make("cell")]
+    assert cmp1 is values.w_true
+    assert cmp2 is values.w_true
+    assert isinstance(cell, values.W_Cell)
+    count = cell.get_val()
+    assert isinstance(count, values.W_Fixnum) and count.value == 10
+
