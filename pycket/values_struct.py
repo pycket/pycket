@@ -673,37 +673,52 @@ class W_Struct(W_RootStruct):
         return result
 
 """
-This method is boolean optimization that generates a new structure class
-with inline stored immutable #f values on positions from constant_false array.
-If a new structure instance get immutable #f fields on the same positions,
-this class will be used, thereby reducing its size.
+This method generates a new structure class with inline stored immutable #f
+values on positions from constant_false array. If a new structure instance get
+immutable #f fields on the same positions, this class will be used, thereby
+reducing its size.
 """
 def generate_struct_class(constant_false):
-    attrs = {i:"_field_%d" % i for i in constant_false}
-    unrolling_enumerate_attrs = unrolling_iterable(attrs.iteritems())
 
-    @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
-    class structure_class(W_Struct):
-        _immutable_fields_ = [attr for i, attr in unrolling_enumerate_attrs]
+    if not len(constant_false):
+        return W_Struct
+    unrolling_constant_false = unrolling_iterable(constant_false)
+    clsname = 'W_ImmutableBooleanStruct_' + \
+              '_'.join([str(i) for i in constant_false])
 
-        @jit.unroll_safe
-        def _ref(self, i):
-            pos = i
-            for j, attr in unrolling_enumerate_attrs:
-                if i > j:
-                    pos -= 1
-                elif i == j:
-                    return values.w_false
-            w_res = self._get_list(i)
-            immutable = self.struct_type().is_immutable_field_index(i)
-            if not immutable:
-                assert isinstance(w_res, values.W_Cell)
-                w_res = w_res.get_val()
-            return w_res
+    @jit.unroll_safe
+    def _ref(self, i):
+        pos = i
+        for j in unrolling_constant_false:
+            if i > j:
+                pos -= 1
+            elif i == j:
+                return values.w_false
+        # original index
+        immutable = self.struct_type().is_immutable_field_index(i)
+        # altered index
+        w_res = self._get_list(pos)
+        if not immutable:
+            assert isinstance(w_res, values.W_Cell)
+            w_res = w_res.get_val()
+        return w_res
 
-    for i, attr in unrolling_enumerate_attrs:
-        setattr(structure_class, attr, False)
-    return structure_class
+    @jit.unroll_safe
+    def _set(self, i, val):
+        pos = i
+        for j in unrolling_constant_false:
+            if i > j:
+                pos -= 1
+        # altered index
+        w_cell = self._get_list(pos)
+        assert isinstance(w_cell, values.W_Cell)
+        w_cell.set_val(val)
+
+    cls = type(clsname, (W_Struct,), {'_ref':_ref, '_set': _set})
+    cls = inline_small_list(immutable=True,
+                            attrname="storage",
+                            unbox_num=True)(cls)
+    return cls
 
 CONST_FALSE_SIZE = 5 # the complexity grows exponentially
 
