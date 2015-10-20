@@ -80,7 +80,6 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
     return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
-@jit.unroll_safe
 def get_base_object(x):
     return x.get_base()
 
