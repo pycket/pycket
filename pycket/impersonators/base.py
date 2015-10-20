@@ -82,21 +82,19 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
 
 @jit.unroll_safe
 def get_base_object(x):
-    from pycket.impersonators.struct import W_InterposeStructBase
-    if isinstance(x, W_InterposeStructBase):
-        return x.base
-    while x.is_proxy():
-        x = x.get_proxied()
-    return x
+    return x.get_base()
 
 class ProxyMixin(object):
 
     EMPTY_MAP = make_map_type().EMPTY
 
-    _immutable_fields_ = ['property_map', 'property_storage[*]']
+    _immutable_fields_ = ['property_map', 'property_storage[*]', 'inner', 'base']
 
     @jit.unroll_safe
-    def init_properties(self, prop_keys, prop_vals):
+    def init_proxy(self, inner, prop_keys, prop_vals):
+        self.inner = inner
+        self.base  = inner.get_base()
+
         if prop_keys is None:
             self.property_map = ProxyMixin.EMPTY_MAP
             self.property_storage = None
@@ -118,6 +116,9 @@ class ProxyMixin(object):
 
     def get_proxied(self):
         return self.inner
+
+    def get_base(self):
+        return self.base
 
     def is_proxy(self):
         return True

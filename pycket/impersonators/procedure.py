@@ -20,16 +20,13 @@ class W_InterposeProcedure(values.W_Procedure):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-
-        self.inner = code
         self.check = check
         self.self_arg = self_arg
-
         # from ProxyMixin
-        self.init_properties(prop_keys, prop_vals)
+        self.init_proxy(code, prop_keys, prop_vals)
 
     def get_arity(self):
-        return self.inner.get_arity()
+        return self.get_base().get_arity()
 
     def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")

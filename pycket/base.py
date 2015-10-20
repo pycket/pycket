@@ -68,6 +68,8 @@ class W_Object(W_ProtoObject):
         return self.is_chaperone() or self.is_impersonator()
     def get_proxied(self):
         return self
+    def get_base(self):
+        return self
     def get_properties(self):
         return {}
     def is_non_interposing_chaperone(self):

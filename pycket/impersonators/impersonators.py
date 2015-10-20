@@ -31,10 +31,9 @@ class W_InterposeBox(values.W_Box):
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-        self.inner = box
         self.unboxh = unboxh
         self.seth = seth
-        self.init_properties(prop_keys, prop_vals)
+        self.init_proxy(box, prop_keys, prop_vals)
 
     def immutable(self):
         return self.inner.immutable()
@@ -103,13 +102,12 @@ class W_InterposeVector(values.W_MVector):
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-        self.inner = v
         self.refh = r
         self.seth = s
-        self.init_properties(prop_keys, prop_vals)
+        self.init_proxy(v, prop_keys, prop_vals)
 
     def length(self):
-        return get_base_object(self.inner).length()
+        return get_base_object(self).length()
 
     def post_set_cont(self, new, i, env, cont):
         raise NotImplementedError("abstract method")
@@ -178,10 +176,9 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
         assert get_proc.iscallable()
         assert set_proc.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-        self.inner    = mark
         self.get_proc = get_proc
         self.set_proc = set_proc
-        self.init_properties(prop_keys, prop_vals)
+        self.init_proxy(mark, prop_keys, prop_vals)
 
     def post_set_cont(self, body, value, env, cont):
         raise NotImplementedError("abstract method")
@@ -250,7 +247,7 @@ class W_InterposeHashTable(values_hash.W_HashTable):
         self.remove_proc = remove_proc
         self.key_proc    = key_proc
         self.clear_proc  = clear_proc
-        self.init_properties(prop_keys, prop_vals)
+        self.init_proxy(inner, prop_keys, prop_vals)
 
     def post_ref_cont(self, key, env, cont):
         raise NotImplementedError("abstract method")
@@ -259,7 +256,7 @@ class W_InterposeHashTable(values_hash.W_HashTable):
         raise NotImplementedError("abstract method")
 
     def hash_keys(self):
-        return get_base_object(self.inner).hash_keys()
+        return get_base_object(self).hash_keys()
 
     @label
     def hash_set(self, key, val, env, cont):
