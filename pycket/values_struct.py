@@ -889,7 +889,7 @@ class W_StructFieldAccessor(values.W_Procedure):
         return self.accessor.access(struct, self.field, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name)
+        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name.variable_name())
 
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
@@ -929,7 +929,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name)
+        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name.variable_name())
 
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
