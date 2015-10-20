@@ -155,10 +155,13 @@ def make_caching_map_type():
 
 def make_composite_map_type(**fields):
     field_names = unroll.unrolling_iterable(fields.iterkeys())
-    field_types = unroll.unrolling_iterable(fields.itervals())
+    field_types = tuple(fields.values())
+    enum_field_names = unroll.unrolling_iterable(fields.iterkeys())
 
+    # These maps are simply unique products of various other map types.
+    # They are unique based on their component maps.
     class CompositeMap(object):
-        _immutable_fields_ = list(field_names)
+        _immutable_fields_ = tuple(field_names)
         CACHE = {}
 
         @staticmethod
@@ -167,4 +170,9 @@ def make_composite_map_type(**fields):
             if args not in CompositeMap.CACHE:
                 CompositeMap.CACHE[args] = CompositeMap(*args)
             return CompositeMap.CACHE[args]
+
+        def __init__(self, *args):
+            for i, attr in enum_field_names:
+                assert isinstance(args[i], field_types[i])
+                setattr(self, attr, args[i])
 
