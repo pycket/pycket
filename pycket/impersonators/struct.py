@@ -193,12 +193,13 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     INFO_HANDLER_IDX  = -1
     INFO_OVERRIDE_IDX = -2
 
-    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]']
+    _immutable_fields_ = ['inner', 'handler_map', 'handlers[*]', 'base']
 
     def __init__(self, inner, handler_map, handlers, prop_keys, prop_vals):
         self.inner = inner
         self.handler_map = handler_map
         self.handlers = handlers
+        self.base = inner.base if isinstance(inner, W_InterposeStructBase) else inner
 
         self.init_properties(prop_keys, prop_vals)
 
@@ -212,7 +213,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return not has_accessor(self.handler_map) and has_property_descriptor(self.property_map)
 
     def struct_type(self):
-        return get_base_object(self.inner).struct_type()
+        return get_base_object(self.base).struct_type()
 
     def get_handler_accessor(self, field):
         idx = tag_handler_accessor(field)
@@ -269,7 +270,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return self.inner.get_struct_info(env, cont)
 
     def get_arity(self):
-        return get_base_object(self.inner).get_arity()
+        return get_base_object(self.base).get_arity()
 
     # FIXME: This is incorrect
     def vals(self):

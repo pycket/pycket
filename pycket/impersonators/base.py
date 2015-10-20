@@ -83,6 +83,8 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
 @jit.unroll_safe
 def get_base_object(x):
     from pycket.impersonators.struct import W_InterposeStructBase
+    if isinstance(x, W_InterposeStructBase):
+        return x.base
     while x.is_proxy():
         x = x.get_proxied()
     return x
