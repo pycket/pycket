@@ -716,7 +716,8 @@ def generate_struct_class(constant_false):
         w_cell.set_val(val)
 
     cls = type(clsname, (W_Struct,), {'_ref':_ref, '_set': _set})
-    cls = inline_small_list(immutable=True,
+    cls = inline_small_list(sizemax=min(11,CONST_FALSE_SIZE),
+                            immutable=True,
                             attrname="storage",
                             unbox_num=True)(cls)
     return cls
