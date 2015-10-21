@@ -25,6 +25,8 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--type-size-specialization"),
     BoolOption("prune_env", "prune environment",
                default=True, cmdline="--prune-env"),
+    BoolOption("immutable_boolean_field_elision", "elide immutable boolean fields from structs",
+               default=False, cmdline="--ibfe"),
 ])
 
 def get_testing_config(**overrides):
@@ -53,6 +55,8 @@ def compute_executable_suffix(config):
         res.append("-track-header")
     if config.log_callgraph:
         res.append("-log")
+    if config.immutable_boolean_field_elision:
+        res.append("-ibfe")
     return "".join(res)
 
 
@@ -65,6 +69,7 @@ def compute_executable_suffix(config):
 exposed_options = ['strategies',
                    'type_size_specialization',
                    'prune_env',
+                   'immutable_boolean_field_elision',
 ]
 
 def expose_options(config):

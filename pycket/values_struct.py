@@ -1,5 +1,6 @@
 import itertools
 
+from pycket import config
 from pycket import values
 from pycket import vector as values_vector
 from pycket.cont import continuation, label
@@ -720,7 +721,11 @@ def generate_struct_class(constant_false):
                             unbox_num=True)(cls)
     return cls
 
-CONST_FALSE_SIZE = 5 # the complexity grows exponentially
+if config.immutable_boolean_field_elision:
+    CONST_FALSE_SIZE = 5 # the complexity grows exponentially
+else:
+    CONST_FALSE_SIZE = 0 # disabled
+
 
 struct_classes = []
 for i in range(0, CONST_FALSE_SIZE):
