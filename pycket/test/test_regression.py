@@ -88,3 +88,19 @@ class TestRegressions(object):
         m = run_mod(source)
         result = W_Symbol.make("result")
         assert type(m.defs[result]) is W_Fixnum and m.defs[result].value == 1
+
+    def test_quote_syntax_expansion(self, source):
+        """
+        #lang typed/racket/base
+        (provide (struct-out stream) make-stream)
+        (struct: stream ([first : Natural] [rest : (-> stream)]))
+        (: make-stream (-> Natural (-> stream) stream))
+        (define (make-stream hd thunk)
+          (stream hd thunk))
+        """
+        # TODO It would be nice to have an example of this problem that
+        # does not use Typed Racket
+
+        # Really only intereted in whether or not expansion works and
+        # parses properly on the Pycket side
+        m = run_mod(source)
