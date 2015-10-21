@@ -126,10 +126,10 @@ class ProxyMixin(object):
         return self.property_map.lookup(prop, self.property_storage, default)
 
     def immutable(self):
-        return get_base_object(self.inner).immutable()
+        return self.base.immutable()
 
     def tostring(self):
-        return get_base_object(self.inner).tostring()
+        return self.base.tostring()
 
 class ChaperoneMixin(object):
     def is_chaperone(self):
