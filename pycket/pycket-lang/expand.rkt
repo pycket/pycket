@@ -379,7 +379,10 @@
      (hash 'quote
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
-    [((quote-syntax e) (quote-syntax e*))
+    [((quote-syntax e _ ...)
+      (quote-syntax e* _ ...))
+     ;; XXX Ignore these mystical extra arguments for now.
+     ;; Is this safe/reasonable?
      (hash 'quote-syntax
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
