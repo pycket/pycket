@@ -193,13 +193,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     INFO_HANDLER_IDX  = -1
     INFO_OVERRIDE_IDX = -2
 
-    _immutable_fields_ = ['handler_map', 'handlers[*]', 'base']
+    _immutable_fields_ = ['handler_map', 'handlers[*]']
 
     def __init__(self, inner, handler_map, handlers, prop_keys, prop_vals):
         self.handler_map = handler_map
         self.handlers = handlers
-        self.base = inner.base if isinstance(inner, W_InterposeStructBase) else inner
-
         self.init_proxy(inner, prop_keys, prop_vals)
 
     def post_ref_cont(self, interp, app, env, cont):
