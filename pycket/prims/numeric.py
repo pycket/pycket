@@ -81,7 +81,8 @@ def exact_nonneg_integerp(n):
 def is_real(obj):
     return (isinstance(obj, values.W_Fixnum) or
             isinstance(obj, values.W_Bignum) or
-            isinstance(obj, values.W_Flonum))
+            isinstance(obj, values.W_Flonum) or
+            isinstance(obj, values.W_Rational))
 
 @expose("real?", [values.W_Object])
 def realp(n):

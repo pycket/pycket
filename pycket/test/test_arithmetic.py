@@ -459,6 +459,8 @@ def test_edge_cases(doctest):
     #t
     > (+ 1+1i 1-1i)
     2
+    > (real? 3/7)
+    #t
     """
 
 def test_rational(doctest):
