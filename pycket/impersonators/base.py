@@ -83,6 +83,15 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
 def get_base_object(x):
     return x.get_base()
 
+@jit.unroll_safe
+def make_property_map(prop_keys):
+    map = ProxyMixin.EMPTY_MAP
+    if not prop_keys:
+        return map
+    for key in prop_keys:
+        map = map.add_attribute(key)
+    return map
+
 class ProxyMixin(object):
 
     EMPTY_MAP = make_map_type().EMPTY
@@ -94,18 +103,11 @@ class ProxyMixin(object):
         self.inner = inner
         self.base  = inner.get_base()
 
-        if prop_keys is None:
-            self.property_map = ProxyMixin.EMPTY_MAP
-            self.property_storage = None
-            return
-
-        map = ProxyMixin.EMPTY_MAP
-        for key in prop_keys:
-            map = map.add_attribute(key)
-
-        assert map.storage_size() == len(prop_vals)
-        self.property_map = map
+        self.property_map = make_property_map(prop_keys)
         self.property_storage = prop_vals
+
+        if self.property_map is not ProxyMixin.EMPTY_MAP:
+            assert self.property_map.storage_size() == len(prop_vals)
 
     def iterprops(self):
         return self.property_map.iteritems()

@@ -134,11 +134,11 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif base is struct_info:
             if handlers[i] is not values.w_false:
-                idx = W_InterposeStructBase.INFO_HANDLER_IDX
+                idx = INFO_HANDLER_IDX
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
                 # XXX Can this happen?
-                idx = W_InterposeStructBase.INFO_OVERRIDE_IDX
+                idx = INFO_OVERRIDE_IDX
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
             if struct_prop_keys is None:
@@ -184,14 +184,15 @@ def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
     args = impersonator_args(overrides, handlers, prop_keys, prop_vals)
     return cls(inner, *args)
 
+INFO_HANDLER_IDX  = -1
+INFO_OVERRIDE_IDX = -2
+
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
     EMPTY_MAP = make_caching_map_type().EMPTY
-    INFO_HANDLER_IDX  = -1
-    INFO_OVERRIDE_IDX = -2
 
     _immutable_fields_ = ['handler_map', 'handlers[*]']
 
@@ -207,7 +208,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         raise NotImplementedError("abstract method")
 
     def is_non_interposing_chaperone(self):
-        return not has_accessor(self.handler_map) and has_property_descriptor(self.property_map)
+        return (not has_accessor(self.handler_map) and
+                has_property_descriptor(self.property_map))
 
     def struct_type(self):
         return get_base_object(self.base).struct_type()
@@ -261,7 +263,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_struct_info(self, env, cont):
-        handler = self.handler_map.lookup(W_InterposeStructBase.INFO_HANDLER_IDX, self.handlers)
+        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self.handlers)
         if handler is not None:
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
@@ -296,8 +298,54 @@ class W_ChpStruct(W_InterposeStructBase):
 class W_InterposeStructStack(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    def __init__(self, handlers, handler_map, handler_stack):
+    _immutable_fields_ = ['handlers[*]', 'handler_map']
+
+    def __init__(self, inner, handlers, handler_map):
+        self.handlers = handlers
+        self.handler_map = handler_map
+        self.init_proxy(inner, prop_keys, prop_vals)
+
+    def is_non_interposing_chaperone(self):
+        return (not has_accessor(self.handler_map) and
+                has_property_descriptor(self.property_map))
+
+    def post_ref_cont(self, interp, app, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def post_set_cont(self, op, field, val, app, env, cont):
+        raise NotImplementedError("abstract method")
+
+    def ref_with_extra_info(self, field, app, env, cont):
         pass
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        pass
+
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
+    def get_prop(self, property, env, cont):
+        pair = self.get_property(property, NONE_PAIR)
+        # Struct properties can only be associated with Pairs which contain both
+        # the override and handler for the property
+        assert type(pair) is Pair
+        op, interp = pair
+        if op is None or interp is None:
+            return self.inner.get_prop(property, env, cont)
+        after = self.post_ref_cont(interp, None, env, cont)
+        return op.call([self.inner], env, after)
+
+    @guarded_loop(enter_above_depth(5), always_use_labels=False)
+    def get_struct_info(self, env, cont):
+        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self.handlers)
+        if handler is not None:
+            cont = call_cont(handler, env, cont)
+        return self.inner.get_struct_info(env, cont)
+
+    def get_arity(self):
+        return get_base_object(self.base).get_arity()
+
+    # FIXME: This is incorrect
+    def vals(self):
+        return self.inner.vals()
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
