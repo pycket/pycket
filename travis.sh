@@ -6,7 +6,7 @@
 DLHOST=utah
 RACKET_VERSION=current
 
-COVERAGE_TESTSUITE='not test_larger'
+COVERAGE_TESTSUITE='not (test_larger or test_contract_structs)'
 
 #
 
