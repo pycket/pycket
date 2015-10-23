@@ -84,7 +84,7 @@ do_coverage() {
   set +e
   set -x
   rm -rf ../pypy/*pytest*
-  py.test --assert=reinterp -rf -v -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  py.test --assert=plain -v -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
   codecov --no-fail -X gcov
