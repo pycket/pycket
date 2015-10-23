@@ -151,7 +151,7 @@ def impersonate_procedure_star(args):
     proc, check, keys, _ = unpacked
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ImpProcedure(*unpacked, self_arg=True)
+    return imp.W_ImpProcedureStar(*unpacked)
 
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
@@ -167,7 +167,7 @@ def chaperone_procedure_star(args):
     proc, check, keys, _ = unpacked
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ChpProcedure(*unpacked, self_arg=True)
+    return imp.W_ChpProcedureStar(*unpacked)
 
 @expose("impersonate-vector")
 def impersonate_vector(args):

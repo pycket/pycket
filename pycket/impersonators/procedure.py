@@ -15,13 +15,12 @@ class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
-    def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
+    _immutable_fields_ = ["inner", "check", "properties"]
+    def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.check = check
-        self.self_arg = self_arg
         # from ProxyMixin
         self.init_proxy(code, prop_keys, prop_vals)
 
@@ -30,6 +29,10 @@ class W_InterposeProcedure(values.W_Procedure):
 
     def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")
+
+    @staticmethod
+    def self_arg():
+        return False
 
     @label
     def call(self, args, env, cont):
@@ -51,7 +54,7 @@ class W_InterposeProcedure(values.W_Procedure):
                 body = W_ThunkProcCMK(self.check, args)
                 return key.set_cmk(body, val, cont, env, after)
             cont.update_cm(key, val)
-        if self.self_arg:
+        if self.self_arg():
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
@@ -63,6 +66,11 @@ class W_ImpProcedure(W_InterposeProcedure):
     def post_call_cont(self, args, env, cont, calling_app):
         return imp_proc_cont(len(args), self.inner, calling_app, env, cont)
 
+class W_ImpProcedureStar(W_ImpProcedure):
+    @staticmethod
+    def self_arg():
+        return True
+
 class W_ChpProcedure(W_InterposeProcedure):
     import_from_mixin(ChaperoneMixin)
 
@@ -70,6 +78,11 @@ class W_ChpProcedure(W_InterposeProcedure):
 
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
+
+class W_ChpProcedureStar(W_ChpProcedure):
+    @staticmethod
+    def self_arg():
+        return True
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
