@@ -136,8 +136,10 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist codecov pytest-cov || \
-      pip install --user pytest-xdist codecov pytest-cov
+  pip install pytest-xdist || pip install --user pytest-xdist
+  if [ $TEST_TYPE = 'coverage' ]; then
+    pip install codecov pytest-cov || pip install codecov pytest-cov
+  fi
 }
 
 install_racket() {
