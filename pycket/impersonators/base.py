@@ -80,7 +80,10 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
     old = _vals.get_all_values()
     return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
+@jit.unroll_safe
 def get_base_object(x):
+    while x.is_proxy():
+        x = x.get_base()
     return x.get_base()
 
 @jit.unroll_safe
@@ -100,6 +103,7 @@ class ProxyMixin(object):
 
     @jit.unroll_safe
     def init_proxy(self, inner, prop_keys, prop_vals):
+        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = inner
         self.base  = inner.get_base()
 

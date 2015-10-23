@@ -30,7 +30,6 @@ class W_InterposeBox(values.W_Box):
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.unboxh = unboxh
         self.seth = seth
         self.init_proxy(box, prop_keys, prop_vals)
@@ -101,7 +100,6 @@ class W_InterposeVector(values.W_MVector):
     @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
         assert isinstance(v, values.W_MVector)
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.refh = r
         self.seth = s
         self.init_proxy(v, prop_keys, prop_vals)
@@ -175,7 +173,6 @@ class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
         assert get_proc.iscallable()
         assert set_proc.iscallable()
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.get_proc = get_proc
         self.set_proc = set_proc
         self.init_proxy(mark, prop_keys, prop_vals)

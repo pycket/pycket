@@ -201,6 +201,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.handlers = handlers
         self.init_proxy(inner, prop_keys, prop_vals)
 
+        if isinstance(inner, W_InterposeStructBase):
+            if self.handler_map is inner.handler_map:
+                self.base = inner.base
+            else:
+                self.base = inner
+
     def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
 
@@ -234,6 +240,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     def ref_with_extra_info(self, field, app, env, cont):
         handler = self.get_handler_accessor(field)
         override = self.get_override_accessor(field)
+        if handler is None and override is None:
+            return self.base.ref_with_extra_info(field, app, env, cont)
         if handler is not None:
             cont = self.post_ref_cont(handler, app, env, cont)
         if override is not None:
