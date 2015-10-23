@@ -81,7 +81,7 @@ do_tests() {
 }
 
 do_coverage() {
-  set +e
+  set +ex
   rm -rf ../pypy/*pytest*
   py.test --assert=reinterp -rf -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
