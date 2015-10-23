@@ -82,7 +82,8 @@ do_tests() {
 
 do_coverage() {
   set +e
-  py.test -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  rm -rf ../pypy/*pytest*
+  py.test --assert=reinterp -rf -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
   codecov --no-fail -X gcov
@@ -134,8 +135,8 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist codecov pytest-cov cov-core || \
-      pip install --user pytest-xdist codecov pytest-cov cov-core
+  pip install pytest-xdist codecov pytest-cov || \
+      pip install --user pytest-xdist codecov pytest-cov
 }
 
 install_racket() {
