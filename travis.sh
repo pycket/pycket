@@ -134,8 +134,8 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist codecov pytest-cov || \
-      pip install --user pytest-xdist codecov pytest-cov
+  pip install pytest-xdist codecov pytest-cov cov-core || \
+      pip install --user pytest-xdist codecov pytest-cov cov-core
 }
 
 install_racket() {
