@@ -202,7 +202,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         self.init_proxy(inner, prop_keys, prop_vals)
 
         if isinstance(inner, W_InterposeStructBase):
-            if self.handler_map is inner.handler_map:
+            if handler_map is inner.handler_map:
                 self.base = inner.base
             else:
                 self.base = inner
@@ -251,9 +251,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def set_with_extra_info(self, field, val, app, env, cont):
         handler = self.get_handler_mutator(field)
+        override = self.get_override_mutator(field)
+        if handler is None and override is None:
+            return self.base.set_with_extra_info(field, val, app, env, cont)
         if handler is None:
             return self.inner.set_with_extra_info(field, val, app, env, cont)
-        override = self.get_override_mutator(field)
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
