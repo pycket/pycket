@@ -4,6 +4,29 @@ from pycket.impersonators import *
 from pycket.values_struct import *
 import pytest
 
+def test_impersonator_properties():
+    m = run_mod(
+    """
+    #lang pycket
+    (define-values (prop:blue blue? blue-ref) (make-impersonator-property 'blue))
+    (define-values (prop:green green? green-ref) (make-impersonator-property 'green))
+    (define-struct point (x y))
+    (define mystruct (point 1 2))
+    (define mystruct^ (chaperone-struct mystruct point-x #f prop:blue 7))
+    (define is-blue (blue? mystruct^))
+    (define is-green (green? mystruct^))
+    (define blue-val (blue-ref mystruct^))
+    """)
+    is_blue = m.defs[W_Symbol.make("is-blue")]
+    is_green = m.defs[W_Symbol.make("is-green")]
+    blue_val = m.defs[W_Symbol.make("blue-val")]
+    assert is_blue is w_true
+    assert is_green is w_false
+    assert isinstance(blue_val, W_Fixnum) and blue_val.value == 7
+
+def test_chaperone_properties():
+    pass
+
 # This test ensures the new property based on this change to Racket:
 # http://git.racket-lang.org/plt/commit/0b71b8481dcf0c8eb99edf5fef9bfdfeb4f92465
 def test_chaperone_struct_self_arg():
@@ -24,6 +47,28 @@ def test_chaperone_struct_self_arg():
     assert isinstance(prox, W_Struct)
     assert isinstance(cell, W_Cell)
     assert isinstance(chap, W_ChpStruct)
+    self = cell.get_val()
+    #assert self is not prox
+    assert self is chap
+
+def test_impersonate_struct_self_arg():
+    m = run_mod(
+    """
+    #lang pycket
+    (struct point (x y) #:mutable)
+    (define p (point 1 2))
+    (define cell #f)
+    (define p-chap
+      (impersonate-struct p
+        point-x (lambda (self val) (set! cell self) val)))
+    (point-x p-chap)
+    """)
+    prox = m.defs[W_Symbol.make("p")]
+    chap = m.defs[W_Symbol.make("p-chap")]
+    cell = m.defs[W_Symbol.make("cell")]
+    assert isinstance(prox, W_Struct)
+    assert isinstance(cell, W_Cell)
+    assert isinstance(chap, W_ImpStruct)
     self = cell.get_val()
     #assert self is not prox
     assert self is chap
@@ -235,7 +280,7 @@ def test_chaperone_procedure_star():
     assert isinstance(val, W_Cell)
     assert proc is val.get_val()
 
-def test_chaperone_stack_exhaustion():
+def test_chaperone_vector_stack_exhaustion():
     m = run_mod(
     """
     #lang racket/base
@@ -243,6 +288,17 @@ def test_chaperone_stack_exhaustion():
       (for/fold ([v (vector 1 2 3)])
           ([i 1000])
         (chaperone-vector v (lambda (x i val) val) (lambda (x i val) val))))
+    (vector-ref d 0)
+    """)
+
+def test_impersonate_vector_stack_exhaustion():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define d
+      (for/fold ([v (vector 1 2 3)])
+          ([i 1000])
+        (impersonate-vector v (lambda (x i val) val) (lambda (x i val) val))))
     (vector-ref d 0)
     """)
 
