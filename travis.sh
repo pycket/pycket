@@ -82,6 +82,8 @@ do_tests() {
 
 do_coverage() {
   set +e
+  # PyPy's pytest modifications clash with recent pytest-cov/coverage releases
+  # So remove them on the CI.
   rm -rf ../pypy/*pytest*
   py.test --assert=plain -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
   echo '>> Testing whether coverage is over 80%'
