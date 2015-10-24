@@ -24,9 +24,6 @@ def test_impersonator_properties():
     assert is_green is w_false
     assert isinstance(blue_val, W_Fixnum) and blue_val.value == 7
 
-def test_chaperone_properties():
-    pass
-
 # This test ensures the new property based on this change to Racket:
 # http://git.racket-lang.org/plt/commit/0b71b8481dcf0c8eb99edf5fef9bfdfeb4f92465
 def test_chaperone_struct_self_arg():
