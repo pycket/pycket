@@ -359,3 +359,42 @@ def test_impersonate_vector_to_list():
     assert isinstance(cell, values.W_Cell)
     count = cell.get_val()
     assert isinstance(count, values.W_Fixnum) and count.value == 10
+
+def test_impersonate_procedure_application_mark():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define (f x)
+      (call-with-immediate-continuation-mark
+        'z
+        (lambda (val)
+          (list val
+                (continuation-mark-set->list (current-continuation-marks) 'z)))))
+    (define g (impersonate-procedure f
+                (lambda (a) (values (lambda (r) r) a))
+                impersonator-prop:application-mark
+                (cons 'z 12)))
+    (define valid (equal? (g 10) '(12 (12))))
+    """)
+    valid = m.defs[W_Symbol.make("valid")]
+    assert valid is w_true
+
+def test_chaperone_procedure_application_mark():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define (f x)
+      (call-with-immediate-continuation-mark
+        'z
+        (lambda (val)
+          (list val
+                (continuation-mark-set->list (current-continuation-marks) 'z)))))
+    (define g (chaperone-procedure f
+                (lambda (a) (values (lambda (r) r) a))
+                impersonator-prop:application-mark
+                (cons 'z 12)))
+    (define valid (equal? (g 10) '(12 (12))))
+    """)
+    valid = m.defs[W_Symbol.make("valid")]
+    assert valid is w_true
+

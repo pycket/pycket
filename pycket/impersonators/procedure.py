@@ -27,7 +27,7 @@ class W_InterposeProcedure(values.W_Procedure):
     def get_arity(self):
         return self.get_base().get_arity()
 
-    def post_call_cont(self, args, env, cont, calling_app):
+    def post_call_cont(self, args, prop, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
     @staticmethod
@@ -46,14 +46,14 @@ class W_InterposeProcedure(values.W_Procedure):
         from pycket.impersonators.base import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
-        after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.get_property(w_impersonator_prop_application_mark)
-        if isinstance(prop, values.W_Cons):
-            key, val = prop.car(), prop.cdr()
-            if isinstance(key, values.W_ContinuationMarkKey):
-                body = W_ThunkProcCMK(self.check, args)
-                return key.set_cmk(body, val, cont, env, after)
-            cont.update_cm(key, val)
+        after = self.post_call_cont(args, prop, env, cont, calling_app)
+        # if isinstance(prop, values.W_Cons):
+            # key, val = prop.car(), prop.cdr()
+            # if isinstance(key, values.W_ContinuationMarkKey):
+                # body = W_ThunkProcCMK(self.check, args)
+                # return key.set_cmk(body, val, cont, env, after)
+            # cont.update_cm(key, val)
         if self.has_self_arg():
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
@@ -63,8 +63,8 @@ class W_ImpProcedure(W_InterposeProcedure):
 
     errorname = "imp-procedure"
 
-    def post_call_cont(self, args, env, cont, calling_app):
-        return imp_proc_cont(len(args), self.inner, calling_app, env, cont)
+    def post_call_cont(self, args, prop, env, cont, calling_app):
+        return imp_proc_cont(len(args), self.inner, prop, calling_app, env, cont)
 
 class W_ImpProcedureStar(W_ImpProcedure):
     @staticmethod
@@ -76,8 +76,8 @@ class W_ChpProcedure(W_InterposeProcedure):
 
     errorname = "chp-procedure"
 
-    def post_call_cont(self, args, env, cont, calling_app):
-        return chp_proc_cont(args, self.inner, calling_app, env, cont)
+    def post_call_cont(self, args, prop, env, cont, calling_app):
+        return chp_proc_cont(args, self.inner, prop, calling_app, env, cont)
 
 class W_ChpProcedureStar(W_ChpProcedure):
     @staticmethod
@@ -86,28 +86,40 @@ class W_ChpProcedureStar(W_ChpProcedure):
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
-def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
+def imp_proc_cont(arg_count, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
-    if len(vals) == arg_count:
-        return proc.call_with_extra_info(vals, env, cont, calling_app)
     if len(vals) == arg_count + 1:
-        args, check = vals[1:], vals[0]
-        return proc.call_with_extra_info(args, env,
-                call_extra_cont(check, calling_app, env, cont), calling_app)
-    assert False
+        vals, check = vals[1:], vals[0]
+        cont = call_extra_cont(check, calling_app, env, cont)
+    else:
+        assert len(vals) == arg_count
+    if isinstance(prop, values.W_Cons):
+        # XXX Handle the case where |key| is a proxied continuation mark key
+        key, val = prop.car(), prop.cdr()
+        cont.update_cm(key, val)
+    return proc.call_with_extra_info(vals, env, cont, calling_app)
 
 # Continuation used when calling an impersonator of a procedure.
 # Have to examine the results before checking
 @continuation
-def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
+def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
     arg_count = len(orig)
-    if len(vals) == arg_count:
-        return proc.call_with_extra_info(vals, env, cont, calling_app)
-    if len(vals) == arg_count + 1:
-        args, check = values.Values.make(vals[1:]), vals[0]
-        return check_chaperone_results_loop(args, orig, 0, env,
-                call_extra_cont(proc, calling_app, env,
-                    call_extra_cont(check, calling_app, env, cont)))
-    assert False
+    check_result = len(vals) == arg_count + 1
+    if check_result:
+        check = vals[0]
+        caller = call_extra_cont(check, calling_app, env, cont)
+        cont = call_extra_cont(proc, calling_app, env, caller)
+    else:
+        assert len(vals) == arg_count
+        caller = cont
 
+    if isinstance(prop, values.W_Cons):
+        # XXX Handle the case where |key| is a proxied continuation mark key
+        key, val = prop.car(), prop.cdr()
+        caller.update_cm(key, val)
+
+    if check_result:
+        args = values.Values.make(vals[1:])
+        return check_chaperone_results_loop(args, orig, 0, env, cont)
+    return proc.call_with_extra_info(vals, env, cont, calling_app)
