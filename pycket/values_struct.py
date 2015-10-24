@@ -251,6 +251,12 @@ class W_StructType(values.W_Object):
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
 
+    def all_fields_immutable(self):
+        for i in range(self.total_field_cnt):
+            if not self.is_immutable_field_index(i):
+                return False
+        return True
+
     def struct_type_info(self):
         name = values.W_Symbol.make(self.name)
         init_field_cnt = values.W_Fixnum.make(self.init_field_cnt)

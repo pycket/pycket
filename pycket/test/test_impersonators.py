@@ -414,6 +414,46 @@ def test_impersonate_procedure_application_mark():
     assert valid4 is w_true
     assert valid5 is w_true
 
+def test_impersonator_of_structs():
+    m = run_mod(
+    """
+    #lang pycket
+    (define assert
+      (lambda (v)
+        (unless v
+          (error 'imp-predicates "Assertion violation"))))
+    (define (chaperone-of?/impersonator a b)
+      (assert (impersonator-of? a b))
+      (chaperone-of? a b))
+    (define-struct o (a b))
+    (define-struct p (x y) #:transparent)
+    (define-struct (p2 p) (z) #:transparent)
+    (define-struct q (u [w #:mutable]) #:transparent)
+    (define-struct (q2 q) (v) #:transparent)
+    (define r1 (chaperone-of? (make-o 1 2) (make-o 1 2)))
+    (define r2 (impersonator-of? (make-o 1 2) (make-o 1 2)))
+    (define r3 (chaperone-of?/impersonator (make-p 1 2) (make-p 1 2)))
+    (define r4 (chaperone-of?/impersonator (make-p 1 (box 2)) (make-p 1 (box 2))))
+    (define r5 (chaperone-of?/impersonator (make-p2 1 2 3) (make-p2 1 2 3)))
+    (define r6 (chaperone-of?/impersonator (make-q 1 2) (make-q 1 2)))
+    (define r7 (chaperone-of?/impersonator (make-q2 1 2 3) (make-q2 1 2 3)))
+    """)
+    r1 = m.defs[W_Symbol.make("r1")]
+    r2 = m.defs[W_Symbol.make("r2")]
+    r3 = m.defs[W_Symbol.make("r3")]
+    r4 = m.defs[W_Symbol.make("r4")]
+    r5 = m.defs[W_Symbol.make("r5")]
+    r6 = m.defs[W_Symbol.make("r6")]
+    r7 = m.defs[W_Symbol.make("r7")]
+    assert r1 is w_false
+    assert r2 is w_false
+    assert r3 is w_true
+    assert r4 is w_false
+    assert r5 is w_true
+    assert r6 is w_false
+    assert r7 is w_false
+
+
 def test_chaperone_procedure_application_mark():
     m = run_mod(
     """
