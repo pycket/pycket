@@ -364,37 +364,113 @@ def test_impersonate_procedure_application_mark():
     m = run_mod(
     """
     #lang racket/base
+    (define saved '())
     (define (f x)
       (call-with-immediate-continuation-mark
         'z
         (lambda (val)
           (list val
                 (continuation-mark-set->list (current-continuation-marks) 'z)))))
-    (define g (impersonate-procedure f
-                (lambda (a) (values (lambda (r) r) a))
-                impersonator-prop:application-mark
-                (cons 'z 12)))
-    (define valid (equal? (g 10) '(12 (12))))
+    (define g (impersonate-procedure
+               f
+               (lambda (a)
+                 (set! saved (cons (continuation-mark-set-first #f 'z)
+                                   saved))
+                 (values (lambda (r) r)
+                         a))
+               impersonator-prop:application-mark
+               (cons 'z 12)))
+    (define h (impersonate-procedure
+               g
+               (lambda (a)
+                 (values (lambda (r) r)
+                         a))
+               impersonator-prop:application-mark
+               (cons 'z 9)))
+    (define i (impersonate-procedure
+               f
+               (lambda (a)
+                 (set! saved (cons (continuation-mark-set-first #f 'z)
+                                   saved))
+                 a)
+               impersonator-prop:application-mark
+               (cons 'z 11)))
+    (define j (impersonate-procedure
+               i
+               (lambda (a) a)
+               impersonator-prop:application-mark
+               (cons 'z 12)))
+    (define valid1 (equal? (g 10) '(12 (12))))
+    (define valid2 (equal? (h 10) '(12 (12 9))))
+    (define valid3 (equal? (i 10) '(11 (11))))
+    (define valid4 (equal? (j 10) '(11 (11))))
+    (define valid5 (equal? saved '(12 #f 9 #f)))
     """)
-    valid = m.defs[W_Symbol.make("valid")]
-    assert valid is w_true
+    valid1 = m.defs[W_Symbol.make("valid1")]
+    valid2 = m.defs[W_Symbol.make("valid2")]
+    valid3 = m.defs[W_Symbol.make("valid3")]
+    valid4 = m.defs[W_Symbol.make("valid4")]
+    valid5 = m.defs[W_Symbol.make("valid5")]
+    assert valid1 is w_true
+    assert valid2 is w_true
+    assert valid3 is w_true
+    assert valid4 is w_true
+    assert valid5 is w_true
 
 def test_chaperone_procedure_application_mark():
     m = run_mod(
     """
     #lang racket/base
+    (define saved '())
     (define (f x)
       (call-with-immediate-continuation-mark
         'z
         (lambda (val)
           (list val
                 (continuation-mark-set->list (current-continuation-marks) 'z)))))
-    (define g (chaperone-procedure f
-                (lambda (a) (values (lambda (r) r) a))
-                impersonator-prop:application-mark
-                (cons 'z 12)))
-    (define valid (equal? (g 10) '(12 (12))))
+    (define g (chaperone-procedure
+               f
+               (lambda (a)
+                 (set! saved (cons (continuation-mark-set-first #f 'z)
+                                   saved))
+                 (values (lambda (r) r)
+                         a))
+               impersonator-prop:application-mark
+               (cons 'z 12)))
+    (define h (chaperone-procedure
+               g
+               (lambda (a)
+                 (values (lambda (r) r)
+                         a))
+               impersonator-prop:application-mark
+               (cons 'z 9)))
+    (define i (chaperone-procedure
+               f
+               (lambda (a)
+                 (set! saved (cons (continuation-mark-set-first #f 'z)
+                                   saved))
+                 a)
+               impersonator-prop:application-mark
+               (cons 'z 11)))
+    (define j (chaperone-procedure
+               i
+               (lambda (a) a)
+               impersonator-prop:application-mark
+               (cons 'z 12)))
+    (define valid1 (equal? (g 10) '(12 (12))))
+    (define valid2 (equal? (h 10) '(12 (12 9))))
+    (define valid3 (equal? (i 10) '(11 (11))))
+    (define valid4 (equal? (j 10) '(11 (11))))
+    (define valid5 (equal? saved '(12 #f 9 #f)))
     """)
-    valid = m.defs[W_Symbol.make("valid")]
-    assert valid is w_true
+    valid1 = m.defs[W_Symbol.make("valid1")]
+    valid2 = m.defs[W_Symbol.make("valid2")]
+    valid3 = m.defs[W_Symbol.make("valid3")]
+    valid4 = m.defs[W_Symbol.make("valid4")]
+    valid5 = m.defs[W_Symbol.make("valid5")]
+    assert valid1 is w_true
+    assert valid2 is w_true
+    assert valid3 is w_true
+    assert valid4 is w_true
+    assert valid5 is w_true
 
