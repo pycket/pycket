@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket.test.testhelper import *
 from pycket.values import *
 from pycket.impersonators import *
@@ -414,6 +417,43 @@ def test_impersonate_procedure_application_mark():
     assert valid4 is w_true
     assert valid5 is w_true
 
+def test_impersonator_of_basic(doctest):
+    r"""
+    ! (require racket/base)
+    ! (define assert (lambda (v) (unless v (error 'imp-predicates "Assertion violation"))))
+    ! (define (sym a b) (or (chaperone-of? a b) (chaperone-of? b a)))
+    > (chaperone-of? 10 10)
+    #t
+    > (chaperone-of? '(10) '(10))
+    #t
+    > (impersonator-of? '(10) '(10))
+    #t
+    > (chaperone-of? '#(1 2 3) '#(1 2 3))
+    #t
+    > (impersonator-of? '#(1 2 3) '#(1 2 3))
+    #t
+    > (chaperone-of? '#&(1 2 3) '#&(1 2 3))
+    #t
+    > (impersonator-of? '#&(1 2 3) '#&(1 2 3))
+    #t
+    > (chaperone-of? (make-string 1 #\x) (make-string 1 #\x))
+    #f
+    > (impersonator-of? (make-string 1 #\x) (make-string 1 #\x))
+    #t
+    > (sym (string->immutable-string "x") (make-string 1 #\x))
+    #f
+    > (sym '#(1 2 3) (vector 1 2 3))
+    #f
+    > (sym '#&17 (box 17))
+    #f
+    > (equal? (chaperone-procedure add1 void) (chaperone-procedure add1 void))
+    #t
+    > (equal? (impersonate-procedure add1 void) (chaperone-procedure add1 void))
+    #t
+    > (equal? (chaperone-procedure add1 void) (impersonate-procedure add1 void))
+    #t
+    """
+
 def test_impersonator_of_structs():
     m = run_mod(
     """
@@ -452,7 +492,6 @@ def test_impersonator_of_structs():
     assert r5 is w_true
     assert r6 is w_false
     assert r7 is w_false
-
 
 def test_chaperone_procedure_application_mark():
     m = run_mod(
@@ -510,4 +549,27 @@ def test_chaperone_procedure_application_mark():
     assert valid3 is w_true
     assert valid4 is w_true
     assert valid5 is w_true
+
+def test_application_mark_propagation():
+    m = run_mod(
+    u"""
+    #lang racket/base
+    (define msgs '())
+    (define f
+      (chaperone-procedure
+        (λ (x) 'wrong)
+        (λ (x)
+           (call-with-immediate-continuation-mark
+             'key
+             (λ (m)
+                (set! msgs (cons m msgs))
+                (values x))))
+        impersonator-prop:application-mark
+        (cons 'key 'skip-this-check)))
+    (void ((chaperone-procedure f (lambda (x) x)) 42)
+        (f 42))
+    (define r (equal? msgs '(#f #f)))
+    """)
+    r = m.defs[W_Symbol.make("r")]
+    assert r is w_true
 

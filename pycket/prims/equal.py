@@ -184,6 +184,9 @@ def equal_func_impl(a, b, info, env, cont, n):
             b = values_struct.struct2vector(b, immutable=b_imm)
             return equal_func_unroll_n(a, b, info, env, cont, n)
 
+    if for_chaperone == EqualInfo.BASIC and a.is_proxy() and b.is_proxy():
+        return equal_func_unroll_n(a.get_proxied(), b.get_proxied(), info, env, cont, n)
+
     if a.equal(b):
         return return_value(values.w_true, env, cont)
 
