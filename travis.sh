@@ -6,6 +6,8 @@
 DLHOST=utah
 RACKET_VERSION=current
 
+COVERAGE_TESTSUITE='not (test_larger or test_contract_structs or test_quote_syntax_expansion)'
+
 #
 
 set -e
@@ -20,7 +22,7 @@ command is one of
   install       Install direct prerequisites
   test <what>   Test (may include building, testing, coverage)
         tests         Run pytest tests
-        coverage      Run pytest coverage report
+        coverage      Run pytest coverage report and upload
         translate     Translate pycket with jit
         translate_nojit_and_racket_tests
                      Translate pycket without jit and run racket test
@@ -72,41 +74,24 @@ fi
 
 
 
-COVERAGE_TESTSUITE='not test_larger'
-COVERAGE_HTML_DIR=pycket/test/coverage_report
 
 ############### test targets ################################
 do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
-
 do_coverage() {
-  py.test -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  set +e
+  # PyPy's pytest modifications clash with recent pytest-cov/coverage releases
+  # So remove them on the CI.
+  rm -rf ../pypy/*pytest*
+  py.test --assert=plain -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  codecov --no-fail -X gcov
+  set -e
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
 }
 
-do_coverage_push() {
-  # always succeed to allow coverage push on test failure
-  py.test -n 3 -k "$COVERAGE_TESTSUITE" \
-          --cov . --cov-report=html pycket || true
-  # but fail if the report is not there
-  [ -f .coverage -a \
-       -d "$COVERAGE_HTML_DIR" -a \
-       -f "$COVERAGE_HTML_DIR/index.html" ]
-}
-
-
-do_prepare_coverage_deployment() {
-  [ -f .coverage ] || exit 1
-  [ -d $COVERAGE_HTML_DIR ] || exit 1
-  mv $COVERAGE_HTML_DIR /tmp
-  rm -rf ./*
-  cp -a "/tmp/$(basename "$COVERAGE_HTML_DIR")/"* .
-  echo "web: vendor/bin/heroku-php-nginx" > Procfile
-  echo '{}' > composer.json
-}
 
 do_translate() {
   ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
@@ -153,8 +138,10 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist 'pytest-cov~=1.8.1' cov-core 'coverage<4.0' || \
-      pip install --user pytest-xdist 'pytest-cov~=1.8.1' cov-core 'coverage<4.0'
+  pip install pytest-xdist || pip install --user pytest-xdist
+  if [ $TEST_TYPE = 'coverage' ]; then
+    pip install codecov pytest-cov || pip install codecov pytest-cov
+  fi
 }
 
 install_racket() {
@@ -262,9 +249,6 @@ case "$COMMAND" in
     fi
     echo "Running $TEST_TYPE"
     do_$TEST_TYPE
-    ;;
-  prepare_coverage_deployment)
-    do_prepare_coverage_deployment
     ;;
   *)
     _help
