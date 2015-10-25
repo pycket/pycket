@@ -251,12 +251,9 @@ class W_StructType(values.W_Object):
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
 
-    @jit.elidable_promote('all')
     def all_fields_immutable(self):
-        for i in range(self.total_field_cnt):
-            if not self.is_immutable_field_index(i):
-                return False
-        return True
+        self = jit.promote(self)
+        return self.total_field_cnt == len(self.immutable_fields)
 
     def struct_type_info(self):
         name = values.W_Symbol.make(self.name)
