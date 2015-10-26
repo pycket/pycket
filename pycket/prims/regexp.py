@@ -92,7 +92,7 @@ def rmp(pat, input):
         xs.append(values.W_Cons.make(s, e))
     return values.to_list(xs)
 
-@expose("regexp-match-positions-end", [values.W_Object, values.W_Object])
+@expose("regexp-match-positions/end", [values.W_Object, values.W_Object])
 @jit.unroll_safe
 def rmp(pat, input):
     matches = match_positions(pat, input)
