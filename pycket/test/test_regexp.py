@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 
 def test_make_regexp(doctest):
     """
@@ -45,6 +47,20 @@ def test_regexp_match_positions(doctest):
     '((0 . 3) (2 . 3))
     > (regexp-match-positions #rx"[a-zA-Z]+(c)" "______________________abc")
     '((22 . 25) (24 . 25))
+    """
+
+def test_regexp_match_positions_end(doctest):
+    u"""
+    > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "dog")) list)
+    '(#f #f)
+    > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "cat")) list)
+    '(((1 . 2)) #"a")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "abc")) list)
+    '(((0 . 3) (2 . 3)) #"c")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "abc" 0 #f #f #"" 3)) list)
+    '(((0 . 3) (2 . 3)) #"abc")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "______________________abc")) list)
+    '(((22 . 25) (24 . 25)) #"c")
     """
 
 def test_regexp_match_p(doctest):
