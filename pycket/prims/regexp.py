@@ -92,18 +92,25 @@ def rmp(pat, input):
         xs.append(values.W_Cons.make(s, e))
     return values.to_list(xs)
 
-@expose("regexp-match-positions/end", [values.W_Object, values.W_Object])
+NO_MATCH = values.Values.make([values.w_false, values.w_false])
+
+@expose("regexp-match-positions/end", [values.W_Object, values.W_Object], simple=False)
 @jit.unroll_safe
-def rmp(pat, input):
+def rmp(pat, input, env, cont):
+    from pycket.interpreter import return_multi_vals
     matches = match_positions(pat, input)
     if matches is None:
-        return values.w_false
+        return return_multi_vals(NO_MATCH, env, cont)
     xs = []
     for start, end in matches:
         s = values.W_Fixnum(start)
         e = values.W_Fixnum(end)
         xs.append(values.W_Cons.make(s, e))
-    return values.to_list(xs)
+    positions = values.to_list(xs)
+    leftover = input.getslice(start, end).as_str_ascii()
+    bytes = values.W_Bytes.from_string(leftover, immutable=False)
+    result = values.Values.make([positions, bytes])
+    return return_multi_vals(result, env, cont)
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):
