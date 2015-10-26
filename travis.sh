@@ -189,6 +189,7 @@ install_pypy() {
   ln -s pypy-c-*-linux64 pypy-c
   # compat symlink
   ln -s pypy pypy-c/bin/python
+  export PATH="$PWD/pypy-c/bin:$PATH"
 }
 
 fetch_pypy() {
