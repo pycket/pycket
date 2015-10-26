@@ -141,7 +141,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist || pip install --user pytest-xdist
+  pip install pytest pytest-xdist || pip install --user pytest pytest-xdist
   if [ $TEST_TYPE = 'coverage' ]; then
     pip install codecov pytest-cov || pip install codecov pytest-cov
   fi
@@ -207,7 +207,7 @@ EOF
   wget $STS_URL
   tar xzf $STS_PAK
   cd $STS_DIR
-  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install --verbose
+  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install
 
   # pip
   PIP_DIR=pip-7.0.1
@@ -217,7 +217,7 @@ EOF
   wget $PIP_URL
   tar xzf $PIP_PAK
   cd $PIP_DIR
-  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install --verbose
+  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install
 
   cd
 }
