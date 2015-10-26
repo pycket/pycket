@@ -10,6 +10,8 @@
 
 (define moduleName "fact")
 
+(define DEBUG false)
+
 (define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
 (define version (car depFile))
 
@@ -67,6 +69,35 @@
 ;(mod-body code) ; run-time (phase 0) code -> list of form?
 ;(mod-syntax-bodies code)
 
+;; FROM
+;; https://github.com/racket/compiler/blob/master/compiler-lib/compiler/decompile.rkt#L14
+(define primitive-table
+  ;; Figure out number-to-id mapping for kernel functions in `primitive'
+  (let ([bindings
+         (let ([ns (make-base-empty-namespace)])
+           (parameterize ([current-namespace ns])
+             (namespace-require ''#%kernel)
+             (namespace-require ''#%unsafe)
+             (namespace-require ''#%flfxnum)
+             (namespace-require ''#%extfl)
+             (namespace-require ''#%futures)
+             (namespace-require ''#%foreign)
+             (for/list ([l (namespace-mapped-symbols)])
+               (cons l (with-handlers ([exn:fail? (lambda (x) #f)])
+                         (compile l))))))]
+        [table (make-hash)])
+    (for ([b (in-list bindings)])
+      (let ([v (and (cdr b)
+                    (zo-parse 
+                     (open-input-bytes
+                      (with-output-to-bytes
+                          (λ () (write (cdr b)))))))])
+        (let ([n (match v
+                   [(struct compilation-top (_ prefix (struct primval (n)))) n]
+                   [else #f])])
+          (hash-set! table n (car b)))))
+    table))
+
 (define toplevels (prefix-toplevels (mod-prefix code)))
 
 (define preConfig (mod-pre-submodules code))
@@ -115,7 +146,7 @@
          (hash* 'define-values (list symstr)
                 'define-values-names (list symstr)
                 'define-values-body (to-ast-single rhs toplevels
-                                                   (cons sym localref-stack))))))))
+                                                   (cons symstr localref-stack))))))))
 
 (define (handle-if if-form toplevels localref-stack)
   (let ((test (branch-test if-form))
@@ -140,6 +171,8 @@
   (hash* 'quote (hash* 'toplevel (symbol->string racket-sym))))
 
 (define (get-primval-name id)
+  (symbol->string (hash-ref primitive-table id)))
+  #|
   (cond
     ((= id 248) "sub1")
     ((= id 249) "+")
@@ -147,7 +180,8 @@
     ((= id 261) "<=")
     ((= id 257) "modulo")
     (else (error 'get-primval-name (format "dont know yet : ~a" id)))))
-
+|#
+  
 (define (handle-primval operation toplevels)
   (let* ((id (primval-id operation))
          (operator-name (get-primval-name id)))
@@ -156,15 +190,16 @@
 (define (handle-application app-form toplevels localref-stack)
   (let* ((rator (application-rator app-form))
          (rands (application-rands app-form))
-         (newlocalstack (append (map (lambda (x) 'empty-slot) (range (length rands)))
+         (newlocalstack (append (map (lambda (x) 'app-empty-slot) (range (length rands)))
                                 localref-stack))
          ;; because we know that the application will push empty slots when running, so it will push the local references further
          ;; we kinda simulate it here to make the localref pos indices point to the right identifier
+         (operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))
          )
     (hash* 'operator (to-ast-single rator toplevels localref-stack)
-           'operands (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))))
+           'operands operands-evaluated)))
 
-(define (handle-lambda lam-form toplevels localref-stack)
+(define (handle-lambda lam-form toplevels localref-stack is-inlined)
   (let* ((source (hash* '%p (path->string (vector-ref (lam-name lam-form) 1))))
          (position 321) ;; don't know what exactly are these two
          (span 123) 
@@ -173,8 +208,11 @@
          (module (hash* '%mpi (hash* '%p (string-append collectsDir "/racket/private/kw.rkt"))))
 
          (num-args (lam-num-params lam-form))
-         (symbols-for-formals (map (lambda (x) (gensym)) (range num-args)))
-         (body (to-ast-single (lam-body lam-form) toplevels (append symbols-for-formals localref-stack)))
+         (symbols-for-formals (map (lambda (x) (symbol->string (gensym))) (range num-args)))
+         (body (to-ast-single (lam-body lam-form) toplevels (if is-inlined
+                                                                (cons 'lambda-dummy
+                                                                      (append symbols-for-formals localref-stack))
+                                                                (append symbols-for-formals localref-stack))))
          (lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals))
          )
   (hash* 'source source
@@ -182,7 +220,7 @@
          'span span
          'module module
          'lambda lamBda
-         'body body)))
+         'body (list body))))
 
 (define (handle-inline-variant iv-form toplevels localref-stack)
   (let ((direct (inline-variant-direct iv-form))
@@ -191,7 +229,10 @@
     (to-ast-single direct toplevels localref-stack)))
 
 (define (handle-closure closure-form toplevels localref-stack)
-  (to-ast-single (closure-code closure-form) toplevels localref-stack))
+  (let ((code (closure-code closure-form)))
+    (if (lam? code)
+        (handle-lambda code toplevels localref-stack false)
+        (error 'handle-closure "no lam inside the closure?"))))
 
 (define (handle-apply-values app-form toplevels localref-stack)
   (let* ([proc-part (apply-values-proc app-form)]
@@ -225,8 +266,13 @@
     ))
 
 (define (handle-localref lref-form toplevels localref-stack)
-  (let ((pos (localref-pos lref-form)))
-    (hash* 'lexical (list-ref localref-stack pos))))
+  (let* (
+         (pos (localref-pos lref-form))
+         (stack-slot (list-ref localref-stack pos))
+         )
+    (if (hash? stack-slot)
+        stack-slot
+        (hash* 'lexical stack-slot))))
 
 ;;(define (handle-toplevel toplevel-form toplevels)
   ;;(let ((pos (toplevel-pos toplevel-form)))
@@ -241,9 +287,10 @@
          'source-module (list module-path))))
 
 (define (handle-let-one letform toplevels localref-stack)
-  (let* ((newstack (cons 'let-one-hack-slot ;; <-- this is not good
-                               localref-stack))
-         (rhs (to-ast-single (let-one-rhs letform) toplevels newstack))
+  (let* (
+         (newstack-prev (cons 'let-one-uninitialized-slot localref-stack)) ;; push uninitialized slot
+         (rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)) ;; evaluate rhs
+         (newstack (cons rhs (cdr newstack-prev))) ;; put the rhs to the slot
         )
     (hash* 'let-bindings '()
            'let-body (list (to-ast-single (let-one-body letform)
@@ -266,37 +313,72 @@
     ((lam? body-form) "lam")
     ((inline-variant? body-form) "inline-variant")
     ((closure? body-form) "closure")
+    ((toplevel? body-form) "toplevel")
+    ((hash? body-form) "Already hashed Val (pushed by let-one)")
     (else "Unknown: ")))
 
 (define (handle-toplevel form toplevels localref-stack)
-  (to-ast-single (list-ref toplevels (toplevel-pos form)) toplevels localref-stack))
+  (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
+         (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id))
+         (module-dir (string-append pycketDir moduleName ".rkt")))
+    (if (symbol? toplevel-id)
+        (hash* 'source-name toplevel-id-str
+               'source-module module-dir)
+        (hash* 'source-name toplevel-id))))
+  #|
+  (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
+         (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)))
+  (to-ast-single toplevel-id-str toplevels localref-stack)))
+|#
+  
+(define (handle-seq seq-expr toplevels localref-stack)
+  (let* ((seqs (seq-forms seq-expr))
+         (vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)))
+    (list-ref vals (sub1 (length vals)))))
+    
 
-;; stack : (listof symbol?/prefix?)
+;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
   (begin
-    (display (body-name body-form))
-    (display "- ")
-    (if (localref? body-form)
-        (display (number->string (localref-pos body-form)))
-        (display ""))
-    (display " - LocalRefStack : ")
-    (display localref-stack)
-    (newline)
+    (if DEBUG
+        (begin
+          (display (body-name body-form))
+          (display "- ")
+          (if (localref? body-form)
+              (begin (display (number->string (localref-pos body-form)))
+                     (display " - extracting : ")
+               (display (list-ref localref-stack (localref-pos body-form))))
+              (if (primval? body-form)
+                  (display (get-primval-name (primval-id body-form)))
+                  (display "")))
+          (display " - LocalRefStack : ")
+          (display localref-stack)
+          (newline)(newline))
+        1)
     (cond
+      ;;;;;;;
+      ; install-value
+      ; let-void
+      ; for-loop
+      ;; localref fixnum?
+      ;;;;;;;
       ((number? body-form)
        (handle-number body-form))
       ((string? body-form)
        (handle-string body-form))
       ((symbol? body-form)
        (handle-symbol body-form))
+      ;; already hashed? then return it (will be a problem when implementing pycket hashes)
+      ((hash? body-form) body-form)
       ;; toplevel
       ((toplevel? body-form)
-      (handle-toplevel body-form toplevels localref-stack))
-      
+       (handle-toplevel body-form toplevels localref-stack))
       ;; let-one (struct let-one expr (rhs body type unused?)
       ((let-one? body-form)
        (handle-let-one body-form toplevels localref-stack))
-      
+      ;; seq
+      ((seq? body-form)
+       (handle-seq body-form toplevels localref-stack))
       ;; module-variable
       ((module-variable? body-form)
        (handle-module-variable body-form toplevels localref-stack))
@@ -320,14 +402,16 @@
        (handle-localref body-form toplevels localref-stack))
       ;; lambda
       ((lam? body-form)
-       (handle-lambda body-form toplevel localref-stack))
+       (handle-lambda body-form toplevels localref-stack true))
       ;; inline-variant (direct | inline)
       ((inline-variant? body-form)
        (handle-inline-variant body-form toplevels localref-stack))
       ;; closure (procedure constant)
       ((closure? body-form)
        (handle-closure body-form toplevels localref-stack))
-      (else "not supported yet"))))
+      (else (begin (display "CAUTION: there is a not-yet-supported form in there!")
+                   (newline)
+                   "not supported yet")))))
 
 (define (to-ast body-forms toplevels)
   (map (lambda (form) (to-ast-single form toplevels '())) body-forms))
@@ -338,17 +422,13 @@
                                       (string-append "custom_" moduleName)
                                       body1
                                       (to-ast (mod-body code) toplevels)))
-#|
+
 (define out (open-output-file (string-append "custom_" topmodule ".rkt.json")
                               #:exists 'replace))
-
-(write-json final-json-hash out)
-(newline out)
-(flush-output out)
-
-|#
-
-
-
-         
+(begin
+  (display (string-append "WRITTEN: custom_" topmodule ".rkt.json"))
+  (write-json final-json-hash out)
+  (newline out)
+  (flush-output out))
+  
          
