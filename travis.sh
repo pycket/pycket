@@ -191,7 +191,7 @@ install_pypy() {
   # compat symlink
   ln -s pypy pypy-c/bin/python
   export PATH="$PWD/pypy-c/bin:$PATH"
-  PYPY_C_DIR="PWD/pypy-c"
+  PYPY_C_DIR="$PWD/pypy-c"
 
   # tell distutils where to put binaries for this pypy
   cat <<EOF >"$PYPY_C_DIR/lib-python/2.7/distutils/distutils.cfg"
