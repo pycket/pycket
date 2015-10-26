@@ -92,25 +92,48 @@ def rmp(pat, input):
         xs.append(values.W_Cons.make(s, e))
     return values.to_list(xs)
 
+EMPTY_BYTES = values.W_Bytes.from_string("")
 NO_MATCH = values.Values.make([values.w_false, values.w_false])
+ZERO = values.W_Fixnum.make(0)
+ONE  = values.W_Fixnum.make(1)
 
-@expose("regexp-match-positions/end", [values.W_Object, values.W_Object], simple=False)
+RMPE_ARGS = [
+    values.W_Object,
+    values.W_Object,
+    default(values.W_Fixnum, ZERO),
+    default(values.W_Object, values.w_false),
+    default(values.W_Object, values.w_false),
+    default(values.W_Bytes, EMPTY_BYTES),
+    default(values.W_Fixnum, ONE)]
+
+@expose("regexp-match-positions/end", RMPE_ARGS, simple=False)
 @jit.unroll_safe
-def rmp(pat, input, env, cont):
+def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
     from pycket.interpreter import return_multi_vals
+
+    assert inp_start.value == 0, "input start not supported yet"
+    assert inp_end is values.w_false, "input end not supported yet"
+    assert output_port is values.w_false, "output port not supported yet"
+    assert prefix.as_str() == "", "non-empty prefix not supported yet"
+
     matches = match_positions(pat, input)
     if matches is None:
         return return_multi_vals(NO_MATCH, env, cont)
+
     xs = []
-    start = end = 0
+    end = 0
     for start, end in matches:
         s = values.W_Fixnum(start)
         e = values.W_Fixnum(end)
         xs.append(values.W_Cons.make(s, e))
-    assert start >= 0 and end >= 0
     positions = values.to_list(xs)
-    leftover = input.getslice(start, end).as_str_ascii()
-    bytes = values.W_Bytes.from_string(leftover, immutable=False)
+
+    length = count.value
+    input_str = input.as_str_ascii()
+    start = max(0, end - length)
+
+    assert start >= 0 and end >= 0
+    bytes = values.W_Bytes.from_string(input_str[start:end], immutable=False)
     result = values.Values.make([positions, bytes])
     return return_multi_vals(result, env, cont)
 
