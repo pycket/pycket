@@ -125,7 +125,7 @@ def parse_args(argv):
 
             i += 1
             
-            names['jsonFile'] = "%s.json" % (argv[i])
+            names['jsonFile'] = "%s" % (argv[i])
             retval = 0
         else:
             if 'file' in names:
