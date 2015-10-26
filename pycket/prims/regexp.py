@@ -102,10 +102,12 @@ def rmp(pat, input, env, cont):
     if matches is None:
         return return_multi_vals(NO_MATCH, env, cont)
     xs = []
+    start = end = 0
     for start, end in matches:
         s = values.W_Fixnum(start)
         e = values.W_Fixnum(end)
         xs.append(values.W_Cons.make(s, e))
+    assert start >= 0 and end >= 0
     positions = values.to_list(xs)
     leftover = input.getslice(start, end).as_str_ascii()
     bytes = values.W_Bytes.from_string(leftover, immutable=False)
