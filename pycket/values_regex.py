@@ -60,7 +60,7 @@ class W_AnyRegexp(W_Object):
         self.ensure_compiled()
         ctx = rsre_core.search(self.code, s)
         if ctx is None:
-            return []
+            return None
         return _extract_spans(ctx, self.groupcount)
 
     def match_port_positions(self, w_port):
