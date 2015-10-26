@@ -7,6 +7,8 @@
          racket/format
          racket/extflonum)
 
+(provide hash* global-config)
+
 (define keep-srcloc (make-parameter #t))
 
 (define lexical-bindings (make-free-id-table))
