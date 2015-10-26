@@ -7,10 +7,29 @@
 
 (require "pycket/pycket-lang/expand.rkt") ;; global-config - hash*
 
+(define args (current-command-line-arguments))
 
-(define moduleName "fact")
+(define DEBUG 'dummy)
+(define moduleName 'dummy)
+(let ((len (vector-length args)))
+  (if
+   (< len 1) (begin
+               (newline)
+               (display "Usage : racket zoInspect.rkt <sourceName> (<DEBUG>) \n\n<sourceName> : is the file name (without the extension) \nDEBUG: on | off(<-default) : to print the debug info while processing - optional")
+               (newline)(newline)
+               (exit))
+   (begin
+     (set! moduleName (vector-ref args 0))
+     (if (< len 2)
+         (set! DEBUG false)
+         (if (eq? (vector-ref args 1) "on")
+             (set! DEBUG true)
+             (void))))))
+(newline)
+;(define moduleName "fact")
+;(define DEBUG false)
 
-(define DEBUG false)
+
 
 (define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
 (define version (car depFile))
@@ -409,8 +428,9 @@
       ;; closure (procedure constant)
       ((closure? body-form)
        (handle-closure body-form toplevels localref-stack))
-      (else (begin (display "CAUTION: there is a not-yet-supported form in there!")
-                   (newline)
+      (else (begin (display "-- NOT SUPPORTED YET: ")
+                   (display (prefab-struct-key body-form))
+                   (newline)(newline)
                    "not supported yet")))))
 
 (define (to-ast body-forms toplevels)
@@ -426,7 +446,7 @@
 (define out (open-output-file (string-append "custom_" topmodule ".rkt.json")
                               #:exists 'replace))
 (begin
-  (display (string-append "WRITTEN: custom_" topmodule ".rkt.json"))
+  (display (string-append "WRITTEN: custom_" topmodule ".rkt.json\n\n"))
   (write-json final-json-hash out)
   (newline out)
   (flush-output out))
