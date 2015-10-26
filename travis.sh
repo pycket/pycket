@@ -141,7 +141,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip -v -v -v install pytest pytest-xdist || pip -v -v -v install --user pytest pytest-xdist
+  pip install pytest pytest-xdist || pip install --user pytest pytest-xdist
   if [ $TEST_TYPE = 'coverage' ]; then
     pip install codecov pytest-cov || pip install codecov pytest-cov
   fi
@@ -219,6 +219,7 @@ EOF
   cd $PIP_DIR
   $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install
 
+  rm -rf $PYPY_C_DIR/site-packages/_pytest
   cd
 }
 
