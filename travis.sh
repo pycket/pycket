@@ -187,7 +187,6 @@ install_pypy() {
   wget $PYPY_URL
   tar xjf $PYPY_PAK
   ln -s pypy-c-*-linux64 pypy-c
-  cd pypy-c/bin
   # compat symlink
   ln -s pypy pypy-c/bin/python
 }
