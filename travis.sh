@@ -1,4 +1,5 @@
 #/bin/sh
+set -x
 
 #
 
@@ -72,7 +73,9 @@ else
   TIME_IT=_time_bsd
 fi
 
-
+if [ -L pypy-c -o -d pypy-c ]; then
+  export PATH="$PWD/pypy-c/bin:$PATH"
+fi
 
 
 ############### test targets ################################
@@ -178,6 +181,17 @@ install_racket() {
   sh $INSTALLER --in-place --dest racket
 }
 
+install_pypy() {
+  PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
+  PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
+  wget $PYPY_URL
+  tar xjf $PYPY_PAK
+  ln -s pypy-c-*-linux64 pypy-c
+  cd pypy-c/bin
+  # compat symlink
+  ln -s pypy pypy-c/bin/python
+}
+
 fetch_pypy() {
   ###
   #  Prepare pypy
@@ -230,6 +244,7 @@ case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
     install_racket
+    install_pypy
     install_deps
     ;;
   install)
