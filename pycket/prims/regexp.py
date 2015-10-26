@@ -83,6 +83,8 @@ def match_positions(w_re, w_str):
 @jit.unroll_safe
 def rmp(pat, input):
     matches = match_positions(pat, input)
+    if matches is None:
+        return values.w_false
     xs = []
     for start, end in matches:
         s = values.W_Fixnum(start)
@@ -94,6 +96,8 @@ def rmp(pat, input):
 @jit.unroll_safe
 def rmp(pat, input):
     matches = match_positions(pat, input)
+    if matches is None:
+        return values.w_false
     xs = []
     for start, end in matches:
         s = values.W_Fixnum(start)

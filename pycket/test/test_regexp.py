@@ -37,6 +37,8 @@ def test_regexp_match(doctest):
 
 def test_regexp_match_positions(doctest):
     """
+    > (regexp-match-positions #rx"a|b" "dog")
+    #f
     > (regexp-match-positions #rx"a|b" "cat")
     '((1 . 2))
     > (regexp-match-positions #rx"[a-zA-Z]+(c)" "abc")
