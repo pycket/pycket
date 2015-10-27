@@ -38,7 +38,7 @@ def test_regexp_match(doctest):
     """
 
 def test_regexp_match_positions(doctest):
-    """
+    r"""
     > (regexp-match-positions #rx"a|b" "dog")
     #f
     > (regexp-match-positions #rx"a|b" "cat")
@@ -47,10 +47,12 @@ def test_regexp_match_positions(doctest):
     '((0 . 3) (2 . 3))
     > (regexp-match-positions #rx"[a-zA-Z]+(c)" "______________________abc")
     '((22 . 25) (24 . 25))
+    > (regexp-match-positions #px"\\s+$" "blue ")
+    '((4 . 5))
     """
 
 def test_regexp_match_positions_end(doctest):
-    u"""
+    ur"""
     > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "dog")) list)
     '(#f #f)
     > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "cat")) list)
@@ -61,6 +63,8 @@ def test_regexp_match_positions_end(doctest):
     '(((0 . 3) (2 . 3)) #"abc")
     > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "______________________abc")) list)
     '(((22 . 25) (24 . 25)) #"c")
+    > (call-with-values (λ () (regexp-match-positions/end #px"\\s+$" "blue ")) list)
+    '(((4 . 5)) #" ")
     """
 
 def test_regexp_match_p(doctest):

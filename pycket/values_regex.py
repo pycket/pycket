@@ -5,6 +5,7 @@ from pycket import regexp
 
 from rpython.rlib.rsre import rsre_core, rsre_char
 from rpython.rlib import buffer, jit
+import sys
 
 CACHE = regexp.RegexpCache()
 
@@ -56,9 +57,9 @@ class W_AnyRegexp(W_Object):
             return None
         return _extract_result(ctx, self.groupcount)
 
-    def match_string_positions(self, s):
+    def match_string_positions(self, s, start=0, end=sys.maxint):
         self.ensure_compiled()
-        ctx = rsre_core.search(self.code, s)
+        ctx = rsre_core.search(self.code, s, start=start, end=end)
         if ctx is None:
             return None
         return _extract_spans(ctx, self.groupcount)
@@ -66,7 +67,7 @@ class W_AnyRegexp(W_Object):
     def match_port_positions(self, w_port):
         raise NotImplementedError("match_port_position: not yet implemented")
 
-    def match_port(self, w_port):
+    def match_port(self, w_port, start=0, end=sys.maxint):
         self.ensure_compiled()
         if isinstance(w_port, values.W_StringInputPort):
             # fast path
@@ -77,7 +78,8 @@ class W_AnyRegexp(W_Object):
             w_port.ptr = end
             return _extract_result(ctx, self.groupcount)
         buf = PortBuffer(w_port)
-        ctx = rsre_core.BufMatchContext(self.code, buf, 0, buf.getlength(), 0)
+        end = min(end, buf.getlength())
+        ctx = rsre_core.BufMatchContext(self.code, buf, 0, end, 0)
         matched = rsre_core.search_context(ctx)
         if not matched:
             return None
@@ -89,6 +91,9 @@ class W_AnyRegexp(W_Object):
         if type(self) is type(other):
             return self.source == other.source
         return False
+
+    def tostring(self):
+        return '#px"%s"' % self.source
 
 @rsre_core.specializectx
 @jit.unroll_safe
