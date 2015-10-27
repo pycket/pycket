@@ -1,5 +1,4 @@
 #/bin/sh
-set -x
 
 #
 
@@ -73,9 +72,7 @@ else
   TIME_IT=_time_bsd
 fi
 
-if [ -L pypy-c -o -d pypy-c ]; then
-  export PATH="$PWD/pypy-c/bin:$PATH"
-fi
+
 
 
 ############### test targets ################################
@@ -141,7 +138,7 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest pytest-xdist || pip install --user pytest pytest-xdist
+  pip install pytest-xdist || pip install --user pytest-xdist
   if [ $TEST_TYPE = 'coverage' ]; then
     pip install codecov pytest-cov || pip install codecov pytest-cov
   fi
@@ -179,48 +176,6 @@ install_racket() {
   esac
   wget $URL
   sh $INSTALLER --in-place --dest racket
-}
-
-install_pypy() {
-  PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
-  PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
-
-  wget $PYPY_URL
-  tar xjf $PYPY_PAK
-  ln -s pypy-c-*-linux64 pypy-c
-  # compat symlink
-  ln -s pypy pypy-c/bin/python
-  export PATH="$PWD/pypy-c/bin:$PATH"
-  PYPY_C_DIR="$PWD/pypy-c"
-
-  # tell distutils where to put binaries for this pypy
-  cat <<EOF >"$PYPY_C_DIR/lib-python/2.7/distutils/distutils.cfg"
-[install]
-install-scripts=$PYPY_C_DIR/bin
-EOF
-
-  # Setuptools 
-  STS_DIR=setuptools-17.0
-  STS_PAK=$STS_DIR.tar.gz
-  STS_URL=https://pypi.python.org/packages/source/s/setuptools/$STS_PAK
-  cd /tmp
-  wget $STS_URL
-  tar xzf $STS_PAK
-  cd $STS_DIR
-  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install
-
-  # pip
-  PIP_DIR=pip-7.0.1
-  PIP_PAK=$PIP_DIR.tar.gz
-  PIP_URL=https://pypi.python.org/packages/source/p/pip/$PIP_PAK
-  cd /tmp
-  wget $PIP_URL
-  tar xzf $PIP_PAK
-  cd $PIP_DIR
-  $PYPY_C_DIR/bin/pypy -s setup.py --no-user-cfg install
-
-  rm -rf $PYPY_C_DIR/site-packages/_pytest
-  cd
 }
 
 fetch_pypy() {
@@ -275,7 +230,6 @@ case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
     install_racket
-    install_pypy
     install_deps
     ;;
   install)
