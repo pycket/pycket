@@ -105,6 +105,9 @@ def rmp(pat, input, inp_start, inp_end, output_port, prefix):
     else:
         raise SchemeException("regexp-match-positions: expected fixnum or #f for argument 3")
 
+    assert output_port is values.w_false, "output port not supported yet"
+    assert prefix.as_str() == "", "non-empty prefix not supported yet"
+
     matches = match_positions(pat, input)
     if matches is None:
         return values.w_false
