@@ -1,5 +1,4 @@
 #/bin/sh
-
 #
 
 # utah or northwestern for prerelease, racket for stable
@@ -30,7 +29,6 @@ command is one of
 
 EOF
 }
-
 
 
 _time_gnu() {
@@ -71,8 +69,6 @@ elif /usr/bin/time --version 2>/dev/null >/dev/null; then
 else
   TIME_IT=_time_bsd
 fi
-
-
 
 
 ############### test targets ################################
@@ -142,6 +138,31 @@ install_deps() {
   if [ $TEST_TYPE = 'coverage' ]; then
     pip install codecov pytest-cov || pip install codecov pytest-cov
   fi
+}
+
+_activate_pypyenv() {
+  if [ -f ~/virtualenv/pypy/bin/activate ]; then
+    deactivate || true
+    source ~/virtualenv/pypy/bin/activate
+  fi
+}
+
+install_pypy() {
+  # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
+  # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
+  PYPY_PAK=pypy-4.0.0-linux64.tar.bz2
+  PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
+
+  wget $PYPY_URL
+  tar xjf $PYPY_PAK
+  # ln -s pypy-c-*-linux64 pypy-c
+  ln -s pypy-4.0.0-linux64 pypy-c
+  pip install --upgrade virtualenv
+  virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
+  # fix virtualenv...
+  rm ~/virtualenv/pypy/bin/libpypy-c.so
+  cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
+  _activate_pypyenv
 }
 
 install_racket() {
@@ -226,9 +247,12 @@ fi
 COMMAND="$1"
 shift
 
+_activate_pypyenv
+
 case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
+    install_pypy
     install_racket
     install_deps
     ;;
