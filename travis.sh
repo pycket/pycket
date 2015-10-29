@@ -143,6 +143,7 @@ install_deps() {
 
 _activate_pypyenv() {
   if [ -f ~/virtualenv/pypy/bin/activate ]; then
+    deactivate || true
     source ~/virtualenv/pypy/bin/activate
   fi
 }
@@ -161,6 +162,7 @@ install_pypy() {
   virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
   _activate_pypyenv
   pypy --version
+  python --version
 }
 
 install_racket() {
