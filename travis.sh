@@ -157,7 +157,7 @@ install_pypy() {
   # ln -s pypy-c-*-linux64 pypy-c
   ln -s pypy-4.0.0-linux64 pypy-c
   ln -s pypy pypy-c/bin/python
-  virtualenv -p pypy-c/bin/pypy .
+  virtualenv -p pypy-c/bin/python .
 }
 install_racket() {
   ###
