@@ -143,7 +143,7 @@ install_deps() {
 
 _activate_pypyenv() {
   if [ -x pypy-c/bin/pypy ]; then
-    virtualenv -p pypy-c/bin/pypy ~/virtualenv/pypy
+    virtualenv --no-wheel -p pypy-c/bin/pypy ~/virtualenv/pypy
     source ~/virtualenv/pypy/bin/activate
   fi
 }
