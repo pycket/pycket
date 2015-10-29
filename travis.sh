@@ -31,9 +31,6 @@ command is one of
 EOF
 }
 
-if [ -x pypy-c/bin/pypy ]; then
-    virtualenv -p pypy-c/bin/python .
-fi
 
 _time_gnu() {
   export TIME="%e"
@@ -73,8 +70,6 @@ elif /usr/bin/time --version 2>/dev/null >/dev/null; then
 else
   TIME_IT=_time_bsd
 fi
-
-
 
 
 ############### test targets ################################
@@ -146,6 +141,13 @@ install_deps() {
   fi
 }
 
+_activate_pypyenv() {
+  if [ -x pypy-c/bin/pypy ]; then
+    virtualenv -p pypy-c/bin/pypy ~/virtualenv/pypy
+    source ~/virtualenv/pypy/bin/activate
+  fi
+}
+
 install_pypy() {
   # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
   # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
@@ -156,9 +158,9 @@ install_pypy() {
   tar xjf $PYPY_PAK
   # ln -s pypy-c-*-linux64 pypy-c
   ln -s pypy-4.0.0-linux64 pypy-c
-  ln -s pypy pypy-c/bin/python
-  virtualenv -p pypy-c/bin/python .
+  _activate_pypyenv
 }
+
 install_racket() {
   ###
   #  Get and install Racket
@@ -240,6 +242,8 @@ fi
 
 COMMAND="$1"
 shift
+
+_activate_pypyenv
 
 case "$COMMAND" in
   prepare)
