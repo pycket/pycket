@@ -1,5 +1,4 @@
 #/bin/sh
-set -x
 #
 
 # utah or northwestern for prerelease, racket for stable
@@ -164,20 +163,6 @@ install_pypy() {
   rm ~/virtualenv/pypy/bin/libpypy-c.so
   cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
   _activate_pypyenv
-  echo ====================================
-  ls -al ~/virtualenv/pypy/bin/
-  echo $PATH
-  which python
-  which pypy
-  pypy --version
-  python --version
-  hash -r
-  which python
-  which pypy
-  pypy --version
-  python --version
-  ~/virtualenv/pypy/bin/pypy --version
-  echo ====================================
 }
 
 install_racket() {
