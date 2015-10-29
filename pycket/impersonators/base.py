@@ -97,7 +97,7 @@ def make_property_map(prop_keys):
 
 class ProxyMixin(object):
 
-    EMPTY_MAP = make_map_type().EMPTY
+    EMPTY_MAP = make_map_type("get_property_index").EMPTY
 
     _immutable_fields_ = ['property_map', 'property_storage[*]', 'inner', 'base']
 
@@ -112,6 +112,9 @@ class ProxyMixin(object):
 
         if self.property_map is not ProxyMixin.EMPTY_MAP:
             assert self.property_map.storage_size() == len(prop_vals)
+
+    def get_property_index(self, index):
+        return self.property_storage[index]
 
     def iterprops(self):
         return self.property_map.iteritems()
@@ -129,7 +132,7 @@ class ProxyMixin(object):
         return True
 
     def get_property(self, prop, default=None):
-        return self.property_map.lookup(prop, self.property_storage, default)
+        return self.property_map.lookup(prop, self, default)
 
     def immutable(self):
         return self.base.immutable()

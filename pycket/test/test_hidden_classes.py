@@ -5,7 +5,7 @@ from pycket.impersonators.map  import make_map_type
 from pycket.impersonators.base import W_ImpPropertyDescriptor
 
 def test_map():
-    empty = make_map_type().EMPTY
+    empty = make_map_type("__getitem__").EMPTY
     map = empty.add_attribute(1).add_attribute(2).add_attribute(3)
     assert map.get_index(1) == 0
     assert map.get_index(2) == 1
@@ -24,7 +24,7 @@ def test_map():
     assert map_.get_index(3) == 2
 
 def test_map_descriptors():
-    empty = make_map_type().EMPTY
+    empty = make_map_type("__getitem__").EMPTY
     a = W_ImpPropertyDescriptor("a")
     b = W_ImpPropertyDescriptor("b")
     c = W_ImpPropertyDescriptor("c")

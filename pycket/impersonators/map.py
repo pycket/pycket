@@ -1,7 +1,10 @@
 
-from rpython.rlib import jit, unroll
+from rpython.rlib             import jit, unroll
+from rpython.rlib.objectmodel import specialize
 
-def make_map_type():
+def make_map_type(getter=None):
+
+    assert getter is not None, "must supply a getter name"
 
     class Map(object):
         """ A basic implementation of a map which assigns Racket values to an index
@@ -34,11 +37,12 @@ def make_map_type():
         def get_index(self, name):
             return self.indexes.get(name, -1)
 
+        @specialize.argtype(2)
         def lookup(self, name, storage, default=None):
             idx = self.get_index(name)
             if idx == -1:
                 return default
-            return storage[idx]
+            return getattr(storage, getter)(idx)
 
         @jit.elidable
         def add_attribute(self, name):
@@ -57,7 +61,9 @@ def make_map_type():
     return Map
 
 # TODO Find a beter name for this
-def make_caching_map_type():
+def make_caching_map_type(getter=None):
+
+    assert getter is not None, "must supply a getter name"
 
     class CachingMap(object):
         """ A map implementation which partitions its data into two groups, a collection
@@ -102,10 +108,11 @@ def make_caching_map_type():
         def get_static_data(self, name, default):
             return self.static_data.get(name, default)
 
+        @specialize.argtype(2)
         def lookup(self, name, storage, default=None):
             idx = self.get_dynamic_index(name)
             if idx != -1:
-                return storage[idx]
+                return getattr(storage, getter)(idx)
             return self.get_static_data(name, default)
 
         @jit.elidable_promote('all')

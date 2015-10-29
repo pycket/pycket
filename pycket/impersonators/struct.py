@@ -12,7 +12,7 @@ from pycket.impersonators      import (
     get_base_object,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import make_caching_map_type, make_map_type
+from pycket.impersonators.map  import make_caching_map_type
 from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
@@ -192,7 +192,7 @@ INFO_OVERRIDE_IDX = -2
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    EMPTY_MAP = make_caching_map_type().EMPTY
+    EMPTY_MAP = make_caching_map_type("get_handler_index").EMPTY
 
     _immutable_fields_ = ['handler_map', 'handlers[*]']
 
@@ -206,6 +206,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
                 self.base = inner.base
             else:
                 self.base = inner
+
+    def get_handler_index(self, idx):
+        return self.handlers[idx]
 
     def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
@@ -222,19 +225,19 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     def get_handler_accessor(self, field):
         idx = tag_handler_accessor(field)
-        return self.handler_map.lookup(idx, self.handlers)
+        return self.handler_map.lookup(idx, self)
 
     def get_override_accessor(self, field):
         idx = tag_override_accessor(field)
-        return self.handler_map.lookup(idx, self.handlers)
+        return self.handler_map.lookup(idx, self)
 
     def get_handler_mutator(self, field):
         idx = tag_handler_mutator(field)
-        return self.handler_map.lookup(idx, self.handlers)
+        return self.handler_map.lookup(idx, self)
 
     def get_override_mutator(self, field):
         idx = tag_override_mutator(field)
-        return self.handler_map.lookup(idx, self.handlers)
+        return self.handler_map.lookup(idx, self)
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def ref_with_extra_info(self, field, app, env, cont):
@@ -273,7 +276,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_struct_info(self, env, cont):
-        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self.handlers)
+        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self)
         if handler is not None:
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
