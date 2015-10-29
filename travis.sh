@@ -163,8 +163,17 @@ install_pypy() {
   _activate_pypyenv
   echo ====================================
   ls -al ~/virtualenv/pypy/bin/
+  echo $PATH
+  which python
+  which pypy
   pypy --version
   python --version
+  hash -r
+  which python
+  which pypy
+  pypy --version
+  python --version
+  ~/virtualenv/pypy/bin/pypy --version
   echo ====================================
 }
 
