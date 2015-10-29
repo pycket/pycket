@@ -142,8 +142,7 @@ install_deps() {
 }
 
 _activate_pypyenv() {
-  if [ -x pypy-c/bin/pypy ]; then
-    virtualenv --no-wheel -p pypy-c/bin/pypy ~/virtualenv/pypy
+  if [ -x pypy-c/bin/activate ]; then
     source ~/virtualenv/pypy/bin/activate
   fi
 }
@@ -159,7 +158,9 @@ install_pypy() {
   # ln -s pypy-c-*-linux64 pypy-c
   ln -s pypy-4.0.0-linux64 pypy-c
   pip install --upgrade virtualenv
+  virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
   _activate_pypyenv
+  pypy --version
 }
 
 install_racket() {
