@@ -161,8 +161,11 @@ install_pypy() {
   pip install --upgrade virtualenv
   virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
   _activate_pypyenv
+  echo ====================================
+  ls -al ~/virtualenv/pypy/bin/
   pypy --version
   python --version
+  echo ====================================
 }
 
 install_racket() {
