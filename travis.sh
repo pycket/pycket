@@ -142,7 +142,7 @@ install_deps() {
 }
 
 _activate_pypyenv() {
-  if [ -x pypy-c/bin/activate ]; then
+  if [ -f ~/virtualenv/pypy/bin/activate ]; then
     source ~/virtualenv/pypy/bin/activate
   fi
 }
