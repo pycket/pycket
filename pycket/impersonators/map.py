@@ -38,11 +38,12 @@ def make_map_type(getter=None):
             return self.indexes.get(name, -1)
 
         @specialize.argtype(2)
-        def lookup(self, name, storage, default=None):
+        def lookup(self, name, storage, default=None, offset=0):
             idx = self.get_index(name)
             if idx == -1:
                 return default
-            return getattr(storage, getter)(idx)
+            assert storage is not None
+            return getattr(storage, getter)(idx+offset)
 
         @jit.elidable
         def add_attribute(self, name):
@@ -100,6 +101,9 @@ def make_caching_map_type(getter=None):
             for val in self.static_data.itervalues():
                 yield val
 
+        def storage_size(self):
+            return len(self.indexes)
+
         @jit.elidable_promote('all')
         def get_dynamic_index(self, name):
             return self.indexes.get(name, -1)
@@ -109,10 +113,11 @@ def make_caching_map_type(getter=None):
             return self.static_data.get(name, default)
 
         @specialize.argtype(2)
-        def lookup(self, name, storage, default=None):
+        def lookup(self, name, storage, default=None, offset=0):
             idx = self.get_dynamic_index(name)
             if idx != -1:
-                return getattr(storage, getter)(idx)
+                assert storage is not None
+                return getattr(storage, getter)(idx+offset)
             return self.get_static_data(name, default)
 
         @jit.elidable_promote('all')
@@ -162,7 +167,7 @@ def make_caching_map_type(getter=None):
 
 # These maps are simply unique products of various other map types.
 # They are unique based on their component maps.
-def make_composite_map_type():
+def make_composite_map_type(shared_storage=False):
 
     class CompositeMap(object):
         _immutable_fields_ = ['handlers', 'properties']
@@ -179,11 +184,18 @@ def make_composite_map_type():
             self.handlers = handlers
             self.properties = properties
 
-        def lookup_handlers(self, key, handlers):
-            return self.handlers.lookup(key, handlers)
+        @specialize.argtype(2)
+        def lookup_handler(self, key, storage, default=None):
+            jit.promote(self)
+            return self.handlers.lookup(key, storage)
 
-        def lookup_properties(self, key, properties):
-            return self.properties.lookup(key, properties)
+        @specialize.argtype(2)
+        def lookup_property(self, key, storage, default=None):
+            """ We make the assumption that data for the handlers are laid out
+            in the form [handler_0, handler_1, ..., property_0, property_1, ...]"""
+            jit.promote(self)
+            offset = self.handlers.storage_size() if shared_storage else 0
+            return self.properties.lookup(key, storage, offset=offset)
 
     return CompositeMap
 

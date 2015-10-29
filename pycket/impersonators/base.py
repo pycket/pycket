@@ -5,6 +5,7 @@ from pycket.error             import SchemeException
 from pycket.impersonators.map import make_map_type
 from pycket.prims.expose      import make_call_method
 from rpython.rlib             import jit
+from rpython.rlib.objectmodel import specialize
 
 @jit.unroll_safe
 def lookup_property(obj, prop):
@@ -81,14 +82,15 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
     return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
 @jit.unroll_safe
+@specialize.argtype(0)
 def get_base_object(x):
     while x.is_proxy():
         x = x.get_base()
-    return x.get_base()
+    return x
 
 @jit.unroll_safe
-def make_property_map(prop_keys):
-    map = ProxyMixin.EMPTY_MAP
+@specialize.argtype(1)
+def make_property_map(prop_keys, map):
     if not prop_keys:
         return map
     for key in prop_keys:
@@ -107,7 +109,7 @@ class ProxyMixin(object):
         self.inner = inner
         self.base  = inner.get_base()
 
-        self.property_map = make_property_map(prop_keys)
+        self.property_map = make_property_map(prop_keys, ProxyMixin.EMPTY_MAP)
         self.property_storage = prop_vals
 
         if self.property_map is not ProxyMixin.EMPTY_MAP:

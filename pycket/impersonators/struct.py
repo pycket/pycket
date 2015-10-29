@@ -1,6 +1,6 @@
 
 from pycket                    import values, values_struct
-from pycket.base               import SingletonMeta, W_ProtoObject
+from pycket.base               import SingletonMeta, W_Object
 from pycket.cont               import call_cont, continuation, guarded_loop, label
 from pycket.impersonators      import (
     ChaperoneMixin,
@@ -10,11 +10,13 @@ from pycket.impersonators      import (
     chaperone_reference_cont,
     check_chaperone_results,
     get_base_object,
+    make_property_map,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import make_caching_map_type
+from pycket.impersonators.map  import make_caching_map_type, make_map_type, make_composite_map_type
+from pycket.small_list         import inline_small_list
 from rpython.rlib              import jit, unroll
-from rpython.rlib.objectmodel  import import_from_mixin, specialize
+from rpython.rlib.objectmodel  import import_from_mixin, specialize, always_inline
 
 def is_static_handler(func):
     return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
@@ -81,7 +83,8 @@ def add_handler_field(map, handler_array, name, val):
         handler_array.append(val)
     return handler_array, new_map
 
-class Pair(W_ProtoObject):
+class Pair(W_Object):
+    _attrs_ = ['fst', 'snd']
     _immutable_fields_ = ['fst', 'snd']
 
     def __init__(self, fst, snd):
@@ -104,6 +107,8 @@ class Pair(W_ProtoObject):
 
 NONE_PAIR = Pair(None, None)
 
+CompositeMap = make_composite_map_type(shared_storage=True)
+
 @jit.unroll_safe
 def impersonator_args(overrides, handlers, prop_keys, prop_vals):
     from pycket.prims.struct_structinfo import struct_info
@@ -114,7 +119,7 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
     struct_prop_keys = None
     struct_prop_vals = None
 
-    handler_map = W_InterposeStructBase.EMPTY_MAP
+    handler_map = W_InterposeStructBase.EMPTY_HANDLER_MAP
 
     for i, op in enumerate(overrides):
         base = get_base_object(op)
@@ -136,10 +141,10 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
             if handlers[i] is not values.w_false:
                 idx = INFO_HANDLER_IDX
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
-            if type(op) is not values_struct.W_StructFieldAccessor:
-                # XXX Can this happen?
-                idx = INFO_OVERRIDE_IDX
-                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
+            # if type(op) is not values_struct.W_StructFieldAccessor:
+                # # XXX Can this happen?
+                # idx = INFO_OVERRIDE_IDX
+                # _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
             if struct_prop_keys is None:
                 struct_prop_keys = []
@@ -149,11 +154,16 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
         else:
             assert False
 
-    _handlers = _handlers[:] if _handlers is not None else None
+    EMPTY = W_InterposeStructBase.EMPTY_PROPERTY_MAP
     keys = concat(prop_keys, struct_prop_keys)
     vals = concat(prop_vals, struct_prop_vals)
+    property_map = make_property_map(struct_prop_keys, make_property_map(prop_keys, EMPTY))
+    tmp = concat(_handlers, vals)
+    storage = tmp[:] if tmp is not None else None
 
-    return handler_map, _handlers, keys, vals
+    map = CompositeMap.instantiate(handler_map, property_map)
+
+    return map, storage
 
 def concat(l1, l2):
     """ Join two possibly None lists """
@@ -181,8 +191,8 @@ def has_property_descriptor(map):
 def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
     assert isinstance(inner, values_struct.W_RootStruct)
     assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-    args = impersonator_args(overrides, handlers, prop_keys, prop_vals)
-    return cls(inner, *args)
+    map, _handlers = impersonator_args(overrides, handlers, prop_keys, prop_vals)
+    return cls.make(_handlers, inner, map)
 
 INFO_HANDLER_IDX  = -1
 INFO_OVERRIDE_IDX = -2
@@ -190,25 +200,43 @@ INFO_OVERRIDE_IDX = -2
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
-    import_from_mixin(ProxyMixin)
 
-    EMPTY_MAP = make_caching_map_type("get_handler_index").EMPTY
+    EMPTY_HANDLER_MAP = make_caching_map_type("get_storage_index").EMPTY
+    EMPTY_PROPERTY_MAP = make_map_type("get_storage_index").EMPTY
 
-    _immutable_fields_ = ['handler_map', 'handlers[*]']
+    _attrs_ = ['inner', 'base', 'map']
+    _immutable_fields_ = ['inner', 'base', 'map']
 
-    def __init__(self, inner, handler_map, handlers, prop_keys, prop_vals):
-        self.handler_map = handler_map
-        self.handlers = handlers
-        self.init_proxy(inner, prop_keys, prop_vals)
+    def __init__(self, inner, map):
+        self.inner = inner
+        self.map = map
 
-        if isinstance(inner, W_InterposeStructBase):
-            if handler_map is inner.handler_map:
-                self.base = inner.base
-            else:
-                self.base = inner
+        if isinstance(inner, W_InterposeStructBase) and map is inner.map:
+            self.base = inner.base
+        else:
+            self.base = inner
 
-    def get_handler_index(self, idx):
-        return self.handlers[idx]
+    @specialize.argtype(0)
+    def get_storage_index(self, idx):
+        return self._get_list(idx)
+
+    def get_proxied(self):
+        return self.inner
+
+    def get_base(self):
+        return self.base
+
+    def is_proxy(self):
+        return True
+
+    def get_property(self, prop, default=None):
+        return self.map.lookup_property(prop, self, default)
+
+    def immutable(self):
+        return get_base_object(self.base).immutable()
+
+    def tostring(self):
+        return get_base_object(self.base).tostring()
 
     def post_ref_cont(self, interp, app, env, cont):
         raise NotImplementedError("abstract method")
@@ -217,27 +245,27 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         raise NotImplementedError("abstract method")
 
     def is_non_interposing_chaperone(self):
-        return (not has_accessor(self.handler_map) and
-                has_property_descriptor(self.property_map))
+        return (not has_accessor(self.map.handlers) and
+                has_property_descriptor(self.map.properties))
 
     def struct_type(self):
         return get_base_object(self.base).struct_type()
 
     def get_handler_accessor(self, field):
         idx = tag_handler_accessor(field)
-        return self.handler_map.lookup(idx, self)
+        return self.map.lookup_handler(idx, self)
 
     def get_override_accessor(self, field):
         idx = tag_override_accessor(field)
-        return self.handler_map.lookup(idx, self)
+        return self.map.lookup_handler(idx, self)
 
     def get_handler_mutator(self, field):
         idx = tag_handler_mutator(field)
-        return self.handler_map.lookup(idx, self)
+        return self.map.lookup_handler(idx, self)
 
     def get_override_mutator(self, field):
         idx = tag_override_mutator(field)
-        return self.handler_map.lookup(idx, self)
+        return self.map.lookup_handler(idx, self)
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def ref_with_extra_info(self, field, app, env, cont):
@@ -276,7 +304,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_struct_info(self, env, cont):
-        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self)
+        handler = self.map.lookup_handler(INFO_HANDLER_IDX, self)
         if handler is not None:
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
@@ -286,9 +314,12 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     # FIXME: This is incorrect
     def vals(self):
-        return self.inner.vals()
+        base = get_base_object(self.base)
+        assert isinstance(base, values_struct.W_RootStruct)
+        return base.vals()
 
 # Need to add checks that we are only impersonating mutable fields
+@inline_small_list(immutable=True)
 class W_ImpStruct(W_InterposeStructBase):
     import_from_mixin(ImpersonatorMixin)
 
@@ -298,6 +329,7 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_set_cont(self, op, field, val, app, env, cont):
         return imp_struct_set_cont(self.inner, op, field, app, env, cont)
 
+@inline_small_list(immutable=True)
 class W_ChpStruct(W_InterposeStructBase):
     import_from_mixin(ChaperoneMixin)
 
