@@ -137,14 +137,9 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
             if type(op) is not values_struct.W_StructFieldAccessor:
                 idx = tag_override_mutator(base.field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
-        elif base is struct_info:
-            if handlers[i] is not values.w_false:
-                idx = INFO_HANDLER_IDX
-                _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
-            # if type(op) is not values_struct.W_StructFieldAccessor:
-                # # XXX Can this happen?
-                # idx = INFO_OVERRIDE_IDX
-                # _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
+        elif base is struct_info and handlers[i] is not values.w_false:
+            idx = INFO_HANDLER_IDX
+            _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
         elif isinstance(base, values_struct.W_StructPropertyAccessor):
             if struct_prop_keys is None:
                 struct_prop_keys = []
