@@ -4,6 +4,7 @@ from pycket import values, values_string, values_regex
 from pycket.error import SchemeException
 
 from rpython.rlib import jit
+import sys
 
 @expose("regexp", [values_string.W_String])
 def regrexp(w_str):
@@ -65,41 +66,99 @@ def match(w_re, w_str):
         return result
     raise SchemeException("regexp-match: can't deal with this type")
 
-def match_positions(w_re, w_str):
+def match_positions(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_ascii() # XXX for now
-        result = w_re.match_string_positions(s)
+        result = w_re.match_string_positions(s, start, end)
         return result
     if isinstance(w_str, values.W_Bytes):
-        result = w_re.match_string_positions(w_str.as_str())
+        result = w_re.match_string_positions(w_str.as_str(), start, end)
         return result
     if isinstance(w_str, values.W_InputPort):
         result = w_re.match_port_positions(w_str)
         return result
     raise SchemeException("regexp-match-positions: can't deal with this type")
 
-@expose("regexp-match-positions", [values.W_Object, values.W_Object])
-@jit.unroll_safe
-def rmp(pat, input):
-    matches = match_positions(pat, input)
-    xs = []
-    for start, end in matches:
-        s = values.W_Fixnum(start)
-        e = values.W_Fixnum(end)
-        xs.append(values.W_Cons.make(s, e))
-    return values.to_list(xs)
+def make_match_list(lst):
+    assert lst
+    acc = values.w_null
+    end = 0
+    for start, end in reversed(lst):
+        s    = values.W_Fixnum(start)
+        e    = values.W_Fixnum(end)
+        elem = values.W_Cons.make(s, e)
+        acc  = values.W_Cons.make(elem, acc)
+    return acc, end
 
-@expose("regexp-match-positions-end", [values.W_Object, values.W_Object])
+EMPTY_BYTES = values.W_Bytes.from_string("")
+NO_MATCH = values.Values.make([values.w_false, values.w_false])
+ZERO = values.W_Fixnum.make(0)
+ONE  = values.W_Fixnum.make(1)
+
+RMP_ARGS = [
+    values.W_Object,
+    values.W_Object,
+    default(values.W_Fixnum, ZERO),
+    default(values.W_Object, values.w_false),
+    default(values.W_Object, values.w_false),
+    default(values.W_Bytes, EMPTY_BYTES)]
+
+@expose("regexp-match-positions", RMP_ARGS)
 @jit.unroll_safe
-def rmp(pat, input):
+def rmp(pat, input, inp_start, inp_end, output_port, prefix):
+    start = inp_start.value
+    if inp_end is values.w_false:
+        end = sys.maxint
+    elif isinstance(inp_end, values.W_Fixnum):
+        end = inp_end.value
+    else:
+        raise SchemeException("regexp-match-positions: expected fixnum or #f for argument 3")
+    assert output_port is values.w_false, "output port not supported yet"
     matches = match_positions(pat, input)
-    xs = []
-    for start, end in matches:
-        s = values.W_Fixnum(start)
-        e = values.W_Fixnum(end)
-        xs.append(values.W_Cons.make(s, e))
-    return values.to_list(xs)
+    if matches is None:
+        return values.w_false
+    lst, _ = make_match_list(matches)
+    return lst
+
+RMPE_ARGS = [
+    values.W_Object,
+    values.W_Object,
+    default(values.W_Fixnum, ZERO),
+    default(values.W_Object, values.w_false),
+    default(values.W_Object, values.w_false),
+    default(values.W_Bytes, EMPTY_BYTES),
+    default(values.W_Fixnum, ONE)]
+
+@expose("regexp-match-positions/end", RMPE_ARGS, simple=False)
+@jit.unroll_safe
+def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
+    from pycket.interpreter import return_multi_vals
+
+    start = inp_start.value
+    if inp_end is values.w_false:
+        end = sys.maxint
+    elif isinstance(inp_end, values.W_Fixnum):
+        end = inp_end.value
+    else:
+        raise SchemeException("regexp-match-positions/end: expected fixnum or #f for argument 3")
+
+    assert output_port is values.w_false, "output port not supported yet"
+
+    matches = match_positions(pat, input, start, end)
+    if matches is None:
+        return return_multi_vals(NO_MATCH, env, cont)
+
+    acc, end = make_match_list(matches)
+
+    length = count.value
+    input_str = input.as_str_ascii()
+    start = max(0, end - length)
+
+    assert start >= 0 and end >= 0
+    bytes = values.W_Bytes.from_string(input_str[start:end], immutable=False)
+    result = values.Values.make([acc, bytes])
+    return return_multi_vals(result, env, cont)
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
 def regexp_matchp(w_r, w_o):

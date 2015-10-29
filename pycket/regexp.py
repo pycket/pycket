@@ -852,6 +852,7 @@ POSITION_ESCAPES = {
 CHARSET_ESCAPES = {
     "d": Property(CATEGORY_DIGIT),
     "w": Property(CATEGORY_WORD),
+    "s": Property(CATEGORY_SPACE),
 }
 PROPERTIES = {
     "digit": CATEGORY_DIGIT,
