@@ -1,5 +1,5 @@
 #/bin/sh
-
+set -x
 #
 
 # utah or northwestern for prerelease, racket for stable
@@ -31,7 +31,9 @@ command is one of
 EOF
 }
 
-
+if [ -x pypy-c/bin/pypy ]; then
+    virtualenv -p pypy-c/bin/pypy .
+fi
 
 _time_gnu() {
   export TIME="%e"
@@ -144,6 +146,15 @@ install_deps() {
   fi
 }
 
+install_pypy() {
+  PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
+  PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
+
+  wget $PYPY_URL
+  tar xjf $PYPY_PAK
+  ln -s pypy-c-*-linux64 pypy-c
+  virtualenv -p pypy-c/bin/pypy .
+}
 install_racket() {
   ###
   #  Get and install Racket
@@ -229,6 +240,7 @@ shift
 case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
+    install_pypy
     install_racket
     install_deps
     ;;
