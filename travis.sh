@@ -32,7 +32,7 @@ EOF
 }
 
 if [ -x pypy-c/bin/pypy ]; then
-    virtualenv -p pypy-c/bin/pypy .
+    virtualenv -p pypy-c/bin/python .
 fi
 
 _time_gnu() {
