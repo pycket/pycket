@@ -156,6 +156,7 @@ install_pypy() {
   tar xjf $PYPY_PAK
   # ln -s pypy-c-*-linux64 pypy-c
   ln -s pypy-4.0.0-linux64 pypy-c
+  ln -s python pypy-c/bin/pypy
   virtualenv -p pypy-c/bin/pypy .
 }
 install_racket() {
