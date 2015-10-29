@@ -526,3 +526,30 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
+
+
+def test_struct_immutable_boolean(source):
+    """
+    (struct struct-with-immu (a b c))
+    (define struct-i (struct-with-immu 1 #f 2))
+
+    (let ([first-ok (equal? (struct-with-immu-a struct-i)  1)]
+          [immu-ok  (equal? (struct-with-immu-b struct-i) #f)]
+          [last-ok  (equal? (struct-with-immu-c struct-i)  2)])
+      (and first-ok immu-ok last-ok))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+def test_struct_immutable_boolean1(source):
+    """
+    (struct struct-with-immu (a b [c #:mutable]))
+    (define struct-i (struct-with-immu 1 #f 2))
+    (set-struct-with-immu-c! struct-i 3)
+
+    (let ([first-ok (equal? (struct-with-immu-a struct-i)  1)]
+          [immu-ok  (equal? (struct-with-immu-b struct-i) #f)]
+          [last-ok  (equal? (struct-with-immu-c struct-i)  3)])
+      (and first-ok immu-ok last-ok))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true

@@ -1,3 +1,6 @@
+import itertools
+
+from pycket import config
 from pycket import values
 from pycket import vector as values_vector
 from pycket.cont import continuation, label
@@ -7,6 +10,7 @@ from pycket.small_list import inline_small_list
 from pycket.arity import Arity
 
 from rpython.rlib import jit
+from rpython.rlib.unroll import unrolling_iterable
 
 PREFAB = values.W_Symbol.make("prefab")
 
@@ -558,10 +562,16 @@ class W_Struct(W_RootStruct):
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(
             W_PrefabKey.from_raw_key(w_key, len(w_values)))
+        constant_false = []
         for i, value in enumerate(w_values):
             if not w_struct_type.is_immutable_field_index(i):
                 w_values[i] = values.W_Cell(value)
-        return W_Struct.make(w_values, w_struct_type)
+            elif value is values.w_false:
+                constant_false.append(i)
+        cls = lookup_struct_class(constant_false)
+        if cls is not W_Struct:
+            w_values = reduce_field_values(w_values, constant_false)
+        return cls.make(w_values, w_struct_type)
 
     def __init__(self, type):
         self._type = type
@@ -667,6 +677,113 @@ class W_Struct(W_RootStruct):
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
+"""
+This method generates a new structure class with inline stored immutable #f
+values on positions from constant_false array. If a new structure instance get
+immutable #f fields on the same positions, this class will be used, thereby
+reducing its size.
+"""
+def generate_struct_class(constant_false):
+
+    if not len(constant_false):
+        return W_Struct
+    unrolling_constant_false = unrolling_iterable(constant_false)
+    clsname = 'W_ImmutableBooleanStruct_' + \
+              '_'.join([str(i) for i in constant_false])
+
+    @jit.unroll_safe
+    def _ref(self, i):
+        pos = i
+        for j in unrolling_constant_false:
+            if i > j:
+                pos -= 1
+            elif i == j:
+                return values.w_false
+        # original index
+        immutable = self.struct_type().is_immutable_field_index(i)
+        # altered index
+        w_res = self._get_list(pos)
+        if not immutable:
+            assert isinstance(w_res, values.W_Cell)
+            w_res = w_res.get_val()
+        return w_res
+
+    @jit.unroll_safe
+    def _set(self, i, val):
+        pos = i
+        for j in unrolling_constant_false:
+            if i > j:
+                pos -= 1
+        # altered index
+        w_cell = self._get_list(pos)
+        assert isinstance(w_cell, values.W_Cell)
+        w_cell.set_val(val)
+
+    cls = type(clsname, (W_Struct,), {'_ref':_ref, '_set': _set})
+    cls = inline_small_list(sizemax=min(11,CONST_FALSE_SIZE),
+                            immutable=True,
+                            attrname="storage",
+                            unbox_num=True)(cls)
+    return cls
+
+if config.immutable_boolean_field_elision:
+    CONST_FALSE_SIZE = 5 # the complexity grows exponentially
+else:
+    CONST_FALSE_SIZE = 0 # disabled
+
+
+struct_classes = []
+for i in range(0, CONST_FALSE_SIZE):
+    for comb in itertools.combinations(range(CONST_FALSE_SIZE), i+1):
+        struct_classes.append(generate_struct_class(comb))
+struct_class_iter = unrolling_iterable(enumerate(struct_classes))
+
+@jit.elidable
+def fac(n):
+    return n * fac(n-1) if n > 1 else 1
+
+@jit.elidable
+def ncr(n,r):
+    if n == 0:
+        return 0
+    return fac(n) / fac(r) / fac(n-r)
+
+@jit.unroll_safe
+def lookup_struct_class(constant_false):
+    if constant_false and constant_false[-1] < CONST_FALSE_SIZE:
+        n = CONST_FALSE_SIZE
+        pos = 0
+        # offset of combinations with smaller amount of fields
+        for r in range(1, len(constant_false)):
+            pos += ncr(n, r)
+        # and the precise position
+        r = len(constant_false)
+        last_idx = 0
+        for idx in constant_false:
+            pos += ncr(n, r) - ncr(n-idx+last_idx, r)
+            n -= idx - last_idx + 1
+            r -= 1
+            last_idx = idx + 1
+        # lookup class by its position
+        for i, cls in struct_class_iter:
+            if i == pos:
+                return cls
+    return W_Struct
+
+@jit.unroll_safe
+def reduce_field_values(field_values, constant_false):
+    reduced_field_values = [None] * (len(field_values) - len(constant_false))
+    k = 0
+    for i, val in enumerate(field_values):
+        found = False
+        for j in constant_false:
+            if j == i:
+                found = True
+        if not found:
+            reduced_field_values[k] = val
+            k += 1
+    return reduced_field_values
+
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type", "constr_name"]
     def __init__(self, type, constr_name):
@@ -686,11 +803,17 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(struct_type.auto_values) > 0:
             field_values = field_values + struct_type.auto_values
+        constant_false = []
         for i, value in enumerate(field_values):
             if not struct_type.is_immutable_field_index(i):
                 value = values.W_Cell(value)
                 field_values[i] = value
-        result = W_Struct.make(field_values, struct_type)
+            elif value is values.w_false:
+                constant_false.append(i)
+        cls = lookup_struct_class(constant_false)
+        if cls is not W_Struct:
+            field_values = reduce_field_values(field_values, constant_false)
+        result = cls.make(field_values, struct_type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe
