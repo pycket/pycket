@@ -158,6 +158,7 @@ install_pypy() {
   tar xjf $PYPY_PAK
   # ln -s pypy-c-*-linux64 pypy-c
   ln -s pypy-4.0.0-linux64 pypy-c
+  pip install --upgrade virtualenv
   _activate_pypyenv
 }
 
