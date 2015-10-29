@@ -160,6 +160,9 @@ install_pypy() {
   ln -s pypy-4.0.0-linux64 pypy-c
   pip install --upgrade virtualenv
   virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
+  # fix virtualenv...
+  rm ~/virtualenv/pypy/bin/libpypy-c.so
+  cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
   _activate_pypyenv
   echo ====================================
   ls -al ~/virtualenv/pypy/bin/
