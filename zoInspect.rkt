@@ -7,6 +7,7 @@
 
 (require "pycket/pycket-lang/expand.rkt") ;; global-config - hash*
 
+
 (define args (current-command-line-arguments))
 
 (define DEBUG 'dummy)
@@ -26,9 +27,10 @@
              (set! DEBUG true)
              (void))))))
 (newline)
-;(define moduleName "fact")
-;(define DEBUG false)
-
+#|
+(define moduleName "time")
+(define DEBUG true)
+|#
 
 
 (define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
@@ -173,12 +175,8 @@
         (else (branch-else if-form)))
     (hash*
      'test (to-ast-single test toplevels localref-stack)
-     ;'test (to-ast-single test toplevels (cons 'dirty-hack-slot localref-stack))
-     ;'then (to-ast-single then toplevels (cons 'branch-test-slot_then localref-stack))
-     ;'else (to-ast-single else toplevels (cons 'branch-test-slot_else localref-stack)))))
      'then (to-ast-single then toplevels localref-stack)
      'else (to-ast-single else toplevels localref-stack))))
-
      
 (define (handle-number racket-num)
   (hash* 'quote (hash* 'number (hash* 'integer (number->string racket-num)))))
@@ -191,15 +189,6 @@
 
 (define (get-primval-name id)
   (symbol->string (hash-ref primitive-table id)))
-  #|
-  (cond
-    ((= id 248) "sub1")
-    ((= id 249) "+")
-    ((= id 251) "*")
-    ((= id 261) "<=")
-    ((= id 257) "modulo")
-    (else (error 'get-primval-name (format "dont know yet : ~a" id)))))
-|#
   
 (define (handle-primval operation toplevels)
   (let* ((id (primval-id operation))
@@ -326,6 +315,7 @@
     ((primval? body-form) "primval")
     ((application? body-form) "application")
     ((def-values? body-form) "def-values")
+    ((assign? body-form) "SET!")
     ((branch? body-form) "branch")
     ((apply-values? body-form) "apply-values")
     ((localref? body-form) "localref")
@@ -355,6 +345,13 @@
          (vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)))
     (list-ref vals (sub1 (length vals)))))
     
+(define (handle-assign body-form toplevels localref-stack)
+  (let ((id (assign-id body-form))
+        (rhs (assign-rhs body-form))
+        (module-dir (string-append pycketDir moduleName ".rkt")))
+    (list (hash* 'source-name "set!")
+          (to-ast-single id toplevels localref-stack)
+          (to-ast-single rhs toplevels localref-stack))))
 
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
@@ -364,20 +361,22 @@
           (display (body-name body-form))
           (display "- ")
           (if (localref? body-form)
-              (begin (display (number->string (localref-pos body-form)))
-                     (display " - extracting : ")
-               (display (list-ref localref-stack (localref-pos body-form))))
+              (begin (display (number->string (localref-pos body-form))))
+                     ;(display " - extracting : ")
+                     ;(display (list-ref localref-stack (localref-pos body-form))))
               (if (primval? body-form)
                   (display (get-primval-name (primval-id body-form)))
                   (display "")))
           (display " - LocalRefStack : ")
-          (display localref-stack)
+          (display (number->string (length localref-stack)))
+          ;(display localref-stack)
           (newline)(newline))
         1)
     (cond
       ;;;;;;;
       ; install-value
       ; let-void
+      ;
       ; for-loop
       ;; localref fixnum?
       ;;;;;;;
@@ -389,6 +388,9 @@
        (handle-symbol body-form))
       ;; already hashed? then return it (will be a problem when implementing pycket hashes)
       ((hash? body-form) body-form)
+      ;; set!
+      ((assign? body-form) ;; CAUTION : returns list of hash* (instead of hash*)
+       (handle-assign body-form toplevels localref-stack))
       ;; toplevel
       ((toplevel? body-form)
        (handle-toplevel body-form toplevels localref-stack))
@@ -450,5 +452,3 @@
   (write-json final-json-hash out)
   (newline out)
   (flush-output out))
-  
-         
