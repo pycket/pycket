@@ -731,7 +731,7 @@ def elidable_length(lst):
 def virtual_length(lst):
     n = 0
     while isinstance(lst, values.W_Cons):
-        if not jit.isvirtual(lst):
+        if jit.we_are_jitted() and (not jit.isvirtual(lst) or jit.isconstant(lst)):
             return n + elidable_length(lst)
         n += 1
         lst = lst.cdr()
