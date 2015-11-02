@@ -1058,9 +1058,23 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
+@jit.elidable
+def from_list_elidable(w_curr):
+    result = []
+    while isinstance(w_curr, W_Cons):
+        result.append(w_curr.car())
+        w_curr = w_curr.cdr()
+    if w_curr is w_null:
+        return result[:] # copy to make result non-resizable
+    else:
+        raise SchemeException("Expected list, but got something else")
+
+@jit.unroll_safe
 def from_list(w_curr):
     result = []
     while isinstance(w_curr, W_Cons):
+        if jit.we_are_jitted() and (not jit.isvirtual(w_curr) or jit.isconstant(w_curr)):
+            return result + from_list_elidable(w_curr)
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
     if w_curr is w_null:
