@@ -1058,6 +1058,7 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
+@jit.elidable
 def from_list(w_curr):
     result = []
     while isinstance(w_curr, W_Cons):

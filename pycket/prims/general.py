@@ -532,7 +532,10 @@ def do_is_procedure_arity(n):
         n.struct_type().name == "arity-at-least":
         return values.w_true
     elif isinstance(n, values.W_List):
-        for item in values.from_list(n):
+        if not n.is_proper_list():
+            return values.w_false
+        while isinstance(n, values.W_Cons):
+            item, n = n.car(), n.cdr()
             if not (isinstance(item, values.W_Fixnum) or\
                 (isinstance(item, values_struct.W_RootStruct) and\
                 item.struct_type().name == "arity-at-least")):
@@ -712,22 +715,21 @@ def make_semaphore(n):
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
 
-
 @expose("not", [values.W_Object])
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
 
 @expose("length", [values.W_List])
+@jit.elidable
 def length(a):
+    if not a.is_proper_list():
+        raise SchemeException("length: not a proper list")
     n = 0
-    while True:
-        if a is values.w_null:
-            return values.W_Fixnum(n)
-        if isinstance(a, values.W_Cons):
-            a = a.cdr()
-            n = n+1
-        else:
-            raise SchemeException("length: not a list")
+    while isinstance(a, values.W_Cons):
+        a = a.cdr()
+        n += 1
+    assert a is values.w_null
+    return values.W_Fixnum(n)
 
 @expose("list")
 def do_list(args):

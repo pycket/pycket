@@ -45,7 +45,7 @@ def make_map_type(getter=None):
             assert storage is not None
             return getattr(storage, getter)(idx+offset)
 
-        @jit.elidable
+        @jit.elidable_promote('all')
         def add_attribute(self, name):
             if name not in self.other_maps:
                 newmap = Map()

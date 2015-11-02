@@ -82,7 +82,6 @@ def chaperone_reference_cont(f, args, app, env, cont, _vals):
     return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
 
 @jit.unroll_safe
-@specialize.argtype(0)
 def get_base_object(x):
     while x.is_proxy():
         x = x.get_base()
