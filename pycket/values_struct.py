@@ -800,7 +800,7 @@ class W_StructFieldAccessor(values.W_Procedure):
         return self.accessor.access(struct, self.field, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name)
+        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name.variable_name())
 
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
@@ -840,7 +840,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name)
+        return "#<procedure:%s-%s!>" % (self.mutator.type.name, self.field_name.variable_name())
 
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
@@ -884,15 +884,20 @@ class W_StructProperty(values.W_Object):
     def tostring(self):
         return "#<struct-type-property:%s>"%self.name
 
-w_prop_procedure = W_StructProperty(values.W_Symbol.make("prop:procedure"), values.w_false)
-w_prop_checked_procedure = W_StructProperty(values.W_Symbol.make("prop:checked-procedure"), values.w_false)
-w_prop_arity_string = W_StructProperty(values.W_Symbol.make("prop:arity-string"), values.w_false)
-w_prop_incomplete_arity = W_StructProperty(values.W_Symbol.make("prop:incomplete-arity"), values.w_false)
-w_prop_custom_write = W_StructProperty(values.W_Symbol.make("prop:custom-write"), values.w_false)
-w_prop_equal_hash = W_StructProperty(values.W_Symbol.make("prop:equal+hash"), values.w_false)
-w_prop_chaperone_unsafe_undefined = W_StructProperty(values.W_Symbol.make("prop:chaperone-unsafe-undefined"), values.w_false)
-w_prop_set_bang_transformer = W_StructProperty(values.W_Symbol.make("prop:set!-transformer"), values.w_false)
-w_prop_rename_transformer = W_StructProperty(values.W_Symbol.make("prop:rename-transformer"), values.w_false)
+sym = values.W_Symbol.make
+
+w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)
+w_prop_checked_procedure = W_StructProperty(sym("prop:checked-procedure"), values.w_false)
+w_prop_arity_string = W_StructProperty(sym("prop:arity-string"), values.w_false)
+w_prop_incomplete_arity = W_StructProperty(sym("prop:incomplete-arity"), values.w_false)
+w_prop_custom_write = W_StructProperty(sym("prop:custom-write"), values.w_false)
+w_prop_equal_hash = W_StructProperty(sym("prop:equal+hash"), values.w_false)
+w_prop_chaperone_unsafe_undefined = W_StructProperty(sym("prop:chaperone-unsafe-undefined"), values.w_false)
+w_prop_set_bang_transformer = W_StructProperty(sym("prop:set!-transformer"), values.w_false)
+w_prop_rename_transformer = W_StructProperty(sym("prop:rename-transformer"), values.w_false)
+w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), values.w_false)
+
+del sym
 
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"

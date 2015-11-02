@@ -131,6 +131,7 @@ def wrap_for_tempfile(fn):
         except OSError:
             pass
         from tempfile import mktemp
+        json_file = os.path.realpath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
         out = fn(rkt_file, tmp_json_file)

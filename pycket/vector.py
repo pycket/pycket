@@ -55,12 +55,12 @@ class StrategyVectorMixin(object):
     def vector_set(self, i, new, env, cont):
         from pycket.interpreter import return_value
         from pycket.values import w_void
-        self.set(i.value, new)
+        self.set(i, new)
         return return_value(w_void, env, cont)
 
     def vector_ref(self, i, env, cont):
         from pycket.interpreter import return_value
-        return return_value(self.ref(i.value), env, cont)
+        return return_value(self.ref(i), env, cont)
 
     # unsafe versions
     def unsafe_ref(self, i):

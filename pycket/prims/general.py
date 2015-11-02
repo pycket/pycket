@@ -195,6 +195,7 @@ expose_val("prop:chaperone-unsafe-undefined",
            values_struct.w_prop_chaperone_unsafe_undefined)
 expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
+expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
@@ -486,6 +487,11 @@ def proc_arity_cont(result, env, cont, _vals):
     if len(result) == 1:
         return return_value(result[0], env, cont)
     return return_value(values.to_list(result[:]), env, cont)
+
+@expose("procedure->method", [procedure])
+def procedure_to_method(proc):
+    # TODO provide a real implementation
+    return proc
 
 @expose("procedure-arity", [procedure], simple=False)
 def do_procedure_arity(proc, env, cont):
@@ -1066,12 +1072,29 @@ def list2vector(l):
     return values_vector.W_Vector.fromelements(values.from_list(l))
 
 # FIXME: make this work with chaperones/impersonators
-@expose("vector->list", [values_vector.W_Vector])
-def vector2list(v):
-    es = []
-    for i in range(v.len):
-        es.append(v.ref(i))
-    return values.to_list(es)
+@expose("vector->list", [values.W_MVector], simple=False)
+def vector2list(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        # Fast path for unproxied vectors
+        result = values.vector_to_improper(v, values.w_null)
+        return return_value(result, env, cont)
+    return vector_to_list_loop(v, v.length() - 1, values.w_null, env, cont)
+
+@loop_label
+def vector_to_list_loop(vector, idx, acc, env, cont):
+    from pycket.interpreter import return_value
+    if idx < 0:
+        return return_value(acc, env, cont)
+    return vector.vector_ref(idx, env,
+            vector_to_list_read_cont(vector, idx, acc, env, cont))
+
+@continuation
+def vector_to_list_read_cont(vector, idx, acc, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    acc = values.W_Cons.make(val, acc)
+    return vector_to_list_loop(vector, idx - 1, acc, env, cont)
 
 # FIXME: make that a parameter
 @expose("current-command-line-arguments", [], simple=False)
@@ -1364,7 +1387,7 @@ def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
     if s+n+1 == l:
         return return_multi_vals(values.Values.make(vals), env, cont)
     else:
-        return vec.vector_ref(values.W_Fixnum.make(s+n+1), env, vec2val_cont(vals, vec, n+1, s, l, env, cont))
+        return vec.vector_ref(s+n+1, env, vec2val_cont(vals, vec, n+1, s, l, env, cont))
 
 
 @expose("vector->values", [values_vector.W_Vector,
@@ -1379,4 +1402,4 @@ def vector_to_values(v, start, end, env, cont):
         return return_multi_vals(values.Values.make([]), env, cont)
     else:
         vals = [None] * (l - s)
-        return v.vector_ref(values.W_Fixnum.make(s), env, vec2val_cont(vals, v, 0, s, l, env, cont))
+        return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))

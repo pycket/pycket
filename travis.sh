@@ -137,7 +137,7 @@ do_performance_smoke() {
   echo ">>> Smoke"
   _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
   _smoke 0.7 pycket/test/triangle.rkt
-  _smoke 1.5 pycket/test/earley.rkt
+  _smoke 1.8 pycket/test/earley.rkt
   _smoke 2.0 pycket/test/nucleic2.rkt
   _smoke 2.5 pycket/test/nqueens.rkt
   _smoke 2.5 pycket/test/treerec.rkt
@@ -153,8 +153,8 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist 'pytest-cov~=1.8.1' cov-core coverage || \
-      pip install --user pytest-xdist 'pytest-cov~=1.8.1' cov-core coverage
+  pip install pytest-xdist 'pytest-cov~=1.8.1' cov-core 'coverage<4.0' || \
+      pip install --user pytest-xdist 'pytest-cov~=1.8.1' cov-core 'coverage<4.0'
 }
 
 install_racket() {
