@@ -479,6 +479,11 @@ def sem_wait(s):
 def procedure_rename(p, n):
     return p
 
+@expose("procedure->method", [procedure])
+def procedure_to_method(proc):
+    # TODO provide a real implementation
+    return proc
+
 @jit.unroll_safe
 def make_arity_list(arity, extra=None):
     jit.promote(arity)
@@ -502,11 +507,6 @@ def proc_arity_cont(arity, env, cont, _vals):
     # if len(result) == 1:
         # return return_value(result[0], env, cont)
     # return return_value(values.to_list(result[:]), env, cont)
-
-@expose("procedure->method", [procedure])
-def procedure_to_method(proc):
-    # TODO provide a real implementation
-    return proc
 
 @expose("procedure-arity", [procedure], simple=False)
 @jit.unroll_safe
