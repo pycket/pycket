@@ -693,6 +693,15 @@ def test_procedure_closure_contents_eq(doctest):
     #f
     """
 
+def test_list_ref(doctest):
+    """
+    > (list-ref '(1 2 3) 0)
+    1
+    > (list-ref '(1 2 3) 1)
+    2
+    > (list-ref '(1 2 3) 2)
+    3
+    """
 
 def test_unsafe_undefined(doctest):
     """

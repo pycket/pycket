@@ -719,17 +719,28 @@ def sem_peek_evt(s):
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
 
+@jit.elidable
+def elidable_length(lst, already=0):
+    while isinstance(lst, values.W_Cons):
+        already += 1
+        lst = lst.cdr()
+    return already
+
+@jit.unroll_safe
+def virtual_length(lst, already=0):
+    while isinstance(lst, values.W_Cons):
+        if not jit.isvirtual(lst):
+            return elidable_length(lst, already)
+        already += 1
+        lst = lst.cdr()
+    return already
+
 @expose("length", [values.W_List])
 @jit.elidable
 def length(a):
     if not a.is_proper_list():
-        raise SchemeException("length: not a proper list")
-    n = 0
-    while isinstance(a, values.W_Cons):
-        a = a.cdr()
-        n += 1
-    assert a is values.w_null
-    return values.W_Fixnum(n)
+        raise SchemeException("length: not given proper list")
+    return values.W_Fixnum(virtual_length(a, 0))
 
 @expose("list")
 def do_list(args):
@@ -1039,9 +1050,14 @@ def listp(v):
     return values.W_Bool.make(v.is_proper_list())
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
+@jit.elidable
 def list_ref(lst, pos):
-    # XXX inefficient
-    return values.from_list(lst)[pos.value]
+    # XXX Find a better JIT heuristic
+    for i in range(pos.value):
+        lst = lst.cdr()
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("list-ref: not given a list")
+    return lst.car()
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
