@@ -15,11 +15,10 @@ class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties"]
+    _immutable_fields_ = ["inner", "check"]
     def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.check = check
         # from ProxyMixin
         self.init_proxy(code, prop_keys, prop_vals)

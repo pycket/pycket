@@ -17,14 +17,18 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = ['return_safe']
+    _attrs_ = ['marks']
+    _immutable_fields_ = []
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
-    return_safe = False
 
     def __init__(self):
         self.marks = None
+
+    @staticmethod
+    def return_safe():
+        return False
 
     def get_ast(self):
         return None # best effort
@@ -110,6 +114,13 @@ class Cont(BaseCont):
             return values.W_Cons.make(v, self.prev.get_marks(key))
         else:
             return self.prev.get_marks(key)
+
+def make_return_safe(cls):
+    @staticmethod
+    def return_safe():
+        return True
+    cls.return_safe = return_safe
+    return cls
 
 def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
