@@ -190,6 +190,7 @@ class W_StructType(values.W_Object):
             self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
         return self.attach_prop(props, 0, False, env, cont)
 
+    @jit.unroll_safe
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
         self.name = name.utf8value
