@@ -479,13 +479,29 @@ def sem_wait(s):
 def procedure_rename(p, n):
     return p
 
+@jit.unroll_safe
+def make_arity_list(arity, extra=None):
+    jit.promote(arity)
+    acc = values.w_null
+    if extra is not None:
+        acc = values.W_Cons.make(extra, acc)
+    for item in reversed(arity.arity_list):
+        i = values.W_Fixnum(item)
+        acc = values.W_Cons.make(i, acc)
+    return acc
+
 @continuation
-def proc_arity_cont(result, env, cont, _vals):
+def proc_arity_cont(arity, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
-    result.append(check_one_val(_vals))
-    if len(result) == 1:
-        return return_value(result[0], env, cont)
-    return return_value(values.to_list(result[:]), env, cont)
+    val = check_one_val(_vals)
+    if not arity.arity_list:
+        return return_value(val, env, cont)
+    result = make_arity_list(arity, val)
+    return return_value(result, env, cont)
+    # result.append(check_one_val(_vals))
+    # if len(result) == 1:
+        # return return_value(result[0], env, cont)
+    # return return_value(values.to_list(result[:]), env, cont)
 
 @expose("procedure->method", [procedure])
 def procedure_to_method(proc):
@@ -493,20 +509,21 @@ def procedure_to_method(proc):
     return proc
 
 @expose("procedure-arity", [procedure], simple=False)
+@jit.unroll_safe
 def do_procedure_arity(proc, env, cont):
     from pycket.interpreter import return_value
-    result = []
     arity = proc.get_arity()
-    for item in arity.arity_list:
-        result.append(values.W_Fixnum(item))
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(result, env, cont))
-    if len(result) == 1:
-        return return_value(result[0], env, cont)
-    return return_value(values.to_list(result[:]), env, cont)
+        return arity_at_least.constr.call(val, env, proc_arity_cont(arity, env, cont))
+    if len(arity.arity_list) == 1:
+        item = values.W_Fixnum(arity.arity_list[0])
+        return return_value(item, env, cont)
+    result = make_arity_list(arity)
+    return return_value(result, env, cont)
 
 @expose("procedure-arity?", [values.W_Object])
+@jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
         if n.value >= 0:
