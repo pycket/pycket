@@ -738,7 +738,6 @@ def virtual_length(lst):
     return n
 
 @expose("length", [values.W_List])
-@jit.elidable
 def length(a):
     if not a.is_proper_list():
         raise SchemeException("length: not given proper list")
