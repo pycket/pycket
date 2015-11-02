@@ -702,26 +702,29 @@ def notp(a):
     return values.W_Bool.make(a is values.w_false)
 
 @jit.elidable
-def elidable_length(lst, already=0):
+def elidable_length(lst):
+    n = 0
     while isinstance(lst, values.W_Cons):
-        already += 1
+        n += 1
         lst = lst.cdr()
-    return already
+    return n
 
 @jit.unroll_safe
-def virtual_length(lst, already=0):
+def virtual_length(lst):
+    n = 0
     while isinstance(lst, values.W_Cons):
         if not jit.isvirtual(lst):
-            return elidable_length(lst, already)
-        already += 1
+            return n + elidable_length(lst)
+        n += 1
         lst = lst.cdr()
-    return already
+    return n
 
 @expose("length", [values.W_List])
+@jit.elidable
 def length(a):
     if not a.is_proper_list():
         raise SchemeException("length: not given proper list")
-    return values.W_Fixnum(virtual_length(a, 0))
+    return values.W_Fixnum(virtual_length(a))
 
 @expose("list")
 def do_list(args):
