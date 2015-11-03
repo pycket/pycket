@@ -385,8 +385,6 @@ for args in [ ("subprocess?",),
               ("channel?",),
               ("readtable?",),
               ("path-for-some-system?",),
-              ("file-exists?",),
-              ("directory-exists?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
@@ -1001,9 +999,6 @@ def ephemeron_value(ephemeron, default):
     v = ephemeron.get()
     return v if v is not None else default
 
-# FIXME: implementation
-define_nyi("make-reader-graph", [values.W_Object])
-
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
     return values.W_Placeholder(val)
@@ -1421,3 +1416,25 @@ def vector_to_values(v, start, end, env, cont):
     else:
         vals = [None] * (l - s)
         return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
+
+def reader_graph_loop(v, d):
+    if v in d:
+        return d[v]
+    if isinstance(v, values.W_Cons):
+        p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
+        d[v] = p
+        car = reader_graph_loop(v.car(), d)
+        cdr = reader_graph_loop(v.cdr(), d)
+        p._car = car
+        p._cdr = cdr
+        # FIXME: should change this to say if it's a proper list now ...
+        return p
+    if isinstance(v, values.W_Placeholder):
+        return reader_graph_loop(v.value, d)
+    # XXX FIXME: doesn't handle stuff
+    return v
+
+@expose("make-reader-graph", [values.W_Object])
+def make_reader_graph(v):
+    return reader_graph_loop(v, {})
+        

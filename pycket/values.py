@@ -352,9 +352,14 @@ class W_WrappedCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+
 class W_WrappedConsProper(W_WrappedCons):
     def is_proper_list(self):
         return True
+
+class W_WrappedConsMaybe(W_WrappedCons):
+    def is_proper_list(self):
+        return self._cdr.is_proper_list()
 
 class W_Box(W_Object):
     errorname = "box"

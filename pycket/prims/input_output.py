@@ -363,6 +363,23 @@ def port_closedp(p):
 def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
+@expose("directory-exists?", [values.W_Object])
+def directory_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isdir(s))
+
+@expose("file-exists?", [values.W_Object])
+def file_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isfile(s))
+
+@expose("directory-list", [values.W_Object])
+def dir_list(w_str):
+    s = extract_path(w_str)
+    import pdb; pdb.set_trace()
+    return values.to_list(os.listdir(s))
+
+
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
