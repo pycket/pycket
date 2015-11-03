@@ -1052,10 +1052,14 @@ def make_hasheqv_placeholder(vals):
 def listp(v):
     return values.W_Bool.make(v.is_proper_list())
 
+def enter_list_ref_iff(lst, pos):
+    if jit.isconstant(lst) and jit.isconstant(pos):
+        return True
+    return jit.isconstant(pos) and pos.value <= 16
+
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
-@jit.elidable
+@jit.look_inside_iff(enter_list_ref_iff) 
 def list_ref(lst, pos):
-    # XXX Find a better JIT heuristic
     for i in range(pos.value):
         lst = lst.cdr()
         if not isinstance(lst, values.W_Cons):
