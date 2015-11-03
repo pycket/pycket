@@ -363,6 +363,23 @@ def port_closedp(p):
 def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
+@expose("directory-exists?", [values.W_Object])
+def directory_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isdir(s))
+
+@expose("file-exists?", [values.W_Object])
+def file_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isfile(s))
+
+@expose("directory-list", [values.W_Object])
+def dir_list(w_str):
+    s = extract_path(w_str)
+    dir = [values.W_Path(p) for p in os.listdir(s)]
+    return values.to_list(dir)
+
+
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
@@ -371,10 +388,13 @@ def close_cont(port, env, cont, vals):
 
 def extract_path(obj):
     if isinstance(obj, values_string.W_String):
-        return obj.as_str_utf8()
-    if isinstance(obj, values.W_Path):
-        return obj.path
-    raise SchemeException("expected path-like values but got %s" % obj.tostring())
+        result = obj.as_str_utf8()
+    elif isinstance(obj, values.W_Path):
+        result = obj.path
+    else:
+        raise SchemeException("expected path-like values but got %s" % obj.tostring())
+    return result if result is not None else "."
+
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)

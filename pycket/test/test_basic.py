@@ -606,3 +606,13 @@ def test_should_enter_downrecursion():
     assert f.body[0].should_enter
     assert f.body[0].els.body[0].should_enter
 
+
+def test_reader_graph(doctest):
+    """
+    ! (require racket/shared)
+    > (pair? (shared ([x (cons x x)]) x))
+    #t
+    > (shared ([x (cons x x)]) (eq? (car x) (cdr x)))
+    #t
+    """
+    assert doctest
