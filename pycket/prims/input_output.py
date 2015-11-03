@@ -376,7 +376,6 @@ def file_exists(w_str):
 @expose("directory-list", [values.W_Object])
 def dir_list(w_str):
     s = extract_path(w_str)
-    import pdb; pdb.set_trace()
     return values.to_list(os.listdir(s))
 
 
