@@ -548,32 +548,62 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
-@inline_small_list(immutable=True, attrname="storage", unbox_num=True)
+# @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
+
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["_type"]
+    _immutable_fields_ = ["_shape"]
 
     @staticmethod
     @jit.unroll_safe
     def make_prefab(w_key, w_values):
         w_struct_type = W_StructType.make_prefab(
             W_PrefabKey.from_raw_key(w_key, len(w_values)))
-        constant_false = []
-        for i, value in enumerate(w_values):
-            if not w_struct_type.is_immutable_field_index(i):
-                w_values[i] = values.W_Cell(value)
-            elif value is values.w_false:
-                constant_false.append(i)
-        cls = lookup_struct_class(constant_false)
-        if cls is not W_Struct:
-            w_values = reduce_field_values(w_values, constant_false)
-        return cls.make(w_values, w_struct_type)
+        # constant_false = []
+        # for i, value in enumerate(w_values):
+        #     if not w_struct_type.is_immutable_field_index(i):
+        #         w_values[i] = values.W_Cell(value)
+        #     elif value is values.w_false:
+        #         constant_false.append(i)
+        # cls = lookup_struct_class(constant_false)
+        # if cls is not W_Struct:
+        #     w_values = reduce_field_values(w_values, constant_false)
+        return W_Struct.make(w_values, w_struct_type)
 
-    def __init__(self, type):
-        self._type = type
+    def __init__(self, shape):
+        from pycket.shape import CompoundShape
+        assert isinstance(shape, CompoundShape)
+        self._shape = shape
+
+    def get_storage(self):
+        return []
+
+    def get_storage_at(self, index):
+        raise IndexError()
+
+    def get_storage_width(self):
+        return 0
+
+    def get_tag(self):
+        return self.shape()._tag
+
+    def get_children(self):
+        return self.shape().get_children(self)
+
+    def get_child(self, index):
+        return self.shape().get_child(self, index)
+
+    def get_number_of_children(self):
+        return self.shape().get_number_of_direct_children()
+
+    def shape(self):
+        return jit.promote(self._shape)
 
     def struct_type(self):
-        return jit.promote(self._type)
+        import pycket.shape
+        tag = self.get_tag()
+        assert isinstance(tag, pycket.shape.StructTag)
+        return jit.promote(tag.struct_type())
 
     @jit.unroll_safe
     def vals(self):
@@ -646,18 +676,18 @@ class W_Struct(W_RootStruct):
         return return_multi_vals(
                 values.Values.make([self.struct_type(), values.w_false]), env, cont)
 
-    # TODO: currently unused
-    def tostring_proc(self, env, cont):
-        w_val = self.struct_type().read_prop(w_prop_custom_write)
-        if w_val is not None:
-            assert isinstance(w_val, values_vector.W_Vector)
-            w_write_proc = w_val.ref(0)
-            port = values.W_StringOutputPort()
-            # TODO: #t for write mode, #f for display mode,
-            # or 0 or 1 indicating the current quoting depth for print mode
-            mode = values.w_false
-            return w_write_proc.call([self, port, mode], env, cont)
-        return self.tostring()
+    # # TODO: currently unused
+    # def tostring_proc(self, env, cont):
+    #     w_val = self.struct_type().read_prop(w_prop_custom_write)
+    #     if w_val is not None:
+    #         assert isinstance(w_val, values_vector.W_Vector)
+    #         w_write_proc = w_val.ref(0)
+    #         port = values.W_StringOutputPort()
+    #         # TODO: #t for write mode, #f for display mode,
+    #         # or 0 or 1 indicating the current quoting depth for print mode
+    #         mode = values.w_false
+    #         return w_write_proc.call([self, port, mode], env, cont)
+    #     return self.tostring()
 
     def tostring(self):
         typ = self.struct_type()
@@ -673,121 +703,160 @@ class W_Struct(W_RootStruct):
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-"""
-This method generates a new structure class with inline stored immutable #f
-values on positions from constant_false array. If a new structure instance get
-immutable #f fields on the same positions, this class will be used, thereby
-reducing its size.
-"""
-def generate_struct_class(constant_false):
+# """
+# This method generates a new structure class with inline stored immutable #f
+# values on positions from constant_false array. If a new structure instance get
+# immutable #f fields on the same positions, this class will be used, thereby
+# reducing its size.
+# """
+# def generate_struct_class(constant_false):
 
-    if not len(constant_false):
-        return W_Struct
-    unrolling_constant_false = unrolling_iterable(constant_false)
-    clsname = 'W_ImmutableBooleanStruct_' + \
-              '_'.join([str(i) for i in constant_false])
+#     if not len(constant_false):
+#         return W_Struct
+#     unrolling_constant_false = unrolling_iterable(constant_false)
+#     clsname = 'W_ImmutableBooleanStruct_' + \
+#               '_'.join([str(i) for i in constant_false])
 
-    @jit.unroll_safe
-    def _ref(self, i):
-        pos = i
-        for j in unrolling_constant_false:
-            if i > j:
-                pos -= 1
-            elif i == j:
-                return values.w_false
-        # original index
-        immutable = self.struct_type().is_immutable_field_index(i)
-        # altered index
-        w_res = self._get_list(pos)
-        if not immutable:
-            assert isinstance(w_res, values.W_Cell)
-            w_res = w_res.get_val()
-        return w_res
+#     @jit.unroll_safe
+#     def _ref(self, i):
+#         pos = i
+#         for j in unrolling_constant_false:
+#             if i > j:
+#                 pos -= 1
+#             elif i == j:
+#                 return values.w_false
+#         # original index
+#         immutable = self.struct_type().is_immutable_field_index(i)
+#         # altered index
+#         w_res = self._get_list(pos)
+#         if not immutable:
+#             assert isinstance(w_res, values.W_Cell)
+#             w_res = w_res.get_val()
+#         return w_res
 
-    @jit.unroll_safe
-    def _set(self, i, val):
-        pos = i
-        for j in unrolling_constant_false:
-            if i > j:
-                pos -= 1
-        # altered index
-        w_cell = self._get_list(pos)
-        assert isinstance(w_cell, values.W_Cell)
-        w_cell.set_val(val)
+#     @jit.unroll_safe
+#     def _set(self, i, val):
+#         pos = i
+#         for j in unrolling_constant_false:
+#             if i > j:
+#                 pos -= 1
+#         # altered index
+#         w_cell = self._get_list(pos)
+#         assert isinstance(w_cell, values.W_Cell)
+#         w_cell.set_val(val)
 
-    cls = type(clsname, (W_Struct,), {'_ref':_ref, '_set': _set})
-    cls = inline_small_list(sizemax=min(11,CONST_FALSE_SIZE),
-                            immutable=True,
-                            attrname="storage",
-                            unbox_num=True)(cls)
-    return cls
+#     cls = type(clsname, (W_Struct,), {'_ref':_ref, '_set': _set})
+#     cls = inline_small_list(sizemax=min(11,CONST_FALSE_SIZE),
+#                             immutable=True,
+#                             attrname="storage",
+#                             unbox_num=True)(cls)
+#     return cls
 
-if config.immutable_boolean_field_elision:
-    CONST_FALSE_SIZE = 5 # the complexity grows exponentially
-else:
-    CONST_FALSE_SIZE = 0 # disabled
+# if config.immutable_boolean_field_elision:
+#     CONST_FALSE_SIZE = 5 # the complexity grows exponentially
+# else:
+#     CONST_FALSE_SIZE = 0 # disabled
 
 
-struct_classes = []
-for i in range(0, CONST_FALSE_SIZE):
-    for comb in itertools.combinations(range(CONST_FALSE_SIZE), i+1):
-        struct_classes.append(generate_struct_class(comb))
-struct_class_iter = unrolling_iterable(enumerate(struct_classes))
+# struct_classes = []
+# for i in range(0, CONST_FALSE_SIZE):
+#     for comb in itertools.combinations(range(CONST_FALSE_SIZE), i+1):
+#         struct_classes.append(generate_struct_class(comb))
+# struct_class_iter = unrolling_iterable(enumerate(struct_classes))
 
-@jit.elidable
-def fac(n):
-    return n * fac(n-1) if n > 1 else 1
+# @jit.elidable
+# def fac(n):
+#     return n * fac(n-1) if n > 1 else 1
 
-@jit.elidable
-def ncr(n,r):
-    if n == 0:
-        return 0
-    return fac(n) / fac(r) / fac(n-r)
+# @jit.elidable
+# def ncr(n,r):
+#     if n == 0:
+#         return 0
+#     return fac(n) / fac(r) / fac(n-r)
 
-@jit.unroll_safe
-def lookup_struct_class(constant_false):
-    if constant_false and constant_false[-1] < CONST_FALSE_SIZE:
-        n = CONST_FALSE_SIZE
-        pos = 0
-        # offset of combinations with smaller amount of fields
-        for r in range(1, len(constant_false)):
-            pos += ncr(n, r)
-        # and the precise position
-        r = len(constant_false)
-        last_idx = 0
-        for idx in constant_false:
-            pos += ncr(n, r) - ncr(n-idx+last_idx, r)
-            n -= idx - last_idx + 1
-            r -= 1
-            last_idx = idx + 1
-        # lookup class by its position
-        for i, cls in struct_class_iter:
-            if i == pos:
-                return cls
-    return W_Struct
+# @jit.unroll_safe
+# def lookup_struct_class(constant_false):
+#     if constant_false and constant_false[-1] < CONST_FALSE_SIZE:
+#         n = CONST_FALSE_SIZE
+#         pos = 0
+#         # offset of combinations with smaller amount of fields
+#         for r in range(1, len(constant_false)):
+#             pos += ncr(n, r)
+#         # and the precise position
+#         r = len(constant_false)
+#         last_idx = 0
+#         for idx in constant_false:
+#             pos += ncr(n, r) - ncr(n-idx+last_idx, r)
+#             n -= idx - last_idx + 1
+#             r -= 1
+#             last_idx = idx + 1
+#         # lookup class by its position
+#         for i, cls in struct_class_iter:
+#             if i == pos:
+#                 return cls
+#     return W_Struct
 
-@jit.unroll_safe
-def reduce_field_values(field_values, constant_false):
-    reduced_field_values = [None] * (len(field_values) - len(constant_false))
-    k = 0
-    for i, val in enumerate(field_values):
-        found = False
-        for j in constant_false:
-            if j == i:
-                found = True
-        if not found:
-            reduced_field_values[k] = val
-            k += 1
-    return reduced_field_values
+# @jit.unroll_safe
+# def reduce_field_values(field_values, constant_false):
+#     reduced_field_values = [None] * (len(field_values) - len(constant_false))
+#     k = 0
+#     for i, val in enumerate(field_values):
+#         found = False
+#         for j in constant_false:
+#             if j == i:
+#                 found = True
+#         if not found:
+#             reduced_field_values[k] = val
+#             k += 1
+#     return reduced_field_values
+
+class W_NAryStruct(W_Struct):
+    _immutable_fields_ = ['_storage[*]']
+
+    def _init_storage(self, storage):
+        self._storage = storage or []
+
+    def get_storage(self):
+        return self._storage
+
+    def get_storage_at(self, index):
+        return self._storage[index]
+
+    _get_list = get_storage_at
+
+    def get_storage_width(self):
+        return len(self._storage)
+    _get_size_list = get_storage_width
+
+    # Test only.
+    def __eq__(self, other):
+        "NOT_RPYTON"
+        if isinstance(other, W_Struct):
+            if self.get_number_of_children() == other.get_number_of_children():
+                return self.get_children() == other.get_children()
+        return False
+
+
+
+
+def _w_struct_make_from_shape(field_values, shape):
+    w_struct = W_NAryStruct(shape)
+    w_struct._init_storage(field_values)
+    return w_struct
+W_Struct.make_from_shape = staticmethod(_w_struct_make_from_shape)
+
+def _w_struct_make(field_values, w_structtype):
+    from pycket.shape import get_struct_tag
+    tag = get_struct_tag(w_structtype)
+    return W_Struct.make_from_shape(field_values, tag.default_shape)
+W_Struct.make = staticmethod(_w_struct_make)
+# 
 
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type", "constr_name"]
     def __init__(self, type, constr_name):
         self.type = type
         self.constr_name = constr_name
-
-    def make_struct(self, field_values):
-        raise NotImplementedError("abstract base class")
 
     @continuation
     @jit.unroll_safe
@@ -806,10 +875,7 @@ class W_StructConstructor(values.W_Procedure):
                 field_values[i] = value
             elif value is values.w_false:
                 constant_false.append(i)
-        cls = lookup_struct_class(constant_false)
-        if cls is not W_Struct:
-            field_values = reduce_field_values(field_values, constant_false)
-        result = cls.make(field_values, struct_type)
+        result = W_Struct.make(field_values, struct_type)
         return return_value(result, env, cont)
 
     @jit.unroll_safe

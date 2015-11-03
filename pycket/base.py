@@ -89,6 +89,10 @@ class W_Object(W_ProtoObject):
     def tostring(self):
         return str(self)
 
+    def shape(self):
+        from pycket.shape import in_storage_shape_instance
+        return in_storage_shape_instance()
+
     # for expose
     @classmethod
     def make_unwrapper(cls):

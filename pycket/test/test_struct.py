@@ -527,6 +527,19 @@ def test_procedure():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
+def test_struct_mult_types_same_name(doctest):
+    """
+    > (define-values (struct:a make-a a? a-ref a-set!)
+        (make-struct-type 'a #f 2 1 'uninitialized))
+    > (define-values (struct:a- make-a- a?- a-ref- a-set!-)
+        (make-struct-type 'a #f 2 1 'uninitialized))
+    > (eq? struct:a- struct:a)
+    #f
+    > (eqv? struct:a- struct:a)
+    #f
+    > (equal? struct:a- struct:a)
+    #f
+    """
 
 def test_struct_immutable_boolean(source):
     """
