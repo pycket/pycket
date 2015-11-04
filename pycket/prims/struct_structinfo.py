@@ -154,8 +154,7 @@ def unsafe_struct_ref(v, k):
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum),
     values.W_Object])
 def unsafe_struct_set(v, k, val):
-    while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
-        v = v.inner
+    v = imp. get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
     assert 0 <= k.value < v.struct_type().total_field_cnt
     return v._set(k.value, val)

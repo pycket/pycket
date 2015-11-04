@@ -7,6 +7,7 @@ from pycket import vector as values_vector
 from pycket.cont import continuation, label, loop_label
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
+from rpython.rlib import jit
 
 @expose("vector")
 def vector(args):
@@ -73,6 +74,16 @@ def flvector_set(v, i, new, env, cont):
         raise SchemeException("flvector-set!: index out of bounds")
     return v.vector_set(idx, new, env, cont)
 
+@jit.look_inside_iff(
+    lambda v: jit.loop_unrolling_heuristic(v, v.length(), 16))
+def copy_vector(v):
+    assert type(v) is values_vector.W_Vector
+    len = v.length()
+    data = [None] * len
+    for i in range(len):
+        data[i] = v.ref(i)
+    return values_vector.W_Vector.fromelements(data, immutable=True)
+
 @expose("vector->immutable-vector", [values_vector.W_MVector])
 def vector2immutablevector(v):
     from pycket.impersonators import get_base_object
@@ -80,13 +91,7 @@ def vector2immutablevector(v):
     v = get_base_object(v)
     if v.immutable():
         return v
-
-    assert type(v) is values_vector.W_Vector
-    len = v.length()
-    data = [None] * len
-    for i in range(len):
-        data[i] = v.ref(i)
-    return values_vector.W_Vector.fromelements(data, immutable=True)
+    return copy_vector(v)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
