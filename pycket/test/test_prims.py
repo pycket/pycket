@@ -742,3 +742,9 @@ def test_bytes_conversions():
     vb = m.defs[b]
     assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
 
+
+def test_build_path(doctest):
+    """
+    > (build-path "/usr/bin" "bash")
+    #<path:/usr/bin/bash>
+    """
