@@ -1884,26 +1884,31 @@ driver_two_state = jit.JitDriver(reds=["env", "cont"],
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
-    while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-        if config.track_header:
-            came_from = ast if ast.should_enter else came_from
-        else:
-            came_from = ast if ast.app_like else came_from
-        t = type(ast)
-        # Manual conditionals to force specialization in translation
-        # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
-        # (see Jones, Gomard, Sestof 1993)
-        if t is Let:
-            ast, env, cont = ast.interpret(env, cont)
-        elif t is If:
-            ast, env, cont = ast.interpret(env, cont)
-        elif t is Begin:
-            ast, env, cont = ast.interpret(env, cont)
-        else:
-            ast, env, cont = ast.interpret(env, cont)
-        if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+    try:
+        while True:
+            driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+            if config.track_header:
+                came_from = ast if ast.should_enter else came_from
+            else:
+                came_from = ast if ast.app_like else came_from
+            t = type(ast)
+            # Manual conditionals to force specialization in translation
+            # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
+            # (see Jones, Gomard, Sestof 1993)
+            if t is Let:
+                ast, env, cont = ast.interpret(env, cont)
+            elif t is If:
+                ast, env, cont = ast.interpret(env, cont)
+            elif t is Begin:
+                ast, env, cont = ast.interpret(env, cont)
+            else:
+                ast, env, cont = ast.interpret(env, cont)
+            if ast.should_enter:
+                driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+    except SchemeException, e:
+        e.cont = cont
+        raise
+            
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
@@ -1915,7 +1920,10 @@ driver_one_state = jit.JitDriver(reds=["env", "cont"],
 def inner_interpret_one_state(ast, env, cont):
     while True:
         driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)
-        ast, env, cont = ast.interpret(env, cont)
+        try:
+            ast, env, cont = ast.interpret(env, cont)
+        except SchemeException, e:
+            e.cont = cont        
         if ast.should_enter:
             driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
 

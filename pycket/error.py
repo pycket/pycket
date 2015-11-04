@@ -7,6 +7,7 @@ class SchemeException(Exception):
         self.msg = msg
         self.context_ast = None
         self.context_module = None
+        self.cont = None
 
     def format_error(self): # pragma: no cover
         # only error printing
@@ -19,6 +20,8 @@ class SchemeException(Exception):
                 self.context_ast.surrounding_lambda.tostring(),)
         if self.context_module:
             result += "\n  in module: %s" % (self.context_module.name, )
+        if self.cont:
+            result += "\n" + self.cont.stacktrace()
         return result
 
 

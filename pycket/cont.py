@@ -85,8 +85,13 @@ class BaseCont(object):
         else:
             return "%s()" % self.__class__.__name__
 
+    def stacktrace(self):
+        return "BaseCont\n"
+
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
+    def stacktrace(self):
+        return "<initial computation>\n"
     def plug_reduce(self, vals, env):
         from pycket.interpreter import Done
         raise Done(vals)
@@ -114,6 +119,13 @@ class Cont(BaseCont):
             return values.W_Cons.make(v, self.prev.get_marks(key))
         else:
             return self.prev.get_marks(key)
+
+    def stacktrace(self):
+        a = self.get_ast()
+        if a:
+            return a.tostring() + "\n" + self.prev.stacktrace()
+        else:
+            return self.prev.stacktrace()
 
 def make_return_safe(cls):
     @staticmethod
