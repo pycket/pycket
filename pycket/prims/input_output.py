@@ -363,6 +363,20 @@ def port_closedp(p):
 def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
+@expose("explode-path", [values.W_Object])
+def explode_path(p):
+    return values.to_list(split_path_all(extract_path(p)))
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(p, env, cont):
+    from pycket.interpreter import return_multi_vals
+    (a,b) = os.path.split(extract_path(p))
+    return return_multi_vals([values.W_Path(a),values.W_Path(b), values.w_false], env, cont)
+
+def split_path_all(p):
+    a,b = os.path.split(p)
+    return (split_path_all(a) if len(a) and len(b) else []) + [b]
+
 @expose("directory-exists?", [values.W_Object])
 def directory_exists(w_str):
     s = extract_path(w_str)
