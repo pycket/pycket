@@ -419,7 +419,7 @@ def path_for_some_system(path):
     # XXX Really only handles UNIX paths
     if not isinstance(path, values.W_Path):
         return values.w_false
-    p = path.path
+    p = extract_path(path)
     return values.W_Bool.make(os.path.isfile(p) or os.path.isdir(p))
 
 @continuation
