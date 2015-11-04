@@ -414,6 +414,14 @@ def path_to_path_complete_path(path, _base):
         return path
     return values.W_Path(base + '/' + p)
 
+@expose("path-for-some-system?", [values.W_Object])
+def path_for_some_system(path):
+    # XXX Really only handles UNIX paths
+    if not isinstance(path, values.W_Path):
+        return values.w_false
+    p = path.path
+    return values.W_Bool.make(os.path.isfile(p) or os.path.isdir(p))
+
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
