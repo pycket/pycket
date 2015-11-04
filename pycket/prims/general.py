@@ -383,7 +383,6 @@ for args in [ ("subprocess?",),
               ("semaphore-try-wait?",),
               ("channel?",),
               ("readtable?",),
-              ("path-for-some-system?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
@@ -1051,12 +1050,15 @@ def enter_list_ref_iff(lst, pos):
     return jit.isconstant(pos) and pos.value <= 16
 
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
-@jit.look_inside_iff(enter_list_ref_iff) 
+@jit.look_inside_iff(enter_list_ref_iff)
 def list_ref(lst, pos):
+    n = pos.value
+    if n < 0:
+        raise SchemeException("list-ref: negative index")
     for i in range(pos.value):
         lst = lst.cdr()
         if not isinstance(lst, values.W_Cons):
-            raise SchemeException("list-ref: not given a list")
+            raise SchemeException("list-ref: index out of range")
     return lst.car()
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
@@ -1267,21 +1269,6 @@ def gensym(init):
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
     return values.W_Bool.make(a_keyword.value < b_keyword.value)
-
-@expose("build-path")
-def build_path(args):
-    # this is terrible
-    r = ""
-    for a in args:
-        if isinstance(a, values.W_Bytes):
-            r = r + str(a.value)
-        elif isinstance(a, values_string.W_String):
-            r = r + a.as_str_utf8()
-        elif isinstance(a, values.W_Path):
-            r = r + a.path
-        else:
-            raise SchemeException("bad input to build-path: %s" % a)
-    return values.W_Path(r)
 
 @expose("current-environment-variables", [])
 def cur_env_vars():
