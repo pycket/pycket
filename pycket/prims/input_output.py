@@ -398,9 +398,21 @@ def explode_path(w_path):
 
 @expose("build-path")
 def build_path(args):
+    # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
     r = "/".join([extract_path(s) for s in args])
     return values.W_Path(r)
+
+@expose("path->complete-path", [values.W_Object, default(values.W_Object, None)])
+def path_to_path_complete_path(path, _base):
+    if _base is None:
+        base = os.getcwd()
+    else:
+        base = extract_path(_base)
+    p = extract_path(path)
+    if p and p[0] == '/':
+        return path
+    return values.W_Path(base + '/' + p)
 
 @continuation
 def close_cont(port, env, cont, vals):
