@@ -28,9 +28,9 @@ def do_make_sibling_instpector(inspector, env, cont):
 def do_is_struct(v, env, cont):
     from pycket.interpreter import return_value
     current_inspector = values_struct.current_inspector_param.get(cont)
-    isstruct = isinstance(v, values_struct.W_RootStruct)
-    hascontrol = current_inspector.has_control(v.struct_type())
-    return return_value(values.W_Bool.make(isstruct and hascontrol), env, cont)
+    result = (isinstance(v, values_struct.W_RootStruct) and
+              current_inspector.has_control(v.struct_type()))
+    return return_value(values.W_Bool.make(result), env, cont)
 
 @expose("struct-info", [values.W_Object], simple=False)
 def do_struct_info(v, env, cont):
