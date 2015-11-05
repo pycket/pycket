@@ -835,7 +835,7 @@ class __extend__(values.W_Bignum):
         return values.W_Flonum(self.value.tofloat())
 
     def arith_zerop(self):
-        values.W_Bool.make(not self.value.tobool())
+        return values.W_Bool.make(not self.value.tobool())
 
     def arith_negativep(self):
         return values.W_Bool.make(
@@ -925,6 +925,9 @@ class __extend__(values.W_Rational):
     def arith_positivep(self):
         return values.W_Bool.make(
             self._numerator.gt(NULLRBIGINT))
+
+    def arith_zerop(self):
+        return values.W_Bool.make(not self._numerator.tobool())
 
     def arith_round(self):
         res1 = self._numerator.floordiv(self._denominator)

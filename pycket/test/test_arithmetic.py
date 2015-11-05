@@ -221,6 +221,7 @@ def test_zero():
     run("(zero? -1.0)", w_false)
     run("(zero?  0.0)", w_true)
     run("(zero?  1.0)", w_false)
+    run("(zero?  7/3)", w_false)
 
 def test_string_to_number(doctest):
     """
