@@ -396,8 +396,9 @@ def dir_list(w_str):
 
 @expose("explode-path", [values.W_Object])
 def explode_path(w_path):
+    sep = os.sep
     path = extract_path(w_path)
-    parts = [values.W_Path(p if p else "/") for p in path.split('/')] # sorry Windows
+    parts = [values.W_Path(p if p else "sep") for p in path.split(sep)] # sorry Windows
     return values.to_list(parts)
 
 @expose("build-path")
