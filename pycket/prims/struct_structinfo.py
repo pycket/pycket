@@ -2,69 +2,84 @@
 # -*- coding: utf-8 -*-
 from pycket import impersonators as imp
 from pycket import values
-from pycket import values_struct
+from pycket import values_parameter, values_struct
 from pycket.error import SchemeException
-from pycket.prims.expose import unsafe, default, expose
+from pycket.prims.expose import unsafe, default, expose, expose_val
 
-@expose("make-inspector", [default(values_struct.W_StructInspector,
-    values_struct.current_inspector)])
-def do_make_instpector(inspector):
-    return values_struct.W_StructInspector.make(inspector)
+expose_val("current-inspector", values_struct.current_inspector_param)
 
-@expose("make-sibling-inspector", [default(values_struct.W_StructInspector,
-    values_struct.current_inspector)])
-def do_make_sibling_instpector(inspector):
-    return values_struct.W_StructInspector.make(inspector, True)
+@expose("make-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
+def do_make_instpector(inspector, env, cont):
+    from pycket.interpreter import return_value
+    if inspector is None:
+        inspector = values_struct.current_inspector_param.get(cont)
+    new_inspector = values_struct.W_StructInspector.make(inspector)
+    return return_value(new_inspector, env, cont)
 
-@expose("current-inspector")
-def do_current_instpector(args):
-    return values_struct.current_inspector
+@expose("make-sibling-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
+def do_make_sibling_instpector(inspector, env, cont):
+    from pycket.interpreter import return_value
+    if inspector is None:
+        inspector = values_struct.current_inspector_param.get(cont)
+    new_inspector = values_struct.W_StructInspector.make(inspector, issibling=True)
+    return return_value(new_inspector, env, cont)
 
-@expose("struct?", [values.W_Object])
-def do_is_struct(v):
-    return values.W_Bool.make(isinstance(v, values_struct.W_RootStruct) and
-        values_struct.current_inspector.has_control(v.struct_type()))
+@expose("struct?", [values.W_Object], simple=False)
+def do_is_struct(v, env, cont):
+    from pycket.interpreter import return_value
+    current_inspector = values_struct.current_inspector_param.get(cont)
+    isstruct = isinstance(v, values_struct.W_RootStruct)
+    hascontrol = current_inspector.has_control(v.struct_type())
+    return return_value(values.W_Bool.make(isstruct and hascontrol), env, cont)
 
 @expose("struct-info", [values.W_Object], simple=False)
 def do_struct_info(v, env, cont):
     from pycket.interpreter import return_multi_vals
+    current_inspector = values_struct.current_inspector_param.get(cont)
     if (isinstance(v, values_struct.W_RootStruct) and
-        values_struct.current_inspector.has_control(v.struct_type())):
+        current_inspector.has_control(v.struct_type())):
         return v.get_struct_info(env, cont)
     return return_multi_vals(
             values.Values.make([values.w_false, values.w_true]), env, cont)
 
 struct_info = do_struct_info.w_prim
 
-@expose("struct-type-info", [values_struct.W_StructType])
-def do_struct_type_info(struct_type):
-    return values.Values.make(struct_type.struct_type_info())
+@expose("struct-type-info", [values_struct.W_StructType], simple=False)
+def do_struct_type_info(struct_type, env, cont):
+    from pycket.interpreter import return_value
+    return return_value(values.Values.make(struct_type.struct_type_info(cont)), env, cont)
 
-@expose("struct-type-make-constructor", [values_struct.W_StructType])
-def do_struct_type_make_constructor(struct_type):
-    if struct_type.inspector is not values_struct.current_inspector:
+@expose("struct-type-make-constructor", [values_struct.W_StructType], simple=False)
+def do_struct_type_make_constructor(struct_type, env, cont):
+    from pycket.interpreter import return_value
+    current_inspector = values_struct.current_inspector_param.get(cont)
+    if not current_inspector.has_control(struct_type):
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return struct_type.constr
+    return return_value(struct_type.constr, env, cont)
 
-@expose("struct-type-make-predicate", [values_struct.W_StructType])
-def do_struct_type_make_predicate(struct_type):
-    if struct_type.inspector is not values_struct.current_inspector:
+@expose("struct-type-make-predicate", [values_struct.W_StructType], simple=False)
+def do_struct_type_make_predicate(struct_type, env, cont):
+    from pycket.interpreter import return_value
+    current_inspector = values_struct.current_inspector_param.get(cont)
+    if not current_inspector.has_control(struct_type):
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return struct_type.predicate
+    return return_value(struct_type.predicate, env, cont)
 
 @expose("make-struct-type",
         [values.W_Symbol, values.W_Object, values.W_Fixnum, values.W_Fixnum,
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
-         default(values.W_Object, values_struct.current_inspector),
+         default(values.W_Object, None),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)], simple=False)
 def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
         auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
+    if inspector is None:
+        inspector = values_struct.current_inspector_param.get(cont)
     if not (isinstance(super_type, values_struct.W_StructType) or
             super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")

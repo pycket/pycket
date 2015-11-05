@@ -913,6 +913,19 @@ class __extend__(values.W_Rational):
         den = self._denominator.mul(other._denominator)
         return values.W_Rational.frombigint(num, den)
 
+    def arith_abs(self):
+        num = self._numerator.abs()
+        den = self._denominator.abs()
+        return values.W_Rational(num, den)
+
+    def arith_negativep(self):
+        return values.W_Bool.make(
+            self._numerator.lt(NULLRBIGINT))
+
+    def arith_positivep(self):
+        return values.W_Bool.make(
+            self._numerator.gt(NULLRBIGINT))
+
     def arith_round(self):
         res1 = self._numerator.floordiv(self._denominator)
         diff1 = res1.mul(self._denominator).sub(self._numerator)
@@ -929,7 +942,6 @@ class __extend__(values.W_Rational):
                 return values.W_Integer.frombigint(res1)
         else:
             return values.W_Integer.frombigint(res1)
-
 
     def arith_ceiling(self):
         res1 = self._numerator.floordiv(self._denominator)

@@ -467,10 +467,14 @@ def integer_bytes_to_integer(bstr, signed, big_endian):
         raise SchemeException(
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
 
-    val = 0
-    for i, v in enumerate(bytes):
-        val += ord(v) << (i * 8)
-    return values.W_Fixnum(val)
+    byteorder = "little" if big_endian is values.w_false else "big"
+    is_signed = signed is not values.w_false
+    big = rbigint.frombytes(bytes, byteorder, is_signed)
+    try:
+        result = values.W_Fixnum(big.toint())
+    except OverflowError:
+        result = values.W_Bignum(big)
+    return result
 
 @expose("integer->integer-bytes",
         [values.W_Number, values.W_Fixnum, default(values.W_Object, values.w_false)])
@@ -485,9 +489,6 @@ def integer_to_integer_bytes(n, _size, signed):
     size = _size.value
     if size not in (2, 4, 8):
         raise SchemeException("integer->integer-bytes: size not 2, 4, or 8")
-
-    #if big_endian is not values.w_false:
-        #intval = rarithmetic.byteswap(intval)
 
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes(chars)

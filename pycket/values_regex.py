@@ -50,9 +50,9 @@ class W_AnyRegexp(W_Object):
             self.indexgroup = indexgroup
             self.group_offsets = group_offsets
 
-    def match_string(self, s):
+    def match_string(self, s, start=0, end=sys.maxint):
         self.ensure_compiled()
-        ctx = rsre_core.search(self.code, s)
+        ctx = rsre_core.search(self.code, s, start=start, end=end)
         if not ctx:
             return None
         return _extract_result(ctx, self.groupcount)
