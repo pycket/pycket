@@ -37,6 +37,14 @@ def test_regexp_match(doctest):
     #f
     """
 
+def test_regexp_match_character_negation(doctest):
+    """
+    > (regexp-match #px"^([^\t]+)" "ZA,LS,SZ")
+    '("ZA,LS,SZ" "ZA,LS,SZ")
+    > (regexp-match #px"^([^#\t]+)[\t]([^\t]+)[\t]([^\t]+)(?:[\t](.*))?" "ZA,LS,SZ\t-2615+02800\tAfrica/Johannesburg")
+    '("ZA,LS,SZ\t-2615+02800\tAfrica/Johannesburg" "ZA,LS,SZ" "-2615+02800" "Africa/Johannesburg" #f)
+    """
+
 def test_regexp_match_positions(doctest):
     r"""
     > (regexp-match-positions #rx"a|b" "dog")

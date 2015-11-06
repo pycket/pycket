@@ -527,7 +527,6 @@ def test_procedure():
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
 
-
 def test_struct_immutable_boolean(source):
     """
     (struct struct-with-immu (a b c))
@@ -540,6 +539,7 @@ def test_struct_immutable_boolean(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
 def test_struct_immutable_boolean1(source):
     """
     (struct struct-with-immu (a b [c #:mutable]))

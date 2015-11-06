@@ -336,9 +336,24 @@ class Character(RegexpBase):
         return False
 
     def compile(self, ctx):
+        if self.positive:
+            ctx.emit(OPCODE_LITERAL_IGNORE if self.case_insensitive else OPCODE_LITERAL)
+            ctx.emit(self.value)
+            return
+        # If not a positive character, then generate code equivalent to what
+        # a negated SetUnion of a character would generate.
+        # XXX There may be a bettter opcode sequence, but I don't know the
+        # regex core well enough.
+        ctx.emit(OPCODE_IN)
+        ctx.emit(5)
+        ctx.emit(OPCODE_NEGATE)
         ctx.emit(OPCODE_LITERAL_IGNORE if self.case_insensitive else OPCODE_LITERAL)
         ctx.emit(self.value)
+        ctx.emit(OPCODE_FAILURE)
 
+    def __repr__(self):
+        neg = "~" if not self.positive else ""
+        return "Character(%s%r)" % (neg, chr(self.value))
 
 class Any(RegexpBase):
     def is_empty(self):
@@ -385,6 +400,8 @@ class AtPosition(ZeroWidthBase):
         ctx.emit(OPCODE_AT)
         ctx.emit(self.code)
 
+    def __repr__(self):
+        return "AtPosition(%r)" % self.code
 
 class Property(RegexpBase):
     def __init__(self, value, positive=True, case_insensitive=False, zerowidth=False):
@@ -410,6 +427,8 @@ class Property(RegexpBase):
         ctx.emit(OPCODE_CATEGORY)
         ctx.emit(self.value)
 
+    def __repr__(self):
+        return "Property(%r)" % self.value
 
 class Range(RegexpBase):
     def __init__(self, lower, upper, positive=True, case_insensitive=False, zerowidth=False):
@@ -466,6 +485,11 @@ class Sequence(RegexpBase):
         for item in self.items:
             item.compile(ctx)
 
+    def __str__(self):
+        return str(self.items)
+
+    def __repr__(self):
+        return "Sequence(%r)" % self.items
 
 class Branch(RegexpBase):
     def __init__(self, branches):
@@ -684,6 +708,8 @@ class GreedyRepeat(BaseRepeat):
         subpattern = self.subpattern.optimize(info)
         return GreedyRepeat(subpattern, self.min_count, self.max_count)
 
+    def __repr__(self):
+        return "GreedyRepeat(%r)" % self.subpattern
 
 class LazyRepeat(BaseRepeat):
     UNTIL_OPCODE = OPCODE_MIN_UNTIL
@@ -748,6 +774,8 @@ class Group(RegexpBase):
         ctx.emit(OPCODE_MARK)
         ctx.emit((self.group - 1) * 2 + 1)
 
+    def __repr__(self):
+        return "Group(%r)" % (self.subpattern)
 
 class RefGroup(RegexpBase):
     def __init__(self, info, group, case_insensitive=False):
@@ -815,6 +843,9 @@ class SetUnion(SetBase):
         ctx.emit(OPCODE_FAILURE)
         ctx.patch(pos, ctx.tell() - pos)
 
+    def __repr__(self):
+        neg = "~" if not self.positive else ""
+        return "SetUnion(%s%r)" % (neg, self.items)
 
 class SetIntersection(SetBase):
     def rebuild(self, positive, case_insensitive, zerowidth):

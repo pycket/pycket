@@ -5,6 +5,7 @@
 #
 
 import pytest
+import os
 import sys
 from pycket        import values
 from pycket.values import w_true
@@ -741,4 +742,23 @@ def test_bytes_conversions():
 
     vb = m.defs[b]
     assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
+
+
+def test_build_path(doctest):
+    """
+    > (path->string (build-path "/usr/bin" "bash"))
+    "/usr/bin/bash"
+    """
+
+def test_path_to_complete_path():
+    m = run_mod(
+    """
+    #lang pycket
+    (define p (path->complete-path "test.rkt"))
+    """)
+    p = m.defs[values.W_Symbol.make("p")]
+    cwd = os.getcwd()
+    assert isinstance(p, values.W_Path)
+    full = cwd + "/" + "test.rkt"
+    assert full == p.path
 

@@ -495,7 +495,7 @@ class W_Number(W_Object):
         return self.hash_equal()
 
 class W_Rational(W_Number):
-    _immutable_fields_ = ["num", "den"]
+    _immutable_fields_ = ["_numerator", "_denominator"]
     errorname = "rational"
     def __init__(self, num, den):
         assert isinstance(num, rbigint)

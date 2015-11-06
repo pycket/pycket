@@ -3,11 +3,12 @@ import itertools
 from pycket import config
 from pycket import values
 from pycket import vector as values_vector
+from pycket.arity import Arity
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
-from pycket.arity import Arity
+from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
 from rpython.rlib.unroll import unrolling_iterable
@@ -19,7 +20,8 @@ class W_StructInspector(values.W_Object):
     _immutable_fields_ = ["super"]
 
     @staticmethod
-    def make(inspector, issibling = False):
+    def make(inspector, issibling=False):
+        assert isinstance(inspector, W_StructInspector)
         super = inspector
         if issibling:
             super = inspector.super if inspector is not None else None
@@ -32,15 +34,15 @@ class W_StructInspector(values.W_Object):
         inspector = struct_type.inspector
         if not isinstance(inspector, W_StructInspector):
             return True
-        else:
+        inspector = inspector.super
+        while isinstance(inspector, W_StructInspector):
+            if inspector is self:
+                return True
             inspector = inspector.super
-            while isinstance(inspector, W_StructInspector):
-                if inspector is self:
-                    return True
-                inspector = inspector.super
-            return False
+        return False
 
 current_inspector = W_StructInspector(None)
+current_inspector_param = W_Parameter(current_inspector)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
@@ -128,7 +130,7 @@ class W_StructType(values.W_Object):
                             self.save_prop_value(props, idx, False, env, cont))
             assert isinstance(prop, W_StructProperty)
             if not is_checked and prop.guard.iscallable():
-                return prop.guard.call([prop_val, values.to_list(self.struct_type_info())],
+                return prop.guard.call([prop_val, values.to_list(self.struct_type_info(cont))],
                     env, self.save_prop_value(props, idx, True, env, cont))
             if prop.isinstance(w_prop_procedure):
                 self.prop_procedure = prop_val
@@ -260,12 +262,13 @@ class W_StructType(values.W_Object):
         self = jit.promote(self)
         return self.total_field_cnt == len(self.immutable_fields)
 
-    def struct_type_info(self):
+    def struct_type_info(self, cont):
         name = values.W_Symbol.make(self.name)
         init_field_cnt = values.W_Fixnum.make(self.init_field_cnt)
         auto_field_cnt = values.W_Fixnum.make(self.auto_field_cnt)
         immutable_k_list = values.to_list(
             [values.W_Fixnum.make(i) for i in self.immutables])
+        current_inspector = current_inspector_param.get(cont)
         super = values.w_false
         typ = self.super
         while isinstance(typ, W_StructType):
@@ -731,7 +734,6 @@ if config.immutable_boolean_field_elision:
     CONST_FALSE_SIZE = 5 # the complexity grows exponentially
 else:
     CONST_FALSE_SIZE = 0 # disabled
-
 
 struct_classes = []
 for i in range(0, CONST_FALSE_SIZE):

@@ -22,11 +22,31 @@ def byte_regrexp(w_str):
 def byte_pregrexp(w_str):
     return values_regex.W_BytePRegexp(w_str.as_str())
 
+EMPTY_BYTES = values.W_Bytes.from_string("")
+NO_MATCH = values.Values.make([values.w_false, values.w_false])
+ZERO = values.W_Fixnum.make(0)
+ONE  = values.W_Fixnum.make(1)
 
-@expose("regexp-match", [values.W_Object, values.W_Object])
+RM_ARGS = [
+    values.W_Object, values.W_Object,
+    default(values.W_Fixnum, ZERO),
+    default(values.W_Object, values.w_false),
+    default(values.W_Object, values.w_false),
+    default(values.W_Bytes, EMPTY_BYTES)
+    ]
+
+@expose("regexp-match", RM_ARGS)
 @jit.unroll_safe
-def regexp_match(w_re, w_str):
-    result = match(w_re, w_str)
+def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
+    start = inp_start.value
+    if inp_end is values.w_false:
+        end = sys.maxint
+    elif isinstance(inp_end, values.W_Fixnum):
+        end = inp_end.value
+    else:
+        raise SchemeException("regexp-match: expected fixnum or #f for argument 3")
+    assert output_port is values.w_false, "output port not supported yet"
+    result = match(w_re, w_str, start, end)
     if result is None:
         return values.w_false
     elif (isinstance(w_str, values_string.W_String) or \
@@ -52,14 +72,14 @@ def promote_to_regexp(w_re):
         return w_re
     raise SchemeException("regexp-match: unknown kind of regexp")
 
-def match(w_re, w_str):
+def match(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
-        s = w_str.as_str_ascii() # XXX for now
-        result = w_re.match_string(s)
+        s = w_str.as_str_utf8() # XXX for now
+        result = w_re.match_string(s, start, end)
         return result
     if isinstance(w_str, values.W_Bytes):
-        result = w_re.match_string(w_str.as_str())
+        result = w_re.match_string(w_str.as_str(), start, end)
         return result
     if isinstance(w_str, values.W_InputPort):
         result = w_re.match_port(w_str)
@@ -91,11 +111,6 @@ def make_match_list(lst):
         acc  = values.W_Cons.make(elem, acc)
     return acc, end
 
-EMPTY_BYTES = values.W_Bytes.from_string("")
-NO_MATCH = values.Values.make([values.w_false, values.w_false])
-ZERO = values.W_Fixnum.make(0)
-ONE  = values.W_Fixnum.make(1)
-
 RMP_ARGS = [
     values.W_Object,
     values.W_Object,
@@ -115,7 +130,7 @@ def rmp(pat, input, inp_start, inp_end, output_port, prefix):
     else:
         raise SchemeException("regexp-match-positions: expected fixnum or #f for argument 3")
     assert output_port is values.w_false, "output port not supported yet"
-    matches = match_positions(pat, input)
+    matches = match_positions(pat, input, start, end)
     if matches is None:
         return values.w_false
     lst, _ = make_match_list(matches)
