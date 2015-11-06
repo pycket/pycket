@@ -109,7 +109,7 @@ class ProxyMixin(object):
         self.base  = inner.get_base()
 
         self.property_map = make_property_map(prop_keys, ProxyMixin.EMPTY_MAP)
-        self.property_storage = prop_vals
+        self.property_storage = prop_vals[:] if prop_vals is not None else None # Ensure not resized
 
         if self.property_map is not ProxyMixin.EMPTY_MAP:
             assert self.property_map.storage_size() == len(prop_vals)

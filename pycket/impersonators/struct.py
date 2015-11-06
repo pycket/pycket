@@ -150,11 +150,9 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
             assert False
 
     EMPTY = W_InterposeStructBase.EMPTY_PROPERTY_MAP
-    keys = concat(prop_keys, struct_prop_keys)
-    vals = concat(prop_vals, struct_prop_vals)
     property_map = make_property_map(struct_prop_keys, make_property_map(prop_keys, EMPTY))
-    tmp = concat(_handlers, vals)
-    storage = tmp[:] if tmp is not None else None
+    vals = concat(_handlers, concat(prop_vals, struct_prop_vals))
+    storage = vals[:] if vals is not None else None
 
     map = CompositeMap.instantiate(handler_map, property_map)
 
