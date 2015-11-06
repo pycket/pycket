@@ -12,10 +12,10 @@ from pycket.impersonators      import (
 from rpython.rlib.objectmodel  import import_from_mixin
 
 class W_InterposeProcedure(values.W_Procedure):
-    import_from_mixin(ProxyMixin)
-
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check"]
+
+    import_from_mixin(ProxyMixin)
     def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()

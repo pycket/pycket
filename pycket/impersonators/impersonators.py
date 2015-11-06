@@ -23,10 +23,10 @@ from rpython.rlib              import jit, objectmodel
 from rpython.rlib.objectmodel  import import_from_mixin
 
 class W_InterposeBox(values.W_Box):
-    import_from_mixin(ProxyMixin)
-
     errorname = "interpose-box"
     _immutable_fields_ = ["inner", "unbox", "set"]
+
+    import_from_mixin(ProxyMixin)
 
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
@@ -54,10 +54,9 @@ class W_InterposeBox(values.W_Box):
         return self.seth.call([self.inner, val], env, after)
 
 class W_ChpBox(W_InterposeBox):
-    import_from_mixin(ChaperoneMixin)
-
     errorname = "chp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
+
+    import_from_mixin(ChaperoneMixin)
 
     def post_unbox_cont(self, env, cont):
         return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
@@ -78,7 +77,6 @@ class W_ImpBox(W_InterposeBox):
     import_from_mixin(ImpersonatorMixin)
 
     errorname = "imp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
         return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)
@@ -92,10 +90,10 @@ def imp_vec_set_cont(v, i, env, cont, vals):
     return v.vector_set(i.value, check_one_val(vals), env, cont)
 
 class W_InterposeVector(values.W_MVector):
-    import_from_mixin(ProxyMixin)
-
     errorname = "interpose-vector"
     _immutable_fields_ = ["inner", "refh", "seth"]
+
+    import_from_mixin(ProxyMixin)
 
     @jit.unroll_safe
     def __init__(self, v, r, s, prop_keys, prop_vals):
@@ -166,10 +164,11 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
     return setter.call_with_extra_info([orig_struct, val], env, cont, app)
 
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
-    import_from_mixin(ProxyMixin)
-
     errorname = "interpose-continuation-mark-key"
     _immutable_fields_ = ["inner", "get_proc", "set_proc"]
+
+    import_from_mixin(ProxyMixin)
+
     def __init__(self, mark, get_proc, set_proc, prop_keys, prop_vals):
         assert get_proc.iscallable()
         assert set_proc.iscallable()
@@ -226,10 +225,11 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
 class W_InterposeHashTable(values_hash.W_HashTable):
-    import_from_mixin(ProxyMixin)
-
     errorname = "interpose-hash-table"
     _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc", "key_proc", "clear_proc"]
+
+    import_from_mixin(ProxyMixin)
+
     def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
         assert isinstance(inner, values_hash.W_HashTable)
