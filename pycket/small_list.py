@@ -160,6 +160,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         return orig_make2(w_a, w_b, *args)
 
     class Size1Fixed(cls):
+        _immutable_fields_ = ['vals_fixed_0']
         def __init__(self, vals_fixed_0, *args):
             self.vals_fixed_0 = vals_fixed_0
             cls.__init__(self, *args)
@@ -180,6 +181,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
 
     class Size1Flo(cls):
+        _immutable_fields_ = ['vals_flo_0']
         def __init__(self, vals_flo_0, *args):
             self.vals_flo_0 = vals_flo_0
             cls.__init__(self, *args)
@@ -200,6 +202,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
 
     class Size2Fixed10(cls):
+        _immutable_fields_ = ['vals_fixed_0', 'w_val1']
         def __init__(self, vals_fixed_0, w_val1, *args):
             self.vals_fixed_0 = vals_fixed_0
             self.w_val1 = w_val1
@@ -225,6 +228,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
 
 
     class Size2Fixed01(cls):
+        _immutable_fields_ = ['w_val0', 'vals_fixed_1']
         def __init__(self, w_val0, vals_fixed_1, *args):
             self.w_val0 = w_val0
             self.vals_fixed_1 = vals_fixed_1
@@ -249,6 +253,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size2Fixed01.__name__ = cls.__name__ + Size2Fixed01.__name__
 
     class Size2Fixed11(cls):
+        _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1']
         def __init__(self, vals_fixed_0, vals_fixed_1, *args):
             self.vals_fixed_0 = vals_fixed_0
             self.vals_fixed_1 = vals_fixed_1
