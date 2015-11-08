@@ -121,6 +121,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             return result
 
         if unbox_num:
+            assert immutable, "unboxing is only supported for immutable objects"
             make, make1, make2 = _add_num_classes(cls, make, make0, make1, make2)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "0", staticmethod(make0))
