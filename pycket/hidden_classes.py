@@ -66,6 +66,7 @@ def make_map_type(getter=None, newdict=default_newdict):
         def has_attribute(self, name):
             return name in self.indexes
 
+        @jit.elidable_promote('all')
         def storage_size(self):
             return len(self.indexes)
 
@@ -113,6 +114,7 @@ def make_caching_map_type(getter=None, newdict=default_newdict):
             for val in self.static_data.itervalues():
                 yield val
 
+        @jit.elidable_promote('all')
         def storage_size(self):
             return len(self.indexes)
 

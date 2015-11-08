@@ -22,6 +22,18 @@ from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized
 
 UNROLLING_CUTOFF = 5
 
+def elidable_iff(pred):
+    def wrapper(func):
+        func = jit.unroll_safe(func)
+
+        def trampoline(*args):
+            if jit.we_are_jitted() and pred(*args):
+                return elidable_func(*args)
+            return func(*args)
+
+        return trampoline
+    return wrapper
+
 def memoize(f):
     cache = {}
     @jit.elidable

@@ -238,8 +238,9 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         raise NotImplementedError("abstract method")
 
     def is_non_interposing_chaperone(self):
-        return (not has_accessor(self.map.handlers) and
-                has_property_descriptor(self.map.properties))
+        map = jit.promote(self.map)
+        return (not has_accessor(map.handlers) and
+                has_property_descriptor(map.properties))
 
     def struct_type(self):
         return get_base_object(self.base).struct_type()
@@ -312,7 +313,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return base.vals()
 
 # Need to add checks that we are only impersonating mutable fields
-@inline_small_list(immutable=True)
+@inline_small_list(immutable=True, unbox_num=True)
 class W_ImpStruct(W_InterposeStructBase):
     import_from_mixin(ImpersonatorMixin)
 
@@ -322,7 +323,7 @@ class W_ImpStruct(W_InterposeStructBase):
     def post_set_cont(self, op, field, val, app, env, cont):
         return imp_struct_set_cont(self.inner, op, field, app, env, cont)
 
-@inline_small_list(immutable=True)
+@inline_small_list(immutable=True, unbox_num=True)
 class W_ChpStruct(W_InterposeStructBase):
     import_from_mixin(ChaperoneMixin)
 
