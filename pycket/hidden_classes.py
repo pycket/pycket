@@ -2,6 +2,7 @@
 from rpython.rlib             import jit, unroll
 from rpython.rlib.objectmodel import specialize
 
+@specialize.call_location()
 def default_newdict():
     return {}
 
@@ -59,9 +60,9 @@ def make_map_type(getter=None, newdict=default_newdict):
 
         def set_storage(self, name, val, storage):
             idx = self.get_index(name)
-            self.storage[idx] = val
+            storage[idx] = val
 
-        @jit.elidable
+        @jit.elidable_promote('all')
         def has_attribute(self, name):
             return name in self.indexes
 
@@ -73,7 +74,7 @@ def make_map_type(getter=None, newdict=default_newdict):
     return Map
 
 # TODO Find a beter name for this
-def make_caching_map_type(getter=None):
+def make_caching_map_type(getter=None, newdict=default_newdict):
 
     assert getter is not None, "must supply a getter name"
 
@@ -89,9 +90,9 @@ def make_caching_map_type(getter=None):
         _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
 
         def __init__(self):
-            self.indexes = {}
-            self.static_data = {}
-            self.dynamic_submaps = {}
+            self.indexes = newdict()
+            self.static_data = newdict()
+            self.dynamic_submaps = newdict()
             self.static_submaps = {}
 
         def iterkeys(self):
@@ -133,7 +134,7 @@ def make_caching_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def add_static_attribute(self, name, value):
-            # assert name not in self.indexes and name not in self.static_data
+            assert name not in self.indexes
             key = (name, value)
             if key not in self.static_submaps:
                 newmap = CachingMap()
@@ -141,22 +142,26 @@ def make_caching_map_type(getter=None):
                 newmap.static_data.update(self.static_data)
                 newmap.static_data[name] = value
                 self.static_submaps[key] = newmap
-                if name in newmap.indexes:
-                    del newmap.indexes[name]
             return self.static_submaps[key]
 
         @jit.elidable_promote('all')
         def add_dynamic_attribute(self, name):
-            # assert name not in self.indexes and name not in self.static_data
+            assert name not in self.indexes and name not in self.static_data
             if name not in self.dynamic_submaps:
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.indexes[name] = len(self.indexes)
                 self.dynamic_submaps[name] = newmap
-                if name in newmap.static_data:
-                    del newmap.static_data[name]
             return self.dynamic_submaps[name]
+
+        @jit.elidable
+        def has_attribute(self, name):
+            return name in self.indexes
+
+        def set_storage(self, name, val, storage):
+            idx = self.get_dynamic_index(name)
+            storage[idx] = val
 
         @jit.elidable
         def is_dynamic_attribute(self, name):

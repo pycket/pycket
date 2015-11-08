@@ -13,7 +13,7 @@ from pycket.impersonators      import (
     make_property_map,
     impersonate_reference_cont
 )
-from pycket.impersonators.map  import make_caching_map_type, make_map_type, make_composite_map_type
+from pycket.hidden_classes     import make_caching_map_type, make_map_type, make_composite_map_type
 from pycket.small_list         import inline_small_list
 from rpython.rlib              import jit, unroll
 from rpython.rlib.objectmodel  import import_from_mixin, specialize, always_inline
