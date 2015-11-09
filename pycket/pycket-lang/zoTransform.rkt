@@ -1,94 +1,12 @@
 #lang racket
 
-(require compiler/zo-parse
-         setup/dirs
-         ;racket/cmdline
-         json)
+(require compiler/zo-parse setup/dirs
+         (only-in pycket/expand hash* global-config))
 
-(require "pycket/pycket-lang/expand.rkt") ;; global-config - hash*
-
-
-(define args (current-command-line-arguments))
-#|
-(define DEBUG 'dummy)
-(define moduleName 'dummy)
-(let ((len (vector-length args)))
-  (if
-   (< len 1) (begin
-               (newline)
-               (display "Usage : racket zoInspect.rkt <sourceName> (<DEBUG>) \n\n<sourceName> : is the file name (without the extension) \nDEBUG: on | off(<-default) : to print the debug info while processing - optional")
-               (newline)(newline)
-               (exit))
-   (begin
-     (set! moduleName (vector-ref args 0))
-     (if (< len 2)
-         (set! DEBUG false)
-         (if (eq? (vector-ref args 1) "on")
-             (set! DEBUG true)
-             (void))))))
-(newline)
-|#
-(define moduleName "fact")
-(define DEBUG true)
-
-
-
-(define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
-(define version (car depFile))
-
+(define DEBUG #f)
 (define pycketDir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
-;; config
-;; global-config
-  
-;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
-;; langDep -> '(collects #"racket" #"main.rkt")
 (define collectsDir (path->string (find-collects-dir)))
-(define langDep (cadddr depFile))
-(define lang (string-append collectsDir "/racket" "/main.rkt"))
-  
-;; module-name          (module-name . "canerStr")
-
-
-
-;; body-forms
-
-(define comp-top (zo-parse (open-input-file (string-append "compiled/" moduleName "_rkt.zo"))))
-
-;; (struct compilation-top zo (max-let-depth prefix code)
-;; (struct prefix zo (num-lifts toplevels stxs)
-
-;; toplevels : #f | global-bucket | module-variable
-
-(define code (compilation-top-code comp-top))
-
-;; (struct mod form (name
-;;  	 	     srcname
-;;  	 	     self-modidx
-;;  	 	     prefix
-;;  	 	     provides
-;;  	 	     requires
-;;  	 	     body
-;;  	 	     syntax-bodies
-;;  	 	     unexported
-;;  	 	     max-let-depth
-;;  	 	     dummy
-;;  	 	     lang-info
-;;  	 	     internal-context
-;;  	 	     flags
-;;  	 	     pre-submodules
-;;  	 	     post-submodules)
-;;
-;;     #:extra-constructor-name make-mod
-;;     #:prefab)
-
-;(mod-name code)
-;(mod-srcname code)
-;(mod-self-modidx code)
-;(mod-prefix code)
-;(mod-provides code) ; each phase maps to two lists: exported variables, exported syntax
-;(mod-requires code) ; each phase maps to a list of imported module paths
-;(mod-body code) ; run-time (phase 0) code -> list of form?
-;(mod-syntax-bodies code)
+(define moduleName 'gonnaBeSetBy-main)
 
 ;; FROM
 ;; https://github.com/racket/compiler/blob/master/compiler-lib/compiler/decompile.rkt#L14
@@ -118,32 +36,6 @@
                    [else #f])])
           (hash-set! table n (car b)))))
     table))
-
-(define toplevels (prefix-toplevels (mod-prefix code)))
-
-(define preConfig (mod-pre-submodules code))
-
-(define runtimeDep (caddr depFile))
-;; '(collects #"racket" #"runtime-config.rkt")
-(define runtimeConfig (string-append collectsDir
-                                     "/" (bytes->string/utf-8 (cadr runtimeDep)) ;"/racket"
-                                     "/" (bytes->string/utf-8 (caddr runtimeDep)) ;"runtime-config.rkt"))
-                                     ))
-
-;; body-forms is a (listof hash hash)
-
-(define config global-config)
-(define language lang)
-(define topmodule moduleName)
-
-(define body1 (hash* 'language (list "#%kernel")
-                     'module-name (symbol->string (mod-srcname (car preConfig)))
-                     'body-forms (list
-                                  (hash* 'require (list (list runtimeConfig)))
-                                  (hash* 'operator (hash* 'source-module (list runtimeConfig)
-                                                          'source-name "configure" ;;; <-- ????
-                                                          )
-                                         'operands (list (hash 'quote #f))))))
 
 (define (compile-json config language topmod body1 body-forms)
   (hash* 'language (list language)
@@ -257,7 +149,7 @@
          [args (to-ast-single args-part toplevels localref-stack)]
 
          ;; construct the lam (lambda () args)
-         [lambda-form (hash* 'source (hash* '%p (string-append pycketDir "custom_" topmodule ".rkt")) ;; toplevel application
+         [lambda-form (hash* 'source (hash* '%p (string-append pycketDir "frombytecode_" moduleName ".rkt")) ;; toplevel application
                              'position 321
                              'span 123
                              'module (hash* '%mpi (hash* '%p (path->string
@@ -365,12 +257,19 @@
     (to-ast-single body toplevels newstack)))
 
 (define (handle-install-value body-form toplevels localref-stack)
+  ;; Runs rhs to obtain count results, and installs them into existing
+  ;; slots on the stack in order, skipping the first pos stack positions.
   (let* ((count (install-value-count body-form))
          (pos (install-value-pos body-form))
          (boxes? (install-value-boxes? body-form))
          (rhs (install-value-rhs body-form))
          (body (install-value-body body-form)))
-    body-form))
+    ;; obtainng boxes
+    (let* ((box-positions (map (λ (p) (+ p pos)) (range count))))
+      (begin
+        (for ([i box-positions])
+          (set-box! (list-ref localref-stack i) 'installed-val))
+        (to-ast-single body toplevels localref-stack)))))
 
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
@@ -380,15 +279,15 @@
           (display (body-name body-form))
           (display "- ")
           (if (localref? body-form)
-              (begin (display (number->string (localref-pos body-form))))
-                     ;(display " - extracting : ")
-                     ;(display (list-ref localref-stack (localref-pos body-form))))
+              (begin (display (number->string (localref-pos body-form)))
+                     (display " - extracting : ")
+                     (display (list-ref localref-stack (localref-pos body-form))))
               (if (primval? body-form)
                   (display (get-primval-name (primval-id body-form)))
                   (display "")))
           (display " - LocalRefStack : ")
           (display (number->string (length localref-stack)))
-          ;(display localref-stack)
+          (display localref-stack)
           (newline)(newline))
         1)
     (cond
@@ -409,8 +308,8 @@
       ((let-void? body-form)
        (handle-let-void body-form toplevels localref-stack))
       ;; install-value
-      #;((install-value? body-form)
-      (handle-install-value body-form toplevels localref-stack))
+      ((install-value? body-form)
+       (handle-install-value body-form toplevels localref-stack))
       ;; set!
       ((assign? body-form) ;; CAUTION : returns list of hash* (instead of hash*)
        (handle-assign body-form toplevels localref-stack))
@@ -458,24 +357,121 @@
                    (newline)(newline)
                    "not supported yet")))))
 
-;; (require compiler/cm)
-;; (managed-compile-zo filePathString)
-
 (define (to-ast body-forms toplevels)
   (map (lambda (form) (to-ast-single form toplevels '())) body-forms))
 
+(define (setGlobals! debug modName)
+  (begin
+    (set! DEBUG debug)
+    (set! moduleName modName)))
 
-(define final-json-hash (compile-json global-config
-                                      lang
-                                      (string-append "custom_" moduleName)
-                                      body1
-                                      (to-ast (mod-body code) toplevels)))
-#|
-(define out (open-output-file (string-append "custom_" topmodule ".rkt.json")
-                              #:exists 'replace))
-(begin
-  (display (string-append "WRITTEN: custom_" topmodule ".rkt.json\n\n"))
-  (write-json final-json-hash out)
-  (newline out)
-  (flush-output out))
-|#
+(module+ main
+  (require racket/cmdline json
+           compiler/cm
+           
+           
+           )
+
+  (define debug #f)
+  
+  (define file.rkt
+    (command-line
+     #:once-each
+     [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+
+     #:args (file.rkt)
+
+     file.rkt))
+
+  (managed-compile-zo file.rkt) ;; compile to bytecode (checks if the source has changed)
+
+  (define modName (substring file.rkt 0 (- (string-length file.rkt) 4))) ;; stripping the extension
+  (setGlobals! debug modName)
+  
+  (define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
+  (define version (car depFile))
+
+
+  ;; config
+  ;; global-config
+  
+  ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
+  ;; langDep -> '(collects #"racket" #"main.rkt")
+
+  (define langDep (cadddr depFile))
+  (define lang (string-append collectsDir "/racket" "/main.rkt"))
+  
+  ;; module-name          (module-name . "canerStr")
+  ;; body-forms
+
+  (define comp-top (zo-parse (open-input-file (string-append "compiled/" moduleName "_rkt.zo"))))
+
+  ;; (struct compilation-top zo (max-let-depth prefix code)
+  ;; (struct prefix zo (num-lifts toplevels stxs)
+
+  ;; toplevels : #f | global-bucket | module-variable
+
+  (define code (compilation-top-code comp-top)) ;; code is a mod
+
+  ;; (struct mod form (name
+  ;;  	 	     srcname
+  ;;  	 	     self-modidx
+  ;;  	 	     prefix
+  ;;  	 	     provides ; each phase maps to two lists: exported variables, exported syntax
+  ;;  	 	     requires ; each phase maps to a list of imported module paths
+  ;;  	 	     body    <<-- run-time (phase 0) code -> listof form?
+  ;;  	 	     syntax-bodies
+  ;;  	 	     unexported
+  ;;  	 	     max-let-depth
+  ;;  	 	     dummy
+  ;;  	 	     lang-info
+  ;;  	 	     internal-context
+  ;;  	 	     flags
+  ;;  	 	     pre-submodules
+  ;;  	 	     post-submodules)
+  ;;
+  ;;     #:extra-constructor-name make-mod
+  ;;     #:prefab)
+
+  (define toplevels (prefix-toplevels (mod-prefix code)))
+
+  (define preConfig (mod-pre-submodules code))
+
+  (define runtimeDep (caddr depFile))
+  ;; '(collects #"racket" #"runtime-config.rkt")
+  (define runtimeConfig (string-append collectsDir
+                                       "/" (bytes->string/utf-8 (cadr runtimeDep)) ;"/racket"
+                                       "/" (bytes->string/utf-8 (caddr runtimeDep)) ;"runtime-config.rkt"))
+                                       ))
+
+  ;; body-forms is a (listof hash hash)
+
+  (define config global-config)
+  (define language lang)
+
+  (define body1 (hash* 'language (list "#%kernel")
+                       'module-name (symbol->string (mod-srcname (car preConfig)))
+                       'body-forms (list
+                                    (hash* 'require (list (list runtimeConfig)))
+                                    (hash* 'operator (hash* 'source-module (list runtimeConfig)
+                                                            'source-name "configure" ;;; <-- ????
+                                                            )
+                                           'operands (list (hash 'quote #f))))))
+  
+
+  (define final-json-hash (compile-json global-config
+                                        lang
+                                        (string-append "frombytecode_" moduleName)
+                                        body1
+                                        (to-ast (mod-body code) toplevels)))
+  
+  (define out (open-output-file (string-append "frombytecode_" moduleName ".rkt.json")
+                                #:exists 'replace))
+  (begin
+    (display (string-append "WRITTEN: frombytecode_" moduleName ".rkt.json\n\n"))
+    (write-json final-json-hash out)
+    (newline out)
+    (flush-output out))
+
+  )
+

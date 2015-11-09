@@ -3,7 +3,7 @@
 #
 import os
 
-from .expand import (expand_file_to_json, expand_code_to_json,
+from .expand import (expand_file_to_json, expand_code_to_json, _expand_file_to_json,
                      ensure_json_ast_eval, ensure_json_ast_run,
                      PermException, SchemeException)
 
@@ -38,7 +38,7 @@ def print_help(argv):
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
-  -j <json_file> : run pycket with a custom json (bypasses rkt to json expansion)
+  -b <file> : run pycket with json generated from bytecode
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
@@ -116,16 +116,16 @@ def parse_args(argv):
             if stop:
                 i += 1
                 break
-        elif argv[i] == "-j":
+        elif argv[i] == "-b":
             arg = argv[i][1]
             if to <= i + 1:
-                print "missing argument after -&s" % arg
+                print "missing argument after -%s" % arg
                 retval = 5
                 break
 
             i += 1
             
-            names['jsonFile'] = "%s" % (argv[i])
+            names['fromBytecodeOf'] = "%s" % (argv[i])
             retval = 0
         else:
             if 'file' in names:
@@ -161,7 +161,15 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if config["mode"] is _eval:
+    if 'fromBytecodeOf' in names:
+        assert False
+        file_name = names['fromBytecodeOf']
+        assert file_name.endswith('.rkt')
+        
+        json_file = "frombytecode_"+file_name+".json"
+        json_file = _expand_file_to_json(file_name, json_file, "-l pycket/zoTransform")
+            
+    elif config["mode"] is _eval:
         code = names['exprs']
         if 'file' in names:
             file_name = names['file']
@@ -169,25 +177,20 @@ def ensure_json_ast(config, names):
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
         
-        if 'jsonFile' in names:
-            json_file = names['jsonFile']
-        else:
-            json_file = ensure_json_ast_eval(code, file_name, stdlib)
+        json_file = ensure_json_ast_eval(code, file_name, stdlib)
             
     elif config["mode"] is _run:
         assert not stdlib
         assert 'file' in names
         file_name = names['file']
-        if 'jsonFile' in names:
-            json_file = names['jsonFile']
+
+        if file_name.endswith('.json'):
+            json_file = file_name
         else:
-            if file_name.endswith('.json'):
-                json_file = file_name
-            else:
-                try:
-                    json_file = ensure_json_ast_run(file_name)
-                except PermException:
-                    json_file = None
+            try:
+                json_file = ensure_json_ast_run(file_name)
+            except PermException:
+                json_file = None
     else:
         raise SchemeException("unknown mode %s" % config["mode"])
     return os.path.abspath(file_name), json_file

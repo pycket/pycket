@@ -141,13 +141,12 @@ def wrap_for_tempfile(fn):
     wrap.__name__ = fn.__name__
     return wrap
 
-
 def expand_file_to_json(rkt_file, json_file):
     if not we_are_translated():
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
     return _expand_file_to_json(rkt_file, json_file)
 
-def _expand_file_to_json(rkt_file, json_file):
+def _expand_file_to_json(rkt_file, json_file, lib=fn):
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -160,10 +159,17 @@ def _expand_file_to_json(rkt_file, json_file):
         pass
     except OSError:
         pass
-    print "Expanding %s to %s" % (rkt_file, json_file)
+
     cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (
         fn,
         json_file, rkt_file)
+
+    if "zoTransform" in lib:
+        print "Transforming %s bytecode to %s" % (rkt_file, json_file)
+        cmd = "racket %s %s" % (lib, rkt_file)
+    else:
+        print "Expanding %s to %s" % (rkt_file, json_file)
+        
     # print cmd
     pipe = create_popen_file(cmd, "r")
     out = pipe.read()
