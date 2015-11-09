@@ -206,20 +206,27 @@ def string_append(args):
         return W_String.fromascii("")
     builder = StringBuilder()
     unibuilder = None
-    for a in args:
-        if not isinstance(a, W_String):
-            raise SchemeException("string-append: expected a string")
-        if unibuilder is None:
-            try:
-                builder.append(a.as_str_ascii())
-                continue
-            except ValueError:
-                unibuilder = UnicodeBuilder()
-                unibuilder.append(unicode(builder.build()))
-        unibuilder.append(a.as_unicode())
+    ascii_idx = 0
+    try:
+        for ascii_idx in range(len(args)):
+            arg = args[ascii_idx]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            builder.append(arg.as_str_ascii())
+    except ValueError:
+        unibuilder = UnicodeBuilder()
+        unibuilder.append(unicode(builder.build()))
+        builder = None
+        for i in range(ascii_idx, len(args)):
+            arg = args[i]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            unibuilder.append(arg.as_unicode())
     if unibuilder is None:
+        assert builder is not None
         return W_String.fromascii(builder.build())
     else:
+        assert unibuilder is not None
         return W_String.fromunicode(unibuilder.build())
 
 @expose("string-length", [W_String])
