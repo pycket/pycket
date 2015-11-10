@@ -371,3 +371,36 @@ def test_mutable_unicode_to_bytes(doctest):
     #"s\303\274\303\237"
     """
 
+def test_list_to_string(doctest):
+    u"""
+    > (list->string '())
+    ""
+    > (list->string '(#\\a #\\b #\\c))
+    "abc"
+    > (list->string '(#\\α #\\β #\\ξ))
+    "αβξ"
+    > (immutable? (list->string '(#\\z)))
+    #f
+    """
+
+def test_string_to_list(doctest):
+    u"""
+    > (string->list "")
+    '()
+    > (string->list "abc")
+    '(#\\a #\\b #\\c)
+    > (string->list "αβξ")
+    '(#\\α #\\β #\\ξ)
+    """
+
+def test_string_length(doctest):
+    u"""
+    > (string-length "")
+    0
+    > (string-length "abc")
+    3
+    > (string-length "wasd")
+    4
+    > (string-length "αβξ")
+    3
+    """
