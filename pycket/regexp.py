@@ -1102,11 +1102,13 @@ def _parse_set(source, info):
     return item.with_flags(case_insensitive=info.flags & IGNORE_CASE)
 
 
-def _parse_set_intersect(source, info):
+def _parse_set_intersect(source, info, extra=None):
     items = [_parse_set_implicit_union(source, info)]
     while source.match("&&"):
         items.append(_parse_set_implicit_union(source, info))
 
+    if extra:
+        items.append(extra)
     if len(items) == 1:
         return items[0]
     return SetIntersection(info, items)
@@ -1155,13 +1157,6 @@ def _parse_set_item(source, info):
             return _parse_posix_class(source, info)
         except ParseError:
             source.pos = here
-    if source.match("["):
-        negate = source.match("^")
-        item = _parse_set_intersect(source, info)
-        source.expect("]")
-        if negate:
-            item = item.with_flags(positive=not item.positive)
-        return item
     ch = source.get()
     if not ch:
         raise RegexpError("bad set")
@@ -1353,3 +1348,4 @@ def compile(cache, pattern, flags=0):
     if not cache.contains(pattern, flags):
         cache.set(pattern, flags, _compile_no_cache(pattern, flags))
     return cache.get(pattern, flags)
+
