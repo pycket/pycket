@@ -642,7 +642,8 @@ def to_value(json):
         if "hash-keys" in obj and "hash-vals" in obj:
             return values_hash.W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
-                    [to_value(i) for i in obj["hash-vals"].value_array()])
+                    [to_value(i) for i in obj["hash-vals"].value_array()],
+                    immutable=True)
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:

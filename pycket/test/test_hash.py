@@ -9,6 +9,7 @@ def test_hash_simple(doctest):
     ! (define ht (make-hash))
     ! (hash-set! ht "apple" '(red round))
     ! (hash-set! ht "banana" '(yellow long))
+    ! (define (f) #hash())
     > (hash-ref ht "apple")
     '(red round)
     E (hash-ref ht "coconut")
@@ -16,6 +17,8 @@ def test_hash_simple(doctest):
     "not there"
     > (hash-count ht)
     2
+    > (eq? (f) (f))
+    #t
     """
 
 def test_hash_immutable(doctest):
@@ -32,6 +35,8 @@ def test_hash_immutable(doctest):
     #f
     > (immutable? (make-hasheqv))
     #f
+    > (immutable? #hash())
+    #t
     """
 
 def test_hasheqv(doctest):
