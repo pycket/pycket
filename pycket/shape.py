@@ -167,20 +167,11 @@ class CompoundShape(Shape):
 
     _config = ShapeConfig()
 
-    _shapes = []
-    @staticmethod
-    def _reset_shapes():
-        "NOT_RPYTHON"
-        CompoundShape._shapes = []
-
     def __init__(self, tag, structure):
         self._structure = structure
         self._tag = tag
         self._hist = {}
         self.transformation_rules = {}
-
-        # dbg
-        self._shapes.append(self)
 
     @jit.unroll_safe
     def get_children(self, w_c):

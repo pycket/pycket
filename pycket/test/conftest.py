@@ -7,16 +7,6 @@ import pycket.config # to configure early
 
 import pytest
 
-# @pytest.fixture(autouse=True)
-# def reset_shapes(request):
-#     """
-#     Reset all shape related stuff before going on to avoid shadowing and
-#     other interferrence
-#     """
-#     from pycket.shape import _Tag, CompoundShape
-#     _Tag._reset_tags()
-#     CompoundShape._reset_shapes()
-
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
     name = 'prog.rkt'
