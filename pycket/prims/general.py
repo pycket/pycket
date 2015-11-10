@@ -15,7 +15,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, make_call_method, define_nyi,
                                  subclass_unsafe)
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
 
@@ -724,11 +724,17 @@ def elidable_length(lst):
         lst = lst.cdr()
     return n
 
+@objectmodel.always_inline
+def unroll_pred(lst, idx, unroll_to=0):
+    if not jit.we_are_jitted():
+        return False
+    return jit.isconstant(lst) or (not jit.isvirtual(lst) and idx > unroll_to)
+
 @jit.unroll_safe
-def virtual_length(lst):
+def virtual_length(lst, unroll_to=0):
     n = 0
     while isinstance(lst, values.W_Cons):
-        if jit.we_are_jitted() and (not jit.isvirtual(lst) or jit.isconstant(lst)):
+        if unroll_pred(lst, n, unroll_to):
             return n + elidable_length(lst)
         n += 1
         lst = lst.cdr()
@@ -738,7 +744,7 @@ def virtual_length(lst):
 def length(a):
     if not a.is_proper_list():
         raise SchemeException("length: not given proper list")
-    return values.W_Fixnum(virtual_length(a))
+    return values.W_Fixnum(virtual_length(a, unroll_to=2))
 
 @expose("list")
 def do_list(args):

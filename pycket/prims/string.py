@@ -118,13 +118,26 @@ def bytes_to_string_latin(str, err, start, end):
 
 @expose("string->list", [W_String])
 def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.as_unicode()])
+    data = s.as_unicode()
+    acc = values.w_null
+    for i in range(len(data) - 1, -1, -1):
+        char = data[i]
+        acc = values.W_Cons.make(values.W_Character(char), acc)
+    return acc
 
 @expose("list->string", [values.W_List])
 def list_to_string(w_list):
-    l = values.from_list(w_list)
-    return string(l)
-
+    if not w_list.is_proper_list():
+        raise SchemeException("list->string: expected proper list")
+    if not isinstance(w_list, values.W_Cons):
+        return W_String.fromascii("")
+    builder = UnicodeBuilder()
+    while isinstance(w_list, values.W_Cons):
+        char, w_list = w_list.car(), w_list.cdr()
+        if not isinstance(char, values.W_Character):
+            raise SchemeException("list->string: expected list of characters")
+        builder.append(char.value)
+    return W_String.fromunicode(builder.build())
 
 ##################################
 
