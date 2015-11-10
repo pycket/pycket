@@ -25,13 +25,13 @@ def str2num(w_s):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 
+    s = w_s.as_str_utf8()
     try:
-        s = w_s.as_str_utf8()
         if "." in s:
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=10))
             except ParseStringOverflowError:
                 return values.W_Bignum(rbigint.rbigint.fromstr(s))
     except ParseStringError as e:
