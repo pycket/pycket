@@ -42,14 +42,14 @@ def do_struct_type_info(struct_type):
 
 @expose("struct-type-make-constructor", [values_struct.W_StructType])
 def do_struct_type_make_constructor(struct_type):
-    if struct_type.inspector is not values_struct.current_inspector:
+    if struct_type.w_inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
     return struct_type.constructor
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType])
 def do_struct_type_make_predicate(struct_type):
-    if struct_type.inspector is not values_struct.current_inspector:
+    if struct_type.w_inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
     return struct_type.predicate

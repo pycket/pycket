@@ -71,7 +71,7 @@ class W_StructType(values.W_Object):
         self.procedure_source = None
         self.w_inspector = w_inspector
         if isinstance(w_proc_spec, values.W_Fixnum):
-            immutables.insert(w_proc_spec.value, 0)
+            immutables.insert(0, w_proc_spec.value)
         self.immutables = immutables[:]
         self.w_guard = w_guard
         self.w_auto_values = [self.w_auto_value] * self.auto_field_count
@@ -396,6 +396,7 @@ class W_PrefabKey(values.W_Object):
         w_auto_value = values.w_false
         super_key = None
         mutables = []
+        name = ""
 
         name_seen = init_seen = auto_seen = mutable_seen = False
 
