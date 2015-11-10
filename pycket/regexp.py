@@ -1102,13 +1102,11 @@ def _parse_set(source, info):
     return item.with_flags(case_insensitive=info.flags & IGNORE_CASE)
 
 
-def _parse_set_intersect(source, info, extra=None):
+def _parse_set_intersect(source, info):
     items = [_parse_set_implicit_union(source, info)]
     while source.match("&&"):
         items.append(_parse_set_implicit_union(source, info))
 
-    if extra:
-        items.append(extra)
     if len(items) == 1:
         return items[0]
     return SetIntersection(info, items)
