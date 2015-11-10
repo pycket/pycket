@@ -482,8 +482,6 @@ def sem_wait(s):
 
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
-    # import pdb; pdb.set_trace()
-    print "FAAAAAAA"
     return p
 
 @continuation
@@ -559,7 +557,6 @@ def do_is_procedure_struct_type(struct_type):
 @expose("procedure-extract-target", [procedure], simple=False)
 def do_procedure_extract_target(proc, env, cont):
     from pycket.interpreter import return_value
-    import pdb; pdb.set_trace()
     if isinstance(proc, values_struct.W_RootStruct):
         prop_procedure = proc.struct_type().prop_procedure
         procedure_source = proc.struct_type().procedure_source

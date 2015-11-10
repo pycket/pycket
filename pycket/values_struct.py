@@ -714,8 +714,6 @@ class W_Struct(W_RootStruct):
     # since impersonators can override struct properties.
     def get_property(self, property, env, cont):
         from pycket.interpreter import return_value
-        # if property.name == 'forcer':
-        #     import pdb; pdb.set_trace()
         val = self.struct_type().read_property_precise(property)
         if val is not None:
             return return_value(val, env, cont)
@@ -802,6 +800,7 @@ class W_NAryStruct(W_Struct):
                 return self.get_children() == other.get_children()
         return False
 
+STORAGE_ATTR_TEMPLATE = "storage_%d"
 
 
 
