@@ -45,7 +45,7 @@ def do_struct_type_make_constructor(struct_type):
     if struct_type.inspector is not values_struct.current_inspector:
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return struct_type.constr
+    return struct_type.constructor
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType])
 def do_struct_type_make_predicate(struct_type):
@@ -63,14 +63,20 @@ def do_struct_type_make_predicate(struct_type):
          default(values.W_Object, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
-    if not (isinstance(super_type, values_struct.W_StructType) or
-            super_type is values.w_false):
+def do_make_struct_type(w_name, w_super_type, w_init_field_count,
+                        w_auto_field_count, w_auto_value, w_properties, w_inspector,
+                        w_proc_spec, w_immutables, w_guard, w_constructor_name,
+                        env, cont):
+    if not (isinstance(w_super_type, values_struct.W_StructType) or
+            w_super_type is values.w_false):
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
-    return values_struct.W_StructType.make(name, super_type, init_field_cnt,
-        auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
-        guard, constr_name, env, cont)
+    return values_struct.W_StructType.make(w_name=w_name,
+        w_super_type=w_super_type, w_init_field_count=w_init_field_count,
+        w_auto_field_count=w_auto_field_count, w_auto_value=w_auto_value,
+        w_properties=w_properties, w_inspector=w_inspector,
+        w_proc_spec=w_proc_spec, w_immutables=w_immutables,
+        w_guard=w_guard, w_constructor_name=w_constructor_name,
+        env=env, cont=cont)
 
 @expose("struct-accessor-procedure?", [values.W_Object])
 def do_is_struct_accessor_procedure(v):
@@ -148,7 +154,7 @@ def mk_stp(sym, guard, supers, _can_imp):
 def unsafe_struct_ref(v, k):
     v = imp.get_base_object(v)
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_count
     return v._ref(k.value)
 
 @expose("unsafe-struct-set!", [values.W_Object, unsafe(values.W_Fixnum),
@@ -157,16 +163,16 @@ def unsafe_struct_set(v, k, val):
     while isinstance(v, imp.W_ChpStruct) or isinstance(v, imp.W_ImpStruct):
         v = v.inner
     assert isinstance(v, values_struct.W_Struct)
-    assert 0 <= k.value < v.struct_type().total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_count
     return v._set(k.value, val)
 
 @expose("unsafe-struct*-ref", [values_struct.W_Struct, unsafe(values.W_Fixnum)])
 def unsafe_struct_star_ref(v, k):
-    assert 0 <= k.value < v.struct_type().total_field_cnt
+    assert 0 <= k.value < v.struct_type().total_field_count
     return v._ref(k.value)
 
 @expose("unsafe-struct*-set!", [values_struct.W_Struct, unsafe(values.W_Fixnum),
     values.W_Object])
 def unsafe_struct_star_set(v, k, val):
-    assert 0 <= k.value <= v.struct_type().total_field_cnt
+    assert 0 <= k.value <= v.struct_type().total_field_count
     return v._set(k.value, val)

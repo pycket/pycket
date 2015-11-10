@@ -468,17 +468,32 @@ def test_make_prefab_struct(doctest):
     """
     > (make-prefab-struct 'clown "Binky" "pie")
     '#s(clown "Binky" "pie")
-    > (make-prefab-struct '(clown 2) "Binky" "pie")
-    '#s(clown "Binky" "pie")
-    > (make-prefab-struct '(clown 2 (0 #f) #()) "Binky" "pie")
-    '#s(clown "Binky" "pie")
-    > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
-    '#s((clown (1 #f)) "Binky" "pie")
-    ;> (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
-    ;'#s((clown (1 #f) #(0)) "Binky" "pie")
+    > (make-prefab-struct '(clown 2) "Binky" "die")
+    '#s(clown "Binky" "die")
+    > (make-prefab-struct '(clown 2 (0 #f) #()) "Binky" "cry")
+    '#s(clown "Binky" "cry")
+    > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "fly")
+    '#s((clown (1 #f)) "Binky" "fly")
+    ; cannot read mutable `#s' form as syntax
+    ;> (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "sky")
+    ;'#s((clown (1 #f) #(0)) "Binky" "sky")
+    > (struct clown ([name #:mutable] [device #:auto]) #:prefab)
+    > (clown-device (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "sky"))
+    "sky"
     """
     assert doctest
 
+def test_prefab_with_mutable(doctest):
+    """
+    > (struct clown ([name #:mutable] [device #:auto]) #:prefab)
+    > (procedure? set-clown-name!)
+    #t
+    > (procedure? clown-device)
+    #t
+    > (clown-device (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "sky"))
+    "sky"
+    """
+    assert doctest
 
 # Structure Type Transformer Binding
 

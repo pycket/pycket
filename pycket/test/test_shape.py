@@ -5,7 +5,7 @@
 #
 import sys
 import py
-
+import pytest
 
 # from pycket.execution import *
 from pycket.shape import *
@@ -24,20 +24,24 @@ def integer(x):return W_Fixnum(x)
 def sym(x): return W_Symbol.make(x)
 
 def w_structtype(
-        name, super=w_false, init_field_cnt=integer(0),
-        auto_field_cnt=integer(0), auto_v=values.w_false,
-        inspector=values.w_false, proc_spec=values.w_false,
-        immutables=values.w_null, guard=values.w_false,
-        constr_name=values.w_false):
-    return W_StructType(
-        name, super, init_field_cnt, auto_field_cnt,
-        auto_v, inspector, proc_spec, immutables, guard, constr_name)
+        w_name, w_super=w_false, w_init_field_count=integer(0),
+        w_auto_field_count=integer(0), w_auto_value=values.w_false,
+        w_inspector=values.w_false, w_proc_spec=values.w_false,
+        w_immutables=values.w_null, w_guard=values.w_false):
+    return W_StructType.make_simple(
+        w_name=w_name, w_super_type=w_super,
+        w_init_field_count=w_init_field_count,
+        w_auto_field_count=w_auto_field_count, w_auto_value=w_auto_value,
+        w_inspector=w_inspector, w_proc_spec=w_proc_spec, w_guard=w_guard,
+        w_immutables=w_immutables)
 
-_nil_tag = struct_tag("nil", 0, w_structtype(sym("nil"), w_false, integer(0)))
+_w_nil_struct_type = w_structtype(sym("nil"), w_false, integer(0))
+_nil_tag = get_struct_tag(_w_nil_struct_type)
 _w_nil = W_NAryStruct(_nil_tag.default_shape)
 _w_nil._init_storage([])
+
 def nil(): return _w_nil
-def is_nil(o): return isinstance(o, W_NAryStruct) and o.get_tag is struct_tag("nil", 0)
+def is_nil(o): return isinstance(o, W_NAryStruct) and o.get_tag() is _nil_tag
 
 def clean_tag(name=None, arity=None, type=None):
     from pycket.shape import _Tag
@@ -45,7 +49,7 @@ def clean_tag(name=None, arity=None, type=None):
         return StructTag(type)
     else:
         w_st = w_structtype(
-            name=sym(name), init_field_cnt=integer(arity))
+            w_name=sym(name), w_init_field_count=integer(arity))
         return StructTag(w_st)
 
 class SConf(object):
@@ -396,9 +400,9 @@ class TestShapeMerger(object):
     #     c = clean_tag("cons", 2)
     #     def _cons(*children):
     #         ch = list(children)
-    #         constr = W_NAryStruct(c.default_shape)
-    #         constr._init_storage(ch)
-    #         return constr
+    #         constructor = W_NAryStruct(c.default_shape)
+    #         constructor._init_storage(ch)
+    #         return constructor
     #     def _conslist(p_list):
     #         result = nil()
     #         for element in reversed(p_list):
@@ -682,9 +686,9 @@ class TestShapeRecognizer(object):
             ch = list(children)
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
         def _conslist(p_list):
             result = nil()
             for element in reversed(p_list):
@@ -748,9 +752,9 @@ class TestShapeRecognizer(object):
             children = list(ch)
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
         def _conslist(p_list):
             result = nil()
             for element in reversed(p_list):
@@ -779,9 +783,9 @@ class TestShapeRecognizer(object):
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         with SConf(substitution_threshold = 17, max_shape_depth = 7):
 
@@ -793,9 +797,9 @@ class TestShapeRecognizer(object):
                     children = list(ch)
                     pre_shape = c.default_shape
                     shape, storage = pre_shape.fusion(children)
-                    constr = W_NAryStruct(shape)
-                    constr._init_storage(storage)
-                    return constr
+                    constructor = W_NAryStruct(shape)
+                    constructor._init_storage(storage)
+                    return constructor
 
                 l = nil()
                 for i in range(num):
@@ -809,9 +813,9 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         # Be near immediate
         with SConf(substitution_threshold = 2):
@@ -853,9 +857,9 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         # Be near immediate
         with SConf(substitution_threshold = 2):
@@ -889,7 +893,7 @@ class TestShapeRecognizer(object):
 
             assert cell3._shape is result_shape
 
-    def test_pre_constr_recursive_structures(self):
+    def test_pre_constructor_recursive_structures(self):
 
         c = clean_tag("cons", 2)
         e = clean_tag("E", 0)
@@ -897,15 +901,15 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         # Be near immediate
         with SConf(substitution_threshold = 2):
@@ -918,7 +922,7 @@ class TestShapeRecognizer(object):
                 assert s2._structure[0] == in_storage_shape
                 assert s2._structure[1] == e.default_shape
 
-    def test_post_constr_recursive_structures(self):
+    def test_post_constructor_recursive_structures(self):
 
         c = clean_tag("cons", 2)
         e = clean_tag("E", 0)
@@ -926,15 +930,15 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         # Be near immediate
         with SConf(substitution_threshold = 2):
@@ -954,9 +958,9 @@ class TestShapeRecognizer(object):
             children = [left, value, right]
             pre_shape = n.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
         def _e(): return integer(1)
 
         # Be near immediate
@@ -1015,25 +1019,25 @@ class TestShapeRecognizer(object):
             assert s._structure[1] == in_storage_shape
             assert s._structure[2] == n.default_shape
 
-    def test_multi_constr_recursive_structures(self):
+    def test_multi_constructor_recursive_structures(self):
 
         print ""
         e = clean_tag("E", 0)
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         n = clean_tag("Node", 3)
         def _node(left, value, right):
             children = [left, value, right]
             pre_shape = n.default_shape
             shape, storage = pre_shape.fusion(children)
-            constr = W_NAryStruct(shape)
-            constr._init_storage(storage)
-            return constr
+            constructor = W_NAryStruct(shape)
+            constructor._init_storage(storage)
+            return constructor
 
         # Be near immediate
         with SConf(substitution_threshold = 2):

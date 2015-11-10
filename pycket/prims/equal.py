@@ -165,9 +165,9 @@ def equal_func_impl(a, b, info, env, cont, n):
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()
         b_type = b.struct_type()
-        w_prop = a_type.read_prop(values_struct.w_prop_equal_hash)
+        w_prop = a_type.read_property(values_struct.w_prop_equal_hash)
         if w_prop:
-            w_prop = b_type.read_prop(values_struct.w_prop_equal_hash)
+            w_prop = b_type.read_property(values_struct.w_prop_equal_hash)
             if w_prop:
                 w_equal_proc, w_hash_proc, w_hash2_proc = equal_hash_args(w_prop)
                 # FIXME: it should work with cycles properly and be an equal?-recur
@@ -178,8 +178,8 @@ def equal_func_impl(a, b, info, env, cont, n):
             # correct, due to side effects, but it is close enough for now.
             # Though the racket documentation says that `equal?` can elide
             # impersonator/chaperone handlers.
-            a_imm = len(a_type.immutables) == a_type.total_field_cnt
-            b_imm = len(b_type.immutables) == b_type.total_field_cnt
+            a_imm = len(a_type.immutables) == a_type.total_field_count
+            b_imm = len(b_type.immutables) == b_type.total_field_count
             a = values_struct.struct2vector(a, immutable=a_imm)
             b = values_struct.struct2vector(b, immutable=b_imm)
             return equal_func_unroll_n(a, b, info, env, cont, n)

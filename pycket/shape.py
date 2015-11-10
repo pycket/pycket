@@ -31,7 +31,6 @@ def _splice(array, array_len, index, insertion, insertion_len):
 
 class _Tag(object):
     tags = {}
-
     _immutable_fields_ = ['name', '_arity', 'default_shape']
 
     def __init__(self, name, arity):
@@ -51,12 +50,18 @@ class _Tag(object):
     # Tags compare by identity, tests only.
     #
     def __eq__(self, other): #pragma: no cover
+        "NOT_RPYTHON"
         return self is other
 
-# def tag(name, arity):
+    @staticmethod
+    def _reset_tags():
+        "NOT_RPYTHON"
+        _Tag.tags = {}
+
+# def tag(name, arity, payload=None):
 #     assert isinstance(name, str)
 #     assert isinstance(arity, int)
-#     tag_ = (name, arity)
+#     tag_ = (name, arity, payload)
 #     tag = _Tag.tags.get(tag_ , None)
 #     if tag is None:
 #         tag = _Tag(name, arity)
@@ -70,7 +75,7 @@ class StructTag(_Tag):
     _immutable_fields_ = ['_struct_type']
     def __init__(self, struct_type):
         name = struct_type.name
-        arity = struct_type.total_field_cnt
+        arity = struct_type.total_field_count
         _Tag.__init__(self, name, arity)
         self._struct_type = struct_type
 
@@ -80,7 +85,7 @@ class StructTag(_Tag):
 def struct_tag(name, arity, type=None):
     assert isinstance(name, str)
     assert isinstance(arity, int)
-    tag_ = (name, arity)
+    tag_ = (name, arity, type)
     tag = _Tag.tags.get(tag_ , None)
     if tag is None:
         assert type is not None
@@ -92,7 +97,7 @@ def struct_tag(name, arity, type=None):
 
 def get_struct_tag(type):
     name = type.name
-    arity = type.total_field_cnt
+    arity = type.total_field_count
     return struct_tag(name, arity, type)
 
 class Shape(object):
@@ -163,6 +168,10 @@ class CompoundShape(Shape):
     _config = ShapeConfig()
 
     _shapes = []
+    @staticmethod
+    def _reset_shapes():
+        "NOT_RPYTHON"
+        CompoundShape._shapes = []
 
     def __init__(self, tag, structure):
         self._structure = structure
@@ -274,7 +283,7 @@ class CompoundShape(Shape):
     def instantiate(self, children):
         from pycket.values_struct import W_Struct
         # TODO.
-        return W_Struct.make_from_shape(self, children)
+        return W_Struct.make_from_shape(children, self)
 
 
     #

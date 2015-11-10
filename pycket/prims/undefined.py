@@ -49,7 +49,7 @@ def csuu(obj):
     if not isinstance(obj, values_struct.W_RootStruct):
         return obj
     typ    = obj.struct_type()
-    fields = typ.total_field_cnt
+    fields = typ.total_field_count
     acc    = [make_accessor(typ.accessor, i) for i in range(fields)]
     mut    = [make_mutator(typ.mutator, i) for i in range(fields)]
     h1     = [accessor_handler] * fields

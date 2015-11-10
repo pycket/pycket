@@ -227,7 +227,7 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
             if struct_type is type:
                 return return_value(v._ref(0), env,
                     receive_first_field(proc, v, v1, v2, env, cont))
-            struct_type = struct_type.super
+            struct_type = struct_type.w_super
     return proc.call([v, v1, v2], env, cont)
 
 ################################################################
@@ -252,19 +252,22 @@ def prim_clos(v):
 ################################################################
 # built-in struct types
 
-def define_struct(name, super=values.w_null, fields=[]):
-    immutables = []
-    for i in range(len(fields)):
-        immutables.append(values.W_Fixnum(i))
-    struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false, values.w_false,
-            values.to_list(immutables)).make_struct_tuple()
+def define_struct(name, w_super=values.w_null, fields=[]):
+    immutables = [i for i in range(len(fields))]
+    struct_type, struct_constructor, struct_pred, struct_acc, struct_mut = \
+        values_struct.W_StructType(
+            name=name,
+            w_super_type=w_super,
+            init_field_count=len(fields),
+            auto_field_count=0,
+            w_auto_value=values.w_false,
+            w_inspector=values.w_false,
+            w_proc_spec=values.w_false,
+            immutables=immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
-    expose_val(name, struct_constr)
+    expose_val(name, struct_constructor)
     # this is almost always also provided
-    expose_val("make-" + name, struct_constr)
+    expose_val("make-" + name, struct_constructor)
     expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
         w_num = values.W_Fixnum(field)
@@ -407,8 +410,9 @@ def set_bang_transformer(v):
     if isinstance(v, values.W_AssignmentTransformer):
         return values.w_true
     elif isinstance(v, values_struct.W_RootStruct):
-        w_prop = v.struct_type().read_prop(values_struct.w_prop_set_bang_transformer)
-        return values.W_Bool.make(w_prop is not None)
+        w_property = v.struct_type().read_property(
+            values_struct.w_prop_set_bang_transformer)
+        return values.W_Bool.make(w_property is not None)
     else:
         return values.w_false
 
@@ -478,6 +482,8 @@ def sem_wait(s):
 
 @expose("procedure-rename", [procedure, values.W_Object])
 def procedure_rename(p, n):
+    # import pdb; pdb.set_trace()
+    print "FAAAAAAA"
     return p
 
 @continuation
@@ -502,7 +508,7 @@ def do_procedure_arity(proc, env, cont):
         result.append(values.W_Fixnum(item))
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(result, env, cont))
+        return arity_at_least.constructor.call(val, env, proc_arity_cont(result, env, cont))
     if len(result) == 1:
         return return_value(result[0], env, cont)
     return return_value(values.to_list(result[:]), env, cont)
@@ -529,8 +535,9 @@ def do_is_procedure_arity(n):
 def procedure_arity_includes(proc, k, kw_ok):
     if kw_ok is values.w_false:
         if isinstance(proc, values_struct.W_RootStruct):
-            w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
-            if w_prop_val is not None:
+            w_property_val = proc.struct_type().read_property(
+                values_struct.w_prop_incomplete_arity)
+            if w_property_val is not None:
                 return values.w_false
     arity = proc.get_arity()
     if isinstance(k, values.W_Fixnum):
@@ -552,6 +559,7 @@ def do_is_procedure_struct_type(struct_type):
 @expose("procedure-extract-target", [procedure], simple=False)
 def do_procedure_extract_target(proc, env, cont):
     from pycket.interpreter import return_value
+    import pdb; pdb.set_trace()
     if isinstance(proc, values_struct.W_RootStruct):
         prop_procedure = proc.struct_type().prop_procedure
         procedure_source = proc.struct_type().procedure_source

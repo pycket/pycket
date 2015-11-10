@@ -333,11 +333,11 @@ def bytes_append(args):
         lens += len(a.value)
 
     val = [' '] * lens # is this the fastest way to do things?
-    cnt = 0
+    count = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        val[cnt:cnt+len(a.value)] = a.value
-        cnt += len(a.value)
+        val[count:count+len(a.value)] = a.value
+        count += len(a.value)
 
     return values.W_MutableBytes(val)
 
