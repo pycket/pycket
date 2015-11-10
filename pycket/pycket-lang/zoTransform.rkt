@@ -3,6 +3,8 @@
 (require compiler/zo-parse setup/dirs
          (only-in pycket/expand hash* global-config))
 
+(provide to-ast)
+
 (define DEBUG #f)
 (define pycketDir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
 (define collectsDir (path->string (find-collects-dir)))
@@ -92,7 +94,7 @@
          (rands (application-rands app-form))
          (newlocalstack (append (map (lambda (x) 'app-empty-slot) (range (length rands)))
                                 localref-stack))
-         ;; because we know that the application will push empty slots when running, so it will push the local references further
+         ;; the application pushes empty slots to run body over, so it will push the current local references further
          ;; we kinda simulate it here to make the localref pos indices point to the right identifier
          (operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))
          )
@@ -100,7 +102,8 @@
            'operands operands-evaluated)))
 
 (define (handle-lambda lam-form toplevels localref-stack is-inlined)
-  (let* ((source (hash* '%p (path->string (vector-ref (lam-name lam-form) 1))))
+  (let* ((name (lam-name lam-form))
+         (source (if (null? name) '() (hash* '%p (path->string (vector-ref name 1)))))
          (position 321) ;; don't know what exactly are these two
          (span 123) 
          ;; module seems to be the same for every lambda form,
@@ -115,12 +118,10 @@
                                                                 (append symbols-for-formals localref-stack))))
          (lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals))
          )
-  (hash* 'source source
-         'position position
-         'span span
-         'module module
-         'lambda lamBda
-         'body (list body))))
+    ;; pycket seems to omit source and position (and sets the span to 0) if lam-name is ()
+    (if (null? source)
+        (hash* 'span 0 'module module 'lambda lamBda 'body (list body))
+        (hash* 'source source 'position position 'span span 'module module 'lambda lamBda 'body (list body)))))
 
 (define (handle-inline-variant iv-form toplevels localref-stack)
   (let ((direct (inline-variant-direct iv-form))
@@ -200,22 +201,26 @@
 
 (define (body-name body-form)
   (cond
+    ((list? body-form) "ATTENTION : we have a LIST")
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
     ((let-one? body-form) "let-one ")
-    ((module-variable? body-form) "module-variable")
-    ((primval? body-form) "primval")
-    ((application? body-form) "application")
-    ((def-values? body-form) "def-values")
-    ((assign? body-form) "SET!")
-    ((branch? body-form) "branch")
-    ((apply-values? body-form) "apply-values")
-    ((localref? body-form) "localref")
-    ((lam? body-form) "lam")
-    ((inline-variant? body-form) "inline-variant")
-    ((closure? body-form) "closure")
-    ((toplevel? body-form) "toplevel")
+    ((let-void? body-form) "let-void ")
+    ((install-value? body-form) "install-value ")
+    ((module-variable? body-form) "module-variable ")
+    ((primval? body-form) "primval ")
+    ((application? body-form) "application ")
+    ((def-values? body-form) "def-values ")
+    ((seq? body-form) "seq ")
+    ((assign? body-form) "SET! ")
+    ((branch? body-form) "branch ")
+    ((apply-values? body-form) "apply-values ")
+    ((localref? body-form) "localref ")
+    ((lam? body-form) "lam ")
+    ((inline-variant? body-form) "inline-variant ")
+    ((closure? body-form) "closure ")
+    ((toplevel? body-form) "toplevel ")
     ((hash? body-form) "Already hashed Val (pushed by let-one)")
     (else "Unknown: ")))
 
@@ -236,7 +241,7 @@
 (define (handle-seq seq-expr toplevels localref-stack)
   (let* ((seqs (seq-forms seq-expr))
          (vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)))
-    (list-ref vals (sub1 (length vals)))))
+    vals)) ;;(list-ref vals (sub1 (length vals)))))
     
 (define (handle-assign body-form toplevels localref-stack)
   (let ((id (assign-id body-form))
@@ -259,17 +264,35 @@
 (define (handle-install-value body-form toplevels localref-stack)
   ;; Runs rhs to obtain count results, and installs them into existing
   ;; slots on the stack in order, skipping the first pos stack positions.
-  (let* ((count (install-value-count body-form))
+  (let* [(count (install-value-count body-form))
          (pos (install-value-pos body-form))
          (boxes? (install-value-boxes? body-form))
          (rhs (install-value-rhs body-form))
-         (body (install-value-body body-form)))
-    ;; obtainng boxes
-    (let* ((box-positions (map (λ (p) (+ p pos)) (range count))))
-      (begin
-        (for ([i box-positions])
-          (set-box! (list-ref localref-stack i) 'installed-val))
-        (to-ast-single body toplevels localref-stack)))))
+         (body (install-value-body body-form))
+         (count-lst (range count))
+
+         (binding-list (map (λ (c) (string-append "inst-val" (number->string c))) count-lst))
+         
+         (box-positions (map (λ (p) (+ p pos)) count-lst))
+         ]
+    (begin
+      ;; setting the boxes that let-void has put in the stack
+      (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list i)))
+      ;; producing json for pycket
+      (hash*
+       ;; let-bindings <- [count] {eval rhs}
+       'let-bindings (list (list binding-list
+                                 (to-ast-single rhs toplevels localref-stack)))
+       ;; let-body <- body
+       'let-body (to-ast-single body toplevels localref-stack)))))
+
+(define (handle-list body-form toplevels localref-stack)
+  ;; currently don't know how we can have a list as a body form,
+  ;; but experiments show that we could have some '()s as arguments to an application
+  ;; pycket seems to reflect this as source-name : "null"
+  (if (not (null? body-form))
+      (error 'handle-list "INVESTIGATE... we seem to have a (not null) list as a single body form in the byte-code")
+      (hash* 'source-name "null")))
 
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
@@ -296,6 +319,8 @@
       ; for-loop
       ;; localref fixnum?
       ;;;;;;;
+      ((list? body-form) 
+       (handle-list body-form toplevels localref-stack))
       ((number? body-form)
        (handle-number body-form))
       ((string? body-form)
