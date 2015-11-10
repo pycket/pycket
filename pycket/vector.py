@@ -14,6 +14,8 @@ from rpython.rlib import debug, jit
 def _find_strategy_class(elements, immutable):
     if not config.strategies or len(elements) == 0:
         # An empty vector stays empty forever. Don't implement special EmptyVectorStrategy.
+        if immutable:
+            return ObjectImmutableVectorStrategy.singleton
         return ObjectVectorStrategy.singleton
     single_class = type(elements[0])
     for elem in elements:
@@ -33,8 +35,9 @@ def _find_strategy_class(elements, immutable):
         if immutable:
             return CharacterImmutableVectorStrategy.singleton
         return CharacterVectorStrategy.singleton
+    if immutable:
+        return ObjectImmutableVectorStrategy.singleton
     return ObjectVectorStrategy.singleton
-
 
 class StrategyVectorMixin(object):
     def get_storage(self):
@@ -73,7 +76,6 @@ class StrategyVectorMixin(object):
         old_list = self.get_strategy().ref_all(self)
         self.set_strategy(new_strategy)
         self.set_storage(new_strategy.create_storage_for_elements(old_list))
-
 
 class W_Vector(W_MVector):
     _immutable_fields_ = ["len"]
