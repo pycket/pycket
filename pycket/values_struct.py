@@ -389,77 +389,78 @@ class W_PrefabKey(values.W_Object):
                                 w_auto_value, mutables, super_key)
 
     @staticmethod
-    def from_raw_key(w_key, total_count=0, is_super=False):
+    @jit.unroll_safe
+    def parse_key(w_key, total_count, is_super):
+        init_count = -1
+        auto_count = 0
+        w_auto_value = values.w_false
+        super_key = None
+        mutables = []
 
-        @jit.unroll_safe
-        def parse_key(w_key, total_count, is_super):
-            init_count = -1
-            auto_count = 0
-            w_auto_value = values.w_false
-            super_key = None
-            mutables = []
+        name_seen = init_seen = auto_seen = mutable_seen = False
 
-            name_seen = init_seen = auto_seen = mutable_seen = False
+        if isinstance(w_key, values.W_Symbol):
+            name = w_key.utf8value
+            init_count = total_count
+            w_key = values.w_null
+            name_seen = True
 
-            if isinstance(w_key, values.W_Symbol):
-                name = w_key.utf8value
-                init_count = total_count
-                w_key = values.w_null
-                name_seen = True
-
-            while w_key is not values.w_null:
-                w_val, w_rest = w_key.to_tuple()
-                if isinstance(w_val, values.W_Symbol):
-                    if name_seen:
-                        # super key
-                        if init_seen:
-                            super_total = total_count - init_count
-                        else:
-                            super_total = total_count
-                        super_key = W_PrefabKey.from_raw_key(
-                            w_key, super_total, True)
-                        # there's nothing after a properly parsed super key
-                        w_rest = values.w_null
+        while w_key is not values.w_null:
+            w_val, w_rest = w_key.to_tuple()
+            if isinstance(w_val, values.W_Symbol):
+                if name_seen:
+                    # super key
+                    if init_seen:
+                        super_total = total_count - init_count
                     else:
-                        # prefab name
-                        assert not (init_seen or auto_seen or mutable_seen)
-                        name = w_val.utf8value
-                        name_seen = True
-                elif isinstance(w_val, values.W_Fixnum):
-                    # init field count
-                    assert name_seen  and not init_seen
-                    init_count = w_val.value
-                    init_seen = True
-                elif isinstance(w_val, values.W_List):
-                    # auto fields
-                    assert name_seen and not auto_seen
-                    if is_super: assert init_seen
-                    w_auto_count, w_val = w_val.to_tuple()
-                    w_auto_value, w_val = w_val.to_tuple()
-                    assert isinstance(w_auto_count, values.W_Fixnum)
-                    auto_count =  w_auto_count.value
-                    auto_seen = True
-                elif isinstance(w_val, values_vector.W_Vector):
-                    # mutable fields
-                    assert name_seen and not mutable_seen
-                    if is_super: assert init_seen
-                    for i in range(w_val.len):
-                        mutable = w_val.ref(i)
-                        assert isinstance(mutable, values.W_Fixnum)
-                        mutables.append(mutable.value)
-                    mutable_seen = True
-                w_key = w_rest
-            assert name_seen
-            if is_super: assert init_seen
-            return (name, init_count, auto_count,
-                    w_auto_value, super_key, mutables)
+                        super_total = total_count
+                    super_key = W_PrefabKey.from_raw_key(
+                        w_key, super_total, True)
+                    # there's nothing after a properly parsed super key
+                    w_rest = values.w_null
+                else:
+                    # prefab name
+                    assert not (init_seen or auto_seen or mutable_seen)
+                    name = w_val.utf8value
+                    name_seen = True
+            elif isinstance(w_val, values.W_Fixnum):
+                # init field count
+                assert name_seen  and not init_seen
+                init_count = w_val.value
+                init_seen = True
+            elif isinstance(w_val, values.W_List):
+                # auto fields
+                assert name_seen and not auto_seen
+                if is_super: assert init_seen
+                w_auto_count, w_val = w_val.to_tuple()
+                w_auto_value, w_val = w_val.to_tuple()
+                assert isinstance(w_auto_count, values.W_Fixnum)
+                auto_count =  w_auto_count.value
+                auto_seen = True
+            elif isinstance(w_val, values_vector.W_Vector):
+                # mutable fields
+                assert name_seen and not mutable_seen
+                if is_super: assert init_seen
+                for i in range(w_val.len):
+                    mutable = w_val.ref(i)
+                    assert isinstance(mutable, values.W_Fixnum)
+                    mutables.append(mutable.value)
+                mutable_seen = True
+            w_key = w_rest
+        assert name_seen
+        if is_super: assert init_seen
+        return (name, init_count, auto_count,
+                w_auto_value, super_key, mutables)
+
+    @staticmethod
+    def from_raw_key(w_key, total_count=0, is_super=False):
 
         name, \
         init_count, \
         auto_count, \
         w_auto_value, \
         super_key, \
-        mutables = parse_key(w_key, total_count, is_super)
+        mutables = W_PrefabKey.parse_key(w_key, total_count, is_super)
 
         if init_count == -1:
             init_count = total_count - auto_count
