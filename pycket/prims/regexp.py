@@ -195,3 +195,35 @@ define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
 # def regexp_replace(pattern, input, insert, input_prefix):
 #     raise NotImplementedError()
 #     return input
+
+@expose("regexp-replace*",
+        [values.W_Object,
+         values.W_Object,
+         values.W_Object,
+         default(values.W_Bytes, EMPTY_BYTES)])
+def regexp_replace_star(pattern, input, insert, prefix):
+    matches = match_positions(pattern, input)
+    if not matches:
+        return input
+    if isinstance(input, values_string.W_String):
+        str = input.as_str_ascii()
+    elif isinstance(input, values.W_Bytes):
+        str = input.as_str()
+    else:
+        raise SchemeException("regexp-replace*: expected string or bytes input")
+    if isinstance(insert, values_string.W_String):
+        ins = insert.as_str_ascii()
+    elif isinstance(insert, values.W_Bytes):
+        ins = insert.as_str()
+    else:
+        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+    lhs = 0
+    negative = []
+    for start, end in matches:
+        assert start >= 0
+        negative.append(str[lhs:start])
+        lsh = end
+    negative.append(str[lhs:])
+    result = ins.join(negative)
+    return values_string.W_String.make(result)
+
