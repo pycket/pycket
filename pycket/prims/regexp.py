@@ -100,6 +100,21 @@ def match_positions(w_re, w_str, start=0, end=sys.maxint):
         return result
     raise SchemeException("regexp-match-positions: can't deal with this type")
 
+def match_all_positions(who, w_re, w_str, start=0, end=sys.maxint):
+    w_re = promote_to_regexp(w_re)
+    if isinstance(w_str, values_string.W_String):
+        s = w_str.as_str_utf8() # XXX for now
+        result = w_re.match_all_string_positions(s, start, end)
+        return result
+    if isinstance(w_str, values.W_Bytes):
+        result = w_re.match_all_string_positions(w_str.as_str(), start, end)
+        return result
+    if isinstance(w_str, values.W_InputPort):
+        assert False, "not yet supported"
+        # result = w_re.match_port_positions(w_str)
+        # return result
+    raise SchemeException("%s: can't deal with this type" % who)
+
 def make_match_list(lst):
     assert lst
     acc = values.w_null
@@ -189,19 +204,12 @@ def regexp_max_lookbehind(obj):
         raise SchemeException("regexp-max-lookbehind: expected regexp or bytes-regexp")
     return values.W_Fixnum(1000)
 
-# FIXME: implementation
-# define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
-                           # default(values.W_Bytes, None)])
-# def regexp_replace(pattern, input, insert, input_prefix):
-#     raise NotImplementedError()
-#     return input
-
-@expose(["regexp-replace", "regexp-replace*"],
+@expose("regexp-replace",
         [values.W_Object,
          values.W_Object,
          values.W_Object,
          default(values.W_Bytes, EMPTY_BYTES)])
-def regexp_replace_star(pattern, input, insert, prefix):
+def regexp_replace(pattern, input, insert, prefix):
     matches = match_positions(pattern, input)
     if not matches:
         return input
@@ -217,9 +225,44 @@ def regexp_replace_star(pattern, input, insert, prefix):
         ins = insert.as_str()
     else:
         raise SchemeException("regexp-replace*: expected string or bytes insert string")
-    subs = values_regex.do_input_substitution(ins, str, matches)
+    formatter = values_regex.parse_insert_string(ins)
+    subs = values_regex.do_input_substitution(formatter, str, matches)
     start, end = matches[0]
     assert start >= 0 and end >= 0
-    result = str[0:start] + subs + str[end:]
+    result = "".join([str[0:start], subs, str[end:]])
     return values_string.W_String.make(result)
+
+@expose("regexp-replace*",
+        [values.W_Object,
+         values.W_Object,
+         values.W_Object,
+         default(values.W_Bytes, EMPTY_BYTES)])
+def regexp_replace_star(pattern, input, insert, prefix):
+    matches = match_all_positions("regexp-replace*", pattern, input)
+    if not matches:
+        return input
+    if isinstance(input, values_string.W_String):
+        str = input.as_str_ascii()
+    elif isinstance(input, values.W_Bytes):
+        str = input.as_str()
+    else:
+        raise SchemeException("regexp-replace*: expected string or bytes input")
+    if isinstance(insert, values_string.W_String):
+        ins = insert.as_str_ascii()
+    elif isinstance(insert, values.W_Bytes):
+        ins = insert.as_str()
+    else:
+        raise SchemeException("regexp-replace*: expected string or bytes insert string")
+    builder = rstring.StringBuilder()
+    lhs = 0
+    formatter = values_regex.parse_insert_string(ins)
+    for match in matches:
+        start, end = match[0]
+        subs = values_regex.do_input_substitution(formatter, str, match)
+        assert start >= 0 and end >= 0 and lhs >= 0
+        builder.append_slice(str, lhs, start)
+        builder.append(subs)
+        lhs = end
+    builder.append_slice(str, lhs, len(str))
+    return values_string.W_String.make(builder.build())
 
