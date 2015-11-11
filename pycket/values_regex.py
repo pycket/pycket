@@ -224,7 +224,6 @@ def parse_insert_string(str):
     return result
 
 def do_input_substitution(formatter, input_string, matched_positions):
-    builder = rstring.StringBuilder()
     matched_strings = [None] * len(matched_positions)
     for i, (start, end) in enumerate(matched_positions):
         assert start >= 0 and end >= 0
