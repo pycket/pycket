@@ -178,9 +178,37 @@ def test_regexp_match_group_with_brackets(doctest):
     '("]" "[" "." "*" "?" "+" "|" "(" ")" "{" "}" "^" "]")
     """
 
-def test_regexp_replace_star(doctest):
-    """
+def test_regexp_replace(doctest):
+    r"""
     ! (require (only-in '#%kernel regexp-replace*))
+    ! (define sample "hello")
+    > (regexp-replace #rx"mi" "mi casa" "su")
+    "su casa"
+    > (regexp-replace #rx"([Mm])i ([a-zA-Z]*)" "Mi Casa" "\\1y \\2")
+    "My Casa"
+    > (regexp-replace #rx"([Mm])i ([a-zA-Z]*)" "mi cerveza Mi Mi Mi"
+                  "\\1y \\2")
+    "my cerveza Mi Mi Mi"
+    > (regexp-replace #rx"x" "12x4x6" "\\\\")
+    "12\\4x6"
+    > (eq? sample (regexp-replace #rx"z" sample "Z"))
+    #t
+    """
+
+def test_regexp_replace_star(doctest):
+    r"""
+    ! (require (only-in '#%kernel regexp-replace*))
+    ! (define sample "hello")
     > (regexp-replace* #rx"mi" "mi casa" "su")
     "su casa"
+    > (regexp-replace* #rx"([Mm])i ([a-zA-Z]*)" "Mi Casa" "\\1y \\2")
+    "My Casa"
+    > (regexp-replace* #rx"([Mm])i ([a-zA-Z]*)" "mi cerveza Mi Mi Mi"
+                  "\\1y \\2")
+    "my cerveza My Mi Mi"
+    > (regexp-replace* #rx"x" "12x4x6" "\\\\")
+    "12\\4\\6"
+    > (eq? sample (regexp-replace* #rx"z" sample "Z"))
+    #t
     """
+

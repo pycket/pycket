@@ -1,10 +1,11 @@
-from pycket.base import W_Object
+from pycket.base  import W_Object
 from pycket.error import SchemeException
-from pycket import values, values_string
-from pycket import regexp
+from pycket       import values, values_string
+from pycket       import regexp
 
-from rpython.rlib.rsre import rsre_core, rsre_char
-from rpython.rlib import buffer, jit
+from rpython.rlib.rsre        import rsre_core, rsre_char
+from rpython.rlib             import buffer, jit, rstring
+from rpython.rlib.objectmodel import specialize
 import sys
 
 CACHE = regexp.RegexpCache()
@@ -50,12 +51,37 @@ class W_AnyRegexp(W_Object):
             self.indexgroup = indexgroup
             self.group_offsets = group_offsets
 
+    def make_ctx(self, s, start, end):
+        start, end = rsre_core._adjust(start, end, len(s))
+        return rsre_core.StrMatchContext(self.code, s, start, end, self.flags)
+
     def match_string(self, s, start=0, end=sys.maxint):
         self.ensure_compiled()
         ctx = rsre_core.search(self.code, s, start=start, end=end)
         if not ctx:
             return None
         return _extract_result(ctx, self.groupcount)
+
+    @specialize.arg(1)
+    def _match_all_strings(self, extract, s, start, end):
+        self.ensure_compiled()
+        ctx = self.make_ctx(s, start, end)
+        matchlist = []
+        while ctx.match_start <= ctx.end:
+            if not rsre_core.search_context(ctx):
+                break
+            match = extract(ctx, self.groupcount)
+            matchlist.append(match)
+            # Advance starting point for next match
+            no_progress = (ctx.match_start == ctx.match_end)
+            ctx.reset(ctx.match_end + no_progress)
+        return matchlist
+
+    def match_all_strings(self, s, start=0, end=sys.maxint):
+        return self._match_all_strings(_extract_result, s, start, end)
+
+    def match_all_string_positions(self, s, start=0, end=sys.maxint):
+        return self._match_all_strings(_extract_spans, s, start, end)
 
     def match_string_positions(self, s, start=0, end=sys.maxint):
         self.ensure_compiled()
@@ -125,4 +151,82 @@ class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass
 class W_BytePRegexp(W_AnyRegexp): pass
+
+class ReplacementOption(object):
+    _attrs_ = []
+    settled = True
+
+    def replace(self, matches):
+        raise NotImplementedError("abstract base class")
+
+class StringLiteral(ReplacementOption):
+    _immutable_fields_ = ['string']
+    def __init__(self, string):
+        self.string = string
+
+    def replace(self, matches):
+        return self.string
+
+    def __repr__(self):
+        return "StringLiteral(%r)" % self.string
+
+class PositionalArg(ReplacementOption):
+    _immutable_fields_ = ['position']
+    def __init__(self, position):
+        self.position = position
+
+    def replace(self, matches):
+        return matches[self.position]
+
+    def __repr__(self):
+        return "PositionalArg(%d)" % self.position
+
+def parse_number(source):
+    acc = 0
+    while not source.at_end():
+        oldpos = source.pos
+        ch = source.get()
+        if not ch.isdigit():
+            source.pos = oldpos
+            return acc
+        acc = 10 * acc + int(ch)
+    return acc
+
+def parse_escape_sequence(source, buffer):
+    if source.match("\\"):
+        buffer.append("\\")
+        return None
+    elif source.match("&"):
+        buffer.append("&")
+        return None
+    elif source.match("$"):
+        return PositionalArg(0)
+    n = parse_number(source)
+    return PositionalArg(n)
+
+def parse_insert_string(str):
+    source = regexp.Source(str)
+    buffer = rstring.StringBuilder()
+    result = []
+    while not source.at_end():
+        if source.match("\\"):
+            escaped = parse_escape_sequence(source, buffer)
+            if escaped is not None:
+                if buffer.getlength():
+                    result.append(StringLiteral(buffer.build()))
+                    buffer = rstring.StringBuilder()
+                result.append(escaped)
+        else:
+            ch = source.get()
+            buffer.append(ch)
+    if buffer.getlength():
+        result.append(StringLiteral(buffer.build()))
+    return result
+
+def do_input_substitution(formatter, input_string, matched_positions):
+    matched_strings = [None] * len(matched_positions)
+    for i, (start, end) in enumerate(matched_positions):
+        assert start >= 0 and end >= 0
+        matched_strings[i] = input_string[start:end]
+    return "".join([fmt.replace(matched_strings) for fmt in formatter])
 
