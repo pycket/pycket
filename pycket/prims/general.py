@@ -1302,6 +1302,7 @@ def raise_arg_err(args):
         raise SchemeException("raise-argument-error: expected string as the second argument")
     if (len(args) == 3):
         # case 1
+        v = args[2]
         raise SchemeException("%s: expected %s but got %s" % (
             name.utf8value, expected.as_str_utf8(), v.tostring()))
     else:
