@@ -179,11 +179,13 @@ def test_regexp_match_group_with_brackets(doctest):
     """
 
 def test_regexp_replace_star(doctest):
-    """
+    r"""
     ! (require (only-in '#%kernel regexp-replace*))
     ! (define sample "hello")
     > (regexp-replace* #rx"mi" "mi casa" "su")
     "su casa"
     > (eq? sample (regexp-replace* #rx"z" sample "Z"))
     #t
+    > (regexp-replace #rx"x" "12x4x6" "\\\\")
+    "12\\4x6"
     """

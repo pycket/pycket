@@ -4,7 +4,7 @@ from pycket import values, values_string
 from pycket import regexp
 
 from rpython.rlib.rsre import rsre_core, rsre_char
-from rpython.rlib import buffer, jit
+from rpython.rlib import buffer, jit, rstring
 import sys
 
 CACHE = regexp.RegexpCache()
@@ -125,4 +125,77 @@ class W_Regexp(W_AnyRegexp): pass
 class W_PRegexp(W_AnyRegexp): pass
 class W_ByteRegexp(W_AnyRegexp): pass
 class W_BytePRegexp(W_AnyRegexp): pass
+
+class ReplacementOption(object):
+    _attrs_ = []
+    settled = True
+
+    def replace(matches):
+        raise NotImplementedError("abstract base class")
+
+class StringLiteral(ReplacementOption):
+    def __init__(self, string):
+        self.string = string
+
+    def replace(self, matches):
+        return self.string
+
+    def __repr__(self):
+        return "StringLiteral(%r)" % self.string
+
+class PositionalArg(ReplacementOption):
+    def __init__(self, position):
+        self.position = position
+
+    def replace(self, matches):
+        return matches[self.position]
+
+    def __repr__(self):
+        return "PositionalArg(%d)" % self.position
+
+def parse_number(source):
+    acc = 0
+    while not source.at_end():
+        ch = source.get()
+        if not ch.isdigit():
+            source.pos -= 1
+            return acc
+        acc = 10 * acc + int(ch)
+    return acc
+
+def parse_escape_sequence(source, buffer):
+    if source.match("\\"):
+        buffer.append("\\")
+        return None
+    elif source.match("&"):
+        buffer.append("&")
+        return None
+    elif source.match("$"):
+        return PositionalArg(0)
+    n = parse_number(source)
+    return PositionalArg(n)
+
+def parse_insert_string(str):
+    source = regexp.Source(str)
+    buffer = rstring.StringBuilder()
+    result = []
+    while not source.at_end():
+        if source.match("\\"):
+            escaped = parse_escape_sequence(source, buffer)
+            if escaped is not None:
+                if buffer.getlength():
+                    result.append(StringLiteral(buffer.build()))
+                    buffer = rstring.StringBuilder()
+                result.append(escaped)
+        else:
+            ch = source.get()
+            buffer.append(ch)
+    if buffer.getlength():
+        result.append(StringLiteral(buffer.build()))
+    return result
+
+def do_input_substitution(insert_string, input_string, matched_positions):
+    formatter = parse_insert_string(insert_string)
+    matched_strings = [input_string[start:end] for start, end in matched_positions]
+    return "".join([fmt.replace(matched_strings) for fmt in formatter])
 

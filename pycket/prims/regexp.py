@@ -3,7 +3,7 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val,
 from pycket import values, values_string, values_regex
 from pycket.error import SchemeException
 
-from rpython.rlib import jit
+from rpython.rlib import jit, rstring
 import sys
 
 @expose("regexp", [values_string.W_String])
@@ -190,13 +190,13 @@ def regexp_max_lookbehind(obj):
     return values.W_Fixnum(1000)
 
 # FIXME: implementation
-define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
-                           default(values.W_Bytes, None)])
+# define_nyi("regexp-replace", [values.W_Object, values.W_Object, values.W_Object,
+                           # default(values.W_Bytes, None)])
 # def regexp_replace(pattern, input, insert, input_prefix):
 #     raise NotImplementedError()
 #     return input
 
-@expose("regexp-replace*",
+@expose(["regexp-replace", "regexp-replace*"],
         [values.W_Object,
          values.W_Object,
          values.W_Object,
@@ -217,13 +217,9 @@ def regexp_replace_star(pattern, input, insert, prefix):
         ins = insert.as_str()
     else:
         raise SchemeException("regexp-replace*: expected string or bytes insert string")
-    lhs = 0
-    negative = []
-    for start, end in matches:
-        assert start >= 0 and end >= 0
-        negative.append(str[lhs:start])
-        lhs = end
-    negative.append(str[lhs:])
-    result = ins.join(negative)
+    subs = values_regex.do_input_substitution(ins, str, matches)
+    start, end = matches[0]
+    assert start >= 0 and end >= 0
+    result = str[0:start] + subs + str[end:]
     return values_string.W_String.make(result)
 
