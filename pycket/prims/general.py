@@ -108,6 +108,7 @@ for args in [
         ("hash-eqv?", values_hash.W_HashTable),
         ("hash-equal?", values_hash.W_HashTable),
         ("hash-weak?", values_hash.W_HashTable),
+        ("cpointer?", values.W_CPointer),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
     make_pred(*args)
@@ -158,7 +159,7 @@ def syntax_source(stx):
 @expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
-    return values.w_false
+    return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))
 
 @expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
 def syntax_numbers(stx):
@@ -986,6 +987,68 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
+
+@expose("andmap", simple=False)
+def andmap(args, env, cont):
+    from pycket.interpreter import return_value
+    if len(args) < 2:
+        raise SchemeException("andmap: expected at least a procedure and a list")
+    f = args[0]
+    if not f.iscallable():
+        raise SchemeException("andmap: expected a procedure, but got %s"%f)
+    ls = args[1:]
+    for l in ls:
+        if not isinstance(l, values.W_List):
+            raise SchemeException("andmap: expected a list, but got %s"%l)
+    return return_value(values.w_void, env, andmap_cont(f, ls, env, cont))
+
+@continuation
+def andmap_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(vals)
+    if val == values.w_false:
+        return_value(val, env, cont)
+    l = ls[0]
+    if l is values.w_null:
+        for l in ls:
+            assert l is values.w_null
+        return return_value(values.w_true, env, cont)
+    cars = [l.car() for l in ls]
+    cdrs = [l.cdr() for l in ls]
+    return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
+
+@expose("ormap", simple=False)
+def ormap(args, env, cont):
+    from pycket.interpreter import return_value
+    if len(args) < 2:
+        raise SchemeException("ormap: expected at least a procedure and a list")
+    f = args[0]
+    if not f.iscallable():
+        raise SchemeException("ormap: expected a procedure, but got %s"%f)
+    ls = args[1:]
+    for l in ls:
+        if not isinstance(l, values.W_List):
+            raise SchemeException("ormap: expected a list, but got %s"%l)
+    return return_value(values.w_void, env, ormap_cont(f, ls, env, cont))
+
+@continuation
+def ormap_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(vals)
+    if val == values.w_true:
+        return_value(val, env, cont)
+    l = ls[0]
+    if l is values.w_null:
+        for l in ls:
+            assert l is values.w_null
+        return return_value(values.w_false, env, cont)
+    cars = [l.car() for l in ls]
+    cdrs = [l.cdr() for l in ls]
+    return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
+
+
 @expose("append")
 @jit.look_inside_iff(
     lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
@@ -1267,6 +1330,18 @@ def mcpt(s):
 def dcpt():
     return values.w_default_continuation_prompt_tag
 
+@expose("call-with-continuation-prompt", simple=False)
+def cwcp(args, env, cont):
+    from pycket.interpreter import return_value
+    # XXX: ignores all the important stuff
+    fun = args[0]
+    tag = args[1]
+    handler = args[2]
+    actuals = args[3:]
+    assert isinstance(fun, values.W_Procedure)
+    return fun.call(actuals, env, cont)
+    
+
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
@@ -1314,8 +1389,8 @@ def raise_arg_err(args):
             raise SchemeException("raise-argument-error: out of bounds number as the third argument")
         v = args[bad_v.value+3]
         # FIXME: actually print the other arguments
-        raise SchemeException("%s: expected %s but got %s;\n\tother arguments were: ..."%(
-             name.utf8value, expected.as_str_utf8(), v.tostring()))
+        raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
+             name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
 
 
 
@@ -1360,6 +1435,11 @@ def find_main_collects():
         [values.W_Object, values.W_Object, default(values.W_Object, None)])
 def mpi_join(a, b, c):
     return values.W_ModulePathIndex()
+
+@expose("module-path-index-resolve",
+        [values.W_ModulePathIndex])
+def mpi_resolve(a):
+    return values.W_ResolvedModulePath(values.W_Path("."))
 
 # Loading
 

@@ -19,6 +19,8 @@ expose_val("_path"   , values.W_Fixnum.make(9))
 expose_val("_void"   , values.W_Fixnum.make(10))
 expose_val("_pointer"  , values.W_Fixnum.make(11))
 expose_val("_fpointer" , values.W_Fixnum.make(12))
+expose_val("_string/utf-16" , values.W_Fixnum.make(13))
+expose_val("_gcpointer" , values.W_Fixnum.make(14))
 
 ctype = values.W_Fixnum
 
@@ -51,3 +53,22 @@ def ffi_lib(o):
 def ffi_lib(args):
     return values.w_false
 
+@expose("malloc")
+def malloc(args):
+    return values.W_CPointer()
+
+@expose("ptr-ref")
+def ptr_ref(args):
+    return values.w_void
+
+@expose("ptr-set!")
+def ptr_set(args):
+    return values.w_void
+
+@expose("cpointer-gcable?")
+def cp_gcable(args):
+    return values.w_false
+
+@expose("ffi-obj")
+def ffi_obj(args):
+    return values.W_CPointer()
