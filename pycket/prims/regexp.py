@@ -55,7 +55,7 @@ def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
          (isinstance(w_re, values_regex.W_PRegexp) or \
           isinstance(w_re, values_regex.W_Regexp) or \
           isinstance(w_re, values_string.W_String)):
-        return values.to_list([values_string.W_String.fromascii(r)
+        return values.to_list([values_string.W_String.fromstr_utf8(r)
                                if r else values.w_false
                                for r in result])
     else:
@@ -89,7 +89,7 @@ def match(w_re, w_str, start=0, end=sys.maxint):
 def match_positions(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
-        s = w_str.as_str_ascii() # XXX for now
+        s = w_str.as_str_utf8() # XXX for now
         result = w_re.match_string_positions(s, start, end)
         return result
     if isinstance(w_str, values.W_Bytes):
@@ -222,7 +222,7 @@ def regexp_replace_star(pattern, input, insert, prefix):
     for start, end in matches:
         assert start >= 0
         negative.append(str[lhs:start])
-        lsh = end
+        lhs = end
     negative.append(str[lhs:])
     result = ins.join(negative)
     return values_string.W_String.make(result)

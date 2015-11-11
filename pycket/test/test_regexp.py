@@ -178,3 +178,9 @@ def test_regexp_match_group_with_brackets(doctest):
     '("]" "[" "." "*" "?" "+" "|" "(" ")" "{" "}" "^" "]")
     """
 
+def test_regexp_replace_star(doctest):
+    """
+    ! (require (only-in '#%kernel regexp-replace*))
+    > (regexp-replace* #rx"mi" "mi casa" "su")
+    "su casa"
+    """
