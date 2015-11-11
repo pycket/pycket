@@ -394,15 +394,26 @@ def dir_list(w_str):
     dir = [values.W_Path(p) for p in os.listdir(s)]
     return values.to_list(dir)
 
+UP = values.W_Symbol.make("up")
+SAME = values.W_Symbol.make("same")
+SEP = values.W_Path(os.sep)
+
+def _explode_element(s):
+    if not s:
+        return SEP
+    if s == ".":
+        return SAME
+    if s == "..":
+        return UP
+    return values.W_Path(s)
+
+
 @expose("explode-path", [values.W_Object])
 def explode_path(w_path):
     sep = os.sep
     path = extract_path(w_path)
-    parts = [values.W_Path(p if p else sep) for p in path.split(sep)] # sorry Windows
+    parts = [_explode_element(p) for p in path.split(sep)]
     return values.to_list(parts)
-
-UP = values.W_Symbol.make("up")
-SAME = values.W_Symbol.make("same")
 
 @expose("build-path")
 def build_path(args):
