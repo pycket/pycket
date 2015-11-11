@@ -1155,13 +1155,6 @@ def _parse_set_item(source, info):
             return _parse_posix_class(source, info)
         except ParseError:
             source.pos = here
-    if source.match("["):
-        negate = source.match("^")
-        item = _parse_set_intersect(source, info)
-        source.expect("]")
-        if negate:
-            item = item.with_flags(positive=not item.positive)
-        return item
     ch = source.get()
     if not ch:
         raise RegexpError("bad set")
@@ -1353,3 +1346,4 @@ def compile(cache, pattern, flags=0):
     if not cache.contains(pattern, flags):
         cache.set(pattern, flags, _compile_no_cache(pattern, flags))
     return cache.get(pattern, flags)
+

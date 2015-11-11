@@ -748,6 +748,10 @@ class W_Path(W_Object):
     errorname = "path"
     def __init__(self, p):
         self.path = p
+    def equal(self, other):
+        if not isinstance(other, W_Path):
+            return False
+        return self.path == other.path
     def tostring(self):
         return "#<path:%s>" % self.path
 

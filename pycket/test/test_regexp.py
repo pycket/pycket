@@ -156,3 +156,31 @@ def test_regexp_match_group_fail(doctest):
     > (regexp-match "(?:^|[^0-9\\(])(\\(([0-9][0-9][0-9])\\)|([0-9][0-9][0-9])) ([0-9][0-9][0-9])[ -]([0-9][0-9][0-9][0-9])(?:[^0-9]|$)" "(375) 729-6365")
     '("(375) 729-6365" "(375)" "375" #f "729" "6365")
     """
+
+def test_regexp_match_group_with_brackets(doctest):
+    r"""
+    ! (require racket/string)
+    > (regexp-match #px"[]]" "]")
+    '("]")
+    > (regexp-match #px"[]]" "d")
+    #f
+    > (regexp-match #px"[^]]" "]")
+    #f
+    > (regexp-match #px"[^]]" "d")
+    '("d")
+    > (regexp-match #px"[][]" "[")
+    '("[")
+    > (regexp-match #px"[][]" "]")
+    '("]")
+    > (regexp-match #px"[][]" "a")
+    #f
+    > (regexp-match* #px"[][.*?+|(){}\\$^]" "][.*?+|(){}\\^]")
+    '("]" "[" "." "*" "?" "+" "|" "(" ")" "{" "}" "^" "]")
+    """
+
+def test_regexp_replace_star(doctest):
+    """
+    ! (require (only-in '#%kernel regexp-replace*))
+    > (regexp-replace* #rx"mi" "mi casa" "su")
+    "su casa"
+    """

@@ -46,6 +46,14 @@ def test_equal():
         '(equal? "abc" "def")',
     )
 
+def test_equal2(doctest):
+    """
+    ! (require racket/base)
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/bash"))
+    #t
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/tcsh"))
+    #f
+    """
 
 ###############################################################################
 
@@ -743,11 +751,14 @@ def test_bytes_conversions():
     vb = m.defs[b]
     assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
 
-
 def test_build_path(doctest):
     """
     > (path->string (build-path "/usr/bin" "bash"))
     "/usr/bin/bash"
+    > (path->string (build-path "/usr" "bin" 'up "bash"))
+    "/usr/bin/../bash"
+    > (path->string (build-path "/usr" "bin" 'same "bash"))
+    "/usr/bin/./bash"
     """
 
 def test_path_to_complete_path():
@@ -762,3 +773,20 @@ def test_path_to_complete_path():
     full = cwd + "/" + "test.rkt"
     assert full == p.path
 
+def test_explode_path(doctest):
+    """
+    ! (require racket/base)
+    ! (define (unpath p) (if (path? p) (path->string p) p))
+    > (map path->string (explode-path "/home/spenser/src/pycket"))
+    '("/" "home" "spenser" "src" "pycket")
+    > (map unpath (explode-path "/home/spenser/src/pycket/.././."))
+    '("/" "home" "spenser" "src" "pycket" up same same)
+    > (map unpath (explode-path "home/spenser/src/pycket/.././."))
+    '("home" "spenser" "src" "pycket" up same same)
+    """
+
+def test_file_size(doctest):
+    """
+    > (file-size "./pycket/test/sample_file.txt")
+    256
+    """

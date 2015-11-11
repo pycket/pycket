@@ -1087,8 +1087,7 @@ def curr_millis():
 @expose("error")
 def error(args):
     if len(args) == 1:
-        sym = args
-        assert isinstance(sym, values.W_Symbol)
+        sym = args[0]
         raise SchemeException("error: %s" % sym.tostring())
     else:
         first_arg = args[0]

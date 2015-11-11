@@ -404,3 +404,17 @@ def test_string_length(doctest):
     > (string-length "αβξ")
     3
     """
+
+def test_string_to_number(doctest):
+    """
+    > (string->number "000")
+    0
+    > (string->number "069")
+    69
+    > (string->number "777")
+    777
+    > (string->number "3.14")
+    3.14
+    > (string->number "1111111112983718926391623986912350912395612093409182368590812")
+    1111111112983718926391623986912350912395612093409182368590812
+    """
