@@ -401,13 +401,21 @@ def explode_path(w_path):
     parts = [values.W_Path(p if p else sep) for p in path.split(sep)] # sorry Windows
     return values.to_list(parts)
 
+UP = values.W_Symbol.make("up")
+SAME = values.W_Symbol.make("same")
+
 @expose("build-path")
 def build_path(args):
     # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
     result = [None] * len(args)
     for i, s in enumerate(args):
-        part = extract_path(s)
+        if s is UP:
+            part = ".."
+        elif s is SAME:
+            part = "."
+        else:
+            part = extract_path(s)
         if not part:
             raise SchemeException("build-path: path element is empty")
         result[i] = part
