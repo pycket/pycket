@@ -757,6 +757,20 @@ def port_print_handler(out, proc):
 def port_count_lines_bang(p):
     return values.w_void
 
+def is_path_string(path):
+    return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
+
+@expose("file-size", [values.W_Object])
+def file_size(obj):
+    if not is_path_string(obj):
+        raise SchemeException("file-size: expected path string")
+    path = extract_path(obj)
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        raise SchemeException("file-size: file %s does not exists" % path)
+    return values.W_Fixnum(size)
+
 @expose("read-bytes", [values.W_Fixnum, default(values.W_InputPort, None)],
         simple=False)
 def read_bytes(amt, w_port, env, cont):

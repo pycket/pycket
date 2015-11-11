@@ -784,3 +784,9 @@ def test_explode_path(doctest):
     > (map unpath (explode-path "home/spenser/src/pycket/.././."))
     '("home" "spenser" "src" "pycket" up same same)
     """
+
+def test_file_size(doctest):
+    """
+    > (file-size "./pycket/test/sample_file.txt")
+    256
+    """
