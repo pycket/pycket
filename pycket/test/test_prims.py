@@ -46,6 +46,14 @@ def test_equal():
         '(equal? "abc" "def")',
     )
 
+def test_equal2(doctest):
+    """
+    ! (require racket/base)
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/bash"))
+    #t
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/tcsh"))
+    #f
+    """
 
 ###############################################################################
 

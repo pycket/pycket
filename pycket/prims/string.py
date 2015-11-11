@@ -72,6 +72,10 @@ def num2str(a, radix):
         else:
             assert 0 # not reached
 
+@expose("string->path", [W_String])
+def string_to_path(str):
+    s = str.as_str_utf8()
+    return values.W_Path(s)
 
 @expose("string->unreadable-symbol", [W_String])
 def string_to_unsymbol(v):
