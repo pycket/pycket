@@ -220,7 +220,7 @@ def regexp_replace_star(pattern, input, insert, prefix):
     lhs = 0
     negative = []
     for start, end in matches:
-        assert start >= 0
+        assert start >= 0 and end >= 0
         negative.append(str[lhs:start])
         lhs = end
     negative.append(str[lhs:])
