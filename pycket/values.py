@@ -352,7 +352,6 @@ class W_WrappedCons(W_Cons):
     def cdr(self):
         return self._cdr
 
-
 class W_WrappedConsProper(W_WrappedCons):
     def is_proper_list(self):
         return True

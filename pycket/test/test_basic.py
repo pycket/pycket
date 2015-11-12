@@ -612,5 +612,18 @@ def test_reader_graph(doctest):
     #t
     > (shared ([x (cons x x)]) (eq? (car x) (cdr x)))
     #t
+    ! (define x (make-placeholder #f))
+    ! (define y (list 1 2 x))
+    > (make-reader-graph 1)
+    1
+    > (make-reader-graph '(1 2))
+    '(1 2)
+    > (placeholder-set! x y)
+    > (length (make-reader-graph y))
+    3
+    > (list? (caddr (make-reader-graph y)))
+    #true
+    > (placeholder? (caddr (make-reader-graph y)))
+    #false
     """
     assert doctest
