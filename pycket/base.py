@@ -1,8 +1,6 @@
-from math                  import ceil, sqrt
-from pycket.error          import SchemeException
-from rpython.tool.pairtype import extendabletype
-from rpython.rlib          import jit, objectmodel
-from pycket.hashabletype   import HashableType
+from pycket.error             import SchemeException
+from rpython.tool.pairtype    import extendabletype
+from rpython.rlib import jit, objectmodel
 
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
@@ -23,7 +21,7 @@ class W_ProtoObject(object):
         raise NotImplementedError("not a real value!")
 
 class W_Object(W_ProtoObject):
-    __metaclass__ = HashableType
+    __metaclass__ = extendabletype
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
     def __init__(self):
@@ -41,9 +39,6 @@ class W_Object(W_ProtoObject):
 
     def iscallable(self):
         return False
-
-    def object_type_hash(self):
-        return self._object_type_hash()
 
     def call(self, args, env, cont):
         raise SchemeException("%s is not callable" % self.tostring())
@@ -107,9 +102,9 @@ class W_Object(W_ProtoObject):
             return None
         return unwrap, cls.errorname
 
-class SingletonMeta(HashableType):
+class SingletonMeta(type):
     def __new__(cls, name, bases, dct):
-        result = HashableType.__new__(cls, name, bases, dct)
+        result = type.__new__(cls, name, bases, dct)
         result.singleton = result()
         return result
 
