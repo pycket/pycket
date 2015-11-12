@@ -488,6 +488,10 @@ def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
     return W_String.fromstr_utf8(bytes.as_str())
 
+@expose("bytes->path", [values.W_Bytes])
+def bytes_to_path(b):
+    return values.W_Path(b.as_str())
+
 ################################################################################
 
 # Character
