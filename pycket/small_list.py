@@ -2,18 +2,24 @@ from pycket import config
 
 from rpython.rlib  import jit, debug, objectmodel
 
-def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_num=False):
+
+def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
+                      attrname="list", factoryname="make", listgettername="_get_full_list",
+                      listsizename="_get_size_list", gettername="_get_list",
+                      settername="_set_list"):
     """
     This function is helpful if you have a class with a field storing a
     list and the list is often very small. Calling this function will inline
     the list into instances for the small sizes. This works by adding the
-    following methods to the class:
+    following methods (names customizable) to the class:
 
     _get_list(self, i): return ith element of the list
 
     _set_list(self, i, val): set ith element of the list
 
     _get_full_list(self): returns a copy of the full list
+
+    _get_size_list(self): returns the length of the list
 
     @staticmethod
     make(listcontent, *args): makes a new instance with the list's content set to listcontent
@@ -50,7 +56,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
                 for i, attr in unrolling_enumerate_attrs:
                     setattr(self, attr, elems[i])
                 cls.__init__(self, *args)
-            meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
+            meths = {gettername: _get_list, listsizename: _get_size_list, listgettername: _get_full_list, settername: _set_list, "__init__" : _init}
             if immutable:
                 meths["_immutable_fields_"] = attrs
             return meths
@@ -67,7 +73,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             debug.make_sure_not_resized(elems)
             setattr(self, attrname, elems)
             cls.__init__(self, *args)
-        meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
+        meths = {gettername: _get_arbitrary, listsizename: _get_size_list_arbitrary, listgettername: _get_list_arbitrary, settername: _set_arbitrary, "__init__": _init}
         if immutable:
             meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
