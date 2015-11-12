@@ -640,9 +640,13 @@ class W_Struct(W_RootStruct):
     @staticmethod
     def make(w_field_values, w_structtype):
         from pycket.shape import get_struct_tag
-        # print "MAKING", w_structtype.tostring(), [s.tostring() for s in field_values]
-        return W_Struct.make_basic(
-            w_field_values, get_struct_tag(w_structtype).default_shape)
+        # print "MAKING", w_structtype.tostring(), [s.tostring() for s in w_field_values],
+        tag = get_struct_tag(w_structtype)
+        pre_shape = tag.default_shape
+        # print "pre:", pre_shape.merge_point_string(),
+        shape, w_storage = pre_shape.fusion(w_field_values)
+        # print "post:", shape.merge_point_string()
+        return W_Struct.make_basic(w_storage, shape)
 
     @staticmethod
     @jit.unroll_safe
