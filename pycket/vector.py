@@ -131,6 +131,10 @@ class W_Vector(W_MVector):
                 return False
         return True
 
+    # The type of a vector factors in the strategy
+    def object_type_hash(self):
+        return self._object_type_hash() * self.strategy._object_type_hash()
+
 class W_FlVector(W_VectorSuper):
     _immutable_fields_ = ["len"]
     errorname = "flvector"

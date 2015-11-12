@@ -6,6 +6,7 @@ from pycket import vector as values_vector
 from pycket.arity import Arity
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
+from pycket.hashabletype import HashableType
 from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
 from pycket.values_parameter import W_Parameter
@@ -49,7 +50,8 @@ class W_StructType(values.W_Object):
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
             "total_field_cnt", "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
-            "constr", "predicate", "accessor", "mutator", "prop_procedure"]
+            "constr", "predicate", "accessor", "mutator", "prop_procedure",
+            "type_tag"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -223,6 +225,9 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
+        # Each struct type gets a unique tag based on its type
+        self.type_tag = HashableType.next_prime()
+
         self.calculate_offsets()
 
         constr_name = (constr_name.utf8value if
@@ -296,6 +301,9 @@ class W_StructType(values.W_Object):
             if p.isinstance(prop):
                 return val
         return None
+
+    def object_type_hash(self):
+        return self.type_tag
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
@@ -653,6 +661,11 @@ class W_Struct(W_RootStruct):
         from pycket.interpreter import return_multi_vals
         return return_multi_vals(
                 values.Values.make([self.struct_type(), values.w_false]), env, cont)
+
+    def object_type_hash(self):
+        # Convolve this struct type's hash with the hash for struct types.
+        # Since the values are primes, this is guaranteed to be unique.
+        return self._type.object_type_hash() * self._object_type_hash()
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):

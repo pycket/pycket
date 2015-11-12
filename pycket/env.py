@@ -123,13 +123,14 @@ class Env(W_Object):
         assert isinstance(self, ToplevelEnv)
         return self
 
+    def type_hash(self):
+        return 0x345678
+
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
-
 class Version(object):
     pass
-
 
 class ToplevelEnv(Env):
     _immutable_fields_ = ["version?", "module_env"]
@@ -218,6 +219,16 @@ class ConsEnv(Env):
                 return v
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
+
+    @jit.unroll_safe
+    def type_hash(self):
+        from rpython.rlib.rarithmetic import intmask
+        size = self._get_size_list()
+        x = self._prev.type_hash()
+        for i in range(size):
+            y = self._get_list(i).object_type_hash()
+            x = intmask((1000003 * x) ^ y)
+        return x
 
     def get_prev(self, env_structure):
         jit.promote(env_structure)

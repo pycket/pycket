@@ -1,5 +1,5 @@
 from pycket.AST               import AST
-from pycket                   import values, values_string, values_parameter
+from pycket                   import base, values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
@@ -7,6 +7,7 @@ from pycket.cont              import Cont, nil_continuation, label, make_return_
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
+from pycket.hashabletype      import HashableType
 
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
@@ -712,7 +713,7 @@ class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
     app_like = True
 
-    def __init__ (self, rator, rands, env_structure=None):
+    def __init__(self, rator, rands, env_structure=None):
         assert rator.simple
         for r in rands:
             assert r.simple
@@ -1220,7 +1221,7 @@ def free_vars_lambda(body, args):
     return x
 
 class CaseLambda(AST):
-    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
+    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "type_tag"]
     simple = True
 
     def __init__(self, lams, recursive_sym=None):
@@ -1232,6 +1233,7 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
+        self.type_tag = HashableType.next_prime()
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
         self._arity = None
@@ -1321,8 +1323,7 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure'
-                          ]
+                          "frees", "enclosing_env_structure", "env_structure"]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1869,23 +1870,24 @@ class DefineValues(AST):
             self.display_names, self.rhs.tostring())
 
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_two_state(version, green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
     if surrounding is not None and green_ast is surrounding.body[0]:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
-    return green_ast.tostring()
+        return green_ast.tostring() + ' from ' + came_from.tostring() + "verion = " + str(version)
+    return green_ast.tostring() + "verion = " + str(version)
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
-                                 greens=["ast", "came_from"],
+                                 greens=["version", "ast", "came_from"],
                                  get_printable_location=get_printable_location_two_state)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
+    version = 0
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+        driver_two_state.jit_merge_point(version=version, ast=ast, came_from=came_from, env=env, cont=cont)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
         else:
@@ -1903,21 +1905,36 @@ def inner_interpret_two_state(ast, env, cont):
         else:
             ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            version = env.type_hash()
+            driver_two_state.can_enter_jit(version=version, ast=ast, came_from=came_from, env=env, cont=cont)
 
-def get_printable_location_one_state(green_ast ):
+def get_printable_location_one_state(version, green_ast):
     if green_ast is None:
-        return 'Green_Ast is None'
-    return green_ast.tostring()
+        return "Green_Ast is None"
+    return "%s version = %d" % (green_ast.tostring(), version)
+
 driver_one_state = jit.JitDriver(reds=["env", "cont"],
-                       greens=["ast"],
+                       greens=["version", "ast"],
                        get_printable_location=get_printable_location_one_state)
 def inner_interpret_one_state(ast, env, cont):
+    version = 0
     while True:
-        driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)
-        ast, env, cont = ast.interpret(env, cont)
+        driver_one_state.jit_merge_point(version=version, ast=ast, env=env, cont=cont)
+        t = type(ast)
+        # Manual conditionals to force specialization in translation
+        # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
+        # (see Jones, Gomard, Sestof 1993)
+        if t is Let:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is If:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is Begin:
+            ast, env, cont = ast.interpret(env, cont)
+        else:
+            ast, env, cont = ast.interpret(env, cont)
         if ast.should_enter:
-            driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
+            version = env.type_hash()
+            driver_one_state.can_enter_jit(version=version, ast=ast, env=env, cont=cont)
 
 def interpret_one(ast, env=None):
     if env is None:

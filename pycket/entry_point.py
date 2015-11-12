@@ -62,7 +62,7 @@ def target(driver, args): #pragma: no cover
     if not config.translation.jit:
         base_name += '-%(backend)s-nojit'
 
-    driver.exe_name = base_name + compute_executable_suffix(config)
+    driver.exe_name = base_name + "-versioning" + compute_executable_suffix(config)
     # it's important that the very first thing we do, before importing anything
     # else from pycket is call expose_options
     expose_options(config)
