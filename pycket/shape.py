@@ -222,9 +222,7 @@ class CompoundShape(Shape):
 
     def build_child(self, new_children):
         (shape, storage) = self.fusion(new_children)
-        child = shape.instantiate(storage)
-        child._init_storage(storage)
-        return child
+        return shape.instantiate(storage)
 
     def replace(self, storage_index, new_shape):
         structure = self._structure[:]
@@ -273,8 +271,7 @@ class CompoundShape(Shape):
 
     def instantiate(self, children):
         from pycket.values_struct import W_Struct
-        # TODO.
-        return W_Struct.make_from_shape(children, self)
+        return W_Struct.make_basic(children, self)
 
 
     #

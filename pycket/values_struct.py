@@ -624,10 +624,25 @@ class W_RootStruct(values.W_Object):
     def vals(self):
         raise NotImplementedError("abstract base class")
 
-# @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
+@inline_small_list(immutable=True, unbox_num=False,
+                   attrname="_storage", factoryname="make_basic",
+                   listgettername="get_storage",
+                   listsizename="get_storage_width",
+                   gettername="get_storage_at",
+                   settername="__unused_set_storage_at__")
 class W_Struct(W_RootStruct):
+    """
+
+    """
     errorname = "struct"
     _immutable_fields_ = ["_shape"]
+
+    @staticmethod
+    def make(w_field_values, w_structtype):
+        from pycket.shape import get_struct_tag
+        # print "MAKING", w_structtype.tostring(), [s.tostring() for s in field_values]
+        return W_Struct.make_basic(
+            w_field_values, get_struct_tag(w_structtype).default_shape)
 
     @staticmethod
     @jit.unroll_safe
@@ -647,26 +662,26 @@ class W_Struct(W_RootStruct):
         assert isinstance(shape, CompoundShape)
         self._shape = shape
 
-    def get_storage(self):
-        return []
-
-    def get_storage_at(self, index):
-        raise IndexError()
-
-    def get_storage_width(self):
-        return 0
-
     def get_tag(self):
         return self.shape()._tag
 
+    # shape api
     def get_children(self):
         return self.shape().get_children(self)
+    # pycket api
+    _get_full_list = get_children
 
+    # shape api
     def get_child(self, index):
         return self.shape().get_child(self, index)
+    # pycket api
+    _get_list = get_child
 
+    # shape api
     def get_number_of_children(self):
         return self.shape().get_number_of_direct_children()
+    # pycket api
+    _get_size_list = get_number_of_children
 
     def shape(self):
         return jit.promote(self._shape)
@@ -775,25 +790,6 @@ class W_Struct(W_RootStruct):
                     ' '.join([val.tostring() for val in self.vals()]))
         return result
 
-class W_NAryStruct(W_Struct):
-    _immutable_fields_ = ['_storage[*]']
-
-    def _init_storage(self, storage):
-        self._storage = storage or []
-
-    def get_storage(self):
-        return self._storage
-    _get_full_list = get_storage
-
-    def get_storage_at(self, index):
-        return self._storage[index]
-
-    _get_list = get_storage_at
-
-    def get_storage_width(self):
-        return len(self._storage)
-    _get_size_list = get_storage_width
-
     # Test only.
     def __eq__(self, other):
         "NOT_RPYTON"
@@ -802,22 +798,7 @@ class W_NAryStruct(W_Struct):
                 return self.get_children() == other.get_children()
         return False
 
-STORAGE_ATTR_TEMPLATE = "storage_%d"
 
-
-
-def _w_struct_make_from_shape(field_values, shape):
-    # print "MAKING", shape.merge_point_string(), [s.tostring() for s in field_values]
-    w_struct = W_NAryStruct(shape)
-    w_struct._init_storage(field_values)
-    return w_struct
-W_Struct.make_from_shape = staticmethod(_w_struct_make_from_shape)
-
-def _w_struct_make(field_values, w_structtype):
-    from pycket.shape import get_struct_tag
-    return W_Struct.make_from_shape(
-        field_values, get_struct_tag(w_structtype).default_shape)
-W_Struct.make = staticmethod(_w_struct_make)
 # 
 
 class W_StructTypeProcedure(values.W_Procedure):

@@ -37,11 +37,10 @@ def w_structtype(
 
 _w_nil_struct_type = w_structtype(sym("nil"), w_false, integer(0))
 _nil_tag = get_struct_tag(_w_nil_struct_type)
-_w_nil = W_NAryStruct(_nil_tag.default_shape)
-_w_nil._init_storage([])
+_w_nil = W_Struct.make_basic([], _nil_tag.default_shape)
 
 def nil(): return _w_nil
-def is_nil(o): return isinstance(o, W_NAryStruct) and o.get_tag() is _nil_tag
+def is_nil(o): return isinstance(o, W_Struct) and o.get_tag() is _nil_tag
 
 def clean_tag(name=None, arity=None, type=None):
     from pycket.shape import _Tag
@@ -74,21 +73,18 @@ class TestShapeAccess(object):
         w_1 = integer(1)
         barf_0 = clean_tag("barf", 0)
         shape = CompoundShape(barf_0, [])
-        c = W_NAryStruct(shape)
-        c._init_storage([])
+        c = W_Struct.make_basic([], shape)
         assert c.get_number_of_children() == 0
 
         barf_1 = clean_tag("barf", 1)
         shape = CompoundShape(barf_1, [in_storage_shape])
-        c = W_NAryStruct(shape)
-        c._init_storage([w_1])
+        c = W_Struct.make_basic([w_1], shape)
         assert c.get_number_of_children() == 1
         assert c.get_child(0) == w_1
 
         barf_2 = clean_tag("barf", 2)
         shape = CompoundShape(barf_2, [in_storage_shape] * 2)
-        c = W_NAryStruct(shape)
-        c._init_storage([w_1, w_1])
+        c = W_Struct.make_basic([w_1, w_1], shape)
         assert c.get_number_of_children() == 2
         assert c.get_child(0) == w_1
         assert c.get_child(1) == w_1
@@ -99,17 +95,14 @@ class TestShapeAccess(object):
 
         barf_1 = clean_tag("barf", 1)
         shape_1 = CompoundShape(barf_1, [in_storage_shape])
-        c_1 = W_NAryStruct(shape_1)
-        c_1._init_storage([w_1])
+        c_1 = W_Struct.make_basic([w_1], shape_1)
         assert c_1.get_number_of_children() == 1
         assert c_1.get_child(0) == w_1
 
         zork_2 = clean_tag("zork", 2)
         shape_2 = CompoundShape(zork_2, [shape_1, shape_1])
-        c_1_1 = W_NAryStruct(shape_1)
-        c_1_1._init_storage([w_1])
-        c_2 = W_NAryStruct(shape_2)
-        c_2._init_storage([w_1, w_1])
+        c_1_1 = W_Struct.make_basic([w_1], shape_1)
+        c_2 = W_Struct.make_basic([w_1, w_1], shape_2)
         assert c_2.get_number_of_children() == 2
         assert c_2.get_child(0) == c_1
         assert c_2.get_child(0).get_child(0) == w_1
@@ -117,15 +110,11 @@ class TestShapeAccess(object):
 
         foo_2 = clean_tag("foo", 2)
         shape_3 = CompoundShape(foo_2, [shape_2, shape_2])
-        c_1_3 = W_NAryStruct(shape_1)
-        c_1_3._init_storage([w_1])
-        c_1_4 = W_NAryStruct(shape_1)
-        c_1_4._init_storage([w_1])
-        c_2_1 = W_NAryStruct(shape_2)
-        c_2_1._init_storage([c_1_3, c_1_4])
+        c_1_3 = W_Struct.make_basic([w_1], shape_1)
+        c_1_4 = W_Struct.make_basic([w_1], shape_1)
+        c_2_1 = W_Struct.make_basic([c_1_3, c_1_4], shape_2)
         # foo(zork(barf(1),barf(1)),zork(barf(1),barf(1)))
-        c_3 = W_NAryStruct(shape_3)
-        c_3._init_storage([w_1,w_1,w_1,w_1])
+        c_3 = W_Struct.make_basic([w_1,w_1,w_1,w_1], shape_3)
         assert c_3.get_number_of_children() == 2
 
         assert c_3.get_child(0) == c_2
@@ -142,17 +131,14 @@ class TestShapeAccess(object):
 
         barf_1 = clean_tag("barf", 1)
         shape_1 = CompoundShape(barf_1, [in_storage_shape])
-        c_1 = W_NAryStruct(shape_1)
-        c_1._init_storage([w_1])
+        c_1 = W_Struct.make_basic([w_1], shape_1)
         assert c_1.get_number_of_children() == 1
         assert c_1.get_child(0) == w_1
 
         zork_2 = clean_tag("zork", 2)
         shape_2 = CompoundShape(zork_2, [shape_1, shape_1])
-        c_1_1 = W_NAryStruct(shape_1)
-        c_1_1._init_storage([w_1])
-        c_2 = W_NAryStruct(shape_2)
-        c_2._init_storage([w_1, w_1])
+        c_1_1 = W_Struct.make_basic([w_1], shape_1)
+        c_2 = W_Struct.make_basic([w_1, w_1], shape_2)
         assert c_2.get_number_of_children() == 2
         assert c_2.get_child(0) == c_1
         assert c_2.get_child(0).get_child(0) == w_1
@@ -166,21 +152,18 @@ class TestShapeAccess(object):
                             shape_1,
                             in_storage_shape]),
                         in_storage_shape])
-        c_1_3 = W_NAryStruct(shape_1)
-        c_1_3._init_storage([w_1])
-        c_1_4 = W_NAryStruct(shape_1)
-        c_1_4._init_storage([w_1])
+        c_1_3 = W_Struct.make_basic([w_1], shape_1)
+        c_1_4 = W_Struct.make_basic([w_1], shape_1)
         s_2_1 = CompoundShape(zork_2, [in_storage_shape, in_storage_shape])
-        c_2_1 = W_NAryStruct(s_2_1)
-        c_2_1._init_storage([c_1_3, c_1_4])
+        c_2_1 = W_Struct.make_basic([c_1_3, c_1_4], s_2_1)
 
         # DIFFERENCE TO other test: not everything is flattened
-        c_3 = W_NAryStruct(shape_3)
-        c_3._init_storage([
+        c_3 = W_Struct.make_basic([
             # zork
             w_1,c_1_1,
             # zork
-            c_2_1])
+            c_2_1
+        ], shape_3)
         assert c_3.get_number_of_children() == 2
         assert c_3.get_child(0) == c_2
         assert c_3.get_child(0).get_child(0) == c_1
@@ -251,24 +234,18 @@ class TestShapeMerger(object):
 
         barf_1 = clean_tag("barf", 1)
         shape_1 = CompoundShape(barf_1, [in_storage_shape])
-        c_1 = W_NAryStruct(shape_1)
-        c_1._init_storage([w_1])
+        c_1 = W_Struct.make_basic([w_1], shape_1)
 
         zork_2 = clean_tag("zork", 2)
         shape_2 = CompoundShape(zork_2, [in_storage_shape, in_storage_shape])
-        c_1_1 = W_NAryStruct(shape_1)
-        c_1_1._init_storage([w_1])
-        c_2 = W_NAryStruct(shape_2)
-        c_2._init_storage([c_1, c_1_1])
+        c_1_1 = W_Struct.make_basic([w_1], shape_1)
+        c_2 = W_Struct.make_basic([c_1, c_1_1], shape_2)
 
         foo_2 = clean_tag("foo", 2)
         shape_3 = CompoundShape(foo_2, [shape_2, shape_2])
-        c_1_3 = W_NAryStruct(shape_1)
-        c_1_3._init_storage([w_1])
-        c_1_4 = W_NAryStruct(shape_1)
-        c_1_4._init_storage([w_1])
-        c_2_1 = W_NAryStruct(shape_2)
-        c_2_1._init_storage([c_1_3, c_1_4])
+        c_1_3 = W_Struct.make_basic([w_1], shape_1)
+        c_1_4 = W_Struct.make_basic([w_1], shape_1)
+        c_2_1 = W_Struct.make_basic([c_1_3, c_1_4], shape_2)
 
         storage = [w_1, w_1, w_1, w_1]
         (new_shape, new_storage) = shape_3.fusion(storage)
@@ -284,10 +261,8 @@ class TestShapeMerger(object):
 
         barf_1 = clean_tag("barf", 1)
         shape_1 = CompoundShape(barf_1, [in_storage_shape])
-        c_1 = W_NAryStruct(shape_1)
-        c_1._init_storage([w_1])
-        c_1_1 = W_NAryStruct(shape_1)
-        c_1_1._init_storage([w_1])
+        c_1 = W_Struct.make_basic([w_1], shape_1)
+        c_1_1 = W_Struct.make_basic([w_1], shape_1)
 
         zork_2 = clean_tag("zork", 2)
         shape_2 = CompoundShape(zork_2, [in_storage_shape, in_storage_shape])
@@ -318,10 +293,8 @@ class TestShapeMerger(object):
 
         barf_1 = clean_tag("barf", 1)
         shape_1 = CompoundShape(barf_1, [in_storage_shape])
-        c_1 = W_NAryStruct(shape_1)
-        c_1._init_storage([w_1])
-        c_1_1 = W_NAryStruct(shape_1)
-        c_1_1._init_storage([w_1])
+        c_1 = W_Struct.make_basic([w_1], shape_1)
+        c_1_1 = W_Struct.make_basic([w_1], shape_1)
 
         zork_2 = clean_tag("zork", 2)
         shape_2 = CompoundShape(zork_2, [in_storage_shape, in_storage_shape])
@@ -341,8 +314,7 @@ class TestShapeMerger(object):
 
         (new_shape, new_storage) = shape_2.fusion(storage)
 
-        c_2 = W_NAryStruct(new_shape)
-        c_2._init_storage(new_storage)
+        c_2 = W_Struct.make_basic(new_storage, new_shape)
 
         foo_2 = clean_tag("foo", 2)
         shape_3 = CompoundShape(foo_2, [shape_2_3, in_storage_shape])
@@ -363,8 +335,7 @@ class TestShapeMerger(object):
 
         nil_ = clean_tag("nil", 0)
         nil_shape = CompoundShape(nil_, [])
-        w_nil_ = W_NAryStruct(nil_shape)
-        w_nil_._init_storage([])
+        w_nil_ = W_Struct.make_basic([], nil_shape)
 
         list_default_shape = CompoundShape(cons_, [in_storage_shape, in_storage_shape])
 
@@ -378,17 +349,15 @@ class TestShapeMerger(object):
 
         (shape, storage) = list_default_shape.fusion([w_1, w_nil_])
 
-        w_list_1 = W_NAryStruct(shape)
-        w_list_1._init_storage(storage)
+        w_list_1 = W_Struct.make_basic(storage, shape)
 
         list_1_shape.transformation_rules[(1, list_1_shape)] = list_2_shape
 
         (shape, storage) = list_default_shape.fusion([w_1, w_list_1])
 
-        w_list_2 = W_NAryStruct(shape)
-        w_list_2._init_storage(storage)
+        w_list_2 = W_Struct.make_basic(storage, shape)
 
-        assert w_list_2._storage == [w_1, w_1]
+        assert w_list_2.get_storage() == [w_1, w_1]
 
     # def test_reverse(self):
 
@@ -400,8 +369,7 @@ class TestShapeMerger(object):
     #     c = clean_tag("cons", 2)
     #     def _cons(*children):
     #         ch = list(children)
-    #         constructor = W_NAryStruct(c.default_shape)
-    #         constructor._init_storage(ch)
+    #         constructor = W_Struct.make_basic(ch, c.default_shape)
     #         return constructor
     #     def _conslist(p_list):
     #         result = nil()
@@ -562,8 +530,7 @@ class TestShapeRecorder(object):
             }
             assert new_shape is shape
 
-            c = W_NAryStruct(new_shape)
-            c._init_storage(new_storage)
+            c = W_Struct.make_basic(new_storage, new_shape)
 
             children_1 = [c]
             new_shape_1, new_storage_1 = shape.merge(children_1)
@@ -588,8 +555,7 @@ class TestShapeRecorder(object):
         zork_2 = clean_tag("zork_2", 2)
         shape = zork_2.default_shape
 
-        c = W_NAryStruct(shape)
-        c._init_storage([nil(), nil()])
+        c = W_Struct.make_basic([nil(), nil()], shape)
 
         shape.record_shapes([c, c])
 
@@ -625,8 +591,7 @@ class TestShapeRecognizer(object):
 
         shape.recognize_transformation(0, shape)
 
-        c = W_NAryStruct(shape)
-        c._init_storage(children)
+        c = W_Struct.make_basic(children, shape)
 
 
         children_1 = [c]
@@ -686,8 +651,7 @@ class TestShapeRecognizer(object):
             ch = list(children)
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
         def _conslist(p_list):
             result = nil()
@@ -752,8 +716,7 @@ class TestShapeRecognizer(object):
             children = list(ch)
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
         def _conslist(p_list):
             result = nil()
@@ -766,9 +729,7 @@ class TestShapeRecognizer(object):
             def check_width(c, width):
                 if isinstance(c, W_Struct) and not is_nil(c):
                     assert c.get_storage_width() < width
-                    # We deliberately use a n-ary Struct, hence,
-                    # know that _structure is there
-                    for child in c._storage:
+                    for child in c.get_storage():
                         check_width(child, width)
 
             sys.setrecursionlimit(100000)
@@ -783,8 +744,7 @@ class TestShapeRecognizer(object):
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         with SConf(substitution_threshold = 17, max_shape_depth = 7):
@@ -797,8 +757,7 @@ class TestShapeRecognizer(object):
                     children = list(ch)
                     pre_shape = c.default_shape
                     shape, storage = pre_shape.fusion(children)
-                    constructor = W_NAryStruct(shape)
-                    constructor._init_storage(storage)
+                    constructor = W_Struct.make_basic(storage, shape)
                     return constructor
 
                 l = nil()
@@ -813,8 +772,7 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         # Be near immediate
@@ -857,8 +815,7 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         # Be near immediate
@@ -901,14 +858,12 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         # Be near immediate
@@ -930,14 +885,12 @@ class TestShapeRecognizer(object):
             children = [car, cdr]
             pre_shape = c.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         # Be near immediate
@@ -958,8 +911,7 @@ class TestShapeRecognizer(object):
             children = [left, value, right]
             pre_shape = n.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
         def _e(): return integer(1)
 
@@ -1026,8 +978,7 @@ class TestShapeRecognizer(object):
         def _e():
             pre_shape = e.default_shape
             shape, storage = pre_shape.fusion([])
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         n = clean_tag("Node", 3)
@@ -1035,8 +986,7 @@ class TestShapeRecognizer(object):
             children = [left, value, right]
             pre_shape = n.default_shape
             shape, storage = pre_shape.fusion(children)
-            constructor = W_NAryStruct(shape)
-            constructor._init_storage(storage)
+            constructor = W_Struct.make_basic(storage, shape)
             return constructor
 
         # Be near immediate
