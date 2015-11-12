@@ -357,7 +357,7 @@ class TestShapeMerger(object):
 
         w_list_2 = W_Struct.make_basic(storage, shape)
 
-        assert w_list_2.get_storage() == [w_1, w_1]
+        assert w_list_2._get_storage() == [w_1, w_1]
 
     # def test_reverse(self):
 
@@ -431,7 +431,7 @@ class TestShapeMerger(object):
     #                 if isinstance(op_stack._data, W_Struct):
     #                     print "[W]", op_stack._data._shape,
     #                     print " storage: ",
-    #                     print storagewalker(op_stack._data.get_storage())
+    #                     print storagewalker(op_stack._data._get_storage())
     #                 else:
     #                     print "[W]", op_stack._data
     #             else:
@@ -728,8 +728,8 @@ class TestShapeRecognizer(object):
 
             def check_width(c, width):
                 if isinstance(c, W_Struct) and not is_nil(c):
-                    assert c.get_storage_width() < width
-                    for child in c.get_storage():
+                    assert c._get_storage_width() < width
+                    for child in c._get_storage():
                         check_width(child, width)
 
             sys.setrecursionlimit(100000)
