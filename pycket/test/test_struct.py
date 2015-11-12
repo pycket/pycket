@@ -568,6 +568,7 @@ def test_struct_immutable_boolean(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+
 def test_struct_immutable_boolean1(source):
     """
     (struct struct-with-immu (a b [c #:mutable]))
@@ -578,6 +579,34 @@ def test_struct_immutable_boolean1(source):
           [immu-ok  (equal? (struct-with-immu-b struct-i) #f)]
           [last-ok  (equal? (struct-with-immu-c struct-i)  3)])
       (and first-ok immu-ok last-ok))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+def test_struct_cons_emulation(source):
+    """
+    (define racket-null null)
+    (struct element ())
+    (let*-values (
+                    [(*e*) (element)]
+                    [(struct:cons cons pair?  cons-ref cons-set!)
+                     (make-struct-type 'cons #f 2 0 #f racket-null (make-inspector) #f '(0 1) #f 'cons)]
+                    [(car) (make-struct-field-accessor cons-ref 0)]
+                    [(cdr) (make-struct-field-accessor cons-ref 1)]
+                    [(null) (cons (void) (void))]
+                    [(null?) (lambda (c) (and (eq? (car c) (void)) (eq? (cdr c) (void))))])
+      (define (make-list n e)
+        (if (= n 0)
+           null
+           (cons e (make-list (- n 1) e))))
+      (define (map proc l) (if (null? l) l (cons (proc (car l)) (map proc (cdr l)))))
+      (define (accumulate op init list) (if (null? list)
+                                           init
+                                           (op (car list)
+                                              (accumulate op init (cdr list)))))
+      (define my-list (make-list 1000 *e*))
+      (define my-num-list (map (lambda (x) (if (element? x) 1 3)) my-list))
+      (= 1001 (accumulate + 1 my-num-list)))
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true

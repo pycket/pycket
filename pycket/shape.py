@@ -186,12 +186,12 @@ class CompoundShape(Shape):
         storage_index = self.structure_to_storage(index)
         subshape = self._structure[index]
         if subshape is in_storage_shape:
-            return w_c.get_storage_at(storage_index)
+            return w_c._get_storage_at(storage_index)
         else:
             newlen = subshape.storage_width()
             endindex = storage_index + newlen
             assert endindex <= self.storage_width()
-            new_storage = (w_c.get_storage())[storage_index:endindex]
+            new_storage = (w_c._get_storage())[storage_index:endindex]
             return subshape.build_child(new_storage)
 
     @jit.unroll_safe
@@ -204,7 +204,7 @@ class CompoundShape(Shape):
         return offset
 
     def get_storage(self, w_c):
-        return w_c.get_storage()
+        return w_c._get_storage()
 
     @jit.unroll_safe
     def storage_width(self):
@@ -239,7 +239,7 @@ class CompoundShape(Shape):
             return
         key = (i, shape)
         count = self._hist[key] if key in self._hist else 0
-        width = child.get_storage_width()
+        width = child._get_storage_width()
         depth = shape.shape_depth()
         if (key not in self.transformation_rules and
             depth < self._config.max_shape_depth and
@@ -305,7 +305,7 @@ class CompoundShape(Shape):
             new_shape = shape.get_transformation(index, subshape)
             if new_shape is not shape:
                 # XXX [child] sometimes?
-                child_storage = child.get_storage()
+                child_storage = child._get_storage()
                 new_storage = _splice(current_storage, storage_len, index,
                                       child_storage, subshape.storage_width())
 
@@ -370,7 +370,7 @@ class CompoundShape(Shape):
 class InStorageShape(Shape):
 
     def extract_child(self, w_c, index):
-        return w_c.get_storage_at(index)
+        return w_c._get_storage_at(index)
 
     def get_number_of_direct_children(self):
         return 0

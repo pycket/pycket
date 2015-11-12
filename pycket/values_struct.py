@@ -626,9 +626,9 @@ class W_RootStruct(values.W_Object):
 
 @inline_small_list(immutable=True, unbox_num=False,
                    attrname="_storage", factoryname="make_basic",
-                   listgettername="get_storage",
-                   listsizename="get_storage_width",
-                   gettername="get_storage_at",
+                   listgettername="_get_storage",
+                   listsizename="_get_storage_width",
+                   gettername="_get_storage_at",
                    settername="__unused_set_storage_at__")
 class W_Struct(W_RootStruct):
     """
