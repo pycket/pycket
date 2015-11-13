@@ -228,7 +228,7 @@ class W_StructType(values.W_Object):
                 self.prop_procedure = w_struct_type.prop_procedure
                 self.procedure_source = w_struct_type.procedure_source
             w_struct_type = w_struct_type.w_super
-        struct_tuple = self.make_struct_tuple()
+        struct_tuple = [self, self.constructor, self.predicate, self.accessor, self.mutator]
         return return_multi_vals(values.Values.make(struct_tuple), env, cont)
 
     @jit.unroll_safe
@@ -287,6 +287,7 @@ class W_StructType(values.W_Object):
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
 
+    @jit.elidable
     def struct_type_info(self):
         w_name = values.W_Symbol.make(self.name)
         w_init_field_count = values.W_Fixnum.make(self.init_field_count)
@@ -303,12 +304,6 @@ class W_StructType(values.W_Object):
             isinstance(self.w_super, W_StructType))
         return [w_name, w_init_field_count, w_auto_field_count, self.accessor,
                 self.mutator, w_immutable_k_list, w_super, w_skipped]
-
-    def make_struct_tuple(self):
-        if self.constructor is None or self.predicate is None or \
-           self.accessor is None or self.mutator is None:
-            self.setup_auxiliary_procedures()
-        return [self, self.constructor, self.predicate, self.accessor, self.mutator]
 
     @jit.elidable_promote('all')
     def read_property_precise(self, property):
@@ -454,6 +449,7 @@ class W_PrefabKey(values.W_Object):
                 w_auto_value, super_key, mutables)
 
     @staticmethod
+    @jit.unroll_safe
     def from_raw_key(w_key, total_count=0, is_super=False):
 
         name, \

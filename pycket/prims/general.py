@@ -254,27 +254,27 @@ def prim_clos(v):
 
 def define_struct(name, w_super=values.w_null, fields=[]):
     immutables = [i for i in range(len(fields))]
-    struct_type, struct_constructor, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType(
-            name=name,
-            w_super_type=w_super,
-            init_field_count=len(fields),
-            auto_field_count=0,
-            w_auto_value=values.w_false,
-            w_inspector=values.w_false,
-            w_proc_spec=values.w_false,
-            immutables=immutables).make_struct_tuple()
-    expose_val("struct:" + name, struct_type)
-    expose_val(name, struct_constructor)
+    w_struct_type = values_struct.W_StructType(
+        name=name,
+        w_super_type=w_super,
+        init_field_count=len(fields),
+        auto_field_count=0,
+        w_auto_value=values.w_false,
+        w_inspector=values.w_false,
+        w_proc_spec=values.w_false,
+        immutables=immutables)
+    expose_val("struct:" + name, w_struct_type)
+    expose_val(name, w_struct_type.constructor)
     # this is almost always also provided
-    expose_val("make-" + name, struct_constructor)
-    expose_val(name + "?", struct_pred)
+    expose_val("make-" + name, w_struct_type.constructor)
+    expose_val(name + "?", w_struct_type.predicate)
+    struct_acc = w_struct_type.accessor
     for field, field_name in enumerate(fields):
         w_num = values.W_Fixnum(field)
         w_name =  values.W_Symbol.make(field_name)
         acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
-    return struct_type
+    return w_struct_type
 
 
 exn = \
