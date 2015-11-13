@@ -1008,11 +1008,9 @@ def andmap_cont(f, ls, env, cont, vals):
     val = check_one_val(vals)
     if val is values.w_false:
         return return_value(val, env, cont)
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_true, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_true, env, cont)
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
@@ -1038,11 +1036,9 @@ def ormap_cont(f, ls, env, cont, vals):
     val = check_one_val(vals)
     if val is values.w_true:
         return return_value(val, env, cont)
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_false, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_false, env, cont)
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
