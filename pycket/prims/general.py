@@ -1006,8 +1006,8 @@ def andmap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val == values.w_false:
-        return_value(val, env, cont)
+    if val is values.w_false:
+        return return_value(val, env, cont)
     l = ls[0]
     if l is values.w_null:
         for l in ls:
@@ -1036,8 +1036,8 @@ def ormap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val == values.w_true:
-        return_value(val, env, cont)
+    if val is values.w_true:
+        return return_value(val, env, cont)
     l = ls[0]
     if l is values.w_null:
         for l in ls:
@@ -1046,7 +1046,6 @@ def ormap_cont(f, ls, env, cont, vals):
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
-
 
 @expose("append")
 @jit.look_inside_iff(
