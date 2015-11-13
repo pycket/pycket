@@ -434,7 +434,13 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
 def test_persistent_hash():
     import operator as op
-    empty = make_persistent_hash_type(object, "table", hash, op.eq)(0, None)
+    hash_cls = make_persistent_hash_type(
+            super=object,
+            name="test-hash-table",
+            hashfun=hash,
+            equalfun=op.eq)
+
+    empty = hash_cls(0, None)
     acc = empty
     for i in range(100000):
         acc = acc.assoc(i % 1000, (i + 1) % 1000)
