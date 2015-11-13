@@ -596,9 +596,9 @@ def test_struct_cons_emulation(source):
                     [(null) (cons (void) (void))]
                     [(null?) (lambda (c) (and (eq? (car c) (void)) (eq? (cdr c) (void))))])
       (define (make-list n e)
-        (if (= n 0)
-           null
-           (cons e (make-list (- n 1) e))))
+        (define (mk-acc m e l)
+          (if (= 0 m) l (mk-acc (- m 1) e (cons e l))))
+        (mk-acc n e null))
       (define (map proc l) (if (null? l) l (cons (proc (car l)) (map proc (cdr l)))))
       (define (accumulate op init list) (if (null? list)
                                            init
