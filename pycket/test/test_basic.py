@@ -608,12 +608,12 @@ def test_should_enter_downrecursion():
 def test_reader_graph(doctest):
     """
     ! (require racket/shared)
+    ! (define x (make-placeholder #f))
+    ! (define y (list 1 2 x))
     > (pair? (shared ([x (cons x x)]) x))
     #t
     > (shared ([x (cons x x)]) (eq? (car x) (cdr x)))
     #t
-    ! (define x (make-placeholder #f))
-    ! (define y (list 1 2 x))
     > (make-reader-graph 1)
     1
     > (make-reader-graph '(1 2))
