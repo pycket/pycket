@@ -7,11 +7,11 @@ MASK_32 = r_uint(0xFFFFFFFF)
 
 # NOT_FOUND = W_ProtoObject()
 
-class Box(object):
-    def __init__(self):
-        self._val = None
-
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
+
+    class Box(object):
+        def __init__(self):
+            self._val = None
 
     class PersistentHashMap(object):
 
