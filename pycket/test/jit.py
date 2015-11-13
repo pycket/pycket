@@ -22,6 +22,36 @@ from pycket.expand import expand, to_ast, expand_string, parse_module, parse_ast
 
 class TestLLtype(LLJitMixin):
 
+    # needs to be fixed to use modules
+    def run_string(self, str):
+        ast = parse_module(expand_string(str))
+        env = ToplevelEnv()
+
+        def interp_w():
+            interpret_module(ast, env)
+
+        interp_w() # check that it runs
+
+        ast = parse_module(expand_string(str))
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    def run_file(self, fname, run_untranslated=True):
+        ast = parse_file(fname)
+        env = ToplevelEnv()
+        env.globalconfig.load(ast)
+        def interp_w():
+            parse_ast('{"quote":{"number":{"integer":"0"}}}')
+            val = interpret_module(ast, env)
+            return val
+
+        if run_untranslated:
+            interp_w()
+
+        ast = parse_file(fname)
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
+
+    ##########################################################
+
     def test_countdown_x(self):
         self.run_string("""
 #lang pycket
@@ -106,20 +136,6 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
-
-    # needs to be fixed to use modules
-    def run_string(self, str):
-        ast = parse_module(expand_string(str))
-        env = ToplevelEnv()
-
-        def interp_w():
-            interpret_module(ast, env)
-
-        interp_w() # check that it runs
-
-        ast = parse_module(expand_string(str))
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
-
     def test_imp_vec(self):
 
         self.run_string("""#lang pycket
@@ -129,21 +145,6 @@ class TestLLtype(LLJitMixin):
       (let lp ([n 0] [i 0])
         (if (>= i 1000) n (lp (+ n (vector-ref v i)) (+ 1 i)))))
 """)
-
-    def run_file(self, fname, run_untranslated=True):
-        ast = parse_file(fname)
-        env = ToplevelEnv()
-        env.globalconfig.load(ast)
-        def interp_w():
-            parse_ast('{"quote":{"number":{"integer":"0"}}}')
-            val = interpret_module(ast, env)
-            return val
-
-        if run_untranslated:
-            interp_w()
-
-        ast = parse_file(fname)
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
     def test_puzzle(self):
@@ -316,7 +317,7 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
 
-    def _cons_map(self):
+    def test_cons_map(self):
         from pycket.expand import expand_string
         from pycket.json import loads
 
@@ -338,16 +339,6 @@ class TestLLtype(LLJitMixin):
 
         self.meta_interp(interp_w, [],
                          listcomp=True, listops=True, backendopt=True)
-
-    def test_scons_map(self):
-        import pycket.values
-        pycket.values._enable_cons_specialization = True
-        self._cons_map()
-
-    def test_ucons_map(self):
-        import pycket.values
-        pycket.values._enable_cons_specialization = False
-        self._cons_map()
 
     def test_countdown_vector_allocation(self):
         ast = to_ast(expand("""
@@ -396,4 +387,9 @@ class TestLLtype(LLJitMixin):
 
     def test_ctak(self):
         self.run_file("ctak.rkt", run_untranslated=False)
+
+    def test_cons_emulation(self):
+        from pycket.test.test_shape import SConf
+        with SConf(substitution_threshold=2):
+            self.run_file("cons-emulation.rkt", run_untranslated=False)
 

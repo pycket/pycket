@@ -493,6 +493,43 @@ class TestShapeMerger(object):
     #     assert python_num(res) == n * n
 
 
+    def test_map(self):
+        from pycket.test.testhelper import run_mod_expr
+        source =  """
+    (define racket-null null)
+    (struct element ())
+    (let*-values (
+                    [(*e*) (element)]
+                    [(struct:cons cons pair?  cons-ref cons-set!)
+                     (make-struct-type 'cons #f 2 0 #f racket-null (make-inspector) #f '(0 1) #f 'cons)]
+                    [(car) (make-struct-field-accessor cons-ref 0)]
+                    [(cdr) (make-struct-field-accessor cons-ref 1)]
+                    [(null) (cons (void) (void))]
+                    [(null?) (lambda (c) (and (eq? (car c) (void)) (eq? (cdr c) (void))))])
+      (define (make-list n e)
+        (if (= n 0)
+           null
+           (cons e (make-list (- n 1) e))))
+      (define (map proc l) (if (null? l) l (cons (proc (car l)) (map proc (cdr l)))))
+      (define (accumulate op init list) (if (null? list)
+                                           init
+                                           (op (car list)
+                                              (accumulate op init (cdr list)))))
+      (define my-list (make-list 999 *e*))
+      (define my-num-list (map (lambda (x) (if (element? x) 1 3)) my-list))
+        my-num-list)
+        """
+        with SConf(
+                max_shape_depth = 7,
+                max_storage_width = 7,
+                substitution_threshold=2):
+            result = run_mod_expr(source, wrap=True)
+
+        # the 20 is random here, just ensure there's some compression
+        for i in range(20): 
+            assert result._get_storage_width() == 8
+            result = result._get_storage()[-1]
+
 
 class TestShapeRecorder(object):
 
