@@ -1,8 +1,7 @@
 from pycket.test.testhelper import run_mod_expr, run_mod
-from pycket.values_hash import (ll_get_dict_item, get_dict_item,
-                                StringHashmapStrategy)
-from pycket.values_hash import ByteHashmapStrategy
-from pycket import values
+from pycket.hash.base       import ll_get_dict_item, get_dict_item
+from pycket.hash.equal      import ByteHashmapStrategy, StringHashmapStrategy
+from pycket                 import values
 
 def test_hash_simple(doctest):
     """
