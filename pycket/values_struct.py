@@ -635,13 +635,11 @@ class W_Struct(W_RootStruct):
 
     @staticmethod
     def make(w_field_values, w_structtype):
-        from pycket.shape import get_struct_tag
-        # print "MAKING", w_structtype.tostring(), [s.tostring() for s in w_field_values],
-        tag = get_struct_tag(w_structtype)
+        tag = jit.promote(w_structtype._tag)
+        # print "MAKING", w_structtype.tostring(), [s.tostring() for s in w_field_values],  tag
         pre_shape = tag.default_shape
-        # print "pre:", pre_shape.merge_point_string(),
         shape, w_storage = pre_shape.fusion(w_field_values)
-        # print "post:", shape.merge_point_string()
+        # print "\tpre: ", pre_shape, pre_shape.merge_point_string(), "\tpost:", shape, shape.merge_point_string()
         return W_Struct.make_basic(w_storage, shape)
 
     @staticmethod
@@ -738,6 +736,7 @@ class W_Struct(W_RootStruct):
             (property.name, property.name, self.tostring()))
 
     def get_arity(self):
+        # XXX: --> struct type?
         if self.iscallable():
             typ = self.struct_type()
             proc = typ.prop_procedure
