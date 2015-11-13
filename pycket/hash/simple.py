@@ -117,3 +117,4 @@ class W_EqHashTable(W_SimpleHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+
