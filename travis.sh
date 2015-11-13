@@ -142,28 +142,10 @@ install_deps() {
 }
 
 _activate_pypyenv() {
-  if [ -f ~/virtualenv/pypy/bin/activate ]; then
-    deactivate || true
-    source ~/virtualenv/pypy/bin/activate
+  if [ \! -f ~/.venv/bin/activate ]; then
+    virtualenv -p /usr/bin/pypy ~/.venv
   fi
-}
-
-install_pypy() {
-  # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
-  # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
-  PYPY_PAK=pypy-4.0.0-linux64.tar.bz2
-  PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
-
-  wget $PYPY_URL
-  tar xjf $PYPY_PAK
-  # ln -s pypy-c-*-linux64 pypy-c
-  ln -s pypy-4.0.0-linux64 pypy-c
-  pip install --upgrade virtualenv
-  virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
-  # fix virtualenv...
-  rm ~/virtualenv/pypy/bin/libpypy-c.so
-  cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
-  _activate_pypyenv
+  source ~/.venv/bin/activate
 }
 
 install_racket() {
@@ -253,7 +235,6 @@ _activate_pypyenv
 case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
-    install_pypy
     install_racket
     install_deps
     ;;

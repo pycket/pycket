@@ -3,6 +3,13 @@ cache: apt
 sudo: false
 python:
 - pypy
+addons:
+  apt:
+    sources:
+      - pypy
+    packages:
+      - pypy
+      - pypy-dev
 notifications:
   irc:
     channels:
