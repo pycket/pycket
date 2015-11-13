@@ -793,3 +793,53 @@ def test_file_size(doctest):
     """
     assert doctest
 
+def test_andmap(doctest):
+    """
+    ! (require (only-in '#%kernel andmap))
+    > (andmap even? '())
+    #t
+    > (andmap even? '(1))
+    #f
+    > (andmap even? '(2))
+    #t
+    > (andmap even? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap even? '(2 4 6 8))
+    #t
+    > (andmap odd? '())
+    #t
+    > (andmap odd? '(1))
+    #t
+    > (andmap odd? '(2))
+    #f
+    > (andmap odd? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_ormap(doctest):
+    """
+    ! (require (only-in '#%kernel ormap))
+    > (ormap even? '())
+    #f
+    > (ormap even? '(1))
+    #f
+    > (ormap even? '(2))
+    #t
+    > (ormap even? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap even? '(2 4 6 8))
+    #f
+    > (ormap odd? '())
+    #t
+    > (ormap odd? '(1))
+    #t
+    > (ormap odd? '(2))
+    #f
+    > (ormap odd? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap odd? '(2 4 6 8))
+    #f
+    """
+
