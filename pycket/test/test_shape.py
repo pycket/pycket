@@ -526,7 +526,7 @@ class TestShapeMerger(object):
             result = run_mod_expr(source, wrap=True)
 
         # the 20 is random here, just ensure there's some compression
-        for i in range(20): 
+        for i in range(20):
             assert result._get_storage_width() == 8
             result = result._get_storage()[-1]
 

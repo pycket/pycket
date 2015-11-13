@@ -126,6 +126,8 @@ class Env(W_Object):
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
+    def shape_tuple(self):
+        raise NotImplementedError("abstract base class")
 
 class Version(object):
     pass
@@ -172,6 +174,15 @@ class ToplevelEnv(Env):
         else:
             self.bindings[sym] = W_Cell(w_val)
             self.version = Version()
+
+
+    @jit.elidable
+    def toplevel_shape_tuple(self):
+        from pycket.shape import find_shape_tuple
+        return find_shape_tuple([])
+
+    def shape_tuple(self):
+        return self.toplevel_shape_tuple()
 
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
@@ -224,6 +235,17 @@ class ConsEnv(Env):
         if env_structure.elems:
             return self._prev
         return self
+
+    @jit.unroll_safe
+    def shape_tuple(self):
+        from pycket.values_struct import W_Struct
+        from pycket.shape import find_shape_tuple
+        shapes = [None] * self._get_size_list()
+        for i in range(self._get_size_list()):
+            w_obj = self._get_list(i)
+            if isinstance(w_obj, W_Struct):
+                shapes[i] = w_obj._shape
+        return find_shape_tuple(shapes)
 
     def __repr__(self):
         return "<%s %r %r>" % (self.__class__.__name__, [x.tostring() for  x in self._get_full_list()], self._prev)

@@ -1870,23 +1870,28 @@ class DefineValues(AST):
             self.display_names, self.rhs.tostring())
 
 
-def get_printable_location_two_state(green_ast, came_from):
+def get_printable_location_two_state(green_ast, came_from, env_shapes):
+    result = ""
     if green_ast is None:
-        return 'Green_Ast is None'
-    surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
-        return green_ast.tostring() + ' from ' + came_from.tostring()
-    return green_ast.tostring()
+        result += 'Green_Ast is None'
+    else:
+        result += green_ast.tostring()
+        surrounding = green_ast.surrounding_lambda
+        if surrounding is not None and green_ast is surrounding.body[0]:
+            result += ' from ' + came_from.tostring()
+    result += env_shapes.merge_point_string()
+    return result
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
-                                 greens=["ast", "came_from"],
+                                 greens=["ast", "came_from", "env_shapes"],
                                  get_printable_location=get_printable_location_two_state)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
+    env_shapes = env.shape_tuple()
     while True:
-        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
+        driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont, env_shapes=env_shapes)
         if config.track_header:
             came_from = ast if ast.should_enter else came_from
         else:
@@ -1903,8 +1908,9 @@ def inner_interpret_two_state(ast, env, cont):
             ast, env, cont = ast.interpret(env, cont)
         else:
             ast, env, cont = ast.interpret(env, cont)
+        env_shapes = env.shape_tuple()
         if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont, env_shapes=env_shapes)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
