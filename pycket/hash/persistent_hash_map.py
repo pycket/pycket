@@ -438,7 +438,16 @@ def test_persistent_hash():
     acc = empty
     for i in range(100000):
         acc = acc.assoc(i % 1000, (i + 1) % 1000)
-    print len(acc)
+    # print len(acc)
+
+def test_regular_hash():
+    empty = {}
+    for i in range(100000):
+        empty[i % 1000] = (i + 1) % 1000
+    # print len(empty)
 
 if __name__ == '__main__':
-    test_persistent_hash()
+    import timeit
+    print timeit.timeit(stmt='test_persistent_hash()', number=1, setup='from __main__ import test_persistent_hash')
+    print timeit.timeit(stmt='test_regular_hash()', number=1, setup='from __main__ import test_regular_hash')
+    # test_persistent_hash()
