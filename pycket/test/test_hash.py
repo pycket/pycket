@@ -1,7 +1,9 @@
-from pycket.test.testhelper import run_mod_expr, run_mod
-from pycket.hash.base       import ll_get_dict_item, get_dict_item
-from pycket.hash.equal      import ByteHashmapStrategy, StringHashmapStrategy
-from pycket                 import values
+import operator as op
+from pycket                          import values
+from pycket.hash.base                import ll_get_dict_item, get_dict_item
+from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from pycket.test.testhelper          import run_mod_expr, run_mod
 
 def test_hash_simple(doctest):
     """
@@ -276,8 +278,6 @@ def test_ll_get_dict_item():
         element = ll_get_dict_item(s_tuple.const, ll_d, i)
         assert (str(i), i) == (hlstr(element.item0), element.item1)
 
-
-
 def test_whitebox_str(source):
     r"""
     (let ([ht (make-hash)] [st (string #\a #\b)])
@@ -332,7 +332,6 @@ def test_hash_iteration_enables_jitting(source):
     f = mod.defs[values.W_Symbol.make('fm')]
     assert f.closure.caselam.lams[0].body[0].should_enter
 
-
 def test_hash_for(doctest):
     """
     ! (require racket/private/for)
@@ -345,3 +344,4 @@ def test_hash_for(doctest):
     > (for/sum ([(k v) ht]) v)
     6
     """
+
