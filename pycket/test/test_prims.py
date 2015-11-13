@@ -830,9 +830,9 @@ def test_ormap(doctest):
     > (ormap even? '(1 2 3 4 5 6 7 8 9))
     #t
     > (ormap even? '(2 4 6 8))
-    #f
-    > (ormap odd? '())
     #t
+    > (ormap odd? '())
+    #f
     > (ormap odd? '(1))
     #t
     > (ormap odd? '(2))
