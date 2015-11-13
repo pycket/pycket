@@ -16,7 +16,7 @@ from pycket import values, values_string
 from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
-from pycket import values_hash
+from pycket.hash.equal import W_EqualHashTable
 
 
 class ExpandException(SchemeException):
@@ -640,7 +640,7 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return values_hash.W_EqualHashTable(
+            return W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()],
                     immutable=True)

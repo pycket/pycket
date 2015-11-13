@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 from pycket              import impersonators as imp
 from pycket              import values
-from pycket              import values_hash
-from pycket.values_hash  import (
-    W_HashTable, W_SimpleHashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
-    make_simple_table, make_simple_table_assocs, w_missing)
+from pycket.hash.base    import W_HashTable, w_missing
+from pycket.hash.simple  import (
+    W_EqvHashTable, W_EqHashTable, W_SimpleHashTable,
+    make_simple_table, make_simple_table_assocs)
+from pycket.hash.equal   import W_EqualHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi

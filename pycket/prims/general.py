@@ -8,10 +8,10 @@ from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_parameter
 from pycket import values_struct
-from pycket import values_hash
 from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
+from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, make_call_method, define_nyi,
                                  subclass_unsafe)
@@ -103,11 +103,11 @@ for args in [
         ("parameterization?", values_parameter.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!
-        ("hash?", values_hash.W_HashTable),
-        ("hash-eq?", values_hash.W_HashTable),
-        ("hash-eqv?", values_hash.W_HashTable),
-        ("hash-equal?", values_hash.W_HashTable),
-        ("hash-weak?", values_hash.W_HashTable),
+        ("hash?", W_HashTable),
+        ("hash-eq?", W_HashTable),
+        ("hash-eqv?", W_HashTable),
+        ("hash-equal?", W_HashTable),
+        ("hash-weak?", W_HashTable),
         ("cpointer?", values.W_CPointer),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
