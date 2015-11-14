@@ -411,10 +411,18 @@ class Module(AST):
         assert isinstance(parent, Module)
         self.parent = parent
 
+    def full_module_path(self):
+        path = []
+        while self is not None:
+            path.append(self.name)
+            self = self.parent
+        return "/".join([i for i in reversed(path)])
+
     @jit.elidable
     def lookup(self, sym):
         if sym not in self.defs:
-            raise SchemeException("unknown module variable %s" % (sym.tostring()))
+            path = self.full_module_path()
+            raise SchemeException("unknown module variable %s in module %s" % (sym.tostring(), path))
         v = self.defs[sym]
         if not v:
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
