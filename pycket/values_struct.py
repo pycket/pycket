@@ -799,6 +799,8 @@ class W_StructConstructor(values.W_Procedure):
         struct_type = jit.promote(self.type)
         if guard_super_values:
             field_values = guard_super_values + field_values[len(guard_super_values):]
+        if len(field_values) != struct_type.init_field_cnt:
+            raise SchemeException("%s: arity mismatch" % self.constr_name)
         if len(struct_type.auto_values) > 0:
             field_values = field_values + struct_type.auto_values
         constant_false = []
