@@ -160,6 +160,9 @@ W_EqImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 
 class __extend__(W_EqvImmutableHashTable):
 
+    def length(self):
+        return self._cnt
+
     def make_copy(self):
         return self
 
@@ -170,6 +173,9 @@ class __extend__(W_EqvImmutableHashTable):
         raise NotImplementedError("todo")
 
 class __extend__(W_EqImmutableHashTable):
+
+    def length(self):
+        return self._cnt
 
     def make_copy(self):
         return self
