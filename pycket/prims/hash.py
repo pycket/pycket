@@ -72,26 +72,29 @@ def hash_for_each_cont(ht, f, index, env, cont, _vals):
 def hash_map(h, f, env, cont):
     from pycket.interpreter import return_value
     acc = values.w_null
-    f.enable_jitting()
-    return return_value(w_missing, env,
-            hash_map_cont(f, h, 0, acc, env, cont))
+    return hash_map_loop(f, h, 0, acc, env, cont)
+    # f.enable_jitting()
+    # return return_value(w_missing, env,
+            # hash_map_cont(f, h, 0, acc, env, cont))
 
-@continuation
-def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
-    from pycket.interpreter import return_value, check_one_val
-    w_val = check_one_val(vals)
-    if w_val is not w_missing:
-        w_acc = values.W_Cons.make(w_val, w_acc)
-    nextindex = index + 1
+@loop_label
+def hash_map_loop(f, ht, index, w_acc, env, cont):
+    from pycket.interpreter import return_value
     try:
         w_key, w_value = ht.get_item(index)
     except KeyError:
-        return return_value(w_missing, env,
-                hash_map_cont(f, ht, nextindex, w_acc, env, cont))
+        return hash_map_loop(f, ht, index + 1, w_acc, env, cont)
     except IndexError:
         return return_value(w_acc, env, cont)
-    after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
+    after = hash_map_cont(f, ht, index, w_acc, env, cont)
     return f.call([w_key, w_value], env, after)
+
+@continuation
+def hash_map_cont(f, ht, index, w_acc, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_val = check_one_val(_vals)
+    w_acc = values.W_Cons.make(w_val, w_acc)
+    return hash_map_loop(f, ht, index + 1, w_acc, env, cont)
 
 @jit.elidable
 def from_assocs(assocs, fname):
