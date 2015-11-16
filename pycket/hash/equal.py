@@ -298,11 +298,15 @@ class ByteHashmapStrategy(HashmapStrategy):
         return r_dict(cmp_bytes, hash_bytes)
 
 class W_EqualHashTable(W_HashTable):
-    _attrs_ = ['strategy', 'hstorage']
+    _attrs_ = ['strategy', 'hstorage', 'is_immutable']
+    _immutable_fields_ = ['is_immutable']
     def __init__(self, keys, vals, immutable=False):
         self.is_immutable = immutable
         self.strategy = _find_strategy_class(keys)
         self.hstorage = self.strategy.create_storage(keys, vals)
+
+    def immutable(self):
+        return self.is_immutable
 
     def hash_items(self):
         return self.strategy.items(self)
