@@ -3,12 +3,12 @@
 (require compiler/zo-parse setup/dirs
          (only-in pycket/expand hash* global-config))
 
-(provide to-ast)
+(provide to-ast-wrapper primitive-table)
 
 (define DEBUG #f)
 (define pycketDir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
 (define collectsDir (path->string (find-collects-dir)))
-(define moduleName 'gonnaBeSetBy-main)
+(define moduleName 'beSetBy-main)
 
 ;; FROM
 ;; https://github.com/racket/compiler/blob/master/compiler-lib/compiler/decompile.rkt#L14
@@ -389,6 +389,11 @@
   (begin
     (set! DEBUG debug)
     (set! moduleName modName)))
+
+(define (to-ast-wrapper body-forms toplevels debug modName)
+  (begin
+    (setGlobals! debug modName)
+    (to-ast body-forms toplevels)))
 
 (module+ main
   (require racket/cmdline json
