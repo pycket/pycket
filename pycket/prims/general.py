@@ -987,7 +987,6 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-
 @expose("andmap", simple=False)
 def andmap(args, env, cont):
     from pycket.interpreter import return_value

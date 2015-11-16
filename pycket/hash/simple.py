@@ -1,33 +1,61 @@
 
-from pycket                   import values
-from pycket.cont              import label
-from pycket.error             import SchemeException
-from pycket.hash.base         import W_HashTable, w_missing, get_dict_item
-from rpython.rlib.objectmodel import compute_hash, r_dict, specialize
+from pycket                          import values
+from pycket.cont                     import label
+from pycket.error                    import SchemeException
+from pycket.hash.base                import (
+    W_MutableHashTable,
+    W_ImmutableHashTable,
+    w_missing,
+    get_dict_item)
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from rpython.rlib.objectmodel        import compute_hash, r_dict, specialize
+from rpython.rlib.rarithmetic        import r_uint
 
-@specialize.arg(0)
-def make_simple_table(cls, keys=None, vals=None, immutable=False):
+@specialize.call_location()
+def make_simple_mutable_table(cls, keys=None, vals=None):
     data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
     if keys is not None and vals is not None:
         assert len(keys) == len(vals)
         for i, k in enumerate(keys):
             data[k] = vals[i]
-    return cls(data, immutable)
+    return cls(data)
 
-@specialize.arg(0)
-def make_simple_table_assocs(cls, assocs, who, immutable=False):
-    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
+@specialize.call_location()
+def make_simple_mutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
-    while isinstance(data, values.W_Cons):
+    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
+    while isinstance(assocs, values.W_Cons):
         entry, assocs = assocs.car(), assocs.cdr()
         if not isinstance(entry, values.W_Cons):
             raise SchemeException("%s: expected list of pairs" % who)
         key, val = entry.car(), entry.cdr()
         data[key] = val
-    return cls(data, immutable)
+    return cls(data)
 
-class W_SimpleHashTable(W_HashTable):
+@specialize.call_location()
+def make_simple_immutable_table(cls, keys=None, vals=None):
+    table = cls.EMPTY
+    if keys is not None and vals is not None:
+        assert len(keys) == len(vals)
+        for i, k in enumerate(keys):
+            table = table.assoc(k, vals[i])
+    return table
+
+@specialize.call_location()
+def make_simple_immutable_table_assocs(cls, assocs, who):
+    if not assocs.is_proper_list():
+        raise SchemeException("%s: not given proper list" % who)
+    table = cls.EMPTY
+    while isinstance(assocs, values.W_Cons):
+        entry, assocs = assocs.car(), assocs.cdr()
+        if not isinstance(entry, values.W_Cons):
+            raise SchemeException("%s: expected list of pairs" % who)
+        key, val = entry.car(), entry.cdr()
+        table = table.assoc(key, val)
+    return table
+
+class W_SimpleMutableHashTable(W_MutableHashTable):
     _attrs_ = ['data']
     _immutable_fields_ = ["data"]
 
@@ -39,9 +67,8 @@ class W_SimpleHashTable(W_HashTable):
     def cmp_value(a, b):
         raise NotImplementedError("abstract method")
 
-    def __init__(self, data, immutable):
-        self.is_immutable = immutable
-        self.data         = data
+    def __init__(self, data):
+        self.data = data
 
     def make_copy(self):
         raise NotImplementedError("abstract method")
@@ -73,13 +100,13 @@ class W_SimpleHashTable(W_HashTable):
     def length(self):
         return len(self.data)
 
-class W_EqvHashTable(W_SimpleHashTable):
+class W_EqvMutableHashTable(W_SimpleMutableHashTable):
 
     def make_empty(self):
-        return make_simple_table(W_EqvHashTable, immutable=self.is_immutable)
+        return make_simple_mutable_table(W_EqvMutableHashTable)
 
     def make_copy(self):
-        return W_EqvHashTable(self.data.copy(), immutable=self.is_immutable)
+        return W_EqvMutableHashTable(self.data.copy(), immutable=False)
 
     @staticmethod
     def hash_value(k):
@@ -92,13 +119,13 @@ class W_EqvHashTable(W_SimpleHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
-class W_EqHashTable(W_SimpleHashTable):
+class W_EqMutableHashTable(W_SimpleMutableHashTable):
 
     def make_copy(self):
-        return W_EqHashTable(self.data.copy(), immutable=self.is_immutable)
+        return W_EqMutableHashTable(self.data.copy())
 
     def make_empty(self):
-        return make_simple_table(W_EqHashTable, immutable=self.is_immutable)
+        return make_simple_mutable_table(W_EqMutableHashTable)
 
     @staticmethod
     def hash_value(k):
@@ -117,4 +144,39 @@ class W_EqHashTable(W_SimpleHashTable):
     def get_item(self, i):
         return get_dict_item(self.data, i)
 
+W_EqvImmutableHashTable = make_persistent_hash_type(
+        super=W_ImmutableHashTable,
+        name="W_EqvImmutableHashTable",
+        hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
+        equal=W_EqvMutableHashTable.cmp_value)
+W_EqvImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
+
+W_EqImmutableHashTable = make_persistent_hash_type(
+        super=W_ImmutableHashTable,
+        name="W_EqImmutableHashTable",
+        hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
+        equal=W_EqMutableHashTable.cmp_value)
+W_EqImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
+
+class __extend__(W_EqvImmutableHashTable):
+
+    def make_copy(self):
+        return self
+
+    def make_empty(self):
+        return W_EqvImmutableHashTable.EMPTY
+
+    def get_item(self, key):
+        raise NotImplementedError("todo")
+
+class __extend__(W_EqImmutableHashTable):
+
+    def make_copy(self):
+        return self
+
+    def make_empty(self):
+        return W_EqImmutableHashTable(0, None)
+
+    def get_item(self, key):
+        raise NotImplementedError("todo")
 

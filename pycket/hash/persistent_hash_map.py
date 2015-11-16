@@ -7,17 +7,17 @@ MASK_32 = r_uint(0xFFFFFFFF)
 
 # NOT_FOUND = W_ProtoObject()
 
-class Box(object):
-    def __init__(self):
-        self._val = None
-
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
 
-    class PersistentHashMap(object):
+    class Box(object):
+        def __init__(self):
+            self._val = None
+
+    class PersistentHashMap(super):
 
         _attrs_ = ['_cnt', '_root']
-        settled = True
         _immutable_fields_ = ['_cnt', '_root']
+        _settled_ = True
 
         def __init__(self, cnt, root):
             self._cnt = cnt
@@ -67,9 +67,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return self
             return PersistentHashMap(self._cnt - 1, new_root)
 
-        def immutable(self):
-            return True
-
     PersistentHashMap.__name__ = name
 
     class INode(super):
@@ -78,9 +75,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             pass
 
         def find(self, shift, hash_val, key, not_found):
-            pass
-
-        def reduce_inode(self, f, init):
             pass
 
         def without(self, shift, hash, key):
@@ -177,20 +171,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                         yield x
                 else:
                     yield key_or_none, val_or_none
-
-        def reduce_inode(self, f, init):
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
-                if key_or_none is None and val_or_node is not None:
-                    # Must be a node
-                    init = val_or_node.reduce_inode(f, init)
-                else:
-                    # Must be a value
-                    init = f.invoke([init, rt.map_entry(key_or_none, val_or_node)])
-                if rt.reduced_QMARK_(init):
-                    return init
-            return init
 
         def without_inode(self, shift, hash, key):
             bit = bitpos(hash, shift)
@@ -292,16 +272,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 for x in iter(node):
                     yield x
 
-        def reduce_inode(self, f, init):
-            for x in range(len(self._array)):
-                node = self._array[x]
-                if node is not None:
-                    init = node.reduce_inode(f, init)
-                    if rt.reduced_QMARK_(init):
-                        return init
-
-            return init
-
     class HashCollisionNode(INode):
         def __init__(self, edit, hash, array):
             self._hash = hash
@@ -340,18 +310,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     continue
                 val = self._array[x + 1]
                 yield key_or_nil, val
-
-        def reduce_inode(self, f, init):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
-                    continue
-
-                val = self._array[x + 1]
-                init = f.invoke([init, rt.map_entry(key_or_nil, val)])
-                if rt.reduced_QMARK_(init):
-                    return init
-            return init
 
         def find_index(self, key):
             i = r_int(0)
@@ -433,7 +391,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
     return PersistentHashMap
 
 def test_persistent_hash():
-    import operator as op
     hash_cls = make_persistent_hash_type(
             super=object,
             name="test-hash-table",
