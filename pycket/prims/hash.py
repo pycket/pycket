@@ -49,26 +49,24 @@ def hash_iterate_value(ht, pos):
     return hash_iter_ref(ht, pos, key=False)
 
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
-def hash_for_each(h, f, env, cont):
-    from pycket.interpreter import return_value
-    f.enable_jitting()
-    return return_value(values.w_void, env,
-            hash_for_each_cont(f, h, 0, env, cont))
+def hash_for_each(ht, f, env, cont):
+    return hash_for_each_loop(ht, f, 0, env, cont)
 
-@continuation
-def hash_for_each_cont(f, ht, index, env, cont, _vals):
+@loop_label
+def hash_for_each_loop(ht, f, index, env, cont):
     from pycket.interpreter import return_value
-    nextindex = index + 1
     try:
         w_key, w_value = ht.get_item(index)
     except KeyError:
-        return return_value(values.w_void, env,
-                hash_for_each_cont(f, ht, nextindex, env, cont))
+        return hash_for_each_loop(ht, f, index + 1, env, cont)
     except IndexError:
         return return_value(values.w_void, env, cont)
-    after = hash_for_each_cont(f, ht, nextindex, env, cont)
-    return f.call([w_key, w_value], env, after)
+    return f.call([w_key, w_value], env,
+            hash_for_each_cont(ht, f, index, env, cont))
 
+@continuation
+def hash_for_each_cont(ht, f, index, env, cont, _vals):
+    return hash_for_each_loop(ht, f, index + 1, env, cont)
 
 @expose("hash-map", [W_HashTable, procedure], simple=False)
 def hash_map(h, f, env, cont):

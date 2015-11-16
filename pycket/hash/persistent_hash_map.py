@@ -340,6 +340,8 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
 
     def bit_count(i):
+        # TODO: See about implementing this via the POPCNT instruction on
+        # supporting architectures
         assert isinstance(i, r_uint)
         i = i - ((i >> 1) & r_uint(0x55555555))
         i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
