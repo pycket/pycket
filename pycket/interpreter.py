@@ -424,7 +424,7 @@ class Module(AST):
             path = self.full_module_path()
             raise SchemeException("unknown module variable %s in module %s" % (sym.tostring(), path))
         v = self.defs[sym]
-        if not v:
+        if v is None:
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
