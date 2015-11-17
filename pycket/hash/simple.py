@@ -169,6 +169,11 @@ class __extend__(W_EqvImmutableHashTable):
     def make_empty(self):
         return W_EqvImmutableHashTable.EMPTY
 
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        result = self.val_at(k, w_missing)
+        return return_value(result, env, cont)
+
     def get_item(self, index):
         # XXX Inefficient
         i = 0
@@ -196,6 +201,11 @@ class __extend__(W_EqImmutableHashTable):
 
     def make_empty(self):
         return W_EqImmutableHashTable(0, None)
+
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        result = self.val_at(k, w_missing)
+        return return_value(result, env, cont)
 
     def get_item(self, index):
         # XXX Inefficient
