@@ -22,9 +22,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._root = root
 
         def __iter__(self):
-            if self._root is None:
-                return iter(())
-            return iter(self._root)
+            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
+            for item in root.iteritems():
+                yield item
 
         def __len__(self):
             return self._cnt
@@ -36,8 +36,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def itervals(self):
             for k, v in iter(self):
                 yield v
-
-        iteritems = __iter__
 
         def assoc(self, key, val):
             added_leaf = Box()
@@ -73,6 +71,20 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
         _attrs_ = []
 
+        def iteritems(self):
+            t = type(self)
+            # XXX Hack for the type inferencer, since generator types cannot
+            # be unified
+            if t is BitmapIndexedNode:
+                for item in self.iter():
+                    yield item
+            elif t is ArrayNode:
+                for item in self.iter():
+                    yield item
+            elif t is HashCollisionNode:
+                for item in self.iter():
+                    yield item
+
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             pass
 
@@ -98,12 +110,12 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._bitmap = bitmap
             self._array = array
 
-        def __iter__(self):
+        def iter(self):
             for x in range(0, len(self._array), 2):
                 key_or_none = self._array[x]
                 val_or_none = self._array[x + 1]
                 if key_or_none is None and val_or_none is not None:
-                    for x in iter(val_or_none):
+                    for x in val_or_none.iteritems():
                         yield x
                 else:
                     yield key_or_none, val_or_none
@@ -164,6 +176,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(None, self._bitmap | bit, new_array)
 
+        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             bit = bitpos(hash_val, shift)
             if (self._bitmap & bit) == 0:
@@ -215,11 +228,11 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._edit = edit
             self._array = array
 
-        def __iter__(self):
+        def iter(self):
             for node in self._array:
                 if node is None:
                     continue
-                for x in iter(node):
+                for x in node.iteritems():
                     yield x
 
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
@@ -275,6 +288,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return BitmapIndexedNode(None, bitmap, new_array)
 
+        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             idx = mask(hash_val, shift)
             node = self._array[idx]
@@ -285,14 +299,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
     class HashCollisionNode(INode):
 
         _attrs_ = ['_hash', '_edit', '_array']
-        _attrs_ = ['_hash', '_edit', '_array[*]']
+        _immutable_fields_ = ['_hash', '_edit', '_array[*]']
 
         def __init__(self, edit, hash, array):
             self._hash = hash
             self._edit = edit
             self._array = array
 
-        def __iter__(self):
+        def iter(self):
             for x in range(0, len(self._array), 2):
                 key_or_nil = self._array[x]
                 if key_or_nil is None:
@@ -318,6 +332,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             return BitmapIndexedNode(None, bitpos(self._hash, shift), [None, self]) \
                                     .assoc_inode(shift, hash_val, key, val, added_leaf)
 
+        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             for x in range(0, len(self._array), 2):
                 key_or_nil = self._array[x]

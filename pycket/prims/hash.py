@@ -39,7 +39,6 @@ def hash_iter_ref(ht, pos, key=False):
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
-
 @expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
 def hash_iterate_key(ht, pos):
     return hash_iter_ref(ht, pos, key=True)
