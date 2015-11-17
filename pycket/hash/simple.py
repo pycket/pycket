@@ -161,7 +161,7 @@ W_EqImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 class __extend__(W_EqvImmutableHashTable):
 
     def length(self):
-        return self._cnt
+        return len(self)
 
     def make_copy(self):
         return self
@@ -170,12 +170,12 @@ class __extend__(W_EqvImmutableHashTable):
         return W_EqvImmutableHashTable.EMPTY
 
     def get_item(self, key):
-        raise NotImplementedError("todo")
+        raise NotImplementedError("get_item not yet implemented")
 
 class __extend__(W_EqImmutableHashTable):
 
     def length(self):
-        return self._cnt
+        return len(self)
 
     def make_copy(self):
         return self
@@ -184,5 +184,5 @@ class __extend__(W_EqImmutableHashTable):
         return W_EqImmutableHashTable(0, None)
 
     def get_item(self, key):
-        raise NotImplementedError("todo")
+        raise NotImplementedError("get_item not yet implemented")
 

@@ -4,6 +4,7 @@ from pycket.hash.base                import ll_get_dict_item, get_dict_item
 from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 from pycket.test.testhelper          import run_mod_expr, run_mod
+from rpython.rlib.rarithmetic        import r_uint
 
 def test_hash_simple(doctest):
     """
@@ -329,4 +330,30 @@ def test_hash_for(doctest):
     > (for/sum ([(k v) ht]) v)
     6
     """
+
+def test_persistent_hashes():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    for k, v in acc:
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+
+def test_persistent_hash_collisions():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(1))
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    for k, v in acc:
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
 
