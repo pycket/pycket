@@ -130,6 +130,10 @@ def make_immutable_hash(assocs):
 def make_immutable_hasheq(assocs):
     return make_simple_immutable_table_assocs(W_EqImmutableHashTable, assocs, "make-immutable-hasheq")
 
+@expose("make-immutable-hasheqv", [default(values.W_List, values.w_null)])
+def make_immutable_hasheqv(assocs):
+    return make_simple_immutable_table_assocs(W_EqvImmutableHashTable, assocs, "make-immutable-hasheq")
+
 @expose("hash")
 def hash(args):
     if len(args) % 2 != 0:

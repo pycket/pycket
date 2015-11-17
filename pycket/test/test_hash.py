@@ -50,6 +50,20 @@ def test_hasheqv(doctest):
     'a
     """
 
+def test_immutable_hasheqv(doctest):
+    """
+    ! (define h (for/fold ([acc (make-immutable-hasheqv)]) ([i (in-range 0 100)]) (hash-set acc i (+ i 1))))
+    ! (define h^ (hash-set h 2.0 'a))
+    > (hash-ref h 0)
+    1
+    > (hash-ref h 50)
+    51
+    > (hash-ref h  99)
+    100
+    > (hash-ref h^ (+ 1.0 1.0))
+    'a
+    """
+
 def test_hash_symbols(doctest):
     """
     ! (define ht (make-hash))
@@ -94,7 +108,6 @@ def test_hash_strings(doctest):
     'ohnoes
     """
 
-
 def test_hash_bytes(doctest):
     """
     ! (define ht (make-hash))
@@ -118,7 +131,6 @@ def test_hash_bytes(doctest):
     > (hash-ref ht 1)
     'ohnoes
     """
-
 
 def test_hash_ints(doctest):
     """
