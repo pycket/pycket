@@ -317,21 +317,6 @@ def test_whitebox_bytes(source):
     result = run_mod_expr(source)
     assert result.strategy is ByteHashmapStrategy.singleton
 
-def test_hash_iteration_enables_jitting(source):
-    """
-    #lang pycket
-    (define h #hash((1 . 2) (2 . 3) (3 . 4)))
-    (define (fe c v) '())
-    (define (fm c v) '())
-    (hash-for-each h fe)
-    (hash-map h fm)
-    """
-    mod = run_mod(source)
-    f = mod.defs[values.W_Symbol.make('fe')]
-    assert f.closure.caselam.lams[0].body[0].should_enter
-    f = mod.defs[values.W_Symbol.make('fm')]
-    assert f.closure.caselam.lams[0].body[0].should_enter
-
 def test_hash_for(doctest):
     """
     ! (require racket/private/for)

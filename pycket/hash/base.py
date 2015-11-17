@@ -14,8 +14,8 @@ w_missing = W_Missing() # sentinel for missing values
 
 class W_HashTable(W_Object):
     errorname = "hash"
-    _attrs_ = ["is_immutable"]
-    _immutable_fields_ = ["is_immutable"]
+    _attrs_ = []
+    _immutable_fields_ = []
     _settled_ = True
 
     def hash_items(self):
@@ -39,12 +39,23 @@ class W_HashTable(W_Object):
     def make_empty(self):
         raise NotImplementedError("abstract method")
 
-    def immutable(self):
-        return self.is_immutable
-
     def get_item(self, i):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
+
+class W_MutableHashTable(W_HashTable):
+    _attrs_ = []
+    _immutable_fields_ = []
+    _settled_ = True
+
+    def immutable(self):
+        return False
+
+class W_ImmutableHashTable(W_HashTable):
+    _attrs_ = []
+    _immutable_fields_ = []
+    def immutable(self):
+        return True
 
 def get_dict_item(d, i):
     """ return item of dict d at position i. Raises a KeyError if the index

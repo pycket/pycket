@@ -13,11 +13,11 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def __init__(self):
             self._val = None
 
-    class PersistentHashMap(object):
+    class PersistentHashMap(super):
 
         _attrs_ = ['_cnt', '_root']
-        settled = True
         _immutable_fields_ = ['_cnt', '_root']
+        _settled_ = True
 
         def __init__(self, cnt, root):
             self._cnt = cnt
@@ -67,9 +67,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return self
             return PersistentHashMap(self._cnt - 1, new_root)
 
-        def immutable(self):
-            return True
-
     PersistentHashMap.__name__ = name
 
     class INode(super):
@@ -78,9 +75,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             pass
 
         def find(self, shift, hash_val, key, not_found):
-            pass
-
-        def reduce_inode(self, f, init):
             pass
 
         def without(self, shift, hash, key):
@@ -177,20 +171,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                         yield x
                 else:
                     yield key_or_none, val_or_none
-
-        def reduce_inode(self, f, init):
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
-                if key_or_none is None and val_or_node is not None:
-                    # Must be a node
-                    init = val_or_node.reduce_inode(f, init)
-                else:
-                    # Must be a value
-                    init = f.invoke([init, rt.map_entry(key_or_none, val_or_node)])
-                if rt.reduced_QMARK_(init):
-                    return init
-            return init
 
         def without_inode(self, shift, hash, key):
             bit = bitpos(hash, shift)
@@ -292,16 +272,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 for x in iter(node):
                     yield x
 
-        def reduce_inode(self, f, init):
-            for x in range(len(self._array)):
-                node = self._array[x]
-                if node is not None:
-                    init = node.reduce_inode(f, init)
-                    if rt.reduced_QMARK_(init):
-                        return init
-
-            return init
-
     class HashCollisionNode(INode):
         def __init__(self, edit, hash, array):
             self._hash = hash
@@ -341,18 +311,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 val = self._array[x + 1]
                 yield key_or_nil, val
 
-        def reduce_inode(self, f, init):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
-                    continue
-
-                val = self._array[x + 1]
-                init = f.invoke([init, rt.map_entry(key_or_nil, val)])
-                if rt.reduced_QMARK_(init):
-                    return init
-            return init
-
         def find_index(self, key):
             i = r_int(0)
             while i < len(self._array):
@@ -382,6 +340,8 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
 
     def bit_count(i):
+        # TODO: See about implementing this via the POPCNT instruction on
+        # supporting architectures
         assert isinstance(i, r_uint)
         i = i - ((i >> 1) & r_uint(0x55555555))
         i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
@@ -433,8 +393,13 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
     return PersistentHashMap
 
 def test_persistent_hash():
-    import operator as op
-    empty = make_persistent_hash_type(object, "table", hash, op.eq)(0, None)
+    hash_cls = make_persistent_hash_type(
+            super=object,
+            name="test-hash-table",
+            hashfun=hash,
+            equalfun=op.eq)
+
+    empty = hash_cls(0, None)
     acc = empty
     for i in range(100000):
         acc = acc.assoc(i % 1000, (i + 1) % 1000)
