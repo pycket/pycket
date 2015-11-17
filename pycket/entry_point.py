@@ -10,9 +10,12 @@ def make_entry_point(pycketconfig=None):
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
 
-    from rpython.rlib import jit
+    from rpython.rlib import jit, objectmodel
 
     def entry_point(argv):
+        if not objectmodel.we_are_translated():
+            import sys
+            sys.setrecursionlimit(10000)
         try:
             return actual_entry(argv)
         except SchemeException, e:
