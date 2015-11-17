@@ -170,6 +170,7 @@ class __extend__(W_EqvImmutableHashTable):
         return W_EqvImmutableHashTable.EMPTY
 
     def get_item(self, index):
+        # XXX Inefficient
         i = 0
         for item in iter(self):
             if i == index:
@@ -197,6 +198,7 @@ class __extend__(W_EqImmutableHashTable):
         return W_EqImmutableHashTable(0, None)
 
     def get_item(self, index):
+        # XXX Inefficient
         i = 0
         for item in iter(self):
             if i == index:
