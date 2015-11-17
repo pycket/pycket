@@ -169,8 +169,21 @@ class __extend__(W_EqvImmutableHashTable):
     def make_empty(self):
         return W_EqvImmutableHashTable.EMPTY
 
-    def get_item(self, key):
-        raise NotImplementedError("get_item not yet implemented")
+    def get_item(self, index):
+        i = 0
+        for item in iter(self):
+            if i == index:
+                return item
+            i += 1
+        raise IndexError
+
+    def tostring(self):
+        entries = [None] * len(self)
+        i = 0
+        for k, v in iter(self):
+            entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
+            i += 1
+        return "#hasheqv(%s)" % " ".join(entries)
 
 class __extend__(W_EqImmutableHashTable):
 
@@ -183,6 +196,19 @@ class __extend__(W_EqImmutableHashTable):
     def make_empty(self):
         return W_EqImmutableHashTable(0, None)
 
-    def get_item(self, key):
-        raise NotImplementedError("get_item not yet implemented")
+    def get_item(self, index):
+        i = 0
+        for item in iter(self):
+            if i == index:
+                return item
+            i += 1
+        raise IndexError
+
+    def tostring(self):
+        entries = [None] * len(self)
+        i = 0
+        for i, (k, v) in iter(self):
+            entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
+            i += 1
+        return "#hasheq(%s)" % " ".join(entries)
 

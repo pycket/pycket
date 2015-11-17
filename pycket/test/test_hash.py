@@ -150,6 +150,16 @@ def test_hash_for_each(doctest):
     21
     """
 
+def test_persistent_eqhash_for_each(doctest):
+    """
+    ! (define x 1)
+    ! (define h (for/fold ([acc (make-immutable-hasheq)]) ([i (in-range 1 4)]) (hash-set acc i (+ i 1))))
+    ! (define (fe c v) (set! x (+ x (* c v))))
+    ! (hash-for-each h fe)
+    > x
+    21
+    """
+
 def test_hash_map(doctest):
     """
     ! (define h #hash((1 . 2) (2 . 3) (3 . 4)))
