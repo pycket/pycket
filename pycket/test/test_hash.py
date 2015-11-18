@@ -353,7 +353,7 @@ def test_hash_for(doctest):
     6
     """
 
-def test_persistent_hashes():
+def test_persistent_hash():
     HashTable = make_persistent_hash_type()
     acc = HashTable.EMPTY
 
@@ -372,6 +372,25 @@ def test_persistent_hash_collisions():
 
     for i in range(1000):
         acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+
+def test_persistent_hash_removal():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        acc = acc.assoc(i % 10, i).without(i % 10)
+
+    assert len(acc) == 0
+    assert list(acc.iteritems()) == []
+
+    for i in range(1000):
+        acc = acc.assoc(i % 10, i).without(i % 10 + 1)
 
     assert len(acc) == 10
     for k, v in acc.iteritems():
