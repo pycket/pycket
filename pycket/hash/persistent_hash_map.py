@@ -1,6 +1,6 @@
 
 from operator                 import eq
-from rpython.rlib             import jit
+from rpython.rlib             import jit, objectmodel
 from rpython.rlib.rarithmetic import r_int, r_uint, intmask
 
 MASK_32 = r_uint(0xFFFFFFFF)
@@ -59,6 +59,10 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             for item in root.iteritems():
                 yield item
 
+        def iteritems(self):
+            for i in range(self._cnt):
+                yield self.get_item(i)
+
         def iterkeys(self):
             for k, v in iter(self):
                 yield k
@@ -96,11 +100,28 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return self
             return PersistentHashMap(self._cnt - 1, new_root)
 
-        # def get_item(self, index):
-            # if not (0 <= index < self._cnt):
-                # raise IndexError("index out of bounds")
-            # assert self._root is not None
-            # return self._root.get_item(index)
+        def get_item(self, index):
+            if not (0 <= index < self._cnt):
+                raise IndexError
+
+            assert self._root is not None
+
+            key_or_none = None
+            val_or_node = self._root
+            while index != -1:
+                t = type(val_or_node)
+                if t is BitmapIndexedNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                elif t is ArrayNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                elif t is HashCollisionNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                else:
+                    assert False
+
+            assert key_or_none is not None
+            assert not isinstance(val_or_node, INode)
+            return key_or_none, val_or_node
 
     PersistentHashMap.__name__ = name
 
@@ -109,20 +130,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _attrs_ = ['_size']
         _immutable_fields_ = ['_size']
         _settled_ = True
-
-        def iteritems(self):
-            t = type(self)
-            # XXX Hack for the type inferencer, since generator types cannot
-            # be unified
-            if t is BitmapIndexedNode:
-                for item in self.iter():
-                    yield item
-            elif t is ArrayNode:
-                for item in self.iter():
-                    yield item
-            elif t is HashCollisionNode:
-                for item in self.iter():
-                    yield item
 
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             pass
@@ -133,7 +140,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def without(self, shift, hash, key):
             pass
 
-        def _getitem(self, index):
+        def _get_item_node(self, index):
             pass
 
         def _validate_node(self):
@@ -162,17 +169,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._array = array
             self._size = size
 
-        def iter(self):
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
-                if key_or_none is None and val_or_node is not None:
-                    assert isinstance(val_or_node, INode)
-                    for x in val_or_node.iteritems():
-                        yield x
-                else:
-                    yield key_or_none, val_or_node
-
         def _entries(self):
             "NOT RPYTHON"
             entries = []
@@ -193,6 +189,23 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     assert isinstance(val_or_node, INode)
                     subnodes.append(val_or_node)
             return subnodes
+
+        @objectmodel.always_inline
+        def _get_item_node(self, index):
+            for x in range(0, len(self._array), 2):
+                key_or_none = self._array[x]
+                val_or_node = self._array[x + 1]
+                if key_or_none is None and val_or_node is not None:
+                    assert isinstance(val_or_node, INode)
+                    size = val_or_node._size
+                    if index < size:
+                        return index, key_or_none, val_or_node
+                    index -= size
+                else:
+                    if index == 0:
+                        return -1, key_or_none, val_or_node
+                    index -= 1
+            assert False
 
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
@@ -311,14 +324,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._array = array
             self._size = size
 
-        def iter(self):
-            for node in self._array:
-                if node is None:
-                    continue
-                assert isinstance(node, INode)
-                for x in node.iteritems():
-                    yield x
-
         def _entries(self):
             "NOT RPYTHON"
             return []
@@ -326,6 +331,17 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def _subnodes(self):
             "NOT RPYTHON"
             return [node for node in self._array if node is not None]
+
+        @objectmodel.always_inline
+        def _get_item_node(self, index):
+            for node in self._array:
+                if node is None:
+                    continue
+                assert isinstance(node, INode)
+                if index < node._size:
+                    return index, None, node
+                index -= node._size
+            assert False
 
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             idx = mask(hash_val, shift)
@@ -427,6 +443,18 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
         def _subnodes(self):
             return []
+
+        @objectmodel.always_inline
+        def _get_item_node(self, index):
+            for x in range(0, len(self._array), 2):
+                key_or_nil = self._array[x]
+                if key_or_nil is None:
+                    continue
+                if index == 0:
+                    val_or_node = self._array[x + 1]
+                    return -1, key_or_nil, val_or_node
+                index -= 1
+            assert False
 
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             if hash_val == self._hash:
@@ -552,9 +580,12 @@ def test_persistent_hash():
 
     empty = hash_cls(0, None)
     acc = empty
-    for i in range(1000):
+    for i in range(3):
         acc = acc.assoc(i % 1000, (i + 1) % 1000)
-    validate_persistent_hash(acc)
+    print acc.get_item(0)
+    print acc.get_item(1)
+    print acc.get_item(2)
+    # validate_persistent_hash(acc)
     # print len(acc)
     return acc
 

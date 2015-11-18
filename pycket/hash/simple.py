@@ -172,14 +172,14 @@ class __extend__(W_EqvImmutableHashTable):
         result = self.val_at(k, w_missing)
         return return_value(result, env, cont)
 
-    def get_item(self, index):
-        # XXX Inefficient
-        i = 0
-        for item in self.iteritems():
-            if i == index:
-                return item
-            i += 1
-        raise IndexError
+    # def get_item(self, index):
+        # # XXX Inefficient
+        # i = 0
+        # for item in self.iteritems():
+            # if i == index:
+                # return item
+            # i += 1
+        # raise IndexError
 
     def tostring(self):
         assert type(self) is W_EqvImmutableHashTable
@@ -206,14 +206,14 @@ class __extend__(W_EqImmutableHashTable):
         result = self.val_at(k, w_missing)
         return return_value(result, env, cont)
 
-    def get_item(self, index):
-        # XXX Inefficient
-        i = 0
-        for item in self.iteritems():
-            if i == index:
-                return item
-            i += 1
-        raise IndexError
+    # def get_item(self, index):
+        # # XXX Inefficient
+        # i = 0
+        # for item in self.iteritems():
+            # if i == index:
+                # return item
+            # i += 1
+        # raise IndexError
 
     def tostring(self):
         assert type(self) is W_EqImmutableHashTable
