@@ -788,20 +788,23 @@ class W_Struct(W_RootStruct):
     #     return self.tostring()
 
     def tostring_prefab(self):
+        prefab_key = W_PrefabKey.from_struct_type(self.struct_type())
         return ("#s(%s %s)" %
-                (W_PrefabKey.from_struct_type(w_type).short_key().tostring(),
+                (prefab_key.short_key().tostring(),
                  ' '.join([val.tostring() for val in self.vals()])))
 
     @jit.unroll_safe
     def tostring_values(self, fields, w_type, is_super=False):
-        " fill "
-        has_super = isinstance(w_type.w_super, W_StructType)
+        " fill fields with tostring() version of field if applicable "
+        assert isinstance(w_type, W_StructType)
+        w_super = w_type.w_super
+        has_super = isinstance(w_super, W_StructType)
         if has_super:
-            self.tostring_values(fields=fields,w_type=w_type.w_super,is_super=True)
+            self.tostring_values(fields=fields,w_type=w_super,is_super=True)
         offset = self.struct_type().get_offset(w_type)
         count = w_type.total_field_count
         if has_super:
-            count -= w_type.w_super.total_field_count
+            count -= w_super.total_field_count
         assert len(fields) >= count + offset
         if w_type.isopaque:
             fields[offset] = "..."
@@ -816,7 +819,7 @@ class W_Struct(W_RootStruct):
     def tostring(self):
         w_type = self.struct_type()
         if w_type.isprefab:
-            return self.tostring_prefab(w_type)
+            return self.tostring_prefab()
         elif w_type.all_opaque():
             return "#<%s>" % w_type.name
         else:
