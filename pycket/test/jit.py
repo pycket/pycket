@@ -393,3 +393,7 @@ class TestLLtype(LLJitMixin):
         with SConf(substitution_threshold=2):
             self.run_file("cons-emulation.rkt", run_untranslated=False)
 
+    def test_cons_emulation_reverse(self):
+        from pycket.test.test_shape import SConf
+        with SConf(substitution_threshold=2):
+            self.run_file("cons-emulation-reverse.rkt", run_untranslated=False)

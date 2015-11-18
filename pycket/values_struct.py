@@ -892,7 +892,6 @@ class W_StructConstructor(W_StructTypeProcedure):
                 self.constructor_proc_wrapper_cont(field_values, struct_type_name,
                     issuper, app, env, cont), app)
 
-    @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):
         return self.code(args, self.struct_type_name(), False, env, cont, app)
 
