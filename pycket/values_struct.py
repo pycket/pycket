@@ -292,6 +292,15 @@ class W_StructType(values.W_Object):
                 return val
         return None
 
+    @jit.elidable
+    def all_opaque(self):
+        if not self.isopaque:
+            return False
+        elif isinstance(self.super, W_StructType):
+            return self.super.all_opaque()
+        return True
+
+
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
@@ -662,19 +671,42 @@ class W_Struct(W_RootStruct):
             return w_write_proc.call([self, port, mode], env, cont)
         return self.tostring()
 
-    def tostring(self):
-        typ = self.struct_type()
-        if typ.isopaque:
-            result =  "#<%s>" % typ.name
+    def tostring_prefab(self):
+        return ("#s(%s %s)" %
+                (W_PrefabKey.from_struct_type(w_type).short_key().tostring(),
+                 ' '.join([val.tostring() for val in self.vals()])))
+
+    @jit.unroll_safe
+    def tostring_values(self, fields, w_type, is_super=False):
+        " fill "
+        has_super = isinstance(w_type.super, W_StructType)
+        if has_super:
+            self.tostring_values(fields=fields,w_type=w_type.super,is_super=True)
+        offset = self.struct_type().get_offset(w_type)
+        count = w_type.total_field_cnt
+        if has_super:
+            count -= w_type.super.total_field_cnt
+        assert len(fields) >= count + offset
+        if w_type.isopaque:
+            fields[offset] = "..."
         else:
-            if typ.isprefab:
-                result = "#s(%s %s)" %\
-                    (W_PrefabKey.from_struct_type(typ).short_key().tostring(),
-                        ' '.join([val.tostring() for val in self.vals()]))
-            else:
-                result = "(%s %s)" % (typ.name,
-                    ' '.join([val.tostring() for val in self.vals()]))
-        return result
+            for i in range(offset, offset + count):
+                fields[i] = self._ref(i).tostring()
+
+    @jit.unroll_safe
+    def _string_from_list(self, l):
+        return ' '.join([s for s in l if s is not None])
+
+    def tostring(self):
+        w_type = self.struct_type()
+        if w_type.isprefab:
+            return self.tostring_prefab(w_type)
+        elif w_type.all_opaque():
+            return "#<%s>" % w_type.name
+        else:
+            fields = [None] * w_type.total_field_cnt
+            self.tostring_values(fields=fields, w_type=w_type, is_super=False)
+            return "(%s %s)" % (w_type.name, self._string_from_list(fields))
 
 """
 This method generates a new structure class with inline stored immutable #f
