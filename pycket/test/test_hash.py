@@ -362,10 +362,12 @@ def test_persistent_hash():
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
     for k, v in acc.iteritems():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k
+        assert acc.val_at(k, None) is v
 
 def test_persistent_hash_collisions():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
@@ -376,10 +378,12 @@ def test_persistent_hash_collisions():
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
     for k, v in acc.iteritems():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k
+        assert acc.val_at(k, None) is v
 
 def test_persistent_hash_collisions2():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x)) % 8)
@@ -390,6 +394,9 @@ def test_persistent_hash_collisions2():
         acc = acc.assoc(i % 128, i)
 
     assert len(acc) == 128
+    assert len(list(acc.iteritems())) == 128
+    for k, v in acc.iteritems():
+        assert acc.val_at(k, None) is v
 
 def test_persistent_hash_removal():
     HashTable = make_persistent_hash_type()
@@ -407,8 +414,10 @@ def test_persistent_hash_removal():
         acc = acc.assoc(i % 10, i).without(i % 10 + 1)
 
     assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
     for k, v in acc.iteritems():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k
+        assert acc.val_at(k, None) is v
 
