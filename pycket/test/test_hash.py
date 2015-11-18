@@ -361,7 +361,7 @@ def test_persistent_hashes():
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
-    for k, v in acc:
+    for k, v in acc.iteritems():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k
@@ -374,7 +374,7 @@ def test_persistent_hash_collisions():
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
-    for k, v in acc:
+    for k, v in acc.iteritems():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k

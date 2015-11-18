@@ -52,6 +52,7 @@ class W_MutableHashTable(W_HashTable):
 class W_ImmutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
+    _settled_ = True
     def immutable(self):
         return True
 

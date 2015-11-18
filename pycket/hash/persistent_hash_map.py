@@ -5,9 +5,17 @@ from rpython.rlib.rarithmetic import r_int, r_uint, intmask
 
 MASK_32 = r_uint(0xFFFFFFFF)
 
+def mask(hash, shift):
+    return (hash >> shift) & 0x01f
+
+def bitpos(hash, shift):
+    return (1 << mask(hash, shift)) & MASK_32
+
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
 
     class Box(object):
+        _attrs_ = ['_val']
+        _settled_ = True
         def __init__(self):
             self._val = None
 
@@ -18,16 +26,17 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _settled_ = True
 
         def __init__(self, cnt, root):
+            assert root is None or isinstance(root, INode)
             self._cnt = cnt
             self._root = root
 
-        def __iter__(self):
+        def __len__(self):
+            return self._cnt
+
+        def iteritems(self):
             root = BitmapIndexedNode_EMPTY if self._root is None else self._root
             for item in root.iteritems():
                 yield item
-
-        def __len__(self):
-            return self._cnt
 
         def iterkeys(self):
             for k, v in iter(self):
@@ -42,6 +51,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             root = BitmapIndexedNode_EMPTY if self._root is None else self._root
             hash = hashfun(key) & MASK_32
+
             new_root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
 
             if new_root is self._root:
@@ -70,6 +80,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
     class INode(super):
 
         _attrs_ = []
+        _settled_ = True
 
         def iteritems(self):
             t = type(self)
@@ -94,16 +105,13 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def without(self, shift, hash, key):
             pass
 
-    def mask(hash, shift):
-        return (hash >> shift) & 0x01f
-
-    def bitpos(hash, shift):
-        return (1 << mask(hash, shift)) & MASK_32
+    INode.__name__ = "INode(%s)" % name
 
     class BitmapIndexedNode(INode):
 
         _attrs_ = ['_edit', '_bitmap', '_array']
         _immutable_fields_ = ['_edit', '_bitmap', '_array[*]']
+        _settled_ = True
 
         def __init__(self, edit,  bitmap, array):
             self._edit = edit
@@ -115,6 +123,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 key_or_none = self._array[x]
                 val_or_none = self._array[x + 1]
                 if key_or_none is None and val_or_none is not None:
+                    assert isinstance(val_or_none, INode)
                     for x in val_or_none.iteritems():
                         yield x
                 else:
@@ -176,7 +185,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(None, self._bitmap | bit, new_array)
 
-        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             bit = bitpos(hash_val, shift)
             if (self._bitmap & bit) == 0:
@@ -216,12 +224,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return self
 
+    BitmapIndexedNode.__name__ = "BitmapIndexedNode(%s)" % name
     BitmapIndexedNode_EMPTY = BitmapIndexedNode(None, r_uint(0), [])
 
     class ArrayNode(INode):
 
         _attrs_ = ['_cnt', '_edit', '_array']
         _immutable_fields_ = ['_cnt', '_edit', '_array[*]']
+        _settled_ = True
 
         def __init__(self, edit, cnt, array):
             self._cnt = cnt
@@ -232,6 +242,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             for node in self._array:
                 if node is None:
                     continue
+                assert isinstance(node, INode)
                 for x in node.iteritems():
                     yield x
 
@@ -243,6 +254,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 cloned  = clone_and_set(self._array, idx, subnode)
                 return ArrayNode(None, self._cnt + 1, cloned)
 
+            assert isinstance(node, INode)
             n = node.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
             if n is node:
                 return self
@@ -288,7 +300,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return BitmapIndexedNode(None, bitmap, new_array)
 
-        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             idx = mask(hash_val, shift)
             node = self._array[idx]
@@ -296,10 +307,13 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return not_found
             return node.find(shift + 5, hash_val, key, not_found)
 
+    ArrayNode.__name__ = "ArrayNode(%s)" % name
+
     class HashCollisionNode(INode):
 
         _attrs_ = ['_hash', '_edit', '_array']
         _immutable_fields_ = ['_hash', '_edit', '_array[*]']
+        _settled_ = True
 
         def __init__(self, edit, hash, array):
             self._hash = hash
@@ -332,7 +346,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             return BitmapIndexedNode(None, bitpos(self._hash, shift), [None, self]) \
                                     .assoc_inode(shift, hash_val, key, val, added_leaf)
 
-        @jit.elidable
         def find(self, shift, hash_val, key, not_found):
             for x in range(0, len(self._array), 2):
                 key_or_nil = self._array[x]
@@ -359,6 +372,8 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return None
 
             return HashCollisionNode(None, self._hash, remove_pair(self._array, r_uint(idx) / 2))
+
+    HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name
 
     def create_node(shift, key1, val1, key2hash, key2, val2):
         key1hash = hashfun(key1) & MASK_32
