@@ -19,9 +19,10 @@ def hash_iterate_first(ht):
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    if ht.length()-1 == pos.value:
+    index = pos.value
+    if index >= ht.length() - 1:
         return values.w_false
-    return values.W_Fixnum(pos.value + 1)
+    return values.W_Fixnum(index + 1)
 
 def hash_iter_ref(ht, pos, key=False):
     n = pos.value
