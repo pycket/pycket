@@ -149,14 +149,12 @@ W_EqvImmutableHashTable = make_persistent_hash_type(
         name="W_EqvImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
         equal=W_EqvMutableHashTable.cmp_value)
-W_EqvImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 
 W_EqImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
         name="W_EqImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
         equal=W_EqMutableHashTable.cmp_value)
-W_EqImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 
 class __extend__(W_EqvImmutableHashTable):
 
@@ -177,16 +175,17 @@ class __extend__(W_EqvImmutableHashTable):
     def get_item(self, index):
         # XXX Inefficient
         i = 0
-        for item in iter(self):
+        for item in self.iteritems():
             if i == index:
                 return item
             i += 1
         raise IndexError
 
     def tostring(self):
+        assert type(self) is W_EqvImmutableHashTable
         entries = [None] * len(self)
         i = 0
-        for k, v in iter(self):
+        for k, v in self.iteritems():
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheqv(%s)" % " ".join(entries)
@@ -200,7 +199,7 @@ class __extend__(W_EqImmutableHashTable):
         return self
 
     def make_empty(self):
-        return W_EqImmutableHashTable(0, None)
+        return W_EqImmutableHashTable.EMPTY
 
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
@@ -210,16 +209,17 @@ class __extend__(W_EqImmutableHashTable):
     def get_item(self, index):
         # XXX Inefficient
         i = 0
-        for item in iter(self):
+        for item in self.iteritems():
             if i == index:
                 return item
             i += 1
         raise IndexError
 
     def tostring(self):
+        assert type(self) is W_EqImmutableHashTable
         entries = [None] * len(self)
         i = 0
-        for i, (k, v) in iter(self):
+        for k, v in self.iteritems():
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheq(%s)" % " ".join(entries)
