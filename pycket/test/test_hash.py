@@ -368,7 +368,7 @@ def test_persistent_hash():
         assert v % 10 == k
 
 def test_persistent_hash_collisions():
-    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(1))
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
     acc = HashTable.EMPTY
 
     for i in range(1000):
@@ -380,6 +380,16 @@ def test_persistent_hash_collisions():
         assert k <= 10
         assert v >= 990
         assert v % 10 == k
+
+def test_persistent_hash_collisions2():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x)) % 8)
+    acc = HashTable.EMPTY
+
+    for i in range(2048):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 128, i)
+
+    assert len(acc) == 128
 
 def test_persistent_hash_removal():
     HashTable = make_persistent_hash_type()
