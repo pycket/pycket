@@ -609,4 +609,53 @@ def test_struct_cons_emulation(source):
       (= 1001 (accumulate + 1 my-num-list)))
     """
     result = run_mod_expr(source, wrap=True)
+
+def test_struct_tostring(doctest):
+    """
+    ! (struct a (a))
+    ! (struct b a (b) #:transparent)
+    ! (struct b1 a (b))
+    ! (struct a1 (a) #:transparent)
+    ! (struct b2 a1 (b))
+    ! (struct b3 a1 (b) #:transparent)
+    > (format "~v" (a 1))
+    "#<a>"
+    > (format "~v" (b 1 2))
+    "(b ... 2)"
+    > (format "~v" (b1 1 2))
+    "#<b1>"
+    > (format "~v" (b2 1 2))
+    "(b2 1 ...)"
+    > (format "~v" (b3 1 2))
+    "(b3 1 2)"
+    """
+
+def test_auto_values(doctest):
+    """
+    ! (struct posn (x y [z #:auto]) #:auto-value 0 #:transparent)
+    ! (struct color-posn posn (hue) #:mutable)
+    ! (define cp (color-posn 1 2 "blue"))
+    > (format "~v" (posn 1 2))
+    "(posn 1 2 0)"
+    > (posn? (posn 1 2))
+    #t
+    > (posn-y (posn 1 2))
+    2
+    > (color-posn-hue cp)
+    "blue"
+    > (format "~v" cp)
+    "(color-posn 1 2 0 ...)"
+    """
+    assert doctest
+
+@skip
+def test_serializable(source):
+    """
+    (= (point-x (deserialize (serialize (point 1 2)))) 1)
+    """
+    extra = """
+    (require racket/serialize)
+    (serializable-struct point (x y))
+    """
+    result = run_mod_expr(source, extra=extra, wrap=True)
     assert result == w_true
