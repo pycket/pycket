@@ -11,18 +11,34 @@ def mask(hash, shift):
 def bitpos(hash, shift):
     return (1 << mask(hash, shift)) & MASK_32
 
+def validate_persistent_hash(ht):
+    "NOT RPYTHON"
+    root = ht._root
+    assert (root is None and ht._cnt == 0) or (root is not None and ht._cnt == root._size)
+    if root is not None:
+        validate_nodes(root)
+
+def validate_nodes(root):
+    "NOT RPYTHON"
+    subnodes = root._subnodes()
+    entries  = root._entries()
+    subnode_count = sum((node._size for node in subnodes))
+    total = subnode_count + len(entries)
+    assert root._size == total
+    for node in subnodes:
+        validate_nodes(node)
+
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
 
     class Box(object):
         _attrs_ = ['_val']
         _settled_ = True
+
         def __init__(self):
             self._val = None
+
         def adjust_size(self, size):
             return size if self._val is None else size + 1
-
-    def increment_box(box, size):
-        return size if box._val is None else size + 1
 
     class PersistentHashMap(super):
 
@@ -32,7 +48,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
         def __init__(self, cnt, root):
             assert root is None or isinstance(root, INode)
-            assert (root is None and cnt == 0) or (root is not None and root._size == cnt)
             self._cnt = cnt
             self._root = root
 
@@ -118,10 +133,19 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def without(self, shift, hash, key):
             pass
 
-        def size(self):
+        def _getitem(self, index):
             pass
 
-        def _getitem(self, index):
+        def _validate_node(self):
+            "NOT RPYTHON"
+            pass
+
+        def _entries(self):
+            "NOT RPYTHON"
+            pass
+
+        def _subnodes(self):
+            "NOT RPYTHON"
             pass
 
     INode.__name__ = "INode(%s)" % name
@@ -141,13 +165,34 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def iter(self):
             for x in range(0, len(self._array), 2):
                 key_or_none = self._array[x]
-                val_or_none = self._array[x + 1]
-                if key_or_none is None and val_or_none is not None:
-                    assert isinstance(val_or_none, INode)
-                    for x in val_or_none.iteritems():
+                val_or_node = self._array[x + 1]
+                if key_or_none is None and val_or_node is not None:
+                    assert isinstance(val_or_node, INode)
+                    for x in val_or_node.iteritems():
                         yield x
                 else:
-                    yield key_or_none, val_or_none
+                    yield key_or_none, val_or_node
+
+        def _entries(self):
+            "NOT RPYTHON"
+            entries = []
+            for x in range(0, len(self._array), 2):
+                key_or_none = self._array[x]
+                val_or_node = self._array[x + 1]
+                if key_or_none is not None or val_or_node is None:
+                    entries.append((key_or_none, val_or_node))
+            return entries
+
+        def _subnodes(self):
+            "NOT RPYTHON"
+            subnodes = []
+            for x in range(0, len(self._array), 2):
+                key_or_none = self._array[x]
+                val_or_node = self._array[x + 1]
+                if key_or_none is None and val_or_node is not None:
+                    assert isinstance(val_or_node, INode)
+                    subnodes.append(val_or_node)
+            return subnodes
 
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
@@ -274,6 +319,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 for x in node.iteritems():
                     yield x
 
+        def _entries(self):
+            "NOT RPYTHON"
+            return []
+
+        def _subnodes(self):
+            "NOT RPYTHON"
+            return [node for node in self._array if node is not None]
+
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             idx = mask(hash_val, shift)
             node = self._array[idx]
@@ -362,6 +415,19 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 val = self._array[x + 1]
                 yield key_or_nil, val
 
+        def _entries(self):
+            entries = []
+            for x in range(0, len(self._array), 2):
+                key_or_nil = self._array[x]
+                if key_or_nil is None:
+                    continue
+                val = self._array[x + 1]
+                entries.append((key_or_nil, val))
+            return entries
+
+        def _subnodes(self):
+            return []
+
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             if hash_val == self._hash:
                 count = len(self._array)
@@ -371,7 +437,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                         return self;
 
                     new_array = clone_and_set(self._array, r_uint(idx + 1), val)
-                    return HashCollisionNode(None, hash_val, new_array, self._size + 1)
+                    return HashCollisionNode(None, hash_val, new_array, self._size)
 
                 new_array = [None] * (count + 2)
                 list_copy(self._array, 0, new_array, 0, count)
@@ -488,7 +554,8 @@ def test_persistent_hash():
     acc = empty
     for i in range(1000):
         acc = acc.assoc(i % 1000, (i + 1) % 1000)
-    print len(acc)
+    validate_persistent_hash(acc)
+    # print len(acc)
     return acc
 
 if __name__ == '__main__':

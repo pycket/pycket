@@ -2,7 +2,7 @@ import operator as op
 from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
 from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
-from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
 
@@ -358,6 +358,7 @@ def test_persistent_hash():
     acc = HashTable.EMPTY
 
     for i in range(1000):
+        validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
@@ -371,6 +372,7 @@ def test_persistent_hash_collisions():
     acc = HashTable.EMPTY
 
     for i in range(1000):
+        validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i)
 
     assert len(acc) == 10
@@ -384,12 +386,14 @@ def test_persistent_hash_removal():
     acc = HashTable.EMPTY
 
     for i in range(1000):
+        validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i).without(i % 10)
 
     assert len(acc) == 0
     assert list(acc.iteritems()) == []
 
     for i in range(1000):
+        validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i).without(i % 10 + 1)
 
     assert len(acc) == 10
