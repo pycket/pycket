@@ -31,6 +31,7 @@ def memoize(f):
             lup = f(*val)
             cache[val] = lup
         return lup
+    wrapper.__name__ = "Memoized(%s)" % f.__name__
     return wrapper
 
 # Add a `make` method to a given class which memoizes constructor invocations.
@@ -584,8 +585,10 @@ class W_Integer(W_Number):
 class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
+
     def tostring(self):
         return str(self.value)
+
     def __init__(self, val):
         if not we_are_translated():
             # this is not safe during translation
@@ -600,6 +603,9 @@ class W_Fixnum(W_Integer):
     def hash_equal(self):
         return self.value
 
+W_Fixnum.ZERO = W_Fixnum.make(0)
+W_Fixnum.ONE  = W_Fixnum.make(1)
+W_Fixnum.TWO  = W_Fixnum.make(2)
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]

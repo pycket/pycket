@@ -24,12 +24,10 @@ def byte_pregrexp(w_str):
 
 EMPTY_BYTES = values.W_Bytes.from_string("")
 NO_MATCH = values.Values.make([values.w_false, values.w_false])
-ZERO = values.W_Fixnum.make(0)
-ONE  = values.W_Fixnum.make(1)
 
 RM_ARGS = [
     values.W_Object, values.W_Object,
-    default(values.W_Fixnum, ZERO),
+    default(values.W_Fixnum, values.W_Fixnum.ZERO),
     default(values.W_Object, values.w_false),
     default(values.W_Object, values.w_false),
     default(values.W_Bytes, EMPTY_BYTES)
@@ -129,7 +127,7 @@ def make_match_list(lst):
 RMP_ARGS = [
     values.W_Object,
     values.W_Object,
-    default(values.W_Fixnum, ZERO),
+    default(values.W_Fixnum, values.W_Fixnum.ZERO),
     default(values.W_Object, values.w_false),
     default(values.W_Object, values.w_false),
     default(values.W_Bytes, EMPTY_BYTES)]
@@ -154,11 +152,11 @@ def rmp(pat, input, inp_start, inp_end, output_port, prefix):
 RMPE_ARGS = [
     values.W_Object,
     values.W_Object,
-    default(values.W_Fixnum, ZERO),
+    default(values.W_Fixnum, values.W_Fixnum.ZERO),
     default(values.W_Object, values.w_false),
     default(values.W_Object, values.w_false),
     default(values.W_Bytes, EMPTY_BYTES),
-    default(values.W_Fixnum, ONE)]
+    default(values.W_Fixnum, values.W_Fixnum.ONE)]
 
 @expose("regexp-match-positions/end", RMPE_ARGS, simple=False)
 @jit.unroll_safe

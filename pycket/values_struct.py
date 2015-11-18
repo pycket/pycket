@@ -102,10 +102,10 @@ class W_StructType(values.W_Object):
             immutables = []
             for i in range(init_field_cnt):
                 if i not in mutables:
-                    immutables.append(values.W_Fixnum.make(i))
+                    immutables.append(values.W_Fixnum(i))
             w_struct_type = W_StructType.make_simple(values.W_Symbol.make(name),
-                super_type, values.W_Fixnum.make(init_field_cnt),
-                values.W_Fixnum.make(auto_field_cnt), auto_v, values.w_null,
+                super_type, values.W_Fixnum(init_field_cnt),
+                values.W_Fixnum(auto_field_cnt), auto_v, values.w_null,
                 PREFAB, values.w_false, values.to_list(immutables))
             W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
         return w_struct_type
@@ -259,10 +259,10 @@ class W_StructType(values.W_Object):
 
     def struct_type_info(self, cont):
         name = values.W_Symbol.make(self.name)
-        init_field_cnt = values.W_Fixnum.make(self.init_field_cnt)
-        auto_field_cnt = values.W_Fixnum.make(self.auto_field_cnt)
+        init_field_cnt = values.W_Fixnum(self.init_field_cnt)
+        auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
         immutable_k_list = values.to_list(
-            [values.W_Fixnum.make(i) for i in self.immutables])
+            [values.W_Fixnum(i) for i in self.immutables])
         current_inspector = current_inspector_param.get(cont)
         super = values.w_false
         typ = self.super
@@ -453,13 +453,13 @@ class W_PrefabKey(values.W_Object):
     def key(self):
         key = []
         key.append(values.W_Symbol.make(self.name))
-        key.append(values.W_Fixnum.make(self.init_field_cnt))
+        key.append(values.W_Fixnum(self.init_field_cnt))
         if self.auto_field_cnt > 0:
             key.append(values.to_list(
-                [values.W_Fixnum.make(self.auto_field_cnt), self.auto_v]))
+                [values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
         mutables = []
         for i in self.mutables:
-            mutables.append(values.W_Fixnum.make(i))
+            mutables.append(values.W_Fixnum(i))
         if mutables:
             key.append(values_vector.W_Vector.fromelements(mutables))
         if self.super_key:
