@@ -178,6 +178,8 @@ def test_neg_pos():
     run("(negative?  1.0)", w_false)
     run("(negative?  -10000000000000000000000000001000000000000000000000000000)", w_true)
     run("(negative?   10000000000000000000000000001000000000000000000000000000)", w_false)
+    run("(negative? -1/2)", w_true)
+    run("(negative? 1/2)", w_false)
     run("(positive? -1)", w_false)
     run("(positive?  0)", w_false)
     run("(positive?  1)", w_true)
@@ -186,6 +188,8 @@ def test_neg_pos():
     run("(positive?  1.0)", w_true)
     run("(positive?  -10000000000000000000000000001000000000000000000000000000)", w_false)
     run("(positive?   10000000000000000000000000001000000000000000000000000000)", w_true)
+    run("(positive? -1/2)", w_false)
+    run("(positive? 1/2)", w_true)
 
 
 def test_even_odd():
@@ -217,6 +221,7 @@ def test_zero():
     run("(zero? -1.0)", w_false)
     run("(zero?  0.0)", w_true)
     run("(zero?  1.0)", w_false)
+    run("(zero?  7/3)", w_false)
 
 def test_string_to_number(doctest):
     """
@@ -877,6 +882,22 @@ def test_fltruncate(doctest):
     -2.0
     > (fltruncate +inf.0)
     +inf.0
+    """
+
+def test_abs(doctest):
+    """
+    > (abs 1/2)
+    1/2
+    > (abs -1/2)
+    1/2
+    > (abs 1)
+    1
+    > (abs 1000000000000000000000002120000000000000000000000000000000)
+    1000000000000000000000002120000000000000000000000000000000
+    > (abs -1000000000000000000000002120000000000000000000000000000000)
+    1000000000000000000000002120000000000000000000000000000000
+    > (abs -1.232)
+    1.232
     """
 
 @pytest.mark.xfail

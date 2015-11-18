@@ -3,11 +3,12 @@ import itertools
 from pycket import config
 from pycket import values
 from pycket import vector as values_vector
+from pycket.arity import Arity
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import make_call_method
 from pycket.small_list import inline_small_list
-from pycket.arity import Arity
+from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
 from rpython.rlib.unroll import unrolling_iterable
@@ -20,6 +21,7 @@ class W_StructInspector(values.W_Object):
 
     @staticmethod
     def make(w_inspector, issibling = False):
+        assert isinstance(w_inspector, W_StructInspector)
         w_super = w_inspector
         if issibling:
             w_super = w_inspector.w_super if w_inspector is not None else None
@@ -41,6 +43,7 @@ class W_StructInspector(values.W_Object):
             return False
 
 current_inspector = W_StructInspector(None)
+current_inspector_param = W_Parameter(current_inspector)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
@@ -213,7 +216,7 @@ class W_StructType(values.W_Object):
                             self.save_property_value(properties, idx, False, env, cont))
             assert isinstance(property, W_StructProperty)
             if not is_checked and property.w_guard.iscallable():
-                return property.w_guard.call([property_val, values.to_list(self.struct_type_info())],
+                return property.w_guard.call([property_val, values.to_list(self.struct_type_info(cont))],
                     env, self.save_property_value(properties, idx, True, env, cont))
             if property.isinstance(w_prop_procedure):
                 self.prop_procedure = property_val
@@ -287,13 +290,13 @@ class W_StructType(values.W_Object):
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
 
-    @jit.elidable
-    def struct_type_info(self):
+    def struct_type_info(self, cont):
         w_name = values.W_Symbol.make(self.name)
         w_init_field_count = values.W_Fixnum.make(self.init_field_count)
         w_auto_field_count = values.W_Fixnum.make(self.auto_field_count)
         w_immutable_k_list = values.to_list(
             [values.W_Fixnum.make(i) for i in self.immutables])
+        current_inspector = current_inspector_param.get(cont)
         w_super = values.w_false
         w_struct_type = self.w_super
         while isinstance(w_struct_type, W_StructType):
@@ -829,6 +832,8 @@ class W_StructConstructor(W_StructTypeProcedure):
         if len(struct_type.w_auto_values) > 0:
             field_values = field_values + struct_type.w_auto_values
         # constant_false = []
+        if len(field_values) != struct_type.total_field_count:
+            raise SchemeException("%s: arity mismatch" % self.constructor_name)
         for i, value in enumerate(field_values):
             if not struct_type.is_immutable_field_index(i):
                 value = values.W_Cell(value)

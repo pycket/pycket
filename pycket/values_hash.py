@@ -1,11 +1,10 @@
-from pycket       import config
-from pycket       import values, values_string
-from pycket.base  import W_Object, SingletonMeta
-from pycket.cont  import continuation, label, loop_label
-
+from pycket                   import config
+from pycket                   import values, values_string
+from pycket.base              import W_Object, SingletonMeta
+from pycket.error             import SchemeException
+from pycket.cont              import continuation, label, loop_label
 from rpython.rlib             import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
-
 
 class W_Missing(W_Object):
     def __init__(self):
@@ -54,6 +53,19 @@ def make_simple_table(cls, keys=None, vals=None, immutable=False):
         assert len(keys) == len(vals)
         for i, k in enumerate(keys):
             data[k] = vals[i]
+    return cls(data, immutable)
+
+@specialize.arg(0)
+def make_simple_table_assocs(cls, assocs, who, immutable=False):
+    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
+    if not assocs.is_proper_list():
+        raise SchemeException("%s: not given proper list" % who)
+    while isinstance(data, values.W_Cons):
+        entry, assocs = assocs.car(), assocs.cdr()
+        if not isinstance(entry, values.W_Cons):
+            raise SchemeException("%s: expected list of pairs" % who)
+        key, val = entry.car(), entry.cdr()
+        data[key] = val
     return cls(data, immutable)
 
 class W_SimpleHashTable(W_HashTable):

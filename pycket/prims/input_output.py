@@ -331,19 +331,23 @@ w_binary_sym = values.W_Symbol.make("binary")
 w_none_sym   = values.W_Symbol.make("none")
 w_error_sym  = values.W_Symbol.make("error")
 
-@expose("open-input-file", [values_string.W_String,
+@expose("open-input-file", [values.W_Object,
                             default(values.W_Symbol, w_binary_sym),
                             default(values.W_Symbol, w_none_sym)])
-def open_input_file(str, mode, mod_mode):
+def open_input_file(path, mode, mod_mode):
+    if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
+        raise SchemeException("open-input-file: expected path-string for argument 0")
     m = "r" if mode is w_text_sym else "rb"
-    return open_infile(str, m)
+    return open_infile(path, m)
 
-@expose("open-output-file", [values_string.W_String,
+@expose("open-output-file", [values.W_Object,
                              default(values.W_Symbol, w_binary_sym),
                              default(values.W_Symbol, w_error_sym)])
-def open_output_file(str, mode, exists):
+def open_output_file(path, mode, exists):
+    if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
+        raise SchemeException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
-    return open_outfile(str, m)
+    return open_outfile(path, m)
 
 @expose("close-input-port", [values.W_InputPort])
 def close_input_port(port):
@@ -363,18 +367,101 @@ def port_closedp(p):
 def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
+def extract_path(obj):
+    if isinstance(obj, values_string.W_String):
+        result = obj.as_str_utf8()
+    elif isinstance(obj, values.W_Path):
+        result = obj.path
+    elif isinstance(obj, values.W_Bytes):
+        result = obj.as_str()
+    else:
+        raise SchemeException("expected path-like values but got %s" % obj.tostring())
+    return result if result is not None else "."
+
+@expose("directory-exists?", [values.W_Object])
+def directory_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isdir(s))
+
+@expose("file-exists?", [values.W_Object])
+def file_exists(w_str):
+    s = extract_path(w_str)
+    return values.W_Bool.make(os.path.isfile(s))
+
+@expose("directory-list", [values.W_Object])
+def dir_list(w_str):
+    s = extract_path(w_str)
+    dir = [values.W_Path(p) for p in os.listdir(s)]
+    return values.to_list(dir)
+
+UP = values.W_Symbol.make("up")
+SAME = values.W_Symbol.make("same")
+SEP = values.W_Path(os.sep)
+
+def _explode_element(s):
+    if not s:
+        return SEP
+    if s == ".":
+        return SAME
+    if s == "..":
+        return UP
+    return values.W_Path(s)
+
+
+@expose("explode-path", [values.W_Object])
+def explode_path(w_path):
+    sep = os.sep
+    path = extract_path(w_path)
+    parts = [_explode_element(p) for p in path.split(sep)]
+    return values.to_list(parts)
+
+@expose("build-path")
+def build_path(args):
+    # XXX Does not check that we are joining absolute paths
+    # Sorry again Windows
+    result = [None] * len(args)
+    for i, s in enumerate(args):
+        if s is UP:
+            part = ".."
+        elif s is SAME:
+            part = "."
+        else:
+            part = extract_path(s)
+        if not part:
+            raise SchemeException("build-path: path element is empty")
+        result[i] = part
+    return values.W_Path("/".join(result))
+
+@expose("path->complete-path", [values.W_Object, default(values.W_Object, None)])
+def path_to_path_complete_path(path, _base):
+    if _base is None:
+        base = os.getcwd()
+    else:
+        base = extract_path(_base)
+    p = extract_path(path)
+    if p and p[0] == '/':
+        return path
+    return values.W_Path(base + '/' + p)
+
+@expose("path-for-some-system?", [values.W_Object])
+def path_for_some_system(path):
+    # XXX Really only handles UNIX paths
+    # https://github.com/racket/racket/blob/827fc4559879c73d46268fc72f95efe0009ff905/racket/src/racket/include/scheme.h#L493
+    # This seems to be the closest implementation we can achieve.
+    return values.W_Bool.make(isinstance(path, values.W_Path))
+
+@expose("resolve-path", [values.W_Object])
+def resolve_path(obj):
+    if not isinstance(obj, values_string.W_String) and not isinstance(obj, values.W_Path):
+        raise SchemeException("resolve-path: expected path-string")
+    str = extract_path(obj)
+    return values.W_Path(os.path.normpath(str))
+
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
     port.close()
     return return_multi_vals(vals, env, cont)
-
-def extract_path(obj):
-    if isinstance(obj, values_string.W_String):
-        return obj.as_str_utf8()
-    if isinstance(obj, values.W_Path):
-        return obj.path
-    raise SchemeException("expected path-like values but got %s" % obj.tostring())
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
@@ -669,6 +756,20 @@ def port_print_handler(out, proc):
 @expose("port-count-lines!", [values.W_Port])
 def port_count_lines_bang(p):
     return values.w_void
+
+def is_path_string(path):
+    return isinstance(path, values.W_Path) or isinstance(path, values_string.W_String)
+
+@expose("file-size", [values.W_Object])
+def file_size(obj):
+    if not is_path_string(obj):
+        raise SchemeException("file-size: expected path string")
+    path = extract_path(obj)
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        raise SchemeException("file-size: file %s does not exists" % path)
+    return values.W_Fixnum(size)
 
 @expose("read-bytes", [values.W_Fixnum, default(values.W_InputPort, None)],
         simple=False)

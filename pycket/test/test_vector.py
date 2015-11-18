@@ -35,6 +35,10 @@ def test_vec_strategies_empty():
     vec = run("(make-vector 0)")
     print "Second size: %s" % vec.length()
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run("(vector-immutable)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
+    vec = run("(vector-immutable 'hello)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_fixnum():
     vec = run("(vector 1 2 3)")
@@ -56,6 +60,8 @@ def test_vec_strategies_fixnum_singleton():
 def test_vec_strategies_object():
     vec = run("(vector (cons 1 2) 2 3)")
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run("(vector-immutable (cons 1 2) 2 3)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_stays_fixnum():
     vec = run("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")

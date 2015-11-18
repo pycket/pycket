@@ -120,13 +120,15 @@ def test_bytes_append(doctest):
     """
 
 def test_string_append(doctest):
-    """
+    u"""
     > (string-append "Apple" "Banana")
     "AppleBanana"
     > (string-append "Apple")
     "Apple"
     > (string-append)
     ""
+    > (string-append "Apple" "Βανανα")
+    "AppleΒανανα"
     """
 
 def test_bytes_to_string_utf8(doctest):
@@ -369,3 +371,50 @@ def test_mutable_unicode_to_bytes(doctest):
     #"s\303\274\303\237"
     """
 
+def test_list_to_string(doctest):
+    u"""
+    > (list->string '())
+    ""
+    > (list->string '(#\\a #\\b #\\c))
+    "abc"
+    > (list->string '(#\\α #\\β #\\ξ))
+    "αβξ"
+    > (immutable? (list->string '(#\\z)))
+    #f
+    """
+
+def test_string_to_list(doctest):
+    u"""
+    > (string->list "")
+    '()
+    > (string->list "abc")
+    '(#\\a #\\b #\\c)
+    > (string->list "αβξ")
+    '(#\\α #\\β #\\ξ)
+    """
+
+def test_string_length(doctest):
+    u"""
+    > (string-length "")
+    0
+    > (string-length "abc")
+    3
+    > (string-length "wasd")
+    4
+    > (string-length "αβξ")
+    3
+    """
+
+def test_string_to_number(doctest):
+    """
+    > (string->number "000")
+    0
+    > (string->number "069")
+    69
+    > (string->number "777")
+    777
+    > (string->number "3.14")
+    3.14
+    > (string->number "1111111112983718926391623986912350912395612093409182368590812")
+    1111111112983718926391623986912350912395612093409182368590812
+    """

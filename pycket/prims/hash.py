@@ -5,10 +5,11 @@ from pycket              import values
 from pycket              import values_hash
 from pycket.values_hash  import (
     W_HashTable, W_SimpleHashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
-    make_simple_table, w_missing)
+    make_simple_table, make_simple_table_assocs, w_missing)
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
+from rpython.rlib        import jit
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(ht):
@@ -91,15 +92,19 @@ def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
     after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
     return f.call([w_key, w_value], env, after)
 
+@jit.elidable
 def from_assocs(assocs, fname):
-    lsts = values.from_list(assocs)
-    keys = [None] * len(lsts)
-    vals = [None] * len(lsts)
-    for i, lst in enumerate(lsts):
-        if not isinstance(lst, values.W_Cons):
+    if not assocs.is_proper_list():
+        raise SchemeException("%s: expected proper list" % fname)
+    keys = []
+    vals = []
+    while isinstance(assocs, values.W_Cons):
+        val, assocs = assocs.car(), assocs.cdr()
+        if not isinstance(val, values.W_Cons):
             raise SchemeException("%s: expected list of pairs" % fname)
-        keys[i], vals[i] = lst.car(), lst.cdr()
-    return keys, vals
+        keys.append(val.car())
+        vals.append(val.cdr())
+    return keys[:], vals[:]
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
@@ -119,8 +124,8 @@ def make_immutable_hash(assocs):
 
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
-    keys, vals = from_assocs(assocs, "make-immutable-hasheq")
-    return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
+    # keys, vals = from_assocs(assocs, "make-immutable-hasheq")
+    return make_simple_table_assocs(W_EqHashTable, assocs, "make-immutable-hasheq", immutable=True)
 
 @expose("hash")
 def hash(args):
@@ -152,27 +157,11 @@ def make_hash(pairs):
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
-    lsts = values.from_list(pairs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return make_simple_table(W_EqHashTable, keys, vals)
+    return make_simple_table_assocs(W_EqHashTable, pairs, "make-hasheq")
 
 @expose("make-hasheqv", [default(values.W_List, values.w_null)])
 def make_hasheqv(pairs):
-    lsts = values.from_list(pairs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return make_simple_table(W_EqvHashTable, keys, vals)
+    return make_simple_table_assocs(W_EqvHashTable, pairs, "make-hasheqv")
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):

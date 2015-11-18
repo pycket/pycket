@@ -5,6 +5,7 @@
 #
 
 import pytest
+import os
 import sys
 from pycket        import values
 from pycket.values import w_true
@@ -45,6 +46,14 @@ def test_equal():
         '(equal? "abc" "def")',
     )
 
+def test_equal2(doctest):
+    """
+    ! (require racket/base)
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/bash"))
+    #t
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/tcsh"))
+    #f
+    """
 
 ###############################################################################
 
@@ -693,6 +702,15 @@ def test_procedure_closure_contents_eq(doctest):
     #f
     """
 
+def test_list_ref(doctest):
+    """
+    > (list-ref '(1 2 3) 0)
+    1
+    > (list-ref '(1 2 3) 1)
+    2
+    > (list-ref '(1 2 3) 2)
+    3
+    """
 
 def test_unsafe_undefined(doctest):
     """
@@ -732,4 +750,96 @@ def test_bytes_conversions():
 
     vb = m.defs[b]
     assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
+
+def test_build_path(doctest):
+    """
+    > (path->string (build-path "/usr/bin" "bash"))
+    "/usr/bin/bash"
+    > (path->string (build-path "/usr" "bin" 'up "bash"))
+    "/usr/bin/../bash"
+    > (path->string (build-path "/usr" "bin" 'same "bash"))
+    "/usr/bin/./bash"
+    """
+
+def test_path_to_complete_path():
+    m = run_mod(
+    """
+    #lang pycket
+    (define p (path->complete-path "test.rkt"))
+    """)
+    p = m.defs[values.W_Symbol.make("p")]
+    cwd = os.getcwd()
+    assert isinstance(p, values.W_Path)
+    full = cwd + "/" + "test.rkt"
+    assert full == p.path
+
+def test_explode_path(doctest):
+    """
+    ! (require racket/base)
+    ! (define (unpath p) (if (path? p) (path->string p) p))
+    > (map path->string (explode-path "/home/spenser/src/pycket"))
+    '("/" "home" "spenser" "src" "pycket")
+    > (map unpath (explode-path "/home/spenser/src/pycket/.././."))
+    '("/" "home" "spenser" "src" "pycket" up same same)
+    > (map unpath (explode-path "home/spenser/src/pycket/.././."))
+    '("home" "spenser" "src" "pycket" up same same)
+    """
+    assert doctest
+
+def test_file_size(doctest):
+    """
+    > (file-size "./pycket/test/sample_file.txt")
+    256
+    """
+    assert doctest
+
+def test_andmap(doctest):
+    """
+    ! (require (only-in '#%kernel andmap))
+    > (andmap even? '())
+    #t
+    > (andmap even? '(1))
+    #f
+    > (andmap even? '(2))
+    #t
+    > (andmap even? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap even? '(2 4 6 8))
+    #t
+    > (andmap odd? '())
+    #t
+    > (andmap odd? '(1))
+    #t
+    > (andmap odd? '(2))
+    #f
+    > (andmap odd? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_ormap(doctest):
+    """
+    ! (require (only-in '#%kernel ormap))
+    > (ormap even? '())
+    #f
+    > (ormap even? '(1))
+    #f
+    > (ormap even? '(2))
+    #t
+    > (ormap even? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap even? '(2 4 6 8))
+    #t
+    > (ormap odd? '())
+    #f
+    > (ormap odd? '(1))
+    #t
+    > (ormap odd? '(2))
+    #f
+    > (ormap odd? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap odd? '(2 4 6 8))
+    #f
+    """
 

@@ -359,6 +359,10 @@ class W_WrappedConsProper(W_WrappedCons):
     def is_proper_list(self):
         return True
 
+class W_WrappedConsMaybe(W_WrappedCons):
+    def is_proper_list(self):
+        return self._cdr.is_proper_list()
+
 class W_Box(W_Object):
     errorname = "box"
     def __init__(self):
@@ -493,7 +497,7 @@ class W_Number(W_Object):
         return self.hash_equal()
 
 class W_Rational(W_Number):
-    _immutable_fields_ = ["num", "den"]
+    _immutable_fields_ = ["_numerator", "_denominator"]
     errorname = "rational"
     def __init__(self, num, den):
         assert isinstance(num, rbigint)
@@ -734,6 +738,10 @@ class W_Path(W_Object):
     errorname = "path"
     def __init__(self, p):
         self.path = p
+    def equal(self, other):
+        if not isinstance(other, W_Path):
+            return False
+        return self.path == other.path
     def tostring(self):
         return "#<path:%s>" % self.path
 
@@ -1061,9 +1069,23 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
+@jit.elidable
+def from_list_elidable(w_curr):
+    result = []
+    while isinstance(w_curr, W_Cons):
+        result.append(w_curr.car())
+        w_curr = w_curr.cdr()
+    if w_curr is w_null:
+        return result[:] # copy to make result non-resizable
+    else:
+        raise SchemeException("Expected list, but got something else")
+
+@jit.unroll_safe
 def from_list(w_curr):
     result = []
     while isinstance(w_curr, W_Cons):
+        if jit.we_are_jitted() and (not jit.isvirtual(w_curr) or jit.isconstant(w_curr)):
+            return result + from_list_elidable(w_curr)
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
     if w_curr is w_null:
@@ -1479,3 +1501,8 @@ class W_FileOutputPort(W_OutputPort):
     def tell(self):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
+
+class W_CPointer(W_Object):
+    errorname = "cpointer"
+    def __init__(self):
+        pass

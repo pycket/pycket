@@ -15,7 +15,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, make_call_method, define_nyi,
                                  subclass_unsafe)
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
 
@@ -108,6 +108,7 @@ for args in [
         ("hash-eqv?", values_hash.W_HashTable),
         ("hash-equal?", values_hash.W_HashTable),
         ("hash-weak?", values_hash.W_HashTable),
+        ("cpointer?", values.W_CPointer),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
     make_pred(*args)
@@ -158,7 +159,7 @@ def syntax_source(stx):
 @expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
-    return values.w_false
+    return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))
 
 @expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
 def syntax_numbers(stx):
@@ -218,15 +219,15 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
 
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
-         values.W_Object, values.W_Object], simple=False)
-def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont):
+         values.W_Object, values.W_Object], simple=False, extra_info=True)
+def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, calling_app):
     from pycket.interpreter import check_one_val, return_value
     if isinstance(v, values_struct.W_RootStruct):
         struct_type = v.struct_type()
         while isinstance(struct_type, values_struct.W_StructType):
             if struct_type is type:
-                return return_value(v._ref(0), env,
-                    receive_first_field(proc, v, v1, v2, env, cont))
+                return v.ref_with_extra_info(0, calling_app, env,
+                        receive_first_field(proc, v, v1, v2, env, cont))
             struct_type = struct_type.w_super
     return proc.call([v, v1, v2], env, cont)
 
@@ -387,9 +388,6 @@ for args in [ ("subprocess?",),
               ("semaphore-try-wait?",),
               ("channel?",),
               ("readtable?",),
-              ("path-for-some-system?",),
-              ("file-exists?",),
-              ("directory-exists?",),
               ("link-exists?",),
               ("relative-path?",),
               ("absolute-path?",),
@@ -484,34 +482,51 @@ def sem_wait(s):
 def procedure_rename(p, n):
     return p
 
-@continuation
-def proc_arity_cont(result, env, cont, _vals):
-    from pycket.interpreter import check_one_val, return_value
-    result.append(check_one_val(_vals))
-    if len(result) == 1:
-        return return_value(result[0], env, cont)
-    return return_value(values.to_list(result[:]), env, cont)
-
 @expose("procedure->method", [procedure])
 def procedure_to_method(proc):
     # TODO provide a real implementation
     return proc
 
+@jit.unroll_safe
+def make_arity_list(arity, extra=None):
+    jit.promote(arity)
+    acc = values.w_null
+    if extra is not None:
+        acc = values.W_Cons.make(extra, acc)
+    for item in reversed(arity.arity_list):
+        i = values.W_Fixnum(item)
+        acc = values.W_Cons.make(i, acc)
+    return acc
+
+@continuation
+def proc_arity_cont(arity, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if not arity.arity_list:
+        return return_value(val, env, cont)
+    result = make_arity_list(arity, val)
+    return return_value(result, env, cont)
+    # result.append(check_one_val(_vals))
+    # if len(result) == 1:
+        # return return_value(result[0], env, cont)
+    # return return_value(values.to_list(result[:]), env, cont)
+
 @expose("procedure-arity", [procedure], simple=False)
+@jit.unroll_safe
 def do_procedure_arity(proc, env, cont):
     from pycket.interpreter import return_value
-    result = []
     arity = proc.get_arity()
-    for item in arity.arity_list:
-        result.append(values.W_Fixnum(item))
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constructor.call(val, env, proc_arity_cont(result, env, cont))
-    if len(result) == 1:
-        return return_value(result[0], env, cont)
-    return return_value(values.to_list(result[:]), env, cont)
+        return arity_at_least.constructor.call(val, env, proc_arity_cont(arity, env, cont))
+    if len(arity.arity_list) == 1:
+        item = values.W_Fixnum(arity.arity_list[0])
+        return return_value(item, env, cont)
+    result = make_arity_list(arity)
+    return return_value(result, env, cont)
 
 @expose("procedure-arity?", [values.W_Object])
+@jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
         if n.value >= 0:
@@ -520,7 +535,10 @@ def do_is_procedure_arity(n):
         n.struct_type().name == "arity-at-least":
         return values.w_true
     elif isinstance(n, values.W_List):
-        for item in values.from_list(n):
+        if not n.is_proper_list():
+            return values.w_false
+        while isinstance(n, values.W_Cons):
+            item, n = n.car(), n.cdr()
             if not (isinstance(item, values.W_Fixnum) or\
                 (isinstance(item, values_struct.W_RootStruct) and\
                 item.struct_type().name == "arity-at-least")):
@@ -706,17 +724,35 @@ def sem_peek_evt(s):
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
 
+@jit.elidable
+def elidable_length(lst):
+    n = 0
+    while isinstance(lst, values.W_Cons):
+        n += 1
+        lst = lst.cdr()
+    return n
+
+@objectmodel.always_inline
+def unroll_pred(lst, idx, unroll_to=0):
+    if not jit.we_are_jitted():
+        return False
+    return jit.isconstant(lst) or (not jit.isvirtual(lst) and idx > unroll_to)
+
+@jit.unroll_safe
+def virtual_length(lst, unroll_to=0):
+    n = 0
+    while isinstance(lst, values.W_Cons):
+        if unroll_pred(lst, n, unroll_to):
+            return n + elidable_length(lst)
+        n += 1
+        lst = lst.cdr()
+    return n
+
 @expose("length", [values.W_List])
 def length(a):
-    n = 0
-    while True:
-        if a is values.w_null:
-            return values.W_Fixnum(n)
-        if isinstance(a, values.W_Cons):
-            a = a.cdr()
-            n = n+1
-        else:
-            raise SchemeException("length: not a list")
+    if not a.is_proper_list():
+        raise SchemeException("length: not given proper list")
+    return values.W_Fixnum(virtual_length(a, unroll_to=2))
 
 @expose("list")
 def do_list(args):
@@ -956,6 +992,63 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
+
+@expose("andmap", simple=False)
+def andmap(args, env, cont):
+    from pycket.interpreter import return_value
+    if len(args) < 2:
+        raise SchemeException("andmap: expected at least a procedure and a list")
+    f = args[0]
+    if not f.iscallable():
+        raise SchemeException("andmap: expected a procedure, but got %s"%f)
+    ls = args[1:]
+    for l in ls:
+        if not isinstance(l, values.W_List):
+            raise SchemeException("andmap: expected a list, but got %s"%l)
+    return return_value(values.w_void, env, andmap_cont(f, ls, env, cont))
+
+@continuation
+def andmap_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(vals)
+    if val is values.w_false:
+        return return_value(val, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_true, env, cont)
+    cars = [l.car() for l in ls]
+    cdrs = [l.cdr() for l in ls]
+    return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
+
+@expose("ormap", simple=False)
+def ormap(args, env, cont):
+    from pycket.interpreter import return_value
+    if len(args) < 2:
+        raise SchemeException("ormap: expected at least a procedure and a list")
+    f = args[0]
+    if not f.iscallable():
+        raise SchemeException("ormap: expected a procedure, but got %s"%f)
+    ls = args[1:]
+    for l in ls:
+        if not isinstance(l, values.W_List):
+            raise SchemeException("ormap: expected a list, but got %s"%l)
+    return return_value(values.w_void, env, ormap_cont(f, ls, env, cont))
+
+@continuation
+def ormap_cont(f, ls, env, cont, vals):
+    # XXX this is currently not properly jitted
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(vals)
+    if val is values.w_true:
+        return return_value(val, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_false, env, cont)
+    cars = [l.car() for l in ls]
+    cdrs = [l.cdr() for l in ls]
+    return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
+
 @expose("append")
 @jit.look_inside_iff(
     lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
@@ -993,9 +1086,6 @@ def ephemeron_value(ephemeron, default):
     v = ephemeron.get()
     return v if v is not None else default
 
-# FIXME: implementation
-define_nyi("make-reader-graph", [values.W_Object])
-
 @expose("make-placeholder", [values.W_Object])
 def make_placeholder(val):
     return values.W_Placeholder(val)
@@ -1025,10 +1115,22 @@ def make_hasheqv_placeholder(vals):
 def listp(v):
     return values.W_Bool.make(v.is_proper_list())
 
+def enter_list_ref_iff(lst, pos):
+    if jit.isconstant(lst) and jit.isconstant(pos):
+        return True
+    return jit.isconstant(pos) and pos.value <= 16
+
 @expose("list-ref", [values.W_Cons, values.W_Fixnum])
+@jit.look_inside_iff(enter_list_ref_iff)
 def list_ref(lst, pos):
-    # XXX inefficient
-    return values.from_list(lst)[pos.value]
+    n = pos.value
+    if n < 0:
+        raise SchemeException("list-ref: negative index")
+    for i in range(pos.value):
+        lst = lst.cdr()
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("list-ref: index out of range")
+    return lst.car()
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
@@ -1050,8 +1152,7 @@ def curr_millis():
 @expose("error")
 def error(args):
     if len(args) == 1:
-        sym = args
-        assert isinstance(sym, values.W_Symbol)
+        sym = args[0]
         raise SchemeException("error: %s" % sym.tostring())
     else:
         first_arg = args[0]
@@ -1229,6 +1330,18 @@ def mcpt(s):
 def dcpt():
     return values.w_default_continuation_prompt_tag
 
+@expose("call-with-continuation-prompt", simple=False)
+def cwcp(args, env, cont):
+    from pycket.interpreter import return_value
+    # XXX: ignores all the important stuff
+    fun = args[0]
+    tag = args[1]
+    handler = args[2]
+    actuals = args[3:]
+    assert isinstance(fun, values.W_Procedure)
+    return fun.call(actuals, env, cont)
+    
+
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
@@ -1238,21 +1351,6 @@ def gensym(init):
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
     return values.W_Bool.make(a_keyword.value < b_keyword.value)
-
-@expose("build-path")
-def build_path(args):
-    # this is terrible
-    r = ""
-    for a in args:
-        if isinstance(a, values.W_Bytes):
-            r = r + str(a.value)
-        elif isinstance(a, values_string.W_String):
-            r = r + a.as_str_utf8()
-        elif isinstance(a, values.W_Path):
-            r = r + a.path
-        else:
-            raise SchemeException("bad input to build-path: %s" % a)
-    return values.W_Path(r)
 
 @expose("current-environment-variables", [])
 def cur_env_vars():
@@ -1267,11 +1365,34 @@ def do_raise(v, barrier):
     # TODO:
     raise SchemeException("uncaught exception: %s" % v.tostring())
 
-@expose("raise-argument-error",
-        [values.W_Symbol, values_string.W_String, values.W_Object])
-def raise_arg_err(name, expected, v):
-    raise SchemeException("%s: expected %s but got %s" % (
-        name.utf8value, expected.as_str_utf8(), v.tostring()))
+@expose("raise-argument-error")
+def raise_arg_err(args):
+    if (len(args) < 3):
+        raise SchemeException("raise-argument-error: expected at least 3 arguments")
+    name = args[0]
+    if (not(isinstance(name, values.W_Symbol))):
+        raise SchemeException("raise-argument-error: expected symbol as the first argument")
+    expected = args[1]
+    if (not(isinstance(expected, values_string.W_String))):
+        raise SchemeException("raise-argument-error: expected string as the second argument")
+    if (len(args) == 3):
+        # case 1
+        v = args[2]
+        raise SchemeException("%s: expected %s but got %s" % (
+            name.utf8value, expected.as_str_utf8(), v.tostring()))
+    else:
+        # case 2
+        bad_v = args[2]
+        if (not(isinstance(bad_v, values.W_Fixnum))):
+            raise SchemeException("raise-argument-error: expected number as the third argument")
+        if bad_v.value >= (len(args) - 3):
+            raise SchemeException("raise-argument-error: out of bounds number as the third argument")
+        v = args[bad_v.value+3]
+        # FIXME: actually print the other arguments
+        raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
+             name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
+
+
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):
@@ -1314,6 +1435,11 @@ def find_main_collects():
         [values.W_Object, values.W_Object, default(values.W_Object, None)])
 def mpi_join(a, b, c):
     return values.W_ModulePathIndex()
+
+@expose("module-path-index-resolve",
+        [values.W_ModulePathIndex])
+def mpi_resolve(a):
+    return values.W_ResolvedModulePath(values.W_Path("."))
 
 # Loading
 
@@ -1408,3 +1534,25 @@ def vector_to_values(v, start, end, env, cont):
     else:
         vals = [None] * (l - s)
         return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
+
+def reader_graph_loop(v, d):
+    if v in d:
+        return d[v]
+    if isinstance(v, values.W_Cons):
+        p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
+        d[v] = p
+        car = reader_graph_loop(v.car(), d)
+        cdr = reader_graph_loop(v.cdr(), d)
+        p._car = car
+        p._cdr = cdr
+        # FIXME: should change this to say if it's a proper list now ...
+        return p
+    if isinstance(v, values.W_Placeholder):
+        return reader_graph_loop(v.value, d)
+    # XXX FIXME: doesn't handle stuff
+    return v
+
+@expose("make-reader-graph", [values.W_Object])
+def make_reader_graph(v):
+    return reader_graph_loop(v, {})
+        

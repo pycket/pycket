@@ -25,13 +25,13 @@ def str2num(w_s):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 
+    s = w_s.as_str_utf8()
     try:
-        s = w_s.as_str_utf8()
         if "." in s:
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=10))
             except ParseStringOverflowError:
                 return values.W_Bignum(rbigint.rbigint.fromstr(s))
     except ParseStringError as e:
@@ -72,6 +72,10 @@ def num2str(a, radix):
         else:
             assert 0 # not reached
 
+@expose("string->path", [W_String])
+def string_to_path(str):
+    s = str.as_str_utf8()
+    return values.W_Path(s)
 
 @expose("string->unreadable-symbol", [W_String])
 def string_to_unsymbol(v):
@@ -118,13 +122,26 @@ def bytes_to_string_latin(str, err, start, end):
 
 @expose("string->list", [W_String])
 def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.as_unicode()])
+    data = s.as_unicode()
+    acc = values.w_null
+    for i in range(len(data) - 1, -1, -1):
+        char = data[i]
+        acc = values.W_Cons.make(values.W_Character(char), acc)
+    return acc
 
 @expose("list->string", [values.W_List])
 def list_to_string(w_list):
-    l = values.from_list(w_list)
-    return string(l)
-
+    if not w_list.is_proper_list():
+        raise SchemeException("list->string: expected proper list")
+    if not isinstance(w_list, values.W_Cons):
+        return W_String.fromascii("")
+    builder = UnicodeBuilder()
+    while isinstance(w_list, values.W_Cons):
+        char, w_list = w_list.car(), w_list.cdr()
+        if not isinstance(char, values.W_Character):
+            raise SchemeException("list->string: expected list of characters")
+        builder.append(char.value)
+    return W_String.fromunicode(builder.build())
 
 ##################################
 
@@ -206,20 +223,27 @@ def string_append(args):
         return W_String.fromascii("")
     builder = StringBuilder()
     unibuilder = None
-    for a in args:
-        if not isinstance(a, W_String):
-            raise SchemeException("string-append: expected a string")
-        if unibuilder is None:
-            try:
-                builder.append(a.as_str_ascii())
-                continue
-            except ValueError:
-                unibuilder = UnicodeBuilder()
-                unibuilder.append(unicode(builder.build()))
-        unibuilder.append(a.as_unicode())
+    ascii_idx = 0
+    try:
+        for ascii_idx in range(len(args)):
+            arg = args[ascii_idx]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            builder.append(arg.as_str_ascii())
+    except ValueError:
+        unibuilder = UnicodeBuilder()
+        unibuilder.append(unicode(builder.build()))
+        builder = None
+        for i in range(ascii_idx, len(args)):
+            arg = args[i]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            unibuilder.append(arg.as_unicode())
     if unibuilder is None:
+        assert builder is not None
         return W_String.fromascii(builder.build())
     else:
+        assert unibuilder is not None
         return W_String.fromunicode(unibuilder.build())
 
 @expose("string-length", [W_String])
@@ -463,6 +487,10 @@ for a in [("bytes<?", op.lt),
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
     return W_String.fromstr_utf8(bytes.as_str())
+
+@expose("bytes->path", [values.W_Bytes])
+def bytes_to_path(b):
+    return values.W_Path(b.as_str())
 
 ################################################################################
 
