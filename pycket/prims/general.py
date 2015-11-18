@@ -142,6 +142,12 @@ def syntax_tainted(v):
 def syntax_to_datum(stx):
     return stx.val
 
+@expose("syntax-e", [values.W_Syntax])
+def syntax_e(stx):
+    # XXX Obviously not correct
+    print "NOT YET IMPLEMENTED: syntax-e"
+    return stx.val
+
 # FIXME: not implemented
 @expose("datum->syntax", [values.W_Object, values.W_Object,
   default(values.W_Object, None), default(values.W_Object, None),

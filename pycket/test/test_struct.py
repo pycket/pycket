@@ -553,3 +553,15 @@ def test_struct_immutable_boolean1(source):
     """
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
+ 
+@skip
+def test_serializable(source):
+    """
+    (= (point-x (deserialize (serialize (point 1 2)))) 1)
+    """
+    extra = """
+    (require racket/serialize)
+    (serializable-struct point (x y))
+    """
+    result = run_mod_expr(source, extra=extra, wrap=True)
+    assert result == w_true
