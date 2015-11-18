@@ -210,6 +210,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
 
+        @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             bit = bitpos(hash_val, shift)
             idx = self.index(bit)
@@ -343,6 +344,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 index -= node._size
             assert False
 
+        @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             idx = mask(hash_val, shift)
             node = self._array[idx]
@@ -456,6 +458,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 index -= 1
             assert False
 
+        @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             if hash_val == self._hash:
                 count = len(self._array)
@@ -524,7 +527,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
         return (((i + (i >> 4) & r_uint(0xF0F0F0F)) * r_uint(0x1010101)) & r_uint(0xffffffff)) >> 24
 
-    @jit.unroll_safe
     def list_copy(from_lst, from_loc, to_list, to_loc, count):
         from_loc = r_uint(from_loc)
         to_loc = r_uint(to_loc)
@@ -536,7 +538,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             i += 1
         return to_list
 
-    @jit.unroll_safe
     def clone_and_set(array, i, a):
         clone = [None] * len(array)
 
@@ -548,7 +549,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         clone[i] = a
         return clone
 
-    @jit.unroll_safe
     def clone_and_set2(array, i, a, j, b):
         clone = [None] * len(array)
 
