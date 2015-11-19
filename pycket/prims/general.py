@@ -8,10 +8,10 @@ from pycket.cont import continuation, loop_label, call_cont
 from pycket import cont
 from pycket import values_parameter
 from pycket import values_struct
-from pycket import values_hash
 from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
+from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, make_call_method, define_nyi,
                                  subclass_unsafe)
@@ -103,11 +103,11 @@ for args in [
         ("parameterization?", values_parameter.W_Parameterization),
         # FIXME: Assumes we only have eq-hashes
         # XXX tests tests tests tests!
-        ("hash?", values_hash.W_HashTable),
-        ("hash-eq?", values_hash.W_HashTable),
-        ("hash-eqv?", values_hash.W_HashTable),
-        ("hash-equal?", values_hash.W_HashTable),
-        ("hash-weak?", values_hash.W_HashTable),
+        ("hash?", W_HashTable),
+        ("hash-eq?", W_HashTable),
+        ("hash-eqv?", W_HashTable),
+        ("hash-equal?", W_HashTable),
+        ("hash-weak?", W_HashTable),
         ("cpointer?", values.W_CPointer),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
         ]:
@@ -736,7 +736,7 @@ def elidable_length(lst):
 def unroll_pred(lst, idx, unroll_to=0):
     if not jit.we_are_jitted():
         return False
-    return jit.isconstant(lst) or (not jit.isvirtual(lst) and idx > unroll_to)
+    return not jit.isvirtual(lst) and idx > unroll_to
 
 @jit.unroll_safe
 def virtual_length(lst, unroll_to=0):
@@ -991,7 +991,6 @@ def for_each_cont(f, ls, env, cont, vals):
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
-
 
 @expose("andmap", simple=False)
 def andmap(args, env, cont):
