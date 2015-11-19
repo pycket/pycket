@@ -64,13 +64,10 @@ def hash_for_each_loop(ht, f, index, env, cont):
     return f.call([w_key, w_value], env,
             hash_for_each_cont(ht, f, index, env, cont))
 
-<<<<<<< HEAD
-=======
 @continuation
 def hash_for_each_cont(ht, f, index, env, cont, _vals):
     return hash_for_each_loop(ht, f, index + 1, env, cont)
 
->>>>>>> persistent-hash
 @expose("hash-map", [W_HashTable, procedure], simple=False)
 def hash_map(h, f, env, cont):
     from pycket.interpreter import return_value
