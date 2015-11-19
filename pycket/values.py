@@ -31,6 +31,7 @@ def memoize(f):
             lup = f(*val)
             cache[val] = lup
         return lup
+    wrapper.__name__ = "Memoized(%s)" % f.__name__
     return wrapper
 
 # Add a `make` method to a given class which memoizes constructor invocations.
@@ -293,6 +294,11 @@ class W_Cons(W_List):
 
     def immutable(self):
         return True
+
+    def hash_equal(self):
+        hash1 = self.car().hash_equal()
+        hash2 = self.cdr().hash_equal()
+        return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
@@ -584,8 +590,10 @@ class W_Integer(W_Number):
 class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
+
     def tostring(self):
         return str(self.value)
+
     def __init__(self, val):
         if not we_are_translated():
             # this is not safe during translation
@@ -600,6 +608,9 @@ class W_Fixnum(W_Integer):
     def hash_equal(self):
         return self.value
 
+W_Fixnum.ZERO = W_Fixnum.make(0)
+W_Fixnum.ONE  = W_Fixnum.make(1)
+W_Fixnum.TWO  = W_Fixnum.make(2)
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
@@ -619,7 +630,7 @@ class W_Flonum(W_Number):
     def hash_equal(self):
         return compute_hash(self.value)
 
-    def eqv(self, other):
+    def equal(self, other):
         from rpython.rlib.longlong2float import float2longlong
         import math
         if not isinstance(other, W_Flonum):
@@ -630,7 +641,6 @@ class W_Flonum(W_Number):
         ll2 = float2longlong(v2)
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
-
 
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
@@ -906,6 +916,7 @@ class W_Symbol(W_Object):
         self.utf8value = val.encode("utf-8")
 
     @staticmethod
+    @jit.elidable
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.

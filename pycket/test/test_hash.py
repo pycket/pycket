@@ -2,8 +2,9 @@ import operator as op
 from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
 from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
-from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
+from rpython.rlib.rarithmetic        import r_uint
 
 def test_hash_simple(doctest):
     """
@@ -46,6 +47,20 @@ def test_hasheqv(doctest):
     > (hash-set! ht 1.0 'a)
     > (hash-set! ht 2.0 'a)
     > (hash-ref ht (+ 1.0 1.0))
+    'a
+    """
+
+def test_immutable_hasheqv(doctest):
+    """
+    ! (define h (for/fold ([acc (make-immutable-hasheqv)]) ([i (in-range 0 100)]) (hash-set acc i (+ i 1))))
+    ! (define h^ (hash-set h 2.0 'a))
+    > (hash-ref h 0)
+    1
+    > (hash-ref h 50)
+    51
+    > (hash-ref h  99)
+    100
+    > (hash-ref h^ (+ 1.0 1.0))
     'a
     """
 
@@ -93,7 +108,6 @@ def test_hash_strings(doctest):
     'ohnoes
     """
 
-
 def test_hash_bytes(doctest):
     """
     ! (define ht (make-hash))
@@ -117,7 +131,6 @@ def test_hash_bytes(doctest):
     > (hash-ref ht 1)
     'ohnoes
     """
-
 
 def test_hash_ints(doctest):
     """
@@ -143,6 +156,16 @@ def test_hash_for_each(doctest):
     """
     ! (define x 1)
     ! (define h #hash((1 . 2) (2 . 3) (3 . 4)))
+    ! (define (fe c v) (set! x (+ x (* c v))))
+    ! (hash-for-each h fe)
+    > x
+    21
+    """
+
+def test_persistent_eqhash_for_each(doctest):
+    """
+    ! (define x 1)
+    ! (define h (for/fold ([acc (make-immutable-hasheq)]) ([i (in-range 1 4)]) (hash-set acc i (+ i 1))))
     ! (define (fe c v) (set! x (+ x (* c v))))
     ! (hash-for-each h fe)
     > x
@@ -329,4 +352,72 @@ def test_hash_for(doctest):
     > (for/sum ([(k v) ht]) v)
     6
     """
+
+def test_persistent_hash():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
+
+def test_persistent_hash_collisions():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
+
+def test_persistent_hash_collisions2():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x)) % 8)
+    acc = HashTable.EMPTY
+
+    for i in range(2048):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 128, i)
+
+    assert len(acc) == 128
+    assert len(list(acc.iteritems())) == 128
+    for k, v in acc.iteritems():
+        assert acc.val_at(k, None) is v
+
+def test_persistent_hash_removal():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10)
+
+    assert len(acc) == 0
+    assert list(acc.iteritems()) == []
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10 + 1)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
 

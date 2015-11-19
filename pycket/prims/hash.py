@@ -18,13 +18,14 @@ from rpython.rlib        import jit
 def hash_iterate_first(ht):
     if ht.length() == 0:
         return values.w_false
-    return values.W_Fixnum.make(0)
+    return values.W_Fixnum.ZERO
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    if ht.length()-1 == pos.value:
+    index = pos.value
+    if index >= ht.length() - 1:
         return values.w_false
-    return values.W_Fixnum.make(pos.value + 1)
+    return values.W_Fixnum(index + 1)
 
 def hash_iter_ref(ht, pos, key=False):
     n = pos.value
@@ -38,7 +39,6 @@ def hash_iter_ref(ht, pos, key=False):
         raise SchemeException("hash-iterate-key: invalid position")
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
-
 
 @expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
 def hash_iterate_key(ht, pos):
@@ -129,6 +129,10 @@ def make_immutable_hash(assocs):
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
     return make_simple_immutable_table_assocs(W_EqImmutableHashTable, assocs, "make-immutable-hasheq")
+
+@expose("make-immutable-hasheqv", [default(values.W_List, values.w_null)])
+def make_immutable_hasheqv(assocs):
+    return make_simple_immutable_table_assocs(W_EqvImmutableHashTable, assocs, "make-immutable-hasheq")
 
 @expose("hash")
 def hash(args):
@@ -247,6 +251,9 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
             hash_copy_ref_cont(keys, idx, src, new, env, cont))
 
 def hash_copy(src, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(src, W_ImmutableHashTable):
+        return return_value(src.make_copy(), env, cont)
     new = src.make_empty()
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 

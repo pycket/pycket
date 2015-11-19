@@ -149,19 +149,17 @@ W_EqvImmutableHashTable = make_persistent_hash_type(
         name="W_EqvImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
         equal=W_EqvMutableHashTable.cmp_value)
-W_EqvImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 
 W_EqImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
         name="W_EqImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
         equal=W_EqMutableHashTable.cmp_value)
-W_EqImmutableHashTable.EMPTY = W_EqvImmutableHashTable(0, None)
 
 class __extend__(W_EqvImmutableHashTable):
 
     def length(self):
-        return self._cnt
+        return len(self)
 
     def make_copy(self):
         return self
@@ -169,20 +167,42 @@ class __extend__(W_EqvImmutableHashTable):
     def make_empty(self):
         return W_EqvImmutableHashTable.EMPTY
 
-    def get_item(self, key):
-        raise NotImplementedError("todo")
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        result = self.val_at(k, w_missing)
+        return return_value(result, env, cont)
+
+    def tostring(self):
+        assert type(self) is W_EqvImmutableHashTable
+        entries = [None] * len(self)
+        i = 0
+        for k, v in self.iteritems():
+            entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
+            i += 1
+        return "#hasheqv(%s)" % " ".join(entries)
 
 class __extend__(W_EqImmutableHashTable):
 
     def length(self):
-        return self._cnt
+        return len(self)
 
     def make_copy(self):
         return self
 
     def make_empty(self):
-        return W_EqImmutableHashTable(0, None)
+        return W_EqImmutableHashTable.EMPTY
 
-    def get_item(self, key):
-        raise NotImplementedError("todo")
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        result = self.val_at(k, w_missing)
+        return return_value(result, env, cont)
+
+    def tostring(self):
+        assert type(self) is W_EqImmutableHashTable
+        entries = [None] * len(self)
+        i = 0
+        for k, v in self.iteritems():
+            entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
+            i += 1
+        return "#hasheq(%s)" % " ".join(entries)
 

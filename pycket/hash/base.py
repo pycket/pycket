@@ -21,11 +21,9 @@ class W_HashTable(W_Object):
     def hash_items(self):
         raise NotImplementedError("abstract method")
 
-    @label
     def hash_set(self, k, v, env, cont):
         raise NotImplementedError("abstract method")
 
-    @label
     def hash_ref(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
@@ -54,6 +52,7 @@ class W_MutableHashTable(W_HashTable):
 class W_ImmutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
+    _settled_ = True
     def immutable(self):
         return True
 

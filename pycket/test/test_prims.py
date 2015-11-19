@@ -12,6 +12,8 @@ from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
 
+skip = pytest.mark.skipif("True")
+
 def test_equal():
     check_all(
         "(equal? 1 1)",
@@ -792,4 +794,109 @@ def test_file_size(doctest):
     256
     """
     assert doctest
+
+def test_andmap(doctest):
+    """
+    ! (require (only-in '#%kernel andmap))
+    > (andmap even? '())
+    #t
+    > (andmap even? '(1))
+    #f
+    > (andmap even? '(2))
+    #t
+    > (andmap even? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap even? '(2 4 6 8))
+    #t
+    > (andmap odd? '())
+    #t
+    > (andmap odd? '(1))
+    #t
+    > (andmap odd? '(2))
+    #f
+    > (andmap odd? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_ormap(doctest):
+    """
+    ! (require (only-in '#%kernel ormap))
+    > (ormap even? '())
+    #f
+    > (ormap even? '(1))
+    #f
+    > (ormap even? '(2))
+    #t
+    > (ormap even? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap even? '(2 4 6 8))
+    #t
+    > (ormap odd? '())
+    #f
+    > (ormap odd? '(1))
+    #t
+    > (ormap odd? '(2))
+    #f
+    > (ormap odd? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_syntax_to_datum(doctest):
+    """
+    > (syntax->datum #'a)
+    'a
+    > (syntax->datum #'(x . y))
+    '(x . y)
+    > (syntax->datum #'#(1 2 (+ 3 4)))
+    '#(1 2 (+ 3 4))
+    > (syntax->datum #'#&"hello world")
+    '#&"hello world"
+    ;;;;; XXX: Ordering problem?
+    ;> (syntax->datum #'#hash((imperial . "yellow") (festival . "green")))
+    ;'#hash((festival . "green") (imperial . "yellow"))
+    > (syntax->datum #'#(point 3 4))
+    '#(point 3 4)
+    > (syntax->datum #'3)
+    3
+    > (syntax->datum #'"three")
+    "three"
+    > (syntax->datum #'#t)
+    #t
+    """
+
+@skip
+def test_syntax_e(doctest):
+    """
+    > (syntax-e #'a)
+    'a
+    > (let ((s (syntax-e #'(x . y))))
+        (and (pair? s) (syntax? (car s)) (syntax? (cdr s))))
+    ;'(#<syntax:11:0 x> . #<syntax:11:0 y>)
+    #t
+    > (let ((s (syntax-e #'#(1 2 (+ 3 4)))))
+        (and (list? s) (syntax? (list-ref s 1))))
+    ;'#(#<syntax:12:0 1> #<syntax:12:0 2> #<syntax:12:0 (+ 3 4)>)
+    #t
+    > (let ((s (syntax-e #'#&"hello world")))
+        (and (box? s) (syntax? (unbox s))))
+    ;'#&#<syntax:13:0 "hello world">
+    #t
+    ;;;;; XXX: Ordering problem?
+    ;> (syntax-e #'#hash((imperial . "yellow") (festival . "green")))
+    ;'#hash((festival . #<syntax:14:0 "green">) (imperial . #<syntax:14:0 "yellow">))
+    > (let ((s (syntax-e #'#(point 3 4))))
+        (and (vector? s) (syntax? (vector-ref s 1))))
+    ;'#(#<syntax:15:0 point> #<syntax:15:0 3> #<syntax:15:0 4>)
+    #t
+    > (syntax-e #'3)
+    3
+    > (syntax-e #'"three")
+    "three"
+    > (syntax-e #'#t)
+    #t
+    """
 
