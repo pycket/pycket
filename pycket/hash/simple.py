@@ -11,7 +11,7 @@ from pycket.hash.persistent_hash_map import make_persistent_hash_type
 from rpython.rlib.objectmodel        import compute_hash, r_dict, specialize
 from rpython.rlib.rarithmetic        import r_uint
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_mutable_table(cls, keys=None, vals=None):
     data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
     if keys is not None and vals is not None:
@@ -20,7 +20,7 @@ def make_simple_mutable_table(cls, keys=None, vals=None):
             data[k] = vals[i]
     return cls(data)
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_mutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
@@ -33,7 +33,7 @@ def make_simple_mutable_table_assocs(cls, assocs, who):
         data[key] = val
     return cls(data)
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_immutable_table(cls, keys=None, vals=None):
     table = cls.EMPTY
     if keys is not None and vals is not None:
@@ -42,7 +42,7 @@ def make_simple_immutable_table(cls, keys=None, vals=None):
             table = table.assoc(k, vals[i])
     return table
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_immutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
