@@ -142,6 +142,12 @@ def syntax_tainted(v):
 def syntax_to_datum(stx):
     return stx.val
 
+@expose("syntax-e", [values.W_Syntax])
+def syntax_e(stx):
+    # XXX Obviously not correct
+    print "NOT YET IMPLEMENTED: syntax-e"
+    return stx.val
+
 # FIXME: not implemented
 @expose("datum->syntax", [values.W_Object, values.W_Object,
   default(values.W_Object, None), default(values.W_Object, None),
@@ -220,10 +226,11 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False, extra_info=True)
+@jit.unroll_safe
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, calling_app):
     from pycket.interpreter import check_one_val, return_value
     if isinstance(v, values_struct.W_RootStruct):
-        struct_type = v.struct_type()
+        struct_type = jit.promote(v.struct_type())
         while isinstance(struct_type, values_struct.W_StructType):
             if struct_type is type:
                 return v.ref_with_extra_info(0, calling_app, env,
@@ -1005,13 +1012,11 @@ def andmap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val == values.w_false:
-        return_value(val, env, cont)
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_true, env, cont)
+    if val is values.w_false:
+        return return_value(val, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_true, env, cont)
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
@@ -1035,17 +1040,14 @@ def ormap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val == values.w_true:
-        return_value(val, env, cont)
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_false, env, cont)
+    if val is values.w_true:
+        return return_value(val, env, cont)
+    for l in ls:
+        if l is values.w_null:
+            return return_value(values.w_false, env, cont)
     cars = [l.car() for l in ls]
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
-
 
 @expose("append")
 @jit.look_inside_iff(

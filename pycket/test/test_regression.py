@@ -104,3 +104,11 @@ class TestRegressions(object):
         # Really only intereted in whether or not expansion works and
         # parses properly on the Pycket side
         m = run_mod(source)
+
+    def test_constr_arity_check(self):
+        with pytest.raises(SchemeException):
+            run_mod("""#lang racket/base
+            (struct x (a)) (x)""")
+        with pytest.raises(SchemeException):
+            run_mod("""#lang racket/base
+            (struct x ()) (x 2)""")

@@ -1,11 +1,12 @@
-from rpython.rlib.rbigint import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rlib import rarithmetic
-from rpython.rlib.objectmodel import specialize
+from pycket                    import values, error
+from pycket.error              import SchemeException
+from rpython.rlib              import rarithmetic, jit
+from rpython.rlib.objectmodel  import specialize
+from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rtyper.raisingops import int_floordiv_ovf
-from pycket import values, error
-from pycket.error import SchemeException
 import math
 
+@jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
@@ -981,12 +982,11 @@ class __extend__(values.W_Rational):
         cb = other._numerator.mul(self._denominator)
         return ad.lt(cb)
 
-
 class __extend__(values.W_Complex):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Complex):
             return self, other
-        return self, values.W_Complex(other, values.W_Fixnum(0))
+        return self, values.W_Complex(other, values.W_Fixnum.ZERO)
 
     def arith_add_same(self, other):
         assert isinstance(other, values.W_Complex)
@@ -1008,7 +1008,7 @@ class __extend__(values.W_Complex):
 
     def arith_div_same(self, other):
         assert isinstance(other, values.W_Complex)
-        if other.imag.arith_eq(values.W_Fixnum.make(0)):
+        if other.imag.arith_eq(values.W_Fixnum.ZERO):
             divisor = other.real
             r = self.real.arith_div(divisor)
             i = self.imag.arith_div(divisor)

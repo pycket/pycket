@@ -30,6 +30,7 @@ class W_StructInspector(values.W_Object):
     def __init__(self, super):
         self.super = super
 
+    @jit.elidable
     def has_control(self, struct_type):
         inspector = struct_type.inspector
         if not isinstance(inspector, W_StructInspector):
@@ -90,7 +91,7 @@ class W_StructType(values.W_Object):
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
     @staticmethod
-    @jit.unroll_safe
+    @jit.elidable
     def make_prefab(prefab_key):
         if prefab_key in W_StructType.unbound_prefab_types:
             w_struct_type = W_StructType.unbound_prefab_types[prefab_key]
@@ -102,10 +103,10 @@ class W_StructType(values.W_Object):
             immutables = []
             for i in range(init_field_cnt):
                 if i not in mutables:
-                    immutables.append(values.W_Fixnum.make(i))
+                    immutables.append(values.W_Fixnum(i))
             w_struct_type = W_StructType.make_simple(values.W_Symbol.make(name),
-                super_type, values.W_Fixnum.make(init_field_cnt),
-                values.W_Fixnum.make(auto_field_cnt), auto_v, values.w_null,
+                super_type, values.W_Fixnum(init_field_cnt),
+                values.W_Fixnum(auto_field_cnt), auto_v, values.w_null,
                 PREFAB, values.w_false, values.to_list(immutables))
             W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
         return w_struct_type
@@ -264,10 +265,10 @@ class W_StructType(values.W_Object):
 
     def struct_type_info(self, cont):
         name = values.W_Symbol.make(self.name)
-        init_field_cnt = values.W_Fixnum.make(self.init_field_cnt)
-        auto_field_cnt = values.W_Fixnum.make(self.auto_field_cnt)
+        init_field_cnt = values.W_Fixnum(self.init_field_cnt)
+        auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
         immutable_k_list = values.to_list(
-            [values.W_Fixnum.make(i) for i in self.immutables])
+            [values.W_Fixnum(i) for i in self.immutables])
         current_inspector = current_inspector_param.get(cont)
         super = values.w_false
         typ = self.super
@@ -297,6 +298,15 @@ class W_StructType(values.W_Object):
                 return val
         return None
 
+    @jit.elidable
+    def all_opaque(self):
+        if not self.isopaque:
+            return False
+        elif isinstance(self.super, W_StructType):
+            return self.super.all_opaque()
+        return True
+
+
     def tostring(self):
         return "#<struct-type:%s>" % self.name
 
@@ -306,6 +316,7 @@ class W_PrefabKey(values.W_Object):
     all_keys = []
 
     @staticmethod
+    @jit.elidable
     def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
         for key in W_PrefabKey.all_keys:
             if key.equal_tuple((name, init_field_cnt, auto_field_cnt, auto_v,
@@ -356,6 +367,7 @@ class W_PrefabKey(values.W_Object):
             mutables, super_key)
 
     @staticmethod
+    @jit.elidable
     def from_raw_key(w_key, total_field_cnt=0):
         init_field_cnt = -1
         auto_field_cnt = 0
@@ -449,13 +461,13 @@ class W_PrefabKey(values.W_Object):
     def key(self):
         key = []
         key.append(values.W_Symbol.make(self.name))
-        key.append(values.W_Fixnum.make(self.init_field_cnt))
+        key.append(values.W_Fixnum(self.init_field_cnt))
         if self.auto_field_cnt > 0:
             key.append(values.to_list(
-                [values.W_Fixnum.make(self.auto_field_cnt), self.auto_v]))
+                [values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
         mutables = []
         for i in self.mutables:
-            mutables.append(values.W_Fixnum.make(i))
+            mutables.append(values.W_Fixnum(i))
         if mutables:
             key.append(values_vector.W_Vector.fromelements(mutables))
         if self.super_key:
@@ -667,19 +679,45 @@ class W_Struct(W_RootStruct):
             return w_write_proc.call([self, port, mode], env, cont)
         return self.tostring()
 
-    def tostring(self):
-        typ = self.struct_type()
-        if typ.isopaque:
-            result =  "#<%s>" % typ.name
+    def tostring_prefab(self):
+        prefab_key = W_PrefabKey.from_struct_type(self.struct_type())
+        return ("#s(%s %s)" %
+                (prefab_key.short_key().tostring(),
+                 ' '.join([val.tostring() for val in self.vals()])))
+
+    @jit.unroll_safe
+    def tostring_values(self, fields, w_type, is_super=False):
+        " fill fields with tostring() version of field if applicable "
+        assert isinstance(w_type, W_StructType)
+        w_super = w_type.super
+        has_super = isinstance(w_super, W_StructType)
+        if has_super:
+            self.tostring_values(fields=fields,w_type=w_super,is_super=True)
+        offset = self.struct_type().get_offset(w_type)
+        count = w_type.total_field_cnt
+        if has_super:
+            count -= w_super.total_field_cnt
+        assert len(fields) >= count + offset
+        if w_type.isopaque:
+            fields[offset] = "..."
         else:
-            if typ.isprefab:
-                result = "#s(%s %s)" %\
-                    (W_PrefabKey.from_struct_type(typ).short_key().tostring(),
-                        ' '.join([val.tostring() for val in self.vals()]))
-            else:
-                result = "(%s %s)" % (typ.name,
-                    ' '.join([val.tostring() for val in self.vals()]))
-        return result
+            for i in range(offset, offset + count):
+                fields[i] = self._ref(i).tostring()
+
+    @jit.unroll_safe
+    def _string_from_list(self, l):
+        return ' '.join([s for s in l if s is not None])
+
+    def tostring(self):
+        w_type = self.struct_type()
+        if w_type.isprefab:
+            return self.tostring_prefab()
+        elif w_type.all_opaque():
+            return "#<%s>" % w_type.name
+        else:
+            fields = [None] * w_type.total_field_cnt
+            self.tostring_values(fields=fields, w_type=w_type, is_super=False)
+            return "(%s %s)" % (w_type.name, self._string_from_list(fields))
 
 """
 This method generates a new structure class with inline stored immutable #f
@@ -806,6 +844,8 @@ class W_StructConstructor(values.W_Procedure):
             field_values = guard_super_values + field_values[len(guard_super_values):]
         if len(struct_type.auto_values) > 0:
             field_values = field_values + struct_type.auto_values
+        if len(field_values) != struct_type.total_field_cnt:
+            raise SchemeException("%s: arity mismatch" % self.constr_name)
         constant_false = []
         for i, value in enumerate(field_values):
             if not struct_type.is_immutable_field_index(i):
