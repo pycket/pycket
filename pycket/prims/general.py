@@ -738,7 +738,7 @@ def elidable_length(lst):
 def unroll_pred(lst, idx, unroll_to=0):
     if not jit.we_are_jitted():
         return False
-    return jit.isconstant(lst) or (not jit.isvirtual(lst) and idx > unroll_to)
+    return not jit.isvirtual(lst) and idx > unroll_to
 
 @jit.unroll_safe
 def virtual_length(lst, unroll_to=0):

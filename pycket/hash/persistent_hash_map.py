@@ -63,14 +63,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             for i in range(self._cnt):
                 yield self.get_item(i)
 
-        def iterkeys(self):
-            for k, v in iter(self):
-                yield k
-
-        def itervals(self):
-            for k, v in iter(self):
-                yield v
-
         def assoc(self, key, val):
             added_leaf = Box()
 
@@ -101,6 +93,10 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             return PersistentHashMap(self._cnt - 1, new_root)
 
         def get_item(self, index):
+            return self._elidable_get_item(index)
+
+        @jit.elidable
+        def _elidable_get_item(self, index):
             if not (0 <= index < self._cnt):
                 raise IndexError
 
@@ -271,6 +267,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(None, self._bitmap | bit, new_array, self._size + 1)
 
+        @jit.dont_look_inside
         def find(self, shift, hash_val, key, not_found):
             bit = bitpos(hash_val, shift)
             if (self._bitmap & bit) == 0:
@@ -284,6 +281,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return val_or_node
             return not_found
 
+        @jit.dont_look_inside
         def without_inode(self, shift, hash, key):
             bit = bitpos(hash, shift)
             if self._bitmap & bit == 0:
@@ -365,6 +363,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             newsize = added_leaf.adjust_size(self._size)
             return ArrayNode(None, self._cnt, new_array, newsize)
 
+        @jit.dont_look_inside
         def without_inode(self, shift, hash_val, key):
             idx = r_uint(mask(hash_val, shift))
             node = self._array[idx]
@@ -407,6 +406,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return BitmapIndexedNode(None, bitmap, new_array, self._size - 1)
 
+        @jit.dont_look_inside
         def find(self, shift, hash_val, key, not_found):
             idx = mask(hash_val, shift)
             node = self._array[idx]
@@ -501,6 +501,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return r_int(-1)
 
+        @jit.dont_look_inside
         def without_inode(self, shift, hash, key):
             idx = self.find_index(key)
             if idx == -1:
