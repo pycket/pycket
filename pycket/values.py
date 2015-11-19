@@ -916,6 +916,7 @@ class W_Symbol(W_Object):
         self.utf8value = val.encode("utf-8")
 
     @staticmethod
+    @jit.elidable
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
