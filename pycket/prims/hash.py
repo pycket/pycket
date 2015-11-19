@@ -251,6 +251,9 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
             hash_copy_ref_cont(keys, idx, src, new, env, cont))
 
 def hash_copy(src, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(src, W_ImmutableHashTable):
+        return return_value(src.make_copy(), env, cont)
     new = src.make_empty()
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 

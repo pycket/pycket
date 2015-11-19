@@ -123,6 +123,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             assert not isinstance(val_or_node, INode)
             return key_or_none, val_or_node
 
+        def make_copy(self):
+            return PersistentHashMap(self._cnt, self._root)
+
     PersistentHashMap.__name__ = name
 
     class INode(super):
