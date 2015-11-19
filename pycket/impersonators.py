@@ -148,6 +148,8 @@ class W_InterposeProcedure(values.W_Procedure):
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
+
+    @jit.unroll_safe
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
