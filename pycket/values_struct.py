@@ -30,6 +30,7 @@ class W_StructInspector(values.W_Object):
     def __init__(self, super):
         self.super = super
 
+    @jit.elidable
     def has_control(self, struct_type):
         inspector = struct_type.inspector
         if not isinstance(inspector, W_StructInspector):
@@ -90,7 +91,7 @@ class W_StructType(values.W_Object):
             auto_v, inspector, proc_spec, immutables, guard, constr_name)
 
     @staticmethod
-    @jit.unroll_safe
+    @jit.elidable
     def make_prefab(prefab_key):
         if prefab_key in W_StructType.unbound_prefab_types:
             w_struct_type = W_StructType.unbound_prefab_types[prefab_key]
@@ -310,6 +311,7 @@ class W_PrefabKey(values.W_Object):
     all_keys = []
 
     @staticmethod
+    @jit.elidable
     def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
         for key in W_PrefabKey.all_keys:
             if key.equal_tuple((name, init_field_cnt, auto_field_cnt, auto_v,
@@ -360,6 +362,7 @@ class W_PrefabKey(values.W_Object):
             mutables, super_key)
 
     @staticmethod
+    @jit.elidable
     def from_raw_key(w_key, total_field_cnt=0):
         init_field_cnt = -1
         auto_field_cnt = 0
