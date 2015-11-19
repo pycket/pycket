@@ -1,11 +1,12 @@
-from rpython.rlib.rbigint import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rlib import rarithmetic
-from rpython.rlib.objectmodel import specialize
+from pycket                    import values, error
+from pycket.error              import SchemeException
+from rpython.rlib              import rarithmetic, jit
+from rpython.rlib.objectmodel  import specialize
+from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rtyper.raisingops import int_floordiv_ovf
-from pycket import values, error
-from pycket.error import SchemeException
 import math
 
+@jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():

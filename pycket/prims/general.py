@@ -226,10 +226,11 @@ def receive_first_field(proc, v, v1, v2, env, cont, _vals):
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
          values.W_Object, values.W_Object], simple=False, extra_info=True)
+@jit.unroll_safe
 def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, calling_app):
     from pycket.interpreter import check_one_val, return_value
     if isinstance(v, values_struct.W_RootStruct):
-        struct_type = v.struct_type()
+        struct_type = jit.promote(v.struct_type())
         while isinstance(struct_type, values_struct.W_StructType):
             if struct_type is type:
                 return v.ref_with_extra_info(0, calling_app, env,
