@@ -74,12 +74,11 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
     class BitmapIndexedNode(INode):
 
-        _attrs_ = ['_edit', '_bitmap', '_array']
-        _immutable_fields_ = ['_edit', '_bitmap', '_array[*]']
+        _attrs_ = ['_bitmap', '_array']
+        _immutable_fields_ = ['_bitmap', '_array[*]']
         _settled_ = True
 
-        def __init__(self, edit,  bitmap, array, size):
-            self._edit = edit
+        def __init__(self, bitmap, array, size):
             self._bitmap = bitmap
             self._array = array
             self._size = size
@@ -141,7 +140,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                         return self
                     new_array = clone_and_set(self._array, 2 * idx + 1, n)
                     newsize = added_leaf.adjust_size(self._size)
-                    return BitmapIndexedNode(None, self._bitmap, new_array, newsize)
+                    return BitmapIndexedNode(self._bitmap, new_array, newsize)
 
 
                 if equal(key, key_or_null):
@@ -149,12 +148,12 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     if val is val_or_node:
                         return self
                     new_array = clone_and_set(self._array, 2 * idx + 1, val)
-                    return BitmapIndexedNode(None, self._bitmap, new_array, self._size)
+                    return BitmapIndexedNode(self._bitmap, new_array, self._size)
 
                 added_leaf._val = added_leaf
                 subnode  = create_node(shift + 5, key_or_null, val_or_node, hash_val, key, val)
                 new_array = clone_and_set2(self._array, 2 * idx, None, 2 * idx + 1, subnode)
-                return BitmapIndexedNode(None, self._bitmap, new_array, self._size + 1)
+                return BitmapIndexedNode(self._bitmap, new_array, self._size + 1)
             else:
                 n = bit_count(self._bitmap)
                 if n >= 16:
@@ -173,7 +172,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                             j += 2
 
                     newsize = added_leaf.adjust_size(self._size)
-                    return ArrayNode(None, n + 1, nodes, newsize)
+                    return ArrayNode(n + 1, nodes, newsize)
                 else:
                     new_array = [None] * (2 * (n + 1))
                     list_copy(self._array, 0, new_array, 0, 2 * idx)
@@ -181,7 +180,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     added_leaf._val = added_leaf
                     new_array[2 * idx + 1] = val
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
-                    return BitmapIndexedNode(None, self._bitmap | bit, new_array, self._size + 1)
+                    return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
 
         @jit.dont_look_inside
         def find(self, shift, hash_val, key, not_found):
@@ -208,37 +207,37 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             val_or_node = self._array[2 * idx + 1]
 
             if key_or_none is None:
+                assert isinstance(val_or_node, INode)
                 n = val_or_node.without_inode(shift + 5, hash, key)
                 if n is val_or_node:
                     return self
                 if n is not None:
                     new_array = clone_and_set(self._array, 2 * idx + 1, n)
-                    return BitmapIndexedNode(None, self._bitmap, new_array, self._size - 1)
+                    return BitmapIndexedNode(self._bitmap, new_array, self._size - 1)
 
                 if self._bitmap == bit:
                     return None
 
                 new_array = remove_pair(self._array, idx)
-                return BitmapIndexedNode(None, self._bitmap ^ bit, new_array, self._size - 1)
+                return BitmapIndexedNode(self._bitmap ^ bit, new_array, self._size - 1)
 
             if equal(key, key_or_none):
                 new_array = remove_pair(self._array, idx)
-                return BitmapIndexedNode(None, self._bitmap ^ bit, new_array, self._size - 1)
+                return BitmapIndexedNode(self._bitmap ^ bit, new_array, self._size - 1)
 
             return self
 
     BitmapIndexedNode.__name__ = "BitmapIndexedNode(%s)" % name
-    BitmapIndexedNode_EMPTY = BitmapIndexedNode(None, r_uint(0), [], 0)
+    BitmapIndexedNode_EMPTY = BitmapIndexedNode(r_uint(0), [], 0)
 
     class ArrayNode(INode):
 
-        _attrs_ = ['_cnt', '_edit', '_array']
-        _immutable_fields_ = ['_cnt', '_edit', '_array[*]']
+        _attrs_ = ['_cnt', '_array']
+        _immutable_fields_ = ['_cnt', '_array[*]']
         _settled_ = True
 
-        def __init__(self, edit, cnt, array, size):
+        def __init__(self, cnt, array, size):
             self._cnt = cnt
-            self._edit = edit
             self._array = array
             self._size = size
 
@@ -269,7 +268,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 subnode = BitmapIndexedNode_EMPTY.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
                 cloned  = clone_and_set(self._array, idx, subnode)
                 newsize = added_leaf.adjust_size(self._size)
-                return ArrayNode(None, self._cnt + 1, cloned, newsize)
+                return ArrayNode(self._cnt + 1, cloned, newsize)
 
             assert isinstance(node, INode)
             n = node.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
@@ -277,7 +276,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return self
             new_array = clone_and_set(self._array, idx, n)
             newsize = added_leaf.adjust_size(self._size)
-            return ArrayNode(None, self._cnt, new_array, newsize)
+            return ArrayNode(self._cnt, new_array, newsize)
 
         @jit.dont_look_inside
         def without_inode(self, shift, hash_val, key):
@@ -292,10 +291,10 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 if self._cnt <= 8:  # shrink
                     return self.pack(idx)
                 new_array = clone_and_set(self._array, idx, n)
-                return ArrayNode(None, self._cnt - 1, new_array, self._size - 1)
+                return ArrayNode(self._cnt - 1, new_array, self._size - 1)
             else:
                 new_array = clone_and_set(self._array, idx, n)
-                return ArrayNode(None, self._cnt, new_array, self._size - 1)
+                return ArrayNode(self._cnt, new_array, self._size - 1)
 
         def pack(self, idx):
             new_array = [None] * (2 * (self._cnt - 1))
@@ -320,7 +319,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
                 i += 1
 
-            return BitmapIndexedNode(None, bitmap, new_array, self._size - 1)
+            return BitmapIndexedNode(bitmap, new_array, self._size - 1)
 
         @jit.dont_look_inside
         def find(self, shift, hash_val, key, not_found):
@@ -334,23 +333,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
     class HashCollisionNode(INode):
 
-        _attrs_ = ['_hash', '_edit', '_array']
-        _immutable_fields_ = ['_hash', '_edit', '_array[*]']
+        _attrs_ = ['_hash', '_array']
+        _immutable_fields_ = ['_hash', '_array[*]']
         _settled_ = True
 
-        def __init__(self, edit, hash, array, size):
+        def __init__(self, hash, array, size):
             self._hash = hash
-            self._edit = edit
             self._array = array
             self._size = size
-
-        def iter(self):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
-                    continue
-                val = self._array[x + 1]
-                yield key_or_nil, val
 
         def _entries(self):
             entries = []
@@ -387,17 +377,17 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                         return self;
 
                     new_array = clone_and_set(self._array, r_uint(idx + 1), val)
-                    return HashCollisionNode(None, hash_val, new_array, self._size)
+                    return HashCollisionNode(hash_val, new_array, self._size)
 
                 new_array = [None] * (count + 2)
                 list_copy(self._array, 0, new_array, 0, count)
                 new_array[count] = key
                 added_leaf._val = added_leaf
                 new_array[count + 1] = val
-                return HashCollisionNode(self._edit, self._hash, new_array, self._size + 1)
+                return HashCollisionNode(self._hash, new_array, self._size + 1)
             new_array = [None, self]
             edit = bitpos(self._hash, shift)
-            return BitmapIndexedNode(None, edit, new_array, self._size) \
+            return BitmapIndexedNode(edit, new_array, self._size) \
                                     .assoc_inode(shift, hash_val, key, val, added_leaf)
 
         def find(self, shift, hash_val, key, not_found):
@@ -427,7 +417,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return None
 
             new_array = remove_pair(self._array, r_uint(idx) / 2)
-            return HashCollisionNode(None, self._hash, new_array, self._size - 1)
+            return HashCollisionNode(self._hash, new_array, self._size - 1)
 
     HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name
 
@@ -519,7 +509,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
     def create_node(shift, key1, val1, key2hash, key2, val2):
         key1hash = hashfun(key1) & MASK_32
         if key1hash == key2hash:
-            return HashCollisionNode(None, key1hash, [key1, val1, key2, val2], 2)
+            return HashCollisionNode(key1hash, [key1, val1, key2, val2], 2)
         added_leaf = Box()
         return BitmapIndexedNode_EMPTY.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
