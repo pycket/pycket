@@ -40,90 +40,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def adjust_size(self, size):
             return size if self._val is None else size + 1
 
-    class PersistentHashMap(super):
-
-        _attrs_ = ['_cnt', '_root']
-        _immutable_fields_ = ['_cnt', '_root']
-        _settled_ = True
-
-        def __init__(self, cnt, root):
-            assert root is None or isinstance(root, INode)
-            self._cnt = cnt
-            self._root = root
-
-        def __len__(self):
-            return self._cnt
-
-        def iteritems(self):
-            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
-            for item in root.iteritems():
-                yield item
-
-        def iteritems(self):
-            for i in range(self._cnt):
-                yield self.get_item(i)
-
-        def assoc(self, key, val):
-            added_leaf = Box()
-
-            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
-            hash = hashfun(key) & MASK_32
-
-            new_root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
-
-            if new_root is self._root:
-                return self
-
-            newcnt = added_leaf.adjust_size(self._cnt)
-            return PersistentHashMap(newcnt, new_root)
-
-        def val_at(self, key, not_found):
-            if self._root is None:
-                return not_found
-            hashval = hashfun(key) & MASK_32
-            result = self._root.find(r_uint(0), hashval, key, not_found)
-            return result
-
-        def without(self, key):
-            if self._root is None:
-                return self
-            new_root = self._root.without_inode(0, hashfun(key) & MASK_32, key)
-            if new_root is self._root:
-                return self
-            return PersistentHashMap(self._cnt - 1, new_root)
-
-        def get_item(self, index):
-            return self._elidable_get_item(index)
-
-        @jit.elidable
-        def _elidable_get_item(self, index):
-            if not (0 <= index < self._cnt):
-                raise IndexError
-
-            assert self._root is not None
-
-            key_or_none = None
-            val_or_node = self._root
-            while index != -1:
-                t = type(val_or_node)
-                if t is BitmapIndexedNode:
-                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
-                elif t is ArrayNode:
-                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
-                elif t is HashCollisionNode:
-                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
-                else:
-                    assert False
-
-            assert key_or_none is not None
-            assert not isinstance(val_or_node, INode)
-            return key_or_none, val_or_node
-
-        def make_copy(self):
-            return PersistentHashMap(self._cnt, self._root)
-
-    PersistentHashMap.__name__ = name
-
     class INode(super):
 
         _attrs_ = ['_size']
@@ -515,6 +431,91 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
     HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name
 
+    class PersistentHashMap(super):
+
+        _attrs_ = ['_cnt', '_root']
+        _immutable_fields_ = ['_cnt', '_root']
+        _settled_ = True
+
+        def __init__(self, cnt, root):
+            assert root is None or isinstance(root, INode)
+            self._cnt = cnt
+            self._root = root
+
+        def __len__(self):
+            return self._cnt
+
+        def iteritems(self):
+            for i in range(self._cnt):
+                yield self.get_item(i)
+
+        def assoc(self, key, val):
+            added_leaf = Box()
+
+            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
+            hash = hashfun(key) & MASK_32
+
+            new_root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
+
+            if new_root is self._root:
+                return self
+
+            newcnt = added_leaf.adjust_size(self._cnt)
+            return PersistentHashMap(newcnt, new_root)
+
+        def val_at(self, key, not_found):
+            if self._root is None:
+                return not_found
+            hashval = hashfun(key) & MASK_32
+            result = self._root.find(r_uint(0), hashval, key, not_found)
+            return result
+
+        def without(self, key):
+            if self._root is None:
+                return self
+            new_root = self._root.without_inode(0, hashfun(key) & MASK_32, key)
+            if new_root is self._root:
+                return self
+            return PersistentHashMap(self._cnt - 1, new_root)
+
+        def get_item(self, index):
+            return self._elidable_get_item(index)
+
+        @jit.elidable
+        def _elidable_get_item(self, index):
+            if not (0 <= index < self._cnt):
+                raise IndexError
+
+            assert self._root is not None
+
+            key_or_none = None
+            val_or_node = self._root
+            while index != -1:
+                t = type(val_or_node)
+                if t is BitmapIndexedNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                elif t is ArrayNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                elif t is HashCollisionNode:
+                    index, key_or_none, val_or_node = val_or_node._get_item_node(index)
+                else:
+                    assert False
+
+            assert key_or_none is not None
+            assert not isinstance(val_or_node, INode)
+            return key_or_none, val_or_node
+
+        def make_copy(self):
+            return PersistentHashMap(self._cnt, self._root)
+
+    PersistentHashMap.__name__ = name
+    PersistentHashMap.INode = INode
+    PersistentHashMap.BitmapIndexedNode = BitmapIndexedNode
+    PersistentHashMap.ArrayNode = ArrayNode
+    PersistentHashMap.HashCollisionNode = HashCollisionNode
+
+    PersistentHashMap.EMPTY = PersistentHashMap(0, None)
+
     def create_node(shift, key1, val1, key2hash, key2, val2):
         key1hash = hashfun(key1) & MASK_32
         if key1hash == key2hash:
@@ -570,8 +571,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         list_copy(array, 0, new_array, 0, 2 * i)
         list_copy(array, 2 * (i + 1), new_array, 2 * i, len(new_array) - (2 * i))
         return new_array
-
-    PersistentHashMap.EMPTY = PersistentHashMap(0, None)
 
     return PersistentHashMap
 
