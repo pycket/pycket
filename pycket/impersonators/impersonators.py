@@ -24,7 +24,7 @@ from rpython.rlib.objectmodel  import import_from_mixin
 
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
+    _immutable_fields_ = ["unbox", "set"]
 
     import_from_mixin(ProxyMixin)
 
@@ -91,7 +91,7 @@ def imp_vec_set_cont(v, i, env, cont, vals):
 
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
-    _immutable_fields_ = ["inner", "refh", "seth"]
+    _immutable_fields_ = ["refh", "seth"]
 
     import_from_mixin(ProxyMixin)
 
@@ -165,7 +165,7 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
 
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
     errorname = "interpose-continuation-mark-key"
-    _immutable_fields_ = ["inner", "get_proc", "set_proc"]
+    _immutable_fields_ = ["get_proc", "set_proc"]
 
     import_from_mixin(ProxyMixin)
 
@@ -226,7 +226,7 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
 
 class W_InterposeHashTable(values_hash.W_HashTable):
     errorname = "interpose-hash-table"
-    _immutable_fields_ = ["inner", "set_proc", "ref_proc", "remove_proc", "key_proc", "clear_proc"]
+    _immutable_fields_ = ["set_proc", "ref_proc", "remove_proc", "key_proc", "clear_proc"]
 
     import_from_mixin(ProxyMixin)
 
@@ -238,7 +238,6 @@ class W_InterposeHashTable(values_hash.W_HashTable):
         assert remove_proc.iscallable()
         assert key_proc.iscallable()
         assert clear_proc is values.w_false or clear_proc.iscallable()
-        self.inner       = inner
         self.set_proc    = set_proc
         self.ref_proc    = ref_proc
         self.remove_proc = remove_proc
