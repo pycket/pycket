@@ -265,7 +265,6 @@ class W_InterposeHashTable(values_hash.W_HashTable):
 
 @continuation
 def imp_hash_table_ref_cont(ht, old, env, cont, _vals):
-    from pycket.interpreter import return_value
     if _vals.num_values() != 2:
         raise SchemeException("hash-ref handler produced the wrong number of results")
     key, post = _vals.get_all_values()
