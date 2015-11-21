@@ -28,17 +28,22 @@ def validate_nodes(root):
     for node in subnodes:
         validate_nodes(node)
 
+class Box(object):
+    _attrs_ = ['_val']
+    _settled_ = True
+
+    def __init__(self):
+        self._val = False
+
+    @objectmodel.always_inline
+    def add_leaf(self):
+        self._val = True
+
+    @objectmodel.always_inline
+    def adjust_size(self, size):
+        return size + int(self._val)
+
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
-
-    class Box(object):
-        _attrs_ = ['_val']
-        _settled_ = True
-
-        def __init__(self):
-            self._val = None
-
-        def adjust_size(self, size):
-            return size if self._val is None else size + 1
 
     class INode(super):
 
@@ -150,7 +155,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     new_array = clone_and_set(self._array, 2 * idx + 1, val)
                     return BitmapIndexedNode(self._bitmap, new_array, self._size)
 
-                added_leaf._val = added_leaf
+                added_leaf.add_leaf()
                 subnode  = create_node(shift + 5, key_or_null, val_or_node, hash_val, key, val)
                 new_array = clone_and_set2(self._array, 2 * idx, None, 2 * idx + 1, subnode)
                 return BitmapIndexedNode(self._bitmap, new_array, self._size + 1)
@@ -177,7 +182,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     new_array = [None] * (2 * (n + 1))
                     list_copy(self._array, 0, new_array, 0, 2 * idx)
                     new_array[2 * idx] = key
-                    added_leaf._val = added_leaf
+                    added_leaf.add_leaf()
                     new_array[2 * idx + 1] = val
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
@@ -385,7 +390,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 new_array = [None] * (count + 2)
                 list_copy(self._array, 0, new_array, 0, count)
                 new_array[count] = key
-                added_leaf._val = added_leaf
+                added_leaf.add_leaf()
                 new_array[count + 1] = val
                 return HashCollisionNode(self._hash, new_array, self._size + 1)
             new_array = [None, self]
