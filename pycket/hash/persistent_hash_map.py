@@ -191,6 +191,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             key_or_null = self._array[2 * idx]
             val_or_node = self._array[2 * idx + 1]
             if key_or_null is None:
+                assert isinstance(val_or_node, INode)
                 return val_or_node.find(shift + 5, hash_val, key, not_found)
             if equal(key, key_or_null):
                 return val_or_node
@@ -343,6 +344,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             self._size = size
 
         def _entries(self):
+            "NOT RPYTHON"
             entries = []
             for x in range(0, len(self._array), 2):
                 key_or_nil = self._array[x]
@@ -353,6 +355,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             return entries
 
         def _subnodes(self):
+            "NOT RPYTHON"
             return []
 
         @objectmodel.always_inline
