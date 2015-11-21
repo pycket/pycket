@@ -447,6 +447,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             for i in range(self._cnt):
                 yield self.get_item(i)
 
+        @jit.dont_look_inside
         def assoc(self, key, val):
             added_leaf = Box()
 
@@ -461,6 +462,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             newcnt = added_leaf.adjust_size(self._cnt)
             return PersistentHashMap(newcnt, new_root)
 
+        @jit.dont_look_inside
         def val_at(self, key, not_found):
             if self._root is None:
                 return not_found
@@ -468,6 +470,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             result = self._root.find(r_uint(0), hashval, key, not_found)
             return result
 
+        @jit.dont_look_inside
         def without(self, key):
             if self._root is None:
                 return self
