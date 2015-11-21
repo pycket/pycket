@@ -1229,7 +1229,7 @@ def free_vars_lambda(body, args):
     return x
 
 class CaseLambda(AST):
-    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
+    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "_arity"]
     simple = True
 
     def __init__(self, lams, recursive_sym=None, arity=None):
