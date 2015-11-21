@@ -899,3 +899,19 @@ def test_syntax_e(doctest):
     > (syntax-e #'#t)
     #t
     """
+
+def test_relative_path(doctest):
+    """
+    > (relative-path? "/home/spenser")
+    #f
+    > (relative-path? "~/bin/racket")
+    #t
+    > (relative-path? "./../bin/racket")
+    #t
+    > (relative-path? (string->path "/home/spenser"))
+    #f
+    > (relative-path? (string->path  "~/bin/racket"))
+    #t
+    > (relative-path? (string->path "./../bin/racket"))
+    #t
+    """
