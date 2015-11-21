@@ -13,7 +13,7 @@ from pycket.base              import W_Object, W_ProtoObject
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
-from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
+from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -1032,7 +1032,7 @@ class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
 
     def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
-        self.name = name
+        self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity
@@ -1077,6 +1077,14 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
+@always_inline
+def from_list_unroll_pred(lst, idx, unroll_to=0):
+    if not jit.we_are_jitted():
+        return False
+    if unroll_to == -1:
+        return False
+    return not jit.isvirtual(lst) and idx > unroll_to
+
 @jit.elidable
 def from_list_elidable(w_curr):
     result = []
@@ -1089,13 +1097,15 @@ def from_list_elidable(w_curr):
         raise SchemeException("Expected list, but got something else")
 
 @jit.unroll_safe
-def from_list(w_curr):
+def from_list(w_curr, unroll_to=0):
     result = []
+    n = 0
     while isinstance(w_curr, W_Cons):
-        if jit.we_are_jitted() and (not jit.isvirtual(w_curr) or jit.isconstant(w_curr)):
+        if from_list_unroll_pred(w_curr, n, unroll_to=unroll_to):
             return result + from_list_elidable(w_curr)
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
+        n += 1
     if w_curr is w_null:
         return result[:] # copy to make result non-resizable
     else:
@@ -1119,7 +1129,7 @@ class W_Continuation(W_Procedure):
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
-    def __init__ (self, caselam, env):
+    def __init__(self, caselam, env):
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)

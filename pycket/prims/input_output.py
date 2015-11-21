@@ -450,6 +450,11 @@ def path_for_some_system(path):
     # This seems to be the closest implementation we can achieve.
     return values.W_Bool.make(isinstance(path, values.W_Path))
 
+@expose("relative-path?", [values.W_Object])
+def relative_path(obj):
+    string = extract_path(obj)
+    return values.W_Bool.make(not os.path.isabs(string))
+
 @expose("resolve-path", [values.W_Object])
 def resolve_path(obj):
     if not isinstance(obj, values_string.W_String) and not isinstance(obj, values.W_Path):
