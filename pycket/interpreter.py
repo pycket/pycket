@@ -1232,7 +1232,7 @@ class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
     simple = True
 
-    def __init__(self, lams, recursive_sym=None):
+    def __init__(self, lams, recursive_sym=None, arity=None):
         ## TODO: drop lams whose arity is redundant
         ## (case-lambda [x 0] [(y) 1]) == (lambda x 0)
         self.lams = lams
@@ -1243,7 +1243,8 @@ class CaseLambda(AST):
                 break
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
-        self._arity = None
+        self._arity = arity
+        self.compute_arity()
 
     @jit.unroll_safe
     def enable_jitting(self):
@@ -1255,7 +1256,7 @@ class CaseLambda(AST):
             l.set_in_cycle()
 
     def make_recursive_copy(self, sym):
-        return CaseLambda(self.lams, sym)
+        return CaseLambda(self.lams, sym, self._arity)
 
     def interpret_simple(self, env):
         if not env.pycketconfig().callgraph:
@@ -1291,7 +1292,7 @@ class CaseLambda(AST):
 
     def assign_convert(self, vars, env_structure):
         ls = [l.assign_convert(vars, env_structure) for l in self.lams]
-        return CaseLambda(ls, recursive_sym=self.recursive_sym)
+        return CaseLambda(ls, recursive_sym=self.recursive_sym, arity=self._arity)
 
     def _tostring(self):
         if len(self.lams) == 1:
@@ -1309,10 +1310,12 @@ class CaseLambda(AST):
             return "#<procedure:%s>" % (lam.srcfile)
         return "#<procedure>"
 
-    @jit.elidable
     def get_arity(self):
+        return self._arity
+
+    def compute_arity(self):
         if self._arity is not None:
-            return self._arity
+            return
         arities = []
         rest = -1
         for l in self.lams:
@@ -1326,7 +1329,6 @@ class CaseLambda(AST):
             else:
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
-        return self._arity
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",

@@ -5,6 +5,7 @@ import time
 from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
+from pycket import arity
 from pycket import cont
 from pycket import values_parameter
 from pycket import values_struct
@@ -690,7 +691,7 @@ def callcc(a, env, cont, extra_call_info):
 def time_apply(a, args, env, cont, extra_call_info):
     initial = time.clock()
     return  a.call_with_extra_info(values.from_list(args),
-                                   env, time_apply_cont(initial, env, cont), 
+                                   env, time_apply_cont(initial, env, cont),
                                    extra_call_info)
 
 @expose("apply", simple=False, extra_info=True)
@@ -702,7 +703,12 @@ def apply(args, env, cont, extra_call_info):
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     try:
-        rest = values.from_list(lst)
+        fn_arity = fn.get_arity()
+        if fn_arity is arity.Arity.unknown or fn_arity.at_least != -1:
+            unroll_to = values.UNROLLING_CUTOFF
+        else:
+            unroll_to = fn_arity.arity_list[-1] if fn_arity.arity_list else 0
+        rest = values.from_list(lst, unroll_to=unroll_to)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
@@ -1341,7 +1347,7 @@ def cwcp(args, env, cont):
     actuals = args[3:]
     assert isinstance(fun, values.W_Procedure)
     return fun.call(actuals, env, cont)
-    
+
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
@@ -1556,4 +1562,4 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
-        
+
