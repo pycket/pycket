@@ -68,6 +68,10 @@ class Values(W_ProtoObject):
         assert w_value is not None
         return w_value
 
+    @staticmethod
+    def make2(w_value1, w_value2):
+        return Values._make2(w_value1, w_value2)
+
     def num_values(self):
         return self._get_size_list()
 

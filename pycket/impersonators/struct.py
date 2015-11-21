@@ -328,10 +328,12 @@ class W_ChpStruct(W_InterposeStructBase):
     import_from_mixin(ChaperoneMixin)
 
     def post_ref_cont(self, interp, app, env, cont):
-        return chaperone_reference_cont(interp, [self], app, env, cont)
+        args = values.Values.make1(self)
+        return chaperone_reference_cont(interp, args, app, env, cont)
 
     def post_set_cont(self, op, field, val, app, env, cont):
-        return check_chaperone_results([val], env,
+        val = values.Values.make1(val)
+        return check_chaperone_results(val, env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
 class W_InterposeStructStack(values_struct.W_RootStruct):

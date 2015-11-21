@@ -45,22 +45,23 @@ def add_impersonator_counts(cls):
 def check_chaperone_results(args, env, cont, vals):
     # We are allowed to receive more values than arguments to compare them to.
     # Additional ones are ignored for this checking routine.
-    assert vals.num_values() >= len(args)
+    assert vals.num_values() >= args.num_values()
     return check_chaperone_results_loop(vals, args, 0, env, cont)
 
 @jit.unroll_safe
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     from pycket.prims.equal import equal_func_unroll_n, EqualInfo
-    while idx < len(args) and vals.get_value(idx) is None and args[idx] is None:
+    num_vals = args.num_values()
+    while idx < num_vals and vals.get_value(idx) is None and args.get_value(idx) is None:
         idx += 1
-    if idx >= len(args):
+    if idx >= num_vals:
         return return_multi_vals(vals, env, cont)
     info = EqualInfo.CHAPERONE_SINGLETON
     # XXX it would be best to store the parameter on the toplevel env and make
     # it changeable via a cmdline parameter to pycket-c
     unroll_n_times = 2 # XXX needs tuning
-    return equal_func_unroll_n(vals.get_value(idx), args[idx], info, env,
+    return equal_func_unroll_n(vals.get_value(idx), args.get_value(idx), info, env,
             catch_equal_cont(vals, args, idx, env, cont), unroll_n_times)
 
 @continuation
@@ -77,9 +78,19 @@ def impersonate_reference_cont(f, args, app, env, cont, _vals):
     return f.call_with_extra_info(args + old, env, cont, app)
 
 @continuation
+@jit.unroll_safe
 def chaperone_reference_cont(f, args, app, env, cont, _vals):
-    old = _vals.get_all_values()
-    return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
+    args_size = args.num_values()
+    vals_size = _vals.num_values()
+    all_args = [None] * (args_size + vals_size)
+    idx = 0
+    for i in range(args_size):
+        all_args[idx] = args.get_value(i)
+        idx += 1
+    for i in range(vals_size):
+        all_args[idx] = _vals.get_value(i)
+        idx += 1
+    return f.call_with_extra_info(all_args, env, check_chaperone_results(_vals, env, cont), app)
 
 @jit.unroll_safe
 def get_base_object(x):

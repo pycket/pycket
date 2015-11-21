@@ -13,7 +13,6 @@ from pycket.impersonators.base import (
     W_ImpPropertyDescriptor,
     chaperone_reference_cont,
     check_chaperone_results,
-    check_chaperone_results_loop,
     get_base_object,
     impersonate_reference_cont
 )
@@ -59,11 +58,12 @@ class W_ChpBox(W_InterposeBox):
     import_from_mixin(ChaperoneMixin)
 
     def post_unbox_cont(self, env, cont):
-        return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
+        inner = values.Values.make1(self.inner)
+        return chaperone_reference_cont(self.unboxh, inner, None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
-        return check_chaperone_results([val], env,
-                imp_box_set_cont(self.inner, env, cont))
+        vals = values.Values.make1(val)
+        return check_chaperone_results(vals, env, imp_box_set_cont(self.inner, env, cont))
 
     def immutable(self):
         return self.inner.immutable()
@@ -141,11 +141,13 @@ class W_ChpVector(W_InterposeVector):
     errorname = "chaperone-vector"
 
     def post_set_cont(self, new, i, env, cont):
-        return check_chaperone_results([new], env,
+        vals = values.Values.make1(new)
+        return check_chaperone_results(vals, env,
                 imp_vec_set_cont(self.inner, i, env, cont))
 
     def post_ref_cont(self, i, env, cont):
-        return chaperone_reference_cont(self.refh, [self.inner, i], None, env, cont)
+        args = values.Values.make2(self.inner, i)
+        return chaperone_reference_cont(self.refh, args, None, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -208,11 +210,13 @@ class W_ChpContinuationMarkKey(W_InterposeContinuationMarkKey):
     import_from_mixin(ChaperoneMixin)
 
     def post_get_cont(self, value, env, cont):
-        return check_chaperone_results([value], env,
+        vals = values.Values.make1(value)
+        return check_chaperone_results(vals, env,
                 imp_cmk_post_get_cont(self.inner, env, cont))
 
     def post_set_cont(self, body, value, env, cont):
-        return check_chaperone_results([value], env,
+        vals = values.Values.make1(value)
+        return check_chaperone_results(vals, env,
                 imp_cmk_post_set_cont(body, self.inner, env, cont))
 
 class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
@@ -285,8 +289,10 @@ def imp_hash_table_post_ref_cont(post, ht, old, env, cont, _vals):
 def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
     if _vals.num_values() != 2:
         raise SchemeException("hash-ref handler produced the wrong number of results")
-    key, post = _vals.get_all_values()
-    after = check_chaperone_results([key], env,
+    key  = _vals.get_value(0)
+    post = _vals.get_value(1)
+    key = values.Values.make1(key)
+    after = check_chaperone_results(key, env,
                 imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)
 

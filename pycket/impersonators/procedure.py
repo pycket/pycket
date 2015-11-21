@@ -120,5 +120,7 @@ def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
 
     if check_result:
         args = values.Values.make(vals[1:])
-        return check_chaperone_results_loop(args, orig, 0, env, cont)
+        original = values.Values.make(orig)
+        return check_chaperone_results_loop(args, original, 0, env, cont)
     return proc.call_with_extra_info(vals, env, cont, calling_app)
+
