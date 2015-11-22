@@ -460,10 +460,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return goto.ref_with_extra_info(field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        after = self.post_ref_cont(interp, app, env, cont)
+        if interp is values.w_false:
+            cont = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref_with_extra_info(field, app, env, after)
-        return op.call_with_extra_info([self.inner], env, after, app)
+            return self.inner.ref_with_extra_info(field, app, env, cont)
+        return op.call_with_extra_info([self.inner], env, cont, app)
 
     @guarded_loop(enter_above_depth(5))
     def set_with_extra_info(self, field, val, app, env, cont):
