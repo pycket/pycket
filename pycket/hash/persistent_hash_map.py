@@ -51,6 +51,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _immutable_fields_ = ['_size']
         _settled_ = True
 
+        def __init__(self, size):
+            self._size = size
+
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             pass
 
@@ -84,9 +87,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _settled_ = True
 
         def __init__(self, bitmap, array, size):
+            INode.__init__(self, size)
             self._bitmap = bitmap
             self._array = array
-            self._size = size
 
         def _entries(self):
             "NOT RPYTHON"
@@ -202,6 +205,20 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return val_or_node
             return not_found
 
+        @objectmodel.always_inline
+        def find_step(self, shift, hash_val, key, not_found):
+            bit = bitpos(hash_val, shift)
+            if (self._bitmap & bit) == 0:
+                return not_found
+            idx = self.index(bit)
+            key_or_null = self._array[2 * idx]
+            val_or_node = self._array[2 * idx + 1]
+            if key_or_null is None:
+                return val_or_node
+            if equal(key, key_or_null):
+                return val_or_node
+            return not_found
+
         @jit.dont_look_inside
         def without_inode(self, shift, hash, key):
             bit = bitpos(hash, shift)
@@ -243,9 +260,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _settled_ = True
 
         def __init__(self, cnt, array, size):
+            INode.__init__(self, size)
             self._cnt = cnt
             self._array = array
-            self._size = size
 
         def _entries(self):
             "NOT RPYTHON"
@@ -335,6 +352,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 return not_found
             return node.find(shift + 5, hash_val, key, not_found)
 
+        @objectmodel.always_inline
+        def find_step(self, shift, hash_val, key, not_found):
+            idx = mask(hash_val, shift)
+            node = self._array[idx]
+            if node is None:
+                return not_found
+            return node
+
     ArrayNode.__name__ = "ArrayNode(%s)" % name
 
     class HashCollisionNode(INode):
@@ -344,9 +369,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         _settled_ = True
 
         def __init__(self, hash, array, size):
+            INode.__init__(self, size)
             self._hash = hash
             self._array = array
-            self._size = size
 
         def _entries(self):
             "NOT RPYTHON"
@@ -399,6 +424,14 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                                     .assoc_inode(shift, hash_val, key, val, added_leaf)
 
         def find(self, shift, hash_val, key, not_found):
+            for x in range(0, len(self._array), 2):
+                key_or_nil = self._array[x]
+                if key_or_nil is not None and equal(key_or_nil, key):
+                    return self._array[x + 1]
+            return not_found
+
+        @objectmodel.always_inline
+        def find_step(self, shift, hash_val, key, not_found):
             for x in range(0, len(self._array), 2):
                 key_or_nil = self._array[x]
                 if key_or_nil is not None and equal(key_or_nil, key):
@@ -462,13 +495,24 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             newcnt = added_leaf.adjust_size(self._cnt)
             return PersistentHashMap(newcnt, new_root)
 
-        @jit.dont_look_inside
         def val_at(self, key, not_found):
             if self._root is None:
                 return not_found
+
             hashval = hashfun(key) & MASK_32
-            result = self._root.find(r_uint(0), hashval, key, not_found)
-            return result
+            shift = r_uint(0)
+            val_or_node = self._root
+            while True:
+                t = type(val_or_node)
+                if t is BitmapIndexedNode:
+                    val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                elif t is ArrayNode:
+                    val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                elif t is HashCollisionNode:
+                    val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                else:
+                    return val_or_node
+                shift += 5
 
         @jit.dont_look_inside
         def without(self, key):
