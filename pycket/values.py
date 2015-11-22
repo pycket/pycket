@@ -1042,7 +1042,7 @@ class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
 
     def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
-        self.name = name
+        self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity

@@ -420,7 +420,7 @@ def set_bang_transformer(v):
 @expose("object-name", [values.W_Object])
 def object_name(v):
     if isinstance(v, values.W_Prim):
-        return values.W_Symbol.make(v.name)
+        return v.name
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("namespace-variable-value", [values.W_Symbol,

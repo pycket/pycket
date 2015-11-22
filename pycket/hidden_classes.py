@@ -134,7 +134,7 @@ def make_caching_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def add_static_attribute(self, name, value):
-            # assert name not in self.indexes and name not in self.static_data
+            assert name not in self.indexes and name not in self.static_data
             key = (name, value)
             if key not in self.static_submaps:
                 newmap = CachingMap()
@@ -148,7 +148,7 @@ def make_caching_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def add_dynamic_attribute(self, name):
-            # assert name not in self.indexes and name not in self.static_data
+            assert name not in self.indexes and name not in self.static_data
             if name not in self.dynamic_submaps:
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
