@@ -2,6 +2,7 @@
 from rpython.rlib             import jit, unroll
 from rpython.rlib.objectmodel import specialize
 
+@specialize.call_location()
 def default_newdict():
     return {}
 
