@@ -1107,6 +1107,14 @@ def from_list(w_curr, unroll_to=0):
     else:
         raise SchemeException("Expected list, but got something else")
 
+def from_list_iter(lst):
+    if not lst.is_proper_list():
+        raise SchemeException("Expected a list")
+    while isinstance(lst, W_Cons):
+        val, lst = lst.car(), lst.cdr()
+        yield val
+    assert lst is w_null, "is_proper_list lied"
+
 class W_Continuation(W_Procedure):
     errorname = "continuation"
     _immutable_fields_ = ["cont"]

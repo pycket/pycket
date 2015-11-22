@@ -1025,6 +1025,7 @@ class W_StructProperty(values.W_Object):
         self.supers = values.from_list(supers)
         self.can_imp = can_imp
 
+    @jit.elidable
     def isinstance(self, prop):
         if self is prop:
             return True

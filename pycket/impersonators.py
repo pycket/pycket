@@ -460,7 +460,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return goto.ref_with_extra_info(field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        if interp is values.w_false:
+        if interp is not values.w_false:
             cont = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
             return self.inner.ref_with_extra_info(field, app, env, cont)
