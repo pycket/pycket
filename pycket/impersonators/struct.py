@@ -223,7 +223,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return True
 
     def get_property(self, prop, default=None):
-        return self.map.lookup_property(prop, self, default)
+        return self.map.lookup_property(prop, self, default=default)
 
     def immutable(self):
         return get_base_object(self.base).immutable()
@@ -286,7 +286,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_prop(self, property, env, cont):
-        pair = self.get_property(property, NONE_PAIR)
+        pair = self.get_property(property, default=NONE_PAIR)
         # Struct properties can only be associated with Pairs which contain both
         # the override and handler for the property
         assert type(pair) is Pair
