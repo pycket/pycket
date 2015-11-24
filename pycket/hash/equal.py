@@ -1,162 +1,12 @@
+
 from pycket                   import config
 from pycket                   import values, values_string
-from pycket.base              import W_Object, SingletonMeta
+from pycket.base              import SingletonMeta
+from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
 from pycket.error             import SchemeException
-from pycket.cont              import continuation, label, loop_label
+from pycket.cont              import continuation, loop_label
 from rpython.rlib             import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
-
-class W_Missing(W_Object):
-    def __init__(self):
-        pass
-
-w_missing = W_Missing() # sentinel for missing values
-
-class W_HashTable(W_Object):
-    errorname = "hash"
-    _attrs_ = ["is_immutable"]
-    _immutable_fields_ = ["is_immutable"]
-    _settled_ = True
-
-    def hash_items(self):
-        raise NotImplementedError("abstract method")
-
-    @label
-    def hash_set(self, k, v, env, cont):
-        raise NotImplementedError("abstract method")
-
-    @label
-    def hash_ref(self, k, env, cont):
-        raise NotImplementedError("abstract method")
-
-    @label
-    def hash_remove_inplace(self, k, env, cont):
-        raise NotImplementedError("abstract method")
-
-    def length(self):
-        raise NotImplementedError("abstract method")
-
-    def make_empty(self):
-        raise NotImplementedError("abstract method")
-
-    def immutable(self):
-        return self.is_immutable
-
-    def get_item(self, i):
-        # see get_dict_item at the bottom of the file for the interface
-        raise NotImplementedError("abstract method")
-
-@specialize.arg(0)
-def make_simple_table(cls, keys=None, vals=None, immutable=False):
-    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
-    if keys is not None and vals is not None:
-        assert len(keys) == len(vals)
-        for i, k in enumerate(keys):
-            data[k] = vals[i]
-    return cls(data, immutable)
-
-@specialize.arg(0)
-def make_simple_table_assocs(cls, assocs, who, immutable=False):
-    data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
-    if not assocs.is_proper_list():
-        raise SchemeException("%s: not given proper list" % who)
-    while isinstance(data, values.W_Cons):
-        entry, assocs = assocs.car(), assocs.cdr()
-        if not isinstance(entry, values.W_Cons):
-            raise SchemeException("%s: expected list of pairs" % who)
-        key, val = entry.car(), entry.cdr()
-        data[key] = val
-    return cls(data, immutable)
-
-class W_SimpleHashTable(W_HashTable):
-    _attrs_ = ['data']
-    _immutable_fields_ = ["data"]
-
-    @staticmethod
-    def hash_value(v):
-        raise NotImplementedError("abstract method")
-
-    @staticmethod
-    def cmp_value(a, b):
-        raise NotImplementedError("abstract method")
-
-    def __init__(self, data, immutable):
-        self.is_immutable = immutable
-        self.data         = data
-
-    def make_copy(self):
-        raise NotImplementedError("abstract method")
-
-    def hash_items(self):
-        return self.data.items()
-
-    def tostring(self):
-        lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
-        return "#hash(%s)" % " ".join(lst)
-
-    @label
-    def hash_set(self, k, v, env, cont):
-        from pycket.interpreter import return_value
-        self.data[k] = v
-        return return_value(values.w_void, env, cont)
-
-    @label
-    def hash_remove_inplace(self, k, env, cont):
-        from pycket.interpreter import return_value
-        del self.data[k]
-        return return_value(values.w_void, env, cont)
-
-    @label
-    def hash_ref(self, k, env, cont):
-        from pycket.interpreter import return_value
-        return return_value(self.data.get(k, w_missing), env, cont)
-
-    def length(self):
-        return len(self.data)
-
-class W_EqvHashTable(W_SimpleHashTable):
-
-    def make_empty(self):
-        return make_simple_table(W_EqvHashTable, immutable=self.is_immutable)
-
-    def make_copy(self):
-        return W_EqvHashTable(self.data.copy(), immutable=self.is_immutable)
-
-    @staticmethod
-    def hash_value(k):
-        return k.hash_eqv()
-
-    @staticmethod
-    def cmp_value(a, b):
-        return a.eqv(b)
-
-    def get_item(self, i):
-        return get_dict_item(self.data, i)
-
-class W_EqHashTable(W_SimpleHashTable):
-
-    def make_copy(self):
-        return W_EqHashTable(self.data.copy(), immutable=self.is_immutable)
-
-    def make_empty(self):
-        return make_simple_table(W_EqHashTable, immutable=self.is_immutable)
-
-    @staticmethod
-    def hash_value(k):
-        if isinstance(k, values.W_Fixnum):
-            return compute_hash(k.value)
-        if isinstance(k, values.W_Character):
-            return ord(k.value)
-        else:
-            return compute_hash(k)
-
-    @staticmethod
-    def cmp_value(a, b):
-        from pycket.prims.equal import eqp_logic
-        return eqp_logic(a, b)
-
-    def get_item(self, i):
-        return get_dict_item(self.data, i)
 
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
@@ -447,14 +297,16 @@ class ByteHashmapStrategy(HashmapStrategy):
     def _create_empty_dict(self):
         return r_dict(cmp_bytes, hash_bytes)
 
-
-
 class W_EqualHashTable(W_HashTable):
-    _attrs_ = ['strategy', 'hstorage']
+    _attrs_ = ['strategy', 'hstorage', 'is_immutable']
+    _immutable_fields_ = ['is_immutable']
     def __init__(self, keys, vals, immutable=False):
         self.is_immutable = immutable
         self.strategy = _find_strategy_class(keys)
         self.hstorage = self.strategy.create_storage(keys, vals)
+
+    def immutable(self):
+        return self.is_immutable
 
     def hash_items(self):
         return self.strategy.items(self)
@@ -477,50 +329,4 @@ class W_EqualHashTable(W_HashTable):
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
-
-def get_dict_item(d, i):
-    """ return item of dict d at position i. Raises a KeyError if the index
-    carries no valid entry. Raises IndexError if the index is beyond the end of
-    the dict. """
-    return d.items()[i]
-
-def ll_get_dict_item(RES, dict, i):
-    from rpython.rtyper.lltypesystem import lltype
-    from rpython.rtyper.lltypesystem.rordereddict import recast
-    entries = dict.entries
-    assert i >= 0
-    if i >= dict.num_ever_used_items:
-        raise IndexError
-    if entries.valid(i):
-        entry = entries[i]
-        r = lltype.malloc(RES.TO)
-        r.item0 = recast(RES.TO.item0, entry.key)
-        r.item1 = recast(RES.TO.item1, entry.value)
-        return r
-    else:
-        raise KeyError
-
-from rpython.rtyper.extregistry import ExtRegistryEntry
-
-
-class Entry(ExtRegistryEntry):
-    _about_ = get_dict_item
-
-    def compute_result_annotation(self, s_d, s_i):
-        from rpython.annotator.model import SomeTuple, SomeInteger
-        s_key = s_d.dictdef.read_key()
-        s_value = s_d.dictdef.read_value()
-        return SomeTuple([s_key, s_value])
-
-    def specialize_call(self, hop):
-        from rpython.rtyper.lltypesystem import lltype
-        # somewhat evil hackery
-        dictrepr = hop.rtyper.getrepr(hop.args_s[0])
-        v_dict, v_index = hop.inputargs(dictrepr, lltype.Signed)
-        r_tuple = hop.rtyper.getrepr(hop.s_result)
-        cTUPLE = hop.inputconst(lltype.Void, r_tuple.lowleveltype)
-        hop.exception_is_here()
-        v_res = hop.gendirectcall(ll_get_dict_item, cTUPLE, v_dict, v_index)
-        return v_res
-
 

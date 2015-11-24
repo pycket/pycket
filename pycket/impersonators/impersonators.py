@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from pycket                    import values
-from pycket                    import values_hash
 from pycket                    import values_struct
 from pycket.cont               import continuation, label, guarded_loop, call_cont, call_extra_cont
 from pycket.error              import SchemeException
+from pycket.hash.base          import W_HashTable
 from pycket.impersonators.base import (
     ChaperoneMixin,
     ImpersonatorMixin,
@@ -228,7 +228,7 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
-class W_InterposeHashTable(values_hash.W_HashTable):
+class W_InterposeHashTable(W_HashTable):
     errorname = "interpose-hash-table"
     _immutable_fields_ = ["set_proc", "ref_proc", "remove_proc", "key_proc", "clear_proc"]
 
@@ -236,7 +236,7 @@ class W_InterposeHashTable(values_hash.W_HashTable):
 
     def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
-        assert isinstance(inner, values_hash.W_HashTable)
+        assert isinstance(inner, W_HashTable)
         assert set_proc.iscallable()
         assert ref_proc.iscallable()
         assert remove_proc.iscallable()
