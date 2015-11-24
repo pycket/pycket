@@ -27,7 +27,9 @@ class W_HashTable(W_Object):
     def hash_ref(self, k, env, cont):
         raise NotImplementedError("abstract method")
 
-    @label
+    def hash_remove(self, k, env, cont):
+        raise NotImplementedError("abstract method")
+
     def hash_remove_inplace(self, k, env, cont):
         raise NotImplementedError("abstract method")
 

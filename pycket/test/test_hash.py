@@ -64,6 +64,19 @@ def test_immutable_hasheqv(doctest):
     'a
     """
 
+def test_immutable_hasheq(doctest):
+    """
+    ! (define h (make-immutable-hasheq '((a . b) (b . c) (c . d))))
+    > (hash-ref h 'a)
+    'b
+    > (hash-ref h 'b)
+    'c
+    > (hash-ref h 'c)
+    'd
+    > (hash-ref (hash-remove h 'b) 'b #f)
+    #f
+    """
+
 def test_hash_symbols(doctest):
     """
     ! (define ht (make-hash))

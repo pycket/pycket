@@ -221,7 +221,11 @@ def hash_ref(ht, k, default, env, cont):
 def hash_remove_bang(ht, k, env, cont):
     return ht.hash_remove_inplace(k, env, cont)
 
-define_nyi("hash-remove", [W_HashTable, values.W_Object])
+@expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
+def hash_remove(ht, k, env, cont):
+    if not ht.immutable():
+        raise SchemeException("hash-remove: expected immutable hash table")
+    return ht.hash_remove(k, env, cont)
 
 define_nyi("hash-clear!", [W_HashTable])
 
