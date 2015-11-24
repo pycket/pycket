@@ -24,6 +24,7 @@ class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
+
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
