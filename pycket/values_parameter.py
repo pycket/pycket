@@ -40,7 +40,7 @@ class W_Parameterization(W_Object):
         self.map  = map
 
     def extend(self, params, vals):
-        # assert len(params) == len(vals)
+        assert len(params) == len(vals)
         map = self.map
         for i, param in enumerate(params):
             cell = values.W_ThreadCell(vals[i], True)
