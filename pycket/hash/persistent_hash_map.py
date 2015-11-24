@@ -57,9 +57,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             pass
 
-        def find(self, shift, hash_val, key, not_found):
-            pass
-
         def without(self, shift, hash, key):
             pass
 
@@ -189,21 +186,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     new_array[2 * idx + 1] = val
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
-
-        @jit.dont_look_inside
-        def find(self, shift, hash_val, key, not_found):
-            bit = bitpos(hash_val, shift)
-            if (self._bitmap & bit) == 0:
-                return not_found
-            idx = self.index(bit)
-            key_or_null = self._array[2 * idx]
-            val_or_node = self._array[2 * idx + 1]
-            if key_or_null is None:
-                assert isinstance(val_or_node, INode)
-                return val_or_node.find(shift + 5, hash_val, key, not_found)
-            if equal(key, key_or_null):
-                return val_or_node
-            return not_found
 
         @objectmodel.always_inline
         def find_step(self, shift, hash_val, key, not_found):
@@ -344,14 +326,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             return BitmapIndexedNode(bitmap, new_array, self._size - 1)
 
-        @jit.dont_look_inside
-        def find(self, shift, hash_val, key, not_found):
-            idx = mask(hash_val, shift)
-            node = self._array[idx]
-            if node is None:
-                return not_found
-            return node.find(shift + 5, hash_val, key, not_found)
-
         @objectmodel.always_inline
         def find_step(self, shift, hash_val, key, not_found):
             idx = mask(hash_val, shift)
@@ -422,13 +396,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             edit = bitpos(self._hash, shift)
             return BitmapIndexedNode(edit, new_array, self._size) \
                                     .assoc_inode(shift, hash_val, key, val, added_leaf)
-
-        def find(self, shift, hash_val, key, not_found):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is not None and equal(key_or_nil, key):
-                    return self._array[x + 1]
-            return not_found
 
         @objectmodel.always_inline
         def find_step(self, shift, hash_val, key, not_found):

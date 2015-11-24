@@ -94,7 +94,7 @@ class W_Object(W_ProtoObject):
 
     # for expose
     @classmethod
-    def make_unwrapper(cls):
+    def make_unwrapper(cls, unbox=False):
         if cls is W_Object:
             return lambda x: x, ''
         def unwrap(w_object):

@@ -994,14 +994,34 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
 
+class GensymCounter(object):
+    _attrs_ = ['_val']
+
+    def __init__(self, val=0):
+        self._val = val
+
+    def next_value(self):
+        val = self._val
+        self._val += 1
+        return val
 
 class Gensym(object):
-    _counter = {}
+    _counters = {}
+
+    @staticmethod
+    @jit.elidable
+    def get_counter(hint):
+        result = Gensym._counters.get(hint, None)
+        if result is not None:
+            return result
+        result = GensymCounter()
+        Gensym._counters[hint] = result
+        return result
 
     @staticmethod
     def gensym(hint="g"):
-        count = Gensym._counter[hint] = Gensym._counter.get(hint, -1) +  1
-        # not using `make` so that it's really gensym
+        counter = Gensym.get_counter(hint)
+        count = counter.next_value()
         return values.W_Symbol(unicode(hint + str(count)))
 
 
