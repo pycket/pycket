@@ -1124,19 +1124,21 @@ def listp(v):
 def enter_list_ref_iff(lst, pos):
     if jit.isconstant(lst) and jit.isconstant(pos):
         return True
-    return jit.isconstant(pos) and pos.value <= 16
+    return jit.isconstant(pos) and pos <= 16
 
-@expose("list-ref", [values.W_Cons, values.W_Fixnum])
 @jit.look_inside_iff(enter_list_ref_iff)
-def list_ref(lst, pos):
-    n = pos.value
-    if n < 0:
+def list_ref_impl(lst, pos):
+    if pos < 0:
         raise SchemeException("list-ref: negative index")
-    for i in range(pos.value):
+    for i in range(pos):
         lst = lst.cdr()
         if not isinstance(lst, values.W_Cons):
             raise SchemeException("list-ref: index out of range")
     return lst.car()
+
+@expose("list-ref", [values.W_Cons, values.W_Fixnum])
+def list_ref(lst, pos):
+    return list_ref_impl(lst, pos.value)
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
