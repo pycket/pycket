@@ -382,6 +382,26 @@ def test_persistent_hash():
         assert v % 10 == k
         assert acc.val_at(k, None) is v
 
+def test_persistent_hash2():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
+
 def test_persistent_hash_collisions():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
     acc = HashTable.EMPTY
