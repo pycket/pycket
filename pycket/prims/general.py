@@ -704,15 +704,17 @@ def apply(args, env, cont, extra_call_info):
     lst = args[-1]
     try:
         fn_arity = fn.get_arity()
-        if fn_arity is arity.Arity.unknown or fn_arity.at_least != -1:
-            unroll_to = values.UNROLLING_CUTOFF
+        if fn_arity is arity.Arity.unknown or fn_arity.at_least == -1:
+            unroll_to = 1
+        elif fn_arity.arity_list:
+            unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
         else:
-            unroll_to = fn_arity.arity_list[-1] if fn_arity.arity_list else 0
+            unroll_to = 1
         rest = values.from_list(lst, unroll_to=unroll_to)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
-    args_len = len(args)-1
+    args_len = len(args) - 1
     assert args_len >= 0
     others = args[1:args_len]
     new_args = others + rest
