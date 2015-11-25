@@ -169,6 +169,17 @@ def test_chaperone_vector_to_list():
     count = cell.get_val()
     assert isinstance(count, values.W_Fixnum) and count.value == 10
 
+def test_chaperone_vector_to_immutable_vector(doctest):
+    u"""
+    ! (define v (vector 1 2 3 4 5))
+    ! (define cell '())
+    ! (define v^ (chaperone-vector v (λ (self i val) (set! cell (append cell (list i))) val) (λ (self i val) val)))
+    > (vector->immutable-vector v^)
+    #(1 2 3 4 5)
+    > cell
+    '(0 1 2 3 4)
+    """
+
 def test_rfindler_impersonator_examples(doctest):
     ur"""
     ! (require racket/base)
