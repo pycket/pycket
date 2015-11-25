@@ -1,6 +1,5 @@
 
 from pycket                          import values
-from pycket.cont                     import label
 from pycket.error                    import SchemeException
 from pycket.hash.base                import (
     W_MutableHashTable,
@@ -80,19 +79,16 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
-    @label
     def hash_set(self, k, v, env, cont):
         from pycket.interpreter import return_value
         self.data[k] = v
         return return_value(values.w_void, env, cont)
 
-    @label
     def hash_remove_inplace(self, k, env, cont):
         from pycket.interpreter import return_value
         del self.data[k]
         return return_value(values.w_void, env, cont)
 
-    @label
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
         return return_value(self.data.get(k, w_missing), env, cont)
