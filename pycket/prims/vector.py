@@ -91,7 +91,7 @@ def vector2immutablevector(v):
     v = get_base_object(v)
     if v.immutable():
         return v
-    return copy_vector(v)
+    return v._make_copy(immutable=True)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,

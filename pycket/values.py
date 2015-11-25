@@ -904,7 +904,6 @@ class W_Symbol(W_Object):
     all_symbols = {}
     unreadable_symbols = {}
 
-
     def __init__(self, val, unreadable=False):
         assert isinstance(val, unicode)
         self.unicodevalue = val
