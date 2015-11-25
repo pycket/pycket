@@ -142,28 +142,28 @@ def impersonate_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ImpProcedure(proc, check, keys, vals)
+    return imp.make_interpose_procedure(imp.W_ImpProcedure, proc, check, keys, vals)
 
 @expose("impersonate-procedure*")
 def impersonate_procedure_star(args):
     proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure*")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ImpProcedureStar(proc, check, keys, vals)
+    return imp.make_interpose_procedure(imp.W_ImpProcedureStar, proc, check, keys, vals)
 
 @expose("chaperone-procedure")
 def chaperone_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ChpProcedure(proc, check, keys, vals)
+    return imp.make_interpose_procedure(imp.W_ChpProcedure, proc, check, keys, vals)
 
 @expose("chaperone-procedure*")
 def chaperone_procedure_star(args):
     proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure*")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ChpProcedureStar(proc, check, keys, vals)
+    return imp.make_interpose_procedure(imp.W_ChpProcedureStar, proc, check, keys, vals)
 
 @expose("impersonate-vector")
 def impersonate_vector(args):

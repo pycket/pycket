@@ -209,7 +209,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         else:
             self.base = inner
 
-    @specialize.argtype(0)
+    # @specialize.argtype(0)
     def get_storage_index(self, idx):
         return self._get_list(idx)
 
