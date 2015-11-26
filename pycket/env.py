@@ -126,6 +126,13 @@ class Env(W_Object):
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
+    @jit.elidable
+    def _full_get_size_list(self):
+        return 0
+    def _fill_shapes(self, shapes, offset):
+        # nothing to do
+        pass
+
     def shape_tuple(self):
         raise NotImplementedError("abstract base class")
 
@@ -236,15 +243,25 @@ class ConsEnv(Env):
             return self._prev
         return self
 
+    @jit.elidable
+    def _full_get_size_list(self):
+        return self._get_size_list() + self._prev._full_get_size_list()
+
     @jit.unroll_safe
-    def shape_tuple(self):
+    def _fill_shapes(self, shapes, offset):
         from pycket.values_struct import W_Struct
-        from pycket.shape import find_shape_tuple
-        shapes = [None] * self._get_size_list()
-        for i in range(self._get_size_list()):
+        width = self._get_size_list()
+        assert len(shapes) >= offset + width
+        for i in range(width):
             w_obj = self._get_list(i)
             if isinstance(w_obj, W_Struct):
-                shapes[i] = w_obj._shape
+                shapes[offset + i] = w_obj._shape
+        self._prev._fill_shapes(shapes, offset + self._get_size_list())
+
+    def shape_tuple(self):
+        from pycket.shape import find_shape_tuple
+        shapes = [None] * self._full_get_size_list()
+        self._fill_shapes(shapes, 0)
         return find_shape_tuple(shapes)
 
     def __repr__(self):
