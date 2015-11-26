@@ -243,7 +243,6 @@ class ConsEnv(Env):
             return self._prev
         return self
 
-    @jit.elidable
     def _full_get_size_list(self):
         return self._get_size_list() + self._prev._full_get_size_list()
 
