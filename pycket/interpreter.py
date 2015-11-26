@@ -719,7 +719,6 @@ class WithContinuationMark(AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
-    app_like = True
 
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
@@ -1271,10 +1270,6 @@ class CaseLambda(AST):
         for l in self.lams:
             l.enable_jitting()
 
-    def set_in_cycle(self):
-        for l in self.lams:
-            l.set_in_cycle()
-
     def make_recursive_copy(self, sym):
         return CaseLambda(self.lams, sym, self._arity)
 
@@ -1367,11 +1362,6 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
-        self.body[0].the_lam = self
-
-    def set_in_cycle(self):
-        for b in self.body:
-            b.in_cycle = True
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1917,10 +1907,7 @@ def inner_interpret_two_state(ast, env, cont):
     config = env.pycketconfig()
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont)
-        if config.track_header:
-            came_from = ast if ast.should_enter else came_from
-        else:
-            came_from = ast if ast.app_like else came_from
+        came_from = ast if isinstance(ast, App) else came_from
         t = type(ast)
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
