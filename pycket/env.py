@@ -126,7 +126,6 @@ class Env(W_Object):
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
-    @jit.elidable
     def _full_get_size_list(self):
         return 0
     def _fill_shapes(self, shapes, offset):
