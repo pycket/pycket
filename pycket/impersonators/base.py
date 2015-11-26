@@ -2,7 +2,7 @@
 from pycket                   import values
 from pycket.cont              import continuation
 from pycket.error             import SchemeException
-from pycket.hidden_classes    import make_map_type
+from pycket.hidden_classes    import make_map_type, make_caching_map_type
 from pycket.prims.expose      import make_call_method
 from rpython.rlib             import jit
 from rpython.rlib.objectmodel import specialize
@@ -98,6 +98,8 @@ def get_base_object(x):
         x = x.get_base()
     return x
 
+EMPTY_PROPERTY_MAP = make_caching_map_type("get_storage_index").EMPTY
+
 @jit.unroll_safe
 @specialize.argtype(1)
 def make_property_map(prop_keys, map):
@@ -105,6 +107,15 @@ def make_property_map(prop_keys, map):
         return map
     for key in prop_keys:
         map = map.add_attribute(key)
+    return map
+
+@jit.unroll_safe
+@specialize.argtype(1)
+def make_specialized_property_map(prop_keys, map):
+    if not prop_keys:
+        return map
+    for key in prop_keys:
+        map = map.add_dynamic_attribute(key)
     return map
 
 class ProxyMixin(object):
@@ -151,6 +162,36 @@ class ProxyMixin(object):
 
     def tostring(self):
         return self.base.tostring()
+
+class InlineProxyMixin(object):
+
+    _immutable_fields_ = ["inner", "base", "property_map"]
+
+    def init_proxy(self, inner, property_map):
+        self.inner = inner
+        self.base  = inner.get_base()
+        self.property_map = property_map
+
+    def get_storage_index(self, idx):
+        return self._get_list(idx)
+
+    def get_proxied(self):
+        return self.inner
+
+    def get_base(self):
+        return self.base
+
+    def is_proxy(self):
+        return True
+
+    def get_property(self, prop, default=None):
+        return self.property_map.lookup(prop, self, default=None)
+
+    def immutable(self):
+        return get_base_object(self.base).immutable()
+
+    def tostring(self):
+        return get_base_object(self.base).tostring()
 
 class ChaperoneMixin(object):
     def is_chaperone(self):

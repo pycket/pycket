@@ -122,7 +122,9 @@ def make_caching_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def get_static_data(self, name, default):
-            return self.static_data.get(name, default)
+            if name not in self.static_data:
+                return default
+            return self.static_data[name]
 
         @specialize.argtype(2)
         def lookup(self, name, storage, default=None, offset=0):
@@ -222,4 +224,31 @@ def make_composite_map_type(shared_storage=False):
             return self.properties.lookup(key, storage, default=default, offset=offset)
 
     return CompositeMap
+
+class DecisionTree(object):
+
+    _immutable_fields_ = ['children', 'value']
+
+    def __init__(self):
+        self.children = {}
+        self.value    = None
+
+    @jit.elidable
+    def lookup(self, value):
+        child = self.children.get(value, None)
+        if child is None:
+            child = DecisionTree()
+            self.children[value] = child
+        return child
+
+    @jit.not_in_trace
+    def associate(self, value):
+        if self.value is None:
+            self.value = value
+
+    @jit.elidable
+    def get_value(self):
+        return self.value
+
+
 

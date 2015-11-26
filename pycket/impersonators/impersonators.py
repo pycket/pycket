@@ -8,18 +8,29 @@ from pycket.error              import SchemeException
 from pycket.hash.base          import W_HashTable
 from pycket.impersonators.base import (
     ChaperoneMixin,
+    EMPTY_PROPERTY_MAP,
     ImpersonatorMixin,
+    InlineProxyMixin,
     ProxyMixin,
     W_ImpPropertyDescriptor,
     chaperone_reference_cont,
     check_chaperone_results,
     get_base_object,
-    impersonate_reference_cont
+    impersonate_reference_cont,
+    make_specialized_property_map
 )
 from pycket.prims.expose       import make_call_method
+from pycket.small_list         import inline_small_list
 from pycket.values             import UNROLLING_CUTOFF
-from rpython.rlib              import jit, objectmodel
-from rpython.rlib.objectmodel  import import_from_mixin
+from rpython.rlib              import jit
+from rpython.rlib.objectmodel  import import_from_mixin, specialize
+
+@specialize.arg(0)
+def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
+    empty = EMPTY_PROPERTY_MAP
+    map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
+    fixed = prop_vals[:] if prop_vals is not None else None
+    return cls.make(fixed, vector, refh, seth, map)
 
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
@@ -93,14 +104,14 @@ class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
     _immutable_fields_ = ["refh", "seth"]
 
-    import_from_mixin(ProxyMixin)
+    import_from_mixin(InlineProxyMixin)
 
     @jit.unroll_safe
-    def __init__(self, v, r, s, prop_keys, prop_vals):
-        assert isinstance(v, values.W_MVector)
-        self.refh = r
-        self.seth = s
-        self.init_proxy(v, prop_keys, prop_vals)
+    def __init__(self, vector, refh, seth, map):
+        assert isinstance(vector, values.W_MVector)
+        self.refh = refh
+        self.seth = seth
+        self.init_proxy(vector, map)
 
     def length(self):
         return get_base_object(self).length()
@@ -124,6 +135,7 @@ class W_InterposeVector(values.W_MVector):
         return self.inner.vector_ref(i, env, after)
 
 # Vectors
+@inline_small_list(immutable=True, unbox_num=True)
 class W_ImpVector(W_InterposeVector):
     import_from_mixin(ImpersonatorMixin)
 
@@ -135,6 +147,7 @@ class W_ImpVector(W_InterposeVector):
     def post_ref_cont(self, i, env, cont):
         return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
 
+@inline_small_list(immutable=True, unbox_num=True)
 class W_ChpVector(W_InterposeVector):
     import_from_mixin(ChaperoneMixin)
 

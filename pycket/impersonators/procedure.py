@@ -2,57 +2,40 @@
 from pycket                    import values
 from pycket.base               import SingletonMeta
 from pycket.cont               import call_extra_cont, continuation, label
-from pycket.hidden_classes     import make_map_type
+from pycket.hidden_classes     import make_caching_map_type
 from pycket.impersonators      import (
     ChaperoneMixin,
+    EMPTY_PROPERTY_MAP,
     ImpersonatorMixin,
-    ProxyMixin,
+    InlineProxyMixin,
     W_ImpPropertyDescriptor,
     check_chaperone_results_loop,
     get_base_object,
-    make_property_map
+    make_specialized_property_map
 )
 from pycket.small_list         import inline_small_list
+from rpython.rlib              import jit
 from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
-EMPTY_PROPERTY_MAP = make_map_type("get_storage_index").EMPTY
 
 @specialize.arg(0)
 def make_interpose_procedure(cls, code, check, prop_keys, prop_vals):
     empty = EMPTY_PROPERTY_MAP
-    map = make_property_map(prop_keys, EMPTY_PROPERTY_MAP)
+    map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
     fixed = prop_vals[:] if prop_vals is not None else None
     return cls.make(fixed, code, check, map)
 
 class W_InterposeProcedure(values.W_Procedure):
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "base", "check", "property_map"]
+    _immutable_fields_ = ["check"]
+
+    import_from_mixin(InlineProxyMixin)
 
     def __init__(self, code, check, map):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        self.inner = code
         self.check = check
-        self.property_map = map
-        if isinstance(code, W_InterposeProcedure):
-            self.base = code.base
-        else:
-            self.base = code
-
-    def get_storage_index(self, idx):
-        return self._get_list(idx)
-
-    def get_proxied(self):
-        return self.inner
-
-    def get_base(self):
-        return self.base
-
-    def is_proxied(self):
-        return True
-
-    def get_property(self, prop, default=None):
-        return self.property_map.lookup(prop, self, default=None)
+        self.init_proxy(code, map)
 
     def get_arity(self):
         return self.get_base().get_arity()
@@ -62,9 +45,6 @@ class W_InterposeProcedure(values.W_Procedure):
 
     def immutable(self):
         return True
-
-    def tostring(self):
-        return get_base_object(self.base).tostring()
 
     @staticmethod
     def has_self_arg():
@@ -123,7 +103,8 @@ class W_ChpProcedure(W_InterposeProcedure):
     errorname = "chp-procedure"
 
     def post_call_cont(self, args, prop, env, cont, calling_app):
-        return chp_proc_cont(args, self.inner, prop, calling_app, env, cont)
+        orig = values.Values.make(args)
+        return chp_proc_cont(orig, self.inner, prop, calling_app, env, cont)
 
 @inline_small_list(immutable=True, unbox_num=True)
 class W_ChpProcedureStar(W_InterposeProcedure):
@@ -132,7 +113,8 @@ class W_ChpProcedureStar(W_InterposeProcedure):
     errorname = "chp-procedure*"
 
     def post_call_cont(self, args, prop, env, cont, calling_app):
-        return chp_proc_cont(args, self.inner, prop, calling_app, env, cont)
+        orig = values.Values.make(args)
+        return chp_proc_cont(orig, self.inner, prop, calling_app, env, cont)
 
     @staticmethod
     def has_self_arg():
@@ -158,7 +140,7 @@ def imp_proc_cont(arg_count, proc, prop, calling_app, env, cont, _vals):
 @continuation
 def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
-    arg_count = len(orig)
+    arg_count = orig.num_values()
     check_result = len(vals) == arg_count + 1
     if check_result:
         check = vals[0]
@@ -175,7 +157,6 @@ def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
 
     if check_result:
         args = values.Values.make(vals[1:])
-        original = values.Values.make(orig)
-        return check_chaperone_results_loop(args, original, 0, env, cont)
+        return check_chaperone_results_loop(args, orig, 0, env, cont)
     return proc.call_with_extra_info(vals, env, cont, calling_app)
 

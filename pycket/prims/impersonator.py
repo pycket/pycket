@@ -170,12 +170,12 @@ def impersonate_vector(args):
     unpacked = unpack_vector_args(args, "impersonate-vector")
     if unpacked[0].immutable():
         raise SchemeException("impersonate-vector: cannot impersonate immutable vector")
-    return imp.W_ImpVector(*unpacked)
+    return imp.make_interpose_vector(imp.W_ImpVector, *unpacked)
 
 @expose("chaperone-vector")
 def chaperone_vector(args):
     unpacked = unpack_vector_args(args, "chaperone-vector")
-    return imp.W_ChpVector(*unpacked)
+    return imp.make_interpose_vector(imp.W_ChpVector, *unpacked)
 
 # Need to check that fields are mutable
 @expose("impersonate-struct")
