@@ -126,8 +126,6 @@ class Env(W_Object):
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
-    def _full_get_size_list(self):
-        return 0
     def _fill_shapes(self, shapes, offset):
         # nothing to do
         pass
@@ -242,9 +240,6 @@ class ConsEnv(Env):
             return self._prev
         return self
 
-    def _full_get_size_list(self):
-        return self._get_size_list() + self._prev._full_get_size_list()
-
     @jit.unroll_safe
     def _fill_shapes(self, shapes, offset):
         from pycket.values_struct import W_Struct
@@ -256,9 +251,15 @@ class ConsEnv(Env):
                 shapes[offset + i] = w_obj._shape
         self._prev._fill_shapes(shapes, offset + self._get_size_list())
 
+    @jit.unroll_safe
     def shape_tuple(self):
         from pycket.shape import find_shape_tuple
-        shapes = [None] * self._full_get_size_list()
+        env = self
+        env_size = 0
+        while isinstance(env, ConsEnv):
+            env_size += env._get_size_list()
+            env = env._prev
+        shapes = [None] * env_size
         self._fill_shapes(shapes, 0)
         return find_shape_tuple(shapes)
 
