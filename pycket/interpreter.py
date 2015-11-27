@@ -1834,7 +1834,9 @@ class Let(SequencedBodyAST):
             result.append("[")
             if count > 1:
                 result.append("(")
-            for _ in range(count):
+            for k in range(count):
+                if k > 0:
+                    result.append(" ")
                 result.append(self.args.elems[j].variable_name())
                 j += 1
             if count > 1:
