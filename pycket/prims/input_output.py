@@ -416,16 +416,19 @@ def explode_path(w_path):
     return values.to_list(parts)
 
 def _dirname(path):
-    return path.rpartition(os.path.sep)[0]
+    components = path.split(os.path.sep)
+    return os.path.sep.join(components[:-1])
 
 def _basename(path):
-    return path.rpartition(os.path.sep)[2]
+    components = path.split(os.path.sep)
+    return components[-1]
 
 @expose("split-path", [values.W_Object], simple=False)
 def split_path(w_path, env, cont):
     from pycket.interpreter import return_multi_vals
     path = extract_path(w_path)
-    dirname, sep, basename = path.rpartition(os.path.sep)
+    dirname  = _dirname(path)
+    basename = _basename(path)
     name = _explode_element(basename)
     if dirname == os.path.sep:
         base = values.w_false
