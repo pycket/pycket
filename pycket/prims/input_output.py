@@ -396,6 +396,7 @@ def dir_list(w_str):
 
 UP = values.W_Symbol.make("up")
 SAME = values.W_Symbol.make("same")
+RELATIVE = values.W_Symbol.make("relative")
 SEP = values.W_Path(os.sep)
 
 def _explode_element(s):
@@ -407,13 +408,36 @@ def _explode_element(s):
         return UP
     return values.W_Path(s)
 
-
 @expose("explode-path", [values.W_Object])
 def explode_path(w_path):
     sep = os.sep
     path = extract_path(w_path)
     parts = [_explode_element(p) for p in path.split(sep)]
     return values.to_list(parts)
+
+def _dirname(path):
+    return path.rpartition(os.path.sep)[0]
+
+def _basename(path):
+    return path.rpartition(os.path.sep)[2]
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    path = extract_path(w_path)
+    dirname, sep, basename = path.rpartition(os.path.sep)
+    name = _explode_element(basename)
+    if dirname == os.path.sep:
+        base = values.w_false
+        must_be_dir = values.w_false
+    elif name is UP or name is SAME:
+        base = RELATIVE
+        must_be_dir = values.w_true
+    else:
+        base = values.W_Path(dirname + os.path.sep)
+        must_be_dir = values.w_false
+    result = values.Values.make([base, name, must_be_dir])
+    return return_multi_vals(result, env, cont)
 
 @expose("build-path")
 def build_path(args):
