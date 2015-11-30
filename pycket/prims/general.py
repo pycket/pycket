@@ -185,7 +185,6 @@ expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
-             "prop:output-port",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:exn:srclocs",
@@ -204,6 +203,7 @@ expose_val("prop:chaperone-unsafe-undefined",
 expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
+expose_val("prop:output-port", values_struct.w_prop_output_port)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
