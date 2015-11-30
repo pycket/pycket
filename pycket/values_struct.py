@@ -301,6 +301,16 @@ class W_StructType(values.W_Object):
             return self.super.all_opaque()
         return True
 
+    @jit.elidable
+    def is_transparent(self):
+        while self is not None:
+            if self.inspector is not values.w_false:
+                return False
+            self = self.super
+        return True
+
+    def hash_value(self):
+        pass
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
@@ -1049,6 +1059,7 @@ w_prop_chaperone_unsafe_undefined = W_StructProperty(sym("prop:chaperone-unsafe-
 w_prop_set_bang_transformer = W_StructProperty(sym("prop:set!-transformer"), values.w_false)
 w_prop_rename_transformer = W_StructProperty(sym("prop:rename-transformer"), values.w_false)
 w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), values.w_false)
+w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
 
 del sym
 

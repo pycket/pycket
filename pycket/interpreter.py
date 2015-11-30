@@ -1902,7 +1902,8 @@ def get_printable_location_two_state(green_ast, came_from):
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["ast", "came_from"],
-                                 get_printable_location=get_printable_location_two_state)
+                                 get_printable_location=get_printable_location_two_state,
+                                 should_unroll_one_iteration=lambda *args : True)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
@@ -1931,7 +1932,8 @@ def get_printable_location_one_state(green_ast ):
     return green_ast.tostring()
 driver_one_state = jit.JitDriver(reds=["env", "cont"],
                        greens=["ast"],
-                       get_printable_location=get_printable_location_one_state)
+                       get_printable_location=get_printable_location_one_state,
+                       should_unroll_one_iteration=lambda *args : True)
 def inner_interpret_one_state(ast, env, cont):
     while True:
         driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)

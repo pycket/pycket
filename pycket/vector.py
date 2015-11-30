@@ -3,9 +3,10 @@ from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Charac
 from pycket.base import W_Object, SingletonMeta
 from pycket import config
 
+from rpython.rlib import debug, jit
 from rpython.rlib import rerased
 from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
-from rpython.rlib import debug, jit
+from rpython.rlib.rarithmetic import intmask
 
 
 @jit.look_inside_iff(lambda elements, immutable:
@@ -133,6 +134,13 @@ class W_Vector(W_MVector):
     def _make_copy(self, immutable=False):
         return self.strategy._copy_storage(self, immutable=immutable)
 
+    def hash_equal(self, info=None):
+        x = 0x456789
+        for i in range(self.len):
+            hash = self.ref(i).hash_equal(info=info)
+            x = intmask((1000003 * x) ^ hash)
+        return x
+
     def equal(self, other):
         # XXX could be optimized using strategies
         if not isinstance(other, W_MVector):
@@ -179,9 +187,17 @@ class W_FlVector(W_VectorSuper):
 
     def length(self):
         return self.len
+
     def tostring(self):
         l = self.get_strategy().ref_all(self)
         return "(flvector %s)" % " ".join([obj.tostring() for obj in l])
+
+    def hash_equal(self, info=None):
+        x = 0x567890
+        for i in range(self.len):
+            hash = self.ref(i).hash_equal(info=info)
+            x = intmask((1000003 * x) ^ hash)
+        return x
 
     def equal(self, other):
         # XXX could be optimized more
