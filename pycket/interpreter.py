@@ -1427,10 +1427,9 @@ class Lambda(SequencedBodyAST):
         fmls_len = len(self.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.rest:
-            # don't format errors here, this is often caught and discarded
-            raise SchemeException("wrong args")
+            return None
         if fmls_len > args_len:
-            raise SchemeException("not enough args")
+            return None
         if self.rest:
             actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
         else:

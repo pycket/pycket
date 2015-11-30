@@ -1173,15 +1173,14 @@ class W_Closure(W_Procedure):
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
-        for (i, lam) in enumerate(self.caselam.lams):
-            try:
-                actuals = lam.match_args(args)
-            except SchemeException:
-                if len(self.caselam.lams) == 1:
-                    lam.raise_nice_error(args)
-            else:
+        for i, lam in enumerate(self.caselam.lams):
+            actuals = lam.match_args(args)
+            if actuals is not None:
                 frees = self._get_list(i)
-                return (actuals, frees, lam)
+                return actuals, frees, lam
+        if len(self.caselam.lams) == 1:
+            single_lambda = self.caselam.lams[0]
+            single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
     def call_with_extra_info(self, args, env, cont, calling_app):
@@ -1246,6 +1245,8 @@ class W_Closure1AsEnv(ConsEnv):
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
+        if actuals is None:
+            lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
