@@ -141,16 +141,22 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
         return get_dict_item(self.data, i)
 
 W_EqvImmutableHashTable = make_persistent_hash_type(
-        super=W_ImmutableHashTable,
-        name="W_EqvImmutableHashTable",
-        hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
-        equal=W_EqvMutableHashTable.cmp_value)
+    super   = W_ImmutableHashTable,
+    name    = "W_EqvImmutableHashTable",
+    hashfun = lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
+    equal   = W_EqvMutableHashTable.cmp_value)
 
 W_EqImmutableHashTable = make_persistent_hash_type(
-        super=W_ImmutableHashTable,
-        name="W_EqImmutableHashTable",
-        hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
-        equal=W_EqMutableHashTable.cmp_value)
+    super   = W_ImmutableHashTable,
+    name    = "W_EqImmutableHashTable",
+    hashfun = lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
+    equal   = W_EqMutableHashTable.cmp_value)
+
+W_EqualImmutableHashTable = make_persistent_hash_type(
+    super   = W_ImmutableHashTable,
+    name    = "W_EqualImmutableHashTable",
+    hashfun = lambda x: r_uint(x.hash_equal()),
+    equal   = lambda x, y: x.equal(y))
 
 class __extend__(W_EqvImmutableHashTable):
 
@@ -212,3 +218,27 @@ class __extend__(W_EqImmutableHashTable):
             i += 1
         return "#hasheq(%s)" % " ".join(entries)
 
+class __extend__(W_EqualImmutableHashTable):
+
+    def length(self):
+        return len(self)
+
+    def make_copy(self):
+        return self
+
+    def make_empty(self):
+        return W_EqImmutableHashTable.EMPTY
+
+    def hash_ref(self, k, env, cont):
+        from pycket.interpreter import return_value
+        result = self.val_at(k, w_missing)
+        return return_value(result, env, cont)
+
+    def tostring(self):
+        assert type(self) is W_EqImmutableHashTable
+        entries = [None] * len(self)
+        i = 0
+        for k, v in self.iteritems():
+            entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
+            i += 1
+        return "#hasheq(%s)" % " ".join(entries)

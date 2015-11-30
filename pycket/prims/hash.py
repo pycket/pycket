@@ -4,7 +4,7 @@ from pycket              import impersonators as imp
 from pycket              import values
 from pycket.hash.base    import W_HashTable, W_ImmutableHashTable, w_missing
 from pycket.hash.simple  import (
-    W_EqvMutableHashTable, W_EqMutableHashTable,
+    W_EqvMutableHashTable, W_EqMutableHashTable, W_EqualImmutableHashTable,
     W_EqvImmutableHashTable, W_EqImmutableHashTable,
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
@@ -123,16 +123,18 @@ def make_weak_hash(assocs):
 
 @expose("make-immutable-hash", [default(values.W_List, values.w_null)])
 def make_immutable_hash(assocs):
-    keys, vals = from_assocs(assocs, "make-immutable-hash")
-    return W_EqualHashTable(keys, vals, immutable=True)
+    return make_simple_immutable_table_assocs(W_EqualImmutableHashTable,
+            assocs, "make-immutable-hash")
 
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
-    return make_simple_immutable_table_assocs(W_EqImmutableHashTable, assocs, "make-immutable-hasheq")
+    return make_simple_immutable_table_assocs(W_EqImmutableHashTable,
+            assocs, "make-immutable-hasheq")
 
 @expose("make-immutable-hasheqv", [default(values.W_List, values.w_null)])
 def make_immutable_hasheqv(assocs):
-    return make_simple_immutable_table_assocs(W_EqvImmutableHashTable, assocs, "make-immutable-hasheq")
+    return make_simple_immutable_table_assocs(W_EqvImmutableHashTable,
+            assocs, "make-immutable-hasheqv")
 
 @expose("hash")
 def hash(args):
@@ -140,7 +142,7 @@ def hash(args):
         raise SchemeException("hash: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return W_EqualHashTable(keys, vals, immutable=True)
+    return make_simple_immutable_table(W_EqualImmutableHashTable, keys, vals)
 
 @expose("hasheq")
 def hasheq(args):
