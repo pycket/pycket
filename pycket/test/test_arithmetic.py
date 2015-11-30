@@ -697,7 +697,6 @@ def test_inexact_to_exact(doctest):
     102222222222222223892324523663483522756187192341561344
     """
 
-
 def test_flonum_unsafe(doctest):
     """
     ! (require '#%flfxnum '#%unsafe)
@@ -931,3 +930,32 @@ def test_rational_predicate(doctest):
     > (rational? 13647861237849612903845789012745781623478613289571907344901263)
     #t
     """
+
+def test_exact_predicate(doctest):
+    """
+    > (exact? -17)
+    #t
+    > (exact? 999999999999999999999999)
+    #t
+    > (exact? 5)
+    #t
+    > (exact? 1/2)
+    #t
+    > (exact? 9999999999999999999999999999/2)
+    #t
+    > (exact? -3/4)
+    #t
+    > (exact? 1+2i)
+    #t
+    > (exact? 1/2+3/4i)
+    #t
+    > (exact? 1.0)
+    #f
+    > (exact? 1.0+3i)
+    #f
+    > (exact? 3+1.0i)
+    #f
+    > (exact? "3")
+    #f
+    """
+
