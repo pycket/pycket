@@ -113,6 +113,7 @@ def rationalp(n):
     if isinstance(n, values.W_Flonum):
         v = n.value
         return values.W_Bool.make(not (math.isnan(v) or math.isinf(v)))
+    return values.W_Bool.make(isinstance(n, values.W_Rational))
 
 @expose("exact?", [values.W_Object])
 def exactp(n):

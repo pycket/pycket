@@ -917,3 +917,17 @@ def test_error(doctest):
     """
     E (+ 'a 1)
     """
+
+def test_rational_predicate(doctest):
+    """
+    > (rational? 1)
+    #t
+    > (rational? +inf.0)
+    #f
+    > (rational? "hello")
+    #f
+    > (rational? 7/3)
+    #t
+    > (rational? 13647861237849612903845789012745781623478613289571907344901263)
+    #t
+    """
