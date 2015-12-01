@@ -87,7 +87,7 @@ def match(w_re, w_str, start=0, end=sys.maxint):
 def match_positions(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
-        s = w_str.as_str_utf8() # XXX for now
+        s = w_str.as_unicode() # XXX for now
         result = w_re.match_string_positions(s, start, end)
         return result
     if isinstance(w_str, values.W_Bytes):
@@ -101,7 +101,7 @@ def match_positions(w_re, w_str, start=0, end=sys.maxint):
 def match_all_positions(who, w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
     if isinstance(w_str, values_string.W_String):
-        s = w_str.as_str_utf8() # XXX for now
+        s = w_str.as_unicode() # XXX for now
         result = w_re.match_all_string_positions(s, start, end)
         return result
     if isinstance(w_str, values.W_Bytes):
@@ -180,12 +180,15 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
     acc, end = make_match_list(matches)
 
     length = count.value
-    input_str = input.as_str_ascii()
     start = max(0, end - length)
 
     assert start >= 0 and end >= 0
-    bytes = values.W_Bytes.from_string(input_str[start:end], immutable=False)
-    result = values.Values.make([acc, bytes])
+    matched = input.getslice(start, end)
+    bytestring = ['\0'] * (end - start)
+    for i in range(end - start):
+        bytestring[i] = chr(ord(matched.getitem(i)) % 256)
+    bytes = values.W_Bytes(bytestring)
+    result = values.Values._make2(acc, bytes)
     return return_multi_vals(result, env, cont)
 
 @expose("regexp-match?", [values.W_Object, values.W_Object])
@@ -212,23 +215,23 @@ def regexp_replace(pattern, input, insert, prefix):
     if not matches:
         return input
     if isinstance(input, values_string.W_String):
-        str = input.as_str_ascii()
+        str = input.as_unicode()
     elif isinstance(input, values.W_Bytes):
-        str = input.as_str()
+        str = input.as_str().decode("utf-8")
     else:
         raise SchemeException("regexp-replace*: expected string or bytes input")
     if isinstance(insert, values_string.W_String):
-        ins = insert.as_str_ascii()
+        ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
-        ins = insert.as_str()
+        ins = insert.as_str().decode("utf-8")
     else:
         raise SchemeException("regexp-replace*: expected string or bytes insert string")
     formatter = values_regex.parse_insert_string(ins)
     subs = values_regex.do_input_substitution(formatter, str, matches)
     start, end = matches[0]
     assert start >= 0 and end >= 0
-    result = "".join([str[0:start], subs, str[end:]])
-    return values_string.W_String.make(result)
+    result = u"".join([str[0:start], subs, str[end:]])
+    return values_string.W_String.fromunicode(result)
 
 @expose("regexp-replace*",
         [values.W_Object,
@@ -240,18 +243,18 @@ def regexp_replace_star(pattern, input, insert, prefix):
     if not matches:
         return input
     if isinstance(input, values_string.W_String):
-        str = input.as_str_ascii()
+        str = input.as_unicode()
     elif isinstance(input, values.W_Bytes):
-        str = input.as_str()
+        str = input.as_str().decode("utf-8")
     else:
         raise SchemeException("regexp-replace*: expected string or bytes input")
     if isinstance(insert, values_string.W_String):
-        ins = insert.as_str_ascii()
+        ins = insert.as_unicode()
     elif isinstance(insert, values.W_Bytes):
-        ins = insert.as_str()
+        ins = insert.as_str().decode("utf-8")
     else:
         raise SchemeException("regexp-replace*: expected string or bytes insert string")
-    builder = rstring.StringBuilder()
+    builder = rstring.UnicodeBuilder()
     lhs = 0
     formatter = values_regex.parse_insert_string(ins)
     for match in matches:
@@ -262,5 +265,5 @@ def regexp_replace_star(pattern, input, insert, prefix):
         builder.append(subs)
         lhs = end
     builder.append_slice(str, lhs, len(str))
-    return values_string.W_String.make(builder.build())
+    return values_string.W_String.fromunicode(builder.build())
 

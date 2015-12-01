@@ -349,21 +349,23 @@ def bytes(args):
 
 @expose("bytes-append")
 def bytes_append(args):
-    lens = 0
+    total_len = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        lens += len(a.value)
+        total_len += len(a.value)
 
-    val = [' '] * lens # is this the fastest way to do things?
+    result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        val[cnt:cnt+len(a.value)] = a.value
-        cnt += len(a.value)
+        for byte in a.value:
+            result[cnt] = byte
+            cnt += 1
 
-    return values.W_MutableBytes(val)
+    assert cnt == total_len
+    return values.W_MutableBytes(result)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
