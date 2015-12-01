@@ -246,7 +246,7 @@ def string_append(args):
         assert unibuilder is not None
         return W_String.fromunicode(unibuilder.build())
 
-@expose("string-length", [W_String])
+@expose(["string-length", "unsafe-string-length"], [W_String])
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
