@@ -292,8 +292,10 @@ class W_Cons(W_List):
 
     def car(self):
         raise NotImplementedError("abstract base class")
+
     def cdr(self):
         raise NotImplementedError("abstract base class")
+
     def tostring(self):
         cur = self
         acc = []
@@ -309,10 +311,13 @@ class W_Cons(W_List):
     def immutable(self):
         return True
 
-    def hash_equal(self):
-        hash1 = self.car().hash_equal()
-        hash2 = self.cdr().hash_equal()
-        return rarithmetic.intmask(hash1 + 1000003 * hash2)
+    def hash_equal(self, info=None):
+        x = 0x345678
+        while isinstance(self, W_Cons):
+            car, self = self.car(), self.cdr()
+            y = car.hash_equal(info=info)
+            x = rarithmetic.intmask((1000003 * x) ^ y)
+        return x
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
@@ -476,7 +481,6 @@ class W_HashTablePlaceholder(W_Object):
     def tostring(self):
         return "#<hash-table-placeholder>"
 
-
 class W_MList(W_Object):
     errorname = "mlist"
     def __init__(self):
@@ -498,7 +502,6 @@ class W_MCons(W_MList):
     def set_cdr(self, d):
         self._cdr = d
 
-
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
@@ -511,7 +514,7 @@ class W_Number(W_Object):
         return self.equal(other)
 
     def hash_eqv(self):
-        return self.hash_equal()
+        return self.hash_equal(info=None)
 
 class W_Rational(W_Number):
     _immutable_fields_ = ["_numerator", "_denominator"]
@@ -572,7 +575,7 @@ class W_Rational(W_Number):
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         hash1 = self._numerator.hash()
         hash2 = self._denominator.hash()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
@@ -619,7 +622,7 @@ class W_Fixnum(W_Integer):
             return False
         return self.value == other.value
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return self.value
 
 W_Fixnum.ZERO = W_Fixnum.make(0)
@@ -641,7 +644,7 @@ class W_Flonum(W_Number):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
         return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return compute_hash(self.value)
 
     def equal(self, other):
@@ -668,7 +671,7 @@ class W_Bignum(W_Integer):
             return False
         return self.value.eq(other.value)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return self.value.hash()
 
 @memoize_constructor
@@ -685,7 +688,7 @@ class W_Complex(W_Number):
             return False
         return self.real.eqv(other.real) and self.imag.eqv(other.imag)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         hash1 = compute_hash(self.real)
         hash2 = compute_hash(self.imag)
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
@@ -714,7 +717,9 @@ class W_Character(W_Object):
 
     def hash_eqv(self):
         return ord(self.value)
-    hash_equal = hash_eqv
+
+    def hash_equal(self, info=None):
+        return self.hash_eqv()
 
 
 class W_Thread(W_Object):
@@ -858,7 +863,7 @@ class W_Bytes(W_Object):
             return False
         return len(self.value) == len(other.value) and str(self.value) == str(other.value)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         from rpython.rlib.rarithmetic import intmask
         # like CPython's string hash
         s = self.value
@@ -917,7 +922,6 @@ class W_Symbol(W_Object):
     errorname = "symbol"
     all_symbols = {}
     unreadable_symbols = {}
-
 
     def __init__(self, val, unreadable=False):
         assert isinstance(val, unicode)
@@ -1183,15 +1187,14 @@ class W_Closure(W_Procedure):
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
-        for (i, lam) in enumerate(self.caselam.lams):
-            try:
-                actuals = lam.match_args(args)
-            except SchemeException:
-                if len(self.caselam.lams) == 1:
-                    lam.raise_nice_error(args)
-            else:
+        for i, lam in enumerate(self.caselam.lams):
+            actuals = lam.match_args(args)
+            if actuals is not None:
                 frees = self._get_list(i)
-                return (actuals, frees, lam)
+                return actuals, frees, lam
+        if len(self.caselam.lams) == 1:
+            single_lambda = self.caselam.lams[0]
+            single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
     def call_with_extra_info(self, args, env, cont, calling_app):
@@ -1256,6 +1259,8 @@ class W_Closure1AsEnv(ConsEnv):
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
+        if actuals is None:
+            lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(

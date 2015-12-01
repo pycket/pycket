@@ -210,3 +210,28 @@ def test_eq_and_vectors_agree(doctest):
     #t
     """
 
+def test_vector_to_immutable_vector(doctest):
+    r"""
+    ! (define fl-vector^ (vector-immutable 1.0 2.0 3.0))
+    ! (define fl-vector (vector 1.0 2.0 3.0))
+    ! (define fx-vector (vector 1 2 3))
+    ! (define ch-vector (vector #\a #\b #\c))
+    > (eq? fl-vector^ (vector->immutable-vector fl-vector^))
+    #t
+    > (eq? fl-vector (vector->immutable-vector fl-vector))
+    #f
+    > (eq? fx-vector (vector->immutable-vector fx-vector))
+    #f
+    > (eq? ch-vector (vector->immutable-vector ch-vector))
+    #f
+    """
+
+def test_copy_vector_strategy_preserve():
+    vec = run("(vector->immutable-vector (vector 1.0 2.0 3.0))")
+    assert vec.strategy is FlonumImmutableVectorStrategy.singleton
+    vec = run("(vector->immutable-vector (vector 1 2 3))")
+    assert vec.strategy is FixnumImmutableVectorStrategy.singleton
+    vec = run(r"(vector->immutable-vector (vector #\a #\b #\c))")
+    assert vec.strategy is CharacterImmutableVectorStrategy.singleton
+    vec = run(r"(vector->immutable-vector (vector #\a #\b #\c 1 1.0))")
+    assert vec.strategy is ObjectImmutableVectorStrategy.singleton

@@ -396,6 +396,7 @@ def dir_list(w_str):
 
 UP = values.W_Symbol.make("up")
 SAME = values.W_Symbol.make("same")
+RELATIVE = values.W_Symbol.make("relative")
 SEP = values.W_Path(os.sep)
 
 def _explode_element(s):
@@ -407,13 +408,39 @@ def _explode_element(s):
         return UP
     return values.W_Path(s)
 
-
 @expose("explode-path", [values.W_Object])
 def explode_path(w_path):
     sep = os.sep
     path = extract_path(w_path)
     parts = [_explode_element(p) for p in path.split(sep)]
     return values.to_list(parts)
+
+def _dirname(path):
+    components = path.split(os.path.sep)
+    return os.path.sep.join(components[:-1])
+
+def _basename(path):
+    components = path.split(os.path.sep)
+    return components[-1]
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    path = extract_path(w_path)
+    dirname  = _dirname(path)
+    basename = _basename(path)
+    name = _explode_element(basename)
+    if dirname == os.path.sep:
+        base = values.w_false
+        must_be_dir = values.w_false
+    elif name is UP or name is SAME:
+        base = RELATIVE
+        must_be_dir = values.w_true
+    else:
+        base = values.W_Path(dirname + os.path.sep)
+        must_be_dir = values.w_false
+    result = values.Values.make([base, name, must_be_dir])
+    return return_multi_vals(result, env, cont)
 
 @expose("build-path")
 def build_path(args):
@@ -837,7 +864,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
-@expose("write-string", [values_string.W_String, default(values.W_OutputPort, None),\
+@expose("write-string", [values_string.W_String, default(values.W_Object, None),\
     default(values.W_Fixnum, values.W_Fixnum(0)),\
     default(values.W_Fixnum, None)], simple=False)
 def do_write_string(w_str, port, start_pos, end_pos, env, cont):
@@ -850,10 +877,36 @@ def do_write_string(w_str, port, start_pos, end_pos, env, cont):
             raise SchemeException("write-string: ending index out of range")
     else:
         end_pos = w_str.length()
-    if port is None:
-        port = current_out_param.get(cont)
+    cont = write_string_cont(w_str, start, end_pos, env, cont)
+    return get_port(port, env, cont)
+
+@continuation
+def write_string_cont(w_str, start, end_pos, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_OutputPort)
     port.write(w_str.getslice(start, end_pos).as_str_utf8())
     return return_value(values.W_Fixnum(end_pos - start), env, cont)
+
+def get_port(port, env, cont):
+    from pycket.interpreter import return_value
+    if port is None:
+        port = current_out_param.get(cont)
+        return return_value(port, env, cont)
+    elif isinstance(port, values_struct.W_RootStruct):
+        cont = get_port_from_property(port, env, cont)
+        return port.get_prop(values_struct.w_prop_output_port, env, cont)
+    assert isinstance(port, values.W_OutputPort)
+    return return_value(port, env, cont)
+
+@continuation
+def get_port_from_property(port, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if isinstance(val, values.W_Fixnum):
+        return port.ref(val.value, env, cont)
+    assert isinstance(val, values.W_OutputPort)
+    return return_value(port, env, cont)
 
 @expose("write-byte",
         [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)

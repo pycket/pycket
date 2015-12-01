@@ -85,9 +85,11 @@ class W_Object(W_ProtoObject):
     def eqv(self, other):
         return self is other # default implementation
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return objectmodel.compute_hash(self) # default implementation
-    hash_eqv = hash_equal
+
+    def hash_eqv(self):
+        return self.hash_equal()
 
     def tostring(self):
         return str(self)

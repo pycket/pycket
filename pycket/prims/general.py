@@ -185,7 +185,6 @@ expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
-             "prop:output-port",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:exn:srclocs",
@@ -204,6 +203,7 @@ expose_val("prop:chaperone-unsafe-undefined",
 expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
+expose_val("prop:output-port", values_struct.w_prop_output_port)
 
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
@@ -703,15 +703,17 @@ def apply(args, env, cont, extra_call_info):
     lst = args[-1]
     try:
         fn_arity = fn.get_arity()
-        if fn_arity is arity.Arity.unknown or fn_arity.at_least != -1:
-            unroll_to = values.UNROLLING_CUTOFF
+        if fn_arity is arity.Arity.unknown or fn_arity.at_least == -1:
+            unroll_to = 1
+        elif fn_arity.arity_list:
+            unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
         else:
-            unroll_to = fn_arity.arity_list[-1] if fn_arity.arity_list else 0
+            unroll_to = 1
         rest = values.from_list(lst, unroll_to=unroll_to)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
-    args_len = len(args)-1
+    args_len = len(args) - 1
     assert args_len >= 0
     others = args[1:args_len]
     new_args = others + rest

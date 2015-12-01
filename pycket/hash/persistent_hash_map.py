@@ -147,7 +147,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     newsize = added_leaf.adjust_size(self._size)
                     return BitmapIndexedNode(self._bitmap, new_array, newsize)
 
-
                 if equal(key, key_or_null):
                     # Entry already exists for this key
                     if val is val_or_node:

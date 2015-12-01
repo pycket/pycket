@@ -74,24 +74,36 @@ def flvector_set(v, i, new, env, cont):
         raise SchemeException("flvector-set!: index out of bounds")
     return v.vector_set(idx, new, env, cont)
 
-@jit.look_inside_iff(
-    lambda v: jit.loop_unrolling_heuristic(v, v.length(), 16))
-def copy_vector(v):
-    assert type(v) is values_vector.W_Vector
+def copy_vector(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        return return_value(v._make_copy(immutable=True), env, cont)
     len = v.length()
     data = [None] * len
-    for i in range(len):
-        data[i] = v.ref(i)
-    return values_vector.W_Vector.fromelements(data, immutable=True)
+    return copy_vector_loop(v, data, len, 0, env, cont)
 
-@expose("vector->immutable-vector", [values_vector.W_MVector])
-def vector2immutablevector(v):
-    from pycket.impersonators import get_base_object
-    # XXX: does not properly handle chaperones
-    v = get_base_object(v)
+@loop_label
+def copy_vector_loop(v, data, len, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len:
+        vector = values_vector.W_Vector.fromelements(data, immutable=True)
+        return return_value(vector, env, cont)
+    return v.vector_ref(idx, env,
+            copy_vector_ref_cont(v, data, len, idx, env, cont))
+
+@continuation
+def copy_vector_ref_cont(v, data, len, idx, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_vals)
+    data[idx] = val
+    return copy_vector_loop(v, data, len, idx + 1, env, cont)
+
+@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False)
+def vector2immutablevector(v, env, cont):
+    from pycket.interpreter import return_value
     if v.immutable():
-        return v
-    return copy_vector(v)
+        return return_value(v, env, cont)
+    return copy_vector(v, env, cont)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,

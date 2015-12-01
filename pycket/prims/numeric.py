@@ -113,11 +113,18 @@ def rationalp(n):
     if isinstance(n, values.W_Flonum):
         v = n.value
         return values.W_Bool.make(not (math.isnan(v) or math.isinf(v)))
+    return values.W_Bool.make(isinstance(n, values.W_Rational))
+
+def is_exact(n):
+    if isinstance(n, values.W_Complex):
+        return is_exact(n.real) and is_exact(n.imag)
+    return (isinstance(n, values.W_Fixnum) or
+            isinstance(n, values.W_Bignum) or
+            isinstance(n, values.W_Rational))
 
 @expose("exact?", [values.W_Object])
 def exactp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum))
+    return values.W_Bool.make(is_exact(n))
 
 @expose("inexact?", [values.W_Object])
 def inexactp(n):
