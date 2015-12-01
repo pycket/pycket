@@ -3,10 +3,12 @@ from pycket.error import SchemeException
 from pycket       import values, values_string
 from pycket       import regexp
 
-from rpython.rlib.rsre        import rsre_core, rsre_char
+from rpython.rlib.rsre        import rsre_core, rsre_char, rsre_re
 from rpython.rlib             import buffer, jit, rstring
 from rpython.rlib.objectmodel import specialize
 import sys
+
+import rpython.rlib.rsre.rsre_re # For sideffects
 
 CACHE = regexp.RegexpCache()
 
@@ -51,20 +53,23 @@ class W_AnyRegexp(W_Object):
             self.indexgroup = indexgroup
             self.group_offsets = group_offsets
 
+    @specialize.argtype(1)
     def make_ctx(self, s, start, end):
+        self.ensure_compiled()
         start, end = rsre_core._adjust(start, end, len(s))
+        if isinstance(s, unicode):
+            return rsre_core.UnicodeMatchContext(self.code, s, start, end, self.flags)
         return rsre_core.StrMatchContext(self.code, s, start, end, self.flags)
 
+    @specialize.argtype(1)
     def match_string(self, s, start=0, end=sys.maxint):
-        self.ensure_compiled()
-        ctx = rsre_core.search(self.code, s, start=start, end=end)
-        if not ctx:
+        ctx = self.make_ctx(s, start, end)
+        if not rsre_core.search_context(ctx):
             return None
         return _extract_result(ctx, self.groupcount)
 
-    @specialize.arg(1)
+    @specialize.call_location()
     def _match_all_strings(self, extract, s, start, end):
-        self.ensure_compiled()
         ctx = self.make_ctx(s, start, end)
         matchlist = []
         while ctx.match_start <= ctx.end:
@@ -77,16 +82,18 @@ class W_AnyRegexp(W_Object):
             ctx.reset(ctx.match_end + no_progress)
         return matchlist
 
+    @specialize.argtype(1)
     def match_all_strings(self, s, start=0, end=sys.maxint):
         return self._match_all_strings(_extract_result, s, start, end)
 
+    @specialize.argtype(1)
     def match_all_string_positions(self, s, start=0, end=sys.maxint):
         return self._match_all_strings(_extract_spans, s, start, end)
 
+    @specialize.argtype(1)
     def match_string_positions(self, s, start=0, end=sys.maxint):
-        self.ensure_compiled()
-        ctx = rsre_core.search(self.code, s, start=start, end=end)
-        if ctx is None:
+        ctx = self.make_ctx(s, start, end)
+        if not rsre_core.search_context(ctx):
             return None
         return _extract_spans(ctx, self.groupcount)
 
@@ -186,7 +193,7 @@ def parse_number(source):
     while not source.at_end():
         oldpos = source.pos
         ch = source.get()
-        if not ch.isdigit():
+        if not rsre_char.is_digit(ord(ch[0])):
             source.pos = oldpos
             return acc
         acc = 10 * acc + int(ch)
@@ -194,10 +201,10 @@ def parse_number(source):
 
 def parse_escape_sequence(source, buffer):
     if source.match("\\"):
-        buffer.append("\\")
+        buffer.append(u"\\")
         return None
     elif source.match("&"):
-        buffer.append("&")
+        buffer.append(u"&")
         return None
     elif source.match("$"):
         return PositionalArg(0)
@@ -206,7 +213,7 @@ def parse_escape_sequence(source, buffer):
 
 def parse_insert_string(str):
     source = regexp.Source(str)
-    buffer = rstring.StringBuilder()
+    buffer = rstring.UnicodeBuilder()
     result = []
     while not source.at_end():
         if source.match("\\"):
@@ -214,7 +221,7 @@ def parse_insert_string(str):
             if escaped is not None:
                 if buffer.getlength():
                     result.append(StringLiteral(buffer.build()))
-                    buffer = rstring.StringBuilder()
+                    buffer = rstring.UnicodeBuilder()
                 result.append(escaped)
         else:
             ch = source.get()
@@ -228,5 +235,5 @@ def do_input_substitution(formatter, input_string, matched_positions):
     for i, (start, end) in enumerate(matched_positions):
         assert start >= 0 and end >= 0
         matched_strings[i] = input_string[start:end]
-    return "".join([fmt.replace(matched_strings) for fmt in formatter])
+    return u"".join([fmt.replace(matched_strings) for fmt in formatter])
 
