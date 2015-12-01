@@ -151,6 +151,8 @@ def _extract_result(ctx, groupcount):
 def _getslice(ctx, start, end):
     if isinstance(ctx, rsre_core.StrMatchContext):
         return ctx._string[start:end]
+    elif isinstance(ctx, rsre_core.UnicodeMatchContext):
+        return ctx._unicodestr[start:end]
     else:
         return ''.join([chr(ctx.str(j)) for j in range(start, end)])
 
