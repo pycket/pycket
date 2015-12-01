@@ -184,7 +184,10 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
 
     assert start >= 0 and end >= 0
     matched = input.getslice(start, end)
-    bytes = values.W_Bytes(matched.as_charlist_utf8())
+    bytestring = ['\0'] * (end - start)
+    for i in range(end - start):
+        bytestring[i] = chr(ord(matched.getitem(i)) % 256)
+    bytes = values.W_Bytes(bytestring)
     result = values.Values._make2(acc, bytes)
     return return_multi_vals(result, env, cont)
 
