@@ -127,6 +127,9 @@ def imp_proc_cont(arg_count, proc, prop, calling_app, env, cont, _vals):
     if isinstance(prop, values.W_Cons):
         # XXX Handle the case where |key| is a proxied continuation mark key
         key, val = prop.car(), prop.cdr()
+        if isinstance(key, values.W_ContinuationMarkKey):
+            body = values.W_ThunkProcCMK(proc, vals)
+            return key.set_cmk(body, val, cont, env, cont)
         cont.update_cm(key, val)
     return proc.call_with_extra_info(vals, env, cont, calling_app)
 
@@ -136,6 +139,12 @@ def chp_proc_post_proc_cont(check, calling_app, env, cont, _vals):
     cont = check_chaperone_results(_vals, env, cont)
     return check.call_with_extra_info(vals, env, cont, calling_app)
 
+@continuation
+def chp_proc_do_set_cmk_cont(proc, key, val, calling_frame, env, cont, _vals):
+    vals = _vals.get_all_values()
+    body = values.W_ThunkProcCMK(proc, vals)
+    return key.set_cmk(body, val, calling_frame, env, cont)
+
 # Continuation used when calling an impersonator of a procedure.
 # Have to examine the results before checking
 @continuation
@@ -143,8 +152,13 @@ def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
     arg_count = orig.num_values()
     check_result = len(vals) == arg_count + 1
+
+    # Push the appropriate continuation frames for performing result checking.
+    # We need to keep track of the frame in which the wrapped procedure executes
+    # in to install the appropriate continuation marks if
+    # impersonator-prop:application-mark was attached to the chaperone.
     if check_result:
-        check  = vals[0]
+        check, vals   = vals[0], vals[1:]
         calling_frame = chp_proc_post_proc_cont(check, calling_app, env, cont)
         cont          = call_extra_cont(proc, calling_app, env, calling_frame)
     else:
@@ -155,14 +169,16 @@ def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     if isinstance(prop, values.W_Cons):
         # XXX Handle the case where |key| is a proxied continuation mark key
         key, val = prop.car(), prop.cdr()
-        # if isinstance(key, values.W_ContinuationMarkKey):
-            # body = W_ThunkProcCMK(proc, vals)
-            # return key.set_cmk(body, val, calling_frame, env, cont)
-        calling_frame.update_cm(key, val)
-        cont.marks = calling_frame.marks
+        if isinstance(key, values.W_ContinuationMarkKey):
+            cont = chp_proc_do_set_cmk_cont(proc, key, val, calling_frame, env, cont)
+        else:
+            calling_frame.update_cm(key, val)
+            cont.marks = calling_frame.marks
 
     if check_result:
-        args = values.Values.make(vals[1:])
-        return check_chaperone_results_loop(args, orig, 0, env, cont)
-    return check_chaperone_results_loop(_vals, orig, 0, env, cont)
+        args = values.Values.make(vals)
+    else:
+        args = _vals
+
+    return check_chaperone_results_loop(args, orig, 0, env, cont)
 
