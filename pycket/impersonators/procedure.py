@@ -9,6 +9,7 @@ from pycket.impersonators      import (
     ImpersonatorMixin,
     InlineProxyMixin,
     W_ImpPropertyDescriptor,
+    check_chaperone_results,
     check_chaperone_results_loop,
     get_base_object,
     make_specialized_property_map
@@ -64,12 +65,6 @@ class W_InterposeProcedure(values.W_Procedure):
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
         prop = self.get_property(w_impersonator_prop_application_mark)
         after = self.post_call_cont(args, prop, env, cont, calling_app)
-        # if isinstance(prop, values.W_Cons):
-            # key, val = prop.car(), prop.cdr()
-            # if isinstance(key, values.W_ContinuationMarkKey):
-                # body = W_ThunkProcCMK(self.check, args)
-                # return key.set_cmk(body, val, cont, env, after)
-            # cont.update_cm(key, val)
         if self.has_self_arg():
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
@@ -135,6 +130,12 @@ def imp_proc_cont(arg_count, proc, prop, calling_app, env, cont, _vals):
         cont.update_cm(key, val)
     return proc.call_with_extra_info(vals, env, cont, calling_app)
 
+@continuation
+def chp_proc_post_proc_cont(check, calling_app, env, cont, _vals):
+    vals = _vals.get_all_values()
+    cont = check_chaperone_results(_vals, env, cont)
+    return check.call_with_extra_info(vals, env, cont, calling_app)
+
 # Continuation used when calling an impersonator of a procedure.
 # Have to examine the results before checking
 @continuation
@@ -143,20 +144,25 @@ def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     arg_count = orig.num_values()
     check_result = len(vals) == arg_count + 1
     if check_result:
-        check = vals[0]
-        caller = call_extra_cont(check, calling_app, env, cont)
-        cont = call_extra_cont(proc, calling_app, env, caller)
+        check  = vals[0]
+        calling_frame = chp_proc_post_proc_cont(check, calling_app, env, cont)
+        cont          = call_extra_cont(proc, calling_app, env, calling_frame)
     else:
         assert len(vals) == arg_count
-        caller = cont
+        calling_frame = cont
+        cont          = call_extra_cont(proc, calling_app, env, cont)
 
     if isinstance(prop, values.W_Cons):
         # XXX Handle the case where |key| is a proxied continuation mark key
         key, val = prop.car(), prop.cdr()
-        caller.update_cm(key, val)
+        # if isinstance(key, values.W_ContinuationMarkKey):
+            # body = W_ThunkProcCMK(proc, vals)
+            # return key.set_cmk(body, val, calling_frame, env, cont)
+        calling_frame.update_cm(key, val)
+        cont.marks = calling_frame.marks
 
     if check_result:
         args = values.Values.make(vals[1:])
         return check_chaperone_results_loop(args, orig, 0, env, cont)
-    return proc.call_with_extra_info(vals, env, cont, calling_app)
+    return check_chaperone_results_loop(_vals, orig, 0, env, cont)
 
