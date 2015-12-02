@@ -43,7 +43,12 @@ class Box(object):
     def adjust_size(self, size):
         return size + int(self._val)
 
-def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
+def make_persistent_hash_type(
+        super          = object,
+        name           = "PersistentHashMap",
+        hashfun        = hash,
+        equal          = eq,
+        jit_annotation = jit.dont_look_inside):
 
     class INode(super):
 
@@ -446,7 +451,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             for i in range(self._cnt):
                 yield self.get_item(i)
 
-        @jit.dont_look_inside
+        @jit_annotation
         def assoc(self, key, val):
             added_leaf = Box()
 
@@ -461,6 +466,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             newcnt = added_leaf.adjust_size(self._cnt)
             return PersistentHashMap(newcnt, new_root)
 
+        @jit_annotation
         def val_at(self, key, not_found):
             if self._root is None:
                 return not_found
@@ -480,7 +486,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                     return val_or_node
                 shift += 5
 
-        @jit.dont_look_inside
+        @jit_annotation
         def without(self, key):
             if self._root is None:
                 return self
