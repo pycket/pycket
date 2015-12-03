@@ -1,38 +1,18 @@
 import inspect
 
-from rpython.rlib                    import jit, objectmodel, unroll
-from rpython.rlib.rarithmetic        import r_uint
-from pycket.base                     import W_Object
-from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from rpython.rlib import jit, unroll
 
-@objectmodel.always_inline
-def hashfun(x):
-    from pycket.hash.simple import W_EqMutableHashTable
-    return r_uint(W_EqMutableHashTable.hash_value(x))
 
-@objectmodel.always_inline
-def equalfun(a, b):
-    from pycket.prims.equal import eqp_logic
-    return eqp_logic(a, b)
-
-MarkSet = make_persistent_hash_type(
-    super          = W_Object,
-    name           = "MarkSet",
-    hashfun        = hashfun,
-    equal          = equalfun,
-    jit_annotation = jit.elidable)
-
-class MarkSetEntry(W_Object):
-    """ An entry in the mark set contains the associated value along with a
-        reference to the next continuation in the chain to contain the
-        corresponding key. """
-
-    _attrs_ = ['value', 'cache']
-    _immutable_fields_ = ['value']
-
-    def __init__(self, value, next):
-        self.value = key
-        self.next  = next
+class Link(object):
+    _immutable_fields_ = ["key", "next"]
+    def __init__(self, k, v, next):
+        from pycket.values import W_Object
+        assert isinstance(k, W_Object)
+        assert isinstance(v, W_Object)
+        assert next is None or isinstance(next, Link)
+        self.key = k
+        self.val = v
+        self.next = next
 
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
@@ -44,7 +24,7 @@ class BaseCont(object):
     return_safe = False
 
     def __init__(self):
-        self.marks = MarkSet.EMPTY
+        self.marks = None
 
     def get_ast(self):
         return None # best effort
@@ -52,12 +32,26 @@ class BaseCont(object):
     def get_next_executed_ast(self):
         return None # best effort
 
-    def find_cm(self, key):
-        marks = jit.promote(self.marks)
-        return marks.val_at(key, None)
+    @jit.unroll_safe
+    def find_cm(self, k):
+        from pycket.prims.equal import eqp_logic
+        l = self.marks
+        while l is not None:
+            if eqp_logic(l.key, k):
+                return l.val
+            l = l.next
+        return None
 
+    @jit.unroll_safe
     def update_cm(self, k, v):
-        self.marks = self.marks.assoc(k, v)
+        from pycket.prims.equal import eqp_logic
+        l = self.marks
+        while l is not None:
+            if eqp_logic(l.key, k):
+                l.val = v
+                return
+            l = l.next
+        self.marks = Link(k, v, self.marks)
 
     def get_marks(self, key):
         from pycket import values
@@ -70,11 +64,12 @@ class BaseCont(object):
         p = self
         while isinstance(p, Cont):
             v = p.find_cm(key)
-            if v is not None:
+            if v:
                 return v
             elif p.prev:
                 p = p.prev
         return p.find_cm(key)
+
 
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("abstract method")
