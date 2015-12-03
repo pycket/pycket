@@ -1616,9 +1616,8 @@ def make_let(varss, rhss, body):
 def make_let_singlevar(sym, rhs, body):
     if 1 == len(body):
         b, = body
-        if isinstance(b, LexicalVar) and sym is b.sym:
-            return rhs
-        elif isinstance(b, App):
+        # XXX These are not correctness preserving
+        if isinstance(b, App):
             rator = b.rator
             x = {}
             for rand in b.rands:
