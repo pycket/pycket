@@ -87,8 +87,10 @@ class Entry(ExtRegistryEntry):
 
     def compute_result_annotation(self, s_d, s_i):
         from rpython.annotator.model import SomeTuple, SomeInteger
-        s_key = s_d.dictdef.read_key()
-        s_value = s_d.dictdef.read_value()
+        from rpython.annotator.bookkeeper import getbookkeeper
+        position = getbookkeeper().position_key
+        s_key = s_d.dictdef.read_key(position)
+        s_value = s_d.dictdef.read_value(position)
         return SomeTuple([s_key, s_value])
 
     def specialize_call(self, hop):
