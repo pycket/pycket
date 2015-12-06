@@ -129,8 +129,7 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
             return compute_hash(k.value)
         if isinstance(k, values.W_Character):
             return ord(k.value)
-        else:
-            return compute_hash(k)
+        return compute_hash(k)
 
     @staticmethod
     def cmp_value(a, b):
