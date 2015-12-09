@@ -1371,7 +1371,8 @@ def call_with_continuation_prompt(args, env, cont):
         tag = args[idx]
         idx += 1
     if idx < len(args):
-        handler = args[idx]
+        if handler is not values.w_false:
+            handler = args[idx]
         idx += 1
     args = args[idx:]
     if not fun.iscallable():
