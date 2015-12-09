@@ -925,4 +925,18 @@ def test_continuation_prompt_functions(doctest):
     0
     > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag))
     1
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ 10 (x))))
+    10
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ (x) 10))))
+    11
+    """
+
+def test_continuation_prompt_available(doctest):
+    u"""
+    ! (define tag  (make-continuation-prompt-tag))
+    ! (define tag2 (make-continuation-prompt-tag))
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag)
+    #t
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag2)
+    #f
     """
