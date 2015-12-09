@@ -166,8 +166,10 @@ current_logger = W_Logger()
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
     _immutable_fields_ = ["name"]
+
     def __init__(self, name):
         self.name = name
+
     def tostring(self):
         return "#<continuation-prompt-tag>"
 

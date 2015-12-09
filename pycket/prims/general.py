@@ -4,7 +4,7 @@ import os
 import time
 from pycket import impersonators as imp
 from pycket import values, values_string
-from pycket.cont import continuation, loop_label, call_cont
+from pycket.cont import continuation, loop_label, call_cont, Prompt
 from pycket import arity
 from pycket import cont
 from pycket import values_parameter
@@ -14,8 +14,8 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method, define_nyi,
-                                 subclass_unsafe)
+                                 procedure, make_call_method, make_procedure,
+                                 define_nyi, subclass_unsafe)
 from rpython.rlib import jit, objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
@@ -1331,32 +1331,60 @@ def do_is_place_enabled(args):
     return values.w_false
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
-def mcpt(s):
+def make_continuation_prompt_tag(s):
     from pycket.interpreter import Gensym
     s = Gensym.gensym("cm") if s is None else s
     return values.W_ContinuationPromptTag(s)
 
 @expose("default-continuation-prompt-tag", [])
-def dcpt():
+def default_continuation_prompt_tag():
     return values.w_default_continuation_prompt_tag
 
-@expose("call-with-continuation-prompt", simple=False)
-def cwcp(args, env, cont):
-    from pycket.interpreter import return_value
-    # XXX: ignores all the important stuff
-    fun = args[0]
-    tag = args[1]
-    handler = args[2]
-    actuals = args[3:]
-    assert isinstance(fun, values.W_Procedure)
-    return fun.call(actuals, env, cont)
+@expose("abort-current-continuation", simple=False)
+def abort_current_continuation(args, env, cont):
+    from pycket.interpreter import return_multi_vals
+    if len(args) < 1:
+        raise SchemeException("abort-current-continuation: expected 1 or more args")
+    tag, args = args[0], args[1:]
+    if not isinstance(tag, values.W_ContinuationPromptTag):
+        raise SchemeException("abort-current-continuation: expected prompt-tag for argument 0")
+    while cont is not None:
+        if isinstance(cont, Prompt) and cont.tag is tag:
+            handler = cont.handler
+            return handler.call(args, env, cont)
+        cont = cont.get_previous_continuation()
+    raise SchemeException("abort-current-continuation: no such prompt exists")
 
+@make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
+def default_continuation_prompt_handler(proc, env, cont):
+    return proc.call([], env, cont)
+
+@expose("call-with-continuation-prompt", simple=False)
+def call_with_continuation_prompt(args, env, cont):
+    if len(args) < 1:
+        raise SchemeException("call-with-continuation-prompt: not given enough values")
+    idx     = 1
+    fun     = args[0]
+    tag     = values.w_default_continuation_prompt_tag
+    handler = default_continuation_prompt_handler
+    if idx < len(args):
+        tag = args[idx]
+        idx += 1
+    if idx < len(args):
+        handler = args[idx]
+        idx += 1
+    args = args[idx:]
+    if not fun.iscallable():
+        raise SchemeException("call-with-continuation-prompt: not given callable function")
+    if not handler.iscallable():
+        raise SchemeException("call-with-continuation-prompt: not given callable handler")
+    cont = Prompt(tag, handler, env, cont)
+    return fun.call(args, env, cont)
 
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.utf8value)
-
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):

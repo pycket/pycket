@@ -916,3 +916,13 @@ def test_relative_path(doctest):
     #t
     """
 
+
+def test_continuation_prompt_functions(doctest):
+    u"""
+    ! (define tag (make-continuation-prompt-tag))
+    ! (define (escape v) (abort-current-continuation tag (lambda () v)))
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag)
+    0
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag))
+    1
+    """
