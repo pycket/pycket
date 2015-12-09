@@ -6,7 +6,6 @@ from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import arity
-# from pycket import cont
 from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
@@ -14,8 +13,7 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method, make_procedure,
-                                 define_nyi, subclass_unsafe)
+                                 procedure, define_nyi, subclass_unsafe)
 from rpython.rlib import jit, objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
