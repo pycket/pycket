@@ -132,7 +132,6 @@ class __extend__(values.W_Object):
     def same_numeric_class_reversed(self, other):
         raise SchemeException("not a number: %s" % self.tostring())
 
-
 class __extend__(values.W_Number):
     def arith_unaryadd(self):
         return self
@@ -503,7 +502,6 @@ class __extend__(values.W_Fixnum):
         assert isinstance(other, values.W_Fixnum)
         return self.value >= other.value
 
-
 class __extend__(values.W_Flonum):
     def same_numeric_class(self, other):
         if isinstance(other, values.W_Fixnum):
@@ -863,7 +861,6 @@ class __extend__(values.W_Bignum):
     def arith_lt_same(self, other):
         assert isinstance(other, values.W_Bignum)
         return self.value.lt(other.value)
-
 
 class __extend__(values.W_Rational):
     def same_numeric_class(self, other):

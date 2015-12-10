@@ -6,6 +6,23 @@ from pycket.cont         import continuation, loop_label, call_cont, Prompt
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, make_procedure
 
+@continuation
+def post_build_exception(env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    barrier = values.w_true
+    val = check_one_val(_vals)
+    return raise_exception(val, barrier, env, cont)
+
+def convert_runtime_exception(exn, env, cont):
+    from pycket               import values_string
+    from pycket.prims.general import exn_fail
+    from pycket.values        import W_ContinuationMarkSet
+    from pycket.prims.control import raise_exception
+    message = values_string.W_String.fromstr_utf8(exn.msg)
+    marks   = W_ContinuationMarkSet(cont)
+    cont    = post_build_exception(env, cont)
+    return exn_fail.constr.call([message, marks], env, cont)
+
 def find_continuation_prompt(tag, cont):
     while cont is not None:
         if isinstance(cont, Prompt) and cont.tag is tag:
@@ -100,7 +117,6 @@ def call_with_continuation_prompt(args, env, cont):
     cont = Prompt(tag, handler, env, cont)
     return fun.call(args, env, cont)
 
-@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)
 def raise_exception(v, barrier, env, cont):
     # TODO: Handle case where barrier is not #t
     assert barrier is values.w_true
@@ -119,6 +135,8 @@ def raise_exception(v, barrier, env, cont):
 
     assert cont is not None
     return handler.call([v], env, cont)
+
+expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)(raise_exception)
 
 @expose("raise-argument-error")
 def raise_arg_err(args):
@@ -174,4 +192,5 @@ def raise_args_err(args):
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
     raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
+
 

@@ -19,7 +19,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
-from pycket.prims import continuations
+from pycket.prims import control
 from pycket.prims import continuation_marks
 from pycket.prims import box
 from pycket.prims import equal as eq_prims
@@ -276,7 +276,6 @@ def define_struct(name, super=values.w_null, fields=[]):
         acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
-
 
 exn = \
     define_struct("exn", values.w_null, ["message", "continuation-marks"])

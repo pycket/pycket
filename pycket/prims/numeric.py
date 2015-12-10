@@ -173,17 +173,17 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum.make(0), "arith_add", True),
-        ("-", values.W_Fixnum.make(0), "arith_sub", False),
-        ("*", values.W_Fixnum.make(1), "arith_mul", True),
-        ("/", values.W_Fixnum.make(1), "arith_div", False),
+        ("+", values.W_Fixnum.ZERO, "arith_add", True),
+        ("-", values.W_Fixnum.ZERO, "arith_sub", False),
+        ("*", values.W_Fixnum.ONE, "arith_mul", True),
+        ("/", values.W_Fixnum.ONE, "arith_div", False),
         ("max", None, "arith_max", False),
         ("min", None, "arith_min", False),
-        ("gcd", values.W_Fixnum.make(0), "arith_gcd", True),
-        ("lcm", values.W_Fixnum.make(1), "arith_lcm", True),
+        ("gcd", values.W_Fixnum.ZERO, "arith_gcd", True),
+        ("lcm", values.W_Fixnum.ONE, "arith_lcm", True),
         ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum.make(0), "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum.make(0), "arith_xor", True),
+        ("bitwise-ior", values.W_Fixnum.ZERO, "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum.ZERO, "arith_xor", True),
         ]:
     make_arith(*args)
 

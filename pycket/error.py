@@ -1,3 +1,4 @@
+
 from rpython.rlib.objectmodel import we_are_translated
 
 class SchemeException(Exception):
@@ -20,5 +21,4 @@ class SchemeException(Exception):
         if self.context_module:
             result += "\n  in module: %s" % (self.context_module.name, )
         return result
-
 
