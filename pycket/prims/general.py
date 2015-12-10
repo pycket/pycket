@@ -1317,10 +1317,9 @@ def cur_env_vars():
 def env_var_ref(set, name):
     return values.w_false
 
-@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)])
-def do_raise(v, barrier):
-    # TODO:
-    raise SchemeException("uncaught exception: %s" % v.tostring())
+@expose("check-for-break", [])
+def check_for_break():
+    return values.w_false
 
 @expose("raise-argument-error")
 def raise_arg_err(args):
@@ -1348,8 +1347,6 @@ def raise_arg_err(args):
         # FIXME: actually print the other arguments
         raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
              name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
-
-
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):

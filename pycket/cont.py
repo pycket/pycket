@@ -7,8 +7,7 @@ class Link(object):
     _immutable_fields_ = ["key", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
-        assert isinstance(k, W_Object)
-        assert isinstance(v, W_Object)
+        assert isinstance(k, W_Object) and isinstance(v, W_Object)
         assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v

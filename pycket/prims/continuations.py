@@ -98,3 +98,24 @@ def call_with_continuation_prompt(args, env, cont):
     cont = Prompt(tag, handler, env, cont)
     return fun.call(args, env, cont)
 
+@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)
+def raise_exception(v, barrier, env, cont):
+    # TODO: Handle case where barrier is not #t
+    assert barrier is values.w_true
+
+    handler = None
+    while cont is not None:
+        handler = cont.find_cm(values.exn_handler_key)
+        if handler is not None:
+            break
+        # Discard the continuation frame. Exception handlers execute in the
+        # continuation frame they are attached to.
+        cont = cont.get_previous_continuation()
+    else:
+        raise SchemeException("uncaught exception:\n %s" % v.tostring())
+
+    if not handler.iscallable():
+        raise SchemeException("provided handler is not callable")
+
+    return handler.call([v], env, cont)
+

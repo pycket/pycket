@@ -940,3 +940,14 @@ def test_continuation_prompt_available(doctest):
     > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag2)
     #f
     """
+
+def test_raise_exception(doctest):
+    u"""
+    ! (require racket/base)
+    ! (define-struct (my-exception exn:fail:user) ())
+    > (with-handlers ([number? (lambda (n) (+ n 5))]) (raise 18 #t))
+    23
+    > (with-handlers ([my-exception? (lambda (e) #f)]) (+ 5 (raise (make-my-exception "failed" (current-continuation-marks)))))
+    #f
+    """
+
