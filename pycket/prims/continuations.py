@@ -68,7 +68,9 @@ def abort_current_continuation(args, env, cont):
     prompt = find_continuation_prompt(tag, cont)
     if prompt is not None:
         handler = prompt.handler
-        return handler.call(args, env, prompt)
+        cont    = prompt.get_previous_continuation()
+        assert cont is not None
+        return handler.call(args, env, cont)
     raise SchemeException("abort-current-continuation: no such prompt exists")
 
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
@@ -108,8 +110,6 @@ def raise_exception(v, barrier, env, cont):
         handler = cont.find_cm(values.exn_handler_key)
         if handler is not None:
             break
-        # Discard the continuation frame. Exception handlers execute in the
-        # continuation frame they are attached to.
         cont = cont.get_previous_continuation()
     else:
         raise SchemeException("uncaught exception:\n %s" % v.tostring())
@@ -117,5 +117,6 @@ def raise_exception(v, barrier, env, cont):
     if not handler.iscallable():
         raise SchemeException("provided handler is not callable")
 
+    assert cont is not None
     return handler.call([v], env, cont)
 

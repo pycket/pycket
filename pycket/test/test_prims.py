@@ -949,5 +949,7 @@ def test_raise_exception(doctest):
     23
     > (with-handlers ([my-exception? (lambda (e) #f)]) (+ 5 (raise (make-my-exception "failed" (current-continuation-marks)))))
     #f
+    > (with-handlers ([number? (λ (n) (+ n 5))]) (with-handlers ([string? (λ (n) (string-append n " caught ya bitch"))]) (raise 8 #t)))
+    13
     """
 
