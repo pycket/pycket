@@ -204,10 +204,6 @@ expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
 expose_val("prop:output-port", values_struct.w_prop_output_port)
 
-@expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
-def raise_type_error(name, expected, v):
-    raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
-
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
@@ -1320,57 +1316,6 @@ def env_var_ref(set, name):
 @expose("check-for-break", [])
 def check_for_break():
     return values.w_false
-
-@expose("raise-argument-error")
-def raise_arg_err(args):
-    nargs = len(args)
-    if nargs < 3:
-        raise SchemeException("raise-argument-error: expected at least 3 arguments")
-    name = args[0]
-    if not isinstance(name, values.W_Symbol):
-        raise SchemeException("raise-argument-error: expected symbol as the first argument")
-    expected = args[1]
-    if not isinstance(expected, values_string.W_String):
-        raise SchemeException("raise-argument-error: expected string as the second argument")
-    if nargs == 3:
-        # case 1
-        v = args[2]
-        raise SchemeException("%s: expected %s but got %s" % (
-            name.utf8value, expected.as_str_utf8(), v.tostring()))
-    else:
-        # case 2
-        bad_v = args[2]
-        if not isinstance(bad_v, values.W_Fixnum):
-            raise SchemeException("raise-argument-error: expected number as the third argument")
-        value = bad_v.value
-        if value >= nargs - 3:
-            raise SchemeException("raise-argument-error: out of bounds number as the third argument")
-        v = args[value + 3]
-        # FIXME: actually print the other arguments
-        raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
-             name.utf8value, expected.as_str_utf8(), v.tostring(), value + 1))
-
-@expose("raise-arguments-error")
-def raise_arg_err(args):
-    name = args[0]
-    assert isinstance(name, values.W_Symbol)
-    message = args[1]
-    assert isinstance(message, values_string.W_String)
-    from rpython.rlib.rstring import StringBuilder
-    error_msg = StringBuilder()
-    error_msg.append(name.utf8value)
-    error_msg.append(": ")
-    error_msg.append(message.as_str_utf8())
-    error_msg.append("\n")
-    i = 2
-    while i + 1 < len(args):
-        field = args[i]
-        assert isinstance(field, values_string.W_String)
-        v = args[i+1]
-        assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
-        i += 2
-    raise SchemeException(error_msg.build())
 
 define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
 
