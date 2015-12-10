@@ -1323,15 +1323,16 @@ def check_for_break():
 
 @expose("raise-argument-error")
 def raise_arg_err(args):
-    if (len(args) < 3):
+    nargs = len(args)
+    if nargs < 3:
         raise SchemeException("raise-argument-error: expected at least 3 arguments")
     name = args[0]
-    if (not(isinstance(name, values.W_Symbol))):
+    if not isinstance(name, values.W_Symbol):
         raise SchemeException("raise-argument-error: expected symbol as the first argument")
     expected = args[1]
-    if (not(isinstance(expected, values_string.W_String))):
+    if not isinstance(expected, values_string.W_String):
         raise SchemeException("raise-argument-error: expected string as the second argument")
-    if (len(args) == 3):
+    if nargs == 3:
         # case 1
         v = args[2]
         raise SchemeException("%s: expected %s but got %s" % (
@@ -1339,14 +1340,15 @@ def raise_arg_err(args):
     else:
         # case 2
         bad_v = args[2]
-        if (not(isinstance(bad_v, values.W_Fixnum))):
+        if not isinstance(bad_v, values.W_Fixnum):
             raise SchemeException("raise-argument-error: expected number as the third argument")
-        if bad_v.value >= (len(args) - 3):
+        value = bad_v.value
+        if value >= nargs - 3:
             raise SchemeException("raise-argument-error: out of bounds number as the third argument")
-        v = args[bad_v.value+3]
+        v = args[value + 3]
         # FIXME: actually print the other arguments
         raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
-             name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
+             name.utf8value, expected.as_str_utf8(), v.tostring(), value + 1))
 
 @expose("raise-arguments-error")
 def raise_arg_err(args):
