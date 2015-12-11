@@ -249,6 +249,18 @@ def test_string_to_number(doctest):
     """
     assert doctest
 
+def test_number_to_string(doctest):
+    """
+    > (number->string 1)
+    "1"
+    > (number->string 1.0)
+    "1.0"
+    > (number->string 1.0+3i)
+    "1.0+3.0i"
+    > (number->string 4172093847129036571265901283764790162495071902346790126349016234)
+    "4172093847129036571265901283764790162495071902346790126349016234"
+    """
+
 @pytest.mark.xfail
 def test_atan(doctest):
     """
@@ -968,6 +980,8 @@ def test_inexact_prediace(doctest):
     > (inexact? 1+2i)
     #f
     > (inexact? 1.0+2.0i)
+    #t
+    > (inexact? 1.1+3i)
     #t
     """
 

@@ -9,8 +9,7 @@ from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit, longlong2float, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
-                                        UnsignedLongLong
+from rpython.rtyper.lltypesystem.lltype import Signed
 
 # imported for side effects
 from pycket import arithmetic
@@ -124,7 +123,7 @@ def is_exact(n):
 
 def is_inexact(n):
     if isinstance(n, values.W_Complex):
-        return is_inexact(n.real) and is_inexact(n.imag)
+        return is_inexact(n.real) or is_inexact(n.imag)
     return isinstance(n, values.W_Flonum)
 
 @expose("exact?", [values.W_Object])

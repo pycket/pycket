@@ -649,8 +649,10 @@ class W_Flonum(W_Number):
 
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
+
     def tostring(self):
-        return str(self.value)
+        return self.value.str()
+
     def __init__(self, val):
         self.value = val
 
