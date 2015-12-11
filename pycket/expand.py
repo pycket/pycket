@@ -578,9 +578,6 @@ def _to_ast(json, modtable):
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 VOID = Quote(values.w_void)
-INF = values.W_Flonum(float("inf"))
-NEGINF = values.W_Flonum(-float("inf"))
-NAN = values.W_Flonum(float("nan"))
 
 def _to_num(json):
     assert json.is_object
