@@ -671,6 +671,12 @@ class W_Complex(W_Number):
         self.real = re
         self.imag = im
 
+    @staticmethod
+    def from_real_pair(real, imag):
+        if W_Fixnum.ZERO.eqv(imag):
+            return real
+        return W_Complex(real, imag)
+
     def eqv(self, other):
         if not isinstance(other, W_Complex):
             return False
