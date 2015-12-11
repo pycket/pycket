@@ -122,17 +122,22 @@ def is_exact(n):
             isinstance(n, values.W_Bignum) or
             isinstance(n, values.W_Rational))
 
+def is_inexact(n):
+    if isinstance(n, values.W_Complex):
+        return is_inexact(n.real) and is_inexact(n.imag)
+    return isinstance(n, values.W_Flonum)
+
 @expose("exact?", [values.W_Object])
 def exactp(n):
     return values.W_Bool.make(is_exact(n))
 
 @expose("inexact?", [values.W_Object])
 def inexactp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+    return values.W_Bool.make(is_inexact(n))
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), a.arith_mod(b)]) #FIXME
+    return values.Values.make2(a.arith_quotient(b), a.arith_mod(b)) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -356,6 +361,11 @@ def fxrshift(w_a, w_b):
     else:
         raise SchemeException("fxrshift: expected positive argument, got %s"%w_b)
 
+@expose("make-rectangular", [values.W_Number, values.W_Number])
+def make_rectangular(x, y):
+    if not is_real(x) or not is_real(y):
+        raise SchemeException("make-rectangular: expected real inputs")
+    return values.W_Complex.from_real_pair(x, y)
 
 ## Unsafe Fixnum ops
 @expose("unsafe-fxlshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])

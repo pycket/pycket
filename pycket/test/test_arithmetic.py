@@ -959,3 +959,26 @@ def test_exact_predicate(doctest):
     #f
     """
 
+def test_inexact_prediace(doctest):
+    """
+    > (inexact? 1)
+    #f
+    > (inexact? 1.0)
+    #t
+    > (inexact? 1+2i)
+    #f
+    > (inexact? 1.0+2.0i)
+    #t
+    """
+
+def test_make_rectangular(doctest):
+    """
+    > (make-rectangular 0 0)
+    0
+    > (make-rectangular 3 4)
+    3+4i
+    > (make-rectangular 3.0 4.0)
+    3.0+4.0i
+    > (make-rectangular 0 0.4)
+    0+0.4i
+    """
