@@ -647,6 +647,10 @@ class W_Flonum(W_Number):
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
+W_Flonum.INF    = W_Flonum(float("inf"))
+W_Flonum.NEGINF = W_Flonum(-float("inf"))
+W_Flonum.NAN    = W_Flonum(float("nan"))
+
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
 
@@ -655,6 +659,14 @@ class W_Bignum(W_Integer):
 
     def __init__(self, val):
         self.value = val
+
+    def toflonum(self):
+        bignum = self.value
+        try:
+            floatval = bignum.tofloat()
+        except OverflowError:
+            return W_Flonum.NEGINF if bignum.sign < 0 else W_Flonum.INF
+        return W_Flonum(floatval)
 
     def equal(self, other):
         if not isinstance(other, W_Bignum):

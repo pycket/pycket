@@ -509,7 +509,7 @@ class __extend__(values.W_Flonum):
         if isinstance(other, values.W_Flonum):
             return self, other
         if isinstance(other, values.W_Bignum):
-            return self, values.W_Flonum(other.value.tofloat())
+            return self, other.toflonum()
         if isinstance(other, values.W_Rational):
             return self, other.arith_exact_inexact()
         return other.same_numeric_class_reversed(self)
