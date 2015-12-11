@@ -23,14 +23,19 @@ def current_cont_marks(prompt_tag, env, cont):
         [values.W_ContinuationMarkSet, values.W_Object,
          default(values.W_ContinuationPromptTag, None)], simple=False)
 def cms_list(cms, mark, prompt_tag, env, cont):
-    from pycket.interpreter import return_value
-    from pycket.prims.general      import map_loop
+    from pycket.interpreter   import return_value
+    from pycket.prims.general import map_loop
     if isinstance(mark, values.W_ContinuationMarkKey):
         func  = CMKSetToListHandler(mark.get_cmk)
         marks = cms.cont.get_marks(imp.get_base_object(mark))
         return map_loop(func, [marks], env, cont)
     marks = cms.cont.get_marks(mark)
     return return_value(marks, env, cont)
+
+@expose("continuation-mark-set->context", [values.W_ContinuationMarkSet])
+def cms_context(marks):
+    # TODO: Pycket does not have a mark to denote context. We need to fix that.
+    return values.w_null
 
 @expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
 def cms_first(cms, mark, missing, env, cont):

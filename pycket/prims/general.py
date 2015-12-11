@@ -1455,3 +1455,12 @@ def reader_graph_loop(v, d):
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
 
+
+@expose("log-level?", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
+def log_level(logger, level, topic):
+    print "NOT IMPLEMENTED: log-level?"
+    return values.w_true
+
+@expose("log-message")
+def log_message(args):
+    print "logging"
