@@ -664,7 +664,10 @@ class __extend__(values.W_Flonum):
         return values.W_Bool.make(math.fmod(self.value, 2.0) == 0.0)
 
     def arith_oddp(self):
-        return values.W_Bool.make(math.fmod(self.value, 2.0) != 0.0)
+        value = self.value
+        if math.isnan(value) or math.isinf(value):
+            return values.w_false
+        return values.W_Bool.make(math.fmod(value, 2.0) != 0.0)
 
     def arith_exp(self):
         if self.value == 0:

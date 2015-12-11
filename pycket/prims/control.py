@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket              import values, values_string
+from pycket              import values, values_parameter, values_string
 from pycket.cont         import continuation, loop_label, call_cont, Prompt
 from pycket.error        import SchemeException
-from pycket.prims.expose import default, expose, procedure, make_procedure
+from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
 @continuation
 def post_build_exception(env, cont, _vals):
@@ -74,7 +74,6 @@ def make_continuation_prompt_tag(s):
 def default_continuation_prompt_tag():
     return values.w_default_continuation_prompt_tag
 
-@expose("abort-current-continuation", simple=False)
 def abort_current_continuation(args, env, cont):
     from pycket.interpreter import return_multi_vals
     if len(args) < 1:
@@ -89,6 +88,16 @@ def abort_current_continuation(args, env, cont):
         assert cont is not None
         return handler.call(args, env, cont)
     raise SchemeException("abort-current-continuation: no such prompt exists")
+
+expose("abort-current-continuation", simple=False)(abort_current_continuation)
+
+@make_procedure("default-error-escape-handler", [], simple=False)
+def default_error_escape_handler(env, cont):
+    from pycket.prims.general import do_void
+    args = [values.w_default_continuation_prompt_tag, do_void.w_prim]
+    return abort_current_continuation(args, env, cont)
+
+expose_val("error-escape-handler", values_parameter.W_Parameter(default_error_escape_handler))
 
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
 def default_continuation_prompt_handler(proc, env, cont):

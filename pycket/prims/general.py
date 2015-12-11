@@ -1047,7 +1047,8 @@ def reverse(w_l):
     return acc
 
 @expose("void")
-def do_void(args): return values.w_void
+def do_void(args):
+    return values.w_void
 
 @expose("make-ephemeron", [values.W_Object] * 2)
 def make_ephemeron(key, val):
@@ -1315,8 +1316,6 @@ def env_var_ref(set, name):
 @expose("check-for-break", [])
 def check_for_break():
     return values.w_false
-
-define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
 
 @expose("find-system-path", [values.W_Symbol], simple=False)
 def find_sys_path(sym, env, cont):
