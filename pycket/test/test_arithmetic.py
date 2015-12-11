@@ -215,14 +215,27 @@ def test_even_odd():
     run("(odd?  -10000000000000000000000000001000000000000000000000000001)", w_true)
     run("(odd?   10000000000000000000000000001000000000000000000000000001)", w_true)
 
-def test_zero():
-    run("(zero? -1)", w_false)
-    run("(zero?  0)", w_true)
-    run("(zero?  1)", w_false)
-    run("(zero? -1.0)", w_false)
-    run("(zero?  0.0)", w_true)
-    run("(zero?  1.0)", w_false)
-    run("(zero?  7/3)", w_false)
+def test_zero(doctest):
+    """
+    > (zero? -1)
+    #f
+    > (zero?  0)
+    #t
+    > (zero?  1)
+    #f
+    > (zero? -1.0)
+    #f
+    > (zero?  0.0)
+    #t
+    > (zero?  1.0)
+    #f
+    > (zero?  7/3)
+    #f
+    > (zero? 0.0+0.0i)
+    #t
+    > (zero? 0.0+0.1i)
+    #f
+    """
 
 def test_string_to_number(doctest):
     """

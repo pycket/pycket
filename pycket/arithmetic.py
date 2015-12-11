@@ -460,8 +460,10 @@ class __extend__(values.W_Fixnum):
 
     def arith_zerop(self):
         return values.W_Bool.make(self.value == 0)
+
     def arith_negativep(self):
         return values.W_Bool.make(self.value < 0)
+
     def arith_positivep(self):
         return values.W_Bool.make(self.value > 0)
 
@@ -651,8 +653,10 @@ class __extend__(values.W_Flonum):
 
     def arith_zerop(self):
         return values.W_Bool.make(self.value == 0.0)
+
     def arith_negativep(self):
         return values.W_Bool.make(self.value < 0.0)
+
     def arith_positivep(self):
         return values.W_Bool.make(self.value > 0.0)
 
@@ -965,7 +969,14 @@ class __extend__(values.W_Rational):
         return self
 
     def arith_exact_inexact(self):
-        return values.W_Flonum(self._numerator.truediv(self._denominator))
+        num = self._numerator
+        den = self._denominator
+        try:
+            return values.W_Flonum(num.truediv(den))
+        except OverflowError:
+            if num.sign == den.sign:
+                return values.W_Flonum.INF
+            return values.W_Flonum.NEGINF
 
     # ------------------ comparisons ------------------
 
@@ -1013,6 +1024,11 @@ class __extend__(values.W_Complex):
         factor = other.reciprocal()
         return self.arith_mul(factor)
 
+    def arith_zerop(self):
+        real = self.real.arith_zerop() is not values.w_false
+        imag = self.imag.arith_zerop() is not values.w_false
+        return values.W_Bool.make(real and imag)
+
     # Useful complex number operations
     def complex_conjugate(self):
         return values.W_Complex(self.real, self.imag.arith_unarysub())
@@ -1044,33 +1060,39 @@ class __extend__(values.W_Complex):
         r = self.real.arith_sin().arith_mul(self.imag.arith_cosh())
         i = self.real.arith_cos().arith_mul(self.imag.arith_sinh())
         return values.W_Complex(r, i)
+
     def arith_cos(self):
         "cos(a+bi)=cos a cosh b - i sin a sinh b"
         r = self.real.arith_cos().arith_mul(self.imag.arith_cosh())
         i = self.real.arith_sin().arith_mul(self.imag.arith_sinh())
         return values.W_Complex(r, i).complex_conjugate()
+
     def arith_tan(self):
         return self.arith_sin().arith_div_same(self.arith_cos())
+
     def arith_sinh(self):
         "sinh(a+bi)=sinh a cos b + i cosh a sinh b"
         r = self.real.arith_sinh().arith_mul(self.imag.arith_cos())
         i = self.real.arith_cosh().arith_mul(self.imag.arith_sin())
         return values.W_Complex(r, i)
+
     def arith_cosh(self):
         "cosh(a+bi)=cosh a cos b + i sinh a sin b"
         r = self.real.arith_cosh().arith_mul(self.imag.arith_cos())
         i = self.real.arith_sinh().arith_mul(self.imag.arith_sin())
         return values.W_Complex(r, i)
+
     def arith_tanh(self):
         return self.arith_sinh().arith_div(self.arith_cosh())
+
     def arith_asin(self):
         raise NotImplementedError("to be done")
+
     def arith_acos(self):
         raise NotImplementedError("to be done")
+
     def arith_atan(self):
         raise NotImplementedError("to be done")
-
-
 
     # ------------------ comparisons ------------------
 
