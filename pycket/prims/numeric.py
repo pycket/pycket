@@ -177,17 +177,17 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum.make(0), "arith_add", True),
-        ("-", values.W_Fixnum.make(0), "arith_sub", False),
-        ("*", values.W_Fixnum.make(1), "arith_mul", True),
-        ("/", values.W_Fixnum.make(1), "arith_div", False),
+        ("+", values.W_Fixnum.ZERO, "arith_add", True),
+        ("-", values.W_Fixnum.ZERO, "arith_sub", False),
+        ("*", values.W_Fixnum.ONE, "arith_mul", True),
+        ("/", values.W_Fixnum.ONE, "arith_div", False),
         ("max", None, "arith_max", False),
         ("min", None, "arith_min", False),
-        ("gcd", values.W_Fixnum.make(0), "arith_gcd", True),
-        ("lcm", values.W_Fixnum.make(1), "arith_lcm", True),
+        ("gcd", values.W_Fixnum.ZERO, "arith_gcd", True),
+        ("lcm", values.W_Fixnum.ONE, "arith_lcm", True),
         ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum.make(0), "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum.make(0), "arith_xor", True),
+        ("bitwise-ior", values.W_Fixnum.ZERO, "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum.ZERO, "arith_xor", True),
         ]:
     make_arith(*args)
 
@@ -249,7 +249,7 @@ def flsqrt(f):
 
 @expose("add1", [values.W_Number])
 def add1(v):
-    return v.arith_add(values.W_Fixnum(1))
+    return v.arith_add(values.W_Fixnum.ONE)
 
 @expose("atan", [values.W_Number, default(values.W_Number, None)])
 def atan(y, x):
@@ -300,8 +300,6 @@ for args in [
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
-        ("negative?", "arith_negativep"),
-        ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
@@ -314,6 +312,17 @@ for args in [
         ]:
     make_unary_arith(*args)
 
+@expose("negative?", [values.W_Number])
+def negative_predicate(n):
+    if not is_real(n):
+        raise SchemeException("negative?: expected real? in argument 0")
+    return n.arith_negativep()
+
+@expose("positive?", [values.W_Number])
+def positive_predicate(n):
+    if not is_real(n):
+        raise SchemeException("positive?: expected real? in argument 0")
+    return n.arith_positivep()
 
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):

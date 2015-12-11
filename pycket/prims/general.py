@@ -6,7 +6,6 @@ from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
 from pycket import arity
-from pycket import cont
 from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
@@ -14,13 +13,13 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method, define_nyi,
-                                 subclass_unsafe)
+                                 procedure, define_nyi, subclass_unsafe)
 from rpython.rlib import jit, objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre import rsre_re as re
 
 # import for side effects
+from pycket.prims import control
 from pycket.prims import continuation_marks
 from pycket.prims import box
 from pycket.prims import equal as eq_prims
@@ -205,10 +204,6 @@ expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
 expose_val("prop:output-port", values_struct.w_prop_output_port)
 
-@expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
-def raise_type_error(name, expected, v):
-    raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
-
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
@@ -281,7 +276,6 @@ def define_struct(name, super=values.w_null, fields=[]):
         acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
-
 
 exn = \
     define_struct("exn", values.w_null, ["message", "continuation-marks"])
@@ -657,35 +651,6 @@ def time_apply_cont(initial, env, cont, vals):
     results = values.Values.make([values.to_list(vals_w),
                                   ms, ms, values.W_Fixnum(0)])
     return return_multi_vals(results, env, cont)
-
-@expose("continuation-prompt-available?")
-def cont_prompt_avail(args):
-    return values.w_false
-
-@continuation
-def dynamic_wind_pre_cont(value, post, env, cont, _vals):
-    return value.call([], env, dynamic_wind_value_cont(post, env, cont))
-
-@continuation
-def dynamic_wind_value_cont(post, env, cont, _vals):
-    return post.call([], env, dynamic_wind_post_cont(_vals, env, cont))
-
-@continuation
-def dynamic_wind_post_cont(val, env, cont, _vals):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(val, env, cont)
-
-@expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
-def dynamic_wind(pre, value, post, env, cont):
-    return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
-
-@expose(["call/cc", # Racket < 6.2.900.10
-        "call-with-current-continuation",
-         "call/ec", # Racket < 6.2.900.10
-         "call-with-escape-continuation"],
-        [procedure], simple=False, extra_info=True)
-def callcc(a, env, cont, extra_call_info):
-    return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
 def time_apply(a, args, env, cont, extra_call_info):
@@ -1082,7 +1047,8 @@ def reverse(w_l):
     return acc
 
 @expose("void")
-def do_void(args): return values.w_void
+def do_void(args):
+    return values.w_void
 
 @expose("make-ephemeron", [values.W_Object] * 2)
 def make_ephemeron(key, val):
@@ -1330,33 +1296,10 @@ def current_preserved_thread_cell_values(v):
 def do_is_place_enabled(args):
     return values.w_false
 
-@expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
-def mcpt(s):
-    from pycket.interpreter import Gensym
-    s = Gensym.gensym("cm") if s is None else s
-    return values.W_ContinuationPromptTag(s)
-
-@expose("default-continuation-prompt-tag", [])
-def dcpt():
-    return values.w_default_continuation_prompt_tag
-
-@expose("call-with-continuation-prompt", simple=False)
-def cwcp(args, env, cont):
-    from pycket.interpreter import return_value
-    # XXX: ignores all the important stuff
-    fun = args[0]
-    tag = args[1]
-    handler = args[2]
-    actuals = args[3:]
-    assert isinstance(fun, values.W_Procedure)
-    return fun.call(actuals, env, cont)
-
-
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.utf8value)
-
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1370,63 +1313,9 @@ def cur_env_vars():
 def env_var_ref(set, name):
     return values.w_false
 
-@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)])
-def do_raise(v, barrier):
-    # TODO:
-    raise SchemeException("uncaught exception: %s" % v.tostring())
-
-@expose("raise-argument-error")
-def raise_arg_err(args):
-    if (len(args) < 3):
-        raise SchemeException("raise-argument-error: expected at least 3 arguments")
-    name = args[0]
-    if (not(isinstance(name, values.W_Symbol))):
-        raise SchemeException("raise-argument-error: expected symbol as the first argument")
-    expected = args[1]
-    if (not(isinstance(expected, values_string.W_String))):
-        raise SchemeException("raise-argument-error: expected string as the second argument")
-    if (len(args) == 3):
-        # case 1
-        v = args[2]
-        raise SchemeException("%s: expected %s but got %s" % (
-            name.utf8value, expected.as_str_utf8(), v.tostring()))
-    else:
-        # case 2
-        bad_v = args[2]
-        if (not(isinstance(bad_v, values.W_Fixnum))):
-            raise SchemeException("raise-argument-error: expected number as the third argument")
-        if bad_v.value >= (len(args) - 3):
-            raise SchemeException("raise-argument-error: out of bounds number as the third argument")
-        v = args[bad_v.value+3]
-        # FIXME: actually print the other arguments
-        raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
-             name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
-
-
-
-@expose("raise-arguments-error")
-def raise_arg_err(args):
-    name = args[0]
-    assert isinstance(name, values.W_Symbol)
-    message = args[1]
-    assert isinstance(message, values_string.W_String)
-    from rpython.rlib.rstring import StringBuilder
-    error_msg = StringBuilder()
-    error_msg.append(name.utf8value)
-    error_msg.append(": ")
-    error_msg.append(message.as_str_utf8())
-    error_msg.append("\n")
-    i = 2
-    while i + 1 < len(args):
-        field = args[i]
-        assert isinstance(field, values_string.W_String)
-        v = args[i+1]
-        assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
-        i += 2
-    raise SchemeException(error_msg.build())
-
-define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
+@expose("check-for-break", [])
+def check_for_break():
+    return values.w_false
 
 @expose("find-system-path", [values.W_Symbol], simple=False)
 def find_sys_path(sym, env, cont):

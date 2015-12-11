@@ -830,9 +830,13 @@ class SimplePrimApp1(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
+        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
-        result = self.run(env)
+        try:
+            result = self.run(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 
@@ -847,6 +851,7 @@ class SimplePrimApp2(App):
         self.w_prim = w_prim
 
     def run(self, env):
+        from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
@@ -858,9 +863,13 @@ class SimplePrimApp2(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
+        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
-        result = self.run(env)
+        try:
+            result = self.run(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):

@@ -7,8 +7,7 @@ class Link(object):
     _immutable_fields_ = ["key", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
-        assert isinstance(k, W_Object)
-        assert isinstance(v, W_Object)
+        assert isinstance(k, W_Object) and isinstance(v, W_Object)
         assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v
@@ -31,6 +30,9 @@ class BaseCont(object):
 
     def get_next_executed_ast(self):
         return None # best effort
+
+    def get_previous_continuation(self):
+        return None
 
     @jit.unroll_safe
     def find_cm(self, k):
@@ -97,6 +99,9 @@ class Cont(BaseCont):
         self.env = env
         self.prev = prev
 
+    def get_previous_continuation(self):
+        return self.prev
+
     def get_ast(self):
         return self.prev.get_ast()
 
@@ -110,6 +115,18 @@ class Cont(BaseCont):
             return values.W_Cons.make(v, self.prev.get_marks(key))
         else:
             return self.prev.get_marks(key)
+
+class Prompt(Cont):
+
+    _immutable_fields_ = ['tag', 'handler']
+
+    def __init__(self, tag, handler, env, prev):
+        Cont.__init__(self, env, prev)
+        self.tag     = tag
+        self.handler = handler
+
+    def plug_reduce(self, _vals, env):
+        return self.prev.plug_reduce(_vals, env)
 
 def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
