@@ -685,8 +685,8 @@ class W_Complex(W_Number):
         return self.real.eqv(other.real) and self.imag.eqv(other.imag)
 
     def hash_equal(self, info=None):
-        hash1 = compute_hash(self.real)
-        hash2 = compute_hash(self.imag)
+        hash1 = self.real.hash_equal()
+        hash2 = self.imag.hash_equal()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def tostring(self):
