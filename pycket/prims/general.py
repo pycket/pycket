@@ -27,6 +27,7 @@ from pycket.prims import foreign
 from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import input_output
+from pycket.prims import logging
 from pycket.prims import numeric
 from pycket.prims import parameter
 from pycket.prims import random
@@ -109,7 +110,8 @@ for args in [
         ("hash-equal?", W_HashTable),
         ("hash-weak?", W_HashTable),
         ("cpointer?", values.W_CPointer),
-        ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
+        ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
+        ("logger?", values.W_Logger),
         ]:
     make_pred(*args)
 
@@ -237,14 +239,6 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
 ################################################################
 # printing
 
-@expose("current-logger", [])
-def current_logger():
-    return values.current_logger
-
-@expose("make-logger", [values.W_Symbol, values.W_Logger])
-def make_logger(name, parent):
-    return values.W_Logger()
-
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
@@ -370,7 +364,6 @@ for args in [ ("subprocess?",),
               ("handle-evt?",),
               ("special-comment?",),
               ("exn:srclocs?",),
-              ("logger?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
               ("date-dst?",),
@@ -1454,13 +1447,3 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
-
-
-@expose("log-level?", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
-def log_level(logger, level, topic):
-    print "NOT IMPLEMENTED: log-level?"
-    return values.w_true
-
-@expose("log-message")
-def log_message(args):
-    print "logging"

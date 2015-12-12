@@ -156,12 +156,17 @@ class W_ResolvedModulePath(W_Object):
 
 class W_Logger(W_Object):
     errorname = "logger"
-    def __init__(self):
-        pass
+
+    _immutable_fields_ = ['topic', 'parent', 'propagate_level', 'propagate_topic[*]']
+
+    def __init__(self, topic, parent, propagate_level, propagate_topic):
+        self.topic           = topic
+        self.parent          = parent
+        self.propagate_level = propagate_level
+        self.propagate_topic = propagate_topic
+
     def tostring(self):
         return "#<logger>"
-
-current_logger = W_Logger()
 
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
