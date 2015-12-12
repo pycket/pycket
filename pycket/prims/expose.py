@@ -1,3 +1,4 @@
+
 from rpython.rlib import jit, unroll
 from pycket.error import SchemeException
 from pycket.arity import Arity
@@ -204,13 +205,16 @@ def make_list_arg_unwrapper(func, has_self, min_arg, max_arity, unroll_argtypes,
 def _make_result_handling_func(func_arg_unwrap, simple):
     if simple:
         def func_result_handling(*args):
-            from pycket.interpreter import (return_multi_vals,
-                                            return_value_direct)
-            from pycket             import values
+            from pycket.interpreter   import return_multi_vals, return_value_direct
+            from pycket.prims.control import convert_runtime_exception
+            from pycket               import values
             env = args[-2]
             cont = args[-1]
             args = args[:-2]
-            result = func_arg_unwrap(*args)
+            try:
+                result = func_arg_unwrap(*args)
+            except SchemeException, exn:
+                return convert_runtime_exception(exn, env, cont)
             if result is None:
                 result = values.w_void
             if isinstance(result, values.Values):
@@ -324,7 +328,6 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
         return LabelFunction(label)
 
     return wrapper
-
 
 def expose_val(name, w_v):
     from pycket import values

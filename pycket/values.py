@@ -172,18 +172,25 @@ class W_ResolvedModulePath(W_Object):
 
 class W_Logger(W_Object):
     errorname = "logger"
-    def __init__(self):
-        pass
+
+    _immutable_fields_ = ['topic', 'parent', 'propagate_level', 'propagate_topic[*]']
+
+    def __init__(self, topic, parent, propagate_level, propagate_topic):
+        self.topic           = topic
+        self.parent          = parent
+        self.propagate_level = propagate_level
+        self.propagate_topic = propagate_topic
+
     def tostring(self):
         return "#<logger>"
-
-current_logger = W_Logger()
 
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
     _immutable_fields_ = ["name"]
+
     def __init__(self, name):
         self.name = name
+
     def tostring(self):
         return "#<continuation-prompt-tag>"
 
@@ -659,12 +666,26 @@ class W_Flonum(W_Number):
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
+W_Flonum.INF    = W_Flonum(float("inf"))
+W_Flonum.NEGINF = W_Flonum(-float("inf"))
+W_Flonum.NAN    = W_Flonum(float("nan"))
+
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
+
     def tostring(self):
-        return str(self.value)
+        return self.value.str()
+
     def __init__(self, val):
         self.value = val
+
+    def toflonum(self):
+        bignum = self.value
+        try:
+            floatval = bignum.tofloat()
+        except OverflowError:
+            return W_Flonum.NEGINF if bignum.sign < 0 else W_Flonum.INF
+        return W_Flonum(floatval)
 
     def equal(self, other):
         if not isinstance(other, W_Bignum):
@@ -683,14 +704,20 @@ class W_Complex(W_Number):
         self.real = re
         self.imag = im
 
+    @staticmethod
+    def from_real_pair(real, imag):
+        if W_Fixnum.ZERO.eqv(imag):
+            return real
+        return W_Complex(real, imag)
+
     def eqv(self, other):
         if not isinstance(other, W_Complex):
             return False
         return self.real.eqv(other.real) and self.imag.eqv(other.imag)
 
     def hash_equal(self, info=None):
-        hash1 = compute_hash(self.real)
-        hash2 = compute_hash(self.imag)
+        hash1 = self.real.hash_equal()
+        hash2 = self.imag.hash_equal()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def tostring(self):

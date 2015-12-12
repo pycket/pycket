@@ -11,12 +11,13 @@
 ;  (printf "  Read: ")
 ;  (gc) (time (for ([i N]) (hash-ref M i))))
 ;
-;(printf "Immutable eq-map:~n")
-;(let ([M (hasheq)])
-;  (printf "  Write: ")
-;  (gc) (time (for ([i N]) (set! M (hash-set M i #f))))
-;  (printf "  Read: ")
-;  (gc) (time (for ([i N]) (hash-ref M i))))
+
+(printf "Immutable eq-map:~n")
+(let ([M (hasheq)])
+  (printf "  Write: ")
+  (gc) (time (for ([i N]) (set! M (hash-set M i #f))))
+  (printf "  Read: ")
+  (gc) (time (for ([i N]) (hash-ref M i))))
 
 (printf "Mutable map:~n")
 (let ([M (make-hash)])

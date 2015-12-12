@@ -578,9 +578,6 @@ def _to_ast(json, modtable):
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 VOID = Quote(values.w_void)
-INF = values.W_Flonum(float("inf"))
-NEGINF = values.W_Flonum(-float("inf"))
-NAN = values.W_Flonum(float("nan"))
 
 def _to_num(json):
     assert json.is_object
@@ -599,11 +596,11 @@ def _to_num(json):
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
-            return INF
+            return values.W_Flonum.INF
         if rs == "-inf.0":
-            return NEGINF
+            return values.W_Flonum.NEGINF
         if rs == "+nan.0":
-            return NAN
+            return values.W_Flonum.NAN
     if "integer" in obj:
         rs = obj["integer"].value_string()
         try:
