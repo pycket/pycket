@@ -122,7 +122,9 @@ def make_caching_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def get_static_data(self, name, default):
-            return self.static_data.get(name, default)
+            if name not in self.static_data:
+                return default
+            return self.static_data[name]
 
         @specialize.argtype(2)
         def lookup(self, name, storage, default=None, offset=0):
