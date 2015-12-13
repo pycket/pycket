@@ -6,7 +6,15 @@ from pycket.error             import SchemeException
 from rpython.rlib             import jit, objectmodel, unroll
 
 class Spec(object):
-    pass
+
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+    def conforms(self, value):
+        raise NotImplementedError("abstract base class")
+
+    def repr(self):
+        raise NotImplementedError("abstract base class")
 
 class Value(Spec):
     def __init__(self, value):

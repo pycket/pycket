@@ -29,9 +29,10 @@ def make_logger(args):
         parent          = parser.logger_or_false()
         propagate_level = parser.log_level()
     except StopIteration:
-        propagate_topic = []
-    else:
-        propagate_topic = parser._symbol_or_false()
+        pass
+
+    # Any remaining arguments are propagate topics
+    propagate_topic = parser._symbol_or_false()
 
     return values.W_Logger(topic, parent, propagate_level, propagate_topic)
 
