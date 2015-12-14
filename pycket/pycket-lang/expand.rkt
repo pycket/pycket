@@ -395,7 +395,11 @@
            'define-values-names (map (compose symbol->string syntax-e)
                                      (syntax->list #'(i ...))))]
     [(((~literal define-syntaxes) (i ...) b) _) #f]
-    [(((~literal begin-for-syntax) b ...) _) #f]
+    [(((~literal begin-for-syntax) b ...)
+      ((~literal begin-for-syntax) b* ...))
+     (hash 'begin-for-syntax
+           (filter (λ (x) (or (is-module? x) (and (hash? x) (hash-has-key? x 'begin-for-syntax))))
+                   (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...)))))]
 
     [((#%require x ...) _)
      (let ([reqs (append-map require-json (syntax->list #'(x ...)))])
@@ -465,6 +469,11 @@
                  'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
                                      (datum->syntax #'lex (hash-values ht*))))))]
     ))
+
+(define (is-module? m)
+  (and (hash? m)
+       (hash-has-key? m 'module-name)
+       (hash-has-key? m 'language)))
 
 (define (convert mod mod/loc [config? #t])
   (syntax-parse (list mod mod/loc) #:literals (module #%plain-module-begin)
