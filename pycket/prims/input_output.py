@@ -1001,3 +1001,7 @@ expose_val("print-vector-length", print_vector_length_param)
 expose_val("print-hash-table", print_hash_table_param)
 expose_val("print-boolean-long-form", print_boolean_long_form_param)
 expose_val("print-as-expression", print_as_expression_param)
+
+w_read_case_sensitive = values_parameter.W_Parameter(values.w_true)
+expose_val("read-case-sensitive", w_read_case_sensitive)
+

@@ -12,7 +12,8 @@ class AST(object):
 
     simple = False
 
-    def defined_vars(self): return {}
+    def defined_vars(self):
+        return {}
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct

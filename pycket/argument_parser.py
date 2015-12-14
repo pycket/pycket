@@ -1,9 +1,12 @@
 
 import inspect
 
-from pycket                   import values
-from pycket.error             import SchemeException
-from rpython.rlib             import jit, objectmodel, unroll
+from pycket       import values
+from pycket.error import SchemeException
+from rpython.rlib import jit, objectmodel, unroll
+
+class EndOfInput(Exception):
+    pass
 
 class Spec(object):
 
@@ -42,7 +45,19 @@ class Instance(Spec):
 
 CACHE = {}
 
+class ExtensibleParser(type):
+    def __new__(cls, name, bases, attrs):
+        if name == '__extend_parser__':
+            for key, val in attrs.iteritems():
+                if key == '__module__':
+                    continue
+                add_parser_method(key, *val)
+            return None
+        return super(ExtensibleParser, cls).__new__(cls, name, bases, attrs)
+
 class ArgParser(object):
+
+    __metaclass__ = ExtensibleParser
 
     _immutable_fields_ = ['context', 'args']
 
@@ -59,7 +74,7 @@ class ArgParser(object):
 
     def next(self):
         if not self.has_more():
-            raise StopIteration
+            raise EndOfInput
         index = self.index
         val = self.args[index]
         self.index = index + 1
@@ -68,20 +83,17 @@ class ArgParser(object):
     def ensure_arity(self):
         pass
 
-def define_parser(name, *_specs):
+def make_spec(arg):
+    return (Instance if inspect.isclass(arg) else Value)(arg)
 
-    if _specs in CACHE:
-        checker = CACHE[_specs]
-        assert checker.__name__ == name
+def add_parser_method(name, *_specs):
+
+    if name in CACHE:
+        otherspec, checker = CACHE[name]
+        assert otherspec == _specs
         return checker
     else:
-        specs = []
-        for spec in _specs:
-            if inspect.isclass(spec):
-                specs.append(Instance(spec))
-            else:
-                specs.append(Value(spec))
-        specs = unroll.unrolling_iterable(specs)
+        specs = unroll.unrolling_iterable(map(make_spec, _specs))
 
         def checker(self):
             arg = self.next()
@@ -105,7 +117,7 @@ def define_parser(name, *_specs):
                 results[i] = checker(self)
             return results
 
-    CACHE[_specs] = checker
+    CACHE[name] = (_specs, checker)
     setattr(ArgParser, name, checker)
     setattr(ArgParser, "_" + name, _checker)
 
