@@ -482,7 +482,7 @@ class Module(AST):
     def resolve_submodule_path(self, path):
         for p in path:
             self = self.find_submodule(p)
-            assert self is not None, str(path)
+            assert self is not None
         return self
 
     def _interpret_mod(self, env):
