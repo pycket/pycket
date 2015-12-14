@@ -500,7 +500,8 @@ def _to_ast(json, modtable):
                 return fst
             else:
                 return Begin0.make(fst, rst)
-
+        if "begin-for-syntax" in obj:
+            return VOID
         if "wcm-key" in obj:
             return WithContinuationMark(_to_ast(obj["wcm-key"], modtable),
                                         _to_ast(obj["wcm-val"], modtable),
