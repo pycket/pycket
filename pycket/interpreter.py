@@ -384,7 +384,7 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class Module(AST):
-    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?", "lang"]
+    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules[*]", "interpreted?", "lang"]
     def __init__(self, name, body, config, lang=None):
         self.parent = None
         self.lang = lang
@@ -482,7 +482,7 @@ class Module(AST):
     def resolve_submodule_path(self, path):
         for p in path:
             self = self.find_submodule(p)
-            assert self is not None
+            assert self is not None, str(path)
         return self
 
     def _interpret_mod(self, env):
