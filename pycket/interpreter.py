@@ -988,10 +988,7 @@ class BeginForSyntax(AST):
         return values.w_void
 
     def _mutated_vars(self):
-        mut = variable_set()
-        for b in self.body:
-            mut.update(b.mutated_vars())
-        return mut
+        return variable_set()
 
     def assign_convert(self, vars, env_structure):
         new_body = [b.assign_convert(vars, env_structure) for b in self.body]
