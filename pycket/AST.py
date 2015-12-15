@@ -52,6 +52,10 @@ class AST(object):
     def direct_children(self):
         return []
 
+    def collect_submodules(self, acc):
+        for child in self.direct_children():
+            child.collect_submodules(acc)
+
     def free_vars(self):
         free_vars = {}
         for child in self.direct_children():
