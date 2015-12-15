@@ -383,32 +383,44 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class Module(AST):
-    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?", "lang"]
+    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules[*]", "interpreted?", "lang"]
+    simple = True
+
     def __init__(self, name, body, config, lang=None):
         self.parent = None
         self.lang = lang
-        self.submodules = [b for b in body if isinstance(b, Module)]
-        body = [b for b in body if not isinstance(b, Module)]
         self.name = name
-        self.body = [b for b in body if not isinstance(b, Require)]
+
+        self.body     = [b for b in body if not isinstance(b, Require)]
         self.requires = [b for b in body if isinstance(b, Require)]
+
+        # Collect submodules and set their parents
+        submodules = []
+        for b in body:
+            b.collect_submodules(submodules)
+        self.submodules = submodules[:]
+        for s in self.submodules:
+            assert isinstance(s, Module)
+            s.set_parent_module(self)
+
         self.env = None
         self.interpreted = False
         self.config = config
-        for s in self.submodules:
-            assert isinstance(s, Module)
-            s.set_parent(self)
+
         defs = {}
         for b in body:
             defs.update(b.defined_vars())
         self.defs = defs
 
     def rebuild_body(self):
-        return self.requires + self.submodules + self.body
+        return self.requires + self.body
 
-    def set_parent(self, parent):
+    def set_parent_module(self, parent):
         assert isinstance(parent, Module)
         self.parent = parent
+
+    def collect_submodules(self, acc):
+        acc.append(self)
 
     def full_module_path(self):
         path = []
@@ -426,6 +438,9 @@ class Module(AST):
         if v is None:
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
+
+    def _mutated_vars(self):
+        return variable_set()
 
     # all the module-bound variables that are mutated
     def mod_mutated_vars(self):
@@ -447,6 +462,12 @@ class Module(AST):
 
     def tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
+
+    def interpret_simple(self, env):
+        """ Interpretation of a module is a no-op from the outer module.
+            Modules must be executed explicitly by |interpret_mod|, usually via
+            a require statement.  """
+        return values.w_void
 
     def interpret_mod(self, env):
         if self.interpreted:
@@ -685,7 +706,6 @@ class VariableReference(AST):
     def _tostring(self):
         return "#<#%variable-reference>"
 
-
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
 
@@ -808,7 +828,6 @@ class App(AST):
     def _tostring(self):
         return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
 
-
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
     simple = True
@@ -893,7 +912,6 @@ class SequencedBodyAST(AST):
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
 
-
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
 
@@ -927,7 +945,6 @@ class Begin0(AST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
-
 class Begin(SequencedBodyAST):
     @staticmethod
     def make(body):
@@ -954,6 +971,33 @@ class Begin(SequencedBodyAST):
 
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
+
+class BeginForSyntax(AST):
+
+    _immutable_fields_ = ["body[*]"]
+    simple = True
+
+    def __init__(self, body):
+        self.body = body
+
+    def direct_children(self):
+        return self.body[:]
+
+    def interpret_simple(self, env):
+        return values.w_void
+
+    def _mutated_vars(self):
+        mut = variable_set()
+        for b in self.body:
+            mut.update(b.mutated_vars())
+        return mut
+
+    def assign_convert(self, vars, env_structure):
+        new_body = [b.assign_convert(vars, env_structure) for b in self.body]
+        return BeginForSyntax(new_body)
+
+    def _tostring(self):
+        return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]

@@ -12,7 +12,8 @@ class AST(object):
 
     simple = False
 
-    def defined_vars(self): return {}
+    def defined_vars(self):
+        return {}
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
@@ -50,6 +51,10 @@ class AST(object):
 
     def direct_children(self):
         return []
+
+    def collect_submodules(self, acc):
+        for child in self.direct_children():
+            child.collect_submodules(acc)
 
     def free_vars(self):
         free_vars = {}

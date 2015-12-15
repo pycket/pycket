@@ -1,6 +1,6 @@
 
 from pycket                   import values, values_parameter
-from pycket.argument_parser   import ArgParser, define_parser
+from pycket.argument_parser   import ArgParser, EndOfInput
 from pycket.prims.expose      import default, expose, expose_val
 from rpython.rlib             import jit
 
@@ -11,9 +11,10 @@ w_default_logger = values.W_Logger(values.w_false, values.w_false, values.w_fals
 LOG_LEVEL = ['none', 'fatal', 'error', 'warning', 'info', 'debug']
 LOG_LEVEL = map(values.W_Symbol.make, LOG_LEVEL) + [values.w_false]
 
-define_parser("symbol_or_false", values.W_Symbol, values.w_false)
-define_parser("logger_or_false", values.W_Logger, values.w_false)
-define_parser("log_level"      , *LOG_LEVEL)
+class __extend_parser__(ArgParser):
+    symbol_or_false = (values.W_Symbol, values.w_false)
+    logger_or_false = (values.W_Logger, values.w_false)
+    log_level       = LOG_LEVEL
 
 @expose("make-logger")
 @jit.unroll_safe
@@ -28,10 +29,11 @@ def make_logger(args):
         topic           = parser.symbol_or_false()
         parent          = parser.logger_or_false()
         propagate_level = parser.log_level()
-    except StopIteration:
-        propagate_topic = []
-    else:
-        propagate_topic = parser._symbol_or_false()
+    except EndOfInput:
+        pass
+
+    # Any remaining arguments are propagate topics
+    propagate_topic = parser._symbol_or_false()
 
     return values.W_Logger(topic, parent, propagate_level, propagate_topic)
 
