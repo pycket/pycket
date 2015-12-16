@@ -5,7 +5,7 @@ import time
 from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
-from pycket import arity
+from pycket.arity import Arity
 from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
@@ -662,7 +662,7 @@ def apply(args, env, cont, extra_call_info):
     lst = args[-1]
     try:
         fn_arity = fn.get_arity()
-        if fn_arity is arity.Arity.unknown or fn_arity.at_least == -1:
+        if fn_arity is Arity.unknown or fn_arity.at_least == -1:
             unroll_to = 1
         elif fn_arity.arity_list:
             unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
@@ -892,7 +892,7 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False)
+@expose("map", simple=False, arity=Arity.geq_2)
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
     from pycket.interpreter import jump
@@ -1039,7 +1039,7 @@ def reverse(w_l):
 
     return acc
 
-@expose("void")
+@expose("void", arity=Arity.geq_0)
 def do_void(args):
     return values.w_void
 
