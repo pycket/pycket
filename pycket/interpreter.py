@@ -384,7 +384,7 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class Module(AST):
-    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules[*]", "interpreted?", "lang"]
+    _immutable_fields_ = ["name", "body[*]", "requires[*]", "parent", "submodules[*]", "interpreted?", "lang"]
     simple = True
 
     def __init__(self, name, body, config, lang=None):
