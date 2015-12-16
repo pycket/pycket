@@ -351,7 +351,7 @@ class W_PrefabKey(values.W_Object):
     all_keys = []
 
     @staticmethod
-	@jit.elidable
+    @jit.elidable
     def make(name, init_field_count, auto_field_count, w_auto_value, mutables, super_key):
         for key in W_PrefabKey.all_keys:
             if key.equal_tuple((name, init_field_count, auto_field_count,
@@ -1058,7 +1058,7 @@ class W_StructProperty(values.W_Object):
         self.supers = values.from_list(supers)
         self.can_imp = can_imp
 
-	@jit.elidable
+    @jit.elidable
     def isinstance(self, property):
         if self is property:
             return True

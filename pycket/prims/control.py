@@ -21,7 +21,7 @@ def convert_runtime_exception(exn, env, cont):
     message = values_string.W_String.fromstr_utf8(exn.msg)
     marks   = W_ContinuationMarkSet(cont)
     cont    = post_build_exception(env, cont)
-    return exn_fail.constr.call([message, marks], env, cont)
+    return exn_fail.constructor.call([message, marks], env, cont)
 
 def find_continuation_prompt(tag, cont):
     while cont is not None:
