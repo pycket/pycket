@@ -40,11 +40,17 @@ def make_entry_point(pycketconfig=None):
             return retval
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
         module_name, json_ast = ensure_json_ast(config, names)
+
         modtable = ModTable()
+        modtable.push(module_name)
+        modtable.add_module(module_name, None)
         if json_ast is None:
             ast = expand_to_ast(module_name, modtable)
         else:
             ast = load_json_ast_rpython(json_ast, modtable)
+        modtable.add_module(module_name, ast)
+        modtable.pop()
+
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)
         env.commandline_arguments = args_w
