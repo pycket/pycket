@@ -747,126 +747,45 @@ def assq(a, b):
 def do_cons(a, b):
     return values.W_Cons.make(a,b)
 
-@expose("car", [values.W_Cons])
-def do_car(a):
-    return a.car()
+def make_list_eater(name):
+    """
+    For generating car, cdr, caar, cadr, etc...
+    """
+    spec     = name[1:-1]
+    unrolled = unroll.unrolling_iterable(reversed(spec))
+    print spec
 
-@expose("cdr", [values.W_Cons])
-def do_cdr(a):
-    return a.cdr()
+    contract = "pair?"
 
-@expose("cadr")
-def do_cadr(args):
-    return do_car([do_cdr(args)])
+    for letter in spec[1:]:
+        if letter == 'a':
+            contract = "(cons/c %s any/c)" % contract
+        elif letter == 'd':
+            contract = "(cons/c any/c %s)" % contract
+        else:
+            assert False, "Bad list eater specification"
 
-@expose("caar")
-def do_caar(args):
-    return do_car([do_car(args)])
+    @expose(name, [values.W_Object])
+    def process_list(_lst):
+        lst = _lst
+        for letter in unrolled:
+            if not isinstance(lst, values.W_Cons):
+                raise SchemeException("%s: expected %s given %s" % (name, contract, _lst))
+            if letter == 'a':
+                lst = a.car()
+            elif letter == 'd':
+                lst = a.cdr()
+            else:
+                assert False, "Bad list eater specification"
 
-@expose("cdar")
-def do_cdar(args):
-    return do_cdr([do_car(args)])
+def list_eater_names(n):
+    names = []
+    for i in range(n):
+        names = [n + 'a' for n in names] + [n + 'd' for n in names] + ['a', 'd']
+    return ["c%sr" % name for name in names]
 
-@expose("cddr")
-def do_cddr(args):
-    return do_cdr([do_cdr(args)])
-
-@expose("caaar")
-def do_caaar(args):
-    return do_car([do_car([do_car(args)])])
-
-@expose("caadr")
-def do_caadr(args):
-    return do_car([do_car([do_cdr(args)])])
-
-@expose("caddr")
-def do_caddr(args):
-    return do_car([do_cdr([do_cdr(args)])])
-
-@expose("cadar")
-def do_cadar(args):
-    return do_car([do_cdr([do_car(args)])])
-
-@expose("cdaar")
-def do_cdaar(args):
-    return do_cdr([do_car([do_car(args)])])
-
-@expose("cdadr")
-def do_cdadr(args):
-    return do_cdr([do_car([do_cdr(args)])])
-
-@expose("cddar")
-def do_cddar(args):
-    return do_cdr([do_cdr([do_car(args)])])
-
-@expose("cdddr")
-def do_caddr(args):
-    return do_cdr([do_cdr([do_cdr(args)])])
-
-@expose("caaaar")
-def do_caaaar(args):
-    return do_car([do_car([do_car([do_car(args)])])])
-
-@expose("caaadr")
-def do_caaadr(args):
-    return do_car([do_car([do_car([do_cdr(args)])])])
-
-@expose("caadar")
-def do_caadar(args):
-    return do_car([do_car([do_cdr([do_car(args)])])])
-
-@expose("caaddr")
-def do_caaddr(args):
-    return do_car([do_car([do_cdr([do_cdr(args)])])])
-
-@expose("cadaar")
-def do_cadaar(args):
-    return do_car([do_cdr([do_car([do_car(args)])])])
-
-@expose("cadadr")
-def do_cadadr(args):
-    return do_car([do_cdr([do_car([do_cdr(args)])])])
-
-@expose("caddar")
-def do_caddar(args):
-    return do_car([do_cdr([do_cdr([do_car(args)])])])
-
-@expose("cadddr")
-def do_cadddr(args):
-    return do_car([do_cdr([do_cdr([do_cdr(args)])])])
-
-@expose("cdaaar")
-def do_cdaaar(args):
-    return do_cdr([do_car([do_car([do_car(args)])])])
-
-@expose("cdaadr")
-def do_cdaadr(args):
-    return do_cdr([do_car([do_car([do_cdr(args)])])])
-
-@expose("cdadar")
-def do_cdadar(args):
-    return do_cdr([do_car([do_cdr([do_car(args)])])])
-
-@expose("cdaddr")
-def do_cdaddr(args):
-    return do_cdr([do_car([do_cdr([do_cdr(args)])])])
-
-@expose("cddaar")
-def do_cddaar(args):
-    return do_cdr([do_cdr([do_car([do_car(args)])])])
-
-@expose("cddadr")
-def do_cddadr(args):
-    return do_cdr([do_cdr([do_car([do_cdr(args)])])])
-
-@expose("cdddar")
-def do_cdddar(args):
-    return do_cdr([do_cdr([do_cdr([do_car(args)])])])
-
-@expose("cddddr")
-def do_cddddr(args):
-    return do_cdr([do_cdr([do_cdr([do_cdr(args)])])])
-
+for name in list_eater_names(4):
+    make_list_eater(name)
 
 @expose("mlist")
 def do_mlist(args):
