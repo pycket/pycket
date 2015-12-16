@@ -9,8 +9,7 @@ from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib         import jit, longlong2float, rarithmetic
 from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype import Signed, SignedLongLong, \
-                                        UnsignedLongLong
+from rpython.rtyper.lltypesystem.lltype import Signed
 
 # imported for side effects
 from pycket import arithmetic
@@ -113,19 +112,31 @@ def rationalp(n):
     if isinstance(n, values.W_Flonum):
         v = n.value
         return values.W_Bool.make(not (math.isnan(v) or math.isinf(v)))
+    return values.W_Bool.make(isinstance(n, values.W_Rational))
+
+def is_exact(n):
+    if isinstance(n, values.W_Complex):
+        return is_exact(n.real) and is_exact(n.imag)
+    return (isinstance(n, values.W_Fixnum) or
+            isinstance(n, values.W_Bignum) or
+            isinstance(n, values.W_Rational))
+
+def is_inexact(n):
+    if isinstance(n, values.W_Complex):
+        return is_inexact(n.real) or is_inexact(n.imag)
+    return isinstance(n, values.W_Flonum)
 
 @expose("exact?", [values.W_Object])
 def exactp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum))
+    return values.W_Bool.make(is_exact(n))
 
 @expose("inexact?", [values.W_Object])
 def inexactp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Flonum))
+    return values.W_Bool.make(is_inexact(n))
 
 @expose("quotient/remainder", [values.W_Integer, values.W_Integer])
 def quotient_remainder(a, b):
-    return values.Values.make([a.arith_quotient(b), a.arith_mod(b)]) #FIXME
+    return values.Values._make2(a.arith_quotient(b), a.arith_mod(b)) #FIXME
 
 def make_binary_arith(name, methname):
     @expose(name, [values.W_Number, values.W_Number], simple=True)
@@ -166,17 +177,17 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum.make(0), "arith_add", True),
-        ("-", values.W_Fixnum.make(0), "arith_sub", False),
-        ("*", values.W_Fixnum.make(1), "arith_mul", True),
-        ("/", values.W_Fixnum.make(1), "arith_div", False),
+        ("+", values.W_Fixnum.ZERO, "arith_add", True),
+        ("-", values.W_Fixnum.ZERO, "arith_sub", False),
+        ("*", values.W_Fixnum.ONE, "arith_mul", True),
+        ("/", values.W_Fixnum.ONE, "arith_div", False),
         ("max", None, "arith_max", False),
         ("min", None, "arith_min", False),
-        ("gcd", values.W_Fixnum.make(0), "arith_gcd", True),
-        ("lcm", values.W_Fixnum.make(1), "arith_lcm", True),
+        ("gcd", values.W_Fixnum.ZERO, "arith_gcd", True),
+        ("lcm", values.W_Fixnum.ONE, "arith_lcm", True),
         ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum.make(0), "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum.make(0), "arith_xor", True),
+        ("bitwise-ior", values.W_Fixnum.ZERO, "arith_or", True),
+        ("bitwise-xor", values.W_Fixnum.ZERO, "arith_xor", True),
         ]:
     make_arith(*args)
 
@@ -238,7 +249,7 @@ def flsqrt(f):
 
 @expose("add1", [values.W_Number])
 def add1(v):
-    return v.arith_add(values.W_Fixnum(1))
+    return v.arith_add(values.W_Fixnum.ONE)
 
 @expose("atan", [values.W_Number, default(values.W_Number, None)])
 def atan(y, x):
@@ -289,8 +300,6 @@ for args in [
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
-        ("negative?", "arith_negativep"),
-        ("positive?", "arith_positivep"),
         ("even?", "arith_evenp"),
         ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
@@ -303,6 +312,17 @@ for args in [
         ]:
     make_unary_arith(*args)
 
+@expose("negative?", [values.W_Number])
+def negative_predicate(n):
+    if not is_real(n):
+        raise SchemeException("negative?: expected real? in argument 0")
+    return n.arith_negativep()
+
+@expose("positive?", [values.W_Number])
+def positive_predicate(n):
+    if not is_real(n):
+        raise SchemeException("positive?: expected real? in argument 0")
+    return n.arith_positivep()
 
 @expose("bitwise-bit-set?", [values.W_Integer, values.W_Integer])
 def bitwise_bit_setp(w_n, w_m):
@@ -349,6 +369,11 @@ def fxrshift(w_a, w_b):
     else:
         raise SchemeException("fxrshift: expected positive argument, got %s"%w_b)
 
+@expose("make-rectangular", [values.W_Number, values.W_Number])
+def make_rectangular(x, y):
+    if not is_real(x) or not is_real(y):
+        raise SchemeException("make-rectangular: expected real inputs")
+    return values.W_Complex.from_real_pair(x, y)
 
 ## Unsafe Fixnum ops
 @expose("unsafe-fxlshift", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])

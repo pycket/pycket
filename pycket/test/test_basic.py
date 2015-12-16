@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pytest
 from pycket.expand import expand, to_ast
 from pycket.interpreter import *
@@ -323,6 +326,7 @@ def test_eqv():
         "(eqv? 2 2)", "#t",
         "(eqv? '() '())", "#t",
         "(eqv? 100000000 100000000)", "#t",
+        "(eqv? 1.0+2i 1.0+2i)", "#t",
         "(eqv? (cons 1 2) (cons 1 2))", "#f",
         """(eqv? (lambda () 1)
                  (lambda () 2))""", "#f",
@@ -429,6 +433,12 @@ def test_with_continuation_mark():
     sym = W_Symbol.make("result")
     assert isinstance(m.defs[sym], values_string.W_String)
     assert m.defs[sym].as_str_utf8() == "ham"
+
+def test_with_continuation_mark2(doctest):
+    u"""
+    > (with-continuation-mark 'hello 'bye (let ([x (call-with-immediate-continuation-mark 'hello (λ (x) x) #f)]) x))
+    #f
+    """
 
 def test_with_continuation_mark_impersonator():
     m = run_mod(

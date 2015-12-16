@@ -129,6 +129,7 @@ def test_lt():
     run("(< 0 1)", w_true)
     run("(< 0 1000000000000000000000000000)", w_true)
     run("(< 10000000000000000000000000001000000000000000000000000000 0 )", w_false)
+    run("(> 35074662110434038747627587960280857993524015880330828824075798024790963850563322203657080886584969261653150406795437517399294548941469959754171038918004700847889956485329097264486802711583462946536682184340138629451355458264946342525383619389314960644665052551751442335509249173361130355796109709885580674313954210217657847432626760733004753275317192133674703563372783297041993227052663333668509952000175053355529058880434182538386715523683713208549376 0.0)", w_true)
 
 def test_lt_fixnum_flonum():
     run("(< 0 1.0)", w_true)
@@ -214,14 +215,27 @@ def test_even_odd():
     run("(odd?  -10000000000000000000000000001000000000000000000000000001)", w_true)
     run("(odd?   10000000000000000000000000001000000000000000000000000001)", w_true)
 
-def test_zero():
-    run("(zero? -1)", w_false)
-    run("(zero?  0)", w_true)
-    run("(zero?  1)", w_false)
-    run("(zero? -1.0)", w_false)
-    run("(zero?  0.0)", w_true)
-    run("(zero?  1.0)", w_false)
-    run("(zero?  7/3)", w_false)
+def test_zero(doctest):
+    """
+    > (zero? -1)
+    #f
+    > (zero?  0)
+    #t
+    > (zero?  1)
+    #f
+    > (zero? -1.0)
+    #f
+    > (zero?  0.0)
+    #t
+    > (zero?  1.0)
+    #f
+    > (zero?  7/3)
+    #f
+    > (zero? 0.0+0.0i)
+    #t
+    > (zero? 0.0+0.1i)
+    #f
+    """
 
 def test_string_to_number(doctest):
     """
@@ -248,6 +262,18 @@ def test_string_to_number(doctest):
     10000000000000000000000000001000000000000000000000000000
     """
     assert doctest
+
+def test_number_to_string(doctest):
+    """
+    > (number->string 1)
+    "1"
+    > (number->string 1.0)
+    "1.0"
+    > (number->string 1.0+3i)
+    "1.0+3.0i"
+    > (number->string 4172093847129036571265901283764790162495071902346790126349016234)
+    "4172093847129036571265901283764790162495071902346790126349016234"
+    """
 
 @pytest.mark.xfail
 def test_atan(doctest):
@@ -697,7 +723,6 @@ def test_inexact_to_exact(doctest):
     102222222222222223892324523663483522756187192341561344
     """
 
-
 def test_flonum_unsafe(doctest):
     """
     ! (require '#%flfxnum '#%unsafe)
@@ -916,4 +941,72 @@ def test_expt(doctest):
 def test_error(doctest):
     """
     E (+ 'a 1)
+    """
+
+def test_rational_predicate(doctest):
+    """
+    > (rational? 1)
+    #t
+    > (rational? +inf.0)
+    #f
+    > (rational? "hello")
+    #f
+    > (rational? 7/3)
+    #t
+    > (rational? 13647861237849612903845789012745781623478613289571907344901263)
+    #t
+    """
+
+def test_exact_predicate(doctest):
+    """
+    > (exact? -17)
+    #t
+    > (exact? 999999999999999999999999)
+    #t
+    > (exact? 5)
+    #t
+    > (exact? 1/2)
+    #t
+    > (exact? 9999999999999999999999999999/2)
+    #t
+    > (exact? -3/4)
+    #t
+    > (exact? 1+2i)
+    #t
+    > (exact? 1/2+3/4i)
+    #t
+    > (exact? 1.0)
+    #f
+    > (exact? 1.0+3i)
+    #f
+    > (exact? 3+1.0i)
+    #f
+    > (exact? "3")
+    #f
+    """
+
+def test_inexact_prediace(doctest):
+    """
+    > (inexact? 1)
+    #f
+    > (inexact? 1.0)
+    #t
+    > (inexact? 1+2i)
+    #f
+    > (inexact? 1.0+2.0i)
+    #t
+    > (inexact? 1.1+3i)
+    #t
+    """
+
+def test_make_rectangular(doctest):
+    """
+    > (make-rectangular 0 0)
+    0
+    > (make-rectangular 3 4)
+    3+4i
+    > (make-rectangular 3.0 4.0)
+    3.0+4.0i
+    > (make-rectangular 0 0.4)
+    0+0.4i
     """

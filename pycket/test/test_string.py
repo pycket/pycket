@@ -403,6 +403,14 @@ def test_string_length(doctest):
     4
     > (string-length "αβξ")
     3
+    > (unsafe-string-length "")
+    0
+    > (unsafe-string-length "abc")
+    3
+    > (unsafe-string-length "wasd")
+    4
+    > (unsafe-string-length "αβξ")
+    3
     """
 
 def test_string_to_number(doctest):

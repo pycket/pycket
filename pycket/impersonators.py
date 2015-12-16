@@ -7,7 +7,7 @@ from pycket.error             import SchemeException
 from pycket.values            import UNROLLING_CUTOFF
 from pycket                   import values
 from pycket                   import values_struct
-from pycket                   import values_hash
+from pycket.hash.base         import W_HashTable
 from rpython.rlib             import jit
 from rpython.rlib.objectmodel import import_from_mixin
 
@@ -148,6 +148,8 @@ class W_InterposeProcedure(values.W_Procedure):
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
+
+    @jit.unroll_safe
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
@@ -458,10 +460,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return goto.ref_with_extra_info(field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        after = self.post_ref_cont(interp, app, env, cont)
+        if interp is not values.w_false:
+            cont = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref_with_extra_info(field, app, env, after)
-        return op.call_with_extra_info([self.inner], env, after, app)
+            return self.inner.ref_with_extra_info(field, app, env, cont)
+        return op.call_with_extra_info([self.inner], env, cont, app)
 
     @guarded_loop(enter_above_depth(5))
     def set_with_extra_info(self, field, val, app, env, cont):
@@ -581,7 +584,7 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
-class W_InterposeHashTable(values_hash.W_HashTable):
+class W_InterposeHashTable(W_HashTable):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-hash-table"
@@ -589,7 +592,7 @@ class W_InterposeHashTable(values_hash.W_HashTable):
                           "key_proc", "clear_proc", "properties"]
     def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
-        assert isinstance(inner, values_hash.W_HashTable)
+        assert isinstance(inner, W_HashTable)
         assert set_proc.iscallable()
         assert ref_proc.iscallable()
         assert remove_proc.iscallable()

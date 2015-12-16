@@ -899,3 +899,57 @@ def test_syntax_e(doctest):
     > (syntax-e #'#t)
     #t
     """
+
+def test_relative_path(doctest):
+    """
+    > (relative-path? "/home/spenser")
+    #f
+    > (relative-path? "~/bin/racket")
+    #t
+    > (relative-path? "./../bin/racket")
+    #t
+    > (relative-path? (string->path "/home/spenser"))
+    #f
+    > (relative-path? (string->path  "~/bin/racket"))
+    #t
+    > (relative-path? (string->path "./../bin/racket"))
+    #t
+    """
+
+
+def test_continuation_prompt_functions(doctest):
+    u"""
+    ! (define tag (make-continuation-prompt-tag))
+    ! (define (escape v) (abort-current-continuation tag (lambda () v)))
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag)
+    0
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag))
+    1
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ 10 (x))))
+    10
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ (x) 10))))
+    11
+    """
+
+def test_continuation_prompt_available(doctest):
+    u"""
+    ! (define tag  (make-continuation-prompt-tag))
+    ! (define tag2 (make-continuation-prompt-tag))
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag)
+    #t
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag2)
+    #f
+    """
+
+def test_raise_exception(doctest):
+    u"""
+    ! (require racket/base)
+    ! (define-struct (my-exception exn:fail:user) ())
+    > (with-handlers ([number? (lambda (n) (+ n 5))]) (raise 18 #t))
+    23
+    > (with-handlers ([my-exception? (lambda (e) #f)]) (+ 5 (raise (make-my-exception "failed" (current-continuation-marks)))))
+    #f
+    > (with-handlers ([number? (λ (n) (+ n 5))]) (with-handlers ([string? (λ (n) (string-append n " caught ya"))]) (raise 8)))
+    13
+    """
+

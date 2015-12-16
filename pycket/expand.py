@@ -16,7 +16,7 @@ from pycket import values, values_string
 from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
-from pycket import values_hash
+from pycket.hash.equal import W_EqualHashTable
 
 
 class ExpandException(SchemeException):
@@ -500,7 +500,8 @@ def _to_ast(json, modtable):
                 return fst
             else:
                 return Begin0.make(fst, rst)
-
+        if "begin-for-syntax" in obj:
+            return VOID
         if "wcm-key" in obj:
             return WithContinuationMark(_to_ast(obj["wcm-key"], modtable),
                                         _to_ast(obj["wcm-val"], modtable),
@@ -578,9 +579,6 @@ def _to_ast(json, modtable):
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 VOID = Quote(values.w_void)
-INF = values.W_Flonum(float("inf"))
-NEGINF = values.W_Flonum(-float("inf"))
-NAN = values.W_Flonum(float("nan"))
 
 def _to_num(json):
     assert json.is_object
@@ -599,11 +597,11 @@ def _to_num(json):
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
-            return INF
+            return values.W_Flonum.INF
         if rs == "-inf.0":
-            return NEGINF
+            return values.W_Flonum.NEGINF
         if rs == "+nan.0":
-            return NAN
+            return values.W_Flonum.NAN
     if "integer" in obj:
         rs = obj["integer"].value_string()
         try:
@@ -640,7 +638,7 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return values_hash.W_EqualHashTable(
+            return W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
                     [to_value(i) for i in obj["hash-vals"].value_array()],
                     immutable=True)

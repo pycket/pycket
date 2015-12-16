@@ -384,7 +384,7 @@ class WCMValCont(Cont):
         return self.ast.body, self.env, self.prev
 
 class Module(AST):
-    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules", "interpreted?", "lang"]
+    _immutable_fields_ = ["name", "body", "requires", "parent", "submodules[*]", "interpreted?", "lang"]
     def __init__(self, name, body, config, lang=None):
         self.parent = None
         self.lang = lang
@@ -719,7 +719,6 @@ class WithContinuationMark(AST):
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
-    app_like = True
 
     def __init__ (self, rator, rands, env_structure=None):
         assert rator.simple
@@ -831,9 +830,13 @@ class SimplePrimApp1(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
+        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
-        result = self.run(env)
+        try:
+            result = self.run(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 
@@ -848,6 +851,7 @@ class SimplePrimApp2(App):
         self.w_prim = w_prim
 
     def run(self, env):
+        from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
@@ -859,9 +863,13 @@ class SimplePrimApp2(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
+        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
-        result = self.run(env)
+        try:
+            result = self.run(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
@@ -995,14 +1003,34 @@ class CellRef(Var):
         assert isinstance(v, values.W_Cell)
         return v.get_val()
 
+class GensymCounter(object):
+    _attrs_ = ['_val']
+
+    def __init__(self, val=0):
+        self._val = val
+
+    def next_value(self):
+        val = self._val
+        self._val += 1
+        return val
 
 class Gensym(object):
-    _counter = {}
+    _counters = {}
+
+    @staticmethod
+    @jit.elidable
+    def get_counter(hint):
+        result = Gensym._counters.get(hint, None)
+        if result is not None:
+            return result
+        result = GensymCounter()
+        Gensym._counters[hint] = result
+        return result
 
     @staticmethod
     def gensym(hint="g"):
-        count = Gensym._counter[hint] = Gensym._counter.get(hint, -1) +  1
-        # not using `make` so that it's really gensym
+        counter = Gensym.get_counter(hint)
+        count = counter.next_value()
         return values.W_Symbol(unicode(hint + str(count)))
 
 
@@ -1229,10 +1257,10 @@ def free_vars_lambda(body, args):
     return x
 
 class CaseLambda(AST):
-    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?"]
+    _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "_arity"]
     simple = True
 
-    def __init__(self, lams, recursive_sym=None):
+    def __init__(self, lams, recursive_sym=None, arity=None):
         ## TODO: drop lams whose arity is redundant
         ## (case-lambda [x 0] [(y) 1]) == (lambda x 0)
         self.lams = lams
@@ -1243,19 +1271,16 @@ class CaseLambda(AST):
                 break
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
-        self._arity = None
+        self._arity = arity
+        self.compute_arity()
 
     @jit.unroll_safe
     def enable_jitting(self):
         for l in self.lams:
             l.enable_jitting()
 
-    def set_in_cycle(self):
-        for l in self.lams:
-            l.set_in_cycle()
-
     def make_recursive_copy(self, sym):
-        return CaseLambda(self.lams, sym)
+        return CaseLambda(self.lams, sym, self._arity)
 
     def interpret_simple(self, env):
         if not env.pycketconfig().callgraph:
@@ -1291,7 +1316,7 @@ class CaseLambda(AST):
 
     def assign_convert(self, vars, env_structure):
         ls = [l.assign_convert(vars, env_structure) for l in self.lams]
-        return CaseLambda(ls, recursive_sym=self.recursive_sym)
+        return CaseLambda(ls, recursive_sym=self.recursive_sym, arity=self._arity)
 
     def _tostring(self):
         if len(self.lams) == 1:
@@ -1309,10 +1334,12 @@ class CaseLambda(AST):
             return "#<procedure:%s>" % (lam.srcfile)
         return "#<procedure>"
 
-    @jit.elidable
     def get_arity(self):
+        return self._arity
+
+    def compute_arity(self):
         if self._arity is not None:
-            return self._arity
+            return
         arities = []
         rest = -1
         for l in self.lams:
@@ -1326,7 +1353,6 @@ class CaseLambda(AST):
             else:
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
-        return self._arity
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
@@ -1345,11 +1371,6 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
-        self.body[0].the_lam = self
-
-    def set_in_cycle(self):
-        for b in self.body:
-            b.in_cycle = True
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1415,10 +1436,9 @@ class Lambda(SequencedBodyAST):
         fmls_len = len(self.formals)
         args_len = len(args)
         if fmls_len != args_len and not self.rest:
-            # don't format errors here, this is often caught and discarded
-            raise SchemeException("wrong args")
+            return None
         if fmls_len > args_len:
-            raise SchemeException("not enough args")
+            return None
         if self.rest:
             actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
         else:
@@ -1606,9 +1626,8 @@ def make_let(varss, rhss, body):
 def make_let_singlevar(sym, rhs, body):
     if 1 == len(body):
         b, = body
-        if isinstance(b, LexicalVar) and sym is b.sym:
-            return rhs
-        elif isinstance(b, App):
+        # XXX These are not correctness preserving
+        if isinstance(b, App):
             rator = b.rator
             x = {}
             for rand in b.rands:
@@ -1822,7 +1841,9 @@ class Let(SequencedBodyAST):
             result.append("[")
             if count > 1:
                 result.append("(")
-            for _ in range(count):
+            for k in range(count):
+                if k > 0:
+                    result.append(" ")
                 result.append(self.args.elems[j].variable_name())
                 j += 1
             if count > 1:
@@ -1892,7 +1913,9 @@ def get_printable_location_two_state(green_ast, came_from, env_shapes):
 
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["ast", "came_from", "env_shapes"],
-                                 get_printable_location=get_printable_location_two_state)
+                                 get_printable_location=get_printable_location_two_state,
+                                 should_unroll_one_iteration=lambda *args : True,
+                                 is_recursive=True)
 
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
@@ -1900,10 +1923,7 @@ def inner_interpret_two_state(ast, env, cont):
     env_shapes = env.shape_tuple()
     while True:
         driver_two_state.jit_merge_point(ast=ast, came_from=came_from, env=env, cont=cont, env_shapes=env_shapes)
-        if config.track_header:
-            came_from = ast if ast.should_enter else came_from
-        else:
-            came_from = ast if ast.app_like else came_from
+        came_from = ast if isinstance(ast, App) else came_from
         t = type(ast)
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
@@ -1924,9 +1944,13 @@ def get_printable_location_one_state(green_ast ):
     if green_ast is None:
         return 'Green_Ast is None'
     return green_ast.tostring()
+
 driver_one_state = jit.JitDriver(reds=["env", "cont"],
                        greens=["ast"],
-                       get_printable_location=get_printable_location_one_state)
+                       get_printable_location=get_printable_location_one_state,
+                       should_unroll_one_iteration=lambda *args : True,
+                       is_recursive=True)
+
 def inner_interpret_one_state(ast, env, cont):
     while True:
         driver_one_state.jit_merge_point(ast=ast, env=env, cont=cont)

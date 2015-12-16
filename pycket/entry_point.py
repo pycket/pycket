@@ -3,6 +3,10 @@
 #
 # _____ Define and setup target ___
 
+import os
+from rpython.rlib          import jit, objectmodel
+from rpython.rlib.nonconst import NonConstant
+
 def make_entry_point(pycketconfig=None):
     from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
@@ -10,9 +14,11 @@ def make_entry_point(pycketconfig=None):
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
 
-    from rpython.rlib import jit
 
     def entry_point(argv):
+        if not objectmodel.we_are_translated():
+            import sys
+            sys.setrecursionlimit(10000)
         try:
             return actual_entry(argv)
         except SchemeException, e:
@@ -24,6 +30,10 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "trace_limit", 1000000)
         jit.set_param(None, "threshold", 131)
         jit.set_param(None, "trace_eagerness", 50)
+
+        if NonConstant(False):
+            # Hack to give os.open() the correct annotation
+            os.open('foo', 1, 1)
 
         config, names, args, retval = parse_args(argv)
         if retval != 0 or config is None:

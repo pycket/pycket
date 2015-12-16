@@ -30,6 +30,7 @@ class W_StructInspector(values.W_Object):
     def __init__(self, w_super):
         self.w_super = w_super
 
+    @jit.elidable
     def has_control(self, struct_type):
         w_inspector = struct_type.w_inspector
         if not isinstance(w_inspector, W_StructInspector):
@@ -137,7 +138,7 @@ class W_StructType(values.W_Object):
 
 
     @staticmethod
-    @jit.unroll_safe
+    @jit.elidable
     def make_prefab(prefab_key):
         if prefab_key in W_StructType.unbound_prefab_types:
             return W_StructType.unbound_prefab_types[prefab_key]
@@ -330,6 +331,16 @@ class W_StructType(values.W_Object):
             return self.w_super.all_opaque()
         return True
 
+    @jit.elidable
+    def is_transparent(self):
+        while self is not None:
+            if self.inspector is not values.w_false:
+                return False
+            self = self.super
+        return True
+
+    def hash_value(self):
+        pass
 
     def tostring(self):
         return "#<struct-type:%s>" % self.name
@@ -340,6 +351,7 @@ class W_PrefabKey(values.W_Object):
     all_keys = []
 
     @staticmethod
+	@jit.elidable
     def make(name, init_field_count, auto_field_count, w_auto_value, mutables, super_key):
         for key in W_PrefabKey.all_keys:
             if key.equal_tuple((name, init_field_count, auto_field_count,
@@ -531,7 +543,7 @@ class W_PrefabKey(values.W_Object):
                 [values.W_Fixnum.make(self.auto_field_count), self.w_auto_value]))
         mutables = []
         for i in self.mutables:
-            mutables.append(values.W_Fixnum.make(i))
+            mutables.append(values.W_Fixnum(i))
         if mutables:
             key.append(values_vector.W_Vector.fromelements(mutables))
         if self.super_key:
@@ -1046,6 +1058,7 @@ class W_StructProperty(values.W_Object):
         self.supers = values.from_list(supers)
         self.can_imp = can_imp
 
+	@jit.elidable
     def isinstance(self, property):
         if self is property:
             return True
@@ -1069,6 +1082,7 @@ w_prop_chaperone_unsafe_undefined = W_StructProperty(sym("prop:chaperone-unsafe-
 w_prop_set_bang_transformer = W_StructProperty(sym("prop:set!-transformer"), values.w_false)
 w_prop_rename_transformer = W_StructProperty(sym("prop:rename-transformer"), values.w_false)
 w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), values.w_false)
+w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
 
 del sym
 

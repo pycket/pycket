@@ -104,7 +104,7 @@ class W_String(W_Object):
     def getslice(self, start, stop):
         return self.get_strategy().getslice(self, start, stop)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return self.get_strategy().hash(self)
 
     def equal(self, other):

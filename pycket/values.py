@@ -13,7 +13,7 @@ from pycket.base              import W_Object, W_ProtoObject
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
-from rpython.rlib.objectmodel import r_dict, compute_hash, we_are_translated
+from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -31,6 +31,7 @@ def memoize(f):
             lup = f(*val)
             cache[val] = lup
         return lup
+    wrapper.__name__ = "Memoized(%s)" % f.__name__
     return wrapper
 
 # Add a `make` method to a given class which memoizes constructor invocations.
@@ -155,18 +156,25 @@ class W_ResolvedModulePath(W_Object):
 
 class W_Logger(W_Object):
     errorname = "logger"
-    def __init__(self):
-        pass
+
+    _immutable_fields_ = ['topic', 'parent', 'propagate_level', 'propagate_topic[*]']
+
+    def __init__(self, topic, parent, propagate_level, propagate_topic):
+        self.topic           = topic
+        self.parent          = parent
+        self.propagate_level = propagate_level
+        self.propagate_topic = propagate_topic
+
     def tostring(self):
         return "#<logger>"
-
-current_logger = W_Logger()
 
 class W_ContinuationPromptTag(W_Object):
     errorname = "continuation-prompt-tag"
     _immutable_fields_ = ["name"]
+
     def __init__(self, name):
         self.name = name
+
     def tostring(self):
         return "#<continuation-prompt-tag>"
 
@@ -277,6 +285,7 @@ class W_Cons(W_List):
 
     def car(self):
         raise NotImplementedError("abstract base class")
+
     def cdr(self):
         raise NotImplementedError("abstract base class")
     def to_tuple(self):
@@ -296,6 +305,14 @@ class W_Cons(W_List):
 
     def immutable(self):
         return True
+
+    def hash_equal(self, info=None):
+        x = 0x345678
+        while isinstance(self, W_Cons):
+            car, self = self.car(), self.cdr()
+            y = car.hash_equal(info=info)
+            x = rarithmetic.intmask((1000003 * x) ^ y)
+        return x
 
     def equal(self, other):
         if not isinstance(other, W_Cons):
@@ -459,7 +476,6 @@ class W_HashTablePlaceholder(W_Object):
     def tostring(self):
         return "#<hash-table-placeholder>"
 
-
 class W_MList(W_Object):
     errorname = "mlist"
     def __init__(self):
@@ -481,7 +497,6 @@ class W_MCons(W_MList):
     def set_cdr(self, d):
         self._cdr = d
 
-
 class W_Number(W_Object):
     errorname = "number"
     def __init__(self):
@@ -494,7 +509,7 @@ class W_Number(W_Object):
         return self.equal(other)
 
     def hash_eqv(self):
-        return self.hash_equal()
+        return self.hash_equal(info=None)
 
 class W_Rational(W_Number):
     _immutable_fields_ = ["_numerator", "_denominator"]
@@ -555,7 +570,7 @@ class W_Rational(W_Number):
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         hash1 = self._numerator.hash()
         hash2 = self._denominator.hash()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
@@ -587,8 +602,10 @@ class W_Integer(W_Number):
 class W_Fixnum(W_Integer):
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
+
     def tostring(self):
         return str(self.value)
+
     def __init__(self, val):
         if not we_are_translated():
             # this is not safe during translation
@@ -600,9 +617,12 @@ class W_Fixnum(W_Integer):
             return False
         return self.value == other.value
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return self.value
 
+W_Fixnum.ZERO = W_Fixnum.make(0)
+W_Fixnum.ONE  = W_Fixnum.make(1)
+W_Fixnum.TWO  = W_Fixnum.make(2)
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
@@ -619,10 +639,10 @@ class W_Flonum(W_Number):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
         return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return compute_hash(self.value)
 
-    def eqv(self, other):
+    def equal(self, other):
         from rpython.rlib.longlong2float import float2longlong
         import math
         if not isinstance(other, W_Flonum):
@@ -634,20 +654,33 @@ class W_Flonum(W_Number):
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
+W_Flonum.INF    = W_Flonum(float("inf"))
+W_Flonum.NEGINF = W_Flonum(-float("inf"))
+W_Flonum.NAN    = W_Flonum(float("nan"))
 
 class W_Bignum(W_Integer):
     _immutable_fields_ = ["value"]
+
     def tostring(self):
-        return str(self.value)
+        return self.value.str()
+
     def __init__(self, val):
         self.value = val
+
+    def toflonum(self):
+        bignum = self.value
+        try:
+            floatval = bignum.tofloat()
+        except OverflowError:
+            return W_Flonum.NEGINF if bignum.sign < 0 else W_Flonum.INF
+        return W_Flonum(floatval)
 
     def equal(self, other):
         if not isinstance(other, W_Bignum):
             return False
         return self.value.eq(other.value)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return self.value.hash()
 
 @memoize_constructor
@@ -659,14 +692,20 @@ class W_Complex(W_Number):
         self.real = re
         self.imag = im
 
+    @staticmethod
+    def from_real_pair(real, imag):
+        if W_Fixnum.ZERO.eqv(imag):
+            return real
+        return W_Complex(real, imag)
+
     def eqv(self, other):
         if not isinstance(other, W_Complex):
             return False
         return self.real.eqv(other.real) and self.imag.eqv(other.imag)
 
-    def hash_equal(self):
-        hash1 = compute_hash(self.real)
-        hash2 = compute_hash(self.imag)
+    def hash_equal(self, info=None):
+        hash1 = self.real.hash_equal()
+        hash2 = self.imag.hash_equal()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
     def tostring(self):
@@ -693,7 +732,9 @@ class W_Character(W_Object):
 
     def hash_eqv(self):
         return ord(self.value)
-    hash_equal = hash_eqv
+
+    def hash_equal(self, info=None):
+        return self.hash_eqv()
 
 
 class W_Thread(W_Object):
@@ -837,7 +878,7 @@ class W_Bytes(W_Object):
             return False
         return len(self.value) == len(other.value) and str(self.value) == str(other.value)
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         from rpython.rlib.rarithmetic import intmask
         # like CPython's string hash
         s = self.value
@@ -897,7 +938,6 @@ class W_Symbol(W_Object):
     all_symbols = {}
     unreadable_symbols = {}
 
-
     def __init__(self, val, unreadable=False):
         assert isinstance(val, unicode)
         self.unicodevalue = val
@@ -909,6 +949,7 @@ class W_Symbol(W_Object):
         self.utf8value = val.encode("utf-8")
 
     @staticmethod
+    @jit.elidable
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
@@ -1024,7 +1065,7 @@ class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
 
     def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
-        self.name = name
+        self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity
@@ -1069,6 +1110,14 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
+@always_inline
+def from_list_unroll_pred(lst, idx, unroll_to=0):
+    if not jit.we_are_jitted():
+        return False
+    if unroll_to == -1:
+        return False
+    return not jit.isvirtual(lst) and idx > unroll_to
+
 @jit.elidable
 def from_list_elidable(w_curr):
     result = []
@@ -1081,17 +1130,27 @@ def from_list_elidable(w_curr):
         raise SchemeException("Expected list, but got something else")
 
 @jit.unroll_safe
-def from_list(w_curr):
+def from_list(w_curr, unroll_to=0):
     result = []
+    n = 0
     while isinstance(w_curr, W_Cons):
-        if jit.we_are_jitted() and (not jit.isvirtual(w_curr) or jit.isconstant(w_curr)):
+        if from_list_unroll_pred(w_curr, n, unroll_to=unroll_to):
             return result + from_list_elidable(w_curr)
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
+        n += 1
     if w_curr is w_null:
         return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
+
+def from_list_iter(lst):
+    if not lst.is_proper_list():
+        raise SchemeException("Expected a list")
+    while isinstance(lst, W_Cons):
+        val, lst = lst.car(), lst.cdr()
+        yield val
+    assert lst is w_null, "is_proper_list lied"
 
 class W_Continuation(W_Procedure):
     errorname = "continuation"
@@ -1111,7 +1170,7 @@ class W_Continuation(W_Procedure):
 class W_Closure(W_Procedure):
     _immutable_fields_ = ["caselam"]
     @jit.unroll_safe
-    def __init__ (self, caselam, env):
+    def __init__(self, caselam, env):
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
@@ -1143,15 +1202,14 @@ class W_Closure(W_Procedure):
     @jit.unroll_safe
     def _find_lam(self, args):
         jit.promote(self.caselam)
-        for (i, lam) in enumerate(self.caselam.lams):
-            try:
-                actuals = lam.match_args(args)
-            except SchemeException:
-                if len(self.caselam.lams) == 1:
-                    lam.raise_nice_error(args)
-            else:
+        for i, lam in enumerate(self.caselam.lams):
+            actuals = lam.match_args(args)
+            if actuals is not None:
                 frees = self._get_list(i)
-                return (actuals, frees, lam)
+                return actuals, frees, lam
+        if len(self.caselam.lams) == 1:
+            single_lambda = self.caselam.lams[0]
+            single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
     def call_with_extra_info(self, args, env, cont, calling_app):
@@ -1216,6 +1274,8 @@ class W_Closure1AsEnv(ConsEnv):
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
+        if actuals is None:
+            lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(

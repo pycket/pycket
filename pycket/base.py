@@ -24,6 +24,7 @@ class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []
     errorname = "%%%%unreachable%%%%"
+
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -82,9 +83,11 @@ class W_Object(W_ProtoObject):
     def eqv(self, other):
         return self is other # default implementation
 
-    def hash_equal(self):
+    def hash_equal(self, info=None):
         return objectmodel.compute_hash(self) # default implementation
-    hash_eqv = hash_equal
+
+    def hash_eqv(self):
+        return self.hash_equal()
 
     def tostring(self):
         return str(self)
@@ -95,7 +98,7 @@ class W_Object(W_ProtoObject):
 
     # for expose
     @classmethod
-    def make_unwrapper(cls):
+    def make_unwrapper(cls, unbox=False):
         if cls is W_Object:
             return lambda x: x, ''
         def unwrap(w_object):

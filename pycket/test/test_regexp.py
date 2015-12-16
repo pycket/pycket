@@ -46,7 +46,7 @@ def test_regexp_match_character_negation(doctest):
     """
 
 def test_regexp_match_positions(doctest):
-    r"""
+    ur"""
     > (regexp-match-positions #rx"a|b" "dog")
     #f
     > (regexp-match-positions #rx"a|b" "cat")
@@ -57,6 +57,8 @@ def test_regexp_match_positions(doctest):
     '((22 . 25) (24 . 25))
     > (regexp-match-positions #px"\\s+$" "blue ")
     '((4 . 5))
+    > (regexp-match-positions #px"β" "λΖχβα")
+    '((3 . 4))
     """
 
 def test_regexp_match_positions_end(doctest):
@@ -73,6 +75,10 @@ def test_regexp_match_positions_end(doctest):
     '(((22 . 25) (24 . 25)) #"c")
     > (call-with-values (λ () (regexp-match-positions/end #px"\\s+$" "blue ")) list)
     '(((4 . 5)) #" ")
+    > (car (call-with-values (λ () (regexp-match-positions/end #px"β" "λΖχβα")) list))
+    '((3 . 4))
+    > (bytes-ref (cadr (call-with-values (λ () (regexp-match-positions/end #px"β" "λΖχβα")) list)) 0)
+    178
     """
 
 def test_regexp_match_p(doctest):
