@@ -446,9 +446,32 @@ def _to_ast(json, modtable):
                 return Begin([_to_ast(x, modtable) for x in arr[1:]])
             if ast_elem == "#%expression":
                 return _to_ast(arr[1], modtable)
+            if ast_elem == "set!":
+                target = arr[1].value_object()
+                var = None
+                if "source-name" in target:
+                    srcname = values.W_Symbol.make(target["source-name"].value_string())
+                    if "source-module" in target:
+                        if target["source-module"].is_array:
+                            path_arr = target["source-module"].value_array()
+                            srcmod, path = parse_path(path_arr)
+                        else:
+                            srcmod = path = None
+                    else:
+                        srcmod = "#%kernel"
+                        path   = None
+                    modname = values.W_Symbol.make(target["module"].value_string()) if "module" in target else srcname
+                    var = ModuleVar(modname, srcmod, srcname, path)
+                elif "lexical" in target:
+                    var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
+                elif "toplevel" in target:
+                    var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
+                return SetBang(var, _to_ast(arr[2], modtable))
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
+            if ast_elem == "begin-for-syntax":
+                return VOID
             if ast_elem == "define-syntaxes":
                 return VOID
             # The parser now ignores `#%require` AST nodes.
@@ -533,28 +556,6 @@ def _to_ast(json, modtable):
             return Quote(to_value(obj["quote"]))
         if "quote-syntax" in obj:
             return QuoteSyntax(to_value(obj["quote-syntax"]))
-        if "set!" in obj:
-            target = obj["set!"].value_object()
-            var = None
-            if "source-name" in target:
-                srcname = values.W_Symbol.make(target["source-name"].value_string())
-                if "source-module" in target:
-                    if target["source-module"].is_array:
-                        path_arr = target["source-module"].value_array()
-                        srcmod, path = parse_path(path_arr)
-                    else:
-                        srcmod = path = None
-                else:
-                    srcmod = "#%kernel"
-                    path   = None
-                modname = values.W_Symbol.make(target["module"].value_string()) if "module" in target else srcname
-                var = ModuleVar(modname, srcmod, srcname, path)
-            elif "lexical" in target:
-                var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
-            elif "toplevel" in target:
-                var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
-            body = obj["set!-body"]
-            return SetBang(var, _to_ast(body, modtable))
         if "source-name" in obj:
             srcname = obj["source-name"].value_string()
             modname = obj["module"].value_string() if "module" in obj else None
