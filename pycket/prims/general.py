@@ -753,7 +753,6 @@ def make_list_eater(name):
     """
     spec     = name[1:-1]
     unrolled = unroll.unrolling_iterable(reversed(spec))
-    print spec
 
     contract = "pair?"
 
