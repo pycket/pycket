@@ -758,7 +758,7 @@ def make_list_eater(name):
 
     contract = "pair?"
 
-    for letter in spec[1:]:
+    for letter in spec[1::-1]:
         if letter == 'a':
             contract = "(cons/c %s any/c)" % contract
         elif letter == 'd':
@@ -773,11 +773,14 @@ def make_list_eater(name):
             if not isinstance(lst, values.W_Cons):
                 raise SchemeException("%s: expected %s given %s" % (name, contract, _lst))
             if letter == 'a':
-                lst = a.car()
+                lst = lst.car()
             elif letter == 'd':
-                lst = a.cdr()
+                lst = lst.cdr()
             else:
                 assert False, "Bad list eater specification"
+        return lst
+    process_list.__name__ = "do_" + name
+    return process_list
 
 def list_eater_names(n):
     names = []
