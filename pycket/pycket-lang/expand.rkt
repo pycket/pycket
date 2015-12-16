@@ -3,9 +3,13 @@
 (require syntax/parse syntax/modresolve
          (only-in racket/list append-map last-pair filter-map first add-between)
          racket/path
+         racket/bool
+         racket/pretty
          racket/dict racket/match
          racket/format
-         racket/extflonum)
+         racket/extflonum
+         racket/syntax
+         (for-syntax racket/base))
 
 (define keep-srcloc (make-parameter #t))
 (define current-phase (make-parameter 0))
@@ -416,9 +420,10 @@
            (hash 'improper (list (map to-json s s*) (to-json r r*)))
            (map to-json s s*)))]
     [(i:identifier _)
-     (match (identifier-binding #'i)
+     (match (identifier-binding #'i (current-phase))
        ['lexical (hash 'lexical  (id->sym v))]
-       [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
+       [#f       
+        (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
@@ -471,38 +476,46 @@
 
 (define (is-module? m)
   (and (hash? m)
-       (hash-has-key? m 'module-name)
-       (hash-has-key? m 'language)))
+       (hash-has-key? m 'module-name)))
 
 (define (convert mod mod/loc [config? #t])
   (syntax-parse (list mod mod/loc) 
     #:literal-sets ((kernel-literals #:phase (current-phase)))
     [((module name:id lang:expr (#%plain-module-begin forms ...))
-      (_ _ _                    (#%plain-module-begin forms* ...)))
+      (_ _ _                    (_ forms* ...)))
      (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
                          (require-json #'lang))])
-       (hash* 'module-name (symbol->string (syntax-e #'name))
-              'body-forms (filter-map to-json
-                                      (syntax->list #'(forms ...))
-                                      (syntax->list #'(forms* ...)))
-              'language (first lang-req)
-              'config (and config? global-config)))]
+       (parameterize ([current-phase 0])
+         (hash* 'module-name (symbol->string (syntax-e #'name))
+                'body-forms (filter-map to-json
+                                        (syntax->list #'(forms ...))
+                                        (syntax->list #'(forms* ...)))
+                'language (first lang-req)
+                'config (and config? global-config))))]
     [((module* name:id lang:expr (#%plain-module-begin forms ...))
-      (_ _ _                    (#%plain-module-begin forms* ...)))
+      (_ _ _                    (_ forms* ...)))
      (let ([lang-req (cond
                        [(not (syntax-e #'lang)) (list #f)]
                        [(or (eq? (syntax-e #'lang) 'pycket)
                         (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                         (require-json #'#%kernel)]
                        [else (require-json #'lang)])])
-       (hash* 'module-name (symbol->string (syntax-e #'name))
-              'body-forms (filter-map to-json
-                                      (syntax->list #'(forms ...))
-                                      (syntax->list #'(forms* ...)))
-              'language (first lang-req)
-              'config (and config? global-config)))]
+       (define/with-syntax
+         ((_ _ _ (_ s-forms ...))
+          (_ _ _ (_ s-forms* ...)))
+         (if (false? (syntax-e #'lang))
+             (list (syntax-shift-phase-level mod (- (current-phase)))
+                   (syntax-shift-phase-level mod/loc (- (current-phase))))
+             (list mod mod/loc)))
+       (parameterize ([current-phase 0])
+         (hash* 'module-name (symbol->string (syntax-e #'name))
+                'body-forms (filter-map to-json
+                                        (syntax->list #'(s-forms ...))
+                                        (syntax->list #'(s-forms* ...)))
+                'language (first lang-req)
+                'config (and config? global-config))))]
     [_
      (error 'convert "bad ~a ~a" mod (syntax->datum mod))]))
 
