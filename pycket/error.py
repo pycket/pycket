@@ -18,7 +18,8 @@ class SchemeException(Exception):
             if self.context_ast.surrounding_lambda:
                 result += "\n  in function: %s" % (
                 self.context_ast.surrounding_lambda.tostring(),)
-        if self.context_module:
-            result += "\n  in module: %s" % (self.context_module.name, )
+        context = self.context_module
+        if context is not None:
+            result += "\n  in module: %s" % context.full_module_path()
         return result
 

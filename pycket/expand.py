@@ -225,10 +225,6 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 #### ========================== Functions for parsing json to an AST
 
-def load_json_ast(fname):
-    data = readfile(fname)
-    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
-
 def load_json_ast_rpython(fname, modtable):
     data = readfile_rpython(fname)
     return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
@@ -321,7 +317,6 @@ def _to_module(json, modtable):
     else:
         assert 0
 
-
 # A table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
@@ -361,6 +356,16 @@ class ModTable(object):
             return None
         return self.table[fname]
 
+    def enter_module(self, fname):
+        # Pre-emptive pushing to prevent recursive expansion due to submodules
+        # which reference the enclosing module
+        self.push(fname)
+        self.add_module(fname, None)
+
+    def exit_module(self, fname, module):
+        self.add_module(fname, module)
+        self.pop()
+
 def shorten_submodule_path(path):
     if path is None:
         return None
@@ -381,13 +386,9 @@ def _to_require(fname, modtable, path=None):
         if modtable.builtin(fname):
             return VOID
         return Require(fname, modtable, path=path)
-    modtable.push(fname)
-    # Pre-emptive pushing to prevent recursive expansion due to submodules
-    # which reference the enclosing module
-    modtable.add_module(fname, None)
+    modtable.enter_module(fname)
     module = expand_file_cached(fname, modtable)
-    modtable.add_module(fname, module)
-    modtable.pop()
+    modtable.exit_module(fname, module)
     return Require(fname, modtable, path=path)
 
 def parse_require(path, modtable):
