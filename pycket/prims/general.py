@@ -14,9 +14,11 @@ from pycket.error import SchemeException
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, define_nyi, subclass_unsafe)
-from rpython.rlib import jit, objectmodel
+
+
+from rpython.rlib         import jit, objectmodel, unroll
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rsre import rsre_re as re
+from rpython.rlib.rsre    import rsre_re as re
 
 # import for side effects
 from pycket.prims import control
