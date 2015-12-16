@@ -416,7 +416,7 @@
            (hash 'improper (list (map to-json s s*) (to-json r r*)))
            (map to-json s s*)))]
     [(i:identifier _)
-     (match (identifier-binding* #'i)
+     (match (identifier-binding #'i)
        ['lexical (hash 'lexical  (id->sym v))]
        [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
