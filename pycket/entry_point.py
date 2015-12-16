@@ -42,14 +42,12 @@ def make_entry_point(pycketconfig=None):
         module_name, json_ast = ensure_json_ast(config, names)
 
         modtable = ModTable()
-        modtable.push(module_name)
-        modtable.add_module(module_name, None)
+        modtable.enter_module(module_name)
         if json_ast is None:
             ast = expand_to_ast(module_name, modtable)
         else:
             ast = load_json_ast_rpython(json_ast, modtable)
-        modtable.add_module(module_name, ast)
-        modtable.pop()
+        modtable.exit_module(module_name, ast)
 
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)
