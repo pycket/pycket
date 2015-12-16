@@ -536,7 +536,7 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["modname", "modtable", "path[*]"]
+    _immutable_fields_ = ["fname", "modtable", "path[*]"]
     simple = True
 
     def __init__(self, fname, modtable, path=None):
