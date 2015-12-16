@@ -322,6 +322,10 @@
            'operands (map to-json
                           (syntax->list #'(e ...))
                           (syntax->list #'(e* ...))))]
+    [((set! var body)
+      (set! var* body*))
+     (hash 'set! (to-json #'var #'var*)
+           'set!-body (to-json #'body #'body*))]
     [((with-continuation-mark e0 e1 e2)
       (with-continuation-mark e0* e1* e2*))
      (hash 'wcm-key (to-json #'e0 #'e0*)
