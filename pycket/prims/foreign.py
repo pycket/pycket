@@ -17,20 +17,24 @@ else:                           # 64-bit
     POINTER_SIZE = 8
 
 PRIMITIVE_CTYPES = [
-    ("int8"          , 1            ) ,
-    ("int16"         , 2            ) ,
-    ("int32"         , 4            ) ,
-    ("int64"         , 8            ) ,
-    ("uint8"         , 1            ) ,
-    ("uint16"        , 2            ) ,
-    ("uint32"        , 4            ) ,
-    ("uint64"        , 8            ) ,
-    ("bytes"         , POINTER_SIZE ) ,
-    ("path"          , POINTER_SIZE ) ,
-    ("pointer"       , POINTER_SIZE ) ,
-    ("fpointer"      , POINTER_SIZE ) ,
-    ("string/utf-16" , POINTER_SIZE ) ,
-    ("gcpointer"     , POINTER_SIZE ) ,
+    ("int8"          , 1           , 1 ) ,
+    ("int16"         , 2           , 2 ) ,
+    ("int32"         , 4           , 4 ) ,
+    ("int64"         , 8           , 8 ) ,
+    ("uint8"         , 1           , 1 ) ,
+    ("uint16"        , 2           , 2 ) ,
+    ("uint32"        , 4           , 4 ) ,
+    ("uint64"        , 8           , 8 ) ,
+    ("void"          , 0           , 1 ) ,
+    ("bytes"         , POINTER_SIZE, POINTER_SIZE) ,
+    ("path"          , POINTER_SIZE, POINTER_SIZE) ,
+    ("pointer"       , POINTER_SIZE, POINTER_SIZE) ,
+    ("fpointer"      , POINTER_SIZE, POINTER_SIZE) ,
+    ("string/utf-16" , POINTER_SIZE, POINTER_SIZE) ,
+    ("gcpointer"     , POINTER_SIZE, POINTER_SIZE) ,
+    ("or-null"       , POINTER_SIZE, POINTER_SIZE) ,
+    ("_gcable"       , POINTER_SIZE, POINTER_SIZE) ,
+    ("scheme"        , POINTER_SIZE, POINTER_SIZE  , "racket") ,
     ]
 
 sym = values.W_Symbol.make
@@ -42,17 +46,22 @@ COMPILER_SIZEOF = unroll.unrolling_iterable([
     (sym("short"  ) , 1            ) ,
     (sym("long"   ) , POINTER_SIZE ) ,
     (sym("*"      ) , POINTER_SIZE ) ,
-    (sym("void"   ) , 1            ) ,
+    (sym("void"   ) , 0            ) ,
     (sym("float"  ) , 4            ) ,
     (sym("double" ) , 8            ) ,
     ])
 
 del sym
 
-for name, size in PRIMITIVE_CTYPES:
-    ctype   = W_PrimitiveCType(name, size)
-    exposed = W_DerivedCType(ctype, values.w_false, values.w_false)
+def expose_ctype(name, size, alignment, *extra_names):
+    basetype = values.W_Symbol.make(name)
+    ctype    = W_PrimitiveCType(basetype, size, alignment)
     expose_val("_" + name, ctype)
+    for name in extra_names:
+        expose_val("_" + name, ctype)
+
+for spec in PRIMITIVE_CTYPES:
+    expose_ctype(*spec)
 
 @expose("make-ctype", [W_CType, values.W_Object, values.W_Object])
 def make_c_type(ctype, rtc, ctr):
@@ -72,7 +81,7 @@ def _compiler_sizeof(ctype):
             car, ctype = ctype.car(), ctype.cdr()
             if not isinstance(car, values.W_Symbol):
                 break
-            acc += _compiler_sizeof(car)
+            acc = max(_compiler_sizeof(car), acc)
         else:
             return acc
 
@@ -97,6 +106,10 @@ def make_stub_will_executor():
 @expose("ctype-sizeof", [W_CType])
 def ctype_sizeof(ctype):
     return values.W_Fixnum(ctype.sizeof())
+
+@expose("ctype-alignof", [W_CType])
+def ctype_alignof(ctype):
+    return values.W_Fixnum(ctype.alignof())
 
 @expose("ctype?", [W_CType])
 def ctype(c):
@@ -139,8 +152,13 @@ def ctype_basetype(ctype):
         msg = ("ctype-basetype: expected (or/c ctype? #f) in argument 0 got %s" %
                ctype.tostring())
         raise SchemeException(msg)
-    while isinstance(ctype, W_DerivedCType):
-        ctype = ctype.ctype
-    assert isinstance(ctype, W_PrimitiveCType)
-    return ctype
+    return ctype.basetype()
+
+@expose("ctype-scheme->c", [W_CType])
+def ctype_scheme_to_c(ctype):
+    return ctype.scheme_to_c()
+
+@expose("ctype-c->scheme", [W_CType])
+def ctype_c_to_scheme(ctype):
+    return ctype.c_to_scheme()
 
