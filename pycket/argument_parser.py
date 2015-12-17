@@ -84,6 +84,8 @@ class ArgParser(object):
         pass
 
 def make_spec(arg):
+    if isinstance(arg, Spec):
+        return arg
     return (Instance if inspect.isclass(arg) else Value)(arg)
 
 def add_parser_method(name, *_specs):
@@ -100,6 +102,10 @@ def add_parser_method(name, *_specs):
             for spec in specs:
                 if spec.conforms(arg):
                     return arg
+            raise_error(self, arg)
+        checker.__name__ = name
+
+        def raise_error(self, arg):
             names = " ".join([spec.repr() for spec in specs])
             if len(_specs) == 1:
                 types = names[0]
@@ -107,7 +113,6 @@ def add_parser_method(name, *_specs):
                 types = "(or/c %s)" % names
             msg = "%s: expected %s at argument %d got %s" % (self.context, types, self.index, arg.tostring())
             raise SchemeException(msg)
-        checker.__name__ = name
 
         @jit.unroll_safe
         def _checker(self):

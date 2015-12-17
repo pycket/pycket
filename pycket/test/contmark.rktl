@@ -11,13 +11,13 @@
 
 (test null extract-current-continuation-marks 'key)
 
-(syntax-test #'with-continuation-mark)
-(syntax-test #'(with-continuation-mark))
-(syntax-test #'(with-continuation-mark 1))
-(syntax-test #'(with-continuation-mark 1))
-(syntax-test #'(with-continuation-mark 1 2))
-(syntax-test #'(with-continuation-mark 1 2 3 4))
-(syntax-test #'(with-continuation-mark 1 2 3 . 4))
+;; (syntax-test #'with-continuation-mark)
+;; (syntax-test #'(with-continuation-mark))
+;; (syntax-test #'(with-continuation-mark 1))
+;; (syntax-test #'(with-continuation-mark 1))
+;; (syntax-test #'(with-continuation-mark 1 2))
+;; (syntax-test #'(with-continuation-mark 1 2 3 4))
+;; (syntax-test #'(with-continuation-mark 1 2 3 . 4))
 
 (define (wcm f) (f))
 (define (wcm-in-barrier f)

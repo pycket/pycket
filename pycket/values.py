@@ -1,14 +1,15 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket.env               import ConsEnv
-from pycket.cont              import continuation, label, BaseCont
 from pycket                   import config
-from pycket.error             import SchemeException
-from pycket.small_list        import inline_small_list
 from pycket.arity             import Arity
-from pycket.prims.expose      import make_call_method
 from pycket.base              import W_Object, W_ProtoObject
+from pycket.cont              import continuation, label, BaseCont
+from pycket.env               import ConsEnv
+from pycket.error             import SchemeException
+from pycket.prims.expose      import make_call_method
+from pycket.small_list        import inline_small_list
+from pycket.util              import memoize_constructor
 
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
@@ -21,24 +22,6 @@ from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized
 
 UNROLLING_CUTOFF = 5
-
-def memoize(f):
-    cache = {}
-    @jit.elidable
-    def wrapper(*val):
-        lup = cache.get(val, None)
-        if lup is None:
-            lup = f(*val)
-            cache[val] = lup
-        return lup
-    wrapper.__name__ = "Memoized(%s)" % f.__name__
-    return wrapper
-
-# Add a `make` method to a given class which memoizes constructor invocations.
-def memoize_constructor(cls):
-    setattr(cls, "make", staticmethod(memoize(cls)))
-    return cls
-
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
@@ -1081,7 +1064,7 @@ class W_Prim(W_Procedure):
         return self.code(args, env, cont, extra_call_info)
 
     def tostring(self):
-        return "#<procedure:%s>" % self.name
+        return "#<procedure:%s>" % self.name.variable_name()
 
 def to_list(l): return to_improper(l, w_null)
 

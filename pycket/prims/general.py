@@ -1160,7 +1160,6 @@ def file_pos_star(v):
     return values.w_false
 
 
-
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
     if v.unreadable:

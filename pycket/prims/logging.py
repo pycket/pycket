@@ -43,7 +43,7 @@ def log_level(logger, level, topic):
     # TODO: Actual implementation
     return values.w_false
 
-@expose("log-message", arity=Arity.fixed(4, 5, 6))
+@expose("log-message", arity=Arity.oneof(4, 5, 6))
 def log_message(args):
     # TODO: Actual implementation
     return

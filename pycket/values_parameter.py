@@ -1,5 +1,6 @@
 
 from pycket                          import values
+from pycket.arity                    import Arity
 from pycket.base                     import W_Object
 from pycket.cont                     import call_cont, continuation, BaseCont
 from pycket.error                    import SchemeException
@@ -91,6 +92,8 @@ class W_BaseParameter(W_Object):
     _attrs_ = ["guard"]
     _immutable_fields_ = ["guard"]
 
+    ARITY = Arity.oneof(0, 1)
+
     def __init__(self, guard=None):
         self.guard = None if guard is values.w_false else guard
 
@@ -99,6 +102,9 @@ class W_BaseParameter(W_Object):
 
     def get_key(self):
         raise NotImplementedError("abstract base class")
+
+    def get_arity(self):
+        return W_BaseParameter.ARITY
 
     def tostring(self):
         return "#<parameter-procedure>"
