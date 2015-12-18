@@ -604,6 +604,8 @@ def test_struct_operations_arity(doctest):
     1
     > (procedure-arity set-posn-y!)
     2
+    > (procedure-arity posn)
+    2
     """
 
 @skip

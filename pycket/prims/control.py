@@ -4,7 +4,7 @@
 from pycket                    import values, values_parameter, values_string
 from pycket.parser_definitions import ArgParser, EndOfInput
 from pycket.arity              import Arity
-from pycket.cont               import continuation, loop_label, call_cont, Prompt
+from pycket.cont               import continuation, loop_label, call_cont, Barrier, Prompt
 from pycket.error              import SchemeException
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
 
@@ -133,6 +133,7 @@ def call_with_continuation_prompt(args, env, cont):
 @expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)
 def call_with_continuation_barrier(proc, env, cont, calling_app):
     # TODO: Implementation
+    cont = Barrier(env, cont)
     return proc.call_with_extra_info([], env, cont, calling_app)
 
 def raise_exception(v, barrier, env, cont):

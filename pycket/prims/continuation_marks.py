@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from pycket import impersonators as imp
 from pycket import values
+from pycket import vector
 from pycket.cont import call_cont
 from pycket.error import SchemeException
 from pycket.prims.expose import default, expose, make_callable_label, procedure
@@ -19,6 +20,11 @@ def current_cont_marks(prompt_tag, env, cont):
     from pycket.interpreter import return_value
     return return_value(values.W_ContinuationMarkSet(cont), env, cont)
 
+@expose("continuation-marks", [values.W_Continuation, default(values.W_ContinuationPromptTag, None)])
+def continuation_marks(cont, prompt_tag):
+    # TODO Prompt tag
+    return values.W_ContinuationMarkSet(cont.cont)
+
 @expose("continuation-mark-set->list",
         [values.W_ContinuationMarkSet, values.W_Object,
          default(values.W_ContinuationPromptTag, None)], simple=False)
@@ -31,6 +37,35 @@ def cms_list(cms, mark, prompt_tag, env, cont):
         return map_loop(func, [marks], env, cont)
     marks = cms.cont.get_marks(mark)
     return return_value(marks, env, cont)
+
+def get_marks_all(cont, keys, not_found):
+    results = vector.W_Vector.fromelement(not_found, len(keys))
+    while True:
+        if cont is None:
+            return values.w_null
+        found = False
+        for i, key in enumerate(keys):
+            value = cont.find_cm(key)
+            if value is not None:
+                found = True
+            else:
+                value = not_found
+            results.set(i, value)
+        cont = cont.get_previous_continuation()
+        if found:
+            break
+    rest = get_marks_all(cont, keys, not_found)
+    return values.W_Cons.make(results, rest)
+
+@expose("continuation-mark-set->list*",
+        [values.W_ContinuationMarkSet,
+         values.W_List,
+         default(values.W_Object, values.w_false),
+         default(values.W_ContinuationPromptTag, None)])
+def continuation_mark_set_to_list_star(mark_set, key_list, none_v, prompt_tag):
+    cont = mark_set.cont
+    keys = values.from_list(key_list)
+    return get_marks_all(cont, keys, none_v)
 
 @expose("continuation-mark-set->context", [values.W_ContinuationMarkSet])
 def cms_context(marks):
