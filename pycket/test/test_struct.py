@@ -592,6 +592,22 @@ def test_auto_values(doctest):
     """
     assert doctest
 
+def test_struct_operations_arity(doctest):
+    """
+    ! (require racket/base)
+    ! (struct posn (x [y #:mutable] [z #:auto]) #:auto-value 0 #:transparent)
+    > (procedure-arity posn-x)
+    1
+    > (procedure-arity posn-y)
+    1
+    > (procedure-arity posn-z)
+    1
+    > (procedure-arity set-posn-y!)
+    2
+    > (procedure-arity posn)
+    2
+    """
+
 @skip
 def test_serializable(source):
     """

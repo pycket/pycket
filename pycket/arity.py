@@ -1,3 +1,7 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from pycket.util  import memoize
 from rpython.rlib import jit
 
 AT_LEAST_CACHE = {}
@@ -14,17 +18,20 @@ class Arity(object):
         return arity in self.arity_list
 
     @staticmethod
+    @memoize
     def geq(n):
-        lup = AT_LEAST_CACHE.get(n, None)
-        if lup is None:
-            AT_LEAST_CACHE[n] = lup = Arity([], n)
-        return lup
+        return Arity([], n)
 
     @staticmethod
-    def fixed(*lst):
+    @memoize
+    def oneof(*lst):
         return Arity(list(lst), -1)
 
 Arity.unknown = Arity([], 0)
+Arity.ZERO    = Arity.oneof(0)
+Arity.ONE     = Arity.oneof(1)
+Arity.TWO     = Arity.oneof(2)
+Arity.THREE   = Arity.oneof(3)
 
 for i in range(10):
     setattr(Arity, "geq_%d" % i, Arity.geq(i))

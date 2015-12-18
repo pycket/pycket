@@ -11,13 +11,13 @@
 
 (test null extract-current-continuation-marks 'key)
 
-(syntax-test #'with-continuation-mark)
-(syntax-test #'(with-continuation-mark))
-(syntax-test #'(with-continuation-mark 1))
-(syntax-test #'(with-continuation-mark 1))
-(syntax-test #'(with-continuation-mark 1 2))
-(syntax-test #'(with-continuation-mark 1 2 3 4))
-(syntax-test #'(with-continuation-mark 1 2 3 . 4))
+;; (syntax-test #'with-continuation-mark)
+;; (syntax-test #'(with-continuation-mark))
+;; (syntax-test #'(with-continuation-mark 1))
+;; (syntax-test #'(with-continuation-mark 1))
+;; (syntax-test #'(with-continuation-mark 1 2))
+;; (syntax-test #'(with-continuation-mark 1 2 3 4))
+;; (syntax-test #'(with-continuation-mark 1 2 3 . 4))
 
 (define (wcm f) (f))
 (define (wcm-in-barrier f)
@@ -163,19 +163,19 @@
 	       'x))))
 
 ;; full continuation, another thread
-(wcm-test '(11 10)
-	  (lambda ()
-	    (let ([k (with-continuation-mark 'x 10
-		       (begin0
-			(with-continuation-mark 'x 11
-			  (let/cc k k))
-			(+ 2 3)))])
-	      (continuation-mark-set->list 
-	       (let ([v #f])
-		 (thread-wait (thread (lambda () 
-					(set! v (continuation-marks k)))))
-		 v)
-	       'x))))
+#|(wcm-test '(11 10)|#
+	  #|(lambda ()|#
+		#|(let ([k (with-continuation-mark 'x 10|#
+			   #|(begin0|#
+			#|(with-continuation-mark 'x 11|#
+			  #|(let/cc k k))|#
+			#|(+ 2 3)))])|#
+		  #|(continuation-mark-set->list |#
+		   #|(let ([v #f])|#
+		 #|(thread-wait (thread (lambda () |#
+					#|(set! v (continuation-marks k)))))|#
+		 #|v)|#
+		   #|'x))))|#
 
 ;; continuation, mark replaced
 (let* ([extract
@@ -281,16 +281,16 @@
 	      (continuation-mark-set->list m 'x))))
 
 ;; escape continuation, another thread => not allowed
-(wcm-test #f
-	  (lambda ()
-	    (with-continuation-mark 'x 10
-	      (let/ec k 
-		(with-continuation-mark 'x 12
-		  (let ([v #f])
-		    (thread-wait 
-		     (thread (lambda () 
-			       (set! v (continuation-marks k)))))
-		    v))))))
+#|(wcm-test #f|#
+	  #|(lambda ()|#
+		#|(with-continuation-mark 'x 10|#
+		  #|(let/ec k |#
+		#|(with-continuation-mark 'x 12|#
+		  #|(let ([v #f])|#
+			#|(thread-wait |#
+			 #|(thread (lambda () |#
+				   #|(set! v (continuation-marks k)))))|#
+			#|v))))))|#
 
 ;; escape continuation, dead
 (err/rt-test (continuation-marks (let/ec k k)) exn:application:mismatch?)
@@ -502,42 +502,42 @@
     (loop (sub1 n))))
 
 ;; Make sure marks are separate in separate threads
-(let ([s1 (make-semaphore 0)]
-      [s2 (make-semaphore 0)]
-      [result null])
-  (thread (lambda ()
-	    (with-continuation-mark 'key 'b.1
-	      (begin
-		(semaphore-wait s1)
-		(with-continuation-mark 'key 'b.2
-		  (begin
-		    (semaphore-post s2)
-		    (semaphore-wait s1)
-		    (with-continuation-mark 'key 'b.4
-		      (begin
-			(set! result (extract-current-continuation-marks 'key))
-			(semaphore-post s2)))
-		    'ok))
-		'ok))))
-  (thread-wait
-   (thread (lambda ()
-	     (with-continuation-mark 'key 'a.1
-	       (begin
-		 (semaphore-post s1)
-		 (with-continuation-mark 'key 'a.2
-		   (begin
-		     (semaphore-wait s2)
-		     (with-continuation-mark 'key 'a.3
-		       (begin
-			 (semaphore-post s1)
-			 (with-continuation-mark 'key 'a.4
-			   (begin
-			     (semaphore-wait s2)
-			     (set! result (append (extract-current-continuation-marks 'key) result))))
-			 'ok))
-		     'ok))
-		 'ok)))))
-  (test '(a.4 a.3 a.2 a.1 b.4 b.2 b.1) 'thread-marks result))
+#|(let ([s1 (make-semaphore 0)]|#
+      #|[s2 (make-semaphore 0)]|#
+      #|[result null])|#
+  #|(thread (lambda ()|#
+		#|(with-continuation-mark 'key 'b.1|#
+		  #|(begin|#
+		#|(semaphore-wait s1)|#
+		#|(with-continuation-mark 'key 'b.2|#
+		  #|(begin|#
+			#|(semaphore-post s2)|#
+			#|(semaphore-wait s1)|#
+			#|(with-continuation-mark 'key 'b.4|#
+			  #|(begin|#
+			#|(set! result (extract-current-continuation-marks 'key))|#
+			#|(semaphore-post s2)))|#
+			#|'ok))|#
+		#|'ok))))|#
+  #|(thread-wait|#
+   #|(thread (lambda ()|#
+		 #|(with-continuation-mark 'key 'a.1|#
+		   #|(begin|#
+		 #|(semaphore-post s1)|#
+		 #|(with-continuation-mark 'key 'a.2|#
+		   #|(begin|#
+			 #|(semaphore-wait s2)|#
+			 #|(with-continuation-mark 'key 'a.3|#
+			   #|(begin|#
+			 #|(semaphore-post s1)|#
+			 #|(with-continuation-mark 'key 'a.4|#
+			   #|(begin|#
+				 #|(semaphore-wait s2)|#
+				 #|(set! result (append (extract-current-continuation-marks 'key) result))))|#
+			 #|'ok))|#
+			 #|'ok))|#
+		 #|'ok)))))|#
+  #|(test '(a.4 a.3 a.2 a.1 b.4 b.2 b.1) 'thread-marks result))|#
 
 (arity-test current-continuation-marks 0 1)
 (arity-test continuation-mark-set->list 2 3)
@@ -550,22 +550,22 @@
 (test #f continuation-mark-set? 5)
 (test #t continuation-mark-set? (current-continuation-marks))
 
-(let ([c #f]
-      [l null])
-  (thread-wait
-   (thread (lambda ()
-	     (dynamic-wind
-		 (lambda () (collect-garbage))
-		 (lambda ()
-		   (let-values ([(a b) (let/cc k 
-					 (set! c k)
-					 (values 1 2))])
-		     (set! l (append l (list a b)))))
-		 void))))
-  (thread-wait
-   (thread (lambda ()
-	     (c 4 5))))
-  (test '(1 2 4 5) values l))
+#|(let ([c #f]|#
+      #|[l null])|#
+  #|(thread-wait|#
+   #|(thread (lambda ()|#
+		 #|(dynamic-wind|#
+		 #|(lambda () (collect-garbage))|#
+		 #|(lambda ()|#
+		   #|(let-values ([(a b) (let/cc k |#
+					 #|(set! c k)|#
+					 #|(values 1 2))])|#
+			 #|(set! l (append l (list a b)))))|#
+		 #|void))))|#
+  #|(thread-wait|#
+   #|(thread (lambda ()|#
+		 #|(c 4 5))))|#
+  #|(test '(1 2 4 5) values l))|#
 
   
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -723,7 +723,7 @@
 ;; consistent context information --- essentially checking
 ;; that an internal cache isn't broken
 
-(sync (thread void)) ; tends to flush the cache
+#|(sync (thread void)) ; tends to flush the cache|#
 (let ()
   (define (go)
     (f (+ 200 (random 1000))))

@@ -1,10 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket              import values, values_parameter, values_string
-from pycket.cont         import continuation, loop_label, call_cont, Prompt
-from pycket.error        import SchemeException
-from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
+from pycket                    import values, values_parameter, values_string
+from pycket.parser_definitions import ArgParser, EndOfInput
+from pycket.arity              import Arity
+from pycket.cont               import continuation, loop_label, call_cont, Barrier, Prompt
+from pycket.error              import SchemeException
+from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
 
 @continuation
 def post_build_exception(env, cont, _vals):
@@ -60,9 +62,11 @@ def dynamic_wind(pre, value, post, env, cont):
         "call-with-current-continuation",
          "call/ec", # Racket < 6.2.900.10
          "call-with-escape-continuation"],
-        [procedure], simple=False, extra_info=True)
-def callcc(a, env, cont, extra_call_info):
-    return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
+        [procedure, default(values.W_ContinuationPromptTag, None)],
+        simple=False, extra_info=True)
+def callcc(proc, prompt_tag, env, cont, extra_call_info):
+    assert prompt_tag is None, "NYI"
+    return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def make_continuation_prompt_tag(s):
@@ -103,28 +107,34 @@ expose_val("error-escape-handler", values_parameter.W_Parameter(default_error_es
 def default_continuation_prompt_handler(proc, env, cont):
     return proc.call([], env, cont)
 
-@expose("call-with-continuation-prompt", simple=False)
+@expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1))
 def call_with_continuation_prompt(args, env, cont):
     if len(args) < 1:
         raise SchemeException("call-with-continuation-prompt: not given enough values")
-    idx     = 1
-    fun     = args[0]
+    parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
     handler = default_continuation_prompt_handler
-    if idx < len(args):
-        tag = args[idx]
-        idx += 1
-    if idx < len(args):
-        if handler is not values.w_false:
-            handler = args[idx]
-        idx += 1
-    args = args[idx:]
+
+    fun     = parser.object()
+    try:
+        tag     = parser.prompt_tag()
+        handler = parser.object()
+    except EndOfInput:
+        pass
+
+    args = parser._object()
     if not fun.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable function")
     if not handler.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable handler")
     cont = Prompt(tag, handler, env, cont)
     return fun.call(args, env, cont)
+
+@expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)
+def call_with_continuation_barrier(proc, env, cont, calling_app):
+    # TODO: Implementation
+    cont = Barrier(env, cont)
+    return proc.call_with_extra_info([], env, cont, calling_app)
 
 def raise_exception(v, barrier, env, cont):
     # TODO: Handle case where barrier is not #t
@@ -147,7 +157,7 @@ def raise_exception(v, barrier, env, cont):
 
 expose("raise", [values.W_Object, default(values.W_Object, values.w_true)], simple=False)(raise_exception)
 
-@expose("raise-argument-error")
+@expose("raise-argument-error", arity=Arity.geq(3))
 def raise_arg_err(args):
     nargs = len(args)
     if nargs < 3:
@@ -176,7 +186,7 @@ def raise_arg_err(args):
         raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
              name.utf8value, expected.as_str_utf8(), v.tostring(), value + 1))
 
-@expose("raise-arguments-error")
+@expose("raise-arguments-error", arity=Arity.geq(2))
 def raise_args_err(args):
     name = args[0]
     assert isinstance(name, values.W_Symbol)

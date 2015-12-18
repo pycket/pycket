@@ -1,6 +1,7 @@
 from pycket                    import values, error
 from pycket.error              import SchemeException
 from rpython.rlib              import rarithmetic, jit
+from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rtyper.raisingops import int_floordiv_ovf
@@ -48,6 +49,24 @@ def gcd(u, v):
     if sign == -1:
         result = result.neg()
     return result
+
+SQRT_BIT_MAX = 31
+
+def fixnum_sqrt(_n):
+    # Taken from Racket implementation:
+    # https://github.com/racket/racket/blob/2a88662d01599d9c284d2fbd1f7b987d57658797/racket/src/racket/src/bignum.c#L1652
+    n      = r_uint(_n)
+    root   = r_uint(0)
+    square = r_uint(0)
+
+    for i in range(SQRT_BIT_MAX, -1, -1):
+        try_root   = root | (r_uint(0x1) << i)
+        try_square = try_root * try_root
+        if try_square <= n:
+            root = try_root
+            square = try_square
+
+    return intmask(root), intmask(n - square)
 
 class __extend__(values.W_Object):
     # default implementations that all raise
@@ -425,7 +444,12 @@ class __extend__(values.W_Fixnum):
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        assert 0
+        n = self.value
+        root, rem = fixnum_sqrt(n)
+        if rem == 0:
+            return values.W_Fixnum(root)
+        return values.W_Flonum(math.sqrt(float(n)))
+
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
     def arith_sin(self):

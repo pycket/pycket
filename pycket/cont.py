@@ -39,14 +39,14 @@ class BaseCont(object):
         return None
 
     @jit.unroll_safe
-    def find_cm(self, k):
+    def find_cm(self, k, not_found=None):
         from pycket.prims.equal import eqp_logic
         l = self.marks
         while l is not None:
             if eqp_logic(l.key, k):
                 return l.val
             l = l.next
-        return None
+        return not_found
 
     @jit.unroll_safe
     def update_cm(self, k, v):
@@ -135,6 +135,14 @@ class Prompt(Cont):
         Cont.__init__(self, env, prev)
         self.tag     = tag
         self.handler = handler
+
+    def plug_reduce(self, _vals, env):
+        return self.prev.plug_reduce(_vals, env)
+
+class Barrier(Cont):
+
+    def get_previous_continuation(self):
+        return None
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
