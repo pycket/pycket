@@ -970,6 +970,7 @@ def test_ctype_basetype(doctest):
 
 def test_ctype_basetype(doctest):
     u"""
+    ! (require '#%foreign)
     > (equal? (ctype-sizeof _int8) (ctype-sizeof (make-ctype _int8 #f #f)))
     #t
     """

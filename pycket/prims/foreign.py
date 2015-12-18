@@ -12,7 +12,9 @@ from pycket.foreign      import (
     W_CStructType,
     W_CPointer)
 from pycket.prims.expose import default, expose, expose_val, procedure
-from rpython.rlib        import jit, unroll
+
+from rpython.rlib                import jit, unroll
+from rpython.rtyper.lltypesystem import rffi
 
 if sys.maxint == 2147483647:    # 32-bit
     POINTER_SIZE = 4
@@ -44,16 +46,15 @@ PRIMITIVE_CTYPES = [
 
 sym = values.W_Symbol.make
 
-# Best effort
 COMPILER_SIZEOF = unroll.unrolling_iterable([
-    (sym("int"    ) , POINTER_SIZE ) ,
-    (sym("char"   ) , 1            ) ,
-    (sym("short"  ) , 2            ) ,
-    (sym("long"   ) , POINTER_SIZE ) ,
-    (sym("*"      ) , POINTER_SIZE ) ,
-    (sym("void"   ) , 0            ) ,
-    (sym("float"  ) , 4            ) ,
-    (sym("double" ) , 8            ) ,
+    (sym("int"    ) , rffi.sizeof(rffi.INT)    ),
+    (sym("char"   ) , rffi.sizeof(rffi.CHAR)   ),
+    (sym("short"  ) , rffi.sizeof(rffi.SHORT)  ),
+    (sym("long"   ) , rffi.sizeof(rffi.LONG)   ),
+    (sym("*"      ) , rffi.sizeof(rffi.VOIDP)  ),
+    (sym("void"   ) , 0                        ),
+    (sym("float"  ) , rffi.sizeof(rffi.FLOAT)  ),
+    (sym("double" ) , rffi.sizeof(rffi.DOUBLE) ),
     ])
 
 del sym
