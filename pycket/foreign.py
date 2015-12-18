@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from pycket       import values
 from rpython.rlib import jit
@@ -42,7 +44,7 @@ class W_PrimitiveCType(W_CType):
         return self.name
 
     def tostring(self):
-        return self.name.utf8value
+        return "#<ctype:%s>" % self.name.utf8value
 
 class W_DerivedCType(W_CType):
 
@@ -102,4 +104,11 @@ class W_CStructType(W_CType):
         for type in self.types:
             alignment = max(type.alignof(), alignment)
         return alignment
+
+class W_CPointer(values.W_Object):
+
+    errorname = "cpointer"
+
+    def __init__(self):
+        pass
 

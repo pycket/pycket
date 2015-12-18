@@ -1,13 +1,16 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# XXX: This whole module is wrong
-
 import sys
 
 from pycket              import values
 from pycket.error        import SchemeException
-from pycket.foreign      import W_CType, W_PrimitiveCType, W_DerivedCType, W_CStructType
+from pycket.foreign      import (
+    W_CType,
+    W_PrimitiveCType,
+    W_DerivedCType,
+    W_CStructType,
+    W_CPointer)
 from pycket.prims.expose import default, expose, expose_val, procedure
 from rpython.rlib        import jit, unroll
 
@@ -35,7 +38,7 @@ PRIMITIVE_CTYPES = [
     ("string/utf-16" , POINTER_SIZE, POINTER_SIZE) ,
     ("gcpointer"     , POINTER_SIZE, POINTER_SIZE) ,
     ("or-null"       , POINTER_SIZE, POINTER_SIZE) ,
-    ("_gcable"       , POINTER_SIZE, POINTER_SIZE) ,
+    ("gcable"        , POINTER_SIZE, POINTER_SIZE) ,
     ("scheme"        , POINTER_SIZE, POINTER_SIZE  , "racket") ,
     ]
 
@@ -141,10 +144,6 @@ def ctype_sizeof(ctype):
 def ctype_alignof(ctype):
     return values.W_Fixnum(ctype.alignof())
 
-@expose("ctype?", [W_CType])
-def ctype(c):
-    return values.W_Bool.make(isinstance(c, W_CType))
-
 @expose("ffi-lib?", [values.W_Object])
 def ffi_lib(o):
     # Naturally, since we don't have ffi values
@@ -156,10 +155,10 @@ def ffi_lib(args):
 
 @expose("malloc")
 def malloc(args):
-    return values.W_CPointer()
+    return W_CPointer()
 
-@expose("ptr-ref")
-def ptr_ref(args):
+@expose("ptr-ref", [W_CPointer, W_CType, default(values.W_Fixnum, values.W_Fixnum.ZERO)])
+def ptr_ref(cptr, ctype, offset):
     return values.w_void
 
 @expose("ptr-set!")
@@ -172,7 +171,7 @@ def cp_gcable(args):
 
 @expose("ffi-obj")
 def ffi_obj(args):
-    return values.W_CPointer()
+    return W_CPointer()
 
 @expose("ctype-basetype", [values.W_Object])
 def ctype_basetype(ctype):
