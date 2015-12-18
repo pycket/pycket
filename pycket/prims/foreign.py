@@ -7,7 +7,7 @@ import sys
 
 from pycket              import values
 from pycket.error        import SchemeException
-from pycket.foreign      import W_CType, W_PrimitiveCType, W_DerivedCType
+from pycket.foreign      import W_CType, W_PrimitiveCType, W_DerivedCType, W_CStructType
 from pycket.prims.expose import default, expose, expose_val, procedure
 from rpython.rlib        import jit, unroll
 
@@ -17,6 +17,8 @@ else:                           # 64-bit
     POINTER_SIZE = 8
 
 PRIMITIVE_CTYPES = [
+    ("bool"          , 4           , 4 ) ,
+    ("stdbool"       , 1           , 1 ) ,
     ("int8"          , 1           , 1 ) ,
     ("int16"         , 2           , 2 ) ,
     ("int32"         , 4           , 4 ) ,
@@ -73,15 +75,43 @@ def make_c_type(ctype, rtc, ctr):
                               ctr.tostring())
     return W_DerivedCType(ctype, rtc, ctr)
 
+def validate_alignment(ctx, arg, align):
+    if align is values.w_false:
+        return -1
+    if isinstance(align, values.W_Fixnum) and align.value in (1, 2, 4, 8, 16):
+        return align.value
+    msg = ("%s: expected (or/c #f 1 2 4 8 16) in argument %d got %s" %
+           (ctx, arg, align.tostring()))
+    raise SchemeException(msg)
+
+@expose("make-cstruct-type",
+        [values.W_List,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false)])
+def make_cstruct_type(types, abi, _alignment):
+    alignment = validate_alignment("make-cstruct-type", 2, _alignment)
+
+    if types.is_proper_list():
+        types_list = []
+        for ctype in values.from_list_iter(types):
+            if not isinstance(ctype, W_CType):
+                break
+            types_list.append(ctype)
+        else:
+            return W_CStructType(types_list[:], abi, alignment)
+
+    msg = "make-cstruct-type: expected (listof ctype?) in argument 0 got %s" % types.tostring()
+    raise SchemeException(msg)
+
 @jit.elidable
 def _compiler_sizeof(ctype):
     if ctype.is_proper_list():
         acc = 0
-        while ctype is not values.w_null:
-            car, ctype = ctype.car(), ctype.cdr()
-            if not isinstance(car, values.W_Symbol):
+        for type in values.from_list_iter(ctype):
+            if not isinstance(type, values.W_Symbol):
                 break
-            acc = max(_compiler_sizeof(car), acc)
+            size = _compiler_sizeof(type)
+            acc = max(size, acc)
         else:
             return acc
 

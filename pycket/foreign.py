@@ -1,5 +1,6 @@
 
-from pycket import values
+from pycket       import values
+from rpython.rlib import jit
 
 class W_CType(values.W_Object):
 
@@ -13,10 +14,10 @@ class W_CType(values.W_Object):
         raise NotImplementedError("abstract base class")
 
     def scheme_to_c(self):
-        raise NotImplementedError("abstract base class")
+        return values.w_false
 
     def c_to_scheme(self):
-        raise NotImplementedError("abstract base class")
+        return values.w_false
 
     def sizeof(self):
         raise NotImplementedError("abstract base class")
@@ -39,8 +40,6 @@ class W_PrimitiveCType(W_CType):
 
     def basetype(self):
         return self.name
-
-    c_to_scheme = scheme_to_c = lambda self: values.w_false
 
     def tostring(self):
         return self.name.utf8value
@@ -81,4 +80,26 @@ class W_DerivedCType(W_CType):
             return "<ctype:%s" % self.ctype.tostring()
         return "#<ctype>"
 
+class W_CStructType(W_CType):
+
+    _immutable_fields_ = ["types[*]", "abi", "alignment"]
+
+    def __init__(self, types, abi, alignment):
+        self.types     = types
+        self.abi       = abi
+        self.alignment = alignment
+
+    @jit.elidable
+    def sizeof(self):
+        size = 0
+        for type in self.types:
+            size += type.sizeof()
+        return size
+
+    @jit.elidable
+    def alignof(self):
+        alignment = 0
+        for type in self.types:
+            alignment = max(type.alignof(), alignment)
+        return alignment
 
