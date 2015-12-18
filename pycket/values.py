@@ -1574,7 +1574,3 @@ class W_FileOutputPort(W_OutputPort):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
 
-class W_CPointer(W_Object):
-    errorname = "cpointer"
-    def __init__(self):
-        pass

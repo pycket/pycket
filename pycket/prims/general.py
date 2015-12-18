@@ -11,6 +11,7 @@ from pycket import values_struct
 from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
+from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
                                  procedure, define_nyi, subclass_unsafe)
@@ -111,7 +112,8 @@ for args in [
         ("hash-eqv?", W_HashTable),
         ("hash-equal?", W_HashTable),
         ("hash-weak?", W_HashTable),
-        ("cpointer?", values.W_CPointer),
+        ("cpointer?", W_CPointer),
+        ("ctype?", W_CType),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
         ("logger?", values.W_Logger),
         ]:
@@ -382,7 +384,6 @@ for args in [ ("subprocess?",),
               ("channel?",),
               ("readtable?",),
               ("link-exists?",),
-              ("absolute-path?",),
               ("internal-definition-context?",),
               ("rename-transformer?",),
               ("identifier?",),

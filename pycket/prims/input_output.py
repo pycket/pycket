@@ -459,6 +459,15 @@ def build_path(args):
         result[i] = part
     return values.W_Path("/".join(result))
 
+@expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
+def simplify_path(path, use_filesystem):
+    path_str = extract_path(path)
+    return values.W_Path(path_str)
+
+@expose("use-user-specific-search-paths", [])
+def use_user_specific_search_paths():
+    return values.w_false
+
 @expose("path->complete-path", [values.W_Object, default(values.W_Object, None)])
 def path_to_path_complete_path(path, _base):
     if _base is None:
@@ -481,6 +490,11 @@ def path_for_some_system(path):
 def relative_path(obj):
     string = extract_path(obj)
     return values.W_Bool.make(not os.path.isabs(string))
+
+@expose("absolute-path?", [values.W_Object])
+def absolute_path(obj):
+    string = extract_path(obj)
+    return values.W_Bool.make(os.path.isabs(string))
 
 @expose("resolve-path", [values.W_Object])
 def resolve_path(obj):
