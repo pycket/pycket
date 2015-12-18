@@ -922,6 +922,10 @@ class W_StructConstructor(values.W_Procedure):
     def call_with_extra_info(self, args, env, cont, app):
         return self.code(args, self.type.name, False, env, cont, app)
 
+    def get_arity(self):
+        count = self.type.total_field_cnt - self.type.auto_field_cnt
+        return Arity([count], -1)
+
     def tostring(self):
         return "#<procedure:%s>" % self.type.name
 
