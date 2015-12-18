@@ -968,3 +968,9 @@ def test_ctype_basetype(doctest):
     _int8
     """
 
+def test_ctype_basetype(doctest):
+    u"""
+    > (equal? (ctype-sizeof _int8) (ctype-sizeof (make-ctype _int8 #f #f)))
+    #t
+    """
+

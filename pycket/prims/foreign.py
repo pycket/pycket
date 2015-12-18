@@ -48,7 +48,7 @@ sym = values.W_Symbol.make
 COMPILER_SIZEOF = unroll.unrolling_iterable([
     (sym("int"    ) , POINTER_SIZE ) ,
     (sym("char"   ) , 1            ) ,
-    (sym("short"  ) , 1            ) ,
+    (sym("short"  ) , 2            ) ,
     (sym("long"   ) , POINTER_SIZE ) ,
     (sym("*"      ) , POINTER_SIZE ) ,
     (sym("void"   ) , 0            ) ,
