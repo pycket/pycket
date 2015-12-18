@@ -1,16 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pycket                 import values, values_parameter, values_string
-from pycket.argument_parser import ArgParser, EndOfInput
-from pycket.arity           import Arity
-from pycket.cont            import continuation, loop_label, call_cont, Prompt
-from pycket.error           import SchemeException
-from pycket.prims.expose    import default, expose, expose_val, procedure, make_procedure
-
-class __extend_parser__(ArgParser):
-    object     = (values.W_Object, values.w_false)
-    prompt_tag = (values.W_ContinuationPromptTag,)
+from pycket                    import values, values_parameter, values_string
+from pycket.parser_definitions import ArgParser, EndOfInput
+from pycket.arity              import Arity
+from pycket.cont               import continuation, loop_label, call_cont, Prompt
+from pycket.error              import SchemeException
+from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
 
 @continuation
 def post_build_exception(env, cont, _vals):

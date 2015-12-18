@@ -1,9 +1,9 @@
 
-from pycket                   import values, values_parameter
-from pycket.arity             import Arity
-from pycket.argument_parser   import ArgParser, EndOfInput
-from pycket.prims.expose      import default, expose, expose_val
-from rpython.rlib             import jit
+from pycket                    import values, values_parameter
+from pycket.arity              import Arity
+from pycket.parser_definitions import ArgParser, EndOfInput
+from pycket.prims.expose       import default, expose, expose_val
+from rpython.rlib              import jit
 
 DEBUG = values.W_Symbol.make("debug")
 
@@ -13,9 +13,7 @@ LOG_LEVEL = ['none', 'fatal', 'error', 'warning', 'info', 'debug']
 LOG_LEVEL = map(values.W_Symbol.make, LOG_LEVEL) + [values.w_false]
 
 class __extend_parser__(ArgParser):
-    symbol_or_false = (values.W_Symbol, values.w_false)
-    logger_or_false = (values.W_Logger, values.w_false)
-    log_level       = LOG_LEVEL
+    log_level = LOG_LEVEL
 
 @expose("make-logger", arity=Arity.geq_0)
 @jit.unroll_safe
