@@ -28,6 +28,10 @@ class Arity(object):
         return Arity(list(lst), -1)
 
 Arity.unknown = Arity([], 0)
+Arity.ZERO    = Arity.oneof(0)
+Arity.ONE     = Arity.oneof(1)
+Arity.TWO     = Arity.oneof(2)
+Arity.THREE   = Arity.oneof(3)
 
 for i in range(10):
     setattr(Arity, "geq_%d" % i, Arity.geq(i))

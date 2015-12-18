@@ -942,6 +942,9 @@ class W_StructPredicate(values.W_Procedure):
                 struct_type = struct_type.super
         return values.w_false
 
+    def get_arity(self):
+        return Arity.ONE
+
     def tostring(self):
         return "#<procedure:%s?>" % self.type.name
 
@@ -954,6 +957,9 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.accessor = accessor
         self.field = field.value
         self.field_name = field_name
+
+    def get_arity(self):
+        return Arity.ONE
 
     @make_call_method([W_RootStruct], simple=False,
         name="<struct-field-accessor-method>")
@@ -969,6 +975,9 @@ class W_StructAccessor(values.W_Procedure):
     _immutable_fields_ = ["type"]
     def __init__(self, type):
         self.type = type
+
+    def get_arity(self):
+        return Arity.TWO
 
     def access(self, struct, field, env, cont, app):
         assert isinstance(struct, W_RootStruct)
@@ -996,6 +1005,9 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field.value
         self.field_name = field_name
 
+    def get_arity(self):
+        return Arity.TWO
+
     @make_call_method([W_RootStruct, values.W_Object], simple=False,
         name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
@@ -1009,6 +1021,9 @@ class W_StructMutator(values.W_Procedure):
     _immutable_fields_ = ["type"]
     def __init__ (self, type):
         self.type = type
+
+    def get_arity(self):
+        return Arity.THREE
 
     def mutate(self, struct, field, val, env, cont, app):
         assert isinstance(struct, W_RootStruct)
@@ -1069,6 +1084,9 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
 
+    def get_arity(self):
+        return Arity.ONE
+
     @make_call_method([values.W_Object])
     @jit.unroll_safe
     def call(self, arg):
@@ -1084,6 +1102,9 @@ class W_StructPropertyAccessor(values.W_Procedure):
     _immutable_fields_ = ["property"]
     def __init__(self, prop):
         self.property = prop
+
+    def get_arity(self):
+        return Arity.ONE
 
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):

@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 def memoize(f):
     cache = {}
-    @jit.elidable
     def wrapper(*val):
+        if objectmodel.we_are_translated():
+            return f(*val)
         lup = cache.get(val, None)
         if lup is None:
             lup = f(*val)
