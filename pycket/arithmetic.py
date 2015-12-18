@@ -52,6 +52,7 @@ def gcd(u, v):
 
 SQRT_BIT_MAX = 31
 
+@jit.elidable
 def fixnum_sqrt(_n):
     # Taken from Racket implementation:
     # https://github.com/racket/racket/blob/2a88662d01599d9c284d2fbd1f7b987d57658797/racket/src/racket/src/bignum.c#L1652
