@@ -953,3 +953,18 @@ def test_raise_exception(doctest):
     13
     """
 
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (ctype-basetype #f)
+    #f
+    > (ctype-basetype _int8)
+    'int8
+    > (ctype-basetype _uint32)
+    'uint32
+    > (ctype-basetype (make-ctype _int8 #f #f))
+    'int8
+    > (ctype-basetype (make-ctype _int8 (λ (x) x) #f))
+    _int8
+    """
+
