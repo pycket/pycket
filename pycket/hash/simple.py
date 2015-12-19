@@ -233,6 +233,11 @@ class __extend__(W_EqualImmutableHashTable):
         result = self.val_at(k, w_missing)
         return return_value(result, env, cont)
 
+    def hash_remove(self, key, env, cont):
+        from pycket.interpreter import return_value
+        removed = self.without(key)
+        return return_value(removed, env, cont)
+
     def tostring(self):
         assert type(self) is W_EqImmutableHashTable
         entries = [None] * len(self)
