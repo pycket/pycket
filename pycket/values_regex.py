@@ -8,8 +8,6 @@ from rpython.rlib             import buffer, jit, rstring
 from rpython.rlib.objectmodel import specialize
 import sys
 
-import rpython.rlib.rsre.rsre_re # For sideffects
-
 CACHE = regexp.RegexpCache()
 
 class PortBuffer(buffer.Buffer):
