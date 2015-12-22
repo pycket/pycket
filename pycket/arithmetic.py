@@ -164,7 +164,7 @@ class __extend__(values.W_Number):
         return self.arith_sub_same(other)
 
     def arith_sub1(self):
-        return self.arith_sub(values.W_Fixnum(1))
+        return self.arith_sub(values.W_Fixnum.ONE)
 
     def arith_mul(self, other):
         if isinstance(self, values.W_Fixnum) and not self.value:
@@ -431,7 +431,7 @@ class __extend__(values.W_Fixnum):
     def arith_abs(self):
         if self.value >= 0:
             return self
-        return values.W_Fixnum(0).arith_sub(self)
+        return values.W_Fixnum.ZERO.arith_sub(self)
 
     def arith_max_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -474,7 +474,7 @@ class __extend__(values.W_Fixnum):
     # ------------------ miscellanous ------------------
 
     def arith_float_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_float_integer_part(self):
         return self
@@ -499,7 +499,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     # ------------------ comparisons ------------------
@@ -695,7 +695,7 @@ class __extend__(values.W_Flonum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     def arith_gcd_same(self, other):
@@ -856,7 +856,7 @@ class __extend__(values.W_Bignum):
     # ------------------ miscellanous ------------------
 
     def arith_arith_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_arith_integer_part(self):
         return self

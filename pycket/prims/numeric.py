@@ -331,7 +331,7 @@ def bitwise_bit_setp(w_n, w_m):
     if not isinstance(w_m, values.W_Fixnum):
         # a bignum that has such a big bit set does not fit in memory
         return w_n.arith_negativep()
-    v = w_n.arith_and(arith_shift(values.W_Fixnum(1), w_m))
+    v = w_n.arith_and(arith_shift(values.W_Fixnum.ONE, w_m))
     if isinstance(v, values.W_Fixnum) and 0 == v.value:
         return values.w_false
     else:
