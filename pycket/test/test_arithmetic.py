@@ -470,6 +470,16 @@ def test_all_comparators(doctest):
     #t
     > (>= 1 2 1)
     #f
+    > (procedure-arity-includes? = 0)
+    #f
+    > (procedure-arity-includes? = 1)
+    #f
+    > (procedure-arity-includes? = 2)
+    #t
+    > (procedure-arity-includes? = 3)
+    #t
+    > (procedure-arity-includes? = 4)
+    #t
     """
 
 @pytest.mark.xfail

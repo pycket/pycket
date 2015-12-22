@@ -4,6 +4,7 @@ import math
 import operator
 from pycket import values
 from pycket import vector as values_vector
+from pycket.arity import Arity
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
@@ -16,7 +17,7 @@ from pycket import arithmetic
 
 def make_cmp(name, op, con):
 
-    @expose(name, simple=True)
+    @expose(name, simple=True, arity=Arity.geq(2))
     @jit.unroll_safe
     def do(args):
         if len(args) < 2:
