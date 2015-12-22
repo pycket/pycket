@@ -749,8 +749,7 @@ class __extend__(values.W_Flonum):
         val = self.value
         if math.isnan(val) or math.isinf(val):
             return False
-        fractional = self._arith_float_fractional_part()
-        return fractional == 0.0
+        return math.floor(val) == val
 
 class __extend__(values.W_Bignum):
     def same_numeric_class(self, other):
