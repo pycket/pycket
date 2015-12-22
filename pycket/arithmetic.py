@@ -276,17 +276,28 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
+    def isinteger(self):
+        return False
+
 class __extend__(values.W_Integer):
+
     def arith_round(self):
         return self
+
     def arith_truncate(self):
         return self
+
     def arith_floor(self):
         return self
+
     def arith_ceiling(self):
         return self
+
     def arith_inexact_exact(self):
         return self
+
+    def isinteger(self):
+        return True
 
 class __extend__(values.W_Fixnum):
 
@@ -655,12 +666,15 @@ class __extend__(values.W_Flonum):
             return self
         return values.W_Flonum(float(math.ceil(self.value)))
 
-    def arith_float_fractional_part(self):
+    def _arith_float_fractional_part(self):
         try:
             val = rarithmetic.ovfcheck_float_to_int(self.value)
         except OverflowError:
             val = rbigint.fromfloat(self.value).tofloat()
-        return values.W_Flonum(float(self.value - val))
+        return float(self.value - val)
+
+    def arith_float_fractional_part(self):
+        return values.W_Flonum(self._arith_float_fractional_part())
 
     def arith_float_integer_part(self):
         return values.W_Integer.fromfloat(self.value)
@@ -730,6 +744,13 @@ class __extend__(values.W_Flonum):
     def arith_ge_same(self, other):
         assert isinstance(other, values.W_Flonum)
         return self.value >= other.value
+
+    def isinteger(self):
+        val = self.value
+        if math.isnan(val) or math.isinf(val):
+            return False
+        fractional = self._arith_float_fractional_part()
+        return fractional == 0.0
 
 class __extend__(values.W_Bignum):
     def same_numeric_class(self, other):

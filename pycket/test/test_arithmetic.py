@@ -215,6 +215,11 @@ def test_even_odd():
     run("(odd?  -10000000000000000000000000001000000000000000000000000001)", w_true)
     run("(odd?   10000000000000000000000000001000000000000000000000000001)", w_true)
 
+    run("(even? 1.0)", w_false)
+    run("(even? 2.0)", w_true)
+    run("(odd? 1.0)", w_true)
+    run("(odd? 2.0)", w_false)
+
 def test_zero(doctest):
     """
     > (zero? -1)

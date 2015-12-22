@@ -48,11 +48,7 @@ for args in [
 
 @expose("integer?", [values.W_Object])
 def integerp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum) or
-                              isinstance(n, values.W_Flonum) and
-                              math.floor(n.value) == n.value)
-
+    return values.W_Bool.make(isinstance(n, values.W_Number) and n.isinteger())
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
@@ -300,8 +296,6 @@ for args in [
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
-        ("even?", "arith_evenp"),
-        ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
         ("round", "arith_round", True),
         ("truncate", "arith_truncate", True),
@@ -311,6 +305,18 @@ for args in [
         ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
+
+@expose("odd?", [values.W_Number])
+def oddp(n):
+    if not n.isinteger():
+        raise SchemeException("odd?: expected integer got %s" % n.tostring())
+    return n.arith_oddp()
+
+@expose("even?", [values.W_Number])
+def evenp(n):
+    if not n.isinteger():
+        raise SchemeException("even?: expected integer got %s" % n.tostring())
+    return n.arith_evenp()
 
 @expose("negative?", [values.W_Number])
 def negative_predicate(n):
