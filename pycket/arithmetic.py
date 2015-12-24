@@ -1,4 +1,4 @@
-from pycket                    import values, error
+from pycket                    import values
 from pycket.error              import SchemeException
 from rpython.rlib              import rarithmetic, jit
 from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
@@ -267,6 +267,12 @@ class __extend__(values.W_Number):
     def arith_ge_same(self, other):
         return other.arith_le_same(self)
 
+    def arith_min_same(self, other):
+        return self if self.arith_lt_same(other) else other
+
+    def arith_max_same(self, other):
+        return other if self.arith_lt_same(other) else self
+
     def arith_exp(self):
         self = self.arith_exact_inexact()
         assert isinstance(self, values.W_Flonum)
@@ -444,14 +450,6 @@ class __extend__(values.W_Fixnum):
             return self
         return values.W_Fixnum.ZERO.arith_sub(self)
 
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(max(self.value, other.value))
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(min(self.value, other.value))
-
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
@@ -601,19 +599,27 @@ class __extend__(values.W_Flonum):
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(math.pow(self.value, other.value))
+        val = math.pow(self.value, other.value)
+        return values.W_Flonum(val)
 
     def arith_abs(self):
         return values.W_Flonum(abs(self.value))
 
     def arith_max_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(max(self.value, other.value))
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_max_same(self, other)
 
     def arith_min_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(min(self.value, other.value))
-
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_min_same(self, other)
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
@@ -812,7 +818,6 @@ class __extend__(values.W_Bignum):
             raise SchemeException("zero_divisor")
         return values.W_Integer.frombigint(div)
 
-
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Bignum)
         return values.W_Integer.frombigint(self.value.pow(other.value))
@@ -856,18 +861,6 @@ class __extend__(values.W_Bignum):
 
 
     # ------------------ max ------------------
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        # XXX is this tested?
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(other.value)
-        return values.W_Integer.frombigint(self.value)
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(self.value)
-        return values.W_Integer.frombigint(other.value)
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -1148,5 +1141,4 @@ class __extend__(values.W_Complex):
         return self.real.arith_eq(other.real) and self.imag.arith_eq(other.imag)
 
     def arith_lt_same(self, other):
-        from pycket.error import SchemeException
         raise SchemeException("can't compare complex numbers")

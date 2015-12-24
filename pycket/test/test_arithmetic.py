@@ -643,8 +643,10 @@ def test_flround(doctest):
     > (flround -0.5001)
     -1.0
     """
+
 def test_max(doctest):
     """
+    ! (require racket/math)
     > (max 1 1.1)
     1.1
     > (max 1 0.2)
@@ -669,6 +671,14 @@ def test_max(doctest):
     3
     > (max 1 3 -17 2.0)
     3.0
+    > (max 1 3/2 1/2)
+    3/2
+    > (min 1 3/2 1/2)
+    1/2
+    > (nan? (min +inf.0 +nan.0 -inf.0))
+    #t
+    > (nan? (max +inf.0 +nan.0 -inf.0))
+    #t
     """
 
 def test_bitwise(doctest):
