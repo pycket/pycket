@@ -131,7 +131,7 @@ class Prompt(Cont):
 
 class Barrier(Cont):
 
-    def get_previous_continuation(self):
+    def get_previous_continuation(self, upto=None):
         return None
 
     def plug_reduce(self, _vals, env):

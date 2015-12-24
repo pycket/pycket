@@ -25,13 +25,13 @@ def scheme_extend_parameterization(args):
     config = args[0]
     argc = len(args)
 
-    if argc < 2 or not isinstance(config, values_parameter.W_BaseParameter) or argc % 2 != 1:
+    if argc < 2 or not isinstance(config, values_parameter.W_Parameterization) or argc % 2 != 1:
         return config
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
     while parser.has_more():
-        param = parser.parameterization()
-        key   = parser.object()
+        param  = parser.parameter()
+        key    = parser.object()
         config = config.extend([param], [key])
 
     return config

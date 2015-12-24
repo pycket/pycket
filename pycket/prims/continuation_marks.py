@@ -38,7 +38,7 @@ def cms_list(cms, mark, prompt_tag, env, cont):
     marks = cms.cont.get_marks(mark)
     return return_value(marks, env, cont)
 
-def get_marks_all(cont, keys, not_found):
+def get_marks_all(cont, keys, not_found, prompt_tag):
     results = vector.W_Vector.fromelement(not_found, len(keys))
     while True:
         if cont is None:
@@ -51,10 +51,10 @@ def get_marks_all(cont, keys, not_found):
             else:
                 value = not_found
             results.set(i, value)
-        cont = cont.get_previous_continuation()
+        cont = cont.get_previous_continuation(upto=prompt_tag)
         if found:
             break
-    rest = get_marks_all(cont, keys, not_found)
+    rest = get_marks_all(cont, keys, not_found, prompt_tag)
     return values.W_Cons.make(results, rest)
 
 @expose("continuation-mark-set->list*",
@@ -65,7 +65,7 @@ def get_marks_all(cont, keys, not_found):
 def continuation_mark_set_to_list_star(mark_set, key_list, none_v, prompt_tag):
     cont = mark_set.cont
     keys = values.from_list(key_list)
-    return get_marks_all(cont, keys, none_v)
+    return get_marks_all(cont, keys, none_v, prompt_tag)
 
 @expose("continuation-mark-set->context", [values.W_ContinuationMarkSet])
 def cms_context(marks):
