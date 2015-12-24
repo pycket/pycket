@@ -41,47 +41,47 @@
 (define-syntax wcm-test
   (syntax-rules (lambda)
     [(_ expect orig)
-     (begin 
+     (begin
        (test expect wcm orig)
        (test expect 'wcm (orig))
        (test expect wcm-in-barrier orig))]))
-	    
+
 
 (wcm-test '(10) (lambda ()
-		  (with-continuation-mark 'key 10 
+		  (with-continuation-mark 'key 10
 		    (extract-current-continuation-marks 'key))))
 (wcm-test '(#(10 #f)) (lambda ()
-			(with-continuation-mark 'key 10 
+			(with-continuation-mark 'key 10
 			  (continuation-mark-set->list* (current-continuation-marks) '(key no-key)))))
 (wcm-test '(#(#f 10)) (lambda ()
-			(with-continuation-mark 'key 10 
+			(with-continuation-mark 'key 10
 			  (continuation-mark-set->list* (current-continuation-marks) '(no-key key)))))
 (wcm-test '(#(nope 10)) (lambda ()
-			  (with-continuation-mark 'key 10 
+			  (with-continuation-mark 'key 10
 			    (continuation-mark-set->list* (current-continuation-marks) '(no-key key) 'nope))))
 
 (wcm-test '(#(10 12)) (lambda ()
-			(with-continuation-mark 'key1 10 
-			  (with-continuation-mark 'key2 12 
+			(with-continuation-mark 'key1 10
+			  (with-continuation-mark 'key2 12
 			    (continuation-mark-set->list* (current-continuation-marks) '(key1 key2))))))
-(wcm-test '(#(#f 12) #(10 #f)) 
+(wcm-test '(#(#f 12) #(10 #f))
 	  (lambda ()
-	    (with-continuation-mark 'key1 10 
-	      (let ([x (with-continuation-mark 'key2 12 
+	    (with-continuation-mark 'key1 10
+	      (let ([x (with-continuation-mark 'key2 12
 			 (continuation-mark-set->list* (current-continuation-marks) '(key1 key2)))])
 		(if (void? x)
 		    x
 		    x)))))
 
 (wcm-test '(11) (lambda ()
-		  (with-continuation-mark 'key 10 
+		  (with-continuation-mark 'key 10
 		    (with-continuation-mark 'key 11
 		      (extract-current-continuation-marks 'key)))))
-(wcm-test '(9) (lambda () (with-continuation-mark 'key 10 
+(wcm-test '(9) (lambda () (with-continuation-mark 'key 10
 			    (with-continuation-mark 'key2 9
 			      (with-continuation-mark 'key 11
 				(extract-current-continuation-marks 'key2))))))
-(wcm-test '() (lambda () (with-continuation-mark 'key 10 
+(wcm-test '() (lambda () (with-continuation-mark 'key 10
 			   (with-continuation-mark 'key2 9
 			     (with-continuation-mark 'key 11
 			       (extract-current-continuation-marks 'key3))))))
@@ -112,37 +112,37 @@
 	  (lambda ()
 	    (with-continuation-mark 'x 10
 	      (unit:invoke-unit
-	       (unit:unit 
+	       (unit:unit
 		 (unit:import)
 		 (unit:export)
-		 
+
 		 (with-continuation-mark 'x 11
 		   (continuation-mark-set->list
 		    (current-continuation-marks)
 		    'x)))))))
 
-(wcm-test '(11 10) 
+(wcm-test '(11 10)
 	  (lambda ()
 	    (with-continuation-mark 'x 10
 	      (unit:invoke-unit
-	       (unit:unit 
+	       (unit:unit
 		 (unit:import)
 		 (unit:export)
-		 
+
 		 (define l (with-continuation-mark 'x 11
 			     (continuation-mark-set->list
 			      (current-continuation-marks)
 			      'x)))
 		 l)))))
 
-(wcm-test '(11 10) 
+(wcm-test '(11 10)
 	  (lambda ()
 	    (with-continuation-mark 'x 10
 	      (begin0
 	       (with-continuation-mark 'x 11
 		 (extract-current-continuation-marks 'x))
 	       (+ 2 3)))))
-(wcm-test '(11 10) 
+(wcm-test '(11 10)
 	  (lambda ()
 	    (with-continuation-mark 'x 10
 	      (begin0
@@ -158,7 +158,7 @@
 			(with-continuation-mark 'x 11
 			  (let/cc k k))
 			(+ 2 3)))])
-	      (continuation-mark-set->list 
+	      (continuation-mark-set->list
 	       (continuation-marks k)
 	       'x))))
 
@@ -180,7 +180,7 @@
 ;; continuation, mark replaced
 (let* ([extract
 	(lambda (k)
-	  (continuation-mark-set->list 
+	  (continuation-mark-set->list
 	   (continuation-marks k)
 	   'x))]
        [go
@@ -190,7 +190,7 @@
 		      (let ([k (with-continuation-mark 'x 10
 				 (begin0
 				  (with-continuation-mark 'x 11
-				    (call/xc 
+				    (call/xc
 				     (lambda (k )
 				       (with-continuation-mark 'x 12
 					 (if in?
@@ -207,7 +207,7 @@
 ;; nested continuation, mark replaced
 (let* ([extract
 	(lambda (k)
-	  (continuation-mark-set->list 
+	  (continuation-mark-set->list
 	   (continuation-marks k)
 	   'x))]
        [go
@@ -222,8 +222,8 @@
 				    (call/xc
 				     (lambda (k0)
 				       (with-continuation-mark 'x 12
-					 (call/xc 
-					  (lambda (k) 
+					 (call/xc
+					  (lambda (k)
 					    (if in?
 						(extract k)
 						k)))))))
@@ -238,7 +238,7 @@
 ;; nested continuation, mark shared
 (let* ([extract
 	(lambda (k)
-	  (continuation-mark-set->list 
+	  (continuation-mark-set->list
 	   (continuation-marks k)
 	   'x))]
        [go
@@ -248,11 +248,11 @@
 		      (let ([k (with-continuation-mark 'x 10
 				 (begin0
 				  (with-continuation-mark 'x 11
-				    (call/xc 
+				    (call/xc
 				     (lambda (k0)
 				       (begin0
 					(with-continuation-mark 'x 12
-					  (call/xc 
+					  (call/xc
 					   (lambda (k)
 					     (if in?
 						 (extract k)
@@ -272,7 +272,7 @@
 	    (let ([m (with-continuation-mark 'x 10
 		       (begin0
 			(with-continuation-mark 'x 11
-			  (let/ec k 
+			  (let/ec k
 			    (begin0
 			     (with-continuation-mark 'x 12
 			       (continuation-marks k))
@@ -329,7 +329,7 @@
        [did-twice? #f]
        [try-again #f]
        [get-marks #f])
-   
+
    (with-continuation-mark
     'key (let/cc k (set! try-again k) 1)
     (begin
@@ -377,7 +377,7 @@
        [add (lambda (a b)
 	      (set! l (append l (list (cons a b)))))]
        [x (lambda ()
-	    (car (continuation-mark-set->list (current-continuation-marks) 
+	    (car (continuation-mark-set->list (current-continuation-marks)
 					      'x)))])
   (let ([k (with-continuation-mark 'x 5
 	     (dynamic-wind
@@ -567,7 +567,7 @@
 		 #|(c 4 5))))|#
   #|(test '(1 2 4 5) values l))|#
 
-  
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Try to test internal caching strategies
 
@@ -677,8 +677,8 @@
                   ((let/cc k2
                      (set! v k2)
                      (lambda () '(y3)))))))))))))
-       
-      (v (lambda () 
+
+      (v (lambda ()
            (set! v void)
            (continuation-mark-set->list
             (current-continuation-marks)
@@ -692,13 +692,13 @@
 (test 10 call-with-immediate-continuation-mark 'x (lambda (v) v) 10)
 (test 12 'cwicm (with-continuation-mark 'x 12 (call-with-immediate-continuation-mark 'x (lambda (v) v))))
 (test '(#f) 'cwiwcm (with-continuation-mark 'x 12 (list (call-with-immediate-continuation-mark 'x (lambda (v) v)))))
-(test 12 'cwicm (with-continuation-mark 'x 12 
+(test 12 'cwicm (with-continuation-mark 'x 12
                   (with-continuation-mark 'y 13
                     (call-with-immediate-continuation-mark 'x (lambda (v) v)))))
-(test 13 'cwicm (with-continuation-mark 'x 12 
+(test 13 'cwicm (with-continuation-mark 'x 12
                   (with-continuation-mark 'y 13
                     (call-with-immediate-continuation-mark 'y (lambda (v) v)))))
-(test 14 'cwicm (with-continuation-mark 'x 12 
+(test 14 'cwicm (with-continuation-mark 'x 12
                   (with-continuation-mark 'y 13
                     (with-continuation-mark 'x 14
                       (call-with-immediate-continuation-mark 'x (lambda (v) v))))))
@@ -804,7 +804,7 @@
   (for-each
    (lambda (thunk)
      (test #f (lambda (f) (f)) thunk))
-   
+
    (list
     (lambda ()
       (with-continuation-mark key value

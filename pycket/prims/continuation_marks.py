@@ -72,8 +72,13 @@ def cms_context(marks):
     # TODO: Pycket does not have a mark to denote context. We need to fix that.
     return values.w_null
 
-@expose("continuation-mark-set-first", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)], simple=False)
-def cms_first(cms, mark, missing, env, cont):
+@expose("continuation-mark-set-first",
+        [values.W_Object,
+         values.W_Object,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, None)],
+        simple=False)
+def cms_first(cms, mark, missing, prompt_tag, env, cont):
     from pycket.interpreter import return_value
     if cms is values.w_false:
         the_cont = cont
