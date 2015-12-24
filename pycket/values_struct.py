@@ -656,13 +656,7 @@ class W_Struct(W_RootStruct):
             else:
                 # -1 for the self argument
                 arity = proc.get_arity()
-                ls = [-1] * len(arity.arity_list)
-                for i, val in enumerate(arity.arity_list):
-                    ls[i] = val - 1
-                at_least = arity.at_least
-                if arity.at_least != -1:
-                    at_least -= 1
-                return Arity([val for val in ls if val != -1], at_least)
+                return arity.shift_arity(-1)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 

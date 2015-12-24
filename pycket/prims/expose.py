@@ -104,7 +104,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False, simple=False)
         func_arg_unwrap = make_list_arg_unwrapper(
             func, has_self, min_arg, max_arity, unroll_argtypes, errormsg_arity)
         call1 = call2 = None
-    _arity = Arity(range(min_arg, max_arity+1), -1)
+    _arity = Arity.oneof(*range(min_arg, max_arity+1))
     return func_arg_unwrap, _arity, call1, call2
 
 def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
