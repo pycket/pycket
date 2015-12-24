@@ -19,8 +19,10 @@ class Arity(object):
 
     @jit.elidable
     def arity_includes(self, arity):
-        return (self.at_least != -1 and arity >= self.at_least) or self.list_includes(arity)
+        return ((self.at_least != -1 and arity >= self.at_least) or
+                self.list_includes(arity))
 
+    @jit.elidable
     def shift_arity(self, shift):
         arity_list = [i + shift for i in self.arity_list if i + shift > -1]
         at_least = max(self.at_least + shift, -1)

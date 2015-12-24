@@ -514,8 +514,7 @@ class W_RootStruct(values.W_Object):
     def checked_call(self, proc, args, env, cont, app):
         args_len = len(args)
         arity = proc.get_arity()
-        if ((args_len < arity.at_least or arity.at_least == -1) and
-            not arity.list_includes(args_len)):
+        if not arity.arity_includes(args_len):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
                 return w_prop_val.call_with_extra_info([self], env,
