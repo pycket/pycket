@@ -50,7 +50,8 @@ class W_StructType(values.W_Object):
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
             "total_field_cnt", "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
-            "constr", "predicate", "accessor", "mutator", "prop_procedure"]
+            "constr", "predicate", "accessor", "mutator", "prop_procedure",
+            "constructor_arity"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -222,6 +223,9 @@ class W_StructType(values.W_Object):
             self.isopaque = False
         else:
             self.isopaque = self.inspector is not values.w_false
+
+        count = self.total_field_cnt - self.auto_field_cnt
+        self.constructor_arity = Arity([count], -1)
 
         self.calculate_offsets()
 
@@ -916,8 +920,7 @@ class W_StructConstructor(values.W_Procedure):
         return self.code(args, self.type.name, False, env, cont, app)
 
     def get_arity(self):
-        count = self.type.total_field_cnt - self.type.auto_field_cnt
-        return Arity([count], -1)
+        return self.type.constructor_arity
 
     def tostring(self):
         return "#<procedure:%s>" % self.type.name

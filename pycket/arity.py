@@ -44,5 +44,3 @@ Arity.ONE     = Arity.oneof(1)
 Arity.TWO     = Arity.oneof(2)
 Arity.THREE   = Arity.oneof(3)
 
-for i in range(10):
-    setattr(Arity, "geq_%d" % i, Arity.geq(i))

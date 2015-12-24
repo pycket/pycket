@@ -499,10 +499,6 @@ def proc_arity_cont(arity, env, cont, _vals):
         return return_value(val, env, cont)
     result = make_arity_list(arity, val)
     return return_value(result, env, cont)
-    # result.append(check_one_val(_vals))
-    # if len(result) == 1:
-        # return return_value(result[0], env, cont)
-    # return return_value(values.to_list(result[:]), env, cont)
 
 @expose("procedure-arity", [procedure], simple=False)
 @jit.unroll_safe
@@ -550,14 +546,14 @@ def procedure_arity_includes(proc, k, kw_ok):
     arity = proc.get_arity()
     if isinstance(k, values.W_Fixnum):
         k_val = k.value
-        if arity.list_includes(k_val):
-            return values.w_true
-        if arity.at_least != -1 and k_val >= arity.at_least:
-            return values.w_true
-    elif isinstance(k, values.W_Bignum):
-        k_val = k.value
-        if arity.at_least != -1 and k_val.ge(rbigint.fromint(arity.at_least)):
-            return values.w_true
+        return values.W_Bool.make(arity.arity_includes(k_val))
+    if isinstance(k, values.W_Bignum):
+        try:
+            k_val = k.value.toint()
+        except OverflowError:
+            pass
+        else:
+            return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
@@ -689,7 +685,6 @@ def make_semaphore(n):
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
 
-
 @expose("not", [values.W_Object])
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
@@ -816,7 +811,7 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False, arity=Arity.geq_2)
+@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
     from pycket.interpreter import jump
@@ -963,7 +958,7 @@ def reverse(w_l):
 
     return acc
 
-@expose("void", arity=Arity.geq_0)
+@expose("void", arity=Arity.geq(0))
 def do_void(args):
     return values.w_void
 

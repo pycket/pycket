@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from pycket import impersonators as imp
-from pycket import values
-from pycket import values_parameter, values_struct
-from pycket.error import SchemeException
+from pycket              import impersonators as imp
+from pycket              import values
+from pycket              import values_parameter, values_struct
+from pycket.arity        import Arity
+from pycket.error        import SchemeException
 from pycket.prims.expose import unsafe, default, expose, expose_val
 
 expose_val("current-inspector", values_struct.current_inspector_param)
@@ -126,10 +127,10 @@ def do_prefab_struct_key(v):
     prefab_key = values_struct.W_PrefabKey.from_struct_type(v.struct_type())
     return prefab_key.short_key()
 
-@expose("make-prefab-struct")
+@expose("make-prefab-struct", arity=Arity.geq(1))
 def do_make_prefab_struct(args):
     assert len(args) > 1
-    key = args[0]
+    key  = args[0]
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)
 
