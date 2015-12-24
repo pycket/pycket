@@ -31,7 +31,7 @@ class BaseCont(object):
     def get_next_executed_ast(self):
         return None # best effort
 
-    def get_previous_continuation(self):
+    def get_previous_continuation(self, upto=None):
         return None
 
     @jit.unroll_safe
@@ -62,16 +62,14 @@ class BaseCont(object):
 
     # XXX: why isn't this in Cont?
     @jit.unroll_safe
-    def get_mark_first(self, key):
+    def get_mark_first(self, key, upto=None):
         p = self
-        while isinstance(p, Cont):
+        while p is not None:
             v = p.find_cm(key)
-            if v:
+            if v is not None:
                 return v
-            elif p.prev:
-                p = p.prev
-        return p.find_cm(key)
-
+            p = p.get_previous_continuation(upto=upto)
+        return None
 
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("abstract method")
@@ -99,7 +97,7 @@ class Cont(BaseCont):
         self.env = env
         self.prev = prev
 
-    def get_previous_continuation(self):
+    def get_previous_continuation(self, upto=None):
         return self.prev
 
     def get_ast(self):
@@ -124,6 +122,9 @@ class Prompt(Cont):
         Cont.__init__(self, env, prev)
         self.tag     = tag
         self.handler = handler
+
+    def get_previous_continuation(self, upto=None):
+        return None if self.tag is upto else self.prev
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)

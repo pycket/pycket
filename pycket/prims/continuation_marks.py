@@ -88,7 +88,7 @@ def cms_first(cms, mark, missing, prompt_tag, env, cont):
         raise SchemeException("Expected #f or a continuation-mark-set")
     is_cmk = isinstance(mark, values.W_ContinuationMarkKey)
     m = imp.get_base_object(mark) if is_cmk else mark
-    v = the_cont.get_mark_first(m)
+    v = the_cont.get_mark_first(m, upto=prompt_tag)
     val = v if v is not None else missing
     if is_cmk:
         return mark.get_cmk(val, env, cont)
