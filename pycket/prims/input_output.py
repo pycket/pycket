@@ -171,11 +171,25 @@ def read_token(f):
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
-@expose("read", [default(values.W_InputPort, None)], simple=False)
+@expose("read", [default(values.W_Object, None)], simple=False)
 def read(port, env, cont):
     from pycket.interpreter import return_value
+    cont = read_stream_cont(env, cont)
+    return get_input_port(port, env, cont)
+
+def get_input_port(port, env, cont):
+    from pycket.interpreter import return_value
     if port is None:
-        port = current_in_param.get(cont)
+        port = current_in_params.get(cont)
+        return return_value(port, env, cont)
+    else:
+        return get_port(port, values_struct.w_prop_input_port, values.W_InputPort, env, cont)
+
+@continuation
+def read_stream_cont(env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_InputPort)
     v = read_stream(port)
     return return_value(v, env, cont)
 
@@ -892,7 +906,7 @@ def do_write_string(w_str, port, start_pos, end_pos, env, cont):
     else:
         end_pos = w_str.length()
     cont = write_string_cont(w_str, start, end_pos, env, cont)
-    return get_port(port, env, cont)
+    return get_output_port(port, env, cont)
 
 @continuation
 def write_string_cont(w_str, start, end_pos, env, cont, _vals):
@@ -902,15 +916,20 @@ def write_string_cont(w_str, start, end_pos, env, cont, _vals):
     port.write(w_str.getslice(start, end_pos).as_str_utf8())
     return return_value(values.W_Fixnum(end_pos - start), env, cont)
 
-def get_port(port, env, cont):
-    from pycket.interpreter import return_value
+def get_output_port(port, env, cont):
     if port is None:
         port = current_out_param.get(cont)
         return return_value(port, env, cont)
-    elif isinstance(port, values_struct.W_RootStruct):
+    else:
+        return get_port(port, values_struct.w_prop_output_port, values.W_OutputPort, env, cont)
+
+#FIXME: needs to loop untill a port of type typ is found
+def get_port(port, prop, typ, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(port, values_struct.W_RootStruct):
         cont = get_port_from_property(port, env, cont)
-        return port.get_prop(values_struct.w_prop_output_port, env, cont)
-    assert isinstance(port, values.W_OutputPort)
+        return port.get_prop(prop, env, cont)
+    assert isinstance(port, typ)
     return return_value(port, env, cont)
 
 @continuation

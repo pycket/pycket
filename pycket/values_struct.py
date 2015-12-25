@@ -1057,6 +1057,7 @@ class W_StructProperty(values.W_Object):
 
 sym = values.W_Symbol.make
 
+#FIXME: check if these propeties need guards or not
 w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(sym("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(sym("prop:arity-string"), values.w_false)
@@ -1067,9 +1068,10 @@ w_prop_chaperone_unsafe_undefined = W_StructProperty(sym("prop:chaperone-unsafe-
 w_prop_set_bang_transformer = W_StructProperty(sym("prop:set!-transformer"), values.w_false)
 w_prop_rename_transformer = W_StructProperty(sym("prop:rename-transformer"), values.w_false)
 w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), values.w_false)
-w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
 
-del sym
+#FIXME: add guards for these checking for immutable
+w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
+w_prop_input_port = W_StructProperty(sym("prop:input-port"), values.w_false)
 
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"
