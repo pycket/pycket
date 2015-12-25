@@ -58,7 +58,7 @@ class W_StructType(values.W_Object):
     def make(name, super_type, init_field_cnt, auto_field_cnt,
              auto_v=values.w_false, props=values.w_null,
              inspector=values.w_false, proc_spec=values.w_false,
-             immutables=values.w_null, guard=values.w_false,
+             immutables=[], guard=values.w_false,
              constr_name=values.w_false, env=None, cont=None):
         """
         This method returns five instances:
@@ -77,7 +77,7 @@ class W_StructType(values.W_Object):
     def make_simple(name, super_type, init_field_cnt, auto_field_cnt,
             auto_v=values.w_false, props=values.w_null,
             inspector=values.w_false, proc_spec=values.w_false,
-            immutables=values.w_null, guard=values.w_false,
+            immutables=[], guard=values.w_false,
             constr_name=values.w_false):
         """
         This method returns an instance of W_StructType only.
@@ -101,14 +101,10 @@ class W_StructType(values.W_Object):
                 prefab_key.make_key_tuple()
             super_type = W_StructType.make_prefab(super_key) if super_key else\
                 values.w_false
-            immutables = []
-            for i in range(init_field_cnt):
-                if i not in mutables:
-                    immutables.append(values.W_Fixnum(i))
+            immutables = [i for i in range(init_field_cnt) if i not in mutables]
             w_struct_type = W_StructType.make_simple(values.W_Symbol.make(name),
-                super_type, values.W_Fixnum(init_field_cnt),
-                values.W_Fixnum(auto_field_cnt), auto_v, values.w_null,
-                PREFAB, values.w_false, values.to_list(immutables))
+                super_type, init_field_cnt, auto_field_cnt, auto_v, values.w_null,
+                PREFAB, values.w_false, immutables)
             W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
         return w_struct_type
 
@@ -198,9 +194,9 @@ class W_StructType(values.W_Object):
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
         self.name = name.utf8value
         self.super = super_type
-        self.init_field_cnt = init_field_cnt.value
-        self.auto_field_cnt = auto_field_cnt.value
-        self.total_field_cnt = self.init_field_cnt + self.auto_field_cnt + \
+        self.init_field_cnt = init_field_cnt
+        self.auto_field_cnt = auto_field_cnt
+        self.total_field_cnt = init_field_cnt + auto_field_cnt + \
             (super_type.total_field_cnt if isinstance(super_type, W_StructType)
             else 0)
         self.auto_v = auto_v
@@ -208,13 +204,11 @@ class W_StructType(values.W_Object):
         self.prop_procedure = None
         self.procedure_source = None
         self.inspector = inspector
-        imm = []
+
         if isinstance(proc_spec, values.W_Fixnum):
-            imm.append(proc_spec.value)
-        for i in values.from_list(immutables):
-            assert isinstance(i, values.W_Fixnum)
-            imm.append(i.value)
-        self.immutables = imm[:]
+            immutables = [proc_spec.value] + immutables
+
+        self.immutables = immutables
         self.guard = guard
 
         self.auto_values = [self.auto_v] * self.auto_field_cnt
@@ -355,21 +349,15 @@ class W_PrefabKey(values.W_Object):
             mutables, super_key)
 
     @staticmethod
-    def from_raw_params(w_name, w_init_field_cnt, w_auto_field_cnt, auto_v,
-            w_immutables, super_type):
+    def from_raw_params(w_name, init_field_cnt, auto_field_cnt, auto_v, immutables, super_type):
         assert isinstance(w_name, values.W_Symbol)
         name = w_name.utf8value
-        assert isinstance(w_init_field_cnt, values.W_Fixnum)
-        init_field_cnt = w_init_field_cnt.value
-        assert isinstance(w_auto_field_cnt, values.W_Fixnum)
-        auto_field_cnt = w_auto_field_cnt.value
         mutables = []
         prev_idx = 1
-        for i in values.from_list(w_immutables):
-            assert isinstance(i, values.W_Fixnum)
-            for j in range(prev_idx, i.value):
+        for i in immutables:
+            for j in range(prev_idx, i):
                 mutables.append(j)
-            prev_idx = i.value + 1
+            prev_idx = i + 1
         super_key = W_PrefabKey.from_struct_type(super_type) if\
             super_type is not values.w_false else None
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,

@@ -74,16 +74,26 @@ def do_struct_type_make_predicate(struct_type, env, cont):
          default(values.W_Object, values.w_null),
          default(values.W_Object, None),
          default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_null),
+         default(values.W_List, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
+def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
+        auto_v, props, inspector, proc_spec, w_immutables, guard, constr_name, env, cont):
     if inspector is None:
         inspector = values_struct.current_inspector_param.get(cont)
-    if not (isinstance(super_type, values_struct.W_StructType) or
-            super_type is values.w_false):
+
+    if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
+
+    init_field_cnt = w_init_field_cnt.value
+    auto_field_cnt = w_auto_field_cnt.value
+
+    immutables = []
+    for i in values.from_list_iter(w_immutables):
+        if not isinstance(i, values.W_Fixnum) or i.value < 0:
+            raise SchemeException("make-struct-type: expected list of positive integers for immutable fields")
+        immutables.append(i.value)
+
     return values_struct.W_StructType.make(name, super_type, init_field_cnt,
         auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
         guard, constr_name, env, cont)

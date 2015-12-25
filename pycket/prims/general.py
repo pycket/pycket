@@ -255,14 +255,11 @@ def prim_clos(v):
 # built-in struct types
 
 def define_struct(name, super=values.w_null, fields=[]):
-    immutables = []
-    for i in range(len(fields)):
-        immutables.append(values.W_Fixnum(i))
+    immutables = range(len(fields))
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
         values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false, values.w_false,
-            values.to_list(immutables)).make_struct_tuple()
+            super, len(fields), 0, values.w_false, values.w_null, values.w_false,
+            values.w_false, immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
