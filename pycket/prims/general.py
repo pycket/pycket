@@ -516,21 +516,20 @@ def do_procedure_arity(proc, env, cont):
 @jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
-        if n.value >= 0:
-            return values.w_true
-    elif isinstance(n, values_struct.W_RootStruct) and\
-        n.struct_type().name.utf8value == "arity-at-least":
+        return values.W_Bool.make(n.value >= 0)
+
+    elif (isinstance(n, values_struct.W_RootStruct) and
+          n.struct_type() is arity_at_least):
         return values.w_true
-    elif isinstance(n, values.W_List):
-        if not n.is_proper_list():
-            return values.w_false
-        while isinstance(n, values.W_Cons):
-            item, n = n.car(), n.cdr()
+
+    elif isinstance(n, values.W_List) and n.is_proper_list():
+        for item in values.from_list_iter(n):
             if not (isinstance(item, values.W_Fixnum) or
                 (isinstance(item, values_struct.W_RootStruct) and
-                item.struct_type().name.utf8value == "arity-at-least")):
+                item.struct_type() is arity_at_least)):
                 return values.w_false
         return values.w_true
+
     return values.w_false
 
 @expose("procedure-arity-includes?",
@@ -542,12 +541,9 @@ def procedure_arity_includes(proc, k, kw_ok):
             if w_prop_val is not None:
                 return values.w_false
     arity = proc.get_arity()
-    if isinstance(k, values.W_Fixnum):
-        k_val = k.value
-        return values.W_Bool.make(arity.arity_includes(k_val))
-    if isinstance(k, values.W_Bignum):
+    if isinstance(k, values.W_Integer):
         try:
-            k_val = k.value.toint()
+            k_val = k.toint()
         except OverflowError:
             pass
         else:

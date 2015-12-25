@@ -879,23 +879,21 @@ class W_StructConstructor(values.W_Procedure):
         if guard_values:
             field_values = guard_values
         super_type = jit.promote(type.super)
-        if isinstance(super_type, W_StructType):
-            split_position = len(field_values) - type.init_field_cnt
-            super_auto = super_type.constructor.type.auto_values
-            assert split_position >= 0
-            field_values = self._splice(field_values, split_position, super_auto)
-            if issuper:
-                return super_type.constructor.code(field_values[:split_position],
-                    struct_type_name, True, env, cont, app)
-            else:
-                return super_type.constructor.code(field_values[:split_position],
-                    struct_type_name, True,
-                    env, self.constr_proc_cont(field_values, env, cont), app)
-        else:
+        if not isinstance(super_type, W_StructType):
             if issuper:
                 return return_multi_vals(values.Values.make(field_values), env, cont)
-            else:
-                return jump(env, self.constr_proc_cont(field_values, env, cont))
+            return jump(env, self.constr_proc_cont(field_values, env, cont))
+
+        split_position = len(field_values) - type.init_field_cnt
+        super_auto = super_type.constructor.type.auto_values
+        assert split_position >= 0
+        field_values = self._splice(field_values, split_position, super_auto)
+        constr = super_type.constructor
+        vals   = field_values[:split_position]
+        if issuper:
+            return constr.code(vals, struct_type_name, True, env, cont, app)
+        cont = self.constr_proc_cont(field_values, env, cont)
+        return constr.code(vals, struct_type_name, True, env, cont, app)
 
     def code(self, field_values, struct_type_name, issuper, env, cont, app):
         from pycket.interpreter import jump

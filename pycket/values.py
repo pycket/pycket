@@ -560,6 +560,9 @@ class W_Rational(W_Number):
 class W_Integer(W_Number):
     errorname = "integer"
 
+    def toint(self):
+        raise NotImplementedError("abstract base class")
+
     @staticmethod
     def frombigint(value):
         try:
@@ -592,6 +595,9 @@ class W_Fixnum(W_Integer):
             # this is not safe during translation
             assert isinstance(val, int)
         self.value = val
+
+    def toint(self):
+        return self.value
 
     def equal(self, other):
         if not isinstance(other, W_Fixnum):
@@ -647,6 +653,10 @@ class W_Bignum(W_Integer):
 
     def __init__(self, val):
         self.value = val
+
+    def toint(self):
+        """ raises OverflowError on failure """
+        return self.value.toint()
 
     def toflonum(self):
         bignum = self.value
