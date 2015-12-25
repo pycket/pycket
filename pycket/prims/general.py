@@ -1365,3 +1365,10 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
+
+@expose("procedure-specialize", [procedure])
+def procedure_specialize(proc):
+    # XXX This is the identity function simply for compatibility.
+    # Another option is to wrap closures in a W_PromotableClosure, which might
+    # get us a similar effect from the RPython JIT.
+    return proc

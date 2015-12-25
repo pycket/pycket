@@ -236,7 +236,6 @@ def make_label(func, enter=False):
     class Label(AST):
         is_label = True
         should_enter = enter
-        app_like     = False
         def interpret(self, env, cont):
             assert type(cont) is Args
             args = cont._get_args()
