@@ -50,7 +50,7 @@ class W_StructType(values.W_Object):
     _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
             "total_field_cnt", "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
-            "constr", "predicate", "accessor", "mutator", "prop_procedure",
+            "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity"]
     unbound_prefab_types = {}
 
@@ -102,7 +102,7 @@ class W_StructType(values.W_Object):
             super_type = W_StructType.make_prefab(super_key) if super_key else\
                 values.w_false
             immutables = [i for i in range(init_field_cnt) if i not in mutables]
-            w_struct_type = W_StructType.make_simple(values.W_Symbol.make(name),
+            w_struct_type = W_StructType.make_simple(name,
                 super_type, init_field_cnt, auto_field_cnt, auto_v, values.w_null,
                 PREFAB, values.w_false, immutables)
             W_StructType.unbound_prefab_types[prefab_key] = w_struct_type
@@ -192,7 +192,8 @@ class W_StructType(values.W_Object):
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
             auto_v, inspector, proc_spec, immutables, guard, constr_name):
-        self.name = name.utf8value
+        assert isinstance(name, values.W_Symbol)
+        self.name = name
         self.super = super_type
         self.init_field_cnt = init_field_cnt
         self.auto_field_cnt = auto_field_cnt
@@ -218,26 +219,33 @@ class W_StructType(values.W_Object):
         else:
             self.isopaque = self.inspector is not values.w_false
 
+        self._calculate_offsets()
+        self._generate_methods(constr_name)
+
+    def _generate_methods(self, constr_name):
+        """ Generate constructor, predicate, mutator, and accessor """
+        if isinstance(constr_name, values.W_Symbol):
+            constr_name = constr_name.utf8value
+        else:
+            constr_name = "make-" + self.name.utf8value
+
         count = self.total_field_cnt - self.auto_field_cnt
         self.constructor_arity = Arity([count], -1)
 
-        self.calculate_offsets()
-
-        constr_name = (constr_name.utf8value if
-            isinstance(constr_name, values.W_Symbol) else "make-" + self.name)
-        self.constr = W_StructConstructor(self, constr_name)
-        self.predicate = W_StructPredicate(self)
-        self.accessor = W_StructAccessor(self)
-        self.mutator = W_StructMutator(self)
+        self.constructor = W_StructConstructor(self, constr_name)
+        self.predicate   = W_StructPredicate(self)
+        self.accessor    = W_StructAccessor(self)
+        self.mutator     = W_StructMutator(self)
 
     @jit.unroll_safe
-    def calculate_offsets(self):
+    def _calculate_offsets(self):
         offsets = []
         immutable_fields = [] # absolut indices
         struct_type = self
         while isinstance(struct_type, W_StructType):
-            offset = struct_type.total_field_cnt - \
-                struct_type.init_field_cnt - struct_type.auto_field_cnt
+            offset = (struct_type.total_field_cnt -
+                      struct_type.init_field_cnt -
+                      struct_type.auto_field_cnt)
             offsets.append((struct_type, offset))
             for immutable_field in struct_type.immutables:
                 immutable_fields.append(immutable_field + offset)
@@ -257,7 +265,7 @@ class W_StructType(values.W_Object):
         return i in self.immutable_fields
 
     def struct_type_info(self, cont):
-        name = values.W_Symbol.make(self.name)
+        name = self.name
         init_field_cnt = values.W_Fixnum(self.init_field_cnt)
         auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
         immutable_k_list = values.to_list(
@@ -275,7 +283,7 @@ class W_StructType(values.W_Object):
                 self.mutator, immutable_k_list, super, skipped]
 
     def make_struct_tuple(self):
-        return [self, self.constr, self.predicate, self.accessor, self.mutator]
+        return [self, self.constructor, self.predicate, self.accessor, self.mutator]
 
     @jit.elidable_promote('all')
     def read_prop_precise(self, prop):
@@ -321,6 +329,7 @@ class W_PrefabKey(values.W_Object):
     @staticmethod
     @jit.elidable
     def make(name, init_field_cnt, auto_field_cnt, auto_v, mutables, super_key):
+        assert isinstance(name, values.W_Symbol)
         for key in W_PrefabKey.all_keys:
             if key.equal_tuple((name, init_field_cnt, auto_field_cnt, auto_v,
                 mutables, super_key)):
@@ -351,7 +360,6 @@ class W_PrefabKey(values.W_Object):
     @staticmethod
     def from_raw_params(w_name, init_field_cnt, auto_field_cnt, auto_v, immutables, super_type):
         assert isinstance(w_name, values.W_Symbol)
-        name = w_name.utf8value
         mutables = []
         prev_idx = 1
         for i in immutables:
@@ -360,7 +368,7 @@ class W_PrefabKey(values.W_Object):
             prev_idx = i + 1
         super_key = W_PrefabKey.from_struct_type(super_type) if\
             super_type is not values.w_false else None
-        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,
+        return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
             mutables, super_key)
 
     @staticmethod
@@ -372,13 +380,12 @@ class W_PrefabKey(values.W_Object):
         super_key = None
         mutables = []
         if isinstance(w_key, values.W_Symbol):
-            name = w_key.utf8value
+            w_name = w_key
             init_field_cnt = total_field_cnt
         else:
             key = values.from_list(w_key)
             w_name = key[0]
             assert isinstance(w_name, values.W_Symbol)
-            name = w_name.utf8value
             idx = 1
             w_init_field_cnt = key[idx]
             if isinstance(w_init_field_cnt, values.W_Fixnum):
@@ -411,7 +418,7 @@ class W_PrefabKey(values.W_Object):
                 super_name, super_init_field_cnt, super_auto_field_cnt,\
                     super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
-        return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,
+        return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
             mutables, super_key)
 
     @staticmethod
@@ -457,7 +464,7 @@ class W_PrefabKey(values.W_Object):
 
     def key(self):
         key = []
-        key.append(values.W_Symbol.make(self.name))
+        key.append(self.name)
         key.append(values.W_Fixnum(self.init_field_cnt))
         if self.auto_field_cnt > 0:
             key.append(values.to_list(
@@ -849,11 +856,12 @@ class W_StructConstructor(values.W_Procedure):
         result = cls.make(field_values, struct_type)
         return return_value(result, env, cont)
 
+    @staticmethod
     @jit.unroll_safe
-    def _splice(self, array, array_len, index, insertion, insertion_len):
-        new_len = array_len + insertion_len
-        assert new_len >= 0
-        new_array = [None] * new_len
+    def _splice(array, index, insertion):
+        array_len = len(array)
+        insertion_len = len(insertion)
+        new_array = [None] * (array_len + insertion_len)
         for pre_index in range(index):
             new_array[pre_index] = array[pre_index]
         for insert_index in range(insertion_len):
@@ -873,15 +881,14 @@ class W_StructConstructor(values.W_Procedure):
         super_type = jit.promote(type.super)
         if isinstance(super_type, W_StructType):
             split_position = len(field_values) - type.init_field_cnt
-            super_auto = super_type.constr.type.auto_values
+            super_auto = super_type.constructor.type.auto_values
             assert split_position >= 0
-            field_values = self._splice(field_values, len(field_values),\
-                split_position, super_auto, len(super_auto))
+            field_values = self._splice(field_values, split_position, super_auto)
             if issuper:
-                return super_type.constr.code(field_values[:split_position],
+                return super_type.constructor.code(field_values[:split_position],
                     struct_type_name, True, env, cont, app)
             else:
-                return super_type.constr.code(field_values[:split_position],
+                return super_type.constructor.code(field_values[:split_position],
                     struct_type_name, True,
                     env, self.constr_proc_cont(field_values, env, cont), app)
         else:
@@ -897,7 +904,7 @@ class W_StructConstructor(values.W_Procedure):
             return jump(env, self.constr_proc_wrapper_cont(field_values,
                 struct_type_name, issuper, app, env, cont))
         else:
-            guard_args = field_values + [values.W_Symbol.make(struct_type_name)]
+            guard_args = field_values + [struct_type_name]
             jit.promote(self)
             return type.guard.call_with_extra_info(guard_args, env,
                 self.constr_proc_wrapper_cont(field_values, struct_type_name,
@@ -1114,6 +1121,6 @@ class W_StructPropertyAccessor(values.W_Procedure):
                 (self.property.name, self.property.name, arg.tostring()))
 
 def struct2vector(struct, immutable=False):
-    struct_desc = struct.struct_type().name
+    struct_desc = struct.struct_type().name.utf8value
     first_el = values.W_Symbol.make("struct:" + struct_desc)
     return values_vector.W_Vector.fromelements([first_el] + struct.vals(), immutable=immutable)

@@ -504,7 +504,8 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(arity, env, cont))
+        constructor = arity_at_least.constructor
+        return constructor.call(val, env, proc_arity_cont(arity, env, cont))
     if len(arity.arity_list) == 1:
         item = values.W_Fixnum(arity.arity_list[0])
         return return_value(item, env, cont)
@@ -518,16 +519,16 @@ def do_is_procedure_arity(n):
         if n.value >= 0:
             return values.w_true
     elif isinstance(n, values_struct.W_RootStruct) and\
-        n.struct_type().name == "arity-at-least":
+        n.struct_type().name.utf8value == "arity-at-least":
         return values.w_true
     elif isinstance(n, values.W_List):
         if not n.is_proper_list():
             return values.w_false
         while isinstance(n, values.W_Cons):
             item, n = n.car(), n.cdr()
-            if not (isinstance(item, values.W_Fixnum) or\
-                (isinstance(item, values_struct.W_RootStruct) and\
-                item.struct_type().name == "arity-at-least")):
+            if not (isinstance(item, values.W_Fixnum) or
+                (isinstance(item, values_struct.W_RootStruct) and
+                item.struct_type().name.utf8value == "arity-at-least")):
                 return values.w_false
         return values.w_true
     return values.w_false

@@ -57,7 +57,7 @@ def do_struct_type_make_constructor(struct_type, env, cont):
     if not current_inspector.has_control(struct_type):
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return return_value(struct_type.constr, env, cont)
+    return return_value(struct_type.constructor, env, cont)
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType], simple=False)
 def do_struct_type_make_predicate(struct_type, env, cont):
