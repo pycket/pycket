@@ -1073,6 +1073,8 @@ w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), val
 w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
 w_prop_input_port = W_StructProperty(sym("prop:input-port"), values.w_false)
 
+del sym
+
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"
     _immutable_fields_ = ["property"]
