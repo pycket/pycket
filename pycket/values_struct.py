@@ -191,15 +191,18 @@ class W_StructType(values.W_Object):
         return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
-            auto_v, inspector, proc_spec, immutables, guard, constr_name):
+                 auto_v, inspector, proc_spec, immutables, guard, constr_name):
         assert isinstance(name, values.W_Symbol)
+
         self.name = name
         self.super = super_type
         self.init_field_cnt = init_field_cnt
         self.auto_field_cnt = auto_field_cnt
-        self.total_field_cnt = init_field_cnt + auto_field_cnt + \
-            (super_type.total_field_cnt if isinstance(super_type, W_StructType)
-            else 0)
+        self.total_field_cnt = init_field_cnt + auto_field_cnt
+
+        if isinstance(super_type, W_StructType):
+            self.total_field_cnt += super_type.total_field_cnt
+
         self.auto_v = auto_v
         self.props = []
         self.prop_procedure = None
@@ -229,7 +232,13 @@ class W_StructType(values.W_Object):
         else:
             constr_name = "make-" + self.name.utf8value
 
-        count = self.total_field_cnt - self.auto_field_cnt
+        auto_count  = 0
+        struct_type = self
+        while isinstance(struct_type, W_StructType):
+            auto_count += struct_type.auto_field_cnt
+            struct_type = struct_type.super
+
+        count = self.total_field_cnt - auto_count
         self.constructor_arity = Arity([count], -1)
 
         self.constructor = W_StructConstructor(self, constr_name)
