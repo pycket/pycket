@@ -328,7 +328,7 @@ class W_StructType(values.W_Object):
         pass
 
     def tostring(self):
-        return "#<struct-type:%s>" % self.name
+        return "#<struct-type:%s>" % self.name.utf8value
 
 class W_PrefabKey(values.W_Object):
     _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",\
@@ -716,14 +716,15 @@ class W_Struct(W_RootStruct):
 
     def tostring(self):
         w_type = self.struct_type()
+        typename = w_type.name.utf8value
         if w_type.isprefab:
             return self.tostring_prefab()
         elif w_type.all_opaque():
-            return "#<%s>" % w_type.name
+            return "#<%s>" % typename
         else:
             fields = [None] * w_type.total_field_cnt
             self.tostring_values(fields=fields, w_type=w_type, is_super=False)
-            return "(%s %s)" % (w_type.name, self._string_from_list(fields))
+            return "(%s %s)" % (typename, self._string_from_list(fields))
 
 """
 This method generates a new structure class with inline stored immutable #f
@@ -837,9 +838,6 @@ class W_StructConstructor(values.W_Procedure):
         self.type = type
         self.constr_name = constr_name
 
-    def make_struct(self, field_values):
-        raise NotImplementedError("abstract base class")
-
     @continuation
     @jit.unroll_safe
     def constr_proc_cont(self, field_values, env, cont, _vals):
@@ -881,7 +879,7 @@ class W_StructConstructor(values.W_Procedure):
 
     @continuation
     def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
-        app, env, cont, _vals):
+                                 app, env, cont, _vals):
         from pycket.interpreter import return_multi_vals, jump
         guard_values = _vals.get_all_values()
         type = jit.promote(self.type)
@@ -910,12 +908,11 @@ class W_StructConstructor(values.W_Procedure):
         if type.guard is values.w_false:
             return jump(env, self.constr_proc_wrapper_cont(field_values,
                 struct_type_name, issuper, app, env, cont))
-        else:
-            guard_args = field_values + [struct_type_name]
-            jit.promote(self)
-            return type.guard.call_with_extra_info(guard_args, env,
-                self.constr_proc_wrapper_cont(field_values, struct_type_name,
-                    issuper, app, env, cont), app)
+        guard_args = field_values + [struct_type_name]
+        jit.promote(self)
+        return type.guard.call_with_extra_info(guard_args, env,
+            self.constr_proc_wrapper_cont(field_values, struct_type_name,
+                issuper, app, env, cont), app)
 
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):
