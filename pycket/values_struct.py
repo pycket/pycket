@@ -914,7 +914,10 @@ class W_StructConstructor(values.W_Procedure):
 
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):
-        type = jit.promote(self.type)
+        type  = jit.promote(self.type)
+        arity = type.constructor_arity
+        if not arity.arity_includes(len(args)):
+            raise SchemeException("%s: wrong number of arguments" % self.tostring())
         return construct_struct_loop(type, type, args, env, cont)
 
     def get_arity(self):
