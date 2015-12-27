@@ -832,6 +832,20 @@ def reduce_field_values(field_values, constant_false):
             k += 1
     return reduced_field_values
 
+@jit.unroll_safe
+def splice_array(array, index, insertion):
+    array_len = len(array)
+    insertion_len = len(insertion)
+    new_array = [None] * (array_len + insertion_len)
+    for pre_index in range(index):
+        new_array[pre_index] = array[pre_index]
+    for insert_index in range(insertion_len):
+        new_array[index + insert_index] = insertion[insert_index]
+    for post_index in range(index, array_len):
+        new_array[post_index + insertion_len] = array[post_index]
+    return new_array
+
+
 class W_StructConstructor(values.W_Procedure):
     _immutable_fields_ = ["type", "constr_name"]
     def __init__(self, type, constr_name):
@@ -863,20 +877,6 @@ class W_StructConstructor(values.W_Procedure):
         result = cls.make(field_values, struct_type)
         return return_value(result, env, cont)
 
-    @staticmethod
-    @jit.unroll_safe
-    def _splice(array, index, insertion):
-        array_len = len(array)
-        insertion_len = len(insertion)
-        new_array = [None] * (array_len + insertion_len)
-        for pre_index in range(index):
-            new_array[pre_index] = array[pre_index]
-        for insert_index in range(insertion_len):
-            new_array[index + insert_index] = insertion[insert_index]
-        for post_index in range(index, array_len):
-            new_array[post_index + insertion_len] = array[post_index]
-        return new_array
-
     @continuation
     def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
                                  app, env, cont, _vals):
@@ -892,14 +892,14 @@ class W_StructConstructor(values.W_Procedure):
             return jump(env, self.constr_proc_cont(field_values, env, cont))
 
         split_position = len(field_values) - type.init_field_cnt
-        super_auto = super_type.constructor.type.auto_values
+        super_auto = super_type.auto_values
         assert split_position >= 0
-        field_values = self._splice(field_values, split_position, super_auto)
+        field_values = splice_array(field_values, split_position, super_auto)
+
         constr = super_type.constructor
         vals   = field_values[:split_position]
-        if issuper:
-            return constr.code(vals, struct_type_name, True, env, cont, app)
-        cont = self.constr_proc_cont(field_values, env, cont)
+        if not issuper:
+            cont = self.constr_proc_cont(field_values, env, cont)
         return constr.code(vals, struct_type_name, True, env, cont, app)
 
     def code(self, field_values, struct_type_name, issuper, env, cont, app):
