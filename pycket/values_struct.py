@@ -857,6 +857,7 @@ def splice_array(array, index, insertion):
         new_array[post_index + insertion_len] = array[post_index]
     return new_array
 
+@jit.unroll_safe
 def construct_struct_final(struct_type, field_values, env, cont):
     from pycket.interpreter import return_value
     assert len(field_values) == struct_type.total_field_cnt
@@ -888,7 +889,8 @@ def construct_struct_loop(init_type, struct_type, field_values, env, cont):
     assert auto_field_start >= 0
     typename = init_type.name
     args = field_values[:auto_field_start] + [typename]
-    cont = receive_guard_values(init_type, struct_type, field_values, auto_field_start, env, cont)
+    cont = receive_guard_values_cont(init_type, struct_type, field_values,
+                                     auto_field_start, env, cont)
     return guard.call(args, env, cont)
 
 def construct_struct_loop_body(init_type, struct_type, field_values,
@@ -901,8 +903,8 @@ def construct_struct_loop_body(init_type, struct_type, field_values,
     return construct_struct_loop(init_type, super_type, field_values, env, cont)
 
 @continuation
-def receive_guard_values(init_type, struct_type, field_values, auto_field_start,
-                         env, cont, _vals):
+def receive_guard_values_cont(init_type, struct_type, field_values,
+                              auto_field_start, env, cont, _vals):
     assert _vals.num_values() == auto_field_start, "XXX Turn me into an exception"
     for i in range(auto_field_start):
         field_values[i] = _vals.get_value(i)
