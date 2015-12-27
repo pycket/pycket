@@ -258,12 +258,21 @@ class W_StructType(values.W_Object):
         self.offsets = offsets[:]
         self.immutable_fields = immutable_fields[:]
 
+    @jit.elidable
     def _count_auto_fields(self):
         auto_count  = 0
         while isinstance(self, W_StructType):
             auto_count += self.auto_field_cnt
             self = self.super
         return auto_count
+
+    @jit.elidable
+    def _count_init_fields(self):
+        init_count = 0
+        while isinstance(self, W_StructType):
+            init_count += self.init_field_cnt
+            self = self.super
+        return init_count
 
     @jit.elidable
     def get_offset(self, type):
@@ -866,16 +875,11 @@ def construct_struct_final(struct_type, field_values, env, cont):
 
 def construct_struct_loop(init_type, struct_type, field_values, env, cont):
     from pycket.interpreter import return_multi_vals
+    struct_type = jit.promote(struct_type)
     if not isinstance(struct_type, W_StructType):
         return construct_struct_final(init_type, field_values, env, cont)
 
-    auto_field_start = 0
-    st = struct_type
-    while isinstance(st, W_StructType):
-        auto_field_start += st.init_field_cnt
-        st = st.super
-    init_field_start = auto_field_start - struct_type.init_field_cnt
-
+    auto_field_start = struct_type._count_init_fields()
     guard = struct_type.guard
     if guard is values.w_false:
         return construct_struct_loop_body(init_type, struct_type, field_values,
