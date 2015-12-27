@@ -885,6 +885,7 @@ def construct_struct_loop(init_type, struct_type, field_values, env, cont):
         return construct_struct_loop_body(init_type, struct_type, field_values,
                                           auto_field_start, env, cont)
 
+    assert auto_field_start >= 0
     typename = init_type.name
     args = field_values[:auto_field_start] + [typename]
     cont = receive_guard_values(init_type, struct_type, field_values, auto_field_start, env, cont)
@@ -902,9 +903,9 @@ def construct_struct_loop_body(init_type, struct_type, field_values,
 @continuation
 def receive_guard_values(init_type, struct_type, field_values, auto_field_start,
                          env, cont, _vals):
-    vals = _vals.get_all_values()
-    assert len(vals) == auto_field_start, "XXX Turn me into an exception"
-    field_values[:auto_field_start] = vals
+    assert _vals.num_values() == auto_field_start, "XXX Turn me into an exception"
+    for i in range(auto_field_start):
+        field_values[i] = _vals.get_value(i)
     return construct_struct_loop_body(init_type, struct_type, field_values,
                                       auto_field_start, env, cont)
 
