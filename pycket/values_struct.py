@@ -225,6 +225,7 @@ class W_StructType(values.W_Object):
         self._calculate_offsets()
         self._generate_methods(constr_name)
 
+    @jit.unroll_safe
     def _generate_methods(self, constr_name):
         """ Generate constructor, predicate, mutator, and accessor """
         if isinstance(constr_name, values.W_Symbol):
@@ -232,12 +233,7 @@ class W_StructType(values.W_Object):
         else:
             constr_name = "make-" + self.name.utf8value
 
-        auto_count  = 0
-        struct_type = self
-        while isinstance(struct_type, W_StructType):
-            auto_count += struct_type.auto_field_cnt
-            struct_type = struct_type.super
-
+        auto_count  = self._count_auto_fields()
         count = self.total_field_cnt - auto_count
         self.constructor_arity = Arity([count], -1)
 
@@ -261,6 +257,13 @@ class W_StructType(values.W_Object):
             struct_type = struct_type.super
         self.offsets = offsets[:]
         self.immutable_fields = immutable_fields[:]
+
+    def _count_auto_fields(self):
+        auto_count  = 0
+        while isinstance(self, W_StructType):
+            auto_count += self.auto_field_cnt
+            self = self.super
+        return auto_count
 
     @jit.elidable
     def get_offset(self, type):
@@ -845,78 +848,74 @@ def splice_array(array, index, insertion):
         new_array[post_index + insertion_len] = array[post_index]
     return new_array
 
+def construct_struct_final(struct_type, field_values, env, cont):
+    from pycket.interpreter import return_value
+    assert len(field_values) == struct_type.total_field_cnt
+    constant_false = []
+    for i, value in enumerate(field_values):
+        if not struct_type.is_immutable_field_index(i):
+            value = values.W_Cell(value)
+            field_values[i] = value
+        elif value is values.w_false:
+            constant_false.append(i)
+    cls = lookup_struct_class(constant_false)
+    if cls is not W_Struct:
+        field_values = reduce_field_values(field_values, constant_false)
+    result = cls.make(field_values, struct_type)
+    return return_value(result, env, cont)
+
+def construct_struct_loop(init_type, struct_type, field_values, env, cont):
+    from pycket.interpreter import return_multi_vals
+    if not isinstance(struct_type, W_StructType):
+        return construct_struct_final(init_type, field_values, env, cont)
+
+    auto_field_start = 0
+    st = struct_type
+    while isinstance(st, W_StructType):
+        auto_field_start += st.init_field_cnt
+        st = st.super
+    init_field_start = auto_field_start - struct_type.init_field_cnt
+
+    guard = struct_type.guard
+    if guard is values.w_false:
+        return construct_struct_loop_body(init_type, struct_type, field_values,
+                                          auto_field_start, env, cont)
+
+    typename = init_type.name
+    args = field_values[:auto_field_start] + [typename]
+    cont = receive_guard_values(init_type, struct_type, field_values, auto_field_start, env, cont)
+    return guard.call(args, env, cont)
+
+def construct_struct_loop_body(init_type, struct_type, field_values,
+                               auto_field_start, env, cont):
+    # Figure out where in the array the auto values start for this struct type.
+    # Recall, the struct is built from the bottom up in the inheritance heirarchy.
+    auto_values  = struct_type.auto_values
+    field_values = splice_array(field_values, auto_field_start, auto_values)
+    super_type   = struct_type.super
+    return construct_struct_loop(init_type, super_type, field_values, env, cont)
+
+@continuation
+def receive_guard_values(init_type, struct_type, field_values, auto_field_start,
+                         env, cont, _vals):
+    vals = _vals.get_all_values()
+    assert len(vals) == auto_field_start, "XXX Turn me into an exception"
+    field_values[:auto_field_start] = vals
+    return construct_struct_loop_body(init_type, struct_type, field_values,
+                                      auto_field_start, env, cont)
 
 class W_StructConstructor(values.W_Procedure):
+
     _immutable_fields_ = ["type", "constr_name"]
+
     def __init__(self, type, constr_name):
         self.type = type
         self.constr_name = constr_name
 
-    @continuation
-    @jit.unroll_safe
-    def constr_proc_cont(self, field_values, env, cont, _vals):
-        from pycket.interpreter import return_value
-        guard_super_values = _vals.get_all_values()
-        struct_type = jit.promote(self.type)
-        if guard_super_values:
-            field_values = guard_super_values + field_values[len(guard_super_values):]
-        if len(struct_type.auto_values) > 0:
-            field_values = field_values + struct_type.auto_values
-        if len(field_values) != struct_type.total_field_cnt:
-            raise SchemeException("%s: arity mismatch" % self.constr_name)
-        constant_false = []
-        for i, value in enumerate(field_values):
-            if not struct_type.is_immutable_field_index(i):
-                value = values.W_Cell(value)
-                field_values[i] = value
-            elif value is values.w_false:
-                constant_false.append(i)
-        cls = lookup_struct_class(constant_false)
-        if cls is not W_Struct:
-            field_values = reduce_field_values(field_values, constant_false)
-        result = cls.make(field_values, struct_type)
-        return return_value(result, env, cont)
-
-    @continuation
-    def constr_proc_wrapper_cont(self, field_values, struct_type_name, issuper,
-                                 app, env, cont, _vals):
-        from pycket.interpreter import return_multi_vals, jump
-        guard_values = _vals.get_all_values()
-        type = jit.promote(self.type)
-        if guard_values:
-            field_values = guard_values
-        super_type = jit.promote(type.super)
-        if not isinstance(super_type, W_StructType):
-            if issuper:
-                return return_multi_vals(values.Values.make(field_values), env, cont)
-            return jump(env, self.constr_proc_cont(field_values, env, cont))
-
-        split_position = len(field_values) - type.init_field_cnt
-        super_auto = super_type.auto_values
-        assert split_position >= 0
-        field_values = splice_array(field_values, split_position, super_auto)
-
-        constr = super_type.constructor
-        vals   = field_values[:split_position]
-        if not issuper:
-            cont = self.constr_proc_cont(field_values, env, cont)
-        return constr.code(vals, struct_type_name, True, env, cont, app)
-
-    def code(self, field_values, struct_type_name, issuper, env, cont, app):
-        from pycket.interpreter import jump
-        type = jit.promote(self.type)
-        if type.guard is values.w_false:
-            return jump(env, self.constr_proc_wrapper_cont(field_values,
-                struct_type_name, issuper, app, env, cont))
-        guard_args = field_values + [struct_type_name]
-        jit.promote(self)
-        return type.guard.call_with_extra_info(guard_args, env,
-            self.constr_proc_wrapper_cont(field_values, struct_type_name,
-                issuper, app, env, cont), app)
-
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):
-        return self.code(args, self.type.name, False, env, cont, app)
+        type = jit.promote(self.type)
+        return construct_struct_loop(type, type, args, env, cont)
 
     def get_arity(self):
         return self.type.constructor_arity
