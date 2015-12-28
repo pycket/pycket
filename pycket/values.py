@@ -1589,8 +1589,6 @@ def wrap(*_pyval):
                 return W_UnwrappedFlonumConsProper(car, cdr)
             return W_UnwrappedFlonumCons(car, cdr)
         if isinstance(car, W_Object):
-            if cdr.is_proper_list():
-                return W_WrappedConsProper(car, cdr)
-            return W_WrappedCons(car, cdr)
+            return W_Cons.make(car, cdr)
     assert False
 
