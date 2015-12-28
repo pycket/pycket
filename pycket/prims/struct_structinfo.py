@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from pycket import impersonators as imp
-from pycket import values
-from pycket import values_parameter, values_struct
-from pycket.error import SchemeException
+from pycket              import impersonators as imp
+from pycket              import values
+from pycket              import values_parameter, values_struct
+from pycket.arity        import Arity
+from pycket.error        import SchemeException
 from pycket.prims.expose import unsafe, default, expose, expose_val
 
 expose_val("current-inspector", values_struct.current_inspector_param)
@@ -56,7 +57,7 @@ def do_struct_type_make_constructor(struct_type, env, cont):
     if not current_inspector.has_control(struct_type):
         # TODO: we should raise exn:fail:contract
         raise SchemeException("fail_contract")
-    return return_value(struct_type.constr, env, cont)
+    return return_value(struct_type.constructor, env, cont)
 
 @expose("struct-type-make-predicate", [values_struct.W_StructType], simple=False)
 def do_struct_type_make_predicate(struct_type, env, cont):
@@ -73,16 +74,26 @@ def do_struct_type_make_predicate(struct_type, env, cont):
          default(values.W_Object, values.w_null),
          default(values.W_Object, None),
          default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_null),
+         default(values.W_List, values.w_null),
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_false)], simple=False)
-def do_make_struct_type(name, super_type, init_field_cnt, auto_field_cnt,
-        auto_v, props, inspector, proc_spec, immutables, guard, constr_name, env, cont):
+def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
+        auto_v, props, inspector, proc_spec, w_immutables, guard, constr_name, env, cont):
     if inspector is None:
         inspector = values_struct.current_inspector_param.get(cont)
-    if not (isinstance(super_type, values_struct.W_StructType) or
-            super_type is values.w_false):
+
+    if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
+
+    init_field_cnt = w_init_field_cnt.value
+    auto_field_cnt = w_auto_field_cnt.value
+
+    immutables = []
+    for i in values.from_list_iter(w_immutables):
+        if not isinstance(i, values.W_Fixnum) or i.value < 0:
+            raise SchemeException("make-struct-type: expected list of positive integers for immutable fields")
+        immutables.append(i.value)
+
     return values_struct.W_StructType.make(name, super_type, init_field_cnt,
         auto_field_cnt, auto_v, props, inspector, proc_spec, immutables,
         guard, constr_name, env, cont)
@@ -126,10 +137,10 @@ def do_prefab_struct_key(v):
     prefab_key = values_struct.W_PrefabKey.from_struct_type(v.struct_type())
     return prefab_key.short_key()
 
-@expose("make-prefab-struct")
+@expose("make-prefab-struct", arity=Arity.geq(1))
 def do_make_prefab_struct(args):
     assert len(args) > 1
-    key = args[0]
+    key  = args[0]
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)
 

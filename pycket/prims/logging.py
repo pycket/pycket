@@ -15,7 +15,7 @@ LOG_LEVEL = map(values.W_Symbol.make, LOG_LEVEL) + [values.w_false]
 class __extend_parser__(ArgParser):
     log_level = LOG_LEVEL
 
-@expose("make-logger", arity=Arity.geq_0)
+@expose("make-logger", arity=Arity.geq(0))
 @jit.unroll_safe
 def make_logger(args):
     parser = ArgParser("make-logger", args)
