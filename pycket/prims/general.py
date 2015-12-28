@@ -256,18 +256,19 @@ def prim_clos(v):
 
 def define_struct(name, super=values.w_null, fields=[]):
     immutables = range(len(fields))
+    symname = values.W_Symbol.make(name)
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, len(fields), 0, values.w_false, values.w_null, values.w_false,
-            values.w_false, immutables).make_struct_tuple()
+        values_struct.W_StructType.make_simple(
+                symname, super, len(fields), 0, values.w_false, values.w_null,
+                values.w_false, values.w_false, immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
     expose_val("make-" + name, struct_constr)
     expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        w_num = values.W_Fixnum(field)
-        w_name =  values.W_Symbol.make(field_name)
+        w_num = field
+        w_name = values.W_Symbol.make(field_name)
         acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type

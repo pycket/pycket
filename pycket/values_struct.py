@@ -190,7 +190,7 @@ class W_StructType(values.W_Object):
         for p in proplist:
             self.initialize_prop(props, p)
         if proc_spec is not values.w_false:
-            self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
+            self.initialize_prop(props, values.wrap(w_prop_procedure, proc_spec))
         return self.attach_prop(props, 0, False, env, cont)
 
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
@@ -669,8 +669,8 @@ class W_Struct(W_RootStruct):
 
     def get_struct_info(self, env, cont):
         from pycket.interpreter import return_multi_vals
-        return return_multi_vals(
-                values.Values.make([self.struct_type(), values.w_false]), env, cont)
+        vals = values.Values._make2(self.struct_type(), values.w_false)
+        return return_multi_vals(vals, env, cont)
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):
@@ -949,9 +949,8 @@ class W_StructFieldAccessor(values.W_Procedure):
     _immutable_fields_ = ["accessor", "field", "field_name"]
     def __init__(self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
-        assert isinstance(field, values.W_Fixnum)
         self.accessor = accessor
-        self.field = field.value
+        self.field = field
         self.field_name = field_name
 
     def get_arity(self):
@@ -996,9 +995,8 @@ class W_StructFieldMutator(values.W_Procedure):
     _immutable_fields_ = ["mutator", "field", "field_name"]
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
-        assert isinstance(field, values.W_Fixnum)
         self.mutator = mutator
-        self.field = field.value
+        self.field = field
         self.field_name = field_name
 
     def get_arity(self):

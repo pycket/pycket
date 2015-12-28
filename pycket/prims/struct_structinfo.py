@@ -101,30 +101,30 @@ def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
 @expose("struct-accessor-procedure?", [values.W_Object])
 def do_is_struct_accessor_procedure(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_StructAccessor) or
-        isinstance(v, values_struct.W_StructFieldAccessor))
+                              isinstance(v, values_struct.W_StructFieldAccessor))
 
 @expose("make-struct-field-accessor", [values_struct.W_StructAccessor,
     values.W_Fixnum, default(values.W_Object, values.w_false)])
 def do_make_struct_field_accessor(accessor, field, field_name):
     if field_name is values.w_false:
-        return values_struct.W_StructFieldAccessor(accessor, field, None)
+        return values_struct.W_StructFieldAccessor(accessor, field.value, None)
     if not isinstance(field_name, values.W_Symbol):
         raise SchemeException("make-struct-field-accessor: expected symbol or #f as argument 2")
-    return values_struct.W_StructFieldAccessor(accessor, field, field_name)
+    return values_struct.W_StructFieldAccessor(accessor, field.value, field_name)
 
 @expose("struct-mutator-procedure?", [values.W_Object])
 def do_is_struct_mutator_procedure(v):
     return values.W_Bool.make(isinstance(v, values_struct.W_StructMutator) or
-        isinstance(v, values_struct.W_StructFieldMutator))
+                              isinstance(v, values_struct.W_StructFieldMutator))
 
 @expose("make-struct-field-mutator", [values_struct.W_StructMutator,
     values.W_Fixnum, default(values.W_Object, values.w_false)])
 def do_make_struct_field_mutator(mutator, field, field_name):
     if field_name is values.w_false:
-        return values_struct.W_StructFieldMutator(mutator, field, None)
+        return values_struct.W_StructFieldMutator(mutator, field.value, None)
     if not isinstance(field_name, values.W_Symbol):
         raise SchemeException("make-struct-field-mutator: expected symbol or #f as argument 2")
-    return values_struct.W_StructFieldMutator(mutator, field, field_name)
+    return values_struct.W_StructFieldMutator(mutator, field.value, field_name)
 
 @expose("struct->vector", [values_struct.W_RootStruct])
 def expose_struct2vector(struct):
