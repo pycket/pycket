@@ -1,11 +1,11 @@
 
-from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Character, UNROLLING_CUTOFF
+from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Character, UNROLLING_CUTOFF, wrap
 from pycket.base import W_Object, SingletonMeta
 from pycket import config
 
 from rpython.rlib import debug, jit
 from rpython.rlib import rerased
-from rpython.rlib.objectmodel import newlist_hint, import_from_mixin
+from rpython.rlib.objectmodel import newlist_hint, import_from_mixin, specialize
 from rpython.rlib.rarithmetic import intmask
 
 
@@ -410,3 +410,29 @@ class FlonumVectorStrategy(VectorStrategy):
 
 class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
+
+@specialize.call_location()
+def pytype_strategy(lst):
+    if not lst:
+        strategy = ObjectVectorStrategy.singleton
+    elem = lst[0]
+    if isinstance(elem, int):
+        return FixnumVectorStrategy.singleton
+    if isinstance(elem, float):
+        return FlonumVectorStrategy.singleton
+    if isinstance(elem, W_Object):
+        return ObjectVectorStrategy.singleton
+    assert False, "unsupported type"
+
+@specialize.call_location()
+def wrap_vector(elems, immutable=False):
+    # Allows for direct conversion between RPython lists and vectors with a
+    # corresponding strategy simply by copying the underlying list.
+    strategy = pytype_strategy(elems)
+    if immutable:
+        strategy = _immutable_strategy_variant(strategy)
+        storage  = strategy.erase(elems)
+    else:
+        storage  = strategy.erase(elems[:])
+    return W_Vector(strategy, storage, len(elems))
+

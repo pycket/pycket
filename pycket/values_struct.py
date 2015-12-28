@@ -47,8 +47,11 @@ current_inspector_param = W_Parameter(current_inspector)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
-    _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
-            "total_field_cnt", "auto_v", "props", "inspector", "immutables[*]",
+    _immutable_fields_ = [
+            "name", "super",
+            "init_field_cnt", "auto_field_cnt", "total_field_cnt",
+            "total_auto_field_cnt", "total_init_field_cnt",
+            "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity"]
@@ -197,11 +200,15 @@ class W_StructType(values.W_Object):
         self.name = name
         self.super = super_type
         self.init_field_cnt = init_field_cnt
+        self.total_init_field_cnt = init_field_cnt
         self.auto_field_cnt = auto_field_cnt
+        self.total_auto_field_cnt = auto_field_cnt
         self.total_field_cnt = init_field_cnt + auto_field_cnt
 
         if isinstance(super_type, W_StructType):
             self.total_field_cnt += super_type.total_field_cnt
+            self.total_init_field_cnt += super_type.total_init_field_cnt
+            self.total_auto_field_cnt += super_type.total_auto_field_cnt
 
         self.auto_v = auto_v
         self.props = []
@@ -233,8 +240,7 @@ class W_StructType(values.W_Object):
         else:
             constr_name = "make-" + self.name.utf8value
 
-        auto_count  = self._count_auto_fields()
-        count = self.total_field_cnt - auto_count
+        count = self.total_init_field_cnt
         self.constructor_arity = Arity([count], -1)
 
         self.constructor = W_StructConstructor(self, constr_name)
@@ -259,22 +265,6 @@ class W_StructType(values.W_Object):
         self.immutable_fields = immutable_fields[:]
 
     @jit.elidable
-    def _count_auto_fields(self):
-        auto_count  = 0
-        while isinstance(self, W_StructType):
-            auto_count += self.auto_field_cnt
-            self = self.super
-        return auto_count
-
-    @jit.elidable
-    def _count_init_fields(self):
-        init_count = 0
-        while isinstance(self, W_StructType):
-            init_count += self.init_field_cnt
-            self = self.super
-        return init_count
-
-    @jit.elidable
     def get_offset(self, type):
         for t, v in self.offsets:
             if t is type:
@@ -287,10 +277,9 @@ class W_StructType(values.W_Object):
 
     def struct_type_info(self, cont):
         name = self.name
-        init_field_cnt = values.W_Fixnum(self.init_field_cnt)
-        auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
-        immutable_k_list = values.to_list(
-            [values.W_Fixnum(i) for i in self.immutables])
+        init_field_cnt = values.wrap(self.init_field_cnt)
+        auto_field_cnt = values.wrap(self.auto_field_cnt)
+        immutable_k_list = values.wrap_list(self.immutables)
         current_inspector = current_inspector_param.get(cont)
         super = values.w_false
         typ = self.super
@@ -486,15 +475,14 @@ class W_PrefabKey(values.W_Object):
     def key(self):
         key = []
         key.append(self.name)
-        key.append(values.W_Fixnum(self.init_field_cnt))
+        key.append(values.wrap(self.init_field_cnt))
         if self.auto_field_cnt > 0:
-            key.append(values.to_list(
-                [values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
-        mutables = []
-        for i in self.mutables:
-            mutables.append(values.W_Fixnum(i))
-        if mutables:
-            key.append(values_vector.W_Vector.fromelements(mutables))
+            lst = values.wrap(self.auto_v, values.w_null)
+            lst = values.wrap(self.auto_field_cnt, lst)
+            key.append(lst)
+        if self.mutables:
+            vector = values_vector.wrap_vector(self.mutables)
+            key.append(vector)
         if self.super_key:
             key.extend(self.super_key.key())
         return key
@@ -880,7 +868,7 @@ def construct_struct_loop(init_type, struct_type, field_values, env, cont):
     if not isinstance(struct_type, W_StructType):
         return construct_struct_final(init_type, field_values, env, cont)
 
-    auto_field_start = struct_type._count_init_fields()
+    auto_field_start = struct_type.total_init_field_cnt
     guard = struct_type.guard
     if guard is values.w_false:
         return construct_struct_loop_body(init_type, struct_type, field_values,

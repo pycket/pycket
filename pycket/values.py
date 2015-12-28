@@ -15,6 +15,7 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
+from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -255,12 +256,12 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             if cdr.is_proper_list():
-                return W_UnwrappedFixnumConsProper(car, cdr)
-            return W_UnwrappedFixnumCons(car, cdr)
+                return W_UnwrappedFixnumConsProper(car.value, cdr)
+            return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
             if cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car, cdr)
-            return W_UnwrappedFlonumCons(car, cdr)
+                return W_UnwrappedFlonumConsProper(car.value, cdr)
+            return W_UnwrappedFlonumCons(car.value, cdr)
         else:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
@@ -312,8 +313,7 @@ class W_Cons(W_List):
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
-        assert isinstance(a, W_Fixnum)
-        self._car = a.value
+        self._car = a
         self._cdr = d
 
     def car(self):
@@ -329,8 +329,7 @@ class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
 class W_UnwrappedFlonumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
-        assert isinstance(a, W_Flonum)
-        self._car = a.value
+        self._car = a
         self._cdr = d
 
     def car(self):
@@ -804,10 +803,10 @@ class W_Bool(W_Object):
 
     def __init__(self):
         """ NOT_RPYTHON """
-        pass
         # the previous line produces an error if somebody makes new bool
         # objects from primitives
-        #self.value = val
+        pass
+
     def tostring(self):
         return "#t" if self is w_true else "#f"
 
@@ -1523,7 +1522,6 @@ class W_FileInputPort(W_InputPort):
         self.seek(old_ptr)
         return new_ptr - old_ptr
 
-
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     _immutable_fields_ = ["file"]
@@ -1552,4 +1550,47 @@ class W_FileOutputPort(W_OutputPort):
     def tell(self):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
+
+@specialize.call_location()
+def wrap_list(pyval):
+    assert isinstance(pyval, list)
+    acc = w_null
+    for val in reversed(pyval):
+        acc = wrap(val, acc)
+    return acc
+
+@specialize.ll()
+def wrap(*_pyval):
+    # Smart constructor for converting Python values to Racket values
+    if len(_pyval) == 1:
+        pyval = _pyval[0]
+        if isinstance(pyval, bool):
+            return w_true if pyval else w_false
+        if isinstance(pyval, int):
+            return W_Fixnum(pyval)
+        if isinstance(pyval, float):
+            return W_Flonum(pyval)
+        if isinstance(pyval, W_Object):
+            return pyval
+    elif len(_pyval) == 2:
+        car = _pyval[0]
+        cdr = _pyval[1]
+        assert isinstance(cdr, W_Object)
+        if isinstance(car, bool):
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(wrap(car), cdr)
+            return W_WrappedCons(wrap(car), cdr)
+        if isinstance(car, int):
+            if cdr.is_proper_list():
+                return W_UnwrappedFixnumConsProper(car, cdr)
+            return W_UnwrappedFixnumCons(car, cdr)
+        if isinstance(car, float):
+            if cdr.is_proper_list():
+                return W_UnwrappedFlonumConsProper(car, cdr)
+            return W_UnwrappedFlonumCons(car, cdr)
+        if isinstance(car, W_Object):
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(car, cdr)
+            return W_WrappedCons(car, cdr)
+    assert False
 
