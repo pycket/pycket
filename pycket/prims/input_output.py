@@ -917,6 +917,7 @@ def write_string_cont(w_str, start, end_pos, env, cont, _vals):
     return return_value(values.W_Fixnum(end_pos - start), env, cont)
 
 def get_output_port(port, env, cont):
+    from pycket.interpreter import return_value
     if port is None:
         port = current_out_param.get(cont)
         return return_value(port, env, cont)
