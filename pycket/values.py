@@ -1574,8 +1574,7 @@ def wrap(*_pyval):
             return pyval
     elif len(_pyval) == 2:
         car = _pyval[0]
-        cdr = _pyval[1]
-        assert isinstance(cdr, W_Object)
+        cdr = wrap(_pyval[1])
         if isinstance(car, bool):
             if cdr.is_proper_list():
                 return W_WrappedConsProper(wrap(car), cdr)

@@ -614,7 +614,6 @@ def test_should_enter_downrecursion():
     assert f.body[0].should_enter
     assert f.body[0].els.body[0].should_enter
 
-
 def test_reader_graph(doctest):
     """
     ! (require racket/shared)
@@ -637,3 +636,18 @@ def test_reader_graph(doctest):
     #false
     """
     assert doctest
+
+def test_wrap_values():
+    assert isinstance(wrap(1), W_Fixnum)
+    assert isinstance(wrap(1.0), W_Flonum)
+    assert isinstance(wrap(W_Fixnum(1)), W_Fixnum)
+    assert wrap(w_void) is w_void
+    assert wrap(True) is w_true
+    assert wrap(False) is w_false
+
+    assert isinstance(wrap(1, 2), W_UnwrappedFixnumCons)
+    assert isinstance(wrap(1, w_null), W_UnwrappedFixnumConsProper)
+    assert isinstance(wrap(1.0, 2), W_UnwrappedFlonumCons)
+    assert isinstance(wrap(1.0, w_null), W_UnwrappedFlonumConsProper)
+    assert isinstance(wrap(True, 2), W_WrappedCons)
+    assert isinstance(wrap(True, w_null), W_WrappedConsProper)

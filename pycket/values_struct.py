@@ -332,8 +332,8 @@ class W_StructType(values.W_Object):
         return "#<struct-type:%s>" % self.name.utf8value
 
 class W_PrefabKey(values.W_Object):
-    _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",\
-        "auto_v", "mutables", "super_key"]
+    _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",
+                          "auto_v", "mutables", "super_key"]
     all_keys = []
 
     @staticmethod
@@ -345,7 +345,7 @@ class W_PrefabKey(values.W_Object):
                 mutables, super_key)):
                 return key
         key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                          mutables, super_key)
         W_PrefabKey.all_keys.append(key)
         return key
 
@@ -362,10 +362,11 @@ class W_PrefabKey(values.W_Object):
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = W_PrefabKey.from_struct_type(struct_type.super) if\
-            struct_type.super is not values.w_false else None
+        super_key = None
+        if struct_type.super is not values.w_false:
+            super_key = W_PrefabKey.from_struct_type(struct_type.super)
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     def from_raw_params(w_name, init_field_cnt, auto_field_cnt, auto_v, immutables, super_type):
@@ -376,10 +377,11 @@ class W_PrefabKey(values.W_Object):
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = W_PrefabKey.from_struct_type(super_type) if\
-            super_type is not values.w_false else None
+        super_key = None
+        if super_type is not values.w_false:
+            super_key = W_PrefabKey.from_struct_type(super_type)
         return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     @jit.elidable
@@ -429,7 +431,7 @@ class W_PrefabKey(values.W_Object):
                     super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
         return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     def is_prefab_key(v):
@@ -1003,7 +1005,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return Arity.TWO
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False,
-        name="<struct-field-mutator-method>")
+                      name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
@@ -1013,7 +1015,7 @@ class W_StructFieldMutator(values.W_Procedure):
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
     _immutable_fields_ = ["type"]
-    def __init__ (self, type):
+    def __init__(self, type):
         self.type = type
 
     def get_arity(self):
@@ -1028,7 +1030,7 @@ class W_StructMutator(values.W_Procedure):
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object],
-        simple=False, name="<struct-mutator-method>")
+                      simple=False, name="<struct-mutator-method>")
     def call_with_extra_info(self, struct, field, val, env, cont, app):
         return self.mutate(struct, field.value, val, env, cont, app)
 
