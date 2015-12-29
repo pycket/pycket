@@ -1787,16 +1787,19 @@ class Let(SequencedBodyAST):
         self, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
             new_vars, sub_env_structure)
 
-        new_rhss = []
+        new_rhss = [None] * len(self.rhss)
+        offset = 0
+        variables = self.args.elems
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structures[i])
-            need_cell_flags = [(LexicalVar(self.args.elems[i + j]) in local_muts)
-                               for j in range(self.counts[i])]
+            count = self.counts[i]
+            need_cell_flags = [LexicalVar(variables[offset+j]) in local_muts for j in range(count)]
             if True in need_cell_flags:
                 new_rhs = Cell(new_rhs, need_cell_flags)
-            new_rhss.append(new_rhs)
+            new_rhss[i] = new_rhs
+            offset += count
 
-        body_env_structure = env_structures[len(self.rhss)]
+        body_env_structure = env_structures[-1]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
