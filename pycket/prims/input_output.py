@@ -180,7 +180,7 @@ def read(port, env, cont):
 def get_input_port(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
-        port = current_in_params.get(cont)
+        port = current_in_param.get(cont)
         return return_value(port, env, cont)
     else:
         return get_port(port, values_struct.w_prop_input_port, values.W_InputPort, env, cont)
@@ -189,7 +189,6 @@ def get_input_port(port, env, cont):
 def read_stream_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     port = check_one_val(_vals)
-    assert isinstance(port, values.W_InputPort)
     v = read_stream(port)
     return return_value(v, env, cont)
 
@@ -252,12 +251,11 @@ return_linefeed_sym = values.W_Symbol.make("return-linefeed")
 any_sym             = values.W_Symbol.make("any")
 any_one_sym         = values.W_Symbol.make("any-one")
 
-def do_read_line(port, mode, as_bytes, env, cont):
+@continuation
+def do_read_line(mode, as_bytes, env, cont, _vals):
     # FIXME: respect mode
-    from pycket.interpreter import return_value
-    if port is None:
-        port = current_in_param.get(cont)
-    assert isinstance(port, values.W_InputPort)
+    from pycket.interpreter import return_value, check_one_val
+    port = check_one_val(_vals)
     line = port.readline()
     stop = len(line) - 1
     if stop >= 0:
@@ -271,17 +269,20 @@ def do_read_line(port, mode, as_bytes, env, cont):
     else:
         return return_value(values.eof_object, env, cont)
 
-@expose("read-line",[default(values.W_InputPort, None),
+@expose("read-line",[default(values.W_Object, None),
                      default(values.W_Symbol, linefeed_sym)],
                     simple=False)
 def read_line(port, mode, env, cont):
-    return do_read_line(port, mode, False, env, cont)
+    cont = do_read_line(mode, False, env, cont)
+    return get_input_port(port, env, cont)
 
-@expose("read-bytes-line", [default(values.W_InputPort, None),
+
+@expose("read-bytes-line", [default(values.W_Object, None),
                             default(values.W_Symbol, linefeed_sym)],
                            simple=False)
 def read_bytes_line(w_port, w_mode, env, cont):
-    return do_read_line(w_port, w_mode, True, env, cont)
+    cont = do_read_line(w_mode, True, env, cont)
+    return get_input_port(w_port, env, cont)
 
 
 def do_read_one(w_port, as_bytes, peek, env, cont):
