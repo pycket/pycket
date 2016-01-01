@@ -810,7 +810,6 @@ def do_set_mcdr(a, b):
 @expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
-    from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn, lists = args[0], args[1:]
