@@ -925,14 +925,27 @@ def get_output_port(port, env, cont):
     else:
         return get_port(port, values_struct.w_prop_output_port, values.W_OutputPort, env, cont)
 
-#FIXME: needs to loop untill a port of type typ is found
+
 def get_port(port, prop, typ, env, cont):
+    cont = get_port_cont(prop, typ, env, cont)
+    return _get_port(port, prop, typ, env, cont)
+
+def _get_port(port, prop, typ, env, cont):
     from pycket.interpreter import return_value
     if isinstance(port, values_struct.W_RootStruct):
         cont = get_port_from_property(port, env, cont)
         return port.get_prop(prop, env, cont)
-    assert isinstance(port, typ)
-    return return_value(port, env, cont)
+    else:
+        return return_value(port, env, cont)
+
+@continuation
+def get_port_cont(prop, typ, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(_vals)
+    if isinstance(val, values_struct.W_RootStruct):
+        return get_port(val, prop, typ, env, cont)
+    else:
+        return return_value(val, env, cont)
 
 @continuation
 def get_port_from_property(port, env, cont, _vals):
@@ -940,7 +953,6 @@ def get_port_from_property(port, env, cont, _vals):
     val = check_one_val(_vals)
     if isinstance(val, values.W_Fixnum):
         return port.ref(val.value, env, cont)
-    assert isinstance(val, values.W_OutputPort)
     return return_value(port, env, cont)
 
 @expose("write-byte",
