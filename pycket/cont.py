@@ -13,6 +13,7 @@ class Link(object):
         self.val = v
         self.next = next
 
+    @jit.unroll_safe
     def clone(self):
         marks = None
         while self is not None:
