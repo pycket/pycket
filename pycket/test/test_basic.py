@@ -440,6 +440,37 @@ def test_with_continuation_mark2(doctest):
     #f
     """
 
+def test_with_continuation_mark3():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define result
+        (let* ([extract
+	        (lambda (k) (continuation-mark-set->list
+	           (continuation-marks k)
+	           'x))]
+           [go
+	        (lambda (in?)
+              (lambda ()
+	        	      (let ([k (with-continuation-mark 'x 10
+	        			 (begin0
+	        			  (with-continuation-mark 'x 11
+	        			    (call/cc
+	        			     (lambda (k )
+	        			       (with-continuation-mark 'x 12
+	        				 (if in?
+	        				     (extract k)
+	        				     k)))))
+	        			  (+ 2 3)))])
+	        		(if in?
+	        		    k
+	        		    (extract k)))))])
+        ((go #t))))
+    (define valid (equal? result '(11 10)))
+    """)
+    sym = W_Symbol.make("valid")
+    assert m.defs[sym] is w_true
+
 def test_with_continuation_mark_impersonator():
     m = run_mod(
     """
