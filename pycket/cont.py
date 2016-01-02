@@ -1,6 +1,6 @@
 import inspect
 
-from rpython.rlib import jit, unroll
+from rpython.rlib import jit, objectmodel, unroll
 
 
 class Link(object):
@@ -13,6 +13,14 @@ class Link(object):
         self.val = v
         self.next = next
 
+    def clone(self):
+        marks = None
+        while self is not None:
+            marks = Link(self.key, self.val, marks)
+            self = self.next
+        return marks
+
+
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
@@ -24,6 +32,15 @@ class BaseCont(object):
 
     def __init__(self):
         self.marks = None
+
+    def clone(self):
+        result = self._clone()
+        if self.marks is not None:
+            result.marks = self.marks.clone()
+        return result
+
+    def _clone(self):
+        raise NotImplementedError("abstract method")
 
     def get_ast(self):
         return None # best effort
@@ -123,6 +140,9 @@ class Prompt(Cont):
         self.tag     = tag
         self.handler = handler
 
+    def _clone(self):
+        return Prompt(self.tag, self.handler, self.env, self.prev)
+
     def get_previous_continuation(self, upto=None):
         return None if self.tag is upto else self.prev
 
@@ -130,6 +150,9 @@ class Prompt(Cont):
         return self.prev.plug_reduce(_vals, env)
 
 class Barrier(Cont):
+
+    def _clone(self):
+        return Barrier(self.env, self.prev)
 
     def get_previous_continuation(self, upto=None):
         return None
@@ -145,6 +168,11 @@ def _make_args_class(base, argnames):
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
+
+        def _copy_args(self, other):
+            for _, name in unroll_argnames:
+                val = getattr(other, name)
+                setattr(self, name, val)
 
         def _get_args(self):
             args = ()
@@ -181,10 +209,18 @@ def continuation(func):
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
+    def clone(self):
+        new = objectmodel.instantiate(PrimCont)
+        Cont.__init__(new, self.env, self.prev)
+        new._copy_args(self)
+        return new
+
     def plug_reduce(self, vals, env):
         args = self._get_args()
         args += (self.env, self.prev, vals,)
         return func(*args)
+
+    PrimCont.clone = clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
