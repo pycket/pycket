@@ -3,7 +3,7 @@ from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
-from pycket.cont              import Cont, nil_continuation, label
+from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
@@ -2031,7 +2031,7 @@ def interpret_one(ast, env=None):
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-    cont = nil_continuation
+    cont = NilCont()
     cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)

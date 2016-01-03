@@ -2,7 +2,6 @@ import inspect
 
 from rpython.rlib import jit, objectmodel, unroll
 
-
 class Link(object):
     _immutable_fields_ = ["key", "next"]
     def __init__(self, k, v, next):
@@ -20,7 +19,6 @@ class Link(object):
             marks = Link(self.key, self.val, marks)
             self = self.next
         return marks
-
 
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
@@ -101,11 +99,13 @@ class BaseCont(object):
 
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
+
+    def _clone(self):
+        return NilCont()
+
     def plug_reduce(self, vals, env):
         from pycket.interpreter import Done
         raise Done(vals)
-
-nil_continuation = NilCont()
 
 class Cont(BaseCont):
     _immutable_fields_ = ['env', 'prev']
@@ -299,7 +299,6 @@ def guarded_loop(pred):
         noloop = make_label(func, enter=False)
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
-
 
 def loop_label(func):
     return make_label(func, enter=True)
