@@ -73,7 +73,7 @@ class BaseCont(object):
             l = l.next
         self.marks = Link(k, v, self.marks)
 
-    def get_marks(self, key):
+    def get_marks(self, key, upto=None):
         from pycket import values
         v = self.find_cm(key)
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
@@ -124,13 +124,15 @@ class Cont(BaseCont):
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
 
-    def get_marks(self, key):
+    def get_marks(self, key, upto=None):
         from pycket import values
         v = self.find_cm(key)
+        prev = self.get_previous_continuation(upto=upto)
+        rest = prev.get_marks(key, upto) if prev is not None else values.w_null
         if v is not None:
-            return values.W_Cons.make(v, self.prev.get_marks(key))
+            return values.W_Cons.make(v, rest)
         else:
-            return self.prev.get_marks(key)
+            return rest
 
 class Prompt(Cont):
 

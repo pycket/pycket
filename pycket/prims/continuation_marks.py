@@ -33,9 +33,9 @@ def cms_list(cms, mark, prompt_tag, env, cont):
     from pycket.prims.general import map_loop
     if isinstance(mark, values.W_ContinuationMarkKey):
         func  = CMKSetToListHandler(mark.get_cmk)
-        marks = cms.cont.get_marks(imp.get_base_object(mark))
+        marks = cms.cont.get_marks(imp.get_base_object(mark), upto=prompt_tag)
         return map_loop(func, [marks], env, cont)
-    marks = cms.cont.get_marks(mark)
+    marks = cms.cont.get_marks(mark, upto=prompt_tag)
     return return_value(marks, env, cont)
 
 def get_marks_all(cont, keys, not_found, prompt_tag):
