@@ -21,7 +21,7 @@ def convert_runtime_exception(exn, env, cont):
     from pycket.values        import W_ContinuationMarkSet
     from pycket.prims.control import raise_exception
     message = values_string.W_String.fromstr_utf8(exn.msg)
-    marks   = W_ContinuationMarkSet(cont)
+    marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
@@ -81,10 +81,8 @@ def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
     return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
-def make_continuation_prompt_tag(s):
-    from pycket.interpreter import Gensym
-    s = Gensym.gensym("cm") if s is None else s
-    return values.W_ContinuationPromptTag(s)
+def make_continuation_prompt_tag(sym):
+    return values.W_ContinuationPromptTag(sym)
 
 @expose("default-continuation-prompt-tag", [])
 def default_continuation_prompt_tag():

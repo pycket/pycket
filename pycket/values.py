@@ -160,15 +160,22 @@ class W_ContinuationPromptTag(W_Object):
         self.name = name
 
     def tostring(self):
-        return "#<continuation-prompt-tag>"
+        if self.name is None:
+            return "#<continuation-prompt-tag>"
+        name = self.name.utf8value
+        return "#<continuation-prompt-tag:%s>" % name
 
 w_default_continuation_prompt_tag = W_ContinuationPromptTag(None)
 
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
-    _immutable_fields_ = ["cont"]
-    def __init__(self, cont):
+
+    _immutable_fields_ = ["cont", "prompt_tag"]
+
+    def __init__(self, cont, prompt_tag):
         self.cont = cont
+        self.prompt_tag = prompt_tag
+
     def tostring(self):
         return "#<continuation-mark-set>"
 

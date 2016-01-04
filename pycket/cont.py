@@ -1,6 +1,6 @@
 import inspect
 
-from rpython.rlib import jit, objectmodel, unroll
+from rpython.rlib             import jit, objectmodel, unroll
 
 class Link(object):
     _immutable_fields_ = ["key", "next"]
@@ -47,7 +47,7 @@ class BaseCont(object):
     def get_next_executed_ast(self):
         return None # best effort
 
-    def get_previous_continuation(self, upto=None):
+    def get_previous_continuation(self, upto=[]):
         return None
 
     @jit.unroll_safe
@@ -71,14 +71,14 @@ class BaseCont(object):
             l = l.next
         self.marks = Link(k, v, self.marks)
 
-    def get_marks(self, key, upto=None):
+    def get_marks(self, key, upto=[]):
         from pycket import values
         v = self.find_cm(key)
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
 
     # XXX: why isn't this in Cont?
     @jit.unroll_safe
-    def get_mark_first(self, key, upto=None):
+    def get_mark_first(self, key, upto=[]):
         p = self
         while p is not None:
             v = p.find_cm(key)
@@ -115,7 +115,7 @@ class Cont(BaseCont):
         self.env = env
         self.prev = prev
 
-    def get_previous_continuation(self, upto=None):
+    def get_previous_continuation(self, upto=[]):
         return self.prev
 
     def get_ast(self):
@@ -124,15 +124,16 @@ class Cont(BaseCont):
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
 
-    def get_marks(self, key, upto=None):
+    def get_marks(self, key, upto=[]):
         from pycket import values
-        v = self.find_cm(key)
-        prev = self.get_previous_continuation(upto=upto)
-        rest = prev.get_marks(key, upto) if prev is not None else values.w_null
-        if v is not None:
-            return values.W_Cons.make(v, rest)
-        else:
-            return rest
+        while self is not None:
+            v = self.find_cm(key)
+            prev = self.get_previous_continuation(upto=upto)
+            if v is not None:
+                rest = prev.get_marks(key, upto=upto) if prev is not None else values.w_null
+                return values.W_Cons.make(v, rest)
+            self = prev
+        return values.w_null
 
 class Prompt(Cont):
 
@@ -146,8 +147,11 @@ class Prompt(Cont):
     def _clone(self):
         return Prompt(self.tag, self.handler, self.env, self.prev)
 
-    def get_previous_continuation(self, upto=None):
-        return None if self.tag is upto else self.prev
+    def get_previous_continuation(self, upto=[]):
+        for tag in upto:
+            if tag is self.tag:
+                return None
+        return self.prev
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
@@ -157,7 +161,7 @@ class Barrier(Cont):
     def _clone(self):
         return Barrier(self.env, self.prev)
 
-    def get_previous_continuation(self, upto=None):
+    def get_previous_continuation(self, upto=[]):
         return None
 
     def plug_reduce(self, _vals, env):
