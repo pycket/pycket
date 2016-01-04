@@ -1,6 +1,6 @@
 import inspect
 
-from rpython.rlib             import jit, objectmodel, unroll
+from rpython.rlib import jit, objectmodel, unroll
 
 class Link(object):
     _immutable_fields_ = ["key", "next"]
@@ -178,8 +178,8 @@ def _make_args_class(base, argnames):
 
         def _copy_args(self, other):
             for _, name in unroll_argnames:
-                val = getattr(other, name)
-                setattr(self, name, val)
+                val = getattr(self, name)
+                setattr(other, name, val)
 
         def _get_args(self):
             args = ()
@@ -217,10 +217,10 @@ def continuation(func):
     PrimCont.__init__ = __init__
 
     def clone(self):
-        new = objectmodel.instantiate(PrimCont)
-        Cont.__init__(new, self.env, self.prev)
-        new._copy_args(self)
-        return new
+        result = objectmodel.instantiate(PrimCont)
+        Cont.__init__(result, self.env, self.prev)
+        self._copy_args(result)
+        return result
 
     def plug_reduce(self, vals, env):
         args = self._get_args()
