@@ -269,7 +269,7 @@ class FusedLet0BeginCont(Cont):
         return actual_cont.plug_reduce(vals, env)
 
 class CellCont(Cont):
-    _immutable_fields_ = []
+    _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
