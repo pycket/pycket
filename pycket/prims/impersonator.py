@@ -2,6 +2,7 @@
 from pycket              import impersonators as imp
 from pycket              import values
 from pycket              import values_struct
+from pycket.arity        import Arity
 from pycket.hash.base    import W_HashTable
 from pycket.error        import SchemeException
 from pycket.prims.expose import expose, expose_val
@@ -125,60 +126,60 @@ def unpack_hash_args(args, name):
         raise SchemeException(name + ": clear-proc is not callable")
     return hash, ref_proc, set_proc, remove_proc, key_proc, clear_proc, prop_keys, prop_vals
 
-@expose("impersonate-hash")
+@expose("impersonate-hash", arity=Arity.geq(5))
 def impersonate_hash(args):
     unpacked = unpack_hash_args(args, "impersonate-hash")
     if unpacked[0].immutable():
         raise SchemeException("impersonate-hash: cannot impersonate immutable hash")
     return imp.W_ImpHashTable(*unpacked)
 
-@expose("chaperone-hash")
+@expose("chaperone-hash", arity=Arity.geq(5))
 def chaperone_hash(args):
     unpacked = unpack_hash_args(args, "chaperone-hash")
     return imp.W_ImpHashTable(*unpacked)
 
-@expose("impersonate-procedure")
+@expose("impersonate-procedure", arity=Arity.geq(2))
 def impersonate_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure")
     if check is values.w_false and not keys:
         return proc
     return imp.make_interpose_procedure(imp.W_ImpProcedure, proc, check, keys, vals)
 
-@expose("impersonate-procedure*")
+@expose("impersonate-procedure*", arity=Arity.geq(2))
 def impersonate_procedure_star(args):
     proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure*")
     if check is values.w_false and not keys:
         return proc
     return imp.make_interpose_procedure(imp.W_ImpProcedureStar, proc, check, keys, vals)
 
-@expose("chaperone-procedure")
+@expose("chaperone-procedure", arity=Arity.geq(2))
 def chaperone_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure")
     if check is values.w_false and not keys:
         return proc
     return imp.make_interpose_procedure(imp.W_ChpProcedure, proc, check, keys, vals)
 
-@expose("chaperone-procedure*")
+@expose("chaperone-procedure*", arity=Arity.geq(2))
 def chaperone_procedure_star(args):
     proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure*")
     if check is values.w_false and not keys:
         return proc
     return imp.make_interpose_procedure(imp.W_ChpProcedureStar, proc, check, keys, vals)
 
-@expose("impersonate-vector")
+@expose("impersonate-vector", arity=Arity.geq(3))
 def impersonate_vector(args):
     unpacked = unpack_vector_args(args, "impersonate-vector")
     if unpacked[0].immutable():
         raise SchemeException("impersonate-vector: cannot impersonate immutable vector")
     return imp.make_interpose_vector(imp.W_ImpVector, *unpacked)
 
-@expose("chaperone-vector")
+@expose("chaperone-vector", arity=Arity.geq(3))
 def chaperone_vector(args):
     unpacked = unpack_vector_args(args, "chaperone-vector")
     return imp.make_interpose_vector(imp.W_ChpVector, *unpacked)
 
 # Need to check that fields are mutable
-@expose("impersonate-struct")
+@expose("impersonate-struct", arity=Arity.geq(1))
 @jit.unroll_safe
 def impersonate_struct(args):
     if len(args) == 1 and isinstance(args[0], values_struct.W_RootStruct):
@@ -237,7 +238,7 @@ def impersonate_struct(args):
     return imp.make_struct_proxy(imp.W_ImpStruct,
             struct, overrides, handlers, prop_keys, prop_vals)
 
-@expose("chaperone-struct")
+@expose("chaperone-struct", arity=Arity.geq(1))
 @jit.unroll_safe
 def chaperone_struct(args):
     from pycket.prims.struct_structinfo import struct_info
@@ -282,12 +283,12 @@ def chaperone_struct(args):
     return imp.make_struct_proxy(imp.W_ChpStruct,
             struct, overrides, handlers, prop_keys, prop_vals)
 
-@expose("chaperone-box")
+@expose("chaperone-box", arity=Arity.geq(3))
 def chaperone_box(args):
     unpacked = unpack_box_args(args, "chaperone-box")
     return imp.W_ChpBox(*unpacked)
 
-@expose("impersonate-box")
+@expose("impersonate-box", arity=Arity.geq(3))
 def impersonate_box(args):
     unpacked = unpack_box_args(args, "impersonate-box")
     if unpacked[0].immutable():

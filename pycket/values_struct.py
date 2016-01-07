@@ -47,8 +47,11 @@ current_inspector_param = W_Parameter(current_inspector)
 
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
-    _immutable_fields_ = ["name", "super", "init_field_cnt", "auto_field_cnt",
-            "total_field_cnt", "auto_v", "props", "inspector", "immutables[*]",
+    _immutable_fields_ = [
+            "name", "super",
+            "init_field_cnt", "auto_field_cnt", "total_field_cnt",
+            "total_auto_field_cnt", "total_init_field_cnt",
+            "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity"]
@@ -187,7 +190,7 @@ class W_StructType(values.W_Object):
         for p in proplist:
             self.initialize_prop(props, p)
         if proc_spec is not values.w_false:
-            self.initialize_prop(props, values.W_Cons.make(w_prop_procedure, proc_spec))
+            self.initialize_prop(props, values.wrap(w_prop_procedure, proc_spec))
         return self.attach_prop(props, 0, False, env, cont)
 
     @jit.unroll_safe
@@ -198,11 +201,15 @@ class W_StructType(values.W_Object):
         self.name = name
         self.super = super_type
         self.init_field_cnt = init_field_cnt
+        self.total_init_field_cnt = init_field_cnt
         self.auto_field_cnt = auto_field_cnt
+        self.total_auto_field_cnt = auto_field_cnt
         self.total_field_cnt = init_field_cnt + auto_field_cnt
 
         if isinstance(super_type, W_StructType):
             self.total_field_cnt += super_type.total_field_cnt
+            self.total_init_field_cnt += super_type.total_init_field_cnt
+            self.total_auto_field_cnt += super_type.total_auto_field_cnt
 
         self.auto_v = auto_v
         self.props = []
@@ -234,8 +241,7 @@ class W_StructType(values.W_Object):
         else:
             constr_name = "make-" + self.name.utf8value
 
-        auto_count  = self._count_auto_fields()
-        count = self.total_field_cnt - auto_count
+        count = self.total_init_field_cnt
         self.constructor_arity = Arity([count], -1)
 
         self.constructor = W_StructConstructor(self, constr_name)
@@ -260,22 +266,6 @@ class W_StructType(values.W_Object):
         self.immutable_fields = immutable_fields[:]
 
     @jit.elidable
-    def _count_auto_fields(self):
-        auto_count  = 0
-        while isinstance(self, W_StructType):
-            auto_count += self.auto_field_cnt
-            self = self.super
-        return auto_count
-
-    @jit.elidable
-    def _count_init_fields(self):
-        init_count = 0
-        while isinstance(self, W_StructType):
-            init_count += self.init_field_cnt
-            self = self.super
-        return init_count
-
-    @jit.elidable
     def get_offset(self, type):
         for t, v in self.offsets:
             if t is type:
@@ -292,10 +282,9 @@ class W_StructType(values.W_Object):
 
     def struct_type_info(self, cont):
         name = self.name
-        init_field_cnt = values.W_Fixnum(self.init_field_cnt)
-        auto_field_cnt = values.W_Fixnum(self.auto_field_cnt)
-        immutable_k_list = values.to_list(
-            [values.W_Fixnum(i) for i in self.immutables])
+        init_field_cnt = values.wrap(self.init_field_cnt)
+        auto_field_cnt = values.wrap(self.auto_field_cnt)
+        immutable_k_list = values.wrap_list(self.immutables)
         current_inspector = current_inspector_param.get(cont)
         super = values.w_false
         typ = self.super
@@ -348,8 +337,8 @@ class W_StructType(values.W_Object):
         return "#<struct-type:%s>" % self.name.utf8value
 
 class W_PrefabKey(values.W_Object):
-    _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",\
-        "auto_v", "mutables", "super_key"]
+    _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",
+                          "auto_v", "mutables", "super_key"]
     all_keys = []
 
     @staticmethod
@@ -361,7 +350,7 @@ class W_PrefabKey(values.W_Object):
                 mutables, super_key)):
                 return key
         key = W_PrefabKey(name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                          mutables, super_key)
         W_PrefabKey.all_keys.append(key)
         return key
 
@@ -378,10 +367,11 @@ class W_PrefabKey(values.W_Object):
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = W_PrefabKey.from_struct_type(struct_type.super) if\
-            struct_type.super is not values.w_false else None
+        super_key = None
+        if struct_type.super is not values.w_false:
+            super_key = W_PrefabKey.from_struct_type(struct_type.super)
         return W_PrefabKey.make(name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     def from_raw_params(w_name, init_field_cnt, auto_field_cnt, auto_v, immutables, super_type):
@@ -392,10 +382,11 @@ class W_PrefabKey(values.W_Object):
             for j in range(prev_idx, i):
                 mutables.append(j)
             prev_idx = i + 1
-        super_key = W_PrefabKey.from_struct_type(super_type) if\
-            super_type is not values.w_false else None
+        super_key = None
+        if super_type is not values.w_false:
+            super_key = W_PrefabKey.from_struct_type(super_type)
         return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     @jit.elidable
@@ -445,7 +436,7 @@ class W_PrefabKey(values.W_Object):
                     super_auto_v, super_mutables, s_key = s_key.make_key_tuple()
                 init_field_cnt -= super_init_field_cnt
         return W_PrefabKey.make(w_name, init_field_cnt, auto_field_cnt, auto_v,
-            mutables, super_key)
+                                mutables, super_key)
 
     @staticmethod
     def is_prefab_key(v):
@@ -491,15 +482,14 @@ class W_PrefabKey(values.W_Object):
     def key(self):
         key = []
         key.append(self.name)
-        key.append(values.W_Fixnum(self.init_field_cnt))
+        key.append(values.wrap(self.init_field_cnt))
         if self.auto_field_cnt > 0:
-            key.append(values.to_list(
-                [values.W_Fixnum(self.auto_field_cnt), self.auto_v]))
-        mutables = []
-        for i in self.mutables:
-            mutables.append(values.W_Fixnum(i))
-        if mutables:
-            key.append(values_vector.W_Vector.fromelements(mutables))
+            lst = values.wrap(self.auto_v, values.w_null)
+            lst = values.wrap(self.auto_field_cnt, lst)
+            key.append(lst)
+        if self.mutables:
+            vector = values_vector.wrap_vector(self.mutables)
+            key.append(vector)
         if self.super_key:
             key.extend(self.super_key.key())
         return key
@@ -686,8 +676,8 @@ class W_Struct(W_RootStruct):
 
     def get_struct_info(self, env, cont):
         from pycket.interpreter import return_multi_vals
-        return return_multi_vals(
-                values.Values.make([self.struct_type(), values.w_false]), env, cont)
+        vals = values.Values._make2(self.struct_type(), values.w_false)
+        return return_multi_vals(vals, env, cont)
 
     # TODO: currently unused
     def tostring_proc(self, env, cont):
@@ -885,7 +875,7 @@ def construct_struct_loop(init_type, struct_type, field_values, env, cont):
     if not isinstance(struct_type, W_StructType):
         return construct_struct_final(init_type, field_values, env, cont)
 
-    auto_field_start = struct_type._count_init_fields()
+    auto_field_start = struct_type.total_init_field_cnt
     guard = struct_type.guard
     if guard is values.w_false:
         return construct_struct_loop_body(init_type, struct_type, field_values,
@@ -1020,7 +1010,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return Arity.TWO
 
     @make_call_method([W_RootStruct, values.W_Object], simple=False,
-        name="<struct-field-mutator-method>")
+                      name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
 
@@ -1030,7 +1020,7 @@ class W_StructFieldMutator(values.W_Procedure):
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
     _immutable_fields_ = ["type"]
-    def __init__ (self, type):
+    def __init__(self, type):
         self.type = type
 
     def get_arity(self):
@@ -1045,7 +1035,7 @@ class W_StructMutator(values.W_Procedure):
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
 
     @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object],
-        simple=False, name="<struct-mutator-method>")
+                      simple=False, name="<struct-mutator-method>")
     def call_with_extra_info(self, struct, field, val, env, cont, app):
         return self.mutate(struct, field.value, val, env, cont, app)
 
@@ -1075,6 +1065,7 @@ class W_StructProperty(values.W_Object):
 
 sym = values.W_Symbol.make
 
+#FIXME: check if these propeties need guards or not
 w_prop_procedure = W_StructProperty(sym("prop:procedure"), values.w_false)
 w_prop_checked_procedure = W_StructProperty(sym("prop:checked-procedure"), values.w_false)
 w_prop_arity_string = W_StructProperty(sym("prop:arity-string"), values.w_false)
@@ -1085,7 +1076,10 @@ w_prop_chaperone_unsafe_undefined = W_StructProperty(sym("prop:chaperone-unsafe-
 w_prop_set_bang_transformer = W_StructProperty(sym("prop:set!-transformer"), values.w_false)
 w_prop_rename_transformer = W_StructProperty(sym("prop:rename-transformer"), values.w_false)
 w_prop_expansion_contexts = W_StructProperty(sym("prop:expansion-contexts"), values.w_false)
+
+#FIXME: add guards for these checking for immutable
 w_prop_output_port = W_StructProperty(sym("prop:output-port"), values.w_false)
+w_prop_input_port = W_StructProperty(sym("prop:input-port"), values.w_false)
 
 del sym
 

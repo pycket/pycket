@@ -200,13 +200,13 @@ def parse_number(source):
     return acc
 
 def parse_escape_sequence(source, buffer):
-    if source.match("\\"):
+    if source.match(u"\\"):
         buffer.append(u"\\")
         return None
-    elif source.match("&"):
+    elif source.match(u"&"):
         buffer.append(u"&")
         return None
-    elif source.match("$"):
+    elif source.match(u"$"):
         return PositionalArg(0)
     n = parse_number(source)
     return PositionalArg(n)
@@ -216,7 +216,7 @@ def parse_insert_string(str):
     buffer = rstring.UnicodeBuilder()
     result = []
     while not source.at_end():
-        if source.match("\\"):
+        if source.match(u"\\"):
             escaped = parse_escape_sequence(source, buffer)
             if escaped is not None:
                 if buffer.getlength():

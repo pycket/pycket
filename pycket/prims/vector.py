@@ -17,6 +17,10 @@ def vector(args):
 def flvector(args):
     return values_vector.W_FlVector.fromelements(args)
 
+@expose("extflvector?", [values.W_Object])
+def extflvector(obj):
+    return values.w_false
+
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):
