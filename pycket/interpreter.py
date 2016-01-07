@@ -269,7 +269,7 @@ class FusedLet0BeginCont(Cont):
         return actual_cont.plug_reduce(vals, env)
 
 class CellCont(Cont):
-    _immutable_fields_ = []
+    _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -498,7 +498,7 @@ class Module(AST):
         new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
         return Module(self.name, new_body, self.config, lang=self.lang)
 
-    def tostring(self):
+    def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
     def interpret_simple(self, env):
@@ -859,7 +859,8 @@ class App(AST):
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _tostring(self):
-        return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
+        elements = [self.rator] + self.rands
+        return "(%s)" % " ".join([r.tostring() for r in elements])
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
