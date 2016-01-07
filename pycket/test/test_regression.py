@@ -112,3 +112,4 @@ class TestRegressions(object):
         with pytest.raises(SchemeException):
             run_mod("""#lang racket/base
             (struct x ()) (x 2)""")
+

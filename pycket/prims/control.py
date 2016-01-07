@@ -21,9 +21,9 @@ def convert_runtime_exception(exn, env, cont):
     from pycket.values        import W_ContinuationMarkSet
     from pycket.prims.control import raise_exception
     message = values_string.W_String.fromstr_utf8(exn.msg)
-    marks   = W_ContinuationMarkSet(cont)
+    marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
-    return exn_fail.constr.call([message, marks], env, cont)
+    return exn_fail.constructor.call([message, marks], env, cont)
 
 def find_continuation_prompt(tag, cont):
     while cont is not None:
@@ -58,21 +58,31 @@ def dynamic_wind_post_cont(val, env, cont, _vals):
 def dynamic_wind(pre, value, post, env, cont):
     return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
 
-@expose(["call/cc", # Racket < 6.2.900.10
-        "call-with-current-continuation",
-         "call/ec", # Racket < 6.2.900.10
-         "call-with-escape-continuation"],
+@expose(["call/cc", "call-with-current-continuation"],
         [procedure, default(values.W_ContinuationPromptTag, None)],
         simple=False, extra_info=True)
 def callcc(proc, prompt_tag, env, cont, extra_call_info):
     assert prompt_tag is None, "NYI"
     return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
+@continuation
+def call_with_escape_continuation_cont(env, cont, _vals):
+    # Does not do anything currently. Solely to ensure call/ec does not invoke
+    # its procedure in tail position
+    from pycket.interpreter import return_multi_vals
+    return return_multi_vals(_vals, env, cont)
+
+@expose(["call/ec", "call-with-escape-continuation"],
+        [procedure, default(values.W_ContinuationPromptTag, None)],
+        simple=False, extra_info=True)
+def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
+    assert prompt_tag is None, "NYI"
+    cont = call_with_escape_continuation_cont(env, cont)
+    return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
+
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
-def make_continuation_prompt_tag(s):
-    from pycket.interpreter import Gensym
-    s = Gensym.gensym("cm") if s is None else s
-    return values.W_ContinuationPromptTag(s)
+def make_continuation_prompt_tag(sym):
+    return values.W_ContinuationPromptTag(sym)
 
 @expose("default-continuation-prompt-tag", [])
 def default_continuation_prompt_tag():

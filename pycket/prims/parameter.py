@@ -1,9 +1,11 @@
 
-from pycket              import values
-from pycket              import values_parameter
-from pycket.base         import W_Object
-from pycket.error        import SchemeException
-from pycket.prims.expose import expose, expose_val, default, procedure
+from pycket                 import values
+from pycket                 import values_parameter
+from pycket.argument_parser import ArgParser, EndOfInput
+from pycket.arity           import Arity
+from pycket.base            import W_Object
+from pycket.error           import SchemeException
+from pycket.prims.expose    import expose, expose_val, default, procedure
 
 @expose("make-parameter",
         [values.W_Object, default(values.W_Object, values.w_false)])
@@ -15,15 +17,24 @@ def make_parameter(init, guard):
 def make_derived_parameter(param, guard, wrap):
     return values_parameter.W_DerivedParameter(param, guard, wrap)
 
-@expose("extend-parameterization",
-        [values.W_Object, values.W_Object, values.W_Object])
-def extend_paramz(paramz, key, val):
-    if not isinstance(key, values_parameter.W_BaseParameter):
-        raise SchemeException("Not a parameter: " + key.tostring())
-    if isinstance(paramz, values_parameter.W_Parameterization):
-        return paramz.extend([key], [val])
-    else:
-        return paramz # This really is the Racket behavior
+@expose("extend-parameterization", arity=Arity.geq(1))
+def scheme_extend_parameterization(args):
+    if len(args) == 0:
+        raise SchemeException("extend-parameterization: expected 1 or more arguments")
+
+    config = args[0]
+    argc = len(args)
+
+    if argc < 2 or not isinstance(config, values_parameter.W_Parameterization) or argc % 2 != 1:
+        return config
+
+    parser = ArgParser("extend-parameterization", args, start_at=1)
+    while parser.has_more():
+        param  = parser.parameter()
+        key    = parser.object()
+        config = config.extend([param], [key])
+
+    return config
 
 def call_with_parameterization(f, args, paramz, env, cont):
     cont.update_cm(values.parameterization_key, paramz)

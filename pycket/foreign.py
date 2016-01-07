@@ -79,7 +79,7 @@ class W_DerivedCType(W_CType):
 
     def tostring(self):
         if self.racket_to_c is values.w_false and self.c_to_racket is values.w_false:
-            return "<ctype:%s" % self.ctype.tostring()
+            return "#<ctype:%s>" % self.ctype.tostring()
         return "#<ctype>"
 
 class W_CStructType(W_CType):

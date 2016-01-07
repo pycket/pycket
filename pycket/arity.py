@@ -17,6 +17,17 @@ class Arity(object):
     def list_includes(self, arity):
         return arity in self.arity_list
 
+    @jit.elidable
+    def arity_includes(self, arity):
+        return ((self.at_least != -1 and arity >= self.at_least) or
+                self.list_includes(arity))
+
+    @jit.elidable
+    def shift_arity(self, shift):
+        arity_list = [i + shift for i in self.arity_list if i + shift > -1]
+        at_least = max(self.at_least + shift, -1)
+        return Arity(arity_list, at_least)
+
     @staticmethod
     @memoize
     def geq(n):
@@ -33,5 +44,3 @@ Arity.ONE     = Arity.oneof(1)
 Arity.TWO     = Arity.oneof(2)
 Arity.THREE   = Arity.oneof(3)
 
-for i in range(10):
-    setattr(Arity, "geq_%d" % i, Arity.geq(i))

@@ -209,6 +209,7 @@ expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
 expose_val("prop:output-port", values_struct.w_prop_output_port)
+expose_val("prop:input-port", values_struct.w_prop_input_port)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
@@ -255,14 +256,12 @@ def prim_clos(v):
 # built-in struct types
 
 def define_struct(name, super=values.w_null, fields=[]):
-    immutables = []
-    for i in range(len(fields)):
-        immutables.append(values.W_Fixnum(i))
+    immutables = range(len(fields))
+    symname = values.W_Symbol.make(name)
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false, values.w_false,
-            values.to_list(immutables)).make_struct_tuple()
+        values_struct.W_StructType.make_simple(
+                symname, super, len(fields), 0, values.w_false, values.w_null,
+                values.w_false, values.w_false, immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
@@ -498,10 +497,6 @@ def proc_arity_cont(arity, env, cont, _vals):
         return return_value(val, env, cont)
     result = make_arity_list(arity, val)
     return return_value(result, env, cont)
-    # result.append(check_one_val(_vals))
-    # if len(result) == 1:
-        # return return_value(result[0], env, cont)
-    # return return_value(values.to_list(result[:]), env, cont)
 
 @expose("procedure-arity", [procedure], simple=False)
 @jit.unroll_safe
@@ -510,7 +505,8 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(arity, env, cont))
+        constructor = arity_at_least.constructor
+        return constructor.call(val, env, proc_arity_cont(arity, env, cont))
     if len(arity.arity_list) == 1:
         item = values.W_Fixnum(arity.arity_list[0])
         return return_value(item, env, cont)
@@ -521,21 +517,20 @@ def do_procedure_arity(proc, env, cont):
 @jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
-        if n.value >= 0:
-            return values.w_true
-    elif isinstance(n, values_struct.W_RootStruct) and\
-        n.struct_type().name == "arity-at-least":
+        return values.W_Bool.make(n.value >= 0)
+
+    elif (isinstance(n, values_struct.W_RootStruct) and
+          n.struct_type() is arity_at_least):
         return values.w_true
-    elif isinstance(n, values.W_List):
-        if not n.is_proper_list():
-            return values.w_false
-        while isinstance(n, values.W_Cons):
-            item, n = n.car(), n.cdr()
-            if not (isinstance(item, values.W_Fixnum) or\
-                (isinstance(item, values_struct.W_RootStruct) and\
-                item.struct_type().name == "arity-at-least")):
+
+    elif isinstance(n, values.W_List) and n.is_proper_list():
+        for item in values.from_list_iter(n):
+            if not (isinstance(item, values.W_Fixnum) or
+                (isinstance(item, values_struct.W_RootStruct) and
+                item.struct_type() is arity_at_least)):
                 return values.w_false
         return values.w_true
+
     return values.w_false
 
 @expose("procedure-arity-includes?",
@@ -547,16 +542,13 @@ def procedure_arity_includes(proc, k, kw_ok):
             if w_prop_val is not None:
                 return values.w_false
     arity = proc.get_arity()
-    if isinstance(k, values.W_Fixnum):
-        k_val = k.value
-        if arity.list_includes(k_val):
-            return values.w_true
-        if arity.at_least != -1 and k_val >= arity.at_least:
-            return values.w_true
-    elif isinstance(k, values.W_Bignum):
-        k_val = k.value
-        if arity.at_least != -1 and k_val.ge(rbigint.fromint(arity.at_least)):
-            return values.w_true
+    if isinstance(k, values.W_Integer):
+        try:
+            k_val = k.toint()
+        except OverflowError:
+            pass
+        else:
+            return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
@@ -814,10 +806,9 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False, arity=Arity.geq_2)
+@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
-    from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn, lists = args[0], args[1:]
@@ -961,7 +952,7 @@ def reverse(w_l):
 
     return acc
 
-@expose("void", arity=Arity.geq_0)
+@expose("void", arity=Arity.geq(0))
 def do_void(args):
     return values.w_void
 
@@ -1368,3 +1359,10 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
+
+@expose("procedure-specialize", [procedure])
+def procedure_specialize(proc):
+    # XXX This is the identity function simply for compatibility.
+    # Another option is to wrap closures in a W_PromotableClosure, which might
+    # get us a similar effect from the RPython JIT.
+    return proc

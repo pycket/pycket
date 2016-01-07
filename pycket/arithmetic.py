@@ -1,4 +1,4 @@
-from pycket                    import values, error
+from pycket                    import values
 from pycket.error              import SchemeException
 from rpython.rlib              import rarithmetic, jit
 from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
@@ -165,7 +165,7 @@ class __extend__(values.W_Number):
         return self.arith_sub_same(other)
 
     def arith_sub1(self):
-        return self.arith_sub(values.W_Fixnum(1))
+        return self.arith_sub(values.W_Fixnum.ONE)
 
     def arith_mul(self, other):
         if isinstance(self, values.W_Fixnum) and not self.value:
@@ -268,6 +268,12 @@ class __extend__(values.W_Number):
     def arith_ge_same(self, other):
         return other.arith_le_same(self)
 
+    def arith_min_same(self, other):
+        return self if self.arith_lt_same(other) else other
+
+    def arith_max_same(self, other):
+        return other if self.arith_lt_same(other) else self
+
     def arith_exp(self):
         self = self.arith_exact_inexact()
         assert isinstance(self, values.W_Flonum)
@@ -277,17 +283,28 @@ class __extend__(values.W_Number):
         self, other = self.same_numeric_class(other)
         return other, self
 
+    def isinteger(self):
+        return False
+
 class __extend__(values.W_Integer):
+
     def arith_round(self):
         return self
+
     def arith_truncate(self):
         return self
+
     def arith_floor(self):
         return self
+
     def arith_ceiling(self):
         return self
+
     def arith_inexact_exact(self):
         return self
+
+    def isinteger(self):
+        return True
 
 class __extend__(values.W_Fixnum):
 
@@ -432,15 +449,7 @@ class __extend__(values.W_Fixnum):
     def arith_abs(self):
         if self.value >= 0:
             return self
-        return values.W_Fixnum(0).arith_sub(self)
-
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(max(self.value, other.value))
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Fixnum)
-        return values.W_Fixnum(min(self.value, other.value))
+        return values.W_Fixnum.ZERO.arith_sub(self)
 
     # ------------------ trigonometry ------------------
 
@@ -475,7 +484,7 @@ class __extend__(values.W_Fixnum):
     # ------------------ miscellanous ------------------
 
     def arith_float_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_float_integer_part(self):
         return self
@@ -500,7 +509,7 @@ class __extend__(values.W_Fixnum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     # ------------------ comparisons ------------------
@@ -591,19 +600,27 @@ class __extend__(values.W_Flonum):
 
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(math.pow(self.value, other.value))
+        val = math.pow(self.value, other.value)
+        return values.W_Flonum(val)
 
     def arith_abs(self):
         return values.W_Flonum(abs(self.value))
 
     def arith_max_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(max(self.value, other.value))
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_max_same(self, other)
 
     def arith_min_same(self, other):
         assert isinstance(other, values.W_Flonum)
-        return values.W_Flonum(min(self.value, other.value))
-
+        if math.isnan(self.value):
+            return self
+        if math.isnan(other.value):
+            return other
+        return values.W_Number.arith_min_same(self, other)
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
@@ -656,12 +673,15 @@ class __extend__(values.W_Flonum):
             return self
         return values.W_Flonum(float(math.ceil(self.value)))
 
-    def arith_float_fractional_part(self):
+    def _arith_float_fractional_part(self):
         try:
             val = rarithmetic.ovfcheck_float_to_int(self.value)
         except OverflowError:
             val = rbigint.fromfloat(self.value).tofloat()
-        return values.W_Flonum(float(self.value - val))
+        return float(self.value - val)
+
+    def arith_float_fractional_part(self):
+        return values.W_Flonum(self._arith_float_fractional_part())
 
     def arith_float_integer_part(self):
         return values.W_Integer.fromfloat(self.value)
@@ -696,7 +716,7 @@ class __extend__(values.W_Flonum):
 
     def arith_exp(self):
         if self.value == 0:
-            return values.W_Fixnum(1)
+            return values.W_Fixnum.ONE
         return values.W_Flonum(math.exp(self.value))
 
     def arith_gcd_same(self, other):
@@ -731,6 +751,12 @@ class __extend__(values.W_Flonum):
     def arith_ge_same(self, other):
         assert isinstance(other, values.W_Flonum)
         return self.value >= other.value
+
+    def isinteger(self):
+        val = self.value
+        if math.isnan(val) or math.isinf(val):
+            return False
+        return math.floor(val) == val
 
 class __extend__(values.W_Bignum):
     def same_numeric_class(self, other):
@@ -793,7 +819,6 @@ class __extend__(values.W_Bignum):
             raise SchemeException("zero_divisor")
         return values.W_Integer.frombigint(div)
 
-
     def arith_pow_same(self, other):
         assert isinstance(other, values.W_Bignum)
         return values.W_Integer.frombigint(self.value.pow(other.value))
@@ -837,18 +862,6 @@ class __extend__(values.W_Bignum):
 
 
     # ------------------ max ------------------
-    def arith_max_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        # XXX is this tested?
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(other.value)
-        return values.W_Integer.frombigint(self.value)
-
-    def arith_min_same(self, other):
-        assert isinstance(other, values.W_Bignum)
-        if self.value.lt(other.value):
-            return values.W_Integer.frombigint(self.value)
-        return values.W_Integer.frombigint(other.value)
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Bignum)
@@ -857,7 +870,7 @@ class __extend__(values.W_Bignum):
     # ------------------ miscellanous ------------------
 
     def arith_arith_fractional_part(self):
-        return values.W_Fixnum(0)
+        return values.W_Fixnum.ZERO
 
     def arith_arith_integer_part(self):
         return self
@@ -1129,5 +1142,4 @@ class __extend__(values.W_Complex):
         return self.real.arith_eq(other.real) and self.imag.arith_eq(other.imag)
 
     def arith_lt_same(self, other):
-        from pycket.error import SchemeException
         raise SchemeException("can't compare complex numbers")
