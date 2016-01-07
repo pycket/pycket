@@ -63,7 +63,7 @@ def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
 
 def promote_to_regexp(w_re):
     if isinstance(w_re, values_string.W_String):
-        return values_regex.W_Regexp(w_re.as_str_ascii()) # XXX for now
+        return values_regex.W_Regexp(w_re.as_str_utf8())
     if isinstance(w_re, values.W_Bytes):
         return values_regex.W_Regexp(w_re.as_str())
     if isinstance(w_re, values_regex.W_AnyRegexp):
