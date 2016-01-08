@@ -228,7 +228,7 @@ class W_InterposeBox(values.W_Box):
                 self.properties[k] = prop_vals[i]
 
     def immutable(self):
-        return self.inner.immutable()
+        return get_base_object(self.inner).immutable()
 
     def post_unbox_cont(self, env, cont):
         raise NotImplementedError("abstract method")

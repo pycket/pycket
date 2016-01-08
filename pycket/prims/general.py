@@ -594,7 +594,7 @@ def varref_to_mpi(ref):
 @expose("variable-reference->module-base-phase", [values.W_VariableReference])
 def varref_to_mbp(ref):
     # XXX Obviously not correct
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -637,7 +637,7 @@ def time_apply_cont(initial, env, cont, vals):
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_w = vals.get_all_values()
     results = values.Values.make([values.to_list(vals_w),
-                                  ms, ms, values.W_Fixnum(0)])
+                                  ms, ms, values.W_Fixnum.ZERO])
     return return_multi_vals(results, env, cont)
 
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
@@ -673,7 +673,7 @@ def apply(args, env, cont, extra_call_info):
     new_args = others + rest
     return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
-@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
+@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum.ZERO)])
 def make_semaphore(n):
     return values.W_Semaphore(n.value)
 
@@ -1327,7 +1327,7 @@ def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
 
 
 @expose("vector->values", [values_vector.W_Vector,
-                           default(values.W_Fixnum, values.W_Fixnum.make(0)),
+                           default(values.W_Fixnum, values.W_Fixnum.ZERO),
                            default(values.W_Fixnum, None)],
         simple=False)
 def vector_to_values(v, start, end, env, cont):

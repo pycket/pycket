@@ -330,13 +330,13 @@ def do_peek(w_port, as_bytes, skip, env, cont):
         return ret
 
 @expose("peek-char", [default(values.W_InputPort, None),
-                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                      default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
     return do_peek(w_port, False, w_skip.value, env, cont)
 
 @expose("peek-byte", [default(values.W_InputPort, None),
-                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                      default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_byte(w_port, w_skip, env, cont):
     return do_peek(w_port, True, w_skip.value, env, cont)
@@ -856,7 +856,7 @@ def read_bytes(amt, w_port, env, cont):
 
 @expose(["read-bytes!", "read-bytes-avail!"],
         [values.W_Bytes, default(values.W_InputPort, None),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)], simple=False)
 def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     # FIXME: discern the available from the non-available form
@@ -870,7 +870,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     start = w_start.value
     stop = len(w_bstr.value) if w_end is None else w_end.value
     if stop == start:
-        return return_value(values.W_Fixnum(0), env, cont)
+        return return_value(values.W_Fixnum.ZERO, env, cont)
 
 
     # FIXME: assert something on indices
@@ -893,9 +893,11 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
-@expose("write-string", [values_string.W_String, default(values.W_Object, None),\
-    default(values.W_Fixnum, values.W_Fixnum(0)),\
-    default(values.W_Fixnum, None)], simple=False)
+@expose("write-string",
+        [values_string.W_String, default(values.W_Object, None),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)],
+        simple=False)
 def do_write_string(w_str, port, start_pos, end_pos, env, cont):
     from pycket.interpreter import return_value
     start = start_pos.value
@@ -992,7 +994,7 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
 
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)], simple=False)
 def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
     from pycket.interpreter import return_value
