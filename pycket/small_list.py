@@ -4,7 +4,7 @@ from rpython.rlib.unroll import unrolling_iterable
 from rpython.rlib        import jit, debug, objectmodel
 
 
-def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
+def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
                       listsizename="_get_size_list", gettername="_get_list",
                       settername="_set_list"):
@@ -49,12 +49,17 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
             def _set_list(self, i, val):
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
+                        if nonull:
+                            assert val is not None
                         setattr(self, attr, val)
                         return
                 raise IndexError
             def _init(self, elems, *args):
                 assert len(elems) == size
                 for i, attr in unrolling_enumerate_attrs:
+                    val = elems[i]
+                    if nonull:
+                        assert val is not None
                     setattr(self, attr, elems[i])
                 cls.__init__(self, *args)
             def _clone(self):
@@ -91,6 +96,8 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
         def _get_list_arbitrary(self):
             return getattr(self, attrname)
         def _set_arbitrary(self, i, val):
+            if nonull:
+                assert val is not None
             getattr(self, attrname)[i] = val
         def _init(self, elems, *args):
             debug.make_sure_not_resized(elems)

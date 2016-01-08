@@ -661,6 +661,7 @@ class W_Flonum(W_Number):
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
+W_Flonum.ZERO   = W_Flonum(0.0)
 W_Flonum.INF    = W_Flonum(float("inf"))
 W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
