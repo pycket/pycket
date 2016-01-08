@@ -34,7 +34,7 @@ def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
 
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
-    _immutable_fields_ = ["unbox", "set"]
+    _immutable_fields_ = ["unboxh", "seth"]
 
     import_from_mixin(ProxyMixin)
 

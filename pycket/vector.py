@@ -411,7 +411,7 @@ class FlonumVectorStrategy(VectorStrategy):
 class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
-@specialize.call_location()
+@specialize.argtype(0)
 def pytype_strategy(lst):
     if not lst:
         strategy = ObjectVectorStrategy.singleton
@@ -421,10 +421,10 @@ def pytype_strategy(lst):
     if isinstance(elem, float):
         return FlonumVectorStrategy.singleton
     if isinstance(elem, W_Object):
-        return ObjectVectorStrategy.singleton
+        return _find_strategy_class(lst, False)
     assert False, "unsupported type"
 
-@specialize.call_location()
+@specialize.argtype(0)
 def wrap_vector(elems, immutable=False):
     # Allows for direct conversion between RPython lists and vectors with a
     # corresponding strategy simply by copying the underlying list.

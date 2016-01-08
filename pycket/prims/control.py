@@ -124,8 +124,8 @@ def call_with_continuation_prompt(args, env, cont):
     parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
     handler = default_continuation_prompt_handler
-
     fun     = parser.object()
+
     try:
         tag     = parser.prompt_tag()
         handler = parser.object()
