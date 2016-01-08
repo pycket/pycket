@@ -268,7 +268,6 @@ class W_ImpBox(W_InterposeBox):
     import_from_mixin(ImpersonatorMixin)
 
     errorname = "imp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
         return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)
