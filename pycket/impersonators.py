@@ -212,8 +212,9 @@ class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-box"
-    _immutable_fields_ = ["inner", "unbox", "set", "properties"]
+    _immutable_fields_ = ["inner", "unboxh", "seth", "properties"]
 
+    @jit.unroll_safe
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
@@ -247,9 +248,6 @@ class W_InterposeBox(values.W_Box):
 
 class W_ChpBox(W_InterposeBox):
     import_from_mixin(ChaperoneMixin)
-
-    errorname = "chp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
         return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
