@@ -206,7 +206,6 @@ def string(args):
         builder.append(char.value)
     return W_String.fromunicode(builder.build())
 
-
 @expose("string-downcase", [W_String])
 def string_downcase(v):
     return v.lower()
@@ -214,7 +213,6 @@ def string_downcase(v):
 @expose("string-upcase", [W_String])
 def string_upcase(v):
     return v.upper()
-
 
 @expose("string-append")
 @jit.unroll_safe
@@ -297,7 +295,7 @@ def string_set(w_str, w_index, w_char):
 
 @expose(["string-copy!"],
          [W_String, values.W_Fixnum, W_String,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
