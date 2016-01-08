@@ -58,7 +58,6 @@ class W_InterposeBox(values.W_Box):
         after = self.post_unbox_cont(env, cont)
         return self.inner.unbox(env, after)
 
-    @label
     def set_box(self, val, env, cont):
         after = self.post_set_box_cont(val, env, cont)
         return self.seth.call([self.inner, val], env, after)
