@@ -13,6 +13,7 @@ def make_entry_point(pycketconfig=None):
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
+    from pycket.callgraph import Counter
 
 
     def entry_point(argv):
@@ -57,6 +58,8 @@ def make_entry_point(pycketconfig=None):
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
+            # print "callgraph maintainance: ", int(env.callgraph.total_time * 1000)
+            print "callgraph maintainance: ", int(Counter.singleton.time * 1000)
             shutdown(env)
         return 0
     return entry_point

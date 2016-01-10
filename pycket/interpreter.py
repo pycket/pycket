@@ -1,6 +1,7 @@
 from pycket.AST               import AST
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
+from pycket.callgraph         import CallGraphMixin
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
 from pycket.cont              import Cont, NilCont, label
@@ -9,7 +10,7 @@ from pycket.arity             import Arity
 from pycket                   import config
 
 from rpython.rlib             import jit, debug, objectmodel
-from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.rlib.objectmodel import r_dict, compute_hash, specialize, import_from_mixin
 from small_list               import inline_small_list
 
 import sys
@@ -1429,6 +1430,9 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure'
                           ]
     simple = True
+
+    import_from_mixin(CallGraphMixin)
+
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.srcpos = srcpos
