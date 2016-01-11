@@ -352,7 +352,6 @@ for args in [ ("subprocess?",),
               ("terminal-port?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("bytes-converter?",),
               ("char-symbolic?",),
               ("char-graphic?",),
               ("char-blank?",),
@@ -377,7 +376,6 @@ for args in [ ("subprocess?",),
               ("custodian-box?",),
               ("namespace?",),
               ("security-guard?",),
-              ("thread-group?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
@@ -1367,3 +1365,21 @@ def procedure_specialize(proc):
     # Another option is to wrap closures in a W_PromotableClosure, which might
     # get us a similar effect from the RPython JIT.
     return proc
+
+@expose("bytes-converter?", [values.W_Object])
+def bytes_converter_pred(obj):
+    return values.w_false
+
+@expose("fsemaphore?", [values.W_Object])
+def fsemaphore_pred(obj):
+    return values.w_false
+
+@expose("thread-group?", [values.W_Object])
+def thread_group_pred(obj):
+    return values.w_false
+
+@expose("udp?", [values.W_Object])
+def udp_pred(obj):
+    return values.w_false
+
+
