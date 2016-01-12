@@ -1359,6 +1359,10 @@ def procedure_specialize(proc):
     # get us a similar effect from the RPython JIT.
     return proc
 
+@expose("processor-count", [])
+def processor_count():
+    return values.W_Fixnum.ONE
+
 def _make_stub_predicate(name):
     message = "%s: not yet implemented" % name
     @expose(name, [values.W_Object])
