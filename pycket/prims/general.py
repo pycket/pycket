@@ -1382,4 +1382,7 @@ def thread_group_pred(obj):
 def udp_pred(obj):
     return values.w_false
 
+@expose("processor-count", [])
+def processor_count():
+    return values.W_Fixnum.ONE
 
