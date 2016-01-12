@@ -178,10 +178,6 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
-@expose("compiled-module-expression?", [values.W_Object])
-def compiled_module_expression(v):
-    return values.w_false
-
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
