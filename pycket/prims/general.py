@@ -351,7 +351,6 @@ for args in [ ("subprocess?",),
               ("terminal-port?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("bytes-converter?",),
               ("char-symbolic?",),
               ("char-graphic?",),
               ("char-blank?",),
@@ -360,11 +359,9 @@ for args in [ ("subprocess?",),
               ("char-upper-case?",),
               ("char-title-case?",),
               ("char-lower-case?",),
-              ("compiled-expression?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
-              ("special-comment?",),
               ("exn:srclocs?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
@@ -372,18 +369,12 @@ for args in [ ("subprocess?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
-              ("custodian?",),
-              ("custodian-box?",),
-              ("namespace?",),
-              ("security-guard?",),
-              ("thread-group?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
               ("channel?",),
               ("readtable?",),
               ("link-exists?",),
-              ("internal-definition-context?",),
               ("rename-transformer?",),
               ("identifier?",),
               ("port?",),
@@ -1366,3 +1357,38 @@ def procedure_specialize(proc):
     # Another option is to wrap closures in a W_PromotableClosure, which might
     # get us a similar effect from the RPython JIT.
     return proc
+
+@expose("processor-count", [])
+def processor_count():
+    return values.W_Fixnum.ONE
+
+def _make_stub_predicate(name):
+    message = "%s: not yet implemented" % name
+    @expose(name, [values.W_Object])
+    def predicate(obj):
+        if not objectmodel.we_are_translated():
+            print message
+        return values.w_false
+    predicate.__name__ = "stub_predicate(%s)" % name
+    return predicate
+
+def make_stub_predicates(*names):
+    for name in names:
+        _make_stub_predicate(name)
+
+make_stub_predicates(
+    "bytes-converter?",
+    "fsemaphore?",
+    "thread-group?",
+    "udp?",
+    "extflonum?",
+    "special-comment?",
+    "compiled-expression?",
+    "custodian-box?",
+    "custodian?",
+    "future?",
+    "internal-definition-context?",
+    "namespace?",
+    "security-guard?",
+    "compiled-module-exression?")
+

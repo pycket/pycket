@@ -4,8 +4,6 @@
 from pycket.util  import memoize
 from rpython.rlib import jit
 
-AT_LEAST_CACHE = {}
-
 class Arity(object):
     _immutable_fields_ = ['arity_list[*]', 'at_least']
 
@@ -38,7 +36,7 @@ class Arity(object):
     def oneof(*lst):
         return Arity(list(lst), -1)
 
-Arity.unknown = Arity([], 0)
+Arity.unknown = Arity.geq(0)
 Arity.ZERO    = Arity.oneof(0)
 Arity.ONE     = Arity.oneof(1)
 Arity.TWO     = Arity.oneof(2)
