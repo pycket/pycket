@@ -1387,5 +1387,5 @@ make_stub_predicates(
     "internal-definition-context?",
     "namespace?",
     "security-guard?",
-    "compiled-module-exression?")
+    "compiled-module-expression?")
 
