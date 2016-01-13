@@ -178,10 +178,6 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
-@expose("compiled-module-expression?", [values.W_Object])
-def compiled_module_expression(v):
-    return values.w_false
-
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
@@ -837,7 +833,7 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
-@expose("for-each", simple=False)
+@expose("for-each", simple=False, arity=Arity.geq(2))
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -864,7 +860,7 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-@expose("andmap", simple=False)
+@expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -892,7 +888,7 @@ def andmap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
 
-@expose("ormap", simple=False)
+@expose("ormap", simple=False, arity=Arity.geq(2))
 def ormap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -920,7 +916,7 @@ def ormap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
 
-@expose("append")
+@expose("append", arity=Arity.geq(0))
 @jit.look_inside_iff(
     lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
 def append(lists):
@@ -1023,7 +1019,7 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error")
+@expose("error", arity=Arity.geq(1))
 def error(args):
     if len(args) == 1:
         sym = args[0]
