@@ -1,9 +1,29 @@
 
-from pycket              import values
-from pycket.base         import W_Object
-from pycket.cont         import call_cont, continuation, BaseCont
-from pycket.error        import SchemeException
-from rpython.rlib        import jit
+from pycket                          import values
+from pycket.arity                    import Arity
+from pycket.base                     import W_Object
+from pycket.cont                     import call_cont, continuation, BaseCont
+from pycket.error                    import SchemeException
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
+from rpython.rlib                    import jit, objectmodel
+from rpython.rlib.rarithmetic        import r_uint
+
+@objectmodel.always_inline
+def compute_hash(x):
+    assert objectmodel.we_are_translated() or type(x) is ParamKey
+    return r_uint(objectmodel.compute_hash(x))
+
+@objectmodel.always_inline
+def equal(a, b):
+    assert objectmodel.we_are_translated() or type(a) is ParamKey
+    assert objectmodel.we_are_translated() or type(b) is ParamKey
+    return a is b
+
+ParameterizationHashTable = make_persistent_hash_type(
+    super   = W_Object,
+    name    = "ParameterizationHashTable",
+    hashfun = compute_hash,
+    equal   = equal)
 
 # This is a Scheme_Parameterization in Racket
 class RootParameterization(object):
@@ -14,48 +34,35 @@ class RootParameterization(object):
 # This is a Scheme_Config in Racket
 # Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
-    _immutable_fields_ = ["root", "keys", "vals"]
+    _immutable_fields_ = ["root", "map"]
     errorname = "parameterization"
-    def __init__(self, root, keys, vals):
-        #assert len(params) == len(vals)
-        self.keys = keys
-        self.vals = vals
+    def __init__(self, root, map):
         self.root = root
+        self.map  = map
 
-    @jit.unroll_safe
     def extend(self, params, vals):
-        # why doesn't it like this assert?
-        # assert len(params) == len(vals)
-        # FIXME this is awful
-        total = len(params) + len(self.keys)
-        keys = [p.get_key() for p in params]
-        new_keys = [None] * total
-        new_vals = [None] * total
-        for i in range(total):
-            if i < len(params):
-                new_keys[i] = keys[i]
-                new_vals[i] = values.W_ThreadCell(vals[i], True)
-            else:
-                new_keys[i] = self.keys[i-len(params)]
-                new_vals[i] = self.vals[i-len(params)]
+        assert len(params) == len(vals)
+        map = self.map
+        for i, param in enumerate(params):
+            cell = values.W_ThreadCell(vals[i], True)
+            map = map.assoc(param.get_key(), cell)
+        return W_Parameterization(self.root, map)
 
-        return W_Parameterization(self.root, new_keys, new_vals)
-
-    @jit.unroll_safe
+    @jit.elidable
     def get(self, param):
-        k = param.key
-        for (i, key) in enumerate(self.keys):
-            if key is k:
-                return self.vals[i]
-        val = self.root.table[k]
-        assert val
-        return val
+        key = param.key
+        result = self.map.val_at(key, None)
+        if result is not None:
+            return result
+        result = self.root.table[key]
+        assert result is not None
+        return result
 
     def tostring(self):
         return "#<parameterization>"
 
 # This will need to be thread-specific
-top_level_config = W_Parameterization(RootParameterization(), [], [])
+top_level_config = W_Parameterization(RootParameterization(), ParameterizationHashTable.EMPTY)
 
 def find_param_cell(cont, param):
     assert isinstance(cont, BaseCont)
@@ -74,13 +81,18 @@ def param_set_cont(cell, env, cont, vals):
     return return_value(values.w_void, env, cont)
 
 # a token
-class ParamKey(object):
-    pass
+# Must be a subclass of W_Object to fit into immutable hash tables
+class ParamKey(W_Object):
+    _attrs_ = []
+    def __init__(self):
+        pass
 
 class W_BaseParameter(W_Object):
     errorname = "parameter"
     _attrs_ = ["guard"]
     _immutable_fields_ = ["guard"]
+
+    ARITY = Arity.oneof(0, 1)
 
     def __init__(self, guard=None):
         self.guard = None if guard is values.w_false else guard
@@ -90,6 +102,9 @@ class W_BaseParameter(W_Object):
 
     def get_key(self):
         raise NotImplementedError("abstract base class")
+
+    def get_arity(self):
+        return W_BaseParameter.ARITY
 
     def tostring(self):
         return "#<parameter-procedure>"

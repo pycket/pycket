@@ -2,13 +2,13 @@ import sys
 
 from rpython.rlib.listsort import make_timsort_class
 from rpython.rlib.objectmodel import specialize
-from rpython.rlib.rstring import StringBuilder
+from rpython.rlib.rstring import UnicodeBuilder
 from rpython.rlib.rsre.rsre_core import (OPCODE_LITERAL, OPCODE_LITERAL_IGNORE,
     OPCODE_SUCCESS, OPCODE_ASSERT, OPCODE_MARK, OPCODE_REPEAT, OPCODE_ANY,
     OPCODE_ANY_ALL, OPCODE_MAX_UNTIL, OPCODE_MIN_UNTIL, OPCODE_GROUPREF,
     OPCODE_AT, OPCODE_BRANCH, OPCODE_RANGE, OPCODE_JUMP, OPCODE_ASSERT_NOT,
     OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE)
-
+from rpython.rlib.rsre.rsre_char import is_digit, is_space, is_word
 
 IGNORE_CASE = 1 << 0
 EXTENDED = 1 << 1
@@ -35,16 +35,16 @@ FLAGS_MAP = [
     ("x", EXTENDED),
 ]
 
-SPECIAL_CHARS = "()|?*+{^$.[\\#"
+SPECIAL_CHARS = u"()|?*+{^$.[\\#"
 
 CHARACTER_ESCAPES = {
-    "a": "\a",
-    "b": "\b",
-    "f": "\f",
-    "n": "\n",
-    "r": "\r",
-    "t": "\t",
-    "v": "\v",
+    u"a": "\a",
+    u"b": "\b",
+    u"f": "\f",
+    u"n": "\n",
+    u"r": "\r",
+    u"t": "\t",
+    u"v": "\v",
 }
 
 from rpython.rlib.rsre.rsre_char import MAXREPEAT
@@ -125,10 +125,10 @@ class Source(object):
             while True:
                 if pos >= len(s):
                     break
-                elif s[pos].isspace():
+                elif is_space(ord(s[pos])):
                     pos += 1
-                elif s[pos] == "#":
-                    pos = s.find("\n", pos)
+                elif s[pos] == u"#":
+                    pos = s.find(u"\n", pos)
                     if pos < 0:
                         pos = len(s)
                 else:
@@ -141,11 +141,11 @@ class Source(object):
         if self.ignore_space:
             while True:
                 if pos >= len(s):
-                    return ""
-                elif s[pos].isspace():
+                    return u""
+                elif is_space(ord(s[pos])):
                     pos += 1
-                elif s[pos] == "#":
-                    pos = s.find("\n", pos)
+                elif s[pos] == u"#":
+                    pos = s.find(u"\n", pos)
                     if pos < 0:
                         pos = len(s)
                 else:
@@ -156,10 +156,10 @@ class Source(object):
             return ch
         except IndexError:
             self.pos = pos
-            return ""
+            return u""
         except ValueError:
             self.pos = len(s)
-            return ""
+            return u""
 
     def match(self, substr):
         s = self.s
@@ -170,10 +170,10 @@ class Source(object):
                 while True:
                     if pos >= len(s):
                         return False
-                    elif s[pos].isspace():
+                    elif is_space(ord(s[pos])):
                         pos += 1
-                    elif s[pos] == "#":
-                        pos = s.find("\n", pos)
+                    elif s[pos] == u"#":
+                        pos = s.find(u"\n", pos)
                         if pos < 0:
                             pos = len(s)
                     else:
@@ -199,7 +199,7 @@ class Source(object):
 
     def expect(self, substr):
         if not self.match(substr):
-            raise RegexpError("Missing %s" % substr)
+            raise RegexpError("Missing %s" % str(substr))
 
 
 class Info(object):
@@ -243,7 +243,7 @@ class Info(object):
         self.group_state[group] = self.CLOSED
 
     def normalize_group(self, name):
-        if name.isdigit():
+        if is_digit(ord(name[0])):
             return int(name)
         else:
             return self.group_index[name]
@@ -336,9 +336,24 @@ class Character(RegexpBase):
         return False
 
     def compile(self, ctx):
+        if self.positive:
+            ctx.emit(OPCODE_LITERAL_IGNORE if self.case_insensitive else OPCODE_LITERAL)
+            ctx.emit(self.value)
+            return
+        # If not a positive character, then generate code equivalent to what
+        # a negated SetUnion of a character would generate.
+        # XXX There may be a bettter opcode sequence, but I don't know the
+        # regex core well enough.
+        ctx.emit(OPCODE_IN)
+        ctx.emit(5)
+        ctx.emit(OPCODE_NEGATE)
         ctx.emit(OPCODE_LITERAL_IGNORE if self.case_insensitive else OPCODE_LITERAL)
         ctx.emit(self.value)
+        ctx.emit(OPCODE_FAILURE)
 
+    def __repr__(self):
+        neg = "~" if not self.positive else ""
+        return "Character(%s%r)" % (neg, chr(self.value))
 
 class Any(RegexpBase):
     def is_empty(self):
@@ -385,6 +400,8 @@ class AtPosition(ZeroWidthBase):
         ctx.emit(OPCODE_AT)
         ctx.emit(self.code)
 
+    def __repr__(self):
+        return "AtPosition(%r)" % self.code
 
 class Property(RegexpBase):
     def __init__(self, value, positive=True, case_insensitive=False, zerowidth=False):
@@ -410,6 +427,8 @@ class Property(RegexpBase):
         ctx.emit(OPCODE_CATEGORY)
         ctx.emit(self.value)
 
+    def __repr__(self):
+        return "Property(%r)" % self.value
 
 class Range(RegexpBase):
     def __init__(self, lower, upper, positive=True, case_insensitive=False, zerowidth=False):
@@ -466,6 +485,11 @@ class Sequence(RegexpBase):
         for item in self.items:
             item.compile(ctx)
 
+    def __str__(self):
+        return str(self.items)
+
+    def __repr__(self):
+        return "Sequence(%r)" % self.items
 
 class Branch(RegexpBase):
     def __init__(self, branches):
@@ -684,6 +708,8 @@ class GreedyRepeat(BaseRepeat):
         subpattern = self.subpattern.optimize(info)
         return GreedyRepeat(subpattern, self.min_count, self.max_count)
 
+    def __repr__(self):
+        return "GreedyRepeat(%r)" % self.subpattern
 
 class LazyRepeat(BaseRepeat):
     UNTIL_OPCODE = OPCODE_MIN_UNTIL
@@ -748,6 +774,8 @@ class Group(RegexpBase):
         ctx.emit(OPCODE_MARK)
         ctx.emit((self.group - 1) * 2 + 1)
 
+    def __repr__(self):
+        return "Group(%r)" % (self.subpattern)
 
 class RefGroup(RegexpBase):
     def __init__(self, info, group, case_insensitive=False):
@@ -815,6 +843,9 @@ class SetUnion(SetBase):
         ctx.emit(OPCODE_FAILURE)
         ctx.patch(pos, ctx.tell() - pos)
 
+    def __repr__(self):
+        neg = "~" if not self.positive else ""
+        return "SetUnion(%s%r)" % (neg, self.items)
 
 class SetIntersection(SetBase):
     def rebuild(self, positive, case_insensitive, zerowidth):
@@ -843,18 +874,19 @@ class SetIntersection(SetBase):
 
 
 POSITION_ESCAPES = {
-    "A": AtPosition(AT_BEGINNING_STRING),
-    "z": AtPosition(AT_END_STRING),
+    u"A": AtPosition(AT_BEGINNING_STRING),
+    u"z": AtPosition(AT_END_STRING),
 
-    "b": AtPosition(AT_BOUNDARY),
-    "B": AtPosition(AT_NON_BOUNDARY),
+    u"b": AtPosition(AT_BOUNDARY),
+    u"B": AtPosition(AT_NON_BOUNDARY),
 }
 CHARSET_ESCAPES = {
-    "d": Property(CATEGORY_DIGIT),
-    "w": Property(CATEGORY_WORD),
+    u"d": Property(CATEGORY_DIGIT),
+    u"w": Property(CATEGORY_WORD),
+    u"s": Property(CATEGORY_SPACE),
 }
 PROPERTIES = {
-    "digit": CATEGORY_DIGIT,
+    u"digit": CATEGORY_DIGIT,
 }
 
 
@@ -887,7 +919,7 @@ def _parse_pattern(source, info):
     previous_groups = info.used_groups.copy()
     branches = [_parse_sequence(source, info)]
     all_groups = info.used_groups
-    while source.match("|"):
+    while source.match(u"|"):
         info.used_groups = previous_groups.copy()
         branches.append(_parse_sequence(source, info))
         all_groups.update(info.used_groups)
@@ -917,9 +949,9 @@ def _parse_item(source, info):
         if element.is_empty() or min_count == max_count == 1:
             return element
 
-        if source.match("?"):
+        if source.match(u"?"):
             return LazyRepeat(element, min_count, max_count)
-        elif source.match("+"):
+        elif source.match(u"+"):
             if counts.limited_quantifier:
                 return GreedyRepeat(GreedyRepeat(element, min_count, max_count), 1, MAXREPEAT)
             else:
@@ -933,34 +965,34 @@ def _parse_element(source, info):
     here = source.pos
     ch = source.get()
     if ch in SPECIAL_CHARS:
-        if ch in ")|":
+        if ch in u")|":
             source.pos = here
             return None
-        elif ch == "\\":
+        elif ch == u"\\":
             return _parse_escape(source, info, in_set=False)
-        elif ch == "(":
+        elif ch == u"(":
             element = _parse_paren(source, info)
             if element is not None:
                 return element
-        elif ch == ".":
+        elif ch == u".":
             if info.flags & DOT_ALL:
                 return AnyAll()
             else:
                 return Any()
-        elif ch == "[":
+        elif ch == u"[":
             return _parse_set(source, info)
-        elif ch == "^":
+        elif ch == u"^":
             return AtPosition(AT_BEGINNING_STRING)
-        elif ch == "$":
+        elif ch == u"$":
             return AtPosition(AT_END_STRING)
-        elif ch == "{":
+        elif ch == u"{":
             here2 = source.pos
             counts = _parse_quantifier(source, info)
             if counts is not None:
                 raise RegexpError("nothing to repeat")
             source.pos = here2
             return make_character(info, ord(ch[0]))
-        elif ch in "?*+":
+        elif ch in u"?*+":
             raise RegexpError("nothing to repeat")
         else:
             return make_character(info, ord(ch[0]))
@@ -971,18 +1003,18 @@ def _parse_element(source, info):
 def _parse_quantifier(source, info):
     while True:
         here = source.pos
-        if source.match("?"):
+        if source.match(u"?"):
             return Counts(0, 1)
-        elif source.match("*"):
+        elif source.match(u"*"):
             return Counts(0)
-        elif source.match("+"):
+        elif source.match(u"+"):
             return Counts(1)
-        elif source.match("{"):
+        elif source.match(u"{"):
             try:
                 return _parse_limited_quantifier(source)
             except ParseError:
                 pass
-        elif source.match("(?#"):
+        elif source.match(u"(?#"):
             _parse_comment(source)
             continue
         break
@@ -991,15 +1023,15 @@ def _parse_quantifier(source, info):
 
 
 def _parse_paren(source, info):
-    if source.match("?"):
-        if source.match("<"):
-            if source.match("="):
+    if source.match(u"?"):
+        if source.match(u"<"):
+            if source.match(u"="):
                 return _parse_lookaround(source, info, behind=True, positive=True)
-            elif source.match("!"):
+            elif source.match(u"!"):
                 return _parse_lookaround(source, info, behind=True, positive=False)
             name = _parse_name(source)
             group = info.new_group(name)
-            source.expect(">")
+            source.expect(u">")
             saved_flags = info.flags
             saved_ignore = source.ignore_space
             try:
@@ -1007,26 +1039,26 @@ def _parse_paren(source, info):
             finally:
                 source.ignore_space = saved_ignore
                 info.flags = saved_flags
-            source.expect(")")
+            source.expect(u")")
             info.close_group(group)
             return Group(info, group, subpattern)
-        elif source.match("="):
+        elif source.match(u"="):
             return _parse_lookaround(source, info, behind=False, positive=True)
-        elif source.match("!"):
+        elif source.match(u"!"):
             return _parse_lookaround(source, info, behind=False, positive=False)
-        elif source.match("#"):
+        elif source.match(u"#"):
             _parse_comment(source)
             return
-        elif source.match(">"):
+        elif source.match(u">"):
             return _parse_atomic(source, info)
-        elif source.match(":"):
+        elif source.match(u":"):
             subpattern = _parse_pattern(source, info)
-            source.expect(")")
+            source.expect(u")")
             return subpattern
-        elif source.match("-") or source.match("m") or source.match("i") or source.match("x"):
+        elif source.match(u"-") or source.match(u"m") or source.match(u"i") or source.match(u"x"):
             # TODO: parse plain here flags = _parse_plain_flags(source)
             subpattern = _parse_pattern(source, info)
-            source.expect(")")
+            source.expect(u")")
             return subpattern
         else:
             raise RegexpError("undefined group option")
@@ -1038,7 +1070,7 @@ def _parse_paren(source, info):
     finally:
         source.ignore_space = saved_ignore
         info.flags = saved_flags
-    source.expect(")")
+    source.expect(u")")
     info.close_group(group)
     return Group(info, group, subpattern)
 
@@ -1051,17 +1083,17 @@ def _parse_atomic(source, info):
     finally:
         source.ignore_space = saved_ignore
         info.flags = saved_flags
-    source.expect(")")
+    source.expect(u")")
     return make_atomic(info, subpattern)
 
 
 def _parse_set(source, info):
     saved_ignore = source.ignore_space
     source.ignore_space = False
-    negate = source.match("^")
+    negate = source.match(u"^")
     try:
         item = _parse_set_intersect(source, info)
-        source.expect("]")
+        source.expect(u"]")
     finally:
         source.ignore_space = saved_ignore
 
@@ -1072,7 +1104,7 @@ def _parse_set(source, info):
 
 def _parse_set_intersect(source, info):
     items = [_parse_set_implicit_union(source, info)]
-    while source.match("&&"):
+    while source.match(u"&&"):
         items.append(_parse_set_implicit_union(source, info))
 
     if len(items) == 1:
@@ -1084,7 +1116,7 @@ def _parse_set_implicit_union(source, info):
     items = [_parse_set_member(source, info)]
     while True:
         here = source.pos
-        if source.match("]") or source.match("&&"):
+        if source.match(u"]") or source.match(u"&&"):
             source.pos = here
             break
         items.append(_parse_set_member(source, info))
@@ -1096,11 +1128,11 @@ def _parse_set_implicit_union(source, info):
 def _parse_set_member(source, info):
     start = _parse_set_item(source, info)
     if (not isinstance(start, Character) or not start.positive or
-        not source.match("-")):
+        not source.match(u"-")):
         return start
 
     here = source.pos
-    if source.match("]"):
+    if source.match(u"]"):
         source.pos = here
         return SetUnion(info, [start, Character(ord("-"))])
     end = _parse_set_item(source, info)
@@ -1114,22 +1146,15 @@ def _parse_set_member(source, info):
 
 
 def _parse_set_item(source, info):
-    if source.match("\\"):
+    if source.match(u"\\"):
         return _parse_escape(source, info, in_set=True)
 
     here = source.pos
-    if source.match("[:"):
+    if source.match(u"[:"):
         try:
             return _parse_posix_class(source, info)
         except ParseError:
             source.pos = here
-    if source.match("["):
-        negate = source.match("^")
-        item = _parse_set_intersect(source, info)
-        source.expect("]")
-        if negate:
-            item = item.with_flags(positive=not item.positive)
-        return item
     ch = source.get()
     if not ch:
         raise RegexpError("bad set")
@@ -1143,18 +1168,18 @@ def _parse_escape(source, info, in_set):
     source.ignore_space = saved_ignore
     if not ch:
         raise RegexpError("bad escape")
-    if ch == "g" and not in_set:
+    if ch == u"g" and not in_set:
         here = source.pos
         try:
             return _parse_group_ref(source, info)
         except RegexpError:
             source.pos = here
         return make_character(info, ord(ch[0]), in_set)
-    elif ch == "G" and not in_set:
+    elif ch == u"G" and not in_set:
         return AtPosition(AT_BEGINNING)
-    elif ch in "pP":
-        return _parse_property(source, info, ch == "p", in_set)
-    elif ch.isalpha():
+    elif ch in u"pP":
+        return _parse_property(source, info, ch == u"p", in_set)
+    elif is_word(ord(ch[0])):
         if not in_set:
             if ch in POSITION_ESCAPES:
                 return POSITION_ESCAPES[ch]
@@ -1163,7 +1188,7 @@ def _parse_escape(source, info, in_set):
         elif ch in CHARACTER_ESCAPES:
             return Character(ord(CHARACTER_ESCAPES[ch]))
         return make_character(info, ord(ch[0]), in_set)
-    elif ch.isdigit():
+    if is_digit(ord(ch[0])):
         return _parse_numeric_escape(source, info, ch, in_set)
     else:
         return make_character(info, ord(ch[0]), in_set)
@@ -1177,16 +1202,16 @@ def _parse_lookaround(source, info, behind, positive):
     finally:
         source.ignore_space = saved_ignore
         info.flags = saved_flags
-    source.expect(")")
+    source.expect(u")")
     return LookAround(subpattern, behind=behind, positive=positive)
 
 
 def _parse_limited_quantifier(source):
     min_count = _parse_count(source)
     ch = source.get()
-    if ch == ",":
+    if ch == u",":
         max_count = _parse_count(source)
-        if not source.match("}"):
+        if not source.match(u"}"):
             raise ParseError
         min_count = int(min_count) if min_count else 0
         max_count = int(max_count) if max_count else MAXREPEAT
@@ -1195,7 +1220,7 @@ def _parse_limited_quantifier(source):
         if max_count > MAXREPEAT:
             raise RegexpError("repeat count too big")
         return Counts(min_count, max_count, limited_quantifier=True)
-    if ch != "}":
+    if ch != u"}":
         raise ParseError
     if not min_count:
         raise ParseError
@@ -1206,11 +1231,11 @@ def _parse_limited_quantifier(source):
 
 
 def _parse_count(source):
-    b = StringBuilder(2)
+    b = UnicodeBuilder(2)
     while True:
         here = source.pos
         ch = source.get()
-        if ch.isdigit():
+        if is_digit(ord(ch[0])):
             b.append(ch)
         else:
             source.pos = here
@@ -1221,18 +1246,18 @@ def _parse_count(source):
 def _parse_comment(source):
     while True:
         ch = source.get()
-        if ch == ")":
+        if ch == u")":
             break
         elif not ch:
             break
 
 
 def _parse_name(source):
-    b = StringBuilder(5)
+    b = UnicodeBuilder(5)
     while True:
         here = source.pos
         ch = source.get()
-        if ch in ")>":
+        if ch in u")>":
             source.pos = here
             break
         elif not ch:
@@ -1243,10 +1268,10 @@ def _parse_name(source):
 
 
 def _parse_plain_flags(source):
-    b = StringBuilder(4)
+    b = UnicodeBuilder(4)
     while True:
         ch = source.get()
-        if ch == ":":
+        if ch == u":":
             break
         else:
             b.append(ch)
@@ -1254,9 +1279,9 @@ def _parse_plain_flags(source):
 
 
 def _parse_group_ref(source, info):
-    source.expect("<")
+    source.expect(u"<")
     name = _parse_name(source)
-    source.expect(">")
+    source.expect(u">")
     if info.is_open_group(name):
         raise RegexpError("can't refer to an open group")
     return make_ref_group(info, info.normalize_group(name))
@@ -1264,13 +1289,13 @@ def _parse_group_ref(source, info):
 
 def _parse_property(source, info, positive, in_set):
     here = source.pos
-    if source.match("{"):
-        negate = source.match("^")
-        b = StringBuilder(5)
+    if source.match(u"{"):
+        negate = source.match(u"^")
+        b = UnicodeBuilder(5)
         found = False
         while True:
             ch = source.get()
-            if ch == "}":
+            if ch == u"}":
                 found = True
                 break
             elif not ch:
@@ -1294,7 +1319,7 @@ def _parse_posix_class(source, info):
 
 
 def _compile_no_cache(pattern, flags):
-    source = Source(pattern)
+    source = Source(pattern.decode("utf-8"))
     if flags & EXTENDED:
         source.ignore_space = True
     info = Info(flags)
@@ -1321,3 +1346,4 @@ def compile(cache, pattern, flags=0):
     if not cache.contains(pattern, flags):
         cache.set(pattern, flags, _compile_no_cache(pattern, flags))
     return cache.get(pattern, flags)
+

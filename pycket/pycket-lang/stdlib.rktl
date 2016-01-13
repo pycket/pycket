@@ -44,7 +44,6 @@
 
 (define (zero? z) (= z 0))
 (define (not b) (if b #f #t))
-(define call-with-current-continuation call/cc)
 
 (define (append a b)
   (if (null? a)

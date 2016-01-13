@@ -7,7 +7,7 @@ omit =
      targetpycket.py
      pycket/__main__.py
      pycket/config.py
-     
+
      # these are tools
      pycket/test/targetjson.py
      pycket/expand_tofile.py
@@ -20,7 +20,9 @@ omit =
      pycket/test/conftest.py
 
      # this is pypy.
-     pycket/pypy/
+     pycket/pypy*/
+     pypy*/
+
 
 [report]
 # Regexes for lines to exclude from consideration

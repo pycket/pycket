@@ -1,10 +1,12 @@
 #/bin/sh
-
 #
 
 # utah or northwestern for prerelease, racket for stable
-DLHOST=utah
+#DLHOST=utah
+DLHOST=northwestern
 RACKET_VERSION=current
+
+COVERAGE_TESTSUITE='test'
 
 #
 
@@ -20,7 +22,7 @@ command is one of
   install       Install direct prerequisites
   test <what>   Test (may include building, testing, coverage)
         tests         Run pytest tests
-        coverage      Run pytest coverage report
+        coverage      Run pytest coverage report and upload
         translate     Translate pycket with jit
         translate_nojit_and_racket_tests
                      Translate pycket without jit and run racket test
@@ -28,7 +30,6 @@ command is one of
 
 EOF
 }
-
 
 
 _time_gnu() {
@@ -71,42 +72,23 @@ else
 fi
 
 
-
-COVERAGE_TESTSUITE='not test_larger'
-COVERAGE_HTML_DIR=pycket/test/coverage_report
-
 ############### test targets ################################
 do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
-
 do_coverage() {
-  py.test -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  set +e
+  # PyPy's pytest modifications clash with recent pytest-cov/coverage releases
+  # So remove them on the CI.
+  rm -rf ../pypy/*pytest*
+  py.test --assert=plain -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
+  codecov --no-fail -X gcov
+  set -e
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
 }
 
-do_coverage_push() {
-  # always succeed to allow coverage push on test failure
-  py.test -n 3 -k "$COVERAGE_TESTSUITE" \
-          --cov . --cov-report=html pycket || true
-  # but fail if the report is not there
-  [ -f .coverage -a \
-       -d "$COVERAGE_HTML_DIR" -a \
-       -f "$COVERAGE_HTML_DIR/index.html" ]
-}
-
-
-do_prepare_coverage_deployment() {
-  [ -f .coverage ] || exit 1
-  [ -d $COVERAGE_HTML_DIR ] || exit 1
-  mv $COVERAGE_HTML_DIR /tmp
-  rm -rf ./*
-  cp -a "/tmp/$(basename "$COVERAGE_HTML_DIR")/"* .
-  echo "web: vendor/bin/heroku-php-nginx" > Procfile
-  echo '{}' > composer.json
-}
 
 do_translate() {
   ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
@@ -137,11 +119,11 @@ do_performance_smoke() {
   echo ">>> Smoke"
   _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
   _smoke 0.7 pycket/test/triangle.rkt
-  _smoke 1.5 pycket/test/earley.rkt
+  _smoke 1.8 pycket/test/earley.rkt
   _smoke 2.0 pycket/test/nucleic2.rkt
   _smoke 2.5 pycket/test/nqueens.rkt
   _smoke 2.5 pycket/test/treerec.rkt
-  _smoke 0.5 pycket/test/hashtable-benchmark.rkt
+  _smoke 1.0 pycket/test/hashtable-benchmark.rkt
   echo ; echo ">> Smoke cleared" ; echo
 }
 
@@ -153,8 +135,35 @@ do_translate_nojit_and_racket_tests() {
 ############################################################
 
 install_deps() {
-  pip install pytest-xdist 'pytest-cov~=1.8.1' cov-core coverage || \
-      pip install --user pytest-xdist 'pytest-cov~=1.8.1' cov-core coverage
+  pip install pytest-xdist || pip install --user pytest-xdist
+  if [ $TEST_TYPE = 'coverage' ]; then
+    pip install codecov pytest-cov || pip install codecov pytest-cov
+  fi
+}
+
+_activate_pypyenv() {
+  if [ -f ~/virtualenv/pypy/bin/activate ]; then
+    deactivate || true
+    source ~/virtualenv/pypy/bin/activate
+  fi
+}
+
+install_pypy() {
+  # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
+  # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
+  PYPY_PAK=pypy-4.0.0-linux64.tar.bz2
+  PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
+
+  wget $PYPY_URL
+  tar xjf $PYPY_PAK
+  # ln -s pypy-c-*-linux64 pypy-c
+  ln -s pypy-4.0.0-linux64 pypy-c
+  pip install --upgrade virtualenv
+  virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
+  # fix virtualenv...
+  rm ~/virtualenv/pypy/bin/libpypy-c.so
+  cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
+  _activate_pypyenv
 }
 
 install_racket() {
@@ -239,9 +248,12 @@ fi
 COMMAND="$1"
 shift
 
+_activate_pypyenv
+
 case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
+    install_pypy
     install_racket
     install_deps
     ;;
@@ -262,9 +274,6 @@ case "$COMMAND" in
     fi
     echo "Running $TEST_TYPE"
     do_$TEST_TYPE
-    ;;
-  prepare_coverage_deployment)
-    do_prepare_coverage_deployment
     ;;
   *)
     _help

@@ -7,7 +7,7 @@ from pycket.error             import SchemeException
 from pycket.values            import UNROLLING_CUTOFF
 from pycket                   import values
 from pycket                   import values_struct
-from pycket                   import values_hash
+from pycket.hash.base         import W_HashTable
 from rpython.rlib             import jit
 from rpython.rlib.objectmodel import import_from_mixin
 
@@ -148,6 +148,8 @@ class W_InterposeProcedure(values.W_Procedure):
 
     errorname = "interpose-procedure"
     _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
+
+    @jit.unroll_safe
     def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
@@ -210,8 +212,9 @@ class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-box"
-    _immutable_fields_ = ["inner", "unbox", "set", "properties"]
+    _immutable_fields_ = ["inner", "unboxh", "seth", "properties"]
 
+    @jit.unroll_safe
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
@@ -225,7 +228,7 @@ class W_InterposeBox(values.W_Box):
                 self.properties[k] = prop_vals[i]
 
     def immutable(self):
-        return self.inner.immutable()
+        return get_base_object(self.inner).immutable()
 
     def post_unbox_cont(self, env, cont):
         raise NotImplementedError("abstract method")
@@ -246,9 +249,6 @@ class W_InterposeBox(values.W_Box):
 class W_ChpBox(W_InterposeBox):
     import_from_mixin(ChaperoneMixin)
 
-    errorname = "chp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
-
     def post_unbox_cont(self, env, cont):
         return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
@@ -268,7 +268,6 @@ class W_ImpBox(W_InterposeBox):
     import_from_mixin(ImpersonatorMixin)
 
     errorname = "imp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
         return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)
@@ -279,7 +278,7 @@ class W_ImpBox(W_InterposeBox):
 @continuation
 def imp_vec_set_cont(v, i, env, cont, vals):
     from pycket.interpreter import check_one_val
-    return v.vector_set(i, check_one_val(vals), env, cont)
+    return v.vector_set(i.value, check_one_val(vals), env, cont)
 
 class W_InterposeVector(values.W_MVector):
     import_from_mixin(ProxyMixin)
@@ -311,12 +310,14 @@ class W_InterposeVector(values.W_MVector):
 
     @label
     def vector_set(self, i, new, env, cont):
-        after = self.post_set_cont(new, i, env, cont)
-        return self.seth.call([self.inner, i, new], env, after)
+        idx = values.W_Fixnum(i)
+        after = self.post_set_cont(new, idx, env, cont)
+        return self.seth.call([self.inner, idx, new], env, after)
 
     @label
     def vector_ref(self, i, env, cont):
-        after = self.post_ref_cont(i, env, cont)
+        idx = values.W_Fixnum(i)
+        after = self.post_ref_cont(idx, env, cont)
         return self.inner.vector_ref(i, env, after)
 
 # Vectors
@@ -364,7 +365,7 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
 class W_InterposeStructBase(values_struct.W_RootStruct):
     import_from_mixin(ProxyMixin)
 
-    _immutable_fields = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props", "properties"]
+    _immutable_fields_ = ["inner", "base", "mask[*]", "accessors[*]", "mutators[*]", "struct_info_handler", "struct_props", "properties"]
 
     @jit.unroll_safe
     def __init__(self, inner, overrides, handlers, prop_keys, prop_vals):
@@ -456,10 +457,11 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             return goto.ref_with_extra_info(field, app, env, cont)
         op = self.accessors[2 * field]
         interp = self.accessors[2 * field + 1]
-        after = self.post_ref_cont(interp, app, env, cont)
+        if interp is not values.w_false:
+            cont = self.post_ref_cont(interp, app, env, cont)
         if op is values.w_false:
-            return self.inner.ref_with_extra_info(field, app, env, after)
-        return op.call_with_extra_info([self.inner], env, after, app)
+            return self.inner.ref_with_extra_info(field, app, env, cont)
+        return op.call_with_extra_info([self.inner], env, cont, app)
 
     @guarded_loop(enter_above_depth(5))
     def set_with_extra_info(self, field, val, app, env, cont):
@@ -579,7 +581,7 @@ class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
     def post_set_cont(self, body, value, env, cont):
         return imp_cmk_post_set_cont(body, self.inner, env, cont)
 
-class W_InterposeHashTable(values_hash.W_HashTable):
+class W_InterposeHashTable(W_HashTable):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-hash-table"
@@ -587,7 +589,7 @@ class W_InterposeHashTable(values_hash.W_HashTable):
                           "key_proc", "clear_proc", "properties"]
     def __init__(self, inner, ref_proc, set_proc, remove_proc, key_proc,
                  clear_proc, prop_keys, prop_vals):
-        assert isinstance(inner, values_hash.W_HashTable)
+        assert isinstance(inner, W_HashTable)
         assert set_proc.iscallable()
         assert ref_proc.iscallable()
         assert remove_proc.iscallable()

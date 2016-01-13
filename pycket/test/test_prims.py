@@ -5,11 +5,14 @@
 #
 
 import pytest
+import os
 import sys
 from pycket        import values
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
 from pycket.error import SchemeException
+
+skip = pytest.mark.skipif("True")
 
 def test_equal():
     check_all(
@@ -45,6 +48,14 @@ def test_equal():
         '(equal? "abc" "def")',
     )
 
+def test_equal2(doctest):
+    """
+    ! (require racket/base)
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/bash"))
+    #t
+    > (equal? (string->path "/usr/bin/bash") (string->path "/usr/bin/tcsh"))
+    #f
+    """
 
 ###############################################################################
 
@@ -693,6 +704,15 @@ def test_procedure_closure_contents_eq(doctest):
     #f
     """
 
+def test_list_ref(doctest):
+    """
+    > (list-ref '(1 2 3) 0)
+    1
+    > (list-ref '(1 2 3) 1)
+    2
+    > (list-ref '(1 2 3) 2)
+    3
+    """
 
 def test_unsafe_undefined(doctest):
     """
@@ -732,4 +752,226 @@ def test_bytes_conversions():
 
     vb = m.defs[b]
     assert isinstance(vb, values.W_Fixnum) and vb.value == 4607182418800017408
+
+def test_build_path(doctest):
+    """
+    > (path->string (build-path "/usr/bin" "bash"))
+    "/usr/bin/bash"
+    > (path->string (build-path "/usr" "bin" 'up "bash"))
+    "/usr/bin/../bash"
+    > (path->string (build-path "/usr" "bin" 'same "bash"))
+    "/usr/bin/./bash"
+    """
+
+def test_path_to_complete_path():
+    m = run_mod(
+    """
+    #lang pycket
+    (define p (path->complete-path "test.rkt"))
+    """)
+    p = m.defs[values.W_Symbol.make("p")]
+    cwd = os.getcwd()
+    assert isinstance(p, values.W_Path)
+    full = cwd + "/" + "test.rkt"
+    assert full == p.path
+
+def test_explode_path(doctest):
+    """
+    ! (require racket/base)
+    ! (define (unpath p) (if (path? p) (path->string p) p))
+    > (map path->string (explode-path "/home/spenser/src/pycket"))
+    '("/" "home" "spenser" "src" "pycket")
+    > (map unpath (explode-path "/home/spenser/src/pycket/.././."))
+    '("/" "home" "spenser" "src" "pycket" up same same)
+    > (map unpath (explode-path "home/spenser/src/pycket/.././."))
+    '("home" "spenser" "src" "pycket" up same same)
+    """
+    assert doctest
+
+def test_file_size(doctest):
+    """
+    > (file-size "./pycket/test/sample_file.txt")
+    256
+    """
+    assert doctest
+
+def test_andmap(doctest):
+    """
+    ! (require (only-in '#%kernel andmap))
+    > (andmap even? '())
+    #t
+    > (andmap even? '(1))
+    #f
+    > (andmap even? '(2))
+    #t
+    > (andmap even? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap even? '(2 4 6 8))
+    #t
+    > (andmap odd? '())
+    #t
+    > (andmap odd? '(1))
+    #t
+    > (andmap odd? '(2))
+    #f
+    > (andmap odd? '(1 2 3 4 5 6 7 8 9))
+    #f
+    > (andmap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_ormap(doctest):
+    """
+    ! (require (only-in '#%kernel ormap))
+    > (ormap even? '())
+    #f
+    > (ormap even? '(1))
+    #f
+    > (ormap even? '(2))
+    #t
+    > (ormap even? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap even? '(2 4 6 8))
+    #t
+    > (ormap odd? '())
+    #f
+    > (ormap odd? '(1))
+    #t
+    > (ormap odd? '(2))
+    #f
+    > (ormap odd? '(1 2 3 4 5 6 7 8 9))
+    #t
+    > (ormap odd? '(2 4 6 8))
+    #f
+    """
+
+def test_syntax_to_datum(doctest):
+    """
+    > (syntax->datum #'a)
+    'a
+    > (syntax->datum #'(x . y))
+    '(x . y)
+    > (syntax->datum #'#(1 2 (+ 3 4)))
+    '#(1 2 (+ 3 4))
+    > (syntax->datum #'#&"hello world")
+    '#&"hello world"
+    ;;;;; XXX: Ordering problem?
+    ;> (syntax->datum #'#hash((imperial . "yellow") (festival . "green")))
+    ;'#hash((festival . "green") (imperial . "yellow"))
+    > (syntax->datum #'#(point 3 4))
+    '#(point 3 4)
+    > (syntax->datum #'3)
+    3
+    > (syntax->datum #'"three")
+    "three"
+    > (syntax->datum #'#t)
+    #t
+    """
+
+@skip
+def test_syntax_e(doctest):
+    """
+    > (syntax-e #'a)
+    'a
+    > (let ((s (syntax-e #'(x . y))))
+        (and (pair? s) (syntax? (car s)) (syntax? (cdr s))))
+    ;'(#<syntax:11:0 x> . #<syntax:11:0 y>)
+    #t
+    > (let ((s (syntax-e #'#(1 2 (+ 3 4)))))
+        (and (list? s) (syntax? (list-ref s 1))))
+    ;'#(#<syntax:12:0 1> #<syntax:12:0 2> #<syntax:12:0 (+ 3 4)>)
+    #t
+    > (let ((s (syntax-e #'#&"hello world")))
+        (and (box? s) (syntax? (unbox s))))
+    ;'#&#<syntax:13:0 "hello world">
+    #t
+    ;;;;; XXX: Ordering problem?
+    ;> (syntax-e #'#hash((imperial . "yellow") (festival . "green")))
+    ;'#hash((festival . #<syntax:14:0 "green">) (imperial . #<syntax:14:0 "yellow">))
+    > (let ((s (syntax-e #'#(point 3 4))))
+        (and (vector? s) (syntax? (vector-ref s 1))))
+    ;'#(#<syntax:15:0 point> #<syntax:15:0 3> #<syntax:15:0 4>)
+    #t
+    > (syntax-e #'3)
+    3
+    > (syntax-e #'"three")
+    "three"
+    > (syntax-e #'#t)
+    #t
+    """
+
+def test_relative_path(doctest):
+    """
+    > (relative-path? "/home/spenser")
+    #f
+    > (relative-path? "~/bin/racket")
+    #t
+    > (relative-path? "./../bin/racket")
+    #t
+    > (relative-path? (string->path "/home/spenser"))
+    #f
+    > (relative-path? (string->path  "~/bin/racket"))
+    #t
+    > (relative-path? (string->path "./../bin/racket"))
+    #t
+    """
+
+
+def test_continuation_prompt_functions(doctest):
+    u"""
+    ! (define tag (make-continuation-prompt-tag))
+    ! (define (escape v) (abort-current-continuation tag (lambda () v)))
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag)
+    0
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag))
+    1
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ 10 (x))))
+    10
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ (x) 10))))
+    11
+    """
+
+def test_continuation_prompt_available(doctest):
+    u"""
+    ! (define tag  (make-continuation-prompt-tag))
+    ! (define tag2 (make-continuation-prompt-tag))
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag)
+    #t
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag2)
+    #f
+    """
+
+def test_raise_exception(doctest):
+    u"""
+    ! (require racket/base)
+    ! (define-struct (my-exception exn:fail:user) ())
+    > (with-handlers ([number? (lambda (n) (+ n 5))]) (raise 18 #t))
+    23
+    > (with-handlers ([my-exception? (lambda (e) #f)]) (+ 5 (raise (make-my-exception "failed" (current-continuation-marks)))))
+    #f
+    > (with-handlers ([number? (λ (n) (+ n 5))]) (with-handlers ([string? (λ (n) (string-append n " caught ya"))]) (raise 8)))
+    13
+    """
+
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (ctype-basetype #f)
+    #f
+    > (ctype-basetype _int8)
+    'int8
+    > (ctype-basetype _uint32)
+    'uint32
+    > (ctype-basetype (make-ctype _int8 #f #f))
+    'int8
+    > (ctype-basetype (make-ctype _int8 (λ (x) x) #f))
+    _int8
+    """
+
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (equal? (ctype-sizeof _int8) (ctype-sizeof (make-ctype _int8 #f #f)))
+    #t
+    """
 

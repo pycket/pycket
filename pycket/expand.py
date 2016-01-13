@@ -16,7 +16,7 @@ from pycket import values, values_string
 from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
-from pycket import values_hash
+from pycket.hash.equal import W_EqualHashTable
 
 
 class ExpandException(SchemeException):
@@ -131,6 +131,7 @@ def wrap_for_tempfile(fn):
         except OSError:
             pass
         from tempfile import mktemp
+        json_file = os.path.realpath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
         out = fn(rkt_file, tmp_json_file)
@@ -230,10 +231,6 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 #### ========================== Functions for parsing json to an AST
 
-def load_json_ast(fname):
-    data = readfile(fname)
-    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
-
 def load_json_ast_rpython(fname, modtable):
     data = readfile_rpython(fname)
     return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
@@ -326,7 +323,6 @@ def _to_module(json, modtable):
     else:
         assert 0
 
-
 # A table listing all the module files that have been loaded.
 # A module need only be loaded once.
 # Modules (aside from builtins like #%kernel) are listed in the table
@@ -366,6 +362,16 @@ class ModTable(object):
             return None
         return self.table[fname]
 
+    def enter_module(self, fname):
+        # Pre-emptive pushing to prevent recursive expansion due to submodules
+        # which reference the enclosing module
+        self.push(fname)
+        self.add_module(fname, None)
+
+    def exit_module(self, fname, module):
+        self.add_module(fname, module)
+        self.pop()
+
 def shorten_submodule_path(path):
     if path is None:
         return None
@@ -386,13 +392,9 @@ def _to_require(fname, modtable, path=None):
         if modtable.builtin(fname):
             return VOID
         return Require(fname, modtable, path=path)
-    modtable.push(fname)
-    # Pre-emptive pushing to prevent recursive expansion due to submodules
-    # which reference the enclosing module
-    modtable.add_module(fname, None)
+    modtable.enter_module(fname)
     module = expand_file_cached(fname, modtable)
-    modtable.add_module(fname, module)
-    modtable.pop()
+    modtable.exit_module(fname, module)
     return Require(fname, modtable, path=path)
 
 def parse_require(path, modtable):
@@ -505,7 +507,9 @@ def _to_ast(json, modtable):
                 return fst
             else:
                 return Begin0.make(fst, rst)
-
+        if "begin-for-syntax" in obj:
+            body = [_to_ast(x, modtable) for x in obj["begin-for-syntax"].value_array()]
+            return BeginForSyntax(body)
         if "wcm-key" in obj:
             return WithContinuationMark(_to_ast(obj["wcm-key"], modtable),
                                         _to_ast(obj["wcm-val"], modtable),
@@ -583,9 +587,6 @@ def _to_ast(json, modtable):
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 VOID = Quote(values.w_void)
-INF = values.W_Flonum(float("inf"))
-NEGINF = values.W_Flonum(-float("inf"))
-NAN = values.W_Flonum(float("nan"))
 
 def _to_num(json):
     assert json.is_object
@@ -604,11 +605,11 @@ def _to_num(json):
     if "extended-real" in obj:
         rs = obj["extended-real"].value_string()
         if rs == "+inf.0":
-            return INF
+            return values.W_Flonum.INF
         if rs == "-inf.0":
-            return NEGINF
+            return values.W_Flonum.NEGINF
         if rs == "+nan.0":
-            return NAN
+            return values.W_Flonum.NAN
     if "integer" in obj:
         rs = obj["integer"].value_string()
         try:
@@ -645,9 +646,10 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return values_hash.W_EqualHashTable(
+            return W_EqualHashTable(
                     [to_value(i) for i in obj["hash-keys"].value_array()],
-                    [to_value(i) for i in obj["hash-vals"].value_array()])
+                    [to_value(i) for i in obj["hash-vals"].value_array()],
+                    immutable=True)
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:

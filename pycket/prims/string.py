@@ -25,20 +25,20 @@ def str2num(w_s):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 
+    s = w_s.as_str_utf8()
     try:
-        s = w_s.as_str_utf8()
         if "." in s:
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=0))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=10))
             except ParseStringOverflowError:
                 return values.W_Bignum(rbigint.rbigint.fromstr(s))
     except ParseStringError as e:
         return values.w_false
 
 @expose("number->string",
-        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum(10))])
+        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum.make(10))])
 def num2str(a, radix):
     from rpython.rlib.rbigint import BASE8, BASE16
     if radix.value == 10:
@@ -72,6 +72,10 @@ def num2str(a, radix):
         else:
             assert 0 # not reached
 
+@expose("string->path", [W_String])
+def string_to_path(str):
+    s = str.as_str_utf8()
+    return values.W_Path(s)
 
 @expose("string->unreadable-symbol", [W_String])
 def string_to_unsymbol(v):
@@ -88,7 +92,7 @@ def string_to_symbol(v):
 @expose(["string->bytes/locale",
          "string->bytes/utf-8"], [W_String,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Fixnum, values.W_Fixnum(0)),
+                                  default(values.W_Fixnum, values.W_Fixnum.ZERO),
                                   default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
     # assert errbyte is values.w_false
@@ -101,7 +105,7 @@ def string_to_bytes_locale(str, errbyte, start, end):
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
 def bytes_to_string_latin(str, err, start, end):
     # XXX Not a valid implementation
@@ -110,7 +114,7 @@ def bytes_to_string_latin(str, err, start, end):
 @expose("string->bytes/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
 def bytes_to_string_latin(str, err, start, end):
     # XXX Not a valid implementation
@@ -118,13 +122,26 @@ def bytes_to_string_latin(str, err, start, end):
 
 @expose("string->list", [W_String])
 def string_to_list(s):
-    return values.to_list([values.W_Character(i) for i in s.as_unicode()])
+    data = s.as_unicode()
+    acc = values.w_null
+    for i in range(len(data) - 1, -1, -1):
+        char = data[i]
+        acc = values.W_Cons.make(values.W_Character(char), acc)
+    return acc
 
 @expose("list->string", [values.W_List])
 def list_to_string(w_list):
-    l = values.from_list(w_list)
-    return string(l)
-
+    if not w_list.is_proper_list():
+        raise SchemeException("list->string: expected proper list")
+    if not isinstance(w_list, values.W_Cons):
+        return W_String.fromascii("")
+    builder = UnicodeBuilder()
+    while isinstance(w_list, values.W_Cons):
+        char, w_list = w_list.car(), w_list.cdr()
+        if not isinstance(char, values.W_Character):
+            raise SchemeException("list->string: expected list of characters")
+        builder.append(char.value)
+    return W_String.fromunicode(builder.build())
 
 ##################################
 
@@ -189,7 +206,6 @@ def string(args):
         builder.append(char.value)
     return W_String.fromunicode(builder.build())
 
-
 @expose("string-downcase", [W_String])
 def string_downcase(v):
     return v.lower()
@@ -198,7 +214,6 @@ def string_downcase(v):
 def string_upcase(v):
     return v.upper()
 
-
 @expose("string-append")
 @jit.unroll_safe
 def string_append(args):
@@ -206,23 +221,30 @@ def string_append(args):
         return W_String.fromascii("")
     builder = StringBuilder()
     unibuilder = None
-    for a in args:
-        if not isinstance(a, W_String):
-            raise SchemeException("string-append: expected a string")
-        if unibuilder is None:
-            try:
-                builder.append(a.as_str_ascii())
-                continue
-            except ValueError:
-                unibuilder = UnicodeBuilder()
-                unibuilder.append(unicode(builder.build()))
-        unibuilder.append(a.as_unicode())
+    ascii_idx = 0
+    try:
+        for ascii_idx in range(len(args)):
+            arg = args[ascii_idx]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            builder.append(arg.as_str_ascii())
+    except ValueError:
+        unibuilder = UnicodeBuilder()
+        unibuilder.append(unicode(builder.build()))
+        builder = None
+        for i in range(ascii_idx, len(args)):
+            arg = args[i]
+            if not isinstance(arg, W_String):
+                raise SchemeException("string-append: expected a string")
+            unibuilder.append(arg.as_unicode())
     if unibuilder is None:
+        assert builder is not None
         return W_String.fromascii(builder.build())
     else:
+        assert unibuilder is not None
         return W_String.fromunicode(unibuilder.build())
 
-@expose("string-length", [W_String])
+@expose(["string-length", "unsafe-string-length"], [W_String])
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
@@ -273,7 +295,7 @@ def string_set(w_str, w_index, w_char):
 
 @expose(["string-copy!"],
          [W_String, values.W_Fixnum, W_String,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -297,7 +319,7 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
 ################################################################################
 # Byte stuff
-@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_bytes(length, byte):
     # assert byte_huh(byte) is values.w_true
     if isinstance(byte, values.W_Fixnum):
@@ -325,21 +347,23 @@ def bytes(args):
 
 @expose("bytes-append")
 def bytes_append(args):
-    lens = 0
+    total_len = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        lens += len(a.value)
+        total_len += len(a.value)
 
-    val = [' '] * lens # is this the fastest way to do things?
+    result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        val[cnt:cnt+len(a.value)] = a.value
-        cnt += len(a.value)
+        for byte in a.value:
+            result[cnt] = byte
+            cnt += 1
 
-    return values.W_MutableBytes(val)
+    assert cnt == total_len
+    return values.W_MutableBytes(result)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
@@ -407,7 +431,7 @@ def subbytes(w_bytes, w_start, w_end):
 
 @expose(["bytes-copy!"],
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -458,11 +482,15 @@ for a in [("bytes<?", op.lt),
 @expose(["bytes->string/locale",
          "bytes->string/utf-8"], [values.W_Bytes,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale
     return W_String.fromstr_utf8(bytes.as_str())
+
+@expose("bytes->path", [values.W_Bytes])
+def bytes_to_path(b):
+    return values.W_Path(b.as_str())
 
 ################################################################################
 

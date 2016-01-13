@@ -7,6 +7,7 @@ from pycket import vector as values_vector
 from pycket.cont import continuation, label, loop_label
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
+from rpython.rlib import jit
 
 @expose("vector")
 def vector(args):
@@ -16,19 +17,23 @@ def vector(args):
 def flvector(args):
     return values_vector.W_FlVector.fromelements(args)
 
+@expose("extflvector?", [values.W_Object])
+def extflvector(obj):
+    return values.w_false
+
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args, immutable=True)
 
-@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:
         raise SchemeException("make-vector: expected a positive fixnum")
     return values_vector.W_Vector.fromelement(w_val, size)
 
-@expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum(0.0))])
+@expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum.ZERO)])
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:
@@ -48,14 +53,14 @@ def vector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return v.vector_ref(i, env, cont)
+    return v.vector_ref(idx, env, cont)
 
 @expose("flvector-ref", [values_vector.W_FlVector, values.W_Fixnum], simple=False)
 def flvector_ref(v, i, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return v.vector_ref(i, env, cont)
+    return v.vector_ref(idx, env, cont)
 
 @expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
 def vector_set(v, i, new, env, cont):
@@ -64,29 +69,45 @@ def vector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return v.vector_set(i, new, env, cont)
+    return v.vector_set(idx, new, env, cont)
 
 @expose("flvector-set!", [values_vector.W_FlVector, values.W_Fixnum, values.W_Flonum], simple=False)
 def flvector_set(v, i, new, env, cont):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("flvector-set!: index out of bounds")
-    return v.vector_set(i, new, env, cont)
+    return v.vector_set(idx, new, env, cont)
 
-@expose("vector->immutable-vector", [values_vector.W_MVector])
-def vector2immutablevector(v):
-    from pycket.impersonators import get_base_object
-    # XXX: does not properly handle chaperones
-    v = get_base_object(v)
-    if v.immutable():
-        return v
-
-    assert type(v) is values_vector.W_Vector
+def copy_vector(v, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(v, values_vector.W_Vector):
+        return return_value(v._make_copy(immutable=True), env, cont)
     len = v.length()
     data = [None] * len
-    for i in range(len):
-        data[i] = v.ref(i)
-    return values_vector.W_Vector.fromelements(data, immutable=True)
+    return copy_vector_loop(v, data, len, 0, env, cont)
+
+@loop_label
+def copy_vector_loop(v, data, len, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len:
+        vector = values_vector.W_Vector.fromelements(data, immutable=True)
+        return return_value(vector, env, cont)
+    return v.vector_ref(idx, env,
+            copy_vector_ref_cont(v, data, len, idx, env, cont))
+
+@continuation
+def copy_vector_ref_cont(v, data, len, idx, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_vals)
+    data[idx] = val
+    return copy_vector_loop(v, data, len, idx + 1, env, cont)
+
+@expose("vector->immutable-vector", [values_vector.W_MVector], simple=False)
+def vector2immutablevector(v, env, cont):
+    from pycket.interpreter import return_value
+    if v.immutable():
+        return return_value(v, env, cont)
+    return copy_vector(v, env, cont)
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
@@ -110,16 +131,15 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
         raise SchemeException("vector-copy!: not enough room in target vector")
 
     return vector_copy_loop(src, src_start, src_end,
-                dest, dest_start, values.W_Fixnum(0), env, cont)
+                dest, dest_start, 0, env, cont)
 
 @loop_label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):
     from pycket.interpreter import return_value
-    src_idx = i.value + src_start
+    src_idx = i + src_start
     if src_idx >= src_end:
         return return_value(values.w_void, env, cont)
-    idx = values.W_Fixnum(src_idx)
-    return src.vector_ref(idx, env,
+    return src.vector_ref(src_idx, env,
                 vector_copy_cont_get(src, src_start, src_end, dest,
                     dest_start, i, env, cont))
 
@@ -132,8 +152,8 @@ def goto_vector_copy_loop(src, src_start, src_end, dest, dest_start, next, env, 
 def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val  = check_one_val(_vals)
-    idx  = values.W_Fixnum(i.value + dest_start)
-    next = values.W_Fixnum(i.value + 1)
+    idx  = i + dest_start
+    next = i + 1
     return dest.vector_set(idx, val, env,
                 goto_vector_copy_loop(src, src_start, src_end,
                     dest, dest_start, next, env, cont))
@@ -143,7 +163,7 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return v.vector_ref(i, env, cont)
+        return v.vector_ref(i.value, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         val = i.value
@@ -165,7 +185,7 @@ def unsafe_vector_star_ref(v, i):
 def unsafe_vector_set(v, i, new, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
-        return v.vector_set(i, new, env, cont)
+        return v.vector_set(i.value, new, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
         v.unsafe_set(i.value, new)

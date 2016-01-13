@@ -1,13 +1,18 @@
 from pycket import config
 
-from rpython.rlib  import jit, debug, objectmodel
+from rpython.rlib.unroll import unrolling_iterable
+from rpython.rlib        import jit, debug, objectmodel
 
-def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", factoryname="make", unbox_num=False):
+
+def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
+                      attrname="list", factoryname="make", listgettername="_get_full_list",
+                      listsizename="_get_size_list", gettername="_get_list",
+                      settername="_set_list"):
     """
     This function is helpful if you have a class with a field storing a
     list and the list is often very small. Calling this function will inline
     the list into instances for the small sizes. This works by adding the
-    following methods to the class:
+    following methods (names customizable) to the class:
 
     _get_list(self, i): return ith element of the list
 
@@ -15,18 +20,20 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
 
     _get_full_list(self): returns a copy of the full list
 
+    _get_size_list(self): returns the length of the list
+
     @staticmethod
     make(listcontent, *args): makes a new instance with the list's content set to listcontent
     """
     if not config.type_size_specialization:
         sizemin = sizemax = 0
         unbox_num = False
+
     def wrapper(cls):
-        from rpython.rlib.unroll import unrolling_iterable
-        classes = []
-        def make_methods(size):
+        def make_class(size):
             attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
             unrolling_enumerate_attrs = unrolling_iterable(enumerate(attrs))
+
             def _get_size_list(self):
                 return size
             def _get_list(self, i):
@@ -42,19 +49,46 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             def _set_list(self, i, val):
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
+                        if nonull:
+                            assert val is not None
                         setattr(self, attr, val)
                         return
                 raise IndexError
             def _init(self, elems, *args):
                 assert len(elems) == size
                 for i, attr in unrolling_enumerate_attrs:
+                    val = elems[i]
+                    if nonull:
+                        assert val is not None
                     setattr(self, attr, elems[i])
                 cls.__init__(self, *args)
-            meths = {"_get_list": _get_list, "_get_size_list": _get_size_list, "_get_full_list": _get_full_list, "_set_list": _set_list, "__init__" : _init}
+            def _clone(self):
+                # Allocate and fill in small list values
+                result = objectmodel.instantiate(newcls)
+                for _, attr in unrolling_enumerate_attrs:
+                    value = getattr(self, attr)
+                    setattr(result, attr, value)
+                return result
+
+            # Methods for the new class being built
+            methods = {
+                gettername          : _get_list,
+                listsizename        : _get_size_list,
+                listgettername      : _get_full_list,
+                settername          : _set_list,
+                "__init__"          : _init,
+                "_clone_small_list" : _clone,
+            }
+
             if immutable:
-                meths["_immutable_fields_"] = attrs
-            return meths
-        classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
+                methods["_immutable_fields_"] = attrs
+
+            newcls = type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), methods)
+            return newcls
+
+        classes = map(make_class, range(sizemin, sizemax))
+
+        # Build the arbitrary sized variant
         def _get_arbitrary(self, i):
             return getattr(self, attrname)[i]
         def _get_size_list_arbitrary(self):
@@ -62,15 +96,34 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
         def _get_list_arbitrary(self):
             return getattr(self, attrname)
         def _set_arbitrary(self, i, val):
+            if nonull:
+                assert val is not None
             getattr(self, attrname)[i] = val
         def _init(self, elems, *args):
             debug.make_sure_not_resized(elems)
             setattr(self, attrname, elems)
             cls.__init__(self, *args)
-        meths = {"_get_list": _get_arbitrary, "_get_size_list": _get_size_list_arbitrary, "_get_full_list": _get_list_arbitrary, "_set_list": _set_arbitrary, "__init__": _init}
+        def _clone(self):
+            result = objectmodel.instantiate(cls_arbitrary)
+            values = getattr(self, attrname)
+            if not immutable:
+                # Only copy if the storage is mutable
+                values = values[:]
+            setattr(result, attrname, values)
+            return result
+
+        methods = {
+            gettername          : _get_arbitrary,
+            listsizename        : _get_size_list_arbitrary,
+            listgettername      : _get_list_arbitrary,
+            settername          : _set_arbitrary,
+            "__init__"          : _init,
+            "_clone_small_list" : _clone,
+        }
+
         if immutable:
-            meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
-        cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
+            methods["_immutable_fields_"] = ["%s[*]" % (attrname, )]
+        cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), methods)
 
         def make(elems, *args):
             if classes:
@@ -121,6 +174,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, attrname="list", f
             return result
 
         if unbox_num:
+            assert immutable, "unboxing is only supported for immutable objects"
             make, make1, make2 = _add_num_classes(cls, make, make0, make1, make2)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "0", staticmethod(make0))
@@ -160,6 +214,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         return orig_make2(w_a, w_b, *args)
 
     class Size1Fixed(cls):
+        _immutable_fields_ = ['vals_fixed_0']
         def __init__(self, vals_fixed_0, *args):
             self.vals_fixed_0 = vals_fixed_0
             cls.__init__(self, *args)
@@ -180,6 +235,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
 
     class Size1Flo(cls):
+        _immutable_fields_ = ['vals_flo_0']
         def __init__(self, vals_flo_0, *args):
             self.vals_flo_0 = vals_flo_0
             cls.__init__(self, *args)
@@ -200,6 +256,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
 
     class Size2Fixed10(cls):
+        _immutable_fields_ = ['vals_fixed_0', 'w_val1']
         def __init__(self, vals_fixed_0, w_val1, *args):
             self.vals_fixed_0 = vals_fixed_0
             self.w_val1 = w_val1
@@ -225,6 +282,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
 
 
     class Size2Fixed01(cls):
+        _immutable_fields_ = ['w_val0', 'vals_fixed_1']
         def __init__(self, w_val0, vals_fixed_1, *args):
             self.w_val0 = w_val0
             self.vals_fixed_1 = vals_fixed_1
@@ -249,6 +307,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     Size2Fixed01.__name__ = cls.__name__ + Size2Fixed01.__name__
 
     class Size2Fixed11(cls):
+        _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1']
         def __init__(self, vals_fixed_0, vals_fixed_1, *args):
             self.vals_fixed_0 = vals_fixed_0
             self.vals_fixed_1 = vals_fixed_1

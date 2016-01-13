@@ -1,29 +1,19 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like", "count", "the_lam", "in_cycle", "is_bad"]
-    _immutable_fields_ = ["should_enter", "surrounding_lambda", "app_like"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
     mvars = None
     surrounding_lambda = None
-    app_like = False
 
     simple = False
 
-    is_label = False
-
-    in_cycle = False
-
-    the_lam = None
-
-    is_bad = False
-
-    count = 0
-
-    def defined_vars(self): return {}
+    def defined_vars(self):
+        return {}
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
@@ -61,6 +51,10 @@ class AST(object):
 
     def direct_children(self):
         return []
+
+    def collect_submodules(self, acc):
+        for child in self.direct_children():
+            child.collect_submodules(acc)
 
     def free_vars(self):
         free_vars = {}
