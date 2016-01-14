@@ -57,6 +57,9 @@ def make_entry_point(pycketconfig=None):
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
+            if config.get('save-callgraph', False):
+                with open('callgraph.dot', 'w') as outfile:
+                    env.callgraph.write_dot_file(outfile)
             shutdown(env)
         return 0
     return entry_point

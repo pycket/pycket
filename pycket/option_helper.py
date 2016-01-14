@@ -66,7 +66,8 @@ def parse_args(argv):
     i = 1
     to = len(argv)
     while i < to:
-        if False: pass
+        if False:
+            pass
         elif argv[i] == "--jit":
             if to <= i + 1:
                 print "missing argument after --jit"
@@ -115,6 +116,8 @@ def parse_args(argv):
             if stop:
                 i += 1
                 break
+        elif argv[i] == '--save-callgraph':
+            config['save-callgraph'] = True
         else:
             if 'file' in names:
                 break
