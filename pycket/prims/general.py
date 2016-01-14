@@ -1367,7 +1367,6 @@ def make_stub_predicates(*names):
                 print message
             return values.w_false
         predicate.__name__ = "stub_predicate(%s)" % name
-        return predicate
 
 make_stub_predicates(
     "bytes-converter?",
