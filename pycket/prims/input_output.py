@@ -5,7 +5,7 @@ from rpython.rlib             import streamio as sio
 from rpython.rlib.rbigint     import rbigint
 from rpython.rlib.rstring     import (ParseStringError,
         ParseStringOverflowError, StringBuilder)
-from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
 
 from pycket.cont import continuation, loop_label, call_cont
@@ -830,7 +830,11 @@ def file_size(obj):
         size = os.path.getsize(path)
     except OSError:
         raise SchemeException("file-size: file %s does not exists" % path)
-    return values.W_Fixnum(size)
+
+    intsize = intmask(size)
+    if intsize == size:
+        return values.W_Fixnum(intsize)
+    return values.W_Bignum(rbigint.fromrarith_int(size))
 
 @expose("read-bytes", [values.W_Fixnum, default(values.W_InputPort, None)],
         simple=False)
