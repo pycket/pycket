@@ -115,7 +115,7 @@ def make_weak_hasheq():
     # FIXME: not actually weak
     return make_simple_mutable_table(W_EqvMutableHashTable, None, None)
 
-@expose("make-weak-hash", [default(values.W_List, None)])
+@expose(["make-weak-hash", "make-late-weak-hasheq"], [default(values.W_List, None)])
 def make_weak_hash(assocs):
     if assocs is None:
         return W_EqualHashTable([], [], immutable=False)
