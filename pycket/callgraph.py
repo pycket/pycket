@@ -92,6 +92,11 @@ class CallGraph(object):
         counter = 0
         output.write("digraph callgraph {\n")
         names = Namer()
+        for node in self.calls.iterkeys():
+            if node.body[0].should_enter:
+                name = names.nameof(node)
+                output.write(name)
+                output.write(" [fillcolor=red,style=filled];\n")
         for src, subdct in self.calls.iteritems():
             for dst in subdct:
                 srcname = names.nameof(src)
@@ -99,6 +104,8 @@ class CallGraph(object):
                 output.write(srcname)
                 output.write(" -> ")
                 output.write(dstname)
+                if dst.body[0].should_enter:
+                    output.write(" [color=blue]")
                 output.write(";\n")
         output.write("}\n")
 

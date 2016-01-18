@@ -20,7 +20,7 @@ from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
-from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized
+from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
 UNROLLING_CUTOFF = 5
 
@@ -600,6 +600,7 @@ class W_Fixnum(W_Integer):
         if not we_are_translated():
             # this is not safe during translation
             assert isinstance(val, int)
+        check_regular_int(val)
         self.value = val
 
     def toint(self):

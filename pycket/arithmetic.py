@@ -6,6 +6,7 @@ from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 from rpython.rtyper.raisingops import int_floordiv_ovf
 import math
+import sys
 
 @jit.elidable
 def gcd(u, v):
@@ -50,8 +51,12 @@ def gcd(u, v):
         result = result.neg()
     return result
 
-SQRT_BIT_MAX = 31
+if sys.maxint > 2147483647:
+    SQRT_BIT_MAX = 31
+else:
+    SQRT_BIT_MAX = 15
 
+@jit.elidable
 def fixnum_sqrt(_n):
     # Taken from Racket implementation:
     # https://github.com/racket/racket/blob/2a88662d01599d9c284d2fbd1f7b987d57658797/racket/src/racket/src/bignum.c#L1652

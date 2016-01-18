@@ -18,7 +18,6 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val,
 
 
 from rpython.rlib         import jit, objectmodel, unroll
-from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre    import rsre_re as re
 
 # import for side effects
@@ -1359,19 +1358,15 @@ def procedure_specialize(proc):
 def processor_count():
     return values.W_Fixnum.ONE
 
-def _make_stub_predicate(name):
-    message = "%s: not yet implemented" % name
-    @expose(name, [values.W_Object])
-    def predicate(obj):
-        if not objectmodel.we_are_translated():
-            print message
-        return values.w_false
-    predicate.__name__ = "stub_predicate(%s)" % name
-    return predicate
-
 def make_stub_predicates(*names):
     for name in names:
-        _make_stub_predicate(name)
+        message = "%s: not yet implemented" % name
+        @expose(name, [values.W_Object])
+        def predicate(obj):
+            if not objectmodel.we_are_translated():
+                print message
+            return values.w_false
+        predicate.__name__ = "stub_predicate(%s)" % name
 
 make_stub_predicates(
     "bytes-converter?",
