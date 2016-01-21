@@ -119,14 +119,25 @@ def parse_args(argv):
                 break
         elif argv[i] == "-b":
             arg = argv[i][1]
+
             if to <= i + 1:
                 print "missing argument after -%s" % arg
                 retval = 5
-                break
-
+                break            
+            
             i += 1
             
+            if argv[i] == "-R":
+                if to <= i + 1:
+                    print "missing argument after -b -R"
+                    retval = 5
+                    break
+                
+                names['byteRecursive'] = 'go'
+                i += 1
+            
             names['fromBytecodeOf'] = "%s" % (argv[i])
+
             retval = 0
             
         elif argv[i] == '--save-callgraph':
