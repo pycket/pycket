@@ -34,17 +34,17 @@
                       (with-output-to-bytes
                           (λ () (write (cdr b)))))))])
         (let ([n (match v
-                   [(struct compilation-top (_ prefix (struct primval (n)))) n]
+                   [(struct compilation-top (_ _ prefix (struct primval (n)))) n]
                    [else #f])])
           (hash-set! table n (car b)))))
     table))
 
-(define (compile-json config language topmod body1 body-forms)
+(define (compile-json config language topmod body1 top-require-forms body-forms)
   (hash* 'language (list language)
          'module-name topmod
          'config config
          'body-forms (cons body1
-                           body-forms)))
+                           (append top-require-forms body-forms))))
 
 (define (handle-def-values def-values-form toplevels  localref-stack)
   (let ((ids (def-values-ids def-values-form))
@@ -103,7 +103,16 @@
 
 (define (handle-lambda lam-form toplevels localref-stack is-inlined)
   (let* ((name (lam-name lam-form))
-         (source (if (null? name) '() (hash* '%p (path->string (vector-ref name 1)))))
+         (source (if (null? name) '()
+                     (if (vector? name)
+                         (hash* '%p (path->string (vector-ref name 1)))
+                         (if (not (symbol? name)) (error 'handle-lambda "we have a non symbol/vector name in a lam form")
+                             (let* ((collects-dir (path->string (find-collects-dir)))
+                                    (usual-prefix "/racket/private/") ; TODO: figure out why they have a new way of naming lam's
+                                    (lamname (if (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
+                                                 (error 'handle-lambda "lam name has an unusual form")
+                                                 "more-scheme.rkt")))
+                               (hash* '%p (string-append collects-dir usual-prefix lamname)))))))
          (position 321) ;; don't know what exactly are these two
          (span 123) 
          ;; module seems to be the same for every lambda form,
@@ -228,10 +237,13 @@
   (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
          (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id))
          (module-dir (string-append pycketDir moduleName ".rkt")))
-    (if (symbol? toplevel-id)
-        (hash* 'source-name toplevel-id-str
-               'source-module module-dir)
-        (hash* 'source-name toplevel-id))))
+    (cond
+      [(symbol? toplevel-id)
+       (hash* 'source-name toplevel-id-str
+              'source-module module-dir)]
+      [(module-variable? toplevel-id)
+       (handle-module-variable toplevel-id toplevels localref-stack)]
+      [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
   #|
   (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
          (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)))
@@ -257,7 +269,7 @@
   (let* ((count (let-void-count body-form))
          (boxes? (let-void-boxes? body-form))
          (body (let-void-body body-form))
-         (boxls (build-list count (lambda (x) (box 'dummy))))
+         (boxls (build-list count (lambda (x) (box 'uninitialized-slot))))
          (newstack (append boxls localref-stack)))
     (to-ast-single body toplevels newstack)))
 
@@ -277,7 +289,7 @@
          ]
     (begin
       ;; setting the boxes that let-void has put in the stack
-      (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list i)))
+      (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list (- i pos))))
       ;; producing json for pycket
       (hash*
        ;; let-bindings <- [count] {eval rhs}
@@ -286,13 +298,14 @@
        ;; let-body <- body
        'let-body (to-ast-single body toplevels localref-stack)))))
 
-(define (handle-list body-form toplevels localref-stack)
+(define (handle-list list-form toplevels localref-stack)
   ;; currently don't know how we can have a list as a body form,
   ;; but experiments show that we could have some '()s as arguments to an application
   ;; pycket seems to reflect this as source-name : "null"
-  (if (not (null? body-form))
+  (if (not (null? list-form))
       (error 'handle-list "INVESTIGATE... we seem to have a (not null) list as a single body form in the byte-code")
       (hash* 'source-name "null")))
+  ;; (map (lambda (form) (to-ast-single form toplevels localref-stack)) list-form))
 
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
@@ -415,10 +428,25 @@
 
   (managed-compile-zo file.rkt) ;; compile to bytecode (checks if the source has changed)
 
-  (define modName (substring file.rkt 0 (- (string-length file.rkt) 4))) ;; stripping the extension
-  (setGlobals! debug modName)
+  (define splitSubs (string-split file.rkt "/"))
+  (define subDirs (take splitSubs (sub1 (length splitSubs))))
+  (define subDirsStr (if (empty? subDirs)
+                         ""
+                         (string-append (string-join subDirs "/") "/")
+                         ))
+
+  (define modName.rkt (last splitSubs))
   
-  (define depFile (read (open-input-file (string-append "compiled/" moduleName "_rkt.dep"))))
+  (define modName (substring modName.rkt 0 (- (string-length modName.rkt) 4))) ;; stripping the extension
+  (setGlobals! debug modName)
+
+  ;; (display " ------------------------------------------- ")(newline)
+  ;; (display (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))
+  ;; (display " ------------------------------------------- ")(newline)
+
+  (define depFile (read (open-input-file (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))))
+
+  
   (define version (car depFile))
 
 
@@ -427,14 +455,11 @@
   
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
-
-  (define langDep (cadddr depFile))
-  (define lang (string-append collectsDir "/racket" "/main.rkt"))
   
   ;; module-name          (module-name . "canerStr")
   ;; body-forms
 
-  (define comp-top (zo-parse (open-input-file (string-append "compiled/" moduleName "_rkt.zo"))))
+  (define comp-top (zo-parse (open-input-file (string-append subDirsStr "compiled/" moduleName "_rkt.zo"))))
 
   ;; (struct compilation-top zo (max-let-depth prefix code)
   ;; (struct prefix zo (num-lifts toplevels stxs)
@@ -464,15 +489,42 @@
   ;;     #:prefab)
 
   (define toplevels (prefix-toplevels (mod-prefix code)))
+  
+  (define preSubmods (mod-pre-submodules code))
 
-  (define preConfig (mod-pre-submodules code))
+  ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
+  ;; langDep -> '(collects #"racket" #"main.rkt")
 
-  (define runtimeDep (caddr depFile))
-  ;; '(collects #"racket" #"runtime-config.rkt")
-  (define runtimeConfig (string-append collectsDir
-                                       "/" (bytes->string/utf-8 (cadr runtimeDep)) ;"/racket"
-                                       "/" (bytes->string/utf-8 (caddr runtimeDep)) ;"runtime-config.rkt"))
-                                       ))
+  ;; (define lang (string-append collectsDir "/racket" "/main.rkt"))
+  
+  (define topRequires (mod-requires code)) ;; assoc list ((phase mods) ..)
+  (define phase0 (assv 0 topRequires))
+  (define phase0-reqs (cdr phase0))
+  (define langModPath (resolved-module-path-name
+                       (module-path-index-resolve (car phase0-reqs))))
+  (define lang (if (or (list? langModPath) (symbol? langModPath))
+                   (error 'langConfig "don't know how to handle a submodule here")
+                   (path->string langModPath)))
+
+  (define runtimePrefix (mod-prefix (car preSubmods)))
+  (define runtimeMod (car (prefix-toplevels runtimePrefix)))
+  ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
+  (define resolvedModPath (resolved-module-path-name
+                           (module-path-index-resolve (module-variable-modidx runtimeMod))))
+  (define runtimeConfig (if (or (list? resolvedModPath)
+                                (symbol? resolvedModPath))
+                            (error 'runtimeConfigModule "don't know how to handle a submodule here")
+                            (path->string resolvedModPath)))  
+
+
+  (define reqs (cdr phase0-reqs))
+  (define toplevelRequireForms (map (lambda (req)
+                                      (let ((resolvedReqPath (resolved-module-path-name
+                                                              (module-path-index-resolve req))))
+                                        (if (or (list? resolvedReqPath) (symbol? resolvedReqPath))
+                                            (error 'reqForms "don't know how to handle a submodule here")
+                                            (hash* 'require (list (list (path->string resolvedReqPath)))))))
+                                    reqs))
 
   ;; body-forms is a (listof hash hash)
 
@@ -480,25 +532,27 @@
   (define language lang)
 
   (define body1 (hash* 'language (list "#%kernel")
-                       'module-name (symbol->string (mod-srcname (car preConfig)))
+                       'module-name (symbol->string (mod-srcname (car preSubmods)))
                        'body-forms (list
                                     (hash* 'require (list (list runtimeConfig)))
                                     (hash* 'operator (hash* 'source-module (list runtimeConfig)
-                                                            'source-name "configure" ;;; <-- ????
+                                                            'source-name (symbol->string
+                                                                          (module-variable-sym runtimeMod))
                                                             )
                                            'operands (list (hash 'quote #f))))))
   
 
   (define final-json-hash (compile-json global-config
                                         lang
-                                        (string-append "frombytecode_" moduleName)
+                                        (string-append subDirsStr "frombytecode_" moduleName)
                                         body1
+                                        toplevelRequireForms
                                         (to-ast (mod-body code) toplevels)))
   
-  (define out (open-output-file (string-append "frombytecode_" moduleName ".rkt.json")
+  (define out (open-output-file (string-append subDirsStr "frombytecode_" moduleName ".rkt.json")
                                 #:exists 'replace))
   (begin
-    (display (string-append "WRITTEN: frombytecode_" moduleName ".rkt.json\n\n"))
+    (display (string-append "WRITTEN: " subDirsStr "frombytecode_" moduleName ".rkt.json\n\n"))
     (write-json final-json-hash out)
     (newline out)
     (flush-output out))

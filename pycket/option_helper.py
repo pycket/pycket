@@ -167,7 +167,7 @@ def ensure_json_ast(config, names):
     # assert not mcons
 
     if 'fromBytecodeOf' in names:
-        assert False
+        
         file_name = names['fromBytecodeOf']
         assert file_name.endswith('.rkt')
         
