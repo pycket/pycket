@@ -53,10 +53,11 @@ class W_InterposeBox(values.W_Box):
     def post_set_box_cont(self, val, env, cont):
         raise NotImplementedError("abstract method")
 
-    @label
     def unbox(self, env, cont):
-        after = self.post_unbox_cont(env, cont)
-        return self.inner.unbox(env, after)
+        while isinstance(self, W_InterposeBox):
+            cont = self.post_unbox_cont(env, cont)
+            self = self.inner
+        return self.unbox(env, cont)
 
     def set_box(self, val, env, cont):
         after = self.post_set_box_cont(val, env, cont)
