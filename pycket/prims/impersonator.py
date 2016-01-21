@@ -138,7 +138,7 @@ def chaperone_hash(args):
     unpacked = unpack_hash_args(args, "chaperone-hash")
     return imp.W_ImpHashTable(*unpacked)
 
-@expose("impersonate-procedure", arity=Arity.geq(2))
+@expose(["impersonate-procedure", "unsafe-impersonate-procedure"], arity=Arity.geq(2))
 def impersonate_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure")
     if check is values.w_false and not keys:
@@ -152,7 +152,7 @@ def impersonate_procedure_star(args):
         return proc
     return imp.make_interpose_procedure(imp.W_ImpProcedureStar, proc, check, keys, vals)
 
-@expose("chaperone-procedure", arity=Arity.geq(2))
+@expose(["chaperone-procedure", "unsafe-chaperone-procedure"], arity=Arity.geq(2))
 def chaperone_procedure(args):
     proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure")
     if check is values.w_false and not keys:

@@ -14,7 +14,6 @@ def make_entry_point(pycketconfig=None):
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
 
-
     def entry_point(argv):
         if not objectmodel.we_are_translated():
             import sys
@@ -56,7 +55,10 @@ def make_entry_point(pycketconfig=None):
         try:
             val = interpret_module(ast, env)
         finally:
-            from pycket.prims.input_output   import shutdown
+            from pycket.prims.input_output import shutdown
+            if config.get('save-callgraph', False):
+                with open('callgraph.dot', 'w') as outfile:
+                    env.callgraph.write_dot_file(outfile)
             shutdown(env)
         return 0
     return entry_point

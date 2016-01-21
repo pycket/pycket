@@ -537,6 +537,10 @@ def procedure_arity_includes(proc, k, kw_ok):
             return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
+@expose("procedure-result-arity", [procedure])
+def procedure_result_arity(proc):
+    return values.w_false
+
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):
     return values.W_Bool.make(struct_type.prop_procedure is not None)
