@@ -138,13 +138,21 @@ def chaperone_hash(args):
     unpacked = unpack_hash_args(args, "chaperone-hash")
     return imp.W_ImpHashTable(*unpacked)
 
-@expose(["impersonate-procedure", "unsafe-impersonate-procedure"], arity=Arity.geq(2))
+@expose("impersonate-procedure", arity=Arity.geq(2))
 def impersonate_procedure(args):
     unpacked = unpack_procedure_args(args, "impersonate-procedure")
     proc, check, keys, _ = unpacked
     if check is values.w_false and not keys:
         return proc
     return imp.W_ImpProcedure(*unpacked)
+
+@expose("unsafe-impersonate-procedure", arity=Arity.geq(2))
+def impersonate_procedure(args):
+    unpacked = unpack_procedure_args(args, "unsafe-impersonate-procedure")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
+    return imp.W_UnsafeImpProcedure(*unpacked)
 
 @expose("impersonate-procedure*", arity=Arity.geq(2))
 def impersonate_procedure_star(args):
@@ -154,13 +162,21 @@ def impersonate_procedure_star(args):
         return proc
     return imp.W_ImpProcedure(*unpacked, self_arg=True)
 
-@expose(["chaperone-procedure", "unsafe-chaperone-procedure"], arity=Arity.geq(2))
+@expose("chaperone-procedure", arity=Arity.geq(2))
 def chaperone_procedure(args):
     unpacked = unpack_procedure_args(args, "chaperone-procedure")
     proc, check, keys, _ = unpacked
     if check is values.w_false and not keys:
         return proc
     return imp.W_ChpProcedure(*unpacked)
+
+@expose("unsafe-chaperone-procedure", arity=Arity.geq(2))
+def chaperone_procedure(args):
+    unpacked = unpack_procedure_args(args, "unsafe-chaperone-procedure")
+    proc, check, keys, _ = unpacked
+    if check is values.w_false and not keys:
+        return proc
+    return imp.W_UnsafeChpProcedure(*unpacked)
 
 @expose("chaperone-procedure*", arity=Arity.geq(2))
 def chaperone_procedure_star(args):
