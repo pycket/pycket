@@ -48,6 +48,10 @@ class W_InterposeProcedure(values.W_Procedure):
         return True
 
     @staticmethod
+    def safe_proxy():
+        return True
+
+    @staticmethod
     def has_self_arg():
         return False
 
@@ -62,6 +66,8 @@ class W_InterposeProcedure(values.W_Procedure):
         from pycket.impersonators.base import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
+        if not self.safe_proxy():
+            return self.check.call_with_extra_info(args, env, cont, calling_app)
         prop = self.get_property(w_impersonator_prop_application_mark)
         after = self.post_call_cont(args, prop, env, cont, calling_app)
         if self.has_self_arg():
@@ -91,6 +97,12 @@ class W_ImpProcedureStar(W_InterposeProcedure):
         return True
 
 @inline_small_list(immutable=True, unbox_num=True)
+class W_UnsafeImpProcedure(W_ImpProcedure):
+    @staticmethod
+    def safe_proxy():
+        return False
+
+@inline_small_list(immutable=True, unbox_num=True)
 class W_ChpProcedure(W_InterposeProcedure):
     import_from_mixin(ChaperoneMixin)
 
@@ -113,6 +125,12 @@ class W_ChpProcedureStar(W_InterposeProcedure):
     @staticmethod
     def has_self_arg():
         return True
+
+@inline_small_list(immutable=True, unbox_num=True)
+class W_UnsafeChpProcedure(W_ChpProcedure):
+    @staticmethod
+    def safe_proxy():
+        return False
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
