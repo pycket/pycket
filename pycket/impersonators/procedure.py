@@ -59,7 +59,6 @@ class W_InterposeProcedure(values.W_Procedure):
         return self.check is values.w_false
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        from pycket.values import W_ThunkProcCMK
         from pycket.impersonators.base import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
