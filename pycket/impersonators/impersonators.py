@@ -121,17 +121,18 @@ class W_InterposeVector(values.W_MVector):
     def post_ref_cont(self, i, env, cont):
         raise NotImplementedError("abstract method")
 
-    @label
     def vector_set(self, i, new, env, cont):
         idx = values.W_Fixnum(i)
         after = self.post_set_cont(new, idx, env, cont)
         return self.seth.call([self.inner, idx, new], env, after)
 
-    @label
+    @jit.unroll_safe
     def vector_ref(self, i, env, cont):
         idx = values.W_Fixnum(i)
-        after = self.post_ref_cont(idx, env, cont)
-        return self.inner.vector_ref(i, env, after)
+        while isinstance(self, W_InterposeVector):
+            cont = self.post_ref_cont(idx, env, cont)
+            self = self.inner
+        return self.vector_ref(i, env, cont)
 
 # Vectors
 @inline_small_list(immutable=True, unbox_num=True)
