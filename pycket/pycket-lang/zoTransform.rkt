@@ -409,43 +409,41 @@
     (to-ast body-forms toplevels)))
 
 (module+ main
-  (require racket/cmdline json
-           compiler/cm
-           
-           
-           )
+  (require racket/cmdline json compiler/cm)
 
   (define debug #f)
-  
-  (define file.rkt
-    (command-line
-     #:once-each
-     [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+  (define subDirsStr #f)
+  (define out #f)
 
-     #:args (file.rkt)
 
-     file.rkt))
+  (command-line
+   #:once-each
+   [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+   [("--stdout") "write output to standart out" (set! out (current-output-port))]
 
-  (managed-compile-zo file.rkt) ;; compile to bytecode (checks if the source has changed)
-
-  (define splitSubs (string-split file.rkt "/"))
-  (define subDirs (take splitSubs (sub1 (length splitSubs))))
-  (define subDirsStr (if (empty? subDirs)
-                         ""
-                         (string-append (string-join subDirs "/") "/")
-                         ))
-
-  (define modName.rkt (last splitSubs))
-  
-  (define modName (substring modName.rkt 0 (- (string-length modName.rkt) 4))) ;; stripping the extension
-  (setGlobals! debug modName)
+   #:args ([file.rkt #f])
+   (let* ([splitSubs (string-split file.rkt "/")]
+          [subDirs (take splitSubs (sub1 (length splitSubs)))]
+          [subDirsStr* (if (empty? subDirs) "" (string-append (string-join subDirs "/") "/"))]
+          [modName.rkt (last splitSubs)]
+          [modName (substring modName.rkt 0 (- (string-length modName.rkt) 4))])
+     (begin
+       ;; setting the stage
+       (set! subDirsStr subDirsStr*)
+       (setGlobals! debug modName)
+       (managed-compile-zo file.rkt)
+       ;; setting the output port
+       (when (not (output-port? out))
+         (set! out (open-output-file (string-append subDirsStr "frombytecode_" modName ".rkt.json")
+                                     #:exists 'replace)))
+       )))
+          
 
   ;; (display " ------------------------------------------- ")(newline)
   ;; (display (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))
   ;; (display " ------------------------------------------- ")(newline)
 
   (define depFile (read (open-input-file (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))))
-
   
   (define version (car depFile))
 
@@ -468,34 +466,12 @@
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
 
-  ;; (struct mod form (name
-  ;;  	 	     srcname
-  ;;  	 	     self-modidx
-  ;;  	 	     prefix
-  ;;  	 	     provides ; each phase maps to two lists: exported variables, exported syntax
-  ;;  	 	     requires ; each phase maps to a list of imported module paths
-  ;;  	 	     body    <<-- run-time (phase 0) code -> listof form?
-  ;;  	 	     syntax-bodies
-  ;;  	 	     unexported
-  ;;  	 	     max-let-depth
-  ;;  	 	     dummy
-  ;;  	 	     lang-info
-  ;;  	 	     internal-context
-  ;;  	 	     flags
-  ;;  	 	     pre-submodules
-  ;;  	 	     post-submodules)
-  ;;
-  ;;     #:extra-constructor-name make-mod
-  ;;     #:prefab)
-
   (define toplevels (prefix-toplevels (mod-prefix code)))
   
   (define preSubmods (mod-pre-submodules code))
 
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
-
-  ;; (define lang (string-append collectsDir "/racket" "/main.rkt"))
   
   (define topRequires (mod-requires code)) ;; assoc list ((phase mods) ..)
   (define phase0 (assv 0 topRequires))
@@ -549,10 +525,7 @@
                                         toplevelRequireForms
                                         (to-ast (mod-body code) toplevels)))
   
-  (define out (open-output-file (string-append subDirsStr "frombytecode_" moduleName ".rkt.json")
-                                #:exists 'replace))
   (begin
-    (display (string-append "WRITTEN: " subDirsStr "frombytecode_" moduleName ".rkt.json\n\n"))
     (write-json final-json-hash out)
     (newline out)
     (flush-output out))
