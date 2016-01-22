@@ -484,11 +484,8 @@ def proc_arity_cont(arity, env, cont, _vals):
     result = make_arity_list(arity, val)
     return return_value(result, env, cont)
 
-@expose("procedure-arity", [procedure], simple=False)
-@jit.unroll_safe
-def do_procedure_arity(proc, env, cont):
+def arity_to_value(arity, env, cont):
     from pycket.interpreter import return_value
-    arity = proc.get_arity()
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
         constructor = arity_at_least.constructor
@@ -498,6 +495,12 @@ def do_procedure_arity(proc, env, cont):
         return return_value(item, env, cont)
     result = make_arity_list(arity)
     return return_value(result, env, cont)
+
+@expose("procedure-arity", [procedure], simple=False)
+@jit.unroll_safe
+def do_procedure_arity(proc, env, cont):
+    arity = proc.get_arity()
+    return arity_to_value(arity, env, cont)
 
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
@@ -537,9 +540,13 @@ def procedure_arity_includes(proc, k, kw_ok):
             return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
-@expose("procedure-result-arity", [procedure])
-def procedure_result_arity(proc):
-    return values.w_false
+@expose("procedure-result-arity", [procedure], simple=False)
+def procedure_result_arity(proc, env, cont):
+    from pycket.interpreter import return_multi_vals
+    arity = proc.get_result_arity()
+    if arity is None:
+        return return_multi_vals(values.w_false, env, cont)
+    return arity_to_value(arity, env, cont)
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):

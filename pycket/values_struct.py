@@ -4,6 +4,7 @@ from pycket import config
 from pycket import values
 from pycket import vector as values_vector
 from pycket.arity import Arity
+from pycket.base import SingleResultMixin
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import make_call_method
@@ -11,6 +12,7 @@ from pycket.small_list import inline_small_list
 from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
+from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.unroll import unrolling_iterable
 
 PREFAB = values.W_Symbol.make("prefab")
@@ -907,8 +909,8 @@ def receive_guard_values_cont(init_type, struct_type, field_values,
                                       auto_field_start, env, cont)
 
 class W_StructConstructor(values.W_Procedure):
-
     _immutable_fields_ = ["type", "constr_name"]
+    import_from_mixin(SingleResultMixin)
 
     def __init__(self, type, constr_name):
         self.type = type
@@ -931,6 +933,8 @@ class W_StructConstructor(values.W_Procedure):
 class W_StructPredicate(values.W_Procedure):
     errorname = "struct-predicate"
     _immutable_fields_ = ["type"]
+    import_from_mixin(SingleResultMixin)
+
     def __init__(self, type):
         self.type = type
 
@@ -954,6 +958,8 @@ class W_StructPredicate(values.W_Procedure):
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
     _immutable_fields_ = ["accessor", "field", "field_name"]
+    import_from_mixin(SingleResultMixin)
+
     def __init__(self, accessor, field, field_name):
         assert isinstance(accessor, W_StructAccessor)
         self.accessor = accessor
@@ -975,6 +981,7 @@ class W_StructFieldAccessor(values.W_Procedure):
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
     _immutable_fields_ = ["type"]
+    import_from_mixin(SingleResultMixin)
     def __init__(self, type):
         self.type = type
 
@@ -1000,6 +1007,7 @@ class W_StructAccessor(values.W_Procedure):
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
     _immutable_fields_ = ["mutator", "field", "field_name"]
+    import_from_mixin(SingleResultMixin)
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
         self.mutator = mutator
@@ -1020,6 +1028,7 @@ class W_StructFieldMutator(values.W_Procedure):
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
     _immutable_fields_ = ["type"]
+    import_from_mixin(SingleResultMixin)
     def __init__(self, type):
         self.type = type
 
@@ -1086,6 +1095,7 @@ del sym
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"
     _immutable_fields_ = ["property"]
+    import_from_mixin(SingleResultMixin)
     def __init__(self, prop):
         self.property = prop
 
@@ -1105,6 +1115,7 @@ class W_StructPropertyPredicate(values.W_Procedure):
 class W_StructPropertyAccessor(values.W_Procedure):
     errorname = "struct-property-accessor"
     _immutable_fields_ = ["property"]
+    import_from_mixin(SingleResultMixin)
     def __init__(self, prop):
         self.property = prop
 
