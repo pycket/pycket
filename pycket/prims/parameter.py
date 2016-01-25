@@ -6,6 +6,7 @@ from pycket.arity           import Arity
 from pycket.base            import W_Object
 from pycket.error           import SchemeException
 from pycket.prims.expose    import expose, expose_val, default, procedure
+from rpython.rlib           import jit
 
 @expose("make-parameter",
         [values.W_Object, default(values.W_Object, values.w_false)])
@@ -18,6 +19,7 @@ def make_derived_parameter(param, guard, wrap):
     return values_parameter.W_DerivedParameter(param, guard, wrap)
 
 @expose("extend-parameterization", arity=Arity.geq(1))
+@jit.unroll_safe
 def scheme_extend_parameterization(args):
     if len(args) == 0:
         raise SchemeException("extend-parameterization: expected 1 or more arguments")

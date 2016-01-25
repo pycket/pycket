@@ -169,6 +169,9 @@ class W_InterposeProcedure(values.W_Procedure):
     def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
+    def safe_proxy(self):
+        return True
+
     @label
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
@@ -180,6 +183,8 @@ class W_InterposeProcedure(values.W_Procedure):
         from pycket.values import W_ThunkProcCMK
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
+        if not self.safe_proxy():
+            return self.check.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):
@@ -207,6 +212,14 @@ class W_ChpProcedure(W_InterposeProcedure):
 
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
+
+class W_UnsafeImpProcedure(W_ImpProcedure):
+    def safe_proxy(self):
+        return False
+
+class W_UnsafeChpProcedure(W_ChpProcedure):
+    def safe_proxy(self):
+        return False
 
 class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)

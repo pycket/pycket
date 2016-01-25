@@ -8,13 +8,13 @@ from rpython.rlib.rstring     import (ParseStringError,
 from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
 
-from pycket.cont import continuation, loop_label, call_cont
-from pycket                   import values
-from pycket                   import values_parameter
-from pycket                   import values_struct
-from pycket                   import values_string
-from pycket.error             import SchemeException
-from pycket.prims.expose      import default, expose, expose_val, procedure
+from pycket.cont         import continuation, loop_label, call_cont
+from pycket              import values
+from pycket              import values_parameter
+from pycket              import values_struct
+from pycket              import values_string
+from pycket.error        import SchemeException
+from pycket.prims.expose import default, expose, expose_val, procedure
 import os
 
 w_quote_symbol = values.W_Symbol.make("quote")
@@ -788,14 +788,16 @@ def get_output_bytes(w_port):
 
 
 # FIXME: implementation
-@expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
-    values.W_Object, default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None)])
-def make_output_port(name, evt, write_out, close, write_out_special,\
-    get_write_evt, get_write_special_evt, get_location, count_lines,\
-    init_position, buffer_mode):
+@expose("make-output-port",
+        [values.W_Object, values.W_Object,
+         values.W_Object, values.W_Object,
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None)])
+def make_output_port(name, evt, write_out, close, write_out_special,
+                     get_write_evt, get_write_special_evt, get_location,
+                     count_lines, init_position, buffer_mode):
     return values.W_StringOutputPort()
 
 # FIXME: implementation

@@ -975,3 +975,14 @@ def test_ctype_basetype(doctest):
     #t
     """
 
+
+def test_procedure_result_arity(doctest):
+    """
+    ! (define-struct node (x y z))
+    > (procedure-result-arity car)
+    1
+    > (procedure-result-arity cdr)
+    1
+    > (procedure-result-arity node-x)
+    1
+    """
