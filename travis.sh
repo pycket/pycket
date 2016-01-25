@@ -83,7 +83,7 @@ do_coverage() {
   # So remove them on the CI.
   rm -rf ../pypy/*pytest*
   py.test --assert=plain -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
-  codecov --no-fail -X gcov
+  codecov -X gcov search
   set -e
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
