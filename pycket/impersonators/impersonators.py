@@ -29,7 +29,8 @@ from rpython.rlib.objectmodel  import import_from_mixin, specialize
 def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
     map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
     fixed = prop_vals[:] if prop_vals is not None else None
-    return cls.make(fixed, vector, refh, seth, map)
+    proxy = cls.make(fixed, vector, refh, seth, map)
+    return compress_vectors(proxy)
 
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
@@ -109,6 +110,131 @@ def impersonate_vector_reference_cont(f, inner, idx, app, env, cont, _vals):
     for i in range(numargs):
         args[i+2] = _vals.get_value(i)
     return f.call_with_extra_info(args, env, cont, app)
+
+@jit.unroll_safe
+def compress_vectors(stack):
+    depth = 0
+    it = stack
+    status = 0
+    while isinstance(it, W_InterposeVector):
+        depth += 1
+        if it.is_chaperone():
+            status |= 2
+        else:
+            status |= 1
+        if status != 1 and status != 2:
+            return stack
+        it = it.inner
+    if depth <= 1:
+        return stack
+    refs  = [None] * depth
+    sets  = [None] * depth
+    maps  = [None] * depth
+    props = [None] * depth
+    i = 0
+    while isinstance(stack, W_InterposeVector):
+        refs[i] = stack.refh
+        sets[i] = stack.seth
+        maps[i] = stack.property_map
+        props[i] = stack._get_full_list()
+        stack = stack.inner
+        i += 1
+    if isinstance(stack, W_StackedVectorProxy):
+        refs  = refs  + stack.ref_handlers
+        sets  = sets  + stack.set_handlers
+        maps  = maps  + stack.maps
+        props = props + stack.properties
+        stack = stack.inner
+
+    if status == 1:
+        return W_StackedVectorImp(refs, sets, maps, props, stack)
+    elif status == 2:
+        return W_StackedVectorChp(refs, sets, maps, props, stack)
+    else:
+        assert False
+
+class W_StackedVectorProxy(values.W_MVector):
+    _immutable_fields_ = ["inner", "ref_handlers[*]", "set_handlers[*]", "maps[*]", "properties[*]", "offset"]
+
+    def __init__(self, refs, sets, maps, properties, inner, offset=0):
+        assert isinstance(inner, values.W_MVector)
+        self.inner = inner
+        self.ref_handlers = refs
+        self.set_handlers = sets
+        self.maps = maps
+        self.properties = properties
+        self.offset = offset
+
+    def pop(self):
+        raise NotImplementedError("abstract method")
+
+    def length(self):
+        return self.inner.length()
+
+    def vector_set(self, i, new, env, cont, app=None):
+        popped = self.pop()
+        return popped.vector_set(i, new, env, cont, app=app)
+
+    def vector_ref(self, i, env, cont, app=None):
+        popped = self.pop()
+        return popped.vector_ref(i, env, cont, app=app)
+
+    def get_storage_index(self, index):
+        return self.properties[self.offset][index]
+
+    def get_proxied(self):
+        return self.inner
+
+    def get_base(self):
+        return self.inner.get_base()
+
+    def is_proxy(self):
+        return True
+
+    def get_property(self, prop, default=None):
+        return self.maps[self.offset].lookup(prop, self, default)
+
+    def immutable(self):
+        return self.inner.immutable()
+
+    def tostring(self):
+        return self.inner.tostring()
+
+class W_StackedVectorImp(W_StackedVectorProxy):
+    import_from_mixin(ImpersonatorMixin)
+    def pop(self):
+        ref = self.ref_handlers[0]
+        set = self.set_handlers[0]
+        map = self.maps[0]
+        props = self.properties[0]
+        offset = self.offset + 1
+        if len(self.ref_handlers) == offset:
+            inner = self.inner
+        else:
+            refs = self.ref_handlers
+            sets = self.set_handlers
+            maps = self.maps
+            propss = self.properties
+            inner = W_StackedVectorImp(refs, sets, maps, propss, self.inner, offset=offset)
+        return W_ImpVector.make(props, inner, ref, set, map)
+
+class W_StackedVectorChp(W_StackedVectorProxy):
+    import_from_mixin(ChaperoneMixin)
+    def pop(self):
+        ref = self.ref_handlers[0]
+        set = self.set_handlers[0]
+        map = self.maps[0]
+        props = self.properties[0]
+        offset = self.offset + 1
+        if len(self.ref_handlers) == offset:
+            inner = self.inner
+        else:
+            refs = self.ref_handlers
+            sets = self.set_handlers
+            maps = self.maps
+            propss = self.properties
+            inner = W_StackedVectorChp(refs, sets, maps, propss, self.inner, offset=offset)
+        return W_ChpVector.make(props, inner, ref, set, map)
 
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"

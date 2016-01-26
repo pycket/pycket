@@ -164,7 +164,7 @@ def vector_copy_cont_get(src, src_start, src_end, dest, dest_start, i, env, cont
 @expose("unsafe-vector-ref", [subclass_unsafe(values.W_MVector), unsafe(values.W_Fixnum)], simple=False)
 def unsafe_vector_ref(v, i, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(v, imp.W_ImpVector) or isinstance(v, imp.W_ChpVector):
+    if isinstance(v, imp.W_InterposeVector) or isinstance(v, imp.W_StackedVectorProxy):
         return v.vector_ref(i.value, env, cont)
     else:
         assert type(v) is values_vector.W_Vector
