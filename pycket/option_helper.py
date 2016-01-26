@@ -179,10 +179,12 @@ def ensure_json_ast(config, names):
 
     if 'fromBytecodeOf' in names:
         
+        print "fromBytecodeOf is a go"
+        
         file_name = names['fromBytecodeOf']
         assert file_name.endswith('.rkt')
         
-        json_file = "frombytecode_"+file_name+".json"
+        json_file = "fromBytecode_"+file_name+".json"
         json_file = _expand_file_to_json(file_name, json_file, "-l pycket/zoTransform")
             
     elif config["mode"] is _eval:

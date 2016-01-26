@@ -93,9 +93,9 @@ def expand_file(fname):
 
 # Call the Racket expander and read its output from STDOUT rather than producing an
 # intermediate (possibly cached) file.
-def expand_file_rpython(rkt_file):
+def expand_file_rpython(rkt_file, lib=fn):
     from rpython.rlib.rfile import create_popen_file
-    cmd = "racket %s --stdout \"%s\" 2>&1" % (fn, rkt_file)
+    cmd = "racket %s --stdout \"%s\" 2>&1" % (lib, rkt_file)
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
     pipe = create_popen_file(cmd, "r")
@@ -105,24 +105,25 @@ def expand_file_rpython(rkt_file):
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
 
-def expand_file_cached(rkt_file, modtable):
+def expand_file_cached(rkt_file, modtable, lib=fn):
+    print "expand_file_cached is called with -- %s" % lib
     try:
-        json_file = ensure_json_ast_run(rkt_file)
+        json_file = ensure_json_ast_run(rkt_file, lib)
     except PermException:
-        return expand_to_ast(rkt_file, modtable)
-    return load_json_ast_rpython(json_file, modtable)
+        return expand_to_ast(rkt_file, modtable, lib)
+    return load_json_ast_rpython(json_file, modtable, lib)
 
 # Expand and load the module without generating intermediate JSON files.
-def expand_to_ast(fname, modtable):
-    data = expand_file_rpython(fname)
-    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
+def expand_to_ast(fname, modtable, lib=fn):
+    data = expand_file_rpython(fname, lib)
+    return _to_module(pycket_json.loads(data), modtable, lib).assign_convert_module()
 
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
     return pycket_json.loads(data)
 
-def wrap_for_tempfile(fn):
-    def wrap(rkt_file, json_file):
+def wrap_for_tempfile(func):
+    def wrap(rkt_file, json_file, lib=fn):
         "NOT_RPYTHON"
         try:
             os.remove(json_file)
@@ -134,20 +135,21 @@ def wrap_for_tempfile(fn):
         json_file = os.path.realpath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
-        out = fn(rkt_file, tmp_json_file)
+        out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
         assert tmp_json_file == out
         os.rename(tmp_json_file, json_file)
         return json_file
 
-    wrap.__name__ = fn.__name__
+    wrap.__name__ = func.__name__
     return wrap
 
-def expand_file_to_json(rkt_file, json_file):
+def expand_file_to_json(rkt_file, json_file, lib=fn):
     if not we_are_translated():
-        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file)
-    return _expand_file_to_json(rkt_file, json_file)
+        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, lib)
+    return _expand_file_to_json(rkt_file, json_file, lib)
 
 def _expand_file_to_json(rkt_file, json_file, lib=fn):
+    print "_expand_file_to_json : called with %s -- " % lib
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -211,13 +213,25 @@ def needs_update(file_name, json_name):
     return True
 
 
-def _json_name(file_name):
-    return file_name + '.json'
+def _json_name(file_name, lib=fn):
+    if 'zoTransform' in lib:
+        fileDirs = file_name.split("/")
+        l = len(fileDirs)
+        k = l-1 # is there a better way to do this (prove that the slice below has a non-negative stop)
+        assert k >= 0
+        modName = fileDirs[k]
+        subs = fileDirs[0:k]
+        subsStr = '/'.join(subs)
+        if len(subs) > 0:
+            subsStr += '/'
+        return subsStr + 'fromBytecode_' + modName + '.json'
+    else:
+        return file_name + '.json'
 
-def ensure_json_ast_run(file_name):
-    json = _json_name(file_name)
+def ensure_json_ast_run(file_name, lib=fn):
+    json = _json_name(file_name, lib)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json)
+        return expand_file_to_json(file_name, json, lib)
     else:
         return json
 
@@ -231,22 +245,23 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 #### ========================== Functions for parsing json to an AST
 
-def load_json_ast_rpython(fname, modtable):
+def load_json_ast_rpython(fname, modtable, lib=fn):
+    print "load_json_ast_rpython is called with lib : %s - fname : %s" % (lib, fname)
     data = readfile_rpython(fname)
-    return _to_module(pycket_json.loads(data), modtable).assign_convert_module()
+    return _to_module(pycket_json.loads(data), modtable, lib).assign_convert_module()
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     return to_ast(json, modtable)
 
-def parse_module(json_string):
+def parse_module(json_string, lib=fn):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
-    return _to_module(json, modtable).assign_convert_module()
+    return _to_module(json, modtable, lib).assign_convert_module()
 
-def to_ast(json, modtable):
-    ast = _to_ast(json, modtable)
+def to_ast(json, modtable, lib=fn):
+    ast = _to_ast(json, modtable, lib)
     return ast.assign_convert(variable_set(), None)
 
 
@@ -284,14 +299,14 @@ def to_formals(json):
         return [make(lex(x)) for x in arr], None
     assert 0
 
-def to_bindings(arr, modtable):
+def to_bindings(arr, modtable, lib=fn):
     dbgprint("to_bindings", arr)
     varss = []
     rhss = []
     for v in arr:
         varr = v.value_array()
         fmls = [values.W_Symbol.make(x.value_string()) for x in varr[0].value_array()]
-        rhs = _to_ast(varr[1], modtable)
+        rhs = _to_ast(varr[1], modtable, lib)
         varss.append(fmls)
         rhss.append(rhs)
     return varss, rhss
@@ -304,7 +319,8 @@ def mksym(json):
             return values.W_Symbol.make(j[i].value_string())
     assert 0, json.tostring()
 
-def _to_module(json, modtable):
+def _to_module(json, modtable, lib=fn):
+    print "to module is called with -- %s" % lib
     # YYY
     v = json.value_object()
     if "body-forms" in v:
@@ -314,11 +330,11 @@ def _to_module(json, modtable):
                 config[k] = _v.value_string()
 
         if "language" in v:
-            lang = [parse_require([b.value_string()], modtable) for b in v["language"].value_array()]
+            lang = [parse_require([b.value_string()], modtable, lib) for b in v["language"].value_array()]
         else:
             lang = None
         lang = lang[0] if lang else None
-        body = [_to_ast(x, modtable) for x in v["body-forms"].value_array()]
+        body = [_to_ast(x, modtable, lib) for x in v["body-forms"].value_array()]
         return Module(v["module-name"].value_string(), body, config, lang=lang)
     else:
         assert 0
@@ -386,24 +402,26 @@ def shorten_submodule_path(path):
             acc.append(p)
     return acc[:]
 
-def _to_require(fname, modtable, path=None):
+def _to_require(fname, modtable, path=None, lib=fn):
+    print "_to_require is called with -- %s" % lib
     path = shorten_submodule_path(path)
     if modtable.has_module(fname):
         if modtable.builtin(fname):
             return VOID
         return Require(fname, modtable, path=path)
     modtable.enter_module(fname)
-    module = expand_file_cached(fname, modtable)
+    module = expand_file_cached(fname, modtable, lib)
     modtable.exit_module(fname, module)
     return Require(fname, modtable, path=path)
 
-def parse_require(path, modtable):
+def parse_require(path, modtable, lib=fn):
+    print "parse_require is called with -- %s" % lib
     fname, subs = path[0], path[1:]
     if fname in [".", ".."]:
         # fname field is not used in this case, so we just give an idea of which
         # module we are in
         return Require(modtable.current_mod(), None, path=path)
-    return _to_require(fname, modtable, path=subs)
+    return _to_require(fname, modtable, path=subs, lib=lib)
     assert 0, "malformed require"
 
 def get_srcloc(o):
@@ -421,10 +439,10 @@ def get_srcloc(o):
         sourcefile = None
     return (pos, sourcefile)
 
-def to_lambda(o, modtable):
+def to_lambda(o, modtable, lib=fn):
     fmls, rest = to_formals(o["lambda"])
     pos, sourcefile = get_srcloc(o)
-    return make_lambda(fmls, rest, [_to_ast(x, modtable) for x in o["body"].value_array()],
+    return make_lambda(fmls, rest, [_to_ast(x, modtable, lib) for x in o["body"].value_array()],
                        pos, sourcefile)
 
 def convert_path(path):
@@ -441,7 +459,8 @@ def parse_path(p):
         srcmod = None
     return srcmod, path
 
-def _to_ast(json, modtable):
+def _to_ast(json, modtable, lib=fn):
+    print '_to_ast : called with -- ' + lib
     # YYY
     dbgprint("_to_ast", json)
     if json.is_array:
@@ -450,9 +469,9 @@ def _to_ast(json, modtable):
         if "source-name" in rator and (("source-module" not in rator) or (rator["source-module"].value_string() == "#%kernel")):
             ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
-                return Begin([_to_ast(x, modtable) for x in arr[1:]])
+                return Begin([_to_ast(x, modtable, lib) for x in arr[1:]])
             if ast_elem == "#%expression":
-                return _to_ast(arr[1], modtable)
+                return _to_ast(arr[1], modtable, lib)
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
@@ -473,7 +492,7 @@ def _to_ast(json, modtable):
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 elif "toplevel" in target:
                     var = ToplevelVar(values.W_Symbol.make(target["toplevel"].value_string()))
-                return SetBang(var, _to_ast(arr[2], modtable))
+                return SetBang(var, _to_ast(arr[2], modtable, lib))
             if ast_elem == "#%top":
                 assert 0
                 return CellRef(values.W_Symbol.make(arr[1].value_object()["symbol"].value_string()))
@@ -498,48 +517,48 @@ def _to_ast(json, modtable):
                 path = convert_path(path.value_array())
                 if not path:
                     continue
-                requires.append(parse_require(path, modtable))
+                requires.append(parse_require(path, modtable, lib))
             return Begin.make(requires) if requires else VOID
         if "begin0" in obj:
-            fst = _to_ast(obj["begin0"], modtable)
-            rst = [_to_ast(x, modtable) for x in obj["begin0-rest"].value_array()]
+            fst = _to_ast(obj["begin0"], modtable, lib)
+            rst = [_to_ast(x, modtable, lib) for x in obj["begin0-rest"].value_array()]
             if len(rst) == 0:
                 return fst
             else:
                 return Begin0.make(fst, rst)
         if "begin-for-syntax" in obj:
-            body = [_to_ast(x, modtable) for x in obj["begin-for-syntax"].value_array()]
+            body = [_to_ast(x, modtable, lib) for x in obj["begin-for-syntax"].value_array()]
             return BeginForSyntax(body)
         if "wcm-key" in obj:
-            return WithContinuationMark(_to_ast(obj["wcm-key"], modtable),
-                                        _to_ast(obj["wcm-val"], modtable),
-                                        _to_ast(obj["wcm-body"], modtable))
+            return WithContinuationMark(_to_ast(obj["wcm-key"], modtable, lib),
+                                        _to_ast(obj["wcm-val"], modtable, lib),
+                                        _to_ast(obj["wcm-body"], modtable, lib))
         if "define-values" in obj:
             binders = obj["define-values"].value_array()
             display_names = obj["define-values-names"].value_array()
             fmls = [values.W_Symbol.make(x.value_string()) for x in binders]
             disp_syms = [values.W_Symbol.make(x.value_string()) for x in display_names]
-            body = _to_ast(obj["define-values-body"], modtable)
+            body = _to_ast(obj["define-values-body"], modtable, lib)
             return DefineValues(fmls, body, disp_syms)
         if "letrec-bindings" in obj:
-            body = [_to_ast(x, modtable) for x in obj["letrec-body"].value_array()]
+            body = [_to_ast(x, modtable, lib) for x in obj["letrec-body"].value_array()]
             bindings = obj["letrec-bindings"].value_array()
             if len(bindings) == 0:
                 return Begin.make(body)
             else:
-                vs, rhss = to_bindings(bindings, modtable)
+                vs, rhss = to_bindings(bindings, modtable, lib)
                 for v in vs:
                     for var in v:
                         assert isinstance(var, values.W_Symbol)
                 assert isinstance(rhss[0], AST)
                 return make_letrec(list(vs), list(rhss), body)
         if "let-bindings" in obj:
-            body = [_to_ast(x, modtable) for x in obj["let-body"].value_array()]
+            body = [_to_ast(x, modtable, lib) for x in obj["let-body"].value_array()]
             bindings = obj["let-bindings"].value_array()
             if len(bindings) == 0:
                 return Begin.make(body)
             else:
-                vs, rhss = to_bindings(bindings, modtable)
+                vs, rhss = to_bindings(bindings, modtable, lib)
                 for v in vs:
                     for var in v:
                         assert isinstance(var, values.W_Symbol)
@@ -549,16 +568,16 @@ def _to_ast(json, modtable):
             if obj["variable-reference"].is_bool: # assumes that only boolean here is #f
                 return VariableReference(None, modtable.current_mod())
             else:
-                return VariableReference(_to_ast(obj["variable-reference"], modtable), modtable.current_mod())
+                return VariableReference(_to_ast(obj["variable-reference"], modtable, lib), modtable.current_mod())
         if "lambda" in obj:
-                return CaseLambda([to_lambda(obj, modtable)])
+                return CaseLambda([to_lambda(obj, modtable, lib)])
         if "case-lambda" in obj:
-                lams = [to_lambda(v.value_object(), modtable) for v in obj["case-lambda"].value_array()]
+                lams = [to_lambda(v.value_object(), modtable, lib) for v in obj["case-lambda"].value_array()]
                 return CaseLambda(lams)
         if "operator" in obj:
-            return App.make_let_converted(_to_ast(obj["operator"], modtable), [_to_ast(x, modtable) for x in obj["operands"].value_array()])
+            return App.make_let_converted(_to_ast(obj["operator"], modtable, lib), [_to_ast(x, modtable, lib) for x in obj["operands"].value_array()])
         if "test" in obj:
-            return If.make_let_converted(_to_ast(obj["test"], modtable), _to_ast(obj["then"], modtable), _to_ast(obj["else"], modtable))
+            return If.make_let_converted(_to_ast(obj["test"], modtable, lib), _to_ast(obj["then"], modtable, lib), _to_ast(obj["else"], modtable, lib))
         if "quote" in obj:
             return Quote(to_value(obj["quote"]))
         if "quote-syntax" in obj:
@@ -583,7 +602,7 @@ def _to_ast(json, modtable):
         if "toplevel" in obj:
             return ToplevelVar(values.W_Symbol.make(obj["toplevel"].value_string()))
         if "module-name" in obj:
-            return _to_module(json, modtable)
+            return _to_module(json, modtable, lib)
     assert 0, "Unexpected json object: %s" % json.tostring()
 
 VOID = Quote(values.w_void)

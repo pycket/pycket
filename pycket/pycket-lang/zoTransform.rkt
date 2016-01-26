@@ -159,7 +159,7 @@
          [args (to-ast-single args-part toplevels localref-stack)]
 
          ;; construct the lam (lambda () args)
-         [lambda-form (hash* 'source (hash* '%p (string-append pycketDir "frombytecode_" moduleName ".rkt")) ;; toplevel application
+         [lambda-form (hash* 'source (hash* '%p (string-append pycketDir "fromBytecode_" moduleName ".rkt")) ;; toplevel application
                              'position 321
                              'span 123
                              'module (hash* '%mpi (hash* '%p (path->string
@@ -216,6 +216,7 @@
     ((symbol? body-form) "Symbol ")
     ((let-one? body-form) "let-one ")
     ((let-void? body-form) "let-void ")
+    ((case-lam? body-form) "case-lam ")
     ((install-value? body-form) "install-value ")
     ((module-variable? body-form) "module-variable ")
     ((primval? body-form) "primval ")
@@ -272,6 +273,33 @@
          (boxls (build-list count (lambda (x) (box 'uninitialized-slot))))
          (newstack (append boxls localref-stack)))
     (to-ast-single body toplevels newstack)))
+
+(define (handle-case-lambda body-form toplevels localref-stack)
+  (let ((clauses (case-lam-clauses body-form)))
+    (hash* 'case-lambda (map (lambda (clause)
+                               (if (not (lam? clause))
+                                   (error 'handle-case-lambda "not a lam clause?")
+                                   (let* ([name (lam-name clause)]
+                                          [num-args (lam-num-params clause)]
+                                          [multiple-args? (lam-rest? clause)] ;; is the rest? true
+                                          
+                                          [symbols-for-formals
+                                           (if (not multiple-args?)
+                                               (map (lambda (x) (symbol->string (gensym))) (range num-args))
+                                               (list (symbol->string (gensym))))]
+                                          
+                                          [arg-mapping
+                                           (if (not multiple-args?)
+                                               (map (lambda (arg) (hash* 'lexical arg)) symbols-for-formals)
+                                               (hash* 'lexical (car symbols-for-formals)))] ;; this is ugly
+                                          [body (to-ast-single (lam-body clause)
+                                                               toplevels
+                                                               (append symbols-for-formals localref-stack))]
+                                          )
+                                     (hash* 'lambda arg-mapping
+                                            'body body))))
+                             clauses))))
+    
 
 (define (handle-install-value body-form toplevels localref-stack)
   ;; Runs rhs to obtain count results, and installs them into existing
@@ -345,6 +373,9 @@
       ;; let-void
       ((let-void? body-form)
        (handle-let-void body-form toplevels localref-stack))
+      ;; case-lambda
+      ((case-lam? body-form)
+       (handle-case-lambda body-form toplevels localref-stack))
       ;; install-value
       ((install-value? body-form)
        (handle-install-value body-form toplevels localref-stack))
@@ -424,7 +455,7 @@
    #:args ([file.rkt #f])
    (let* ([splitSubs (string-split file.rkt "/")]
           [subDirs (take splitSubs (sub1 (length splitSubs)))]
-          [subDirsStr* (if (empty? subDirs) "" (string-append (string-join subDirs "/") "/"))]
+          [subDirsStr* (if (empty? subDirs) "" (string-append "/" (string-join subDirs "/") "/"))]
           [modName.rkt (last splitSubs)]
           [modName (substring modName.rkt 0 (- (string-length modName.rkt) 4))])
      (begin
@@ -434,7 +465,7 @@
        (managed-compile-zo file.rkt)
        ;; setting the output port
        (when (not (output-port? out))
-         (set! out (open-output-file (string-append subDirsStr "frombytecode_" modName ".rkt.json")
+         (set! out (open-output-file (string-append subDirsStr "fromBytecode_" modName ".rkt.json")
                                      #:exists 'replace)))
        )))
           
@@ -520,7 +551,7 @@
 
   (define final-json-hash (compile-json global-config
                                         lang
-                                        (string-append subDirsStr "frombytecode_" moduleName)
+                                        (string-append subDirsStr "fromBytecode_" moduleName)
                                         body1
                                         toplevelRequireForms
                                         (to-ast (mod-body code) toplevels)))
