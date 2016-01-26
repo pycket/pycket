@@ -226,10 +226,10 @@ class W_VectorSuper(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    def vector_set(self, i, new, env, cont):
+    def vector_set(self, i, new, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
-    def vector_ref(self, i, env, cont):
+    def vector_ref(self, i, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
     def length(self):

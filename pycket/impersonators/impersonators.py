@@ -27,7 +27,6 @@ from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
 @specialize.arg(0)
 def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
-    empty = EMPTY_PROPERTY_MAP
     map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
     fixed = prop_vals[:] if prop_vals is not None else None
     return cls.make(fixed, vector, refh, seth, map)
@@ -96,9 +95,20 @@ class W_ImpBox(W_InterposeBox):
         return imp_box_set_cont(self.inner, env, cont)
 
 @continuation
-def imp_vec_set_cont(v, i, env, cont, vals):
+def imp_vec_set_cont(v, i, app, env, cont, vals):
     from pycket.interpreter import check_one_val
-    return v.vector_set(i.value, check_one_val(vals), env, cont)
+    return v.vector_set(i, check_one_val(vals), env, cont, app=app)
+
+@continuation
+@jit.unroll_safe
+def impersonate_vector_reference_cont(f, inner, idx, app, env, cont, _vals):
+    numargs = _vals.num_values()
+    args    = [None] * (numargs + 2)
+    args[0] = inner
+    args[1] = idx
+    for i in range(numargs):
+        args[i+2] = _vals.get_value(i)
+    return f.call_with_extra_info(args, env, cont, app)
 
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
@@ -106,7 +116,6 @@ class W_InterposeVector(values.W_MVector):
 
     import_from_mixin(InlineProxyMixin)
 
-    @jit.unroll_safe
     def __init__(self, vector, refh, seth, map):
         assert isinstance(vector, values.W_MVector)
         self.refh = refh
@@ -114,26 +123,26 @@ class W_InterposeVector(values.W_MVector):
         self.init_proxy(vector, map)
 
     def length(self):
-        return get_base_object(self).length()
+        return get_base_object(self.base).length()
 
-    def post_set_cont(self, new, i, env, cont):
+    def post_set_cont(self, new, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
-    def post_ref_cont(self, i, env, cont):
+    def post_ref_cont(self, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
-    def vector_set(self, i, new, env, cont):
+    def vector_set(self, i, new, env, cont, app=None):
         idx = values.W_Fixnum(i)
-        after = self.post_set_cont(new, idx, env, cont)
-        return self.seth.call([self.inner, idx, new], env, after)
+        after = self.post_set_cont(new, i, env, cont, app=app)
+        return self.seth.call_with_extra_info([self.inner, idx, new], env, after, app)
 
     @jit.unroll_safe
-    def vector_ref(self, i, env, cont):
+    def vector_ref(self, i, env, cont, app=None):
         idx = values.W_Fixnum(i)
         while isinstance(self, W_InterposeVector):
-            cont = self.post_ref_cont(idx, env, cont)
+            cont = self.post_ref_cont(idx, env, cont, app=app)
             self = self.inner
-        return self.vector_ref(i, env, cont)
+        return self.vector_ref(i, env, cont, app=app)
 
 # Vectors
 @inline_small_list(immutable=True, unbox_num=True)
@@ -142,11 +151,12 @@ class W_ImpVector(W_InterposeVector):
 
     errorname = "impersonate-vector"
 
-    def post_set_cont(self, new, i, env, cont):
-        return imp_vec_set_cont(self.inner, i, env, cont)
+    def post_set_cont(self, new, i, env, cont, app=None):
+        return imp_vec_set_cont(self.inner, i, app, env, cont)
 
-    def post_ref_cont(self, i, env, cont):
-        return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
+    def post_ref_cont(self, i, env, cont, app=None):
+        return impersonate_vector_reference_cont(
+                self.refh, self.inner, i, app, env, cont)
 
 @inline_small_list(immutable=True, unbox_num=True)
 class W_ChpVector(W_InterposeVector):
@@ -154,14 +164,14 @@ class W_ChpVector(W_InterposeVector):
 
     errorname = "chaperone-vector"
 
-    def post_set_cont(self, new, i, env, cont):
+    def post_set_cont(self, new, i, env, cont, app=None):
         vals = values.Values.make1(new)
         return check_chaperone_results(vals, env,
-                imp_vec_set_cont(self.inner, i, env, cont))
+                imp_vec_set_cont(self.inner, i, app, env, cont))
 
-    def post_ref_cont(self, i, env, cont):
+    def post_ref_cont(self, i, env, cont, app=None):
         args = values.Values.make2(self.inner, i)
-        return chaperone_reference_cont(self.refh, args, None, env, cont)
+        return chaperone_reference_cont(self.refh, args, app, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.

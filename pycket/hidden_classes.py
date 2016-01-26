@@ -144,8 +144,6 @@ def make_caching_map_type(getter=None):
                 newmap.static_data.update(self.static_data)
                 newmap.static_data[name] = value
                 self.static_submaps[key] = newmap
-                if name in newmap.indexes:
-                    del newmap.indexes[name]
             return self.static_submaps[key]
 
         @jit.elidable_promote('all')
@@ -157,8 +155,6 @@ def make_caching_map_type(getter=None):
                 newmap.static_data.update(self.static_data)
                 newmap.indexes[name] = len(self.indexes)
                 self.dynamic_submaps[name] = newmap
-                if name in newmap.static_data:
-                    del newmap.static_data[name]
             return self.dynamic_submaps[name]
 
         @jit.elidable
