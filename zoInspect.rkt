@@ -11,7 +11,7 @@
 
 (define args (current-command-line-arguments))
 
-(define modName "dotSimple")
+(define modName "caselam")
 (define DEBUG true)
 
 
@@ -69,8 +69,6 @@
 ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
 ;; langDep -> '(collects #"racket" #"main.rkt")
 (define collectsDir (path->string (find-collects-dir)))
-(define langDep (cadddr depFile))
-(define lang (string-append collectsDir "/racket" "/main.rkt"))
   
 ;; module-name          (module-name . "canerStr")
 
@@ -118,17 +116,41 @@
 ;(mod-syntax-bodies code)
 
 (define toplevels (prefix-toplevels (mod-prefix code)))
+  (define preSubmods (mod-pre-submodules code))
 
-(define preConfig (mod-pre-submodules code))
+;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
+;; langDep -> '(collects #"racket" #"main.rkt")
 
-(define runtimeDep (caddr depFile))
-;; '(collects #"racket" #"runtime-config.rkt")
-(define runtimeConfig (string-append collectsDir
-                                     "/" (bytes->string/utf-8 (cadr runtimeDep)) ;"/racket"
-                                     "/" (bytes->string/utf-8 (caddr runtimeDep)) ;"runtime-config.rkt"))
-                                     ))
+;; (define lang (string-append collectsDir "/racket" "/main.rkt"))
+(define topRequires (mod-requires code)) ;; assoc list ((phase mods) ..)
+(define phase0 (assv 0 topRequires))
+(define phase0-reqs (cdr phase0))
+(define langModPath (resolved-module-path-name
+                     (module-path-index-resolve (car phase0-reqs))))
+(define lang (if (or (list? langModPath) (symbol? langModPath))
+                 (error 'langConfig "don't know how to handle a submodule here")
+                 (path->string langModPath)))
 
-;; body-forms is a (listof hash hash)
+
+;(define preSubmodules (mod-pre-submodules code))
+(define runtimePrefix (mod-prefix (car preSubmods)))
+(define runtimeMod (car (prefix-toplevels runtimePrefix)))
+;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
+(define resolvedModPath (resolved-module-path-name
+                         (module-path-index-resolve (module-variable-modidx runtimeMod))))
+(define runtimeConfig (if (or (list? resolvedModPath)
+                              (symbol? resolvedModPath))
+                          (error 'runtimeConfigModule "don't know how to handle a submodule here")
+                          (path->string resolvedModPath)))  
+
+(define reqs (cdr phase0-reqs))
+(define toplevelRequireForms (map (lambda (req)
+                                    (let ((resolvedReqPath (resolved-module-path-name
+                                                            (module-path-index-resolve req))))
+                                      (if (or (list? resolvedReqPath) (symbol? resolvedReqPath))
+                                          (error 'reqForms "don't know how to handle a submodule here")
+                                          (hash* 'require (list (list (path->string resolvedReqPath)))))))
+                                  reqs))
 
 (define (compile-json2 config language topmod body1 body-forms)
   (hash* 'language (list language)
@@ -136,26 +158,30 @@
          'config config
          'body-forms (cons body1
                            body-forms)))
-
+;; body-forms is a (listof hash hash)
 
 (define config global-config)
 (define language lang)
-(define topmodule modName)
 
-(define body1 (hash* 'language (list "#%kernel")
-                     'module-name (symbol->string (mod-srcname (car preConfig)))
-                     'body-forms (list
-                                  (hash* 'require (list (list runtimeConfig)))
-                                  (hash* 'operator (hash* 'source-module (list runtimeConfig)
-                                                          'source-name "configure" ;;; <-- ????
-                                                          )
-                                         'operands (list (hash 'quote #f))))))
+(define body1
+  (hash* 'language (list "#%kernel")
+         'module-name (symbol->string (mod-srcname (car preSubmods)))
+         'body-forms (list
+                      (hash* 'require (list (list runtimeConfig)))
+                      (hash* 'operator (hash* 'source-module (list runtimeConfig)
+                                              'source-name (symbol->string
+                                                            (module-variable-sym runtimeMod))
+                                              )
+                             'operands (list (hash 'quote #f))))))
 
 (define final-json-hash (compile-json2 global-config
                                        lang
                                        (string-append "frombytecode_" modName)
                                        body1
                                        (to-ast-wrapper (mod-body code) toplevels DEBUG modName)))
+
+;(jsexpr? final-json-hash)
+
 #|
 (define out (open-output-file (string-append "custom_" topmodule ".rkt.json")
                               #:exists 'replace))
