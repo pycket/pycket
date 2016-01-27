@@ -56,7 +56,7 @@ class W_StructType(values.W_Object):
             "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
-            "constructor_arity"]
+            "constructor_arity", "procedure_source"]
     unbound_prefab_types = {}
 
     @staticmethod
