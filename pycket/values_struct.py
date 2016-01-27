@@ -7,7 +7,7 @@ from pycket.arity import Arity
 from pycket.base import SingleResultMixin
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
-from pycket.prims.expose import make_call_method
+from pycket.prims.expose import default, make_call_method
 from pycket.small_list import inline_small_list
 from pycket.values_parameter import W_Parameter
 
@@ -56,7 +56,7 @@ class W_StructType(values.W_Object):
             "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
-            "constructor_arity"]
+            "constructor_arity", "procedure_source"]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -1122,22 +1122,19 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def get_arity(self):
         return Arity.ONE
 
-    @make_call_method(simple=False)
-    def call_with_extra_info(self, args, env, cont, app):
+    @make_call_method([values.W_Object, default(values.W_Object, None)], simple=False)
+    def call_with_extra_info(self, arg, fail, env, cont, app):
         from pycket.interpreter import return_value
-        arg = args[0]
         if isinstance(arg, W_StructType):
             w_val = arg.read_prop_precise(self.property)
             if w_val is not None:
                 return return_value(w_val, env, cont)
         elif isinstance(arg, W_RootStruct):
             return arg.get_prop(self.property, env, cont)
-        elif len(args) > 1:
-            failure_result = args[1]
-            if failure_result.iscallable():
-                return failure_result.call_with_extra_info([], env, cont, app)
-            else:
-                return return_value(failure_result, env, cont)
+        elif fail is not None:
+            if fail.iscallable():
+                return fail.call_with_extra_info([], env, cont, app)
+            return return_value(fail, env, cont)
         raise SchemeException("%s-accessor: expected %s? but got %s" %
                 (self.property.name, self.property.name, arg.tostring()))
 

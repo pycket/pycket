@@ -1345,6 +1345,7 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
+        self._closurerepr = None
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
         self._arity = arity
@@ -1399,7 +1400,14 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
 
+    @jit.elidable
     def tostring_as_closure(self):
+        _closurerepr = self._closurerepr
+        if _closurerepr is None:
+            _closurerepr = self._closurerepr = self._tostring_as_closure()
+        return _closurerepr
+
+    def _tostring_as_closure(self):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
@@ -1432,8 +1440,8 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure'
-                          ]
+                          "frees", "enclosing_env_structure", 'env_structure',
+                          "srcfile", "srcpos"]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1450,6 +1458,9 @@ class Lambda(SequencedBodyAST):
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
+
+    def can_enter(self):
+        return self.body[0].should_enter
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
