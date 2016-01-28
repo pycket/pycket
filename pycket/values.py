@@ -1249,6 +1249,13 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
+@inline_small_list(immutable=True, attrname="vals", unbox_num=True)
+class W_ClosureContents(ConsEnv):
+
+    def make_closure(self, caselam):
+        vals = self._get_full_list()
+        return W_Closure1AsEnv.make(vals, caselam, self._prev)
+
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_fields_ = ['caselam']
@@ -1334,6 +1341,9 @@ class W_Closure1AsEnv(ConsEnv):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
+    def split_contents(self):
+        contents = W_ClosureContents.make(self._get_full_list(), self._prev)
+        return self.caselam, contents
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and

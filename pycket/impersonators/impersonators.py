@@ -25,11 +25,30 @@ from pycket.values             import UNROLLING_CUTOFF
 from rpython.rlib              import jit
 from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
+_REFH_DESCRIPTOR = W_ImpPropertyDescriptor("internal-use-only")
+_SETH_DESCRIPTOR = W_ImpPropertyDescriptor("internal-use-only")
+
 @specialize.arg(0)
 def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
-    map = make_specialized_property_map(prop_keys, EMPTY_PROPERTY_MAP)
+    map = EMPTY_PROPERTY_MAP
+    if (isinstance(refh, values.W_PromotableClosure) and
+        isinstance(refh.closure, values.W_Closure1AsEnv)):
+        refh = refh.closure
+        caselam, refh = refh.split_contents()
+        map = map.add_split_attribute(_REFH_DESCRIPTOR, caselam)
+    elif isinstance(refh, values.W_Closure1AsEnv):
+        caselam, refh = refh.split_contents()
+        map = map.add_split_attribute(_REFH_DESCRIPTOR, caselam)
+    else:
+        map = map.add_dynamic_attribute(_REFH_DESCRIPTOR)
+    map = map.add_dynamic_attribute(_SETH_DESCRIPTOR)
+    if prop_vals is not None:
+        prop_vals = [refh, seth] + prop_vals
+    else:
+        prop_vals = [refh, seth]
+    map = make_specialized_property_map(prop_keys, map)
     fixed = prop_vals[:] if prop_vals is not None else None
-    return cls.make(fixed, vector, refh, seth, map)
+    return cls.make(fixed, vector, map)
 
 class W_InterposeBox(values.W_Box):
     errorname = "interpose-box"
@@ -112,14 +131,12 @@ def impersonate_vector_reference_cont(f, inner, idx, app, env, cont, _vals):
 
 class W_InterposeVector(values.W_MVector):
     errorname = "interpose-vector"
-    _immutable_fields_ = ["refh", "seth"]
+    _immutable_fields_ = ["seth"]
 
     import_from_mixin(InlineProxyMixin)
 
-    def __init__(self, vector, refh, seth, map):
+    def __init__(self, vector, map):
         assert isinstance(vector, values.W_MVector)
-        self.refh = refh
-        self.seth = seth
         self.init_proxy(vector, map)
 
     def length(self):
@@ -131,10 +148,22 @@ class W_InterposeVector(values.W_MVector):
     def post_ref_cont(self, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
+    def get_ref_handler(self):
+        map = jit.promote(self.property_map)
+        if map.is_split_attribute(_REFH_DESCRIPTOR):
+            print "Split attribute"
+            index, code = map.get_split_data(_REFH_DESCRIPTOR)
+            contents = self.get_storage_index(index)
+            assert isinstance(contents, values.W_ClosureContents)
+            return contents.make_closure(code)
+        return self.get_property(_REFH_DESCRIPTOR)
+
     def vector_set(self, i, new, env, cont, app=None):
         idx = values.W_Fixnum(i)
         after = self.post_set_cont(new, i, env, cont, app=app)
-        return self.seth.call_with_extra_info([self.inner, idx, new], env, after, app)
+        seth = self.get_property(_SETH_DESCRIPTOR)
+        assert seth is not None
+        return seth.call_with_extra_info([self.inner, idx, new], env, after, app)
 
     @jit.unroll_safe
     def vector_ref(self, i, env, cont, app=None):
@@ -155,8 +184,10 @@ class W_ImpVector(W_InterposeVector):
         return imp_vec_set_cont(self.inner, i, app, env, cont)
 
     def post_ref_cont(self, i, env, cont, app=None):
+        refh = self.get_ref_handler()
+        assert refh is not None
         return impersonate_vector_reference_cont(
-                self.refh, self.inner, i, app, env, cont)
+                refh, self.inner, i, app, env, cont)
 
 @inline_small_list(immutable=True, unbox_num=True)
 class W_ChpVector(W_InterposeVector):
@@ -170,8 +201,10 @@ class W_ChpVector(W_InterposeVector):
                 imp_vec_set_cont(self.inner, i, app, env, cont))
 
     def post_ref_cont(self, i, env, cont, app=None):
+        refh = self.get_ref_handler()
+        assert refh is not None
         args = values.Values.make2(self.inner, i)
-        return chaperone_reference_cont(self.refh, args, app, env, cont)
+        return chaperone_reference_cont(refh, args, app, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.

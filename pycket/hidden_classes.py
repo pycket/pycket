@@ -86,14 +86,16 @@ def make_caching_map_type(getter=None):
         This partitioning allows structures such as impersonators to share not just
         their layout but common data as well.
         """
-        _immutable_fields_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
-        _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
+        _immutable_fields_ = ['indexes', 'static_data', 'split_data', 'static_submaps', 'dynamic_submaps', 'split_submaps']
+        _attrs_ = ['indexes', 'static_data', 'split_data', 'static_submaps', 'dynamic_submaps', 'split_submaps']
 
         def __init__(self):
             self.indexes = {}
             self.static_data = {}
+            self.split_data = {}
             self.dynamic_submaps = {}
             self.static_submaps = {}
+            self.split_submaps = {}
 
         def iterkeys(self):
             for key in self.indexes.iterkeys():
@@ -114,7 +116,7 @@ def make_caching_map_type(getter=None):
                 yield val
 
         def storage_size(self):
-            return len(self.indexes)
+            return len(self.indexes) + len(self.split_data)
 
         @jit.elidable_promote('all')
         def get_dynamic_index(self, name):
@@ -125,6 +127,10 @@ def make_caching_map_type(getter=None):
             if name not in self.static_data:
                 return default
             return self.static_data[name]
+
+        @jit.elidable_promote('all')
+        def get_split_data(self, name):
+            return self.split_data[name]
 
         @specialize.argtype(2)
         def lookup(self, name, storage, default=None, offset=0):
@@ -142,6 +148,7 @@ def make_caching_map_type(getter=None):
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
+                newmap.split_data.update(self.split_data)
                 newmap.static_data[name] = value
                 self.static_submaps[key] = newmap
             return self.static_submaps[key]
@@ -153,9 +160,23 @@ def make_caching_map_type(getter=None):
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
-                newmap.indexes[name] = len(self.indexes)
+                newmap.split_data.update(self.split_data)
+                newmap.indexes[name] = self.storage_size()
                 self.dynamic_submaps[name] = newmap
             return self.dynamic_submaps[name]
+
+        @jit.elidable_promote('all')
+        def add_split_attribute(self, name, value):
+            assert name not in self.indexes and name not in self.static_data
+            key = (name, value)
+            if key not in self.split_submaps:
+                newmap = CachingMap()
+                newmap.indexes.update(self.indexes)
+                newmap.static_data.update(self.static_data)
+                newmap.split_data.update(self.split_data)
+                newmap.split_data[name] = (self.storage_size(), value)
+                self.split_submaps[key] = newmap
+            return self.split_submaps[key]
 
         @jit.elidable
         def is_dynamic_attribute(self, name):
@@ -164,6 +185,10 @@ def make_caching_map_type(getter=None):
         @jit.elidable
         def is_static_attribute(self, name):
             return name in self.static_data
+
+        @jit.elidable
+        def is_split_attribute(self, name):
+            return name in self.split_data
 
         def is_leaf(self):
             return not self.indexes and not self.static_data
