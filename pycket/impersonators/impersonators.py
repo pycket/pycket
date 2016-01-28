@@ -151,7 +151,6 @@ class W_InterposeVector(values.W_MVector):
     def get_ref_handler(self):
         map = jit.promote(self.property_map)
         if map.is_split_attribute(_REFH_DESCRIPTOR):
-            print "Split attribute"
             index, code = map.get_split_data(_REFH_DESCRIPTOR)
             contents = self.get_storage_index(index)
             assert isinstance(contents, values.W_ClosureContents)
