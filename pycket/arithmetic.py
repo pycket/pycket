@@ -73,6 +73,9 @@ def fixnum_sqrt(_n):
 
     return intmask(root), intmask(n - square)
 
+def imaginary(val):
+    return values.W_Complex(values.W_Fixnum.ZERO, val)
+
 class __extend__(values.W_Object):
     # default implementations that all raise
     def arith_unaryadd(self):
@@ -466,7 +469,7 @@ class __extend__(values.W_Fixnum):
             result = values.W_Flonum(math.sqrt(float(n)))
 
         if self.value < 0:
-            return values.W_Complex(values.W_Fixnum.ZERO, result)
+            return imaginary(result)
 
         return result
 
@@ -634,11 +637,10 @@ class __extend__(values.W_Flonum):
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        n = abs(self.value)
-        result = values.W_Flonum(math.sqrt(n))
-        if self.value < 0.0:
-            return values.W_Complex(values.W_Fixnum.ZERO, result)
-        return result
+        n = self.value
+        if n < 0.0:
+            return imaginary(values.W_Flonum(math.sqrt(-n)))
+        return values.W_Flonum(math.sqrt(n))
 
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))

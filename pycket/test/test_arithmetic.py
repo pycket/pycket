@@ -1,3 +1,4 @@
+import math
 import pytest
 from pycket.interpreter import *
 from pycket.values import *
@@ -1077,3 +1078,8 @@ def test_sqrt(doctest):
     > (sqrt -3.14)
     0+1.772004514666935i
     """
+
+def test_sqrt2():
+    val = W_Flonum(-0.0).arith_sqrt().value
+    assert math.copysign(1, val) == -1
+
