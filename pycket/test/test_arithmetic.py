@@ -1,3 +1,4 @@
+import math
 import pytest
 from pycket.interpreter import *
 from pycket.values import *
@@ -1070,4 +1071,15 @@ def test_sqrt(doctest):
     3.872983346207417
     > (sqrt 16)
     4
+    > (sqrt -7)
+    0+2.6457513110645907i
+    > (sqrt -3)
+    0+1.7320508075688772i
+    > (sqrt -3.14)
+    0+1.772004514666935i
     """
+
+def test_sqrt2():
+    val = W_Flonum(-0.0).arith_sqrt().value
+    assert math.copysign(1, val) == -1
+
