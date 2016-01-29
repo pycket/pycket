@@ -1,14 +1,15 @@
-from pycket.AST               import AST
+from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
-from pycket.prims.expose      import prim_env, make_call_method
-from pycket.error             import SchemeException
+from pycket.AST               import AST
+from pycket.arity             import Arity
 from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
-from pycket.arity             import Arity
-from pycket                   import config
+from pycket.error             import SchemeException
+from pycket.prims.expose      import prim_env, make_call_method
+from pycket.vmprof_support    import vmprof_profile
 
-from rpython.rlib             import jit, debug, objectmodel, rvmprof
+from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
@@ -1994,21 +1995,12 @@ def get_printable_location_two_state(green_ast, came_from):
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
-_get_code = lambda ast, env, cont: ast
-make_vmprof = rvmprof.vmprof_execute_code("pycket", _get_code, result_class=None)
-
-def _get_full_name(ast):
-    return str(ast)
-
-rvmprof.register_code_object_class(AST, _get_full_name)
-
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["ast", "came_from"],
                                  get_printable_location=get_printable_location_two_state,
                                  should_unroll_one_iteration=lambda *args : True,
                                  is_recursive=True)
 
-@make_vmprof
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
@@ -2048,7 +2040,8 @@ def inner_interpret_one_state(ast, env, cont):
         if ast.should_enter:
             driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
 
-def interpret_one(ast, env=None):
+@vmprof_profile
+def interpret_one(ast, env):
     if env is None:
         env = ToplevelEnv()
     if env.pycketconfig().two_state:
