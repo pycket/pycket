@@ -8,12 +8,12 @@ from rpython.rlib          import jit, objectmodel
 from rpython.rlib.nonconst import NonConstant
 
 def make_entry_point(pycketconfig=None):
+    from pycket import vmprof_support
     from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
-
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -56,13 +56,21 @@ def make_entry_point(pycketconfig=None):
         env.globalconfig.load(ast)
         env.commandline_arguments = args_w
         env.module_env.add_module(module_name, ast)
+        vmprof_file = None
         try:
+            if config.get("vmprof", False):
+                vmprof_file = open('vmprof.dat', 'w')
+                vmprof_support.enable(vmprof_file.fileno(), 0.01)
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
             if config.get('save-callgraph', False):
                 with open('callgraph.dot', 'w') as outfile:
                     env.callgraph.write_dot_file(outfile)
+            if config.get("vmprof", False):
+                vmprof_support.disable()
+                assert vmprof_file is not None
+                vmprof_file.close()
             shutdown(env)
         return 0
     return entry_point
