@@ -458,11 +458,17 @@ class __extend__(values.W_Fixnum):
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        n = self.value
+        n = abs(self.value)
         root, rem = fixnum_sqrt(n)
         if rem == 0:
-            return values.W_Fixnum(root)
-        return values.W_Flonum(math.sqrt(float(n)))
+            result = values.W_Fixnum(root)
+        else:
+            result = values.W_Flonum(math.sqrt(float(n)))
+
+        if self.value < 0:
+            return values.W_Complex(values.W_Fixnum.ZERO, result)
+
+        return result
 
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
@@ -628,7 +634,12 @@ class __extend__(values.W_Flonum):
     # ------------------ trigonometry ------------------
 
     def arith_sqrt(self):
-        return values.W_Flonum(math.sqrt(self.value))
+        n = abs(self.value)
+        result = values.W_Flonum(math.sqrt(n))
+        if self.value < 0.0:
+            return values.W_Complex(values.W_Fixnum.ZERO, result)
+        return result
+
     def arith_log(self):
         return values.W_Flonum(math.log(self.value))
     def arith_sin(self):
