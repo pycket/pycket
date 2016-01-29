@@ -8,7 +8,7 @@ from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
 
-from rpython.rlib             import jit, debug, objectmodel
+from rpython.rlib             import jit, debug, objectmodel, rvmprof
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
@@ -1984,6 +1984,7 @@ class DefineValues(AST):
         return "(define-values %s %s)" % (
             self.display_names, self.rhs.tostring())
 
+# Interpreter loop and JIT stuff
 
 def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
@@ -1993,12 +1994,21 @@ def get_printable_location_two_state(green_ast, came_from):
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
+_get_code = lambda ast, env, cont: ast
+make_vmprof = rvmprof.vmprof_execute_code("pycket", _get_code, result_class=None)
+
+def _get_full_name(ast):
+    return str(ast)
+
+rvmprof.register_code_object_class(AST, _get_full_name)
+
 driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  greens=["ast", "came_from"],
                                  get_printable_location=get_printable_location_two_state,
                                  should_unroll_one_iteration=lambda *args : True,
                                  is_recursive=True)
 
+@make_vmprof
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
