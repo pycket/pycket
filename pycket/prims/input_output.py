@@ -285,11 +285,14 @@ def read_bytes_line(w_port, w_mode, env, cont):
     return get_input_port(w_port, env, cont)
 
 
+@continuation
+def do_read_one_cont(as_bytes, peek, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_port = check_one_val(_vals)
+    return do_read_one(w_port, as_bytes, peek, env, cont)
+
 def do_read_one(w_port, as_bytes, peek, env, cont):
     from pycket.interpreter import return_value
-    if w_port is None:
-        w_port = current_in_param.get(cont)
-    assert isinstance(w_port, values.W_InputPort)
     if peek:
         c = w_port.peek()
     else:
@@ -309,14 +312,21 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
-@expose("read-char", [default(values.W_InputPort, None)], simple=False)
+@expose("read-char", [default(values.W_Object, None)], simple=False)
 def read_char(w_port, env, cont):
-    return do_read_one(w_port, False, False, env, cont)
+    cont = do_read_one_cont(False, False, env, cont)
+    return get_input_port(w_port, env, cont)
 
-@expose("read-byte", [default(values.W_InputPort, None)], simple=False)
+@expose("read-byte", [default(values.W_Object, None)], simple=False)
 def read_byte(w_port, env, cont):
-    return do_read_one(w_port, True, False, env, cont)
+    cont = do_read_one_cont(True, False, env, cont)
+    return get_input_port(w_port, env, cont)
 
+@continuation
+def do_peek_cont(as_bytes, skip, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_port = check_one_val(_vals)
+    return do_peek(w_port, as_bytes, skip, env, cont)
 
 def do_peek(w_port, as_bytes, skip, env, cont):
     if skip == 0:
@@ -329,17 +339,19 @@ def do_peek(w_port, as_bytes, skip, env, cont):
         w_port.seek(old)
         return ret
 
-@expose("peek-char", [default(values.W_InputPort, None),
+@expose("peek-char", [default(values.W_Object, None),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
-    return do_peek(w_port, False, w_skip.value, env, cont)
+    cont = do_peek_cont(False, w_skip.value, env, cont)
+    return get_input_port(w_port, env, cont)
 
-@expose("peek-byte", [default(values.W_InputPort, None),
+@expose("peek-byte", [default(values.W_Object, None),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_byte(w_port, w_skip, env, cont):
-    return do_peek(w_port, True, w_skip.value, env, cont)
+    cont = do_peek_cont(True, w_skip.value, env, cont)
+    return get_input_port(w_port, env, cont)
 
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
@@ -364,15 +376,22 @@ def open_output_file(path, mode, exists):
     m = "w" if mode is w_text_sym else "wb"
     return open_outfile(path, m)
 
-@expose("close-input-port", [values.W_InputPort])
-def close_input_port(port):
-    port.close()
-    return values.w_void
+@expose("close-input-port", [values.W_Object], simple=False)
+def close_input_port(port, env, cont):
+    cont = close_port_cont(env, cont)
+    return get_input_port(port, env, cont)
 
-@expose("close-output-port", [values.W_OutputPort])
-def close_output_port(port):
+@continuation
+def close_port_cont(env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    port = check_one_val(_vals)
     port.close()
-    return values.w_void
+    return return_void(env, cont)
+
+@expose("close-output-port", [values.W_Object], simple=False)
+def close_output_port(port, env, cont):
+    cont = close_port_cont(env, cont)
+    return get_output_port(port, env, cont)
 
 @expose("port-closed?", [values.W_Port])
 def port_closedp(p):
