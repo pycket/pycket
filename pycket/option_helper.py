@@ -43,6 +43,7 @@ def print_help(argv):
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
+  --vmprof <file> : Save vmprof information to <file>
   -- : No argument following this switch is used as a switch
   -h, --help : Show this information and exits, ignoring other options
 Default options:
@@ -118,6 +119,8 @@ def parse_args(argv):
                 break
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True
+        elif argv[i] == '--vmprof':
+            config['vmprof'] = True
         else:
             if 'file' in names:
                 break
