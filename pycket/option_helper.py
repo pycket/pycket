@@ -204,6 +204,9 @@ def ensure_json_ast(config, names):
 
         if file_name.endswith('.json'):
             json_file = file_name
+            to = len(file_name) - 5
+            assert to > 0
+            file_name = file_name[:to]
         else:
             try:
                 json_file = ensure_json_ast_run(file_name)
