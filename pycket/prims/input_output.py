@@ -304,7 +304,12 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     else:
         # hmpf, poking around in internals
         needed = runicode.utf8_code_length[i]
-        c += w_port.read(needed - 1)
+        if peek:
+            old = w_port.tell()
+            c = w_port.read(needed)
+            w_port.seek(old)
+        else:
+            c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
