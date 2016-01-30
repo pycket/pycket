@@ -304,19 +304,29 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     else:
         # hmpf, poking around in internals
         needed = runicode.utf8_code_length[i]
-        c += w_port.read(needed - 1)
+        if peek:
+            old = w_port.tell()
+            c = w_port.read(needed)
+            w_port.seek(old)
+        else:
+            c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
 @expose("read-char", [default(values.W_InputPort, None)], simple=False)
 def read_char(w_port, env, cont):
-    return do_read_one(w_port, False, False, env, cont)
+    try:
+        return do_read_one(w_port, False, False, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")
 
 @expose("read-byte", [default(values.W_InputPort, None)], simple=False)
 def read_byte(w_port, env, cont):
-    return do_read_one(w_port, True, False, env, cont)
-
+    try:
+        return do_read_one(w_port, True, False, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-byte: string is not a well-formed UTF-8 encoding")
 
 def do_peek(w_port, as_bytes, skip, env, cont):
     if skip == 0:
@@ -333,13 +343,19 @@ def do_peek(w_port, as_bytes, skip, env, cont):
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
-    return do_peek(w_port, False, w_skip.value, env, cont)
+    try:
+        return do_peek(w_port, False, w_skip.value, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
 
 @expose("peek-byte", [default(values.W_InputPort, None),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_byte(w_port, w_skip, env, cont):
-    return do_peek(w_port, True, w_skip.value, env, cont)
+    try:
+        return do_peek(w_port, True, w_skip.value, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
 
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")

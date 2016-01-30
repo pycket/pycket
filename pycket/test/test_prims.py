@@ -636,6 +636,19 @@ def test_port_read_peek(doctest):
     101
     > (read-byte bp)
     40
+    > (define usp (open-input-string "\u4F60\u597D,\u4E16\u754C"))
+    > (peek-byte usp)
+    228
+    > (peek-char usp)
+    #\u4F60
+    > (peek-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u597D
+    > (read-char usp)
+    #\,
     """
 
 def test_peek_bug(tmpdir):
