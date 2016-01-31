@@ -55,11 +55,10 @@
       ((or (not (= 1 (length ids))) (not (toplevel? (car ids))))
        (error 'handle-def-values "look into multiple toplevels"))
       (else
-       (let* ((toplevel-form (car ids))
+       (let* [(toplevel-form (car ids))
               (pos (toplevel-pos toplevel-form))
               (sym (list-ref toplevels pos))
-              (symstr (if (symbol? sym) (symbol->string sym) sym))
-              )
+              (symstr (if (symbol? sym) (symbol->string sym) sym))]
          (hash* 'define-values (list symstr)
                 'define-values-names (list symstr)
                 'define-values-body (to-ast-single rhs toplevels
@@ -86,8 +85,7 @@
              ([num (numerator racket-num)]
               [den (denominator racket-num)])
            (hash* 'numerator (handle-number num)
-                  'denominator (handle-number den))))
-         ]
+                  'denominator (handle-number den))))]
     [else ; this part assumes (for the moment) it's a complex num
      (let ([real (real-part racket-num)]
            [imag (imag-part racket-num)])
@@ -95,9 +93,7 @@
               'imag-part (handle-number imag)))]))
 
 (define (handle-boolean racket-bool)
-  (if racket-bool
-      (hash* 'quote true)
-      (hash* 'quote false)))
+  (hash* 'quote racket-bool))
 
 (define (handle-string racket-str)
   (hash* 'quote (hash* 'string racket-str)))
@@ -114,19 +110,18 @@
     (hash* 'source-name operator-name)))
 
 (define (handle-application app-form toplevels localref-stack)
-  (let* ((rator (application-rator app-form))
+  (let* [(rator (application-rator app-form))
          (rands (application-rands app-form))
          (newlocalstack (append (map (lambda (x) 'app-empty-slot) (range (length rands)))
                                 localref-stack))
          ;; the application pushes empty slots to run body over, so it will push the current local references further
          ;; we kinda simulate it here to make the localref pos indices point to the right identifier
-         (operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))
-         )
+         (operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))]
     (hash* 'operator (to-ast-single rator toplevels localref-stack)
            'operands operands-evaluated)))
 
 (define (handle-lambda lam-form toplevels localref-stack is-inlined)
-  (let* ((name (lam-name lam-form))
+  (let* [(name (lam-name lam-form))
          (source (if (null? name) '()
                      (if (vector? name)
                          (hash* '%p (path->string (vector-ref name 1)))
@@ -149,8 +144,7 @@
                                                                 (cons 'lambda-dummy
                                                                       (append symbols-for-formals localref-stack))
                                                                 (append symbols-for-formals localref-stack))))
-         (lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals))
-         )
+         (lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals))]
     ;; pycket seems to omit source and position (and sets the span to 0) if lam-name is ()
     (if (null? source)
         (hash* 'span 0 'module module 'lambda lamBda 'body (list body))
@@ -191,8 +185,7 @@
                                                                (module-path-index-resolve
                                                                 (module-variable-modidx mod-var))))))
                              'lambda '()
-                             'body (list args))]
-         )
+                             'body (list args))])
 
   ;; (call-with-values lam proc)
     (hash* 'operator (hash* 'source-name "call-with-values")
@@ -200,11 +193,9 @@
     ))
 
 (define (handle-localref lref-form toplevels localref-stack)
-  (let* (
-         (pos (localref-pos lref-form))
+  (let* [(pos (localref-pos lref-form))
          (stack-slot-raw (list-ref localref-stack pos))
-         (stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw))
-         )
+         (stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw))]
     (cond
       [(hash? stack-slot) stack-slot]
       [else (hash* 'lexical stack-slot)])))
@@ -222,11 +213,9 @@
          'source-module (list module-path))))
 
 (define (handle-let-one letform toplevels localref-stack)
-  (let* (
-         (newstack-prev (cons 'let-one-uninitialized-slot localref-stack)) ;; push uninitialized slot
+  (let* [(newstack-prev (cons 'let-one-uninitialized-slot localref-stack)) ;; push uninitialized slot
          (rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)) ;; evaluate rhs
-         (newstack (cons rhs (cdr newstack-prev))) ;; put the rhs to the slot
-        )
+         (newstack (cons rhs (cdr newstack-prev)))] ;; put the rhs to the slot
     (hash* 'let-bindings '()
            'let-body (list (to-ast-single (let-one-body letform)
                                           toplevels
@@ -319,8 +308,7 @@
                                                (hash* 'lexical (car symbols-for-formals)))] ;; this is ugly
                                           [body (to-ast-single (lam-body clause)
                                                                toplevels
-                                                               (append symbols-for-formals localref-stack))]
-                                          )
+                                                               (append symbols-for-formals localref-stack))])
                                      (hash* 'lambda arg-mapping
                                             'body body))))
                              clauses))))
@@ -338,8 +326,7 @@
 
          (binding-list (map (λ (c) (string-append "inst-val" (number->string c))) count-lst))
          
-         (box-positions (map (λ (p) (+ p pos)) count-lst))
-         ]
+         (box-positions (map (λ (p) (+ p pos)) count-lst))]
     (begin
       ;; setting the boxes that let-void has put in the stack
       (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list (- i pos))))
@@ -363,22 +350,21 @@
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form toplevels localref-stack)
   (begin
-    (if DEBUG
-        (begin
-          (display (body-name body-form))
-          (display "- ")
-          (if (localref? body-form)
-              (begin (display (number->string (localref-pos body-form)))
-                     (display " - extracting : ")
-                     (display (list-ref localref-stack (localref-pos body-form))))
-              (if (primval? body-form)
-                  (display (get-primval-name (primval-id body-form)))
-                  (display "")))
-          (display " - LocalRefStack : ")
-          (display (number->string (length localref-stack)))
-          (display localref-stack)
-          (newline)(newline))
-        1)
+    (when DEBUG
+      (begin
+        (display (body-name body-form))
+        (display "- ")
+        (if (localref? body-form)
+            (begin (display (number->string (localref-pos body-form)))
+                   (display " - extracting : ")
+                   (display (list-ref localref-stack (localref-pos body-form))))
+            (if (primval? body-form)
+                (display (get-primval-name (primval-id body-form)))
+                (display "")))
+        (display " - LocalRefStack : ")
+        (display (number->string (length localref-stack)))
+        (display localref-stack)
+        (newline)(newline)))
     (cond
       ;;;;;;;
       ;
@@ -493,8 +479,7 @@
        ;; setting the output port
        (when (not (output-port? out))
          (set! out (open-output-file (string-append sub-dirs-str "fromBytecode_" mod-name ".rkt.json")
-                                     #:exists 'replace)))
-       )))
+                                     #:exists 'replace))))))
           
 
 
@@ -549,8 +534,7 @@
                               (hash* 'require (list (list runtime-config)))
                               (hash* 'operator (hash* 'source-module (list runtime-config)
                                                       'source-name (symbol->string
-                                                                    (module-variable-sym runtime-mod))
-                                                      )
+                                                                    (module-variable-sym runtime-mod)))
                                      'operands (list (hash 'quote #f))))))))
 
   (define reqs (cdr phase0-reqs))
@@ -575,7 +559,5 @@
   (begin
     (write-json final-json-hash out)
     (newline out)
-    (flush-output out))
-
-  )
+    (flush-output out)))
 

@@ -33,8 +33,7 @@
                 (lam? ("lam" lam-name lam-num-params lam-body))
                 (inline-variant? ("inline-variant" inline-variant-direct inline-variant-inline))
                 (closure? ("closure" closure-code))
-                (toplevel? ("toplevel" toplevel-pos))
-                ))
+                (toplevel? ("toplevel" toplevel-pos))))
 
 #|
 ;; see-if-we-have-an-unknown-form
@@ -159,8 +158,7 @@
                             (hash* 'require (list (list runtimeConfig)))
                             (hash* 'operator (hash* 'source-module (list runtimeConfig)
                                                     'source-name (symbol->string
-                                                                  (module-variable-sym runtimeMod))
-                                                    )
+                                                                  (module-variable-sym runtimeMod)))
                                    'operands (list (hash 'quote #f))))))))
 
 
