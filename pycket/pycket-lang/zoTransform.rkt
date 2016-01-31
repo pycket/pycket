@@ -39,13 +39,15 @@
           (hash-set! table n (car b)))))
     table))
 
-(define (compile-json config language topmod body1 top-require-forms body-forms)
-  (hash* 'language (list language)
-         'module-name topmod
-         'config config
-         'body-forms (cons body1
-                           (append top-require-forms body-forms))))
-
+(define (compile-json config language topmod body1 top-require-forms body-forms pycket?)
+  (let ([wholeBody (append top-require-forms body-forms)])
+    (hash* 'language (list language)
+           'module-name topmod
+           'config config
+           'body-forms (if pycket?
+                           wholeBody
+                           (cons body1 wholeBody)))))
+  
 (define (handle-def-values def-values-form toplevels  localref-stack)
   (let ((ids (def-values-ids def-values-form))
         (rhs (def-values-rhs def-values-form)))
@@ -71,9 +73,31 @@
      'test (to-ast-single test toplevels localref-stack)
      'then (to-ast-single then toplevels localref-stack)
      'else (to-ast-single else toplevels localref-stack))))
-     
+
+;; TODO: we'll probably need a more precise one
 (define (handle-number racket-num)
-  (hash* 'quote (hash* 'number (hash* 'integer (number->string racket-num)))))
+  (cond
+    [(integer? racket-num)
+     (hash* 'integer (number->string racket-num))]
+    [(real? racket-num)
+     (if (inexact? racket-num)
+         (hash* 'real racket-num)
+         (let ;; assumes it's an exact rational
+             ([num (numerator racket-num)]
+              [den (denominator racket-num)])
+           (hash* 'numerator (handle-number num)
+                  'denominator (handle-number den))))
+         ]
+    [else ; this part assumes (for the moment) it's a complex num
+     (let ([real (real-part racket-num)]
+           [imag (imag-part racket-num)])
+       (hash* 'real-part (handle-number real)
+              'imag-part (handle-number imag)))]))
+
+(define (handle-boolean racket-bool)
+  (if racket-bool
+      (hash* 'quote true)
+      (hash* 'quote false)))
 
 (define (handle-string racket-str)
   (hash* 'quote (hash* 'string racket-str)))
@@ -211,6 +235,7 @@
 (define (body-name body-form)
   (cond
     ((list? body-form) "ATTENTION : we have a LIST")
+    ((boolean? body-form) "Boolean ")
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
@@ -362,14 +387,16 @@
       ;;;;;;;
       ((list? body-form) 
        (handle-list body-form toplevels localref-stack))
+      ((boolean? body-form)
+       (handle-boolean body-form))
       ((number? body-form)
-       (handle-number body-form))
+       (hash* 'quote (hash* 'number (handle-number body-form))))
       ((string? body-form)
        (handle-string body-form))
       ((symbol? body-form)
        (handle-symbol body-form))
-      ;; already hashed? then return it (will be a problem when implementing pycket hashes)
-      ((hash? body-form) body-form)
+
+      ((hash? body-form) body-form) ;; return already hashed body-form
       ;; let-void
       ((let-void? body-form)
        (handle-let-void body-form toplevels localref-stack))
@@ -452,9 +479,9 @@
    [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
    [("--stdout") "write output to standart out" (set! out (current-output-port))]
 
-   #:args ([file.rkt #f])
+   #:args (file.rkt)
    (let* ([splitSubs (string-split file.rkt "/")]
-          [subDirs (take splitSubs (sub1 (length splitSubs)))]
+          [subDirs (take splitSubs (max (sub1 (length splitSubs)) 0))]
           [subDirsStr* (if (empty? subDirs) "" (string-append "/" (string-join subDirs "/") "/"))]
           [modName.rkt (last splitSubs)]
           [modName (substring modName.rkt 0 (- (string-length modName.rkt) 4))])
@@ -470,9 +497,6 @@
        )))
           
 
-  ;; (display " ------------------------------------------- ")(newline)
-  ;; (display (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))
-  ;; (display " ------------------------------------------- ")(newline)
 
   (define depFile (read (open-input-file (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))))
   
@@ -485,22 +509,13 @@
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
   
-  ;; module-name          (module-name . "canerStr")
-  ;; body-forms
-
   (define comp-top (zo-parse (open-input-file (string-append subDirsStr "compiled/" moduleName "_rkt.zo"))))
 
-  ;; (struct compilation-top zo (max-let-depth prefix code)
-  ;; (struct prefix zo (num-lifts toplevels stxs)
-
-  ;; toplevels : #f | global-bucket | module-variable
-
   (define code (compilation-top-code comp-top)) ;; code is a mod
-
+  
+  ;; toplevels : #f | global-bucket | module-variable
   (define toplevels (prefix-toplevels (mod-prefix code)))
   
-  (define preSubmods (mod-pre-submodules code))
-
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
   
@@ -512,17 +527,31 @@
   (define lang (if (or (list? langModPath) (symbol? langModPath))
                    (error 'langConfig "don't know how to handle a submodule here")
                    (path->string langModPath)))
-
-  (define runtimePrefix (mod-prefix (car preSubmods)))
-  (define runtimeMod (car (prefix-toplevels runtimePrefix)))
-  ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
-  (define resolvedModPath (resolved-module-path-name
-                           (module-path-index-resolve (module-variable-modidx runtimeMod))))
-  (define runtimeConfig (if (or (list? resolvedModPath)
-                                (symbol? resolvedModPath))
-                            (error 'runtimeConfigModule "don't know how to handle a submodule here")
-                            (path->string resolvedModPath)))  
-
+  
+  (define lang-pycket? (string-contains? lang "pycket-lang"))
+  
+  (define runtime-config
+    (if lang-pycket?
+        'dont-care ;; if lang-pycket?, then the runtime-config will never be added to the body forms
+        (let* ([preSubmods (mod-pre-submodules code)]
+               [runtimePrefix (mod-prefix (car preSubmods))]
+               [runtimeMod (car (prefix-toplevels runtimePrefix))]
+               ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
+               [resolvedModPath (resolved-module-path-name
+                                 (module-path-index-resolve (module-variable-modidx runtimeMod)))]
+               [runtimeConfig (if (or (list? resolvedModPath)
+                                      (symbol? resolvedModPath))
+                                  (error 'runtimeConfigModule "don't know how to handle a submodule here")
+                                  (path->string resolvedModPath))])
+          (hash* 'language (list "#%kernel")
+                 'module-name (symbol->string (mod-srcname (car preSubmods)))
+                 'body-forms (list
+                              (hash* 'require (list (list runtimeConfig)))
+                              (hash* 'operator (hash* 'source-module (list runtimeConfig)
+                                                      'source-name (symbol->string
+                                                                    (module-variable-sym runtimeMod))
+                                                      )
+                                     'operands (list (hash 'quote #f))))))))
 
   (define reqs (cdr phase0-reqs))
   (define toplevelRequireForms (map (lambda (req)
@@ -533,28 +562,15 @@
                                             (hash* 'require (list (list (path->string resolvedReqPath)))))))
                                     reqs))
 
-  ;; body-forms is a (listof hash hash)
-
-  (define config global-config)
-  (define language lang)
-
-  (define body1 (hash* 'language (list "#%kernel")
-                       'module-name (symbol->string (mod-srcname (car preSubmods)))
-                       'body-forms (list
-                                    (hash* 'require (list (list runtimeConfig)))
-                                    (hash* 'operator (hash* 'source-module (list runtimeConfig)
-                                                            'source-name (symbol->string
-                                                                          (module-variable-sym runtimeMod))
-                                                            )
-                                           'operands (list (hash 'quote #f))))))
-  
+  ;; body-forms is a (listof hash hash)  
 
   (define final-json-hash (compile-json global-config
-                                        lang
+                                        (if lang-pycket? "#%kernel" lang)
                                         (string-append subDirsStr "fromBytecode_" moduleName)
-                                        body1
+                                        runtime-config
                                         toplevelRequireForms
-                                        (to-ast (mod-body code) toplevels)))
+                                        (to-ast (mod-body code) toplevels)
+                                        lang-pycket?))
   
   (begin
     (write-json final-json-hash out)

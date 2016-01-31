@@ -11,7 +11,7 @@
 
 (define args (current-command-line-arguments))
 
-(define modName "caselam")
+(define modName "spenserPycket")
 (define DEBUG true)
 
 
@@ -106,17 +106,23 @@
 ;;     #:extra-constructor-name make-mod
 ;;     #:prefab)
 
-;(mod-name code)
-;(mod-srcname code)
-;(mod-self-modidx code)
-;(mod-prefix code)
-;(mod-provides code) ; each phase maps to two lists: exported variables, exported syntax
-;(mod-requires code) ; each phase maps to a list of imported module paths
-;(mod-body code) ; run-time (phase 0) code -> list of form?
-;(mod-syntax-bodies code)
+(mod-name code)
+(mod-srcname code)
+(mod-self-modidx code)
+(mod-prefix code)
+
+(mod-provides code) ; each phase maps to two lists: exported variables, exported syntax
+(mod-requires code) ; each phase maps to a list of imported module paths
+(mod-body code) ; run-time (phase 0) code -> list of form?
+(mod-syntax-bodies code)
+(mod-pre-submodules code)
 
 (define toplevels (prefix-toplevels (mod-prefix code)))
-  (define preSubmods (mod-pre-submodules code))
+
+  ;; (display " ------------------------------------------- ")(newline)
+  ;; (display (string-append subDirsStr "compiled/" moduleName "_rkt.dep"))
+  ;; (display " ------------------------------------------- ")(newline)
+
 
 ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
 ;; langDep -> '(collects #"racket" #"main.rkt")
@@ -132,16 +138,31 @@
                  (path->string langModPath)))
 
 
-;(define preSubmodules (mod-pre-submodules code))
-(define runtimePrefix (mod-prefix (car preSubmods)))
-(define runtimeMod (car (prefix-toplevels runtimePrefix)))
-;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
-(define resolvedModPath (resolved-module-path-name
-                         (module-path-index-resolve (module-variable-modidx runtimeMod))))
-(define runtimeConfig (if (or (list? resolvedModPath)
-                              (symbol? resolvedModPath))
-                          (error 'runtimeConfigModule "don't know how to handle a submodule here")
-                          (path->string resolvedModPath)))  
+(define lang-pycket? (string-contains? lang "pycket-lang"))
+
+(define body1
+  (if lang-pycket?
+      'dont-care
+      (let* ([preSubmods (mod-pre-submodules code)]
+             [runtimePrefix (mod-prefix (car preSubmods))]
+             [runtimeMod (car (prefix-toplevels runtimePrefix))]
+             ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
+             [resolvedModPath (resolved-module-path-name
+                               (module-path-index-resolve (module-variable-modidx runtimeMod)))]
+             [runtimeConfig (if (or (list? resolvedModPath)
+                                    (symbol? resolvedModPath))
+                                (error 'runtimeConfigModule "don't know how to handle a submodule here")
+                                (path->string resolvedModPath))])
+        (hash* 'language (list "#%kernel")
+               'module-name (symbol->string (mod-srcname (car preSubmods)))
+               'body-forms (list
+                            (hash* 'require (list (list runtimeConfig)))
+                            (hash* 'operator (hash* 'source-module (list runtimeConfig)
+                                                    'source-name (symbol->string
+                                                                  (module-variable-sym runtimeMod))
+                                                    )
+                                   'operands (list (hash 'quote #f))))))))
+
 
 (define reqs (cdr phase0-reqs))
 (define toplevelRequireForms (map (lambda (req)
@@ -152,42 +173,37 @@
                                           (hash* 'require (list (list (path->string resolvedReqPath)))))))
                                   reqs))
 
-(define (compile-json2 config language topmod body1 body-forms)
+(define (compile-json2 config language topmod body1 top-require-forms body-forms pycket?)
   (hash* 'language (list language)
          'module-name topmod
          'config config
-         'body-forms (cons body1
-                           body-forms)))
+         'body-forms (if pycket?
+                         (append top-require-forms body-forms)
+                         (cons body1 (append top-require-forms body-forms)))))
 ;; body-forms is a (listof hash hash)
 
-(define config global-config)
-(define language lang)
+;(define config global-config)
+;(define language lang)
 
-(define body1
-  (hash* 'language (list "#%kernel")
-         'module-name (symbol->string (mod-srcname (car preSubmods)))
-         'body-forms (list
-                      (hash* 'require (list (list runtimeConfig)))
-                      (hash* 'operator (hash* 'source-module (list runtimeConfig)
-                                              'source-name (symbol->string
-                                                            (module-variable-sym runtimeMod))
-                                              )
-                             'operands (list (hash 'quote #f))))))
+
 
 (define final-json-hash (compile-json2 global-config
-                                       lang
+                                       (if lang-pycket? "#%kernel" lang)
                                        (string-append "frombytecode_" modName)
                                        body1
-                                       (to-ast-wrapper (mod-body code) toplevels DEBUG modName)))
+                                       toplevelRequireForms
+                                       (to-ast-wrapper (mod-body code) toplevels DEBUG modName)
+                                       lang-pycket?))
 
 ;(jsexpr? final-json-hash)
 
 #|
-(define out (open-output-file (string-append "custom_" topmodule ".rkt.json")
+(define out (open-output-file (string-append "inspector_" modName ".rkt.json")
                               #:exists 'replace))
 (begin
-  (display (string-append "WRITTEN: custom_" topmodule ".rkt.json\n\n"))
+  (display (string-append "WRITTEN: inspector_" modName ".rkt.json\n\n"))
   (write-json final-json-hash out)
   (newline out)
   (flush-output out))
+
 |#
