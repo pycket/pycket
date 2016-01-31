@@ -38,7 +38,7 @@ def print_help(argv):
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
-  -b <file> : run pycket with json generated from bytecode
+  -b (-R) <file> : run pycket with bytecode expansion, optional -R flag enables recursive bytecode expansion
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
