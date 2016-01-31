@@ -48,16 +48,16 @@ fn = "-l pycket/expand --"
 
 current_racket_proc = None
 
-def expand_string(s, reuse=True, srcloc=True, byteOption=False, tmpFileName=False):
+def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=False):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
-    if not byteOption:
+    if not byte_option:
         cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
     else:
-        tmpModule = tmpFileName + '.rkt'
-        cmd = "racket -l pycket/zoTransform -- --stdout %s" % tmpModule
+        tmp_module = tmp_file_name + '.rkt'
+        cmd = "racket -l pycket/zoTransform -- --stdout %s" % tmp_module
         
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
@@ -66,7 +66,7 @@ def expand_string(s, reuse=True, srcloc=True, byteOption=False, tmpFileName=Fals
         if reuse:
             current_racket_proc = process
     if reuse:
-        if not byteOption:
+        if not byte_option:
             process.stdin.write(s.encode("utf-8"))
             ## I would like to write something so that Racket sees EOF without
             ## closing the file. But I can't figure out how to do that. It

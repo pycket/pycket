@@ -62,10 +62,10 @@ test: $(PYFILES)
 	$(PYTEST) -s pycket
 
 test-bytecode-recursive: $(PYFILES)
-	$(PYTEST) --bytecodeExpand recursive pycket
+	$(PYTEST) --bytecode recursive pycket
 
 test-bytecode-no-recursive: $(PYFILES)
-	$(PYTEST) --bytecodeExpand nonRecursive pycket
+	$(PYTEST) --bytecode nonRecursive pycket
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)

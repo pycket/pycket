@@ -28,30 +28,30 @@ def run_ast(ast):
     return mod
 
 def expand_from_bytecode(m, srcloc):
-    f = NamedTemporaryFile(delete=delete_temp_files)
-    f.write(m)
-    f.seek(0)
-    os.rename(f.name, f.name+'.rkt')
-    s = expand_string(m, reuse=False, srcloc=srcloc, byteOption=True, tmpFileName=f.name)
-    os.rename(f.name+'.rkt', f.name) # for automatic deletion to find it
-    f.close() # automatically deleted
-    if delete_temp_files: # but the compiled/...dep and zo will not be deleted!
-        subs = f.name.split("/")
-        parent = subs[0:len(subs)-1]
-        parent.append('compiled')
-        fName = subs[len(subs)-1]
-        byteCodesPrefix = "/".join(parent) + "/" + fName + "_rkt"
-        os.remove(byteCodesPrefix + ".zo")
-        os.remove(byteCodesPrefix + ".dep")
+    with NamedTemporaryFile(delete=delete_temp_files) as f:
+        f.write(m)
+        f.seek(0)
+        os.rename(f.name, f.name+'.rkt')
+        s = expand_string(m, reuse=False, srcloc=srcloc, byte_option=True, tmp_file_name=f.name)
+        os.rename(f.name+'.rkt', f.name) # for automatic deletion to find it
+
+        if delete_temp_files: # removing the compiled/*.dep && *.zo as well
+            subs = f.name.split("/")
+            parent = subs[:-1]
+            parent.append('compiled')
+            file_name = subs[-1]
+            byteCodesPrefix = "/".join(parent) + "/" + file_name + "_rkt"
+            os.remove(byteCodesPrefix + ".zo")
+            os.remove(byteCodesPrefix + ".dep")
 
     return s
         
 def run_mod(m, stdlib=False, srcloc=True):
     assert (not stdlib)
     
-    if not pytest.config.byteOption:
+    if not pytest.config.byte_option:
         ast = parse_module(expand_string(m, srcloc=srcloc))
-    elif pytest.config.byteOption == "recursive" or pytest.config.byteOption == "non-recursive":
+    elif pytest.config.byte_option == "recursive" or pytest.config.byte_option == "non-recursive":
         # currently we don't care about the recursive/non-recursive call,
         # eventually the all transformation's going to be recursive anyway
         ast = parse_module(expand_from_bytecode(m, srcloc), lib="-l pycket/zoTransform --")
@@ -125,11 +125,11 @@ def parse_file(fname, *replacements):
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
     
-    if not pytest.config.byteOption:
+    if not pytest.config.byte_option:
         s = expand_string(s)
 
         ast = parse_module(s)
-    elif pytest.config.byteOption == "recursive" or pytest.config.byteOption == "non-recursive":
+    elif pytest.config.byte_option == "recursive" or pytest.config.byte_option == "non-recursive":
         s = expand_from_bytecode(s, True)
 
         ast = parse_module(s, lib="-l pycket/zoTransform --")
