@@ -179,8 +179,6 @@ def ensure_json_ast(config, names):
 
     if 'fromBytecodeOf' in names:
         
-        print "fromBytecodeOf is a go"
-        
         file_name = names['fromBytecodeOf']
         assert file_name.endswith('.rkt')
         
