@@ -133,10 +133,10 @@ def parse_args(argv):
                     retval = 5
                     break
                 
-                names['byteRecursive'] = 'go'
+                names['byte-expand'] = 'go'
                 i += 1
             
-            names['fromBytecodeOf'] = "%s" % (argv[i])
+            names['use-bytecode-of'] = "%s" % (argv[i])
 
             retval = 0
             
@@ -177,13 +177,13 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if 'fromBytecodeOf' in names:
+    if 'use-bytecode-of' in names:
         
-        file_name = names['fromBytecodeOf']
+        file_name = names['use-bytecode-of']
         assert file_name.endswith('.rkt')
         
         json_file = "fromBytecode_"+file_name+".json"
-        json_file = _expand_file_to_json(file_name, json_file, "-l pycket/zoTransform")
+        json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)
             
     elif config["mode"] is _eval:
         code = names['exprs']

@@ -44,6 +44,7 @@ def readfile_rpython(fname):
 #### ========================== Functions for expanding code to json
 
 fn = "-l pycket/expand --"
+be = "-l pycket/zo-expand --"
 
 
 current_racket_proc = None
@@ -57,7 +58,7 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
         cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
-        cmd = "racket -l pycket/zoTransform -- --stdout %s" % tmp_module
+        cmd = "racket -l pycket/zo-expand -- --stdout %s" % tmp_module
         
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
@@ -121,7 +122,9 @@ def expand_file_cached(rkt_file, modtable, lib=fn):
     return load_json_ast_rpython(json_file, modtable, lib)
 
 # Expand and load the module without generating intermediate JSON files.
-def expand_to_ast(fname, modtable, lib=fn):
+def expand_to_ast(fname, modtable, lib=fn, byte_flag=False):
+    if byte_flag:
+        lib = be
     data = expand_file_rpython(fname, lib)
     return _to_module(pycket_json.loads(data), modtable, lib).assign_convert_module()
 
@@ -155,9 +158,11 @@ def expand_file_to_json(rkt_file, json_file, lib=fn):
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, lib)
     return _expand_file_to_json(rkt_file, json_file, lib)
 
-def _expand_file_to_json(rkt_file, json_file, lib=fn):
+def _expand_file_to_json(rkt_file, json_file, lib=fn, byte_flag=False):
+    lib = be if byte_flag else fn
+    
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
-
+    
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -175,7 +180,7 @@ def _expand_file_to_json(rkt_file, json_file, lib=fn):
         fn,
         json_file, rkt_file)
 
-    if "zoTransform" in lib:
+    if "zo-expand" in lib:
         print "Transforming %s bytecode to %s" % (rkt_file, json_file)
         cmd = "racket %s %s" % (lib, rkt_file)
     else:
@@ -222,7 +227,7 @@ def needs_update(file_name, json_name):
 
 
 def _json_name(file_name, lib=fn):
-    if 'zoTransform' in lib:
+    if 'zo-expand' in lib:
         fileDirs = file_name.split("/")
         l = len(fileDirs)
         k = l-1 # is there a better way to do this (prove that the slice below has a non-negative stop)
@@ -256,8 +261,10 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 #### ========================== Functions for parsing json to an AST
 
-def load_json_ast_rpython(fname, modtable, lib=fn):
+def load_json_ast_rpython(fname, modtable, lib=fn, byte_flag=False):
     dbgprint("load_json_ast_rpython", "", lib=lib, filename=fname)
+    if byte_flag:
+        lib = be
     data = readfile_rpython(fname)
     return _to_module(pycket_json.loads(data), modtable, lib).assign_convert_module()
 

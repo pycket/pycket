@@ -43,20 +43,12 @@ def make_entry_point(pycketconfig=None):
 
         modtable = ModTable()
         modtable.enter_module(module_name)
+        entry_flag = 'byte-expand' in names
+
         if json_ast is None:
-            if 'byteRecursive' in names:
-                #print "json_ast is None, going for byteRecursive"
-                ast = expand_to_ast(module_name, modtable, "-l pycket/zoTransform --")
-            else:
-                #print "json_ast is None, regular go"
-                ast = expand_to_ast(module_name, modtable)
+            ast = expand_to_ast(module_name, modtable, byte_flag=entry_flag)
         else:
-            if 'byteRecursive' in names:
-                #print "going for byte recursive"
-                ast = load_json_ast_rpython(json_ast, modtable, "-l pycket/zoTransform --")
-            else:
-                #print "regular go"
-                ast = load_json_ast_rpython(json_ast, modtable)
+            ast = load_json_ast_rpython(json_ast, modtable, byte_flag=entry_flag)
 
         modtable.exit_module(module_name, ast)
 
