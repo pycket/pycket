@@ -4,11 +4,14 @@
 # Assorted test helpers
 #
 import os
+from tempfile import NamedTemporaryFile, gettempdir
 from pycket.expand import expand, to_ast, expand_string, parse_module
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.env import ToplevelEnv
 from pycket import values
+
+import pytest
 
 #
 # basic runners
@@ -16,15 +19,45 @@ from pycket import values
 
 # This is where all the work happens
 
+delete_temp_files = True
+
 def run_ast(ast):
     env = ToplevelEnv()
     env.globalconfig.load(ast)
     mod = interpret_module(ast, env)
     return mod
 
+def expand_from_bytecode(m, srcloc):
+    f = NamedTemporaryFile(delete=delete_temp_files)
+    f.write(m)
+    f.seek(0)
+    os.rename(f.name, f.name+'.rkt')
+    s = expand_string(m, reuse=False, srcloc=srcloc, byteOption=True, tmpFileName=f.name)
+    os.rename(f.name+'.rkt', f.name) # for automatic deletion to find it
+    f.close() # automatically deleted
+    if delete_temp_files: # but the compiled/...dep and zo will not be deleted!
+        subs = f.name.split("/")
+        parent = subs[0:len(subs)-1]
+        parent.append('compiled')
+        fName = subs[len(subs)-1]
+        byteCodesPrefix = "/".join(parent) + "/" + fName + "_rkt"
+        os.remove(byteCodesPrefix + ".zo")
+        os.remove(byteCodesPrefix + ".dep")
+
+    return s
+        
 def run_mod(m, stdlib=False, srcloc=True):
     assert (not stdlib)
-    ast = parse_module(expand_string(m, srcloc=srcloc))
+    
+    if not pytest.config.byteOption:
+        ast = parse_module(expand_string(m, srcloc=srcloc))
+    elif pytest.config.byteOption == "recursive" or pytest.config.byteOption == "non-recursive":
+        # currently we don't care about the recursive/non-recursive call,
+        # eventually the all transformation's going to be recursive anyway
+        ast = parse_module(expand_from_bytecode(m, srcloc), lib="-l pycket/zoTransform --")
+    else:
+        print "Check byteOption configuration!"
+        
     return run_ast(ast)
 
 def format_pycket_mod(s, stdlib=False, extra=""):
@@ -91,8 +124,19 @@ def parse_file(fname, *replacements):
         assert s.count(replace) == 1
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
-    s = expand_string(s)
-    ast = parse_module(s)
+    
+    if not pytest.config.byteOption:
+        s = expand_string(s)
+
+        ast = parse_module(s)
+    elif pytest.config.byteOption == "recursive" or pytest.config.byteOption == "non-recursive":
+        s = expand_from_bytecode(s, True)
+
+        ast = parse_module(s, lib="-l pycket/zoTransform --")
+    else:
+        print "Check byteOption configuration!"
+        
+
     return ast
 
 #

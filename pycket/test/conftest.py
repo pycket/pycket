@@ -7,6 +7,22 @@ import pycket.config # to configure early
 
 import pytest
 
+def pytest_addoption(parser):
+	parser.addoption('--bytecodeExpand', action='store', default="", help='Run pycket with bytecode expansion')
+
+def pytest_configure(config):
+    byteOption = config.getvalue('bytecodeExpand')
+
+    if byteOption == "":
+        print "We have regular pycket expansion"
+        config.byteOption = False
+    elif byteOption == "nonRecursive":
+        print "We have NON-recursive bytecode expansion"
+        config.byteOption = "non-recursive"
+    elif byteOption == "recursive":
+        print "We have recursive bytecode expansion"
+        config.byteOption = "recursive"
+
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
     name = 'prog.rkt'

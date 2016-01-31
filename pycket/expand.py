@@ -48,12 +48,17 @@ fn = "-l pycket/expand --"
 
 current_racket_proc = None
 
-def expand_string(s, reuse=True, srcloc=True):
+def expand_string(s, reuse=True, srcloc=True, byteOption=False, tmpFileName=False):
     "NON_RPYTHON"
     global current_racket_proc
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
+    if not byteOption:
+        cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
+    else:
+        tmpModule = tmpFileName + '.rkt'
+        cmd = "racket -l pycket/zoTransform -- --stdout %s" % tmpModule
+        
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
     else:
@@ -61,14 +66,15 @@ def expand_string(s, reuse=True, srcloc=True):
         if reuse:
             current_racket_proc = process
     if reuse:
-        process.stdin.write(s.encode("utf-8"))
-        ## I would like to write something so that Racket sees EOF without
-        ## closing the file. But I can't figure out how to do that. It
-        ## must be possible, though, because bash manages it.
-        #process.stdin.write(chr(4))
-        process.stdin.write("\n\0\n")
-        process.stdin.flush()
-        #import pdb; pdb.set_trace()
+        if not byteOption:
+            process.stdin.write(s.encode("utf-8"))
+            ## I would like to write something so that Racket sees EOF without
+            ## closing the file. But I can't figure out how to do that. It
+            ## must be possible, though, because bash manages it.
+            #process.stdin.write(chr(4))
+            process.stdin.write("\n\0\n")
+            process.stdin.flush()
+            #import pdb; pdb.set_trace()
         data = process.stdout.readline()
     else:
         (data, err) = process.communicate(s)
@@ -106,7 +112,8 @@ def expand_file_rpython(rkt_file, lib=fn):
     return out
 
 def expand_file_cached(rkt_file, modtable, lib=fn):
-    print "expand_file_cached is called with -- %s" % lib
+    dbgprint("expand_file_cached", "", lib=lib, filename=rkt_file)
+
     try:
         json_file = ensure_json_ast_run(rkt_file, lib)
     except PermException:
@@ -149,7 +156,8 @@ def expand_file_to_json(rkt_file, json_file, lib=fn):
     return _expand_file_to_json(rkt_file, json_file, lib)
 
 def _expand_file_to_json(rkt_file, json_file, lib=fn):
-    print "_expand_file_to_json : called with %s -- " % lib
+    dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
+
     from rpython.rlib.rfile import create_popen_file
     if not os.access(rkt_file, os.R_OK):
         raise ValueError("Cannot access file %s" % rkt_file)
@@ -230,6 +238,9 @@ def _json_name(file_name, lib=fn):
 
 def ensure_json_ast_run(file_name, lib=fn):
     json = _json_name(file_name, lib)
+
+    dbgprint("ensure_json_ast_run", json, lib=lib, filename=file_name)
+    
     if needs_update(file_name, json):
         return expand_file_to_json(file_name, json, lib)
     else:
@@ -246,7 +257,7 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 #### ========================== Functions for parsing json to an AST
 
 def load_json_ast_rpython(fname, modtable, lib=fn):
-    print "load_json_ast_rpython is called with lib : %s - fname : %s" % (lib, fname)
+    dbgprint("load_json_ast_rpython", "", lib=lib, filename=fname)
     data = readfile_rpython(fname)
     return _to_module(pycket_json.loads(data), modtable, lib).assign_convert_module()
 
@@ -270,7 +281,7 @@ def to_ast(json, modtable, lib=fn):
 DO_DEBUG_PRINTS = False
 
 @specialize.argtype(1)
-def dbgprint(funcname, json):
+def dbgprint(funcname, json, lib="", filename=""):
     # This helped debugging segfaults
     if DO_DEBUG_PRINTS:
         if isinstance(json, pycket_json.JsonBase):
@@ -278,7 +289,7 @@ def dbgprint(funcname, json):
         else:
             # a list
             s = "[" + ", ".join([j.tostring() for j in json]) + "]"
-        print "Entering %s with: %s" % (funcname, s)
+        print "Entering %s with: json - %s | lib - %s | filename - %s " % (funcname, s, lib, filename)
 
 def to_formals(json):
     dbgprint("to_formals", json)
@@ -300,7 +311,7 @@ def to_formals(json):
     assert 0
 
 def to_bindings(arr, modtable, lib=fn):
-    dbgprint("to_bindings", arr)
+    #dbgprint("to_bindings", arr)
     varss = []
     rhss = []
     for v in arr:
@@ -320,7 +331,8 @@ def mksym(json):
     assert 0, json.tostring()
 
 def _to_module(json, modtable, lib=fn):
-    print "to module is called with -- %s" % lib
+    dbgprint("_to_module", json, lib=lib, filename="")
+
     # YYY
     v = json.value_object()
     if "body-forms" in v:
@@ -403,7 +415,8 @@ def shorten_submodule_path(path):
     return acc[:]
 
 def _to_require(fname, modtable, path=None, lib=fn):
-    print "_to_require is called with -- %s" % lib
+    dbgprint("_to_require", fname, lib=lib, filename=fname)
+    
     path = shorten_submodule_path(path)
     if modtable.has_module(fname):
         if modtable.builtin(fname):
@@ -415,7 +428,8 @@ def _to_require(fname, modtable, path=None, lib=fn):
     return Require(fname, modtable, path=path)
 
 def parse_require(path, modtable, lib=fn):
-    print "parse_require is called with -- %s" % lib
+    dbgprint("parse_require", path, lib, path)
+
     fname, subs = path[0], path[1:]
     if fname in [".", ".."]:
         # fname field is not used in this case, so we just give an idea of which
@@ -460,9 +474,8 @@ def parse_path(p):
     return srcmod, path
 
 def _to_ast(json, modtable, lib=fn):
-    print '_to_ast : called with -- ' + lib
     # YYY
-    dbgprint("_to_ast", json)
+    dbgprint("_to_ast", json, lib=lib, filename="")
     if json.is_array:
         arr = json.value_array()
         rator = arr[0].value_object()
