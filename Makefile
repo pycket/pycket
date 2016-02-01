@@ -59,8 +59,13 @@ setup:
 	hg -R $(PYPYPATH) update
 
 test: $(PYFILES)
-	$(PYTEST) pycket
+	$(PYTEST) -s pycket
 
+test-bytecode-recursive: $(PYFILES)
+	$(PYTEST) --bytecode recursive pycket
+
+test-bytecode-no-recursive: $(PYFILES)
+	$(PYTEST) --bytecode nonRecursive pycket
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)
