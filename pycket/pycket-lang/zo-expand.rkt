@@ -49,25 +49,25 @@
                            (cons body1 whole-body)))))
   
 (define (handle-def-values def-values-form toplevels  localref-stack)
-  (let ((ids (def-values-ids def-values-form))
-        (rhs (def-values-rhs def-values-form)))
+  (let ([ids (def-values-ids def-values-form)]
+        [rhs (def-values-rhs def-values-form)])
     (cond
       ((or (not (= 1 (length ids))) (not (toplevel? (car ids))))
        (error 'handle-def-values "look into multiple toplevels"))
       (else
-       (let* [(toplevel-form (car ids))
-              (pos (toplevel-pos toplevel-form))
-              (sym (list-ref toplevels pos))
-              (symstr (if (symbol? sym) (symbol->string sym) sym))]
+       (let* ([toplevel-form (car ids)]
+              [pos (toplevel-pos toplevel-form)]
+              [sym (list-ref toplevels pos)]
+              [symstr (if (symbol? sym) (symbol->string sym) sym)])
          (hash* 'define-values (list symstr)
                 'define-values-names (list symstr)
                 'define-values-body (to-ast-single rhs toplevels
                                                    (cons symstr localref-stack))))))))
 
 (define (handle-if if-form toplevels localref-stack)
-  (let ((test (branch-test if-form))
-        (then (branch-then if-form))
-        (else (branch-else if-form)))
+  (let ([test (branch-test if-form)]
+        [then (branch-then if-form)]
+        [else (branch-else if-form)])
     (hash*
      'test (to-ast-single test toplevels localref-stack)
      'then (to-ast-single then toplevels localref-stack)
@@ -105,59 +105,59 @@
   (symbol->string (hash-ref primitive-table id)))
   
 (define (handle-primval operation toplevels)
-  (let* ((id (primval-id operation))
-         (operator-name (get-primval-name id)))
+  (let* ([id (primval-id operation)]
+         [operator-name (get-primval-name id)])
     (hash* 'source-name operator-name)))
 
 (define (handle-application app-form toplevels localref-stack)
-  (let* [(rator (application-rator app-form))
-         (rands (application-rands app-form))
-         (newlocalstack (append (map (lambda (x) 'app-empty-slot) (range (length rands)))
-                                localref-stack))
+  (let* ([rator (application-rator app-form)]
+         [rands (application-rands app-form)]
+         [newlocalstack (append (map (lambda (x) 'app-empty-slot) (range (length rands)))
+                                localref-stack)]
          ;; the application pushes empty slots to run body over, so it will push the current local references further
          ;; we kinda simulate it here to make the localref pos indices point to the right identifier
-         (operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands))]
+         [operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands)]]
     (hash* 'operator (to-ast-single rator toplevels localref-stack)
            'operands operands-evaluated)))
 
 (define (handle-lambda lam-form toplevels localref-stack is-inlined)
-  (let* [(name (lam-name lam-form))
-         (source (if (null? name) '()
+  (let* ([name (lam-name lam-form)]
+         [source (if (null? name) '()
                      (if (vector? name)
                          (hash* '%p (path->string (vector-ref name 1)))
                          (if (not (symbol? name)) (error 'handle-lambda "we have a non symbol/vector name in a lam form")
-                             (let* ((collects-dir (path->string (find-collects-dir)))
-                                    (usual-prefix "/racket/private/") ; TODO: figure out why they have a new way of naming lam's
-                                    (lamname (if (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
+                             (let* ([collects-dir (path->string (find-collects-dir))]
+                                    [usual-prefix "/racket/private/"] ; TODO: figure out why they have a new way of naming lam's
+                                    [lamname (if (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
                                                  (error 'handle-lambda "lam name has an unusual form")
-                                                 "more-scheme.rkt")))
-                               (hash* '%p (string-append collects-dir usual-prefix lamname)))))))
-         (position 321) ;; don't know what exactly are these two
-         (span 123) 
+                                                 "more-scheme.rkt")])
+                               (hash* '%p (string-append collects-dir usual-prefix lamname))))))]
+         [position 321] ;; don't know what exactly are these two
+         [span 123]
          ;; module seems to be the same for every lambda form,
          ;; pointing to a private module about chaperones/impersonators
-         (module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt"))))
+         [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]
 
-         (num-args (lam-num-params lam-form))
-         (symbols-for-formals (map (lambda (x) (symbol->string (gensym))) (range num-args)))
-         (body (to-ast-single (lam-body lam-form) toplevels (if is-inlined
+         [num-args (lam-num-params lam-form)]
+         [symbols-for-formals (map (lambda (x) (symbol->string (gensym))) (range num-args))]
+         [body (to-ast-single (lam-body lam-form) toplevels (if is-inlined
                                                                 (cons 'lambda-dummy
                                                                       (append symbols-for-formals localref-stack))
-                                                                (append symbols-for-formals localref-stack))))
-         (lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals))]
+                                                                (append symbols-for-formals localref-stack)))]
+         [lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals)])
     ;; pycket seems to omit source and position (and sets the span to 0) if lam-name is ()
     (if (null? source)
         (hash* 'span 0 'module module 'lambda lamBda 'body (list body))
         (hash* 'source source 'position position 'span span 'module module 'lambda lamBda 'body (list body)))))
 
 (define (handle-inline-variant iv-form toplevels localref-stack)
-  (let ((direct (inline-variant-direct iv-form))
-        (inline (inline-variant-inline iv-form)))
+  (let ([direct (inline-variant-direct iv-form)]
+        [inline (inline-variant-inline iv-form)])
     ;; don't know what to do with the inline yet
     (to-ast-single direct toplevels localref-stack)))
 
 (define (handle-closure closure-form toplevels localref-stack)
-  (let ((code (closure-code closure-form)))
+  (let ([code (closure-code closure-form)])
     (if (lam? code)
         (handle-lambda code toplevels localref-stack false)
         (error 'handle-closure "no lam inside the closure?"))))
@@ -193,9 +193,9 @@
     ))
 
 (define (handle-localref lref-form toplevels localref-stack)
-  (let* [(pos (localref-pos lref-form))
-         (stack-slot-raw (list-ref localref-stack pos))
-         (stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw))]
+  (let* ([pos (localref-pos lref-form)]
+         [stack-slot-raw (list-ref localref-stack pos)]
+         [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
     (cond
       [(hash? stack-slot) stack-slot]
       [else (hash* 'lexical stack-slot)])))
@@ -204,18 +204,18 @@
   ;;(let ((pos (toplevel-pos toplevel-form)))
 
 (define (handle-module-variable mod-var toplevels localref-stack)
-  (let ((name (symbol->string (module-variable-sym mod-var)))
-        (module-path (path->string
+  (let ([name (symbol->string (module-variable-sym mod-var))]
+        [module-path (path->string
                          (resolved-module-path-name
                           (module-path-index-resolve
-                           (module-variable-modidx mod-var))))))
+                           (module-variable-modidx mod-var))))])
   (hash* 'source-name name
          'source-module (list module-path))))
 
 (define (handle-let-one letform toplevels localref-stack)
-  (let* [(newstack-prev (cons 'let-one-uninitialized-slot localref-stack)) ;; push uninitialized slot
-         (rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)) ;; evaluate rhs
-         (newstack (cons rhs (cdr newstack-prev)))] ;; put the rhs to the slot
+  (let* ([newstack-prev (cons 'let-one-uninitialized-slot localref-stack)] ;; push uninitialized slot
+         [rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)] ;; evaluate rhs
+         [newstack (cons rhs (cdr newstack-prev))]) ;; put the rhs to the slot
     (hash* 'let-bindings '()
            'let-body (list (to-ast-single (let-one-body letform)
                                           toplevels
@@ -249,9 +249,9 @@
     (else "Unknown: ")))
 
 (define (handle-toplevel form toplevels localref-stack)
-  (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
-         (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id))
-         (module-dir (string-append pycket-dir module-name ".rkt")))
+  (let* ([toplevel-id (list-ref toplevels (toplevel-pos form))]
+         [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)]
+         [module-dir (string-append pycket-dir module-name ".rkt")])
     (cond
       [(symbol? toplevel-id)
        (hash* 'source-name toplevel-id-str
@@ -260,20 +260,20 @@
        (handle-module-variable toplevel-id toplevels localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
   #|
-  (let* ((toplevel-id (list-ref toplevels (toplevel-pos form)))
-         (toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)))
+  (let* ([toplevel-id (list-ref toplevels (toplevel-pos form))]
+         [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)])
   (to-ast-single toplevel-id-str toplevels localref-stack)))
 |#
   
 (define (handle-seq seq-expr toplevels localref-stack)
-  (let* ((seqs (seq-forms seq-expr))
-         (vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)))
+  (let* ([seqs (seq-forms seq-expr)]
+         [vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
     vals)) ;;(list-ref vals (sub1 (length vals)))))
     
 (define (handle-assign body-form toplevels localref-stack)
-  (let ((id (assign-id body-form))
-        (rhs (assign-rhs body-form))
-        (module-dir (string-append pycket-dir module-name ".rkt")))
+  (let ([id (assign-id body-form)]
+        [rhs (assign-rhs body-form)]
+        [module-dir (string-append pycket-dir module-name ".rkt")])
     (list (hash* 'source-name "set!")
           (to-ast-single id toplevels localref-stack)
           (to-ast-single rhs toplevels localref-stack))))
@@ -281,15 +281,15 @@
 (define (handle-let-void body-form toplevels localref-stack)
   ;; Pushes count uninitialized slots onto the stack and then runs body.
   ;; If boxes? is #t, then the slots are filled with boxes that contain #<undefined>.
-  (let* ((count (let-void-count body-form))
-         (boxes? (let-void-boxes? body-form))
-         (body (let-void-body body-form))
-         (boxls (build-list count (lambda (x) (box 'uninitialized-slot))))
-         (newstack (append boxls localref-stack)))
+  (let* ([count (let-void-count body-form)]
+         [boxes? (let-void-boxes? body-form)]
+         [body (let-void-body body-form)]
+         [boxls (build-list count (lambda (x) (box 'uninitialized-slot)))]
+         [newstack (append boxls localref-stack)])
     (to-ast-single body toplevels newstack)))
 
 (define (handle-case-lambda body-form toplevels localref-stack)
-  (let ((clauses (case-lam-clauses body-form)))
+  (let ([clauses (case-lam-clauses body-form)])
     (hash* 'case-lambda (map (lambda (clause)
                                (if (not (lam? clause))
                                    (error 'handle-case-lambda "not a lam clause?")
@@ -317,16 +317,16 @@
 (define (handle-install-value body-form toplevels localref-stack)
   ;; Runs rhs to obtain count results, and installs them into existing
   ;; slots on the stack in order, skipping the first pos stack positions.
-  (let* [(count (install-value-count body-form))
-         (pos (install-value-pos body-form))
-         (boxes? (install-value-boxes? body-form))
-         (rhs (install-value-rhs body-form))
-         (body (install-value-body body-form))
-         (count-lst (range count))
+  (let* ([count (install-value-count body-form)]
+         [pos (install-value-pos body-form)]
+         [boxes? (install-value-boxes? body-form)]
+         [rhs (install-value-rhs body-form)]
+         [body (install-value-body body-form)]
+         [count-lst (range count)]
 
-         (binding-list (map (λ (c) (string-append "inst-val" (number->string c))) count-lst))
+         [binding-list (map (λ (c) (string-append "inst-val" (number->string c))) count-lst)]
          
-         (box-positions (map (λ (p) (+ p pos)) count-lst))]
+         [box-positions (map (λ (p) (+ p pos)) count-lst)]]
     (begin
       ;; setting the boxes that let-void has put in the stack
       (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list (- i pos))))
@@ -539,8 +539,8 @@
 
   (define reqs (cdr phase0-reqs))
   (define top-level-req-forms (map (lambda (req)
-                                      (let ((resolved-req-path (resolved-module-path-name
-                                                              (module-path-index-resolve req))))
+                                      (let ([resolved-req-path (resolved-module-path-name
+                                                              (module-path-index-resolve req))])
                                         (if (or (list? resolved-req-path) (symbol? resolved-req-path))
                                             (error 'req-forms "don't know how to handle a submodule here")
                                             (hash* 'require (list (list (path->string resolved-req-path)))))))

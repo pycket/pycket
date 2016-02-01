@@ -164,8 +164,8 @@
 
 (define reqs (cdr phase0-reqs))
 (define toplevelRequireForms (map (lambda (req)
-                                    (let ((resolvedReqPath (resolved-module-path-name
-                                                            (module-path-index-resolve req))))
+                                    (let ([resolvedReqPath (resolved-module-path-name
+                                                            (module-path-index-resolve req))])
                                       (if (or (list? resolvedReqPath) (symbol? resolvedReqPath))
                                           (error 'reqForms "don't know how to handle a submodule here")
                                           (hash* 'require (list (list (path->string resolvedReqPath)))))))
