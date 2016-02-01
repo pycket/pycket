@@ -5,7 +5,7 @@
          ;racket/cmdline
          json)
 
-(require "pycket/pycket-lang/zoTransform.rkt")
+(require "pycket/pycket-lang/zo-expand.rkt")
 (require "pycket/pycket-lang/expand.rkt") ;; global-config - hash*
 
 

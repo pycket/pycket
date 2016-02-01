@@ -116,7 +116,7 @@
                                 localref-stack)]
          ;; the application pushes empty slots to run body over, so it will push the current local references further
          ;; we kinda simulate it here to make the localref pos indices point to the right identifier
-         [operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands)]]
+         [operands-evaluated (map (λ (rand) (to-ast-single rand toplevels newlocalstack)) rands)])
     (hash* 'operator (to-ast-single rator toplevels localref-stack)
            'operands operands-evaluated)))
 
@@ -326,7 +326,7 @@
 
          [binding-list (map (λ (c) (string-append "inst-val" (number->string c))) count-lst)]
          
-         [box-positions (map (λ (p) (+ p pos)) count-lst)]]
+         [box-positions (map (λ (p) (+ p pos)) count-lst)])
     (begin
       ;; setting the boxes that let-void has put in the stack
       (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list (- i pos))))
