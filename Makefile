@@ -59,7 +59,7 @@ setup:
 	hg -R $(PYPYPATH) update
 
 test: $(PYFILES)
-	$(PYTEST) -s pycket
+	$(PYTEST) pycket
 
 test-bytecode-recursive: $(PYFILES)
 	$(PYTEST) --bytecode recursive pycket
