@@ -10,7 +10,10 @@ def _get_code(ast, env):
 vmprof_profile = rvmprof.vmprof_execute_code("pycket", _get_code, result_class=W_Object)
 
 def _get_full_name(ast):
+    # TODO: Provide mor source information for code lacking a surrounding lambda
     lam = ast.surrounding_lambda
+    if lam is None:
+        return "rkt:<module>:?:?"
     filename = lam.srcfile
     srcline  = lam.srcpos
     return "rkt:<lambda>:%s:%s" % (filename, srcline)
