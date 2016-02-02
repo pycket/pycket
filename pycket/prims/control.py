@@ -62,8 +62,8 @@ def dynamic_wind(pre, value, post, env, cont):
         [procedure, default(values.W_ContinuationPromptTag, None)],
         simple=False, extra_info=True)
 def callcc(proc, prompt_tag, env, cont, extra_call_info):
-    assert prompt_tag is None, "NYI"
-    return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
+    kont = [values.W_Continuation(cont, prompt_tag)]
+    return proc.call_with_extra_info(kont, env, cont, extra_call_info)
 
 @continuation
 def call_with_escape_continuation_cont(env, cont, _vals):
@@ -79,6 +79,13 @@ def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
     assert prompt_tag is None, "NYI"
     cont = call_with_escape_continuation_cont(env, cont)
     return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
+
+@expose("call-with-composable-continuation",
+        [procedure, default(values.W_ContinuationPromptTag, None)],
+        simple=False, extra_info=True)
+def call_with_composable_continuation(proc, prompt_tag, env, cont, extra_call_info):
+    kont = [values.W_ComposableContinuation(cont, prompt_tag)]
+    return proc.call_with_extra_info(kont, env, cont, extra_call_info)
 
 @expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
 def make_continuation_prompt_tag(sym):
@@ -123,7 +130,7 @@ def call_with_continuation_prompt(args, env, cont):
         raise SchemeException("call-with-continuation-prompt: not given enough values")
     parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
-    handler = default_continuation_prompt_handler
+    handler = values.w_false
     fun     = parser.object()
 
     try:
@@ -135,8 +142,10 @@ def call_with_continuation_prompt(args, env, cont):
     args = parser._object()
     if not fun.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable function")
-    if not handler.iscallable():
+    if handler is not values.w_false and not handler.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable handler")
+    if handler is values.w_false:
+        handler = default_continuation_prompt_handler
     cont = Prompt(tag, handler, env, cont)
     return fun.call(args, env, cont)
 

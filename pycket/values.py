@@ -4,7 +4,7 @@
 from pycket                   import config
 from pycket.arity             import Arity
 from pycket.base              import W_Object, W_ProtoObject
-from pycket.cont              import continuation, label, BaseCont
+from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import make_call_method
@@ -1157,15 +1157,45 @@ def from_list_iter(lst):
 
 class W_Continuation(W_Procedure):
     errorname = "continuation"
+
     _immutable_fields_ = ["cont"]
-    def __init__ (self, cont):
+
+    def __init__(self, cont, prompt_tag=None):
         self.cont = cont
+        self.prompt_tag = prompt_tag
+
     def get_arity(self):
         # FIXME: see if Racket ever does better than this
         return Arity.unknown
+
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
-        return return_multi_vals(Values.make(args), env, self.cont)
+        if self.prompt_tag is not None:
+            cont = self.cont.append(NilCont(), self.prompt_tag)
+        else:
+            cont = self.cont
+        return return_multi_vals(Values.make(args), env, cont)
+
+    def tostring(self):
+        return "#<continuation>"
+
+class W_ComposableContinuation(W_Procedure):
+    errorname = "composable-continuation"
+
+    _immutable_fields_ = ["cont", "prompt_tag"]
+
+    def __init__(self, cont, prompt_tag=None):
+        self.cont = cont
+        self.prompt_tag = prompt_tag
+
+    def get_arity(self):
+        return Arity.unknown
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_multi_vals
+        kont = self.cont.append(cont, self.prompt_tag)
+        return return_multi_vals(Values.make(args), env, kont)
+
     def tostring(self):
         return "#<continuation>"
 
