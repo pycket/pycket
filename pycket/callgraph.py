@@ -3,7 +3,7 @@ from rpython.rlib import jit
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
 
-class Namer(object):
+class Namer(object): #pragma: no cover
 
     def __init__(self):
         self.names   = {}
@@ -88,7 +88,7 @@ class CallGraph(object):
             visited[current] = None
         return False
 
-    def write_dot_file(self, output):
+    def write_dot_file(self, output): #pragma: no cover
         counter = 0
         output.write("digraph callgraph {\n")
         names = Namer()
