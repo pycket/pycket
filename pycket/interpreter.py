@@ -3,7 +3,7 @@ from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
-from pycket.cont              import Cont, NilCont, label, make_return_safe
+from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
@@ -107,9 +107,10 @@ class LetrecCont(Cont):
 
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
-@make_return_safe
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast"]
+
+    return_safe = True
 
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
@@ -229,9 +230,9 @@ class LetCont(Cont):
             i += 1
         return env
 
-@make_return_safe
 class FusedLet0Let0Cont(Cont):
     _immutable_fields_ = ["combined_ast"]
+    return_safe = True
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -251,9 +252,9 @@ class FusedLet0Let0Cont(Cont):
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
-@make_return_safe
 class FusedLet0BeginCont(Cont):
     _immutable_fields_ = ["combined_ast"]
+    return_safe = True
     def __init__(self, combined_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.combined_ast = combined_ast
@@ -311,10 +312,9 @@ class SetBangCont(Cont):
         self.ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
-@make_return_safe
 class BeginCont(Cont):
     _immutable_fields_ = ["counting_ast"]
-
+    return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
@@ -334,10 +334,9 @@ class BeginCont(Cont):
         return ast.make_begin_cont(self.env, self.prev, i)
 
 # FIXME: it would be nice to not need two continuation types here
-@make_return_safe
 class Begin0Cont(Cont):
     _immutable_fields_ = ["ast"]
-
+    return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -367,10 +366,9 @@ class Begin0FinishCont(Cont):
     def plug_reduce(self, vals, env):
         return return_multi_vals(self.vals, self.env, self.prev)
 
-@make_return_safe
 class WCMKeyCont(Cont):
     _immutable_fields_ = ["ast"]
-
+    return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -388,10 +386,9 @@ class WCMKeyCont(Cont):
         key = check_one_val(vals)
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
-@make_return_safe
 class WCMValCont(Cont):
     _immutable_fields_ = ["ast", "key"]
-
+    return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
@@ -619,7 +616,7 @@ def return_value_direct(w_val, env, cont):
     return cont.plug_reduce(val, env)
 
 def return_multi_vals(vals, env, cont):
-    if cont.return_safe():
+    if cont.return_safe:
         return cont.plug_reduce(vals, env)
     return safe_return_multi_vals(vals, env, cont)
 

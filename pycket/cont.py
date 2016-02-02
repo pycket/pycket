@@ -26,15 +26,13 @@ class BaseCont(object):
     _attrs_ = ['marks']
     _immutable_fields_ = []
 
+    return_safe = False
+
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
 
     def __init__(self):
         self.marks = None
-
-    @staticmethod
-    def return_safe():
-        return False
 
     def clone(self):
         result = self._clone()
@@ -138,13 +136,6 @@ class Cont(BaseCont):
                 return values.W_Cons.make(v, rest)
             self = prev
         return values.w_null
-
-def make_return_safe(cls):
-    @staticmethod
-    def return_safe():
-        return True
-    cls.return_safe = return_safe
-    return cls
 
 class Prompt(Cont):
 
