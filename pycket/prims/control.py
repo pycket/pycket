@@ -7,6 +7,7 @@ from pycket.arity              import Arity
 from pycket.cont               import continuation, loop_label, call_cont, Barrier, Prompt
 from pycket.error              import SchemeException
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
+from rpython.rlib              import jit
 
 @continuation
 def post_build_exception(env, cont, _vals):
@@ -25,6 +26,7 @@ def convert_runtime_exception(exn, env, cont):
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
+@jit.unroll_safe
 def find_continuation_prompt(tag, cont):
     while cont is not None:
         if isinstance(cont, Prompt) and cont.tag is tag:
@@ -81,7 +83,7 @@ def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
     return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("call-with-composable-continuation",
-        [procedure, default(values.W_ContinuationPromptTag, None)],
+        [procedure, default(values.W_ContinuationPromptTag, values.w_default_continuation_prompt_tag)],
         simple=False, extra_info=True)
 def call_with_composable_continuation(proc, prompt_tag, env, cont, extra_call_info):
     kont = [values.W_ComposableContinuation(cont, prompt_tag)]
@@ -97,18 +99,24 @@ def default_continuation_prompt_tag():
 
 def abort_current_continuation(args, env, cont):
     from pycket.interpreter import return_multi_vals
-    if len(args) < 1:
+    if not args:
         raise SchemeException("abort-current-continuation: expected 1 or more args")
     tag, args = args[0], args[1:]
     if not isinstance(tag, values.W_ContinuationPromptTag):
         raise SchemeException("abort-current-continuation: expected prompt-tag for argument 0")
     prompt = find_continuation_prompt(tag, cont)
-    if prompt is not None:
-        handler = prompt.handler
-        cont    = prompt.get_previous_continuation()
-        assert cont is not None
-        return handler.call(args, env, cont)
-    raise SchemeException("abort-current-continuation: no such prompt exists")
+    if prompt is None:
+        raise SchemeException("abort-current-continuation: no such prompt exists")
+    handler = prompt.handler
+    cont    = prompt.get_previous_continuation()
+    assert cont is not None
+    if handler is None:
+        if not args:
+            raise SchemeException("abort-current-continuation: expected thunk as argument 1")
+        cont = Prompt(tag, None, env, cont)
+        handler = args[0]
+        args = []
+    return handler.call(args, env, cont)
 
 expose("abort-current-continuation", simple=False)(abort_current_continuation)
 
@@ -126,7 +134,7 @@ def default_continuation_prompt_handler(proc, env, cont):
 
 @expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1))
 def call_with_continuation_prompt(args, env, cont):
-    if len(args) < 1:
+    if not args:
         raise SchemeException("call-with-continuation-prompt: not given enough values")
     parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
@@ -145,7 +153,7 @@ def call_with_continuation_prompt(args, env, cont):
     if handler is not values.w_false and not handler.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable handler")
     if handler is values.w_false:
-        handler = default_continuation_prompt_handler
+        handler = None
     cont = Prompt(tag, handler, env, cont)
     return fun.call(args, env, cont)
 
