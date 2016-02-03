@@ -1,6 +1,5 @@
 
 from pycket                          import values
-from pycket.cont                     import label
 from pycket.error                    import SchemeException
 from pycket.hash.base                import (
     W_MutableHashTable,
@@ -11,7 +10,7 @@ from pycket.hash.persistent_hash_map import make_persistent_hash_type
 from rpython.rlib.objectmodel        import compute_hash, r_dict, specialize
 from rpython.rlib.rarithmetic        import r_uint
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_mutable_table(cls, keys=None, vals=None):
     data = r_dict(cls.cmp_value, cls.hash_value, force_non_null=True)
     if keys is not None and vals is not None:
@@ -20,7 +19,7 @@ def make_simple_mutable_table(cls, keys=None, vals=None):
             data[k] = vals[i]
     return cls(data)
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_mutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
@@ -33,7 +32,7 @@ def make_simple_mutable_table_assocs(cls, assocs, who):
         data[key] = val
     return cls(data)
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_immutable_table(cls, keys=None, vals=None):
     table = cls.EMPTY
     if keys is not None and vals is not None:
@@ -42,7 +41,7 @@ def make_simple_immutable_table(cls, keys=None, vals=None):
             table = table.assoc(k, vals[i])
     return table
 
-@specialize.call_location()
+@specialize.arg(0)
 def make_simple_immutable_table_assocs(cls, assocs, who):
     if not assocs.is_proper_list():
         raise SchemeException("%s: not given proper list" % who)
@@ -80,19 +79,16 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
 
-    @label
     def hash_set(self, k, v, env, cont):
         from pycket.interpreter import return_value
         self.data[k] = v
         return return_value(values.w_void, env, cont)
 
-    @label
     def hash_remove_inplace(self, k, env, cont):
         from pycket.interpreter import return_value
         del self.data[k]
         return return_value(values.w_void, env, cont)
 
-    @label
     def hash_ref(self, k, env, cont):
         from pycket.interpreter import return_value
         return return_value(self.data.get(k, w_missing), env, cont)
@@ -133,8 +129,7 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
             return compute_hash(k.value)
         if isinstance(k, values.W_Character):
             return ord(k.value)
-        else:
-            return compute_hash(k)
+        return compute_hash(k)
 
     @staticmethod
     def cmp_value(a, b):
@@ -172,6 +167,11 @@ class __extend__(W_EqvImmutableHashTable):
         result = self.val_at(k, w_missing)
         return return_value(result, env, cont)
 
+    def hash_remove(self, key, env, cont):
+        from pycket.interpreter import return_value
+        removed = self.without(key)
+        return return_value(removed, env, cont)
+
     def tostring(self):
         assert type(self) is W_EqvImmutableHashTable
         entries = [None] * len(self)
@@ -192,10 +192,15 @@ class __extend__(W_EqImmutableHashTable):
     def make_empty(self):
         return W_EqImmutableHashTable.EMPTY
 
-    def hash_ref(self, k, env, cont):
+    def hash_ref(self, key, env, cont):
         from pycket.interpreter import return_value
-        result = self.val_at(k, w_missing)
+        result = self.val_at(key, w_missing)
         return return_value(result, env, cont)
+
+    def hash_remove(self, key, env, cont):
+        from pycket.interpreter import return_value
+        removed = self.without(key)
+        return return_value(removed, env, cont)
 
     def tostring(self):
         assert type(self) is W_EqImmutableHashTable

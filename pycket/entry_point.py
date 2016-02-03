@@ -3,14 +3,16 @@
 #
 # _____ Define and setup target ___
 
+import os
+from rpython.rlib          import jit, objectmodel
+from rpython.rlib.nonconst import NonConstant
+
 def make_entry_point(pycketconfig=None):
     from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
-
-    from rpython.rlib import jit, objectmodel
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -28,16 +30,27 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "threshold", 131)
         jit.set_param(None, "trace_eagerness", 50)
 
+        if NonConstant(False):
+            # Hack to give os.open() the correct annotation
+            os.open('foo', 1, 1)
+
         config, names, args, retval = parse_args(argv)
         if retval != 0 or config is None:
             return retval
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
         module_name, json_ast = ensure_json_ast(config, names)
+
         modtable = ModTable()
+        modtable.enter_module(module_name)
+        entry_flag = 'byte-expand' in names
+
         if json_ast is None:
-            ast = expand_to_ast(module_name, modtable)
+            ast = expand_to_ast(module_name, modtable, byte_flag=entry_flag)
         else:
-            ast = load_json_ast_rpython(json_ast, modtable)
+            ast = load_json_ast_rpython(json_ast, modtable, byte_flag=entry_flag)
+
+        modtable.exit_module(module_name, ast)
+
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)
         env.commandline_arguments = args_w
@@ -45,7 +58,10 @@ def make_entry_point(pycketconfig=None):
         try:
             val = interpret_module(ast, env)
         finally:
-            from pycket.prims.input_output   import shutdown
+            from pycket.prims.input_output import shutdown
+            if config.get('save-callgraph', False):
+                with open('callgraph.dot', 'w') as outfile:
+                    env.callgraph.write_dot_file(outfile)
             shutdown(env)
         return 0
     return entry_point
@@ -61,7 +77,7 @@ def target(driver, args): #pragma: no cover
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
         base_name = 'pycket'
-    base_name += '-%(backend)s-hidden-persistent'
+    base_name += '-%(backend)s-hidden'
     if not config.translation.jit:
         base_name += '-%(backend)s-nojit'
 

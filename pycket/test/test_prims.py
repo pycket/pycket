@@ -636,6 +636,19 @@ def test_port_read_peek(doctest):
     101
     > (read-byte bp)
     40
+    > (define usp (open-input-string "\u4F60\u597D,\u4E16\u754C"))
+    > (peek-byte usp)
+    228
+    > (peek-char usp)
+    #\u4F60
+    > (peek-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u597D
+    > (read-char usp)
+    #\,
     """
 
 def test_peek_bug(tmpdir):
@@ -900,3 +913,89 @@ def test_syntax_e(doctest):
     #t
     """
 
+def test_relative_path(doctest):
+    """
+    > (relative-path? "/home/spenser")
+    #f
+    > (relative-path? "~/bin/racket")
+    #t
+    > (relative-path? "./../bin/racket")
+    #t
+    > (relative-path? (string->path "/home/spenser"))
+    #f
+    > (relative-path? (string->path  "~/bin/racket"))
+    #t
+    > (relative-path? (string->path "./../bin/racket"))
+    #t
+    """
+
+
+def test_continuation_prompt_functions(doctest):
+    u"""
+    ! (define tag (make-continuation-prompt-tag))
+    ! (define (escape v) (abort-current-continuation tag (lambda () v)))
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag)
+    0
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag))
+    1
+    > (call-with-continuation-prompt (λ () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ 10 (x))))
+    10
+    > (+ 1 (call-with-continuation-prompt (lambda () (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (escape 0)))))))) tag (λ (x) (+ (x) 10))))
+    11
+    """
+
+def test_continuation_prompt_available(doctest):
+    u"""
+    ! (define tag  (make-continuation-prompt-tag))
+    ! (define tag2 (make-continuation-prompt-tag))
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag)
+    #t
+    > (call-with-continuation-prompt (λ () (continuation-prompt-available? tag)) tag2)
+    #f
+    """
+
+def test_raise_exception(doctest):
+    u"""
+    ! (require racket/base)
+    ! (define-struct (my-exception exn:fail:user) ())
+    > (with-handlers ([number? (lambda (n) (+ n 5))]) (raise 18 #t))
+    23
+    > (with-handlers ([my-exception? (lambda (e) #f)]) (+ 5 (raise (make-my-exception "failed" (current-continuation-marks)))))
+    #f
+    > (with-handlers ([number? (λ (n) (+ n 5))]) (with-handlers ([string? (λ (n) (string-append n " caught ya"))]) (raise 8)))
+    13
+    """
+
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (ctype-basetype #f)
+    #f
+    > (ctype-basetype _int8)
+    'int8
+    > (ctype-basetype _uint32)
+    'uint32
+    > (ctype-basetype (make-ctype _int8 #f #f))
+    'int8
+    > (ctype-basetype (make-ctype _int8 (λ (x) x) #f))
+    _int8
+    """
+
+def test_ctype_basetype(doctest):
+    u"""
+    ! (require '#%foreign)
+    > (equal? (ctype-sizeof _int8) (ctype-sizeof (make-ctype _int8 #f #f)))
+    #t
+    """
+
+
+def test_procedure_result_arity(doctest):
+    """
+    ! (define-struct node (x y z))
+    > (procedure-result-arity car)
+    1
+    > (procedure-result-arity cdr)
+    1
+    > (procedure-result-arity node-x)
+    1
+    """

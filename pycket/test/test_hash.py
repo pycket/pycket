@@ -64,6 +64,19 @@ def test_immutable_hasheqv(doctest):
     'a
     """
 
+def test_immutable_hasheq(doctest):
+    """
+    ! (define h (make-immutable-hasheq '((a . b) (b . c) (c . d))))
+    > (hash-ref h 'a)
+    'b
+    > (hash-ref h 'b)
+    'c
+    > (hash-ref h 'c)
+    'd
+    > (hash-ref (hash-remove h 'b) 'b #f)
+    #f
+    """
+
 def test_hash_symbols(doctest):
     """
     ! (define ht (make-hash))
@@ -369,6 +382,26 @@ def test_persistent_hash():
         assert v % 10 == k
         assert acc.val_at(k, None) is v
 
+def test_persistent_hash2():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
+
 def test_persistent_hash_collisions():
     HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
     acc = HashTable.EMPTY
@@ -421,3 +454,48 @@ def test_persistent_hash_removal():
         assert v % 10 == k
         assert acc.val_at(k, None) is v
 
+def test_persistent_hash__collisions_removal():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(42))
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10)
+
+    assert len(acc) == 0
+    assert list(acc.iteritems()) == []
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10 + 1)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v
+
+def test_persistent_hash__collisions_removal2():
+    HashTable = make_persistent_hash_type(hashfun=lambda x: r_uint(hash(x) % 8))
+    acc = HashTable.EMPTY
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10)
+
+    assert len(acc) == 0
+    assert list(acc.iteritems()) == []
+
+    for i in range(1000):
+        validate_persistent_hash(acc)
+        acc = acc.assoc(i % 10, i).without(i % 10 + 1)
+
+    assert len(acc) == 10
+    assert len(list(acc.iteritems())) == 10
+    for k, v in acc.iteritems():
+        assert k <= 10
+        assert v >= 990
+        assert v % 10 == k
+        assert acc.val_at(k, None) is v

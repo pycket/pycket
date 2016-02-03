@@ -1,7 +1,7 @@
 import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol, W_Fixnum
-from pycket.expand import _to_ast, to_ast, parse_module
+from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
@@ -48,9 +48,6 @@ def test_cache_lambda_if_no_frees():
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
 
 def test_remove_let():
-    p = expr_ast("(let ([a 1]) a)")
-    assert isinstance(p, Quote)
-
     p = expr_ast("(let ([g cons]) (g 5 5))")
     assert isinstance(p, App)
 
@@ -110,8 +107,9 @@ def test_copy_to_env():
 def test_reclambda():
     # simple case:
     p = expr_ast("(letrec ([a (lambda () a)]) a)")
-    assert isinstance(p, CaseLambda)
-    assert p.recursive_sym is not None
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    assert p.rhss[0].recursive_sym is not None
 
     # immediate application
     p = expr_ast("(letrec ([a (lambda () a)]) (a))")

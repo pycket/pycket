@@ -3,6 +3,21 @@ from rpython.rlib import jit
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
 
+class Namer(object): #pragma: no cover
+
+    def __init__(self):
+        self.names   = {}
+        self.counter = 0
+
+    def nameof(self, val):
+        name = self.names.get(val, None)
+        if name is not None:
+            return name
+        name = "A_" + str(self.counter)
+        self.counter += 1
+        self.names[val] = name
+        return name
+
 class CallGraph(object):
     def __init__(self):
         self.calls     = {}
@@ -45,7 +60,6 @@ class CallGraph(object):
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
         if lam in self.recursive:
-            lam.set_in_cycle()
             return True
         if starting_from is None:
             starting_from = lam
@@ -59,11 +73,9 @@ class CallGraph(object):
         while todo:
             current, path = todo.pop()
             if current is lam:
-                lam.set_in_cycle()
                 self.recursive[lam] = None
                 # all the lambdas in the path are recursive too
                 while path:
-                    path.node.set_in_cycle()
                     self.recursive[path.node] = None
                     path = path.prev
                 return True
@@ -76,10 +88,33 @@ class CallGraph(object):
             visited[current] = None
         return False
 
+    def write_dot_file(self, output): #pragma: no cover
+        counter = 0
+        output.write("digraph callgraph {\n")
+        names = Namer()
+        for node in self.calls.iterkeys():
+            if node.body[0].should_enter:
+                name = names.nameof(node)
+                output.write(name)
+                output.write(" [fillcolor=red,style=filled];\n")
+        for src, subdct in self.calls.iteritems():
+            for dst in subdct:
+                srcname = names.nameof(src)
+                dstname = names.nameof(dst)
+                output.write(srcname)
+                output.write(" -> ")
+                output.write(dstname)
+                if dst.body[0].should_enter:
+                    output.write(" [color=blue]")
+                output.write(";\n")
+        output.write("}\n")
+
 class Path(object):
+
     def __init__(self, node, prev):
         self.node = node
         self.prev = prev
 
     def __repr__(self):
         return "%s -> %s" % (self.node, self.prev)
+

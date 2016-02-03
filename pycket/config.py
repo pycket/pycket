@@ -17,8 +17,6 @@ pycketoption_descr = OptionDescription(
                default=False, cmdline="--fuse-conts"),
     BoolOption("with_branch", "build the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
-    BoolOption("track_header", "track loops headers instead of last AST element",
-               default=False, cmdline="--track-header"),
     BoolOption("strategies", "strategies for data structures (vectors, cells, hashmaps, etc)",
                default=True, cmdline="--strategies"),
     BoolOption("type_size_specialization", "unbox small data structure fields and type specialize (environments, continuations, structs, cons cells, etc)",
@@ -51,8 +49,6 @@ def compute_executable_suffix(config):
         res.append("-no-type-size-specialization")
     if config.fuse_conts:
         res.append("-fuse-conts")
-    if config.track_header:
-        res.append("-track-header")
     if config.log_callgraph:
         res.append("-log")
     if config.immutable_boolean_field_elision:

@@ -38,7 +38,7 @@ def str2num(w_s):
         return values.w_false
 
 @expose("number->string",
-        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum(10))])
+        [values.W_Number, default(values.W_Fixnum, values.W_Fixnum.make(10))])
 def num2str(a, radix):
     from rpython.rlib.rbigint import BASE8, BASE16
     if radix.value == 10:
@@ -92,7 +92,7 @@ def string_to_symbol(v):
 @expose(["string->bytes/locale",
          "string->bytes/utf-8"], [W_String,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Fixnum, values.W_Fixnum(0)),
+                                  default(values.W_Fixnum, values.W_Fixnum.ZERO),
                                   default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
     # assert errbyte is values.w_false
@@ -105,7 +105,7 @@ def string_to_bytes_locale(str, errbyte, start, end):
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
 def bytes_to_string_latin(str, err, start, end):
     # XXX Not a valid implementation
@@ -114,7 +114,7 @@ def bytes_to_string_latin(str, err, start, end):
 @expose("string->bytes/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
 def bytes_to_string_latin(str, err, start, end):
     # XXX Not a valid implementation
@@ -206,7 +206,6 @@ def string(args):
         builder.append(char.value)
     return W_String.fromunicode(builder.build())
 
-
 @expose("string-downcase", [W_String])
 def string_downcase(v):
     return v.lower()
@@ -214,7 +213,6 @@ def string_downcase(v):
 @expose("string-upcase", [W_String])
 def string_upcase(v):
     return v.upper()
-
 
 @expose("string-append")
 @jit.unroll_safe
@@ -246,7 +244,7 @@ def string_append(args):
         assert unibuilder is not None
         return W_String.fromunicode(unibuilder.build())
 
-@expose("string-length", [W_String])
+@expose(["string-length", "unsafe-string-length"], [W_String])
 def string_length(s1):
     return values.W_Fixnum(s1.length())
 
@@ -297,7 +295,7 @@ def string_set(w_str, w_index, w_char):
 
 @expose(["string-copy!"],
          [W_String, values.W_Fixnum, W_String,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -321,7 +319,7 @@ def string_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
 
 ################################################################################
 # Byte stuff
-@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+@expose("make-bytes", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_bytes(length, byte):
     # assert byte_huh(byte) is values.w_true
     if isinstance(byte, values.W_Fixnum):
@@ -349,21 +347,23 @@ def bytes(args):
 
 @expose("bytes-append")
 def bytes_append(args):
-    lens = 0
+    total_len = 0
     for a in args:
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        lens += len(a.value)
+        total_len += len(a.value)
 
-    val = [' '] * lens # is this the fastest way to do things?
+    result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        val[cnt:cnt+len(a.value)] = a.value
-        cnt += len(a.value)
+        for byte in a.value:
+            result[cnt] = byte
+            cnt += 1
 
-    return values.W_MutableBytes(val)
+    assert cnt == total_len
+    return values.W_MutableBytes(result)
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
@@ -431,7 +431,7 @@ def subbytes(w_bytes, w_start, w_end):
 
 @expose(["bytes-copy!"],
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
 def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     from pycket.interpreter import return_value
@@ -482,7 +482,7 @@ for a in [("bytes<?", op.lt),
 @expose(["bytes->string/locale",
          "bytes->string/utf-8"], [values.W_Bytes,
                                   default(values.W_Object, values.w_false),
-                                  default(values.W_Integer, values.W_Fixnum(0)),
+                                  default(values.W_Integer, values.W_Fixnum.ZERO),
                                   default(values.W_Integer, None)])
 def string_to_bytes_locale(bytes, errbyte, start, end):
     # FIXME: This ignores the locale

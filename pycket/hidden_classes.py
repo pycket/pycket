@@ -60,13 +60,12 @@ def make_map_type(getter=None, newdict=default_newdict):
 
         def set_storage(self, name, val, storage):
             idx = self.get_index(name)
-            storage[idx] = val
+            self.storage[idx] = val
 
-        @jit.elidable_promote('all')
+        @jit.elidable
         def has_attribute(self, name):
             return name in self.indexes
 
-        @jit.elidable_promote('all')
         def storage_size(self):
             return len(self.indexes)
 
@@ -75,7 +74,7 @@ def make_map_type(getter=None, newdict=default_newdict):
     return Map
 
 # TODO Find a beter name for this
-def make_caching_map_type(getter=None, newdict=default_newdict):
+def make_caching_map_type(getter=None):
 
     assert getter is not None, "must supply a getter name"
 
@@ -91,9 +90,9 @@ def make_caching_map_type(getter=None, newdict=default_newdict):
         _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
 
         def __init__(self):
-            self.indexes = newdict()
-            self.static_data = newdict()
-            self.dynamic_submaps = newdict()
+            self.indexes = {}
+            self.static_data = {}
+            self.dynamic_submaps = {}
             self.static_submaps = {}
 
         def iterkeys(self):
@@ -114,7 +113,6 @@ def make_caching_map_type(getter=None, newdict=default_newdict):
             for val in self.static_data.itervalues():
                 yield val
 
-        @jit.elidable_promote('all')
         def storage_size(self):
             return len(self.indexes)
 
@@ -124,19 +122,21 @@ def make_caching_map_type(getter=None, newdict=default_newdict):
 
         @jit.elidable_promote('all')
         def get_static_data(self, name, default):
-            return self.static_data.get(name, default)
+            if name not in self.static_data:
+                return default
+            return self.static_data[name]
 
         @specialize.argtype(2)
         def lookup(self, name, storage, default=None, offset=0):
             idx = self.get_dynamic_index(name)
-            if idx != -1:
-                assert storage is not None
-                return getattr(storage, getter)(idx+offset)
-            return self.get_static_data(name, default)
+            if idx == -1:
+                return self.get_static_data(name, default)
+            assert storage is not None
+            return getattr(storage, getter)(idx+offset)
 
         @jit.elidable_promote('all')
         def add_static_attribute(self, name, value):
-            assert name not in self.indexes
+            assert name not in self.indexes and name not in self.static_data
             key = (name, value)
             if key not in self.static_submaps:
                 newmap = CachingMap()
@@ -156,14 +156,6 @@ def make_caching_map_type(getter=None, newdict=default_newdict):
                 newmap.indexes[name] = len(self.indexes)
                 self.dynamic_submaps[name] = newmap
             return self.dynamic_submaps[name]
-
-        @jit.elidable
-        def has_attribute(self, name):
-            return name in self.indexes
-
-        def set_storage(self, name, val, storage):
-            idx = self.get_dynamic_index(name)
-            storage[idx] = val
 
         @jit.elidable
         def is_dynamic_attribute(self, name):
@@ -217,7 +209,7 @@ def make_composite_map_type(shared_storage=False):
         @specialize.argtype(2)
         def lookup_handler(self, key, storage, default=None):
             jit.promote(self)
-            return self.handlers.lookup(key, storage)
+            return self.handlers.lookup(key, storage, default=default)
 
         @specialize.argtype(2)
         def lookup_property(self, key, storage, default=None):
@@ -225,7 +217,7 @@ def make_composite_map_type(shared_storage=False):
             in the form [handler_0, handler_1, ..., property_0, property_1, ...]"""
             jit.promote(self)
             offset = self.handlers.storage_size() if shared_storage else 0
-            return self.properties.lookup(key, storage, offset=offset)
+            return self.properties.lookup(key, storage, default=default, offset=offset)
 
     return CompositeMap
 

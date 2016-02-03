@@ -573,3 +573,63 @@ def test_application_mark_propagation():
     r = m.defs[W_Symbol.make("r")]
     assert r is w_true
 
+def test_chaperone_vector_to_immutable_vector(doctest):
+    u"""
+    ! (define v (vector 1 2 3 4 5))
+    ! (define cell '())
+    ! (define v^ (chaperone-vector v (λ (self i val) (set! cell (append cell (list i))) val) (λ (self i val) val)))
+    > (vector->immutable-vector v^)
+    #(1 2 3 4 5)
+    > cell
+    '(0 1 2 3 4)
+    """
+
+def test_rfindler_impersonator_examples(doctest):
+    ur"""
+    ! (require racket/base)
+    ! (define (add15 x) (+ x 15))
+    ! (define store '())
+    ! (define (clear) (let ([v store]) (begin (set! store '()) v)))
+    ! (define (printf^ fmt . args) (set! store (append store (list (apply format fmt args)))))
+    ! (define add15+print (impersonate-procedure add15 (λ (x) (printf^ "called with ~s" x) (values (λ (res) (printf^ "returned ~s" res) res) x))))
+    ! (define-values (imp-prop:p1 imp-prop:p1? imp-prop:p1-get) (make-impersonator-property 'imp-prop:p1))
+    ! (define-values (imp-prop:p2 imp-prop:p2? imp-prop:p2-get) (make-impersonator-property 'imp-prop:p2))
+    ! (define add15.2 (impersonate-procedure add15 #f imp-prop:p1 11))
+    ! (define add15.3 (impersonate-procedure add15.2 #f imp-prop:p2 13))
+    ! (define add15.4 (impersonate-procedure add15.3 #f imp-prop:p1 101))
+    > (add15 27)
+    42
+    > (add15+print 27)
+    42
+    > (clear)
+    '("called with 27" "returned 42")
+    > (add15.2 2)
+    17
+    > (imp-prop:p1? add15.2)
+    #t
+    > (imp-prop:p1-get add15.2)
+    11
+    > (imp-prop:p2? add15.2)
+    #f
+    > (add15.3 3)
+    18
+    > (imp-prop:p1? add15.3)
+    #t
+    > (imp-prop:p1-get add15.3)
+    11
+    > (imp-prop:p2? add15.3)
+    #t
+    > (imp-prop:p2-get add15.3)
+    13
+    > (add15.4 4)
+    19
+    > (imp-prop:p1? add15.4)
+    #t
+    > (imp-prop:p1-get add15.4)
+    101
+    > (imp-prop:p2? add15.4)
+    #t
+    > (imp-prop:p2-get add15.4)
+    13
+    """
+

@@ -5,21 +5,23 @@ import time
 from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
-from pycket import cont
+from pycket.arity import Arity
 from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
 from pycket import vector as values_vector
 from pycket.error import SchemeException
+from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
-                                 procedure, make_call_method, define_nyi,
-                                 subclass_unsafe)
-from rpython.rlib import jit, objectmodel
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rsre import rsre_re as re
+                                 procedure, define_nyi, subclass_unsafe)
+
+
+from rpython.rlib         import jit, objectmodel, unroll
+from rpython.rlib.rsre    import rsre_re as re
 
 # import for side effects
+from pycket.prims import control
 from pycket.prims import continuation_marks
 from pycket.prims import box
 from pycket.prims import equal as eq_prims
@@ -27,6 +29,7 @@ from pycket.prims import foreign
 from pycket.prims import hash
 from pycket.prims import impersonator
 from pycket.prims import input_output
+from pycket.prims import logging
 from pycket.prims import numeric
 from pycket.prims import parameter
 from pycket.prims import random
@@ -108,8 +111,10 @@ for args in [
         ("hash-eqv?", W_HashTable),
         ("hash-equal?", W_HashTable),
         ("hash-weak?", W_HashTable),
-        ("cpointer?", values.W_CPointer),
-        ("continuation-prompt-tag?", values.W_ContinuationPromptTag)
+        ("cpointer?", W_CPointer),
+        ("ctype?", W_CType),
+        ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
+        ("logger?", values.W_Logger),
         ]:
     make_pred(*args)
 
@@ -172,10 +177,6 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
-@expose("compiled-module-expression?", [values.W_Object])
-def compiled_module_expression(v):
-    return values.w_false
-
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
@@ -184,7 +185,6 @@ expose_val("exception-handler-key", values.exn_handler_key)
 
 # FIXME: need stronger guards for all of these
 for name in ["prop:evt",
-             "prop:output-port",
              "prop:impersonator-of",
              "prop:method-arity-error",
              "prop:exn:srclocs",
@@ -203,10 +203,8 @@ expose_val("prop:chaperone-unsafe-undefined",
 expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
-
-@expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
-def raise_type_error(name, expected, v):
-    raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
+expose_val("prop:output-port", values_struct.w_prop_output_port)
+expose_val("prop:input-port", values_struct.w_prop_input_port)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
@@ -241,14 +239,6 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
 ################################################################
 # printing
 
-@expose("current-logger", [])
-def current_logger():
-    return values.current_logger
-
-@expose("make-logger", [values.W_Symbol, values.W_Logger])
-def make_logger(name, parent):
-    return values.W_Logger()
-
 @expose("system-library-subpath", [default(values.W_Object, values.w_false)])
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
@@ -261,14 +251,12 @@ def prim_clos(v):
 # built-in struct types
 
 def define_struct(name, super=values.w_null, fields=[]):
-    immutables = []
-    for i in range(len(fields)):
-        immutables.append(values.W_Fixnum(i))
+    immutables = range(len(fields))
+    symname = values.W_Symbol.make(name)
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false, values.w_false,
-            values.to_list(immutables)).make_struct_tuple()
+        values_struct.W_StructType.make_simple(
+                symname, super, len(fields), 0, values.w_false, values.w_null,
+                values.w_false, values.w_false, immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
@@ -279,7 +267,6 @@ def define_struct(name, super=values.w_null, fields=[]):
         acc = values_struct.W_StructFieldAccessor(struct_acc, field, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
-
 
 exn = \
     define_struct("exn", values.w_null, ["message", "continuation-marks"])
@@ -359,7 +346,6 @@ for args in [ ("subprocess?",),
               ("terminal-port?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("bytes-converter?",),
               ("char-symbolic?",),
               ("char-graphic?",),
               ("char-blank?",),
@@ -368,33 +354,22 @@ for args in [ ("subprocess?",),
               ("char-upper-case?",),
               ("char-title-case?",),
               ("char-lower-case?",),
-              ("compiled-expression?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
-              ("special-comment?",),
               ("exn:srclocs?",),
-              ("logger?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
               ("date-dst?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
-              ("custodian?",),
-              ("custodian-box?",),
-              ("namespace?",),
-              ("security-guard?",),
-              ("thread-group?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
               ("channel?",),
               ("readtable?",),
               ("link-exists?",),
-              ("relative-path?",),
-              ("absolute-path?",),
-              ("internal-definition-context?",),
               ("rename-transformer?",),
               ("identifier?",),
               ("port?",),
@@ -420,7 +395,7 @@ def set_bang_transformer(v):
 @expose("object-name", [values.W_Object])
 def object_name(v):
     if isinstance(v, values.W_Prim):
-        return values.W_Symbol.make(v.name)
+        return v.name
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
 @expose("namespace-variable-value", [values.W_Symbol,
@@ -508,44 +483,43 @@ def proc_arity_cont(arity, env, cont, _vals):
         return return_value(val, env, cont)
     result = make_arity_list(arity, val)
     return return_value(result, env, cont)
-    # result.append(check_one_val(_vals))
-    # if len(result) == 1:
-        # return return_value(result[0], env, cont)
-    # return return_value(values.to_list(result[:]), env, cont)
 
-@expose("procedure-arity", [procedure], simple=False)
-@jit.unroll_safe
-def do_procedure_arity(proc, env, cont):
+def arity_to_value(arity, env, cont):
     from pycket.interpreter import return_value
-    arity = proc.get_arity()
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(arity, env, cont))
+        constructor = arity_at_least.constructor
+        return constructor.call(val, env, proc_arity_cont(arity, env, cont))
     if len(arity.arity_list) == 1:
         item = values.W_Fixnum(arity.arity_list[0])
         return return_value(item, env, cont)
     result = make_arity_list(arity)
     return return_value(result, env, cont)
 
+@expose("procedure-arity", [procedure], simple=False)
+@jit.unroll_safe
+def do_procedure_arity(proc, env, cont):
+    arity = proc.get_arity()
+    return arity_to_value(arity, env, cont)
+
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
-        if n.value >= 0:
-            return values.w_true
-    elif isinstance(n, values_struct.W_RootStruct) and\
-        n.struct_type().name == "arity-at-least":
+        return values.W_Bool.make(n.value >= 0)
+
+    elif (isinstance(n, values_struct.W_RootStruct) and
+          n.struct_type() is arity_at_least):
         return values.w_true
-    elif isinstance(n, values.W_List):
-        if not n.is_proper_list():
-            return values.w_false
-        while isinstance(n, values.W_Cons):
-            item, n = n.car(), n.cdr()
-            if not (isinstance(item, values.W_Fixnum) or\
-                (isinstance(item, values_struct.W_RootStruct) and\
-                item.struct_type().name == "arity-at-least")):
+
+    elif isinstance(n, values.W_List) and n.is_proper_list():
+        for item in values.from_list_iter(n):
+            if not (isinstance(item, values.W_Fixnum) or
+                (isinstance(item, values_struct.W_RootStruct) and
+                item.struct_type() is arity_at_least)):
                 return values.w_false
         return values.w_true
+
     return values.w_false
 
 @expose("procedure-arity-includes?",
@@ -557,17 +531,22 @@ def procedure_arity_includes(proc, k, kw_ok):
             if w_prop_val is not None:
                 return values.w_false
     arity = proc.get_arity()
-    if isinstance(k, values.W_Fixnum):
-        k_val = k.value
-        if arity.list_includes(k_val):
-            return values.w_true
-        if arity.at_least != -1 and k_val >= arity.at_least:
-            return values.w_true
-    elif isinstance(k, values.W_Bignum):
-        k_val = k.value
-        if arity.at_least != -1 and k_val.ge(rbigint.fromint(arity.at_least)):
-            return values.w_true
+    if isinstance(k, values.W_Integer):
+        try:
+            k_val = k.toint()
+        except OverflowError:
+            pass
+        else:
+            return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
+
+@expose("procedure-result-arity", [procedure], simple=False)
+def procedure_result_arity(proc, env, cont):
+    from pycket.interpreter import return_multi_vals
+    arity = proc.get_result_arity()
+    if arity is None:
+        return return_multi_vals(values.w_false, env, cont)
+    return arity_to_value(arity, env, cont)
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):
@@ -611,7 +590,7 @@ def varref_to_mpi(ref):
 @expose("variable-reference->module-base-phase", [values.W_VariableReference])
 def varref_to_mbp(ref):
     # XXX Obviously not correct
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -654,43 +633,14 @@ def time_apply_cont(initial, env, cont, vals):
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_w = vals.get_all_values()
     results = values.Values.make([values.to_list(vals_w),
-                                  ms, ms, values.W_Fixnum(0)])
+                                  ms, ms, values.W_Fixnum.ZERO])
     return return_multi_vals(results, env, cont)
-
-@expose("continuation-prompt-available?")
-def cont_prompt_avail(args):
-    return values.w_false
-
-@continuation
-def dynamic_wind_pre_cont(value, post, env, cont, _vals):
-    return value.call([], env, dynamic_wind_value_cont(post, env, cont))
-
-@continuation
-def dynamic_wind_value_cont(post, env, cont, _vals):
-    return post.call([], env, dynamic_wind_post_cont(_vals, env, cont))
-
-@continuation
-def dynamic_wind_post_cont(val, env, cont, _vals):
-    from pycket.interpreter import return_multi_vals
-    return return_multi_vals(val, env, cont)
-
-@expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
-def dynamic_wind(pre, value, post, env, cont):
-    return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
-
-@expose(["call/cc", # Racket < 6.2.900.10
-        "call-with-current-continuation",
-         "call/ec", # Racket < 6.2.900.10
-         "call-with-escape-continuation"],
-        [procedure], simple=False, extra_info=True)
-def callcc(a, env, cont, extra_call_info):
-    return a.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
 def time_apply(a, args, env, cont, extra_call_info):
     initial = time.clock()
     return  a.call_with_extra_info(values.from_list(args),
-                                   env, time_apply_cont(initial, env, cont), 
+                                   env, time_apply_cont(initial, env, cont),
                                    extra_call_info)
 
 @expose("apply", simple=False, extra_info=True)
@@ -702,17 +652,24 @@ def apply(args, env, cont, extra_call_info):
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     try:
-        rest = values.from_list(lst)
+        fn_arity = fn.get_arity()
+        if fn_arity is Arity.unknown or fn_arity.at_least == -1:
+            unroll_to = 1
+        elif fn_arity.arity_list:
+            unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
+        else:
+            unroll_to = 1
+        rest = values.from_list(lst, unroll_to=unroll_to)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
-    args_len = len(args)-1
+    args_len = len(args) - 1
     assert args_len >= 0
     others = args[1:args_len]
     new_args = others + rest
     return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
-@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
+@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum.ZERO)])
 def make_semaphore(n):
     return values.W_Semaphore(n.value)
 
@@ -780,126 +737,47 @@ def assq(a, b):
 def do_cons(a, b):
     return values.W_Cons.make(a,b)
 
-@expose("car", [values.W_Cons])
-def do_car(a):
-    return a.car()
+def make_list_eater(name):
+    """
+    For generating car, cdr, caar, cadr, etc...
+    """
+    spec     = name[1:-1]
+    unrolled = unroll.unrolling_iterable(reversed(spec))
 
-@expose("cdr", [values.W_Cons])
-def do_cdr(a):
-    return a.cdr()
+    contract = "pair?"
 
-@expose("cadr")
-def do_cadr(args):
-    return do_car([do_cdr(args)])
+    for letter in spec[1::-1]:
+        if letter == 'a':
+            contract = "(cons/c %s any/c)" % contract
+        elif letter == 'd':
+            contract = "(cons/c any/c %s)" % contract
+        else:
+            assert False, "Bad list eater specification"
 
-@expose("caar")
-def do_caar(args):
-    return do_car([do_car(args)])
+    @expose(name, [values.W_Object])
+    def process_list(_lst):
+        lst = _lst
+        for letter in unrolled:
+            if not isinstance(lst, values.W_Cons):
+                raise SchemeException("%s: expected %s given %s" % (name, contract, _lst))
+            if letter == 'a':
+                lst = lst.car()
+            elif letter == 'd':
+                lst = lst.cdr()
+            else:
+                assert False, "Bad list eater specification"
+        return lst
+    process_list.__name__ = "do_" + name
+    return process_list
 
-@expose("cdar")
-def do_cdar(args):
-    return do_cdr([do_car(args)])
+def list_eater_names(n):
+    names = []
+    for i in range(n):
+        names = [n + 'a' for n in names] + [n + 'd' for n in names] + ['a', 'd']
+    return ["c%sr" % name for name in names]
 
-@expose("cddr")
-def do_cddr(args):
-    return do_cdr([do_cdr(args)])
-
-@expose("caaar")
-def do_caaar(args):
-    return do_car([do_car([do_car(args)])])
-
-@expose("caadr")
-def do_caadr(args):
-    return do_car([do_car([do_cdr(args)])])
-
-@expose("caddr")
-def do_caddr(args):
-    return do_car([do_cdr([do_cdr(args)])])
-
-@expose("cadar")
-def do_cadar(args):
-    return do_car([do_cdr([do_car(args)])])
-
-@expose("cdaar")
-def do_cdaar(args):
-    return do_cdr([do_car([do_car(args)])])
-
-@expose("cdadr")
-def do_cdadr(args):
-    return do_cdr([do_car([do_cdr(args)])])
-
-@expose("cddar")
-def do_cddar(args):
-    return do_cdr([do_cdr([do_car(args)])])
-
-@expose("cdddr")
-def do_caddr(args):
-    return do_cdr([do_cdr([do_cdr(args)])])
-
-@expose("caaaar")
-def do_caaaar(args):
-    return do_car([do_car([do_car([do_car(args)])])])
-
-@expose("caaadr")
-def do_caaadr(args):
-    return do_car([do_car([do_car([do_cdr(args)])])])
-
-@expose("caadar")
-def do_caadar(args):
-    return do_car([do_car([do_cdr([do_car(args)])])])
-
-@expose("caaddr")
-def do_caaddr(args):
-    return do_car([do_car([do_cdr([do_cdr(args)])])])
-
-@expose("cadaar")
-def do_cadaar(args):
-    return do_car([do_cdr([do_car([do_car(args)])])])
-
-@expose("cadadr")
-def do_cadadr(args):
-    return do_car([do_cdr([do_car([do_cdr(args)])])])
-
-@expose("caddar")
-def do_caddar(args):
-    return do_car([do_cdr([do_cdr([do_car(args)])])])
-
-@expose("cadddr")
-def do_cadddr(args):
-    return do_car([do_cdr([do_cdr([do_cdr(args)])])])
-
-@expose("cdaaar")
-def do_cdaaar(args):
-    return do_cdr([do_car([do_car([do_car(args)])])])
-
-@expose("cdaadr")
-def do_cdaadr(args):
-    return do_cdr([do_car([do_car([do_cdr(args)])])])
-
-@expose("cdadar")
-def do_cdadar(args):
-    return do_cdr([do_car([do_cdr([do_car(args)])])])
-
-@expose("cdaddr")
-def do_cdaddr(args):
-    return do_cdr([do_car([do_cdr([do_cdr(args)])])])
-
-@expose("cddaar")
-def do_cddaar(args):
-    return do_cdr([do_cdr([do_car([do_car(args)])])])
-
-@expose("cddadr")
-def do_cddadr(args):
-    return do_cdr([do_cdr([do_car([do_cdr(args)])])])
-
-@expose("cdddar")
-def do_cdddar(args):
-    return do_cdr([do_cdr([do_cdr([do_car(args)])])])
-
-@expose("cddddr")
-def do_cddddr(args):
-    return do_cdr([do_cdr([do_cdr([do_cdr(args)])])])
-
+for name in list_eater_names(4):
+    make_list_eater(name)
 
 @expose("mlist")
 def do_mlist(args):
@@ -925,10 +803,9 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False)
+@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
-    from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn, lists = args[0], args[1:]
@@ -965,7 +842,7 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
-@expose("for-each", simple=False)
+@expose("for-each", simple=False, arity=Arity.geq(2))
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -992,7 +869,7 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-@expose("andmap", simple=False)
+@expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -1020,7 +897,7 @@ def andmap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
 
-@expose("ormap", simple=False)
+@expose("ormap", simple=False, arity=Arity.geq(2))
 def ormap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -1048,7 +925,7 @@ def ormap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
 
-@expose("append")
+@expose("append", arity=Arity.geq(0))
 @jit.look_inside_iff(
     lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
 def append(lists):
@@ -1072,8 +949,9 @@ def reverse(w_l):
 
     return acc
 
-@expose("void")
-def do_void(args): return values.w_void
+@expose("void", arity=Arity.geq(0))
+def do_void(args):
+    return values.w_void
 
 @expose("make-ephemeron", [values.W_Object] * 2)
 def make_ephemeron(key, val):
@@ -1117,19 +995,21 @@ def listp(v):
 def enter_list_ref_iff(lst, pos):
     if jit.isconstant(lst) and jit.isconstant(pos):
         return True
-    return jit.isconstant(pos) and pos.value <= 16
+    return jit.isconstant(pos) and pos <= 16
 
-@expose("list-ref", [values.W_Cons, values.W_Fixnum])
 @jit.look_inside_iff(enter_list_ref_iff)
-def list_ref(lst, pos):
-    n = pos.value
-    if n < 0:
+def list_ref_impl(lst, pos):
+    if pos < 0:
         raise SchemeException("list-ref: negative index")
-    for i in range(pos.value):
+    for i in range(pos):
         lst = lst.cdr()
         if not isinstance(lst, values.W_Cons):
             raise SchemeException("list-ref: index out of range")
     return lst.car()
+
+@expose("list-ref", [values.W_Cons, values.W_Fixnum])
+def list_ref(lst, pos):
+    return list_ref_impl(lst, pos.value)
 
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
@@ -1148,7 +1028,7 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error")
+@expose("error", arity=Arity.geq(1))
 def error(args):
     if len(args) == 1:
         sym = args[0]
@@ -1268,7 +1148,6 @@ def file_pos_star(v):
     return values.w_false
 
 
-
 @expose("symbol-unreadable?", [values.W_Symbol])
 def sym_unreadable(v):
     if v.unreadable:
@@ -1319,33 +1198,10 @@ def current_preserved_thread_cell_values(v):
 def do_is_place_enabled(args):
     return values.w_false
 
-@expose("make-continuation-prompt-tag", [default(values.W_Symbol, None)])
-def mcpt(s):
-    from pycket.interpreter import Gensym
-    s = Gensym.gensym("cm") if s is None else s
-    return values.W_ContinuationPromptTag(s)
-
-@expose("default-continuation-prompt-tag", [])
-def dcpt():
-    return values.w_default_continuation_prompt_tag
-
-@expose("call-with-continuation-prompt", simple=False)
-def cwcp(args, env, cont):
-    from pycket.interpreter import return_value
-    # XXX: ignores all the important stuff
-    fun = args[0]
-    tag = args[1]
-    handler = args[2]
-    actuals = args[3:]
-    assert isinstance(fun, values.W_Procedure)
-    return fun.call(actuals, env, cont)
-    
-
 @expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
     return Gensym.gensym(init.utf8value)
-
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1359,63 +1215,9 @@ def cur_env_vars():
 def env_var_ref(set, name):
     return values.w_false
 
-@expose("raise", [values.W_Object, default(values.W_Object, values.w_true)])
-def do_raise(v, barrier):
-    # TODO:
-    raise SchemeException("uncaught exception: %s" % v.tostring())
-
-@expose("raise-argument-error")
-def raise_arg_err(args):
-    if (len(args) < 3):
-        raise SchemeException("raise-argument-error: expected at least 3 arguments")
-    name = args[0]
-    if (not(isinstance(name, values.W_Symbol))):
-        raise SchemeException("raise-argument-error: expected symbol as the first argument")
-    expected = args[1]
-    if (not(isinstance(expected, values_string.W_String))):
-        raise SchemeException("raise-argument-error: expected string as the second argument")
-    if (len(args) == 3):
-        # case 1
-        v = args[2]
-        raise SchemeException("%s: expected %s but got %s" % (
-            name.utf8value, expected.as_str_utf8(), v.tostring()))
-    else:
-        # case 2
-        bad_v = args[2]
-        if (not(isinstance(bad_v, values.W_Fixnum))):
-            raise SchemeException("raise-argument-error: expected number as the third argument")
-        if bad_v.value >= (len(args) - 3):
-            raise SchemeException("raise-argument-error: out of bounds number as the third argument")
-        v = args[bad_v.value+3]
-        # FIXME: actually print the other arguments
-        raise SchemeException("%s: contract violation\n  expected: %s\n  given: %s\n argument position: %s"%(
-             name.utf8value, expected.as_str_utf8(), v.tostring(), bad_v.value+1))
-
-
-
-@expose("raise-arguments-error")
-def raise_arg_err(args):
-    name = args[0]
-    assert isinstance(name, values.W_Symbol)
-    message = args[1]
-    assert isinstance(message, values_string.W_String)
-    from rpython.rlib.rstring import StringBuilder
-    error_msg = StringBuilder()
-    error_msg.append(name.utf8value)
-    error_msg.append(": ")
-    error_msg.append(message.as_str_utf8())
-    error_msg.append("\n")
-    i = 2
-    while i + 1 < len(args):
-        field = args[i]
-        assert isinstance(field, values_string.W_String)
-        v = args[i+1]
-        assert isinstance(v, values.W_Object)
-        error_msg.append("%s: %s\n" % (field.as_str_utf8(), v.tostring()))
-        i += 2
-    raise SchemeException(error_msg.build())
-
-define_nyi("error-escape-handler", False, [default(values.W_Object, None)])
+@expose("check-for-break", [])
+def check_for_break():
+    return values.w_false
 
 @expose("find-system-path", [values.W_Symbol], simple=False)
 def find_sys_path(sym, env, cont):
@@ -1521,7 +1323,7 @@ def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
 
 
 @expose("vector->values", [values_vector.W_Vector,
-                           default(values.W_Fixnum, values.W_Fixnum.make(0)),
+                           default(values.W_Fixnum, values.W_Fixnum.ZERO),
                            default(values.W_Fixnum, None)],
         simple=False)
 def vector_to_values(v, start, end, env, cont):
@@ -1554,4 +1356,41 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
-        
+
+@expose("procedure-specialize", [procedure])
+def procedure_specialize(proc):
+    # XXX This is the identity function simply for compatibility.
+    # Another option is to wrap closures in a W_PromotableClosure, which might
+    # get us a similar effect from the RPython JIT.
+    return proc
+
+@expose("processor-count", [])
+def processor_count():
+    return values.W_Fixnum.ONE
+
+def make_stub_predicates(*names):
+    for name in names:
+        message = "%s: not yet implemented" % name
+        @expose(name, [values.W_Object])
+        def predicate(obj):
+            if not objectmodel.we_are_translated():
+                print message
+            return values.w_false
+        predicate.__name__ = "stub_predicate(%s)" % name
+
+make_stub_predicates(
+    "bytes-converter?",
+    "fsemaphore?",
+    "thread-group?",
+    "udp?",
+    "extflonum?",
+    "special-comment?",
+    "compiled-expression?",
+    "custodian-box?",
+    "custodian?",
+    "future?",
+    "internal-definition-context?",
+    "namespace?",
+    "security-guard?",
+    "compiled-module-expression?")
+

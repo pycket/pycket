@@ -1,7 +1,7 @@
 
 import pytest
 
-from pycket.impersonators.map  import make_map_type
+from pycket.hidden_classes     import make_map_type
 from pycket.impersonators.base import W_ImpPropertyDescriptor
 
 def test_map():

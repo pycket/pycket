@@ -83,7 +83,7 @@ do_coverage() {
   # So remove them on the CI.
   rm -rf ../pypy/*pytest*
   py.test --assert=plain -n 3 -k "$COVERAGE_TESTSUITE" --cov . --cov-report=term pycket
-  codecov --no-fail -X gcov
+  codecov -X gcov search
   set -e
   echo '>> Testing whether coverage is over 80%'
   coverage report -i --fail-under=80 --omit='pycket/test/*','*__init__*'
@@ -123,7 +123,7 @@ do_performance_smoke() {
   _smoke 2.0 pycket/test/nucleic2.rkt
   _smoke 2.5 pycket/test/nqueens.rkt
   _smoke 2.5 pycket/test/treerec.rkt
-  _smoke 0.5 pycket/test/hashtable-benchmark.rkt
+  _smoke 1.0 pycket/test/hashtable-benchmark.rkt
   echo ; echo ">> Smoke cleared" ; echo
 }
 
@@ -151,15 +151,15 @@ _activate_pypyenv() {
 install_pypy() {
   # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
   # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
-  PYPY_PAK=pypy-4.0.0-linux64.tar.bz2
+  PYPY_PAK=pypy-4.0.1-linux64.tar.bz2
   PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
 
   wget $PYPY_URL
   tar xjf $PYPY_PAK
   # ln -s pypy-c-*-linux64 pypy-c
-  ln -s pypy-4.0.0-linux64 pypy-c
+  ln -s pypy-4.0.1-linux64 pypy-c
   pip install --upgrade virtualenv
-  virtualenv --no-wheel --no-setuptools -p pypy-c/bin/pypy ~/virtualenv/pypy
+  virtualenv --no-wheel --no-setuptools --no-pip -p pypy-c/bin/pypy ~/virtualenv/pypy
   # fix virtualenv...
   rm ~/virtualenv/pypy/bin/libpypy-c.so
   cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so

@@ -5,16 +5,16 @@ from rpython.rlib             import streamio as sio
 from rpython.rlib.rbigint     import rbigint
 from rpython.rlib.rstring     import (ParseStringError,
         ParseStringOverflowError, StringBuilder)
-from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
 
-from pycket.cont import continuation, loop_label, call_cont
-from pycket                   import values
-from pycket                   import values_parameter
-from pycket                   import values_struct
-from pycket                   import values_string
-from pycket.error             import SchemeException
-from pycket.prims.expose      import default, expose, expose_val, procedure
+from pycket.cont         import continuation, loop_label, call_cont
+from pycket              import values
+from pycket              import values_parameter
+from pycket              import values_struct
+from pycket              import values_string
+from pycket.error        import SchemeException
+from pycket.prims.expose import default, expose, expose_val, procedure
 import os
 
 w_quote_symbol = values.W_Symbol.make("quote")
@@ -171,11 +171,24 @@ def read_token(f):
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
-@expose("read", [default(values.W_InputPort, None)], simple=False)
+@expose("read", [default(values.W_Object, None)], simple=False)
 def read(port, env, cont):
+    from pycket.interpreter import return_value
+    cont = read_stream_cont(env, cont)
+    return get_input_port(port, env, cont)
+
+def get_input_port(port, env, cont):
     from pycket.interpreter import return_value
     if port is None:
         port = current_in_param.get(cont)
+        return return_value(port, env, cont)
+    else:
+        return get_port(port, values_struct.w_prop_input_port, values.W_InputPort, env, cont)
+
+@continuation
+def read_stream_cont(env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
     v = read_stream(port)
     return return_value(v, env, cont)
 
@@ -238,12 +251,11 @@ return_linefeed_sym = values.W_Symbol.make("return-linefeed")
 any_sym             = values.W_Symbol.make("any")
 any_one_sym         = values.W_Symbol.make("any-one")
 
-def do_read_line(port, mode, as_bytes, env, cont):
+@continuation
+def do_read_line(mode, as_bytes, env, cont, _vals):
     # FIXME: respect mode
-    from pycket.interpreter import return_value
-    if port is None:
-        port = current_in_param.get(cont)
-    assert isinstance(port, values.W_InputPort)
+    from pycket.interpreter import return_value, check_one_val
+    port = check_one_val(_vals)
     line = port.readline()
     stop = len(line) - 1
     if stop >= 0:
@@ -257,17 +269,20 @@ def do_read_line(port, mode, as_bytes, env, cont):
     else:
         return return_value(values.eof_object, env, cont)
 
-@expose("read-line",[default(values.W_InputPort, None),
+@expose("read-line",[default(values.W_Object, None),
                      default(values.W_Symbol, linefeed_sym)],
                     simple=False)
 def read_line(port, mode, env, cont):
-    return do_read_line(port, mode, False, env, cont)
+    cont = do_read_line(mode, False, env, cont)
+    return get_input_port(port, env, cont)
 
-@expose("read-bytes-line", [default(values.W_InputPort, None),
+
+@expose("read-bytes-line", [default(values.W_Object, None),
                             default(values.W_Symbol, linefeed_sym)],
                            simple=False)
 def read_bytes_line(w_port, w_mode, env, cont):
-    return do_read_line(w_port, w_mode, True, env, cont)
+    cont = do_read_line(w_mode, True, env, cont)
+    return get_input_port(w_port, env, cont)
 
 
 def do_read_one(w_port, as_bytes, peek, env, cont):
@@ -289,19 +304,29 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     else:
         # hmpf, poking around in internals
         needed = runicode.utf8_code_length[i]
-        c += w_port.read(needed - 1)
+        if peek:
+            old = w_port.tell()
+            c = w_port.read(needed)
+            w_port.seek(old)
+        else:
+            c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
 @expose("read-char", [default(values.W_InputPort, None)], simple=False)
 def read_char(w_port, env, cont):
-    return do_read_one(w_port, False, False, env, cont)
+    try:
+        return do_read_one(w_port, False, False, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")
 
 @expose("read-byte", [default(values.W_InputPort, None)], simple=False)
 def read_byte(w_port, env, cont):
-    return do_read_one(w_port, True, False, env, cont)
-
+    try:
+        return do_read_one(w_port, True, False, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-byte: string is not a well-formed UTF-8 encoding")
 
 def do_peek(w_port, as_bytes, skip, env, cont):
     if skip == 0:
@@ -315,16 +340,22 @@ def do_peek(w_port, as_bytes, skip, env, cont):
         return ret
 
 @expose("peek-char", [default(values.W_InputPort, None),
-                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                      default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
-    return do_peek(w_port, False, w_skip.value, env, cont)
+    try:
+        return do_peek(w_port, False, w_skip.value, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
 
 @expose("peek-byte", [default(values.W_InputPort, None),
-                      default(values.W_Fixnum, values.W_Fixnum(0))],
+                      default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_byte(w_port, w_skip, env, cont):
-    return do_peek(w_port, True, w_skip.value, env, cont)
+    try:
+        return do_peek(w_port, True, w_skip.value, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
 
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
@@ -396,6 +427,7 @@ def dir_list(w_str):
 
 UP = values.W_Symbol.make("up")
 SAME = values.W_Symbol.make("same")
+RELATIVE = values.W_Symbol.make("relative")
 SEP = values.W_Path(os.sep)
 
 def _explode_element(s):
@@ -407,13 +439,39 @@ def _explode_element(s):
         return UP
     return values.W_Path(s)
 
-
 @expose("explode-path", [values.W_Object])
 def explode_path(w_path):
     sep = os.sep
     path = extract_path(w_path)
     parts = [_explode_element(p) for p in path.split(sep)]
     return values.to_list(parts)
+
+def _dirname(path):
+    components = path.split(os.path.sep)
+    return os.path.sep.join(components[:-1])
+
+def _basename(path):
+    components = path.split(os.path.sep)
+    return components[-1]
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    path = extract_path(w_path)
+    dirname  = _dirname(path)
+    basename = _basename(path)
+    name = _explode_element(basename)
+    if dirname == os.path.sep:
+        base = values.w_false
+        must_be_dir = values.w_false
+    elif name is UP or name is SAME:
+        base = RELATIVE
+        must_be_dir = values.w_true
+    else:
+        base = values.W_Path(dirname + os.path.sep)
+        must_be_dir = values.w_false
+    result = values.Values.make([base, name, must_be_dir])
+    return return_multi_vals(result, env, cont)
 
 @expose("build-path")
 def build_path(args):
@@ -432,6 +490,15 @@ def build_path(args):
         result[i] = part
     return values.W_Path("/".join(result))
 
+@expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
+def simplify_path(path, use_filesystem):
+    path_str = extract_path(path)
+    return values.W_Path(path_str)
+
+@expose("use-user-specific-search-paths", [])
+def use_user_specific_search_paths():
+    return values.w_false
+
 @expose("path->complete-path", [values.W_Object, default(values.W_Object, None)])
 def path_to_path_complete_path(path, _base):
     if _base is None:
@@ -449,6 +516,16 @@ def path_for_some_system(path):
     # https://github.com/racket/racket/blob/827fc4559879c73d46268fc72f95efe0009ff905/racket/src/racket/include/scheme.h#L493
     # This seems to be the closest implementation we can achieve.
     return values.W_Bool.make(isinstance(path, values.W_Path))
+
+@expose("relative-path?", [values.W_Object])
+def relative_path(obj):
+    string = extract_path(obj)
+    return values.W_Bool.make(not os.path.isabs(string))
+
+@expose("absolute-path?", [values.W_Object])
+def absolute_path(obj):
+    string = extract_path(obj)
+    return values.W_Bool.make(os.path.isabs(string))
 
 @expose("resolve-path", [values.W_Object])
 def resolve_path(obj):
@@ -727,14 +804,16 @@ def get_output_bytes(w_port):
 
 
 # FIXME: implementation
-@expose("make-output-port", [values.W_Object, values.W_Object, values.W_Object,\
-    values.W_Object, default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None), default(values.W_Object, None),\
-    default(values.W_Object, None)])
-def make_output_port(name, evt, write_out, close, write_out_special,\
-    get_write_evt, get_write_special_evt, get_location, count_lines,\
-    init_position, buffer_mode):
+@expose("make-output-port",
+        [values.W_Object, values.W_Object,
+         values.W_Object, values.W_Object,
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None), default(values.W_Object, None),
+         default(values.W_Object, None)])
+def make_output_port(name, evt, write_out, close, write_out_special,
+                     get_write_evt, get_write_special_evt, get_location,
+                     count_lines, init_position, buffer_mode):
     return values.W_StringOutputPort()
 
 # FIXME: implementation
@@ -769,7 +848,11 @@ def file_size(obj):
         size = os.path.getsize(path)
     except OSError:
         raise SchemeException("file-size: file %s does not exists" % path)
-    return values.W_Fixnum(size)
+
+    intsize = intmask(size)
+    if intsize == size:
+        return values.W_Fixnum(intsize)
+    return values.W_Bignum(rbigint.fromrarith_int(size))
 
 @expose("read-bytes", [values.W_Fixnum, default(values.W_InputPort, None)],
         simple=False)
@@ -795,7 +878,7 @@ def read_bytes(amt, w_port, env, cont):
 
 @expose(["read-bytes!", "read-bytes-avail!"],
         [values.W_Bytes, default(values.W_InputPort, None),
-         default(values.W_Fixnum, values.W_Fixnum(0)),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)], simple=False)
 def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     # FIXME: discern the available from the non-available form
@@ -809,7 +892,7 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     start = w_start.value
     stop = len(w_bstr.value) if w_end is None else w_end.value
     if stop == start:
-        return return_value(values.W_Fixnum(0), env, cont)
+        return return_value(values.W_Fixnum.ZERO, env, cont)
 
 
     # FIXME: assert something on indices
@@ -832,9 +915,11 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
-@expose("write-string", [values_string.W_String, default(values.W_OutputPort, None),\
-    default(values.W_Fixnum, values.W_Fixnum(0)),\
-    default(values.W_Fixnum, None)], simple=False)
+@expose("write-string",
+        [values_string.W_String, default(values.W_Object, None),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)],
+        simple=False)
 def do_write_string(w_str, port, start_pos, end_pos, env, cont):
     from pycket.interpreter import return_value
     start = start_pos.value
@@ -845,10 +930,54 @@ def do_write_string(w_str, port, start_pos, end_pos, env, cont):
             raise SchemeException("write-string: ending index out of range")
     else:
         end_pos = w_str.length()
-    if port is None:
-        port = current_out_param.get(cont)
+    cont = write_string_cont(w_str, start, end_pos, env, cont)
+    return get_output_port(port, env, cont)
+
+@continuation
+def write_string_cont(w_str, start, end_pos, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_OutputPort)
     port.write(w_str.getslice(start, end_pos).as_str_utf8())
     return return_value(values.W_Fixnum(end_pos - start), env, cont)
+
+def get_output_port(port, env, cont):
+    from pycket.interpreter import return_value
+    if port is None:
+        port = current_out_param.get(cont)
+        return return_value(port, env, cont)
+    else:
+        return get_port(port, values_struct.w_prop_output_port, values.W_OutputPort, env, cont)
+
+
+def get_port(port, prop, typ, env, cont):
+    cont = get_port_cont(prop, typ, env, cont)
+    return _get_port(port, prop, typ, env, cont)
+
+def _get_port(port, prop, typ, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(port, values_struct.W_RootStruct):
+        cont = get_port_from_property(port, env, cont)
+        return port.get_prop(prop, env, cont)
+    else:
+        return return_value(port, env, cont)
+
+@continuation
+def get_port_cont(prop, typ, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(_vals)
+    if isinstance(val, values_struct.W_RootStruct):
+        return get_port(val, prop, typ, env, cont)
+    else:
+        return return_value(val, env, cont)
+
+@continuation
+def get_port_from_property(port, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    if isinstance(val, values.W_Fixnum):
+        return port.ref(val.value, env, cont)
+    return return_value(port, env, cont)
 
 @expose("write-byte",
         [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
@@ -887,7 +1016,7 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
 
 @expose(["write-bytes", "write-bytes-avail"],
          [values.W_Bytes, default(values.W_OutputPort, None),
-          default(values.W_Fixnum, values.W_Fixnum(0)),
+          default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)], simple=False)
 def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
     from pycket.interpreter import return_value
@@ -943,3 +1072,7 @@ expose_val("print-vector-length", print_vector_length_param)
 expose_val("print-hash-table", print_hash_table_param)
 expose_val("print-boolean-long-form", print_boolean_long_form_param)
 expose_val("print-as-expression", print_as_expression_param)
+
+w_read_case_sensitive = values_parameter.W_Parameter(values.w_true)
+expose_val("read-case-sensitive", w_read_case_sensitive)
+

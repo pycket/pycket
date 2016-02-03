@@ -175,17 +175,17 @@ def test_struct_auto_values(source):
 def test_struct_guard():
     run(
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard 
-      (lambda (name type-name) (cond 
-        [(string? name) name] 
+    ((lambda (name) (struct thing (name) #:transparent #:guard
+      (lambda (name type-name) (cond
+        [(string? name) name]
         [else (error type-name \"bad name: ~e\" name)])))
     (thing? (thing name))) \"apple\")
     """, w_true)
     e = pytest.raises(SchemeException, run,
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard 
-      (lambda (name type-name) (cond 
-        [(string? name) name] 
+    ((lambda (name) (struct thing (name) #:transparent #:guard
+      (lambda (name type-name) (cond
+        [(string? name) name]
         [else (error type-name "bad name")])))
     (thing? (thing name))) 1)
     """)
@@ -198,7 +198,7 @@ def test_struct_guard2():
 
     (define-values (s:o make-o o? o-ref o-set!)
         (make-struct-type 'o #f 1 0 'odefault null (make-inspector) #f null (lambda (o n) (+ o 1))))
-    
+
     (define x (o-ref (make-o 10) 0))
     """)
     ov = m.defs[W_Symbol.make("x")]
@@ -592,6 +592,22 @@ def test_auto_values(doctest):
     """
     assert doctest
 
+def test_struct_operations_arity(doctest):
+    """
+    ! (require racket/base)
+    ! (struct posn (x [y #:mutable] [z #:auto]) #:auto-value 0 #:transparent)
+    > (procedure-arity posn-x)
+    1
+    > (procedure-arity posn-y)
+    1
+    > (procedure-arity posn-z)
+    1
+    > (procedure-arity set-posn-y!)
+    2
+    > (procedure-arity posn)
+    2
+    """
+
 @skip
 def test_serializable(source):
     """
@@ -603,3 +619,17 @@ def test_serializable(source):
     """
     result = run_mod_expr(source, extra=extra, wrap=True)
     assert result == w_true
+
+def test_inherited_auto_values(doctest):
+    """
+    ! (struct test1 ([a #:auto] [b #:auto] [c #:auto]) #:auto-value 0 #:transparent)
+    ! (struct test2 test1 () #:transparent)
+    ! (struct test3 test2 () #:transparent)
+    > (test1? (test1))
+    #t
+    > (test2? (test2))
+    #t
+    > (test3? (test3))
+    #t
+    """
+

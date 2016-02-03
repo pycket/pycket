@@ -209,7 +209,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         else:
             self.base = inner
 
-    @specialize.argtype(0)
     def get_storage_index(self, idx):
         return self._get_list(idx)
 
@@ -223,7 +222,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return True
 
     def get_property(self, prop, default=None):
-        return self.map.lookup_property(prop, self, default)
+        return self.map.lookup_property(prop, self, default=default)
 
     def immutable(self):
         return get_base_object(self.base).immutable()
@@ -286,7 +285,7 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
     @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_prop(self, property, env, cont):
-        pair = self.get_property(property, NONE_PAIR)
+        pair = self.get_property(property, default=NONE_PAIR)
         # Struct properties can only be associated with Pairs which contain both
         # the override and handler for the property
         assert type(pair) is Pair
@@ -328,10 +327,12 @@ class W_ChpStruct(W_InterposeStructBase):
     import_from_mixin(ChaperoneMixin)
 
     def post_ref_cont(self, interp, app, env, cont):
-        return chaperone_reference_cont(interp, [self], app, env, cont)
+        args = values.Values.make1(self)
+        return chaperone_reference_cont(interp, args, app, env, cont)
 
     def post_set_cont(self, op, field, val, app, env, cont):
-        return check_chaperone_results([val], env,
+        val = values.Values.make1(val)
+        return check_chaperone_results(val, env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
 class W_InterposeStructStack(values_struct.W_RootStruct):
