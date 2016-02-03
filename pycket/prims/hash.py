@@ -278,8 +278,8 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
