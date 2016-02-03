@@ -184,6 +184,17 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
         return cls
     return wrapper
 
+def add_clone_method(cls):
+    field_names = unrolling_iterable(cls._immutable_fields_)
+    def _clone_small_list(self):
+        result = objectmodel.instantiate(cls)
+        for attr in field_names:
+            val = getattr(self, attr)
+            setattr(result, attr, val)
+        return result
+    cls._clone_small_list = _clone_small_list
+    return cls
+
 def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     # XXX quite brute force
     def make(vals, *args):
@@ -233,6 +244,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
+    add_clone_method(Size1Fixed)
 
     class Size1Flo(cls):
         _immutable_fields_ = ['vals_flo_0']
@@ -251,9 +263,15 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
             assert i == 0
             return W_Flonum(self.vals_flo_0)
 
+        def _clone_small_list(self):
+            result = objectmodel.instantiate(Size1Flo)
+            result.vals_flo_0 = self.vals_flo_0
+            return result
+
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
+    add_clone_method(Size1Flo)
 
     class Size2Fixed10(cls):
         _immutable_fields_ = ['vals_fixed_0', 'w_val1']
@@ -279,7 +297,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed10.__name__ = cls.__name__ + Size2Fixed10.__name__
-
+    add_clone_method(Size2Fixed10)
 
     class Size2Fixed01(cls):
         _immutable_fields_ = ['w_val0', 'vals_fixed_1']
@@ -305,6 +323,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed01.__name__ = cls.__name__ + Size2Fixed01.__name__
+    add_clone_method(Size2Fixed01)
 
     class Size2Fixed11(cls):
         _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1']
@@ -330,5 +349,6 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
+    add_clone_method(Size2Fixed11)
 
     return make, make1, make2

@@ -83,7 +83,7 @@ def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
     return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
 
 @expose("call-with-composable-continuation",
-        [procedure, default(values.W_ContinuationPromptTag, None)],
+        [procedure, default(values.W_ContinuationPromptTag, values.w_default_continuation_prompt_tag)],
         simple=False, extra_info=True)
 def call_with_composable_continuation(proc, prompt_tag, env, cont, extra_call_info):
     kont = [values.W_ComposableContinuation(cont, prompt_tag)]
