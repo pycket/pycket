@@ -23,7 +23,8 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = ['return_safe']
+    _immutable_fields_ = []
+    _attrs_ = ['marks']
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
@@ -87,6 +88,9 @@ class BaseCont(object):
             p = p.get_previous_continuation(upto=upto)
         return None
 
+    def append(self, tail, upto=None):
+        return tail
+
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("abstract method")
 
@@ -108,9 +112,10 @@ class NilCont(BaseCont):
         raise Done(vals)
 
 class Cont(BaseCont):
+
     _immutable_fields_ = ['env', 'prev']
+
     def __init__(self, env, prev):
-        # TODO: Consider using a dictionary to store the marks
         BaseCont.__init__(self)
         self.env = env
         self.prev = prev
@@ -123,6 +128,13 @@ class Cont(BaseCont):
 
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
+
+    def append(self, tail, upto=None):
+        rest = self.prev.append(tail, upto)
+        head = self.clone()
+        assert isinstance(head, Cont)
+        head.prev = rest
+        return head
 
     def get_marks(self, key, upto=[]):
         from pycket import values
@@ -152,6 +164,11 @@ class Prompt(Cont):
             if tag is self.tag:
                 return None
         return self.prev
+
+    def append(self, tail, upto=None):
+        if upto is self.tag:
+            return tail
+        return Cont.append(self, tail, upto)
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)

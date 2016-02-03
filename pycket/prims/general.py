@@ -115,6 +115,7 @@ for args in [
         ("ctype?", W_CType),
         ("continuation-prompt-tag?", values.W_ContinuationPromptTag),
         ("logger?", values.W_Logger),
+        ("evt?", values.W_Evt),
         ]:
     make_pred(*args)
 
@@ -366,9 +367,7 @@ for args in [ ("subprocess?",),
               ("thread-running?",),
               ("thread-dead?",),
               ("will-executor?",),
-              ("evt?",),
               ("semaphore-try-wait?",),
-              ("channel?",),
               ("readtable?",),
               ("link-exists?",),
               ("rename-transformer?",),
@@ -1393,5 +1392,6 @@ make_stub_predicates(
     "internal-definition-context?",
     "namespace?",
     "security-guard?",
-    "compiled-module-expression?")
+    "compiled-module-expression?",
+    "channel?")
 
