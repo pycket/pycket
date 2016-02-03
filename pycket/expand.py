@@ -16,8 +16,7 @@ from pycket import values, values_string
 from pycket import values_regex
 from pycket import vector
 from pycket import values_struct
-from pycket.hash.equal import W_EqualHashTable
-
+from pycket.hash.simple import W_EqualImmutableHashTable, make_simple_immutable_table
 
 class ExpandException(SchemeException):
     pass
@@ -176,7 +175,7 @@ def _expand_file_to_json(rkt_file, json_file, lib=fn, byte_flag=False):
         pass
     except OSError:
         pass
-
+    # print "Expanding %s to %s" % (rkt_file, json_file)
     cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (
         fn,
         json_file, rkt_file)
@@ -708,10 +707,9 @@ def to_value(json):
         if "char" in obj:
             return values.W_Character.make(unichr(int(obj["char"].value_string())))
         if "hash-keys" in obj and "hash-vals" in obj:
-            return W_EqualHashTable(
-                    [to_value(i) for i in obj["hash-keys"].value_array()],
-                    [to_value(i) for i in obj["hash-vals"].value_array()],
-                    immutable=True)
+            keys = [to_value(i) for i in obj["hash-keys"].value_array()]
+            vals = [to_value(i) for i in obj["hash-vals"].value_array()]
+            return make_simple_immutable_table(W_EqualImmutableHashTable, keys, vals)
         if "regexp" in obj:
             return values_regex.W_Regexp(obj["regexp"].value_string())
         if "byte-regexp" in obj:
