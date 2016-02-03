@@ -3,7 +3,7 @@ from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.error             import SchemeException
-from pycket.cont              import Cont, nil_continuation, label
+from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
@@ -26,7 +26,9 @@ BUILTIN_MODULES = [
     "#%place",
     "#%foreign",
     "#%builtin",
-    "#%extfl" ]
+    "#%extfl",
+    "#%futures",
+    "#%network" ]
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
@@ -68,10 +70,13 @@ def check_one_val(vals):
     return vals
 
 class LetrecCont(Cont):
-    _immutable_fields_ = ["counting_ast", "env", "prev"]
+    _immutable_fields_ = ["counting_ast"]
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
+
+    def _clone(self):
+        return LetrecCont(self.counting_ast, self.env, self.prev)
 
     def get_ast(self):
         return self.counting_ast.ast
@@ -103,12 +108,17 @@ class LetrecCont(Cont):
 @inline_small_list(immutable=True, attrname="vals_w",
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
-    _immutable_fields_ = ["counting_ast", "env", "prev"]
+    _immutable_fields_ = ["counting_ast"]
     return_safe = True
 
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
+
+    def _clone(self):
+        result = self._clone_small_list()
+        LetCont.__init__(result, self.counting_ast, self.env, self.prev)
+        return result
 
     def get_ast(self):
         return self.counting_ast.ast
@@ -219,8 +229,6 @@ class LetCont(Cont):
             i += 1
         return env
 
-
-
 class FusedLet0Let0Cont(Cont):
     _immutable_fields_ = ["combined_ast"]
     return_safe = True
@@ -243,7 +251,6 @@ class FusedLet0Let0Cont(Cont):
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
-
 class FusedLet0BeginCont(Cont):
     _immutable_fields_ = ["combined_ast"]
     return_safe = True
@@ -263,13 +270,15 @@ class FusedLet0BeginCont(Cont):
                 fuse=False)
         return actual_cont.plug_reduce(vals, env)
 
-
 class CellCont(Cont):
-    _immutable_fields_ = ["env", "prev"]
+    _immutable_fields_ = ['ast']
 
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def _clone(self):
+        return CellCont(self.ast, self.env, self.prev)
 
     def get_ast(self):
         return self.ast
@@ -286,10 +295,13 @@ class CellCont(Cont):
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
 class SetBangCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
+    _immutable_fields_ = ["ast"]
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def _clone(self):
+        return SetBangCont(self.ast, self.env, self.prev)
 
     def get_ast(self):
         return self.ast
@@ -300,11 +312,14 @@ class SetBangCont(Cont):
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
-    _immutable_fields_ = ["counting_ast", "env", "prev"]
+    _immutable_fields_ = ["counting_ast"]
     return_safe = True
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast = counting_ast
+
+    def _clone(self):
+        return BeginCont(self.counting_ast, self.env, self.prev)
 
     def get_ast(self):
         return self.counting_ast.ast
@@ -319,11 +334,14 @@ class BeginCont(Cont):
 
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
+    _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def _clone(self):
+        return Begin0Cont(self.ast, self.env, self.prev)
 
     def get_ast(self):
         return self.ast
@@ -335,20 +353,27 @@ class Begin0Cont(Cont):
         return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
-    _immutable_fields_ = ["ast", "vals", "env", "prev"]
+    _immutable_fields_ = ["ast", "vals"]
     def __init__(self, ast, vals, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.vals = vals
+
+    def _clone(self):
+        return Begin0FinishCont(self.ast, self.vals, self.env, self.prev)
+
     def plug_reduce(self, vals, env):
         return return_multi_vals(self.vals, self.env, self.prev)
 
 class WCMKeyCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev"]
+    _immutable_fields_ = ["ast"]
     return_safe = True
     def __init__(self, ast, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
+
+    def _clone(self):
+        return WCMKeyCont(self.ast, self.env, self.prev)
 
     def get_ast(self):
         return self.ast
@@ -361,12 +386,15 @@ class WCMKeyCont(Cont):
         return self.ast.value, self.env, WCMValCont(self.ast, key, self.env, self.prev)
 
 class WCMValCont(Cont):
-    _immutable_fields_ = ["ast", "env", "prev", "key"]
+    _immutable_fields_ = ["ast", "key"]
     return_safe = True
     def __init__(self, ast, key, env, prev):
         Cont.__init__(self, env, prev)
         self.ast = ast
         self.key = key
+
+    def _clone(self):
+        return WCMValCont(self.ast, self.key, self.env, self.prev)
 
     def get_ast(self):
         return self.ast
@@ -377,11 +405,18 @@ class WCMValCont(Cont):
     def plug_reduce(self, vals, env):
         val = check_one_val(vals)
         key = self.key
+
         if isinstance(key, values.W_ContinuationMarkKey):
             body = values.W_ThunkBodyCMK(self.ast.body)
             return key.set_cmk(body, val, self.prev, env, self.prev)
-        self.prev.update_cm(key, val)
-        return self.ast.body, self.env, self.prev
+
+        # Perform a shallow copying of the continuation to ensure any marks
+        # captured by call/cc and family are not affected by the mutation of
+        # the mark set.
+        cont = self.prev.clone()
+        cont.update_cm(key, val)
+
+        return self.ast.body, self.env, cont
 
 class Module(AST):
     _immutable_fields_ = ["name", "body[*]", "requires[*]", "parent", "submodules[*]", "interpreted?", "lang"]
@@ -461,7 +496,7 @@ class Module(AST):
         new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
         return Module(self.name, new_body, self.config, lang=self.lang)
 
-    def tostring(self):
+    def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
 
     def interpret_simple(self, env):
@@ -569,11 +604,6 @@ class Require(AST):
 
     def _tostring(self):
         return "(require %s)" % self.fname
-
-empty_vals = values.Values.make([])
-
-def jump(env, cont):
-    return return_multi_vals(empty_vals, env, cont)
 
 def return_value(w_val, env, cont):
     return return_multi_vals(values.Values.make1(w_val), env, cont)
@@ -827,7 +857,8 @@ class App(AST):
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def _tostring(self):
-        return "(%s %s)"%(self.rator.tostring(), " ".join([r.tostring() for r in self.rands]))
+        elements = [self.rator] + self.rands
+        return "(%s)" % " ".join([r.tostring() for r in elements])
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
@@ -1310,6 +1341,7 @@ class CaseLambda(AST):
             if l.frees.elems:
                 self.any_frees = True
                 break
+        self._closurerepr = None
         self.w_closure_if_no_frees = None
         self.recursive_sym = recursive_sym
         self._arity = arity
@@ -1364,7 +1396,14 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
 
+    @jit.elidable
     def tostring_as_closure(self):
+        _closurerepr = self._closurerepr
+        if _closurerepr is None:
+            _closurerepr = self._closurerepr = self._tostring_as_closure()
+        return _closurerepr
+
+    def _tostring_as_closure(self):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
@@ -1397,8 +1436,8 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure'
-                          ]
+                          "frees", "enclosing_env_structure", 'env_structure',
+                          "srcfile", "srcpos"]
     simple = True
     def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1415,6 +1454,9 @@ class Lambda(SequencedBodyAST):
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
+
+    def can_enter(self):
+        return self.body[0].should_enter
 
     # returns n for fixed arity, -(n+1) for arity-at-least n
     # my kingdom for Either
@@ -1787,16 +1829,19 @@ class Let(SequencedBodyAST):
         self, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
             new_vars, sub_env_structure)
 
-        new_rhss = []
+        new_rhss = [None] * len(self.rhss)
+        offset = 0
+        variables = self.args.elems
         for i, rhs in enumerate(self.rhss):
             new_rhs = rhs.assign_convert(vars, env_structures[i])
-            need_cell_flags = [(LexicalVar(self.args.elems[i + j]) in local_muts)
-                               for j in range(self.counts[i])]
+            count = self.counts[i]
+            need_cell_flags = [LexicalVar(variables[offset+j]) in local_muts for j in range(count)]
             if True in need_cell_flags:
                 new_rhs = Cell(new_rhs, need_cell_flags)
-            new_rhss.append(new_rhs)
+            new_rhss[i] = new_rhs
+            offset += count
 
-        body_env_structure = env_structures[len(self.rhss)]
+        body_env_structure = env_structures[-1]
 
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
@@ -2000,7 +2045,7 @@ def interpret_one(ast, env=None):
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-    cont = nil_continuation
+    cont = NilCont()
     cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)

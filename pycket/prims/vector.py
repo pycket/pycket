@@ -17,19 +17,23 @@ def vector(args):
 def flvector(args):
     return values_vector.W_FlVector.fromelements(args)
 
+@expose("extflvector?", [values.W_Object])
+def extflvector(obj):
+    return values.w_false
+
 # FIXME: immutable
 @expose("vector-immutable")
 def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args, immutable=True)
 
-@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum(0))])
+@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:
         raise SchemeException("make-vector: expected a positive fixnum")
     return values_vector.W_Vector.fromelement(w_val, size)
 
-@expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum(0.0))])
+@expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum.ZERO)])
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:

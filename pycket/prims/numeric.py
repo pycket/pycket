@@ -4,6 +4,7 @@ import math
 import operator
 from pycket import values
 from pycket import vector as values_vector
+from pycket.arity import Arity
 from pycket.error import SchemeException
 from pycket.prims.expose import expose, default, unsafe
 from rpython.rlib.rbigint import rbigint
@@ -16,7 +17,7 @@ from pycket import arithmetic
 
 def make_cmp(name, op, con):
 
-    @expose(name, simple=True)
+    @expose(name, simple=True, arity=Arity.geq(2))
     @jit.unroll_safe
     def do(args):
         if len(args) < 2:
@@ -48,11 +49,7 @@ for args in [
 
 @expose("integer?", [values.W_Object])
 def integerp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum) or
-                              isinstance(n, values.W_Flonum) and
-                              math.floor(n.value) == n.value)
-
+    return values.W_Bool.make(isinstance(n, values.W_Number) and n.isinteger())
 
 @expose("exact-integer?", [values.W_Object])
 def exact_integerp(n):
@@ -300,8 +297,6 @@ for args in [
         ("inexact->exact", "arith_inexact_exact"),
         ("exact->inexact", "arith_exact_inexact"),
         ("zero?", "arith_zerop"),
-        ("even?", "arith_evenp"),
-        ("odd?", "arith_oddp"),
         ("abs", "arith_abs", True),
         ("round", "arith_round", True),
         ("truncate", "arith_truncate", True),
@@ -311,6 +306,18 @@ for args in [
         ("exp",     "arith_exp", True),
         ]:
     make_unary_arith(*args)
+
+@expose("odd?", [values.W_Number])
+def oddp(n):
+    if not n.isinteger():
+        raise SchemeException("odd?: expected integer got %s" % n.tostring())
+    return n.arith_oddp()
+
+@expose("even?", [values.W_Number])
+def evenp(n):
+    if not n.isinteger():
+        raise SchemeException("even?: expected integer got %s" % n.tostring())
+    return n.arith_evenp()
 
 @expose("negative?", [values.W_Number])
 def negative_predicate(n):
@@ -331,7 +338,7 @@ def bitwise_bit_setp(w_n, w_m):
     if not isinstance(w_m, values.W_Fixnum):
         # a bignum that has such a big bit set does not fit in memory
         return w_n.arith_negativep()
-    v = w_n.arith_and(arith_shift(values.W_Fixnum(1), w_m))
+    v = w_n.arith_and(arith_shift(values.W_Fixnum.ONE, w_m))
     if isinstance(v, values.W_Fixnum) and 0 == v.value:
         return values.w_false
     else:

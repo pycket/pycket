@@ -11,6 +11,8 @@
          racket/syntax
          (for-syntax racket/base))
 
+(provide hash* global-config)
+
 (define keep-srcloc (make-parameter #t))
 (define current-phase (make-parameter 0))
 ;; FIXME: we really need a table for every phase, which means a table from phases to id tables

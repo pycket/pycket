@@ -18,7 +18,6 @@ from pycket.prims.expose import (unsafe, default, expose, expose_val,
 
 
 from rpython.rlib         import jit, objectmodel, unroll
-from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rsre    import rsre_re as re
 
 # import for side effects
@@ -178,10 +177,6 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
-@expose("compiled-module-expression?", [values.W_Object])
-def compiled_module_expression(v):
-    return values.w_false
-
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
@@ -209,6 +204,7 @@ expose_val("prop:set!-transformer", values_struct.w_prop_set_bang_transformer)
 expose_val("prop:rename-transformer", values_struct.w_prop_rename_transformer)
 expose_val("prop:expansion-contexts", values_struct.w_prop_expansion_contexts)
 expose_val("prop:output-port", values_struct.w_prop_output_port)
+expose_val("prop:input-port", values_struct.w_prop_input_port)
 
 @continuation
 def check_cont(proc, v, v1, v2, env, cont, _vals):
@@ -255,22 +251,20 @@ def prim_clos(v):
 # built-in struct types
 
 def define_struct(name, super=values.w_null, fields=[]):
-    immutables = []
-    for i in range(len(fields)):
-        immutables.append(values.W_Fixnum(i))
+    immutables = range(len(fields))
+    symname = values.W_Symbol.make(name)
     struct_type, struct_constr, struct_pred, struct_acc, struct_mut = \
-        values_struct.W_StructType.make_simple(values.W_Symbol.make(name),
-            super, values.W_Fixnum(len(fields)), values.W_Fixnum(0),
-            values.w_false, values.w_null, values.w_false, values.w_false,
-            values.to_list(immutables)).make_struct_tuple()
+        values_struct.W_StructType.make_simple(
+                symname, super, len(fields), 0, values.w_false, values.w_null,
+                values.w_false, values.w_false, immutables).make_struct_tuple()
     expose_val("struct:" + name, struct_type)
     expose_val(name, struct_constr)
     # this is almost always also provided
     expose_val("make-" + name, struct_constr)
     expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        w_num = values.W_Fixnum(field)
-        w_name =  values.W_Symbol.make(field_name)
+        w_num = field
+        w_name = values.W_Symbol.make(field_name)
         acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
@@ -353,7 +347,6 @@ for args in [ ("subprocess?",),
               ("terminal-port?",),
               ("byte-ready?",),
               ("char-ready?",),
-              ("bytes-converter?",),
               ("char-symbolic?",),
               ("char-graphic?",),
               ("char-blank?",),
@@ -362,11 +355,9 @@ for args in [ ("subprocess?",),
               ("char-upper-case?",),
               ("char-title-case?",),
               ("char-lower-case?",),
-              ("compiled-expression?",),
               ("custom-print-quotable?",),
               ("liberal-define-context?",),
               ("handle-evt?",),
-              ("special-comment?",),
               ("exn:srclocs?",),
               ("log-receiver?",),
               # FIXME: these need to be defined with structs
@@ -374,18 +365,12 @@ for args in [ ("subprocess?",),
               ("thread?",),
               ("thread-running?",),
               ("thread-dead?",),
-              ("custodian?",),
-              ("custodian-box?",),
-              ("namespace?",),
-              ("security-guard?",),
-              ("thread-group?",),
               ("will-executor?",),
               ("evt?",),
               ("semaphore-try-wait?",),
               ("channel?",),
               ("readtable?",),
               ("link-exists?",),
-              ("internal-definition-context?",),
               ("rename-transformer?",),
               ("identifier?",),
               ("port?",),
@@ -499,44 +484,43 @@ def proc_arity_cont(arity, env, cont, _vals):
         return return_value(val, env, cont)
     result = make_arity_list(arity, val)
     return return_value(result, env, cont)
-    # result.append(check_one_val(_vals))
-    # if len(result) == 1:
-        # return return_value(result[0], env, cont)
-    # return return_value(values.to_list(result[:]), env, cont)
 
-@expose("procedure-arity", [procedure], simple=False)
-@jit.unroll_safe
-def do_procedure_arity(proc, env, cont):
+def arity_to_value(arity, env, cont):
     from pycket.interpreter import return_value
-    arity = proc.get_arity()
     if arity.at_least != -1:
         val = [values.W_Fixnum(arity.at_least)]
-        return arity_at_least.constr.call(val, env, proc_arity_cont(arity, env, cont))
+        constructor = arity_at_least.constructor
+        return constructor.call(val, env, proc_arity_cont(arity, env, cont))
     if len(arity.arity_list) == 1:
         item = values.W_Fixnum(arity.arity_list[0])
         return return_value(item, env, cont)
     result = make_arity_list(arity)
     return return_value(result, env, cont)
 
+@expose("procedure-arity", [procedure], simple=False)
+@jit.unroll_safe
+def do_procedure_arity(proc, env, cont):
+    arity = proc.get_arity()
+    return arity_to_value(arity, env, cont)
+
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
 def do_is_procedure_arity(n):
     if isinstance(n, values.W_Fixnum):
-        if n.value >= 0:
-            return values.w_true
-    elif isinstance(n, values_struct.W_RootStruct) and\
-        n.struct_type().name == "arity-at-least":
+        return values.W_Bool.make(n.value >= 0)
+
+    elif (isinstance(n, values_struct.W_RootStruct) and
+          n.struct_type() is arity_at_least):
         return values.w_true
-    elif isinstance(n, values.W_List):
-        if not n.is_proper_list():
-            return values.w_false
-        while isinstance(n, values.W_Cons):
-            item, n = n.car(), n.cdr()
-            if not (isinstance(item, values.W_Fixnum) or\
-                (isinstance(item, values_struct.W_RootStruct) and\
-                item.struct_type().name == "arity-at-least")):
+
+    elif isinstance(n, values.W_List) and n.is_proper_list():
+        for item in values.from_list_iter(n):
+            if not (isinstance(item, values.W_Fixnum) or
+                (isinstance(item, values_struct.W_RootStruct) and
+                item.struct_type() is arity_at_least)):
                 return values.w_false
         return values.w_true
+
     return values.w_false
 
 @expose("procedure-arity-includes?",
@@ -548,17 +532,22 @@ def procedure_arity_includes(proc, k, kw_ok):
             if w_prop_val is not None:
                 return values.w_false
     arity = proc.get_arity()
-    if isinstance(k, values.W_Fixnum):
-        k_val = k.value
-        if arity.list_includes(k_val):
-            return values.w_true
-        if arity.at_least != -1 and k_val >= arity.at_least:
-            return values.w_true
-    elif isinstance(k, values.W_Bignum):
-        k_val = k.value
-        if arity.at_least != -1 and k_val.ge(rbigint.fromint(arity.at_least)):
-            return values.w_true
+    if isinstance(k, values.W_Integer):
+        try:
+            k_val = k.toint()
+        except OverflowError:
+            pass
+        else:
+            return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
+
+@expose("procedure-result-arity", [procedure], simple=False)
+def procedure_result_arity(proc, env, cont):
+    from pycket.interpreter import return_multi_vals
+    arity = proc.get_result_arity()
+    if arity is None:
+        return return_multi_vals(values.w_false, env, cont)
+    return arity_to_value(arity, env, cont)
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):
@@ -602,7 +591,7 @@ def varref_to_mpi(ref):
 @expose("variable-reference->module-base-phase", [values.W_VariableReference])
 def varref_to_mbp(ref):
     # XXX Obviously not correct
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("resolved-module-path-name", [values.W_ResolvedModulePath])
 def rmp_name(rmp):
@@ -645,7 +634,7 @@ def time_apply_cont(initial, env, cont, vals):
     ms = values.W_Fixnum(int((final - initial) * 1000))
     vals_w = vals.get_all_values()
     results = values.Values.make([values.to_list(vals_w),
-                                  ms, ms, values.W_Fixnum(0)])
+                                  ms, ms, values.W_Fixnum.ZERO])
     return return_multi_vals(results, env, cont)
 
 @expose("time-apply", [procedure, values.W_List], simple=False, extra_info=True)
@@ -681,14 +670,13 @@ def apply(args, env, cont, extra_call_info):
     new_args = others + rest
     return fn.call_with_extra_info(new_args, env, cont, extra_call_info)
 
-@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum(0))])
+@expose("make-semaphore", [default(values.W_Fixnum, values.W_Fixnum.ZERO)])
 def make_semaphore(n):
     return values.W_Semaphore(n.value)
 
 @expose("semaphore-peek-evt", [values.W_Semaphore])
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
-
 
 @expose("not", [values.W_Object])
 def notp(a):
@@ -816,10 +804,9 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False, arity=Arity.geq_2)
+@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
-    from pycket.interpreter import jump
     if not args:
         raise SchemeException("map expected at least two argument, got 0")
     fn, lists = args[0], args[1:]
@@ -856,7 +843,7 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     rest = check_one_val(_vals)
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
-@expose("for-each", simple=False)
+@expose("for-each", simple=False, arity=Arity.geq(2))
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -883,7 +870,7 @@ def for_each_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
 
-@expose("andmap", simple=False)
+@expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -911,7 +898,7 @@ def andmap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, andmap_cont(f, cdrs, env, cont))
 
-@expose("ormap", simple=False)
+@expose("ormap", simple=False, arity=Arity.geq(2))
 def ormap(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -939,7 +926,7 @@ def ormap_cont(f, ls, env, cont, vals):
     cdrs = [l.cdr() for l in ls]
     return f.call(cars, env, ormap_cont(f, cdrs, env, cont))
 
-@expose("append")
+@expose("append", arity=Arity.geq(0))
 @jit.look_inside_iff(
     lambda l: jit.loop_unrolling_heuristic(l, len(l), values.UNROLLING_CUTOFF))
 def append(lists):
@@ -963,7 +950,7 @@ def reverse(w_l):
 
     return acc
 
-@expose("void", arity=Arity.geq_0)
+@expose("void", arity=Arity.geq(0))
 def do_void(args):
     return values.w_void
 
@@ -1042,7 +1029,7 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error")
+@expose("error", arity=Arity.geq(1))
 def error(args):
     if len(args) == 1:
         sym = args[0]
@@ -1337,7 +1324,7 @@ def vec2val_cont(vals, vec, n, s, l, env, cont, new_vals):
 
 
 @expose("vector->values", [values_vector.W_Vector,
-                           default(values.W_Fixnum, values.W_Fixnum.make(0)),
+                           default(values.W_Fixnum, values.W_Fixnum.ZERO),
                            default(values.W_Fixnum, None)],
         simple=False)
 def vector_to_values(v, start, end, env, cont):
@@ -1370,3 +1357,41 @@ def reader_graph_loop(v, d):
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
     return reader_graph_loop(v, {})
+
+@expose("procedure-specialize", [procedure])
+def procedure_specialize(proc):
+    # XXX This is the identity function simply for compatibility.
+    # Another option is to wrap closures in a W_PromotableClosure, which might
+    # get us a similar effect from the RPython JIT.
+    return proc
+
+@expose("processor-count", [])
+def processor_count():
+    return values.W_Fixnum.ONE
+
+def make_stub_predicates(*names):
+    for name in names:
+        message = "%s: not yet implemented" % name
+        @expose(name, [values.W_Object])
+        def predicate(obj):
+            if not objectmodel.we_are_translated():
+                print message
+            return values.w_false
+        predicate.__name__ = "stub_predicate(%s)" % name
+
+make_stub_predicates(
+    "bytes-converter?",
+    "fsemaphore?",
+    "thread-group?",
+    "udp?",
+    "extflonum?",
+    "special-comment?",
+    "compiled-expression?",
+    "custodian-box?",
+    "custodian?",
+    "future?",
+    "internal-definition-context?",
+    "namespace?",
+    "security-guard?",
+    "compiled-module-expression?")
+

@@ -4,8 +4,6 @@
 from pycket.util  import memoize
 from rpython.rlib import jit
 
-AT_LEAST_CACHE = {}
-
 class Arity(object):
     _immutable_fields_ = ['arity_list[*]', 'at_least']
 
@@ -17,6 +15,17 @@ class Arity(object):
     def list_includes(self, arity):
         return arity in self.arity_list
 
+    @jit.elidable
+    def arity_includes(self, arity):
+        return ((self.at_least != -1 and arity >= self.at_least) or
+                self.list_includes(arity))
+
+    @jit.elidable
+    def shift_arity(self, shift):
+        arity_list = [i + shift for i in self.arity_list if i + shift > -1]
+        at_least = max(self.at_least + shift, -1)
+        return Arity(arity_list, at_least)
+
     @staticmethod
     @memoize
     def geq(n):
@@ -27,11 +36,9 @@ class Arity(object):
     def oneof(*lst):
         return Arity(list(lst), -1)
 
-Arity.unknown = Arity([], 0)
+Arity.unknown = Arity.geq(0)
 Arity.ZERO    = Arity.oneof(0)
 Arity.ONE     = Arity.oneof(1)
 Arity.TWO     = Arity.oneof(2)
 Arity.THREE   = Arity.oneof(3)
 
-for i in range(10):
-    setattr(Arity, "geq_%d" % i, Arity.geq(i))

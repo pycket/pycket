@@ -57,7 +57,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             pass
 
-        def without(self, shift, hash, key):
+        def without_inode(self, shift, hash, key):
             pass
 
         def _get_item_node(self, index):

@@ -169,6 +169,9 @@ class W_InterposeProcedure(values.W_Procedure):
     def post_call_cont(self, args, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
+    def safe_proxy(self):
+        return True
+
     @label
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
@@ -180,6 +183,8 @@ class W_InterposeProcedure(values.W_Procedure):
         from pycket.values import W_ThunkProcCMK
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
+        if not self.safe_proxy():
+            return self.check.call_with_extra_info(args, env, cont, calling_app)
         after = self.post_call_cont(args, env, cont, calling_app)
         prop = self.properties.get(w_impersonator_prop_application_mark, None)
         if isinstance(prop, values.W_Cons):
@@ -208,12 +213,21 @@ class W_ChpProcedure(W_InterposeProcedure):
     def post_call_cont(self, args, env, cont, calling_app):
         return chp_proc_cont(args, self.inner, calling_app, env, cont)
 
+class W_UnsafeImpProcedure(W_ImpProcedure):
+    def safe_proxy(self):
+        return False
+
+class W_UnsafeChpProcedure(W_ChpProcedure):
+    def safe_proxy(self):
+        return False
+
 class W_InterposeBox(values.W_Box):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-box"
-    _immutable_fields_ = ["inner", "unbox", "set", "properties"]
+    _immutable_fields_ = ["inner", "unboxh", "seth", "properties"]
 
+    @jit.unroll_safe
     def __init__(self, box, unboxh, seth, prop_keys, prop_vals):
         assert isinstance(box, values.W_Box)
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
@@ -227,7 +241,7 @@ class W_InterposeBox(values.W_Box):
                 self.properties[k] = prop_vals[i]
 
     def immutable(self):
-        return self.inner.immutable()
+        return get_base_object(self.inner).immutable()
 
     def post_unbox_cont(self, env, cont):
         raise NotImplementedError("abstract method")
@@ -248,9 +262,6 @@ class W_InterposeBox(values.W_Box):
 class W_ChpBox(W_InterposeBox):
     import_from_mixin(ChaperoneMixin)
 
-    errorname = "chp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
-
     def post_unbox_cont(self, env, cont):
         return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
 
@@ -270,7 +281,6 @@ class W_ImpBox(W_InterposeBox):
     import_from_mixin(ImpersonatorMixin)
 
     errorname = "imp-box"
-    _immutable_fields_ = ["inner", "unbox", "set"]
 
     def post_unbox_cont(self, env, cont):
         return impersonate_reference_cont(self.unboxh, [self.inner], None, env, cont)

@@ -1,3 +1,4 @@
+import math
 import pytest
 from pycket.interpreter import *
 from pycket.values import *
@@ -214,6 +215,11 @@ def test_even_odd():
     run("(odd?   10000000000000000000000000001000000000000000000000000000)", w_false)
     run("(odd?  -10000000000000000000000000001000000000000000000000000001)", w_true)
     run("(odd?   10000000000000000000000000001000000000000000000000000001)", w_true)
+
+    run("(even? 1.0)", w_false)
+    run("(even? 2.0)", w_true)
+    run("(odd? 1.0)", w_true)
+    run("(odd? 2.0)", w_false)
 
 def test_zero(doctest):
     """
@@ -465,6 +471,16 @@ def test_all_comparators(doctest):
     #t
     > (>= 1 2 1)
     #f
+    > (procedure-arity-includes? = 0)
+    #f
+    > (procedure-arity-includes? = 1)
+    #f
+    > (procedure-arity-includes? = 2)
+    #t
+    > (procedure-arity-includes? = 3)
+    #t
+    > (procedure-arity-includes? = 4)
+    #t
     """
 
 @pytest.mark.xfail
@@ -628,8 +644,10 @@ def test_flround(doctest):
     > (flround -0.5001)
     -1.0
     """
+
 def test_max(doctest):
     """
+    ! (require racket/math)
     > (max 1 1.1)
     1.1
     > (max 1 0.2)
@@ -654,6 +672,14 @@ def test_max(doctest):
     3
     > (max 1 3 -17 2.0)
     3.0
+    > (max 1 3/2 1/2)
+    3/2
+    > (min 1 3/2 1/2)
+    1/2
+    > (nan? (min +inf.0 +nan.0 -inf.0))
+    #t
+    > (nan? (max +inf.0 +nan.0 -inf.0))
+    #t
     """
 
 def test_bitwise(doctest):
@@ -1045,4 +1071,15 @@ def test_sqrt(doctest):
     3.872983346207417
     > (sqrt 16)
     4
+    > (sqrt -7)
+    0+2.6457513110645907i
+    > (sqrt -3)
+    0+1.7320508075688772i
+    > (sqrt -3.14)
+    0+1.772004514666935i
     """
+
+def test_sqrt2():
+    val = W_Flonum(-0.0).arith_sqrt().value
+    assert math.copysign(1, val) == -1
+

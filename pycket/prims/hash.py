@@ -12,7 +12,11 @@ from pycket.hash.equal   import W_EqualHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
-from rpython.rlib        import jit
+from rpython.rlib        import jit, objectmodel
+
+_KEY = 0
+_VALUE = 1
+_KEY_AND_VALUE = 2
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(ht):
@@ -27,26 +31,34 @@ def hash_iterate_next(ht, pos):
         return values.w_false
     return values.W_Fixnum(index + 1)
 
-def hash_iter_ref(ht, pos, key=False):
-    n = pos.value
+@objectmodel.specialize.arg(4)
+def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
+    from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
-        if key:
-            return w_key
-        else:
-            return w_val
+        if returns == _KEY:
+            return return_value(w_key, env, cont)
+        if returns == _VALUE:
+            return return_value(w_val, env, cont)
+        if returns == _KEY_AND_VALUE:
+            vals = values.Values._make2(w_key, w_val)
+            return return_multi_vals(vals, env, cont)
     except KeyError:
         raise SchemeException("hash-iterate-key: invalid position")
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
-@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
-def hash_iterate_key(ht, pos):
-    return hash_iter_ref(ht, pos, key=True)
+@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_key(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
 
-@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum])
-def hash_iterate_value(ht, pos):
-    return hash_iter_ref(ht, pos, key=False)
+@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_value(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
+
+@expose("hash-iterate-key+value", [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_key_value(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
 
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(ht, f, env, cont):
@@ -115,7 +127,7 @@ def make_weak_hasheq():
     # FIXME: not actually weak
     return make_simple_mutable_table(W_EqvMutableHashTable, None, None)
 
-@expose("make-weak-hash", [default(values.W_List, None)])
+@expose(["make-weak-hash", "make-late-weak-hasheq"], [default(values.W_List, None)])
 def make_weak_hash(assocs):
     if assocs is None:
         return W_EqualHashTable([], [], immutable=False)
@@ -268,8 +280,8 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO

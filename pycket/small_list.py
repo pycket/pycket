@@ -1,9 +1,10 @@
 from pycket import config
 
-from rpython.rlib  import jit, debug, objectmodel
+from rpython.rlib.unroll import unrolling_iterable
+from rpython.rlib        import jit, debug, objectmodel
 
 
-def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
+def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
                       listsizename="_get_size_list", gettername="_get_list",
                       settername="_set_list"):
@@ -27,12 +28,12 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
     if not config.type_size_specialization:
         sizemin = sizemax = 0
         unbox_num = False
+
     def wrapper(cls):
-        from rpython.rlib.unroll import unrolling_iterable
-        classes = []
-        def make_methods(size):
+        def make_class(size):
             attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
             unrolling_enumerate_attrs = unrolling_iterable(enumerate(attrs))
+
             def _get_size_list(self):
                 return size
             def _get_list(self, i):
@@ -48,19 +49,46 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
             def _set_list(self, i, val):
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
+                        if nonull:
+                            assert val is not None
                         setattr(self, attr, val)
                         return
                 raise IndexError
             def _init(self, elems, *args):
                 assert len(elems) == size
                 for i, attr in unrolling_enumerate_attrs:
+                    val = elems[i]
+                    if nonull:
+                        assert val is not None
                     setattr(self, attr, elems[i])
                 cls.__init__(self, *args)
-            meths = {gettername: _get_list, listsizename: _get_size_list, listgettername: _get_full_list, settername: _set_list, "__init__" : _init}
+            def _clone(self):
+                # Allocate and fill in small list values
+                result = objectmodel.instantiate(newcls)
+                for _, attr in unrolling_enumerate_attrs:
+                    value = getattr(self, attr)
+                    setattr(result, attr, value)
+                return result
+
+            # Methods for the new class being built
+            methods = {
+                gettername          : _get_list,
+                listsizename        : _get_size_list,
+                listgettername      : _get_full_list,
+                settername          : _set_list,
+                "__init__"          : _init,
+                "_clone_small_list" : _clone,
+            }
+
             if immutable:
-                meths["_immutable_fields_"] = attrs
-            return meths
-        classes = [type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), make_methods(size)) for size in range(sizemin, sizemax)]
+                methods["_immutable_fields_"] = attrs
+
+            newcls = type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), methods)
+            return newcls
+
+        classes = map(make_class, range(sizemin, sizemax))
+
+        # Build the arbitrary sized variant
         def _get_arbitrary(self, i):
             return getattr(self, attrname)[i]
         def _get_size_list_arbitrary(self):
@@ -68,15 +96,34 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
         def _get_list_arbitrary(self):
             return getattr(self, attrname)
         def _set_arbitrary(self, i, val):
+            if nonull:
+                assert val is not None
             getattr(self, attrname)[i] = val
         def _init(self, elems, *args):
             debug.make_sure_not_resized(elems)
             setattr(self, attrname, elems)
             cls.__init__(self, *args)
-        meths = {gettername: _get_arbitrary, listsizename: _get_size_list_arbitrary, listgettername: _get_list_arbitrary, settername: _set_arbitrary, "__init__": _init}
+        def _clone(self):
+            result = objectmodel.instantiate(cls_arbitrary)
+            values = getattr(self, attrname)
+            if not immutable:
+                # Only copy if the storage is mutable
+                values = values[:]
+            setattr(result, attrname, values)
+            return result
+
+        methods = {
+            gettername          : _get_arbitrary,
+            listsizename        : _get_size_list_arbitrary,
+            listgettername      : _get_list_arbitrary,
+            settername          : _set_arbitrary,
+            "__init__"          : _init,
+            "_clone_small_list" : _clone,
+        }
+
         if immutable:
-            meths["_immutable_fields_"] = ["%s[*]" % (attrname, )]
-        cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), meths)
+            methods["_immutable_fields_"] = ["%s[*]" % (attrname, )]
+        cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), methods)
 
         def make(elems, *args):
             if classes:
@@ -137,6 +184,17 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False,
         return cls
     return wrapper
 
+def add_clone_method(cls):
+    field_names = unrolling_iterable(cls._immutable_fields_)
+    def _clone_small_list(self):
+        result = objectmodel.instantiate(cls)
+        for attr in field_names:
+            val = getattr(self, attr)
+            setattr(result, attr, val)
+        return result
+    cls._clone_small_list = _clone_small_list
+    return cls
+
 def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     # XXX quite brute force
     def make(vals, *args):
@@ -186,6 +244,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size1Fixed.__name__ = cls.__name__ + Size1Fixed.__name__
+    add_clone_method(Size1Fixed)
 
     class Size1Flo(cls):
         _immutable_fields_ = ['vals_flo_0']
@@ -204,9 +263,15 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
             assert i == 0
             return W_Flonum(self.vals_flo_0)
 
+        def _clone_small_list(self):
+            result = objectmodel.instantiate(Size1Flo)
+            result.vals_flo_0 = self.vals_flo_0
+            return result
+
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
+    add_clone_method(Size1Flo)
 
     class Size2Fixed10(cls):
         _immutable_fields_ = ['vals_fixed_0', 'w_val1']
@@ -232,7 +297,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed10.__name__ = cls.__name__ + Size2Fixed10.__name__
-
+    add_clone_method(Size2Fixed10)
 
     class Size2Fixed01(cls):
         _immutable_fields_ = ['w_val0', 'vals_fixed_1']
@@ -258,6 +323,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed01.__name__ = cls.__name__ + Size2Fixed01.__name__
+    add_clone_method(Size2Fixed01)
 
     class Size2Fixed11(cls):
         _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1']
@@ -283,5 +349,6 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
+    add_clone_method(Size2Fixed11)
 
     return make, make1, make2

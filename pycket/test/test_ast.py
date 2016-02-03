@@ -1,7 +1,7 @@
 import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol, W_Fixnum
-from pycket.expand import _to_ast, to_ast, parse_module
+from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,

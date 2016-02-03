@@ -4,7 +4,7 @@
 from pycket                   import config
 from pycket.arity             import Arity
 from pycket.base              import W_Object, W_ProtoObject
-from pycket.cont              import continuation, label, BaseCont
+from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import make_call_method
@@ -15,11 +15,12 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
+from rpython.rlib.objectmodel import specialize
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
-from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized
+from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
 UNROLLING_CUTOFF = 5
 
@@ -159,15 +160,22 @@ class W_ContinuationPromptTag(W_Object):
         self.name = name
 
     def tostring(self):
-        return "#<continuation-prompt-tag>"
+        if self.name is None:
+            return "#<continuation-prompt-tag>"
+        name = self.name.utf8value
+        return "#<continuation-prompt-tag:%s>" % name
 
 w_default_continuation_prompt_tag = W_ContinuationPromptTag(None)
 
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
-    _immutable_fields_ = ["cont"]
-    def __init__(self, cont):
+
+    _immutable_fields_ = ["cont", "prompt_tag"]
+
+    def __init__(self, cont, prompt_tag):
         self.cont = cont
+        self.prompt_tag = prompt_tag
+
     def tostring(self):
         return "#<continuation-mark-set>"
 
@@ -255,12 +263,12 @@ class W_Cons(W_List):
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
             if cdr.is_proper_list():
-                return W_UnwrappedFixnumConsProper(car, cdr)
-            return W_UnwrappedFixnumCons(car, cdr)
+                return W_UnwrappedFixnumConsProper(car.value, cdr)
+            return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
             if cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car, cdr)
-            return W_UnwrappedFlonumCons(car, cdr)
+                return W_UnwrappedFlonumConsProper(car.value, cdr)
+            return W_UnwrappedFlonumCons(car.value, cdr)
         else:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
@@ -312,8 +320,7 @@ class W_Cons(W_List):
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
-        assert isinstance(a, W_Fixnum)
-        self._car = a.value
+        self._car = a
         self._cdr = d
 
     def car(self):
@@ -329,8 +336,7 @@ class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
 class W_UnwrappedFlonumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
-        assert isinstance(a, W_Flonum)
-        self._car = a.value
+        self._car = a
         self._cdr = d
 
     def car(self):
@@ -560,6 +566,9 @@ class W_Rational(W_Number):
 class W_Integer(W_Number):
     errorname = "integer"
 
+    def toint(self):
+        raise NotImplementedError("abstract base class")
+
     @staticmethod
     def frombigint(value):
         try:
@@ -591,7 +600,11 @@ class W_Fixnum(W_Integer):
         if not we_are_translated():
             # this is not safe during translation
             assert isinstance(val, int)
+        check_regular_int(val)
         self.value = val
+
+    def toint(self):
+        return self.value
 
     def equal(self, other):
         if not isinstance(other, W_Fixnum):
@@ -635,6 +648,7 @@ class W_Flonum(W_Number):
         # Assumes that all non-NaN values are canonical
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
+W_Flonum.ZERO   = W_Flonum(0.0)
 W_Flonum.INF    = W_Flonum(float("inf"))
 W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
@@ -647,6 +661,10 @@ class W_Bignum(W_Integer):
 
     def __init__(self, val):
         self.value = val
+
+    def toint(self):
+        """ raises OverflowError on failure """
+        return self.value.toint()
 
     def toflonum(self):
         bignum = self.value
@@ -794,10 +812,10 @@ class W_Bool(W_Object):
 
     def __init__(self):
         """ NOT_RPYTHON """
-        pass
         # the previous line produces an error if somebody makes new bool
         # objects from primitives
-        #self.value = val
+        pass
+
     def tostring(self):
         return "#t" if self is w_true else "#f"
 
@@ -1043,21 +1061,22 @@ class W_ThunkProcCMK(W_Procedure):
 
 
 class W_Prim(W_Procedure):
-    _immutable_fields_ = ["name", "code", "arity", "simple1", "simple2"]
+    _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, simple1=None, simple2=None):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None):
         self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
         self.arity = arity
+        self.result_arity = result_arity
         self.simple1 = simple1
         self.simple2 = simple2
 
     def get_arity(self):
         return self.arity
 
-    def call(self, args, env, cont):
-        return self.call_with_extra_info(args, env, cont, None)
+    def get_result_arity(self):
+        return self.result_arity
 
     def call_with_extra_info(self, args, env, cont, extra_call_info):
         jit.promote(self)
@@ -1135,15 +1154,45 @@ def from_list_iter(lst):
 
 class W_Continuation(W_Procedure):
     errorname = "continuation"
+
     _immutable_fields_ = ["cont"]
-    def __init__ (self, cont):
+
+    def __init__(self, cont, prompt_tag=None):
         self.cont = cont
+        self.prompt_tag = prompt_tag
+
     def get_arity(self):
         # FIXME: see if Racket ever does better than this
         return Arity.unknown
+
     def call(self, args, env, cont):
         from pycket.interpreter import return_multi_vals
-        return return_multi_vals(Values.make(args), env, self.cont)
+        if self.prompt_tag is not None:
+            cont = self.cont.append(NilCont(), self.prompt_tag)
+        else:
+            cont = self.cont
+        return return_multi_vals(Values.make(args), env, cont)
+
+    def tostring(self):
+        return "#<continuation>"
+
+class W_ComposableContinuation(W_Procedure):
+    errorname = "composable-continuation"
+
+    _immutable_fields_ = ["cont", "prompt_tag"]
+
+    def __init__(self, cont, prompt_tag=None):
+        self.cont = cont
+        self.prompt_tag = prompt_tag
+
+    def get_arity(self):
+        return Arity.unknown
+
+    def call(self, args, env, cont):
+        from pycket.interpreter import return_multi_vals
+        kont = self.cont.append(cont, self.prompt_tag)
+        return return_multi_vals(Values.make(args), env, kont)
+
     def tostring(self):
         return "#<continuation>"
 
@@ -1417,7 +1466,6 @@ class W_StringInputPort(W_InputPort):
         self.ptr = 0
 
     def readline(self):
-        # import pdb; pdb.set_trace()
         from rpython.rlib.rstring import find
         start = self.ptr
         assert start >= 0
@@ -1513,7 +1561,6 @@ class W_FileInputPort(W_InputPort):
         self.seek(old_ptr)
         return new_ptr - old_ptr
 
-
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     _immutable_fields_ = ["file"]
@@ -1542,4 +1589,44 @@ class W_FileOutputPort(W_OutputPort):
     def tell(self):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
+
+@specialize.call_location()
+def wrap_list(pyval):
+    assert isinstance(pyval, list)
+    acc = w_null
+    for val in reversed(pyval):
+        acc = wrap(val, acc)
+    return acc
+
+@specialize.ll()
+def wrap(*_pyval):
+    # Smart constructor for converting Python values to Racket values
+    if len(_pyval) == 1:
+        pyval = _pyval[0]
+        if isinstance(pyval, bool):
+            return w_true if pyval else w_false
+        if isinstance(pyval, int):
+            return W_Fixnum(pyval)
+        if isinstance(pyval, float):
+            return W_Flonum(pyval)
+        if isinstance(pyval, W_Object):
+            return pyval
+    elif len(_pyval) == 2:
+        car = _pyval[0]
+        cdr = wrap(_pyval[1])
+        if isinstance(car, bool):
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(wrap(car), cdr)
+            return W_WrappedCons(wrap(car), cdr)
+        if isinstance(car, int):
+            if cdr.is_proper_list():
+                return W_UnwrappedFixnumConsProper(car, cdr)
+            return W_UnwrappedFixnumCons(car, cdr)
+        if isinstance(car, float):
+            if cdr.is_proper_list():
+                return W_UnwrappedFlonumConsProper(car, cdr)
+            return W_UnwrappedFlonumCons(car, cdr)
+        if isinstance(car, W_Object):
+            return W_Cons.make(car, cdr)
+    assert False
 

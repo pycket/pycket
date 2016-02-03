@@ -636,6 +636,19 @@ def test_port_read_peek(doctest):
     101
     > (read-byte bp)
     40
+    > (define usp (open-input-string "\u4F60\u597D,\u4E16\u754C"))
+    > (peek-byte usp)
+    228
+    > (peek-char usp)
+    #\u4F60
+    > (peek-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u597D
+    > (read-char usp)
+    #\,
     """
 
 def test_peek_bug(tmpdir):
@@ -975,3 +988,14 @@ def test_ctype_basetype(doctest):
     #t
     """
 
+
+def test_procedure_result_arity(doctest):
+    """
+    ! (define-struct node (x y z))
+    > (procedure-result-arity car)
+    1
+    > (procedure-result-arity cdr)
+    1
+    > (procedure-result-arity node-x)
+    1
+    """

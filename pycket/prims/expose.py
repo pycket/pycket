@@ -104,7 +104,7 @@ def _make_arg_unwrapper(func, argstypes, funcname, has_self=False, simple=False)
         func_arg_unwrap = make_list_arg_unwrapper(
             func, has_self, min_arg, max_arity, unroll_argtypes, errormsg_arity)
         call1 = call2 = None
-    _arity = Arity(range(min_arg, max_arity+1), -1)
+    _arity = Arity.oneof(*range(min_arg, max_arity+1))
     return func_arg_unwrap, _arity, call1, call2
 
 def make_direct_arg_unwrapper(func, num_args, unroll_argtypes, errormsg_arity):
@@ -231,7 +231,9 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
             _arity = arity or Arity.unknown
             assert isinstance(_arity, Arity)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
-        return values.W_Prim(name, make_remove_extra_info(func_result_handling), _arity)
+        result_arity = Arity.oneof(1) if simple else None
+        return values.W_Prim(name, make_remove_extra_info(func_result_handling),
+                             arity=_arity, result_arity=result_arity)
     return wrapper
 
 def make_remove_extra_info(func):
@@ -279,8 +281,10 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)
-        cls = values.W_Prim
-        p = cls(name, func_result_handling, _arity, call1, call2)
+        result_arity = Arity.ONE if simple else None
+        p = values.W_Prim(name, func_result_handling,
+                          arity=_arity, result_arity=result_arity,
+                          simple1=call1, simple2=call2)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env:

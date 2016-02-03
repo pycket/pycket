@@ -43,10 +43,13 @@ def make_entry_point(pycketconfig=None):
 
         modtable = ModTable()
         modtable.enter_module(module_name)
+        entry_flag = 'byte-expand' in names
+
         if json_ast is None:
-            ast = expand_to_ast(module_name, modtable)
+            ast = expand_to_ast(module_name, modtable, byte_flag=entry_flag)
         else:
-            ast = load_json_ast_rpython(json_ast, modtable)
+            ast = load_json_ast_rpython(json_ast, modtable, byte_flag=entry_flag)
+
         modtable.exit_module(module_name, ast)
 
         env = ToplevelEnv(pycketconfig)
@@ -57,6 +60,9 @@ def make_entry_point(pycketconfig=None):
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
+            if config.get('save-callgraph', False):
+                with open('callgraph.dot', 'w') as outfile:
+                    env.callgraph.write_dot_file(outfile)
             shutdown(env)
         return 0
     return entry_point

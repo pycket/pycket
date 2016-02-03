@@ -16,10 +16,7 @@ from pycket.prims.expose import default, expose, expose_val, procedure
 from rpython.rlib                import jit, unroll
 from rpython.rtyper.lltypesystem import rffi
 
-if sys.maxint == 2147483647:    # 32-bit
-    POINTER_SIZE = 4
-else:                           # 64-bit
-    POINTER_SIZE = 8
+POINTER_SIZE = rffi.sizeof(rffi.VOIDP)
 
 PRIMITIVE_CTYPES = [
     ("bool"          , 4           , 4 ) ,

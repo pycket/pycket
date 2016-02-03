@@ -174,7 +174,7 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class ConsEnv(Env):
     _immutable_fields_ = ["_prev"]
     def __init__ (self, prev):

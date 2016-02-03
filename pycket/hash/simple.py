@@ -157,6 +157,16 @@ W_EqualImmutableHashTable = make_persistent_hash_type(
     hashfun = lambda x: r_uint(x.hash_equal()),
     equal   = lambda x, y: x.equal(y))
 
+def _hash_ref(self, k, env, cont):
+    from pycket.interpreter import return_value
+    result = self.val_at(k, w_missing)
+    return return_value(result, env, cont)
+
+def _hash_remove(self, key, env, cont):
+    from pycket.interpreter import return_value
+    removed = self.without(key)
+    return return_value(removed, env, cont)
+
 class __extend__(W_EqvImmutableHashTable):
 
     def length(self):
@@ -168,24 +178,16 @@ class __extend__(W_EqvImmutableHashTable):
     def make_empty(self):
         return W_EqvImmutableHashTable.EMPTY
 
-    def hash_ref(self, k, env, cont):
-        from pycket.interpreter import return_value
-        result = self.val_at(k, w_missing)
-        return return_value(result, env, cont)
-
-    def hash_remove(self, key, env, cont):
-        from pycket.interpreter import return_value
-        removed = self.without(key)
-        return return_value(removed, env, cont)
-
     def tostring(self):
-        assert type(self) is W_EqvImmutableHashTable
         entries = [None] * len(self)
         i = 0
         for k, v in self.iteritems():
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheqv(%s)" % " ".join(entries)
+
+    hash_ref    = _hash_ref
+    hash_remove = _hash_remove
 
 class __extend__(W_EqImmutableHashTable):
 
@@ -198,24 +200,16 @@ class __extend__(W_EqImmutableHashTable):
     def make_empty(self):
         return W_EqImmutableHashTable.EMPTY
 
-    def hash_ref(self, key, env, cont):
-        from pycket.interpreter import return_value
-        result = self.val_at(key, w_missing)
-        return return_value(result, env, cont)
-
-    def hash_remove(self, key, env, cont):
-        from pycket.interpreter import return_value
-        removed = self.without(key)
-        return return_value(removed, env, cont)
-
     def tostring(self):
-        assert type(self) is W_EqImmutableHashTable
         entries = [None] * len(self)
         i = 0
         for k, v in self.iteritems():
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
         return "#hasheq(%s)" % " ".join(entries)
+
+    hash_ref    = _hash_ref
+    hash_remove = _hash_remove
 
 class __extend__(W_EqualImmutableHashTable):
 
@@ -228,21 +222,14 @@ class __extend__(W_EqualImmutableHashTable):
     def make_empty(self):
         return W_EqImmutableHashTable.EMPTY
 
-    def hash_ref(self, k, env, cont):
-        from pycket.interpreter import return_value
-        result = self.val_at(k, w_missing)
-        return return_value(result, env, cont)
-
-    def hash_remove(self, key, env, cont):
-        from pycket.interpreter import return_value
-        removed = self.without(key)
-        return return_value(removed, env, cont)
-
     def tostring(self):
-        assert type(self) is W_EqImmutableHashTable
         entries = [None] * len(self)
         i = 0
         for k, v in self.iteritems():
             entries[i] = "(%s . %s)" % (k.tostring(), v.tostring())
             i += 1
-        return "#hasheq(%s)" % " ".join(entries)
+        return "#hash(%s)" % " ".join(entries)
+
+    hash_ref    = _hash_ref
+    hash_remove = _hash_remove
+
