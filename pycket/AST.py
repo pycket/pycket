@@ -1,7 +1,8 @@
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
+
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
+    # _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
@@ -48,6 +49,9 @@ class AST(object):
             self.should_enter = True
             return True
         return False
+
+    def make_ready(self):
+        return self
 
     def direct_children(self):
         return []

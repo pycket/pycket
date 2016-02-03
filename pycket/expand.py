@@ -43,6 +43,9 @@ def readfile_rpython(fname):
 
 #### ========================== Functions for expanding code to json
 
+def make_module_ready(mod):
+    return mod.assign_convert_module().make_ready()
+
 fn = "-l pycket/expand --"
 be = "-l pycket/zo-expand --"
 
@@ -127,7 +130,8 @@ def expand_to_ast(fname, modtable, lib=fn, byte_flag=False):
         lib = be
     data = expand_file_rpython(fname, lib)
     reader = JsonReader(modtable, lib)
-    return reader.to_module(pycket_json.loads(data)).assign_convert_module()
+    mod = reader.to_module(pycket_json.loads(data))
+    return make_module_ready(mod)
 
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
@@ -268,7 +272,8 @@ def load_json_ast_rpython(fname, modtable, lib=fn, byte_flag=False):
         lib = be
     data = readfile_rpython(fname)
     reader = JsonReader(modtable, lib)
-    return reader.to_module(pycket_json.loads(data)).assign_convert_module()
+    mod = reader.to_module(pycket_json.loads(data))
+    return make_module_ready(mod)
 
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
@@ -279,12 +284,13 @@ def parse_module(json_string, lib=fn):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     reader = JsonReader(modtable, fn)
-    return reader.to_module(json).assign_convert_module()
+    mod = reader.to_module(json)
+    return make_module_ready(mod)
 
 def to_ast(json, modtable, lib=fn):
     reader = JsonReader(modtable, fn)
     ast = reader.to_ast(json)
-    return ast.assign_convert(variable_set(), None)
+    return ast.assign_convert(variable_set(), None).make_ready()
 
 #### ========================== Implementation functions
 

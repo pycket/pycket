@@ -2,7 +2,7 @@
 from pycket.AST   import AST
 from pycket.base  import W_Object
 from pycket.error import SchemeException
-from rpython.rlib import rvmprof
+from rpython.rlib import objectmodel, rvmprof
 
 def _get_code(ast, env):
     return ast
@@ -19,6 +19,20 @@ def _get_full_name(ast):
     return "rkt:<lambda>:%s:%s" % (filename, srcline)
 
 rvmprof.register_code_object_class(AST, _get_full_name)
+
+def _init_ready(ast):
+    rvmprof.register_code(ast, _get_full_name)
+
+def make_ready(self):
+    todo = [self]
+    while todo:
+        node = todo.pop()
+        rvmprof.register_code(node, _get_full_name)
+        todo.extend(node.direct_children())
+    return self
+
+AST.make_ready = make_ready
+
 
 def enable(fileno, period):
     """Enable vmprof.  Writes go to the given 'fileno', a file descriptor
