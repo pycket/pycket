@@ -32,7 +32,7 @@ def make_ready(self):
     return self
 
 AST.make_ready = make_ready
-
+AST._attrs_ += ['_vmprof_unique_id']
 
 def enable(fileno, period):
     """Enable vmprof.  Writes go to the given 'fileno', a file descriptor
