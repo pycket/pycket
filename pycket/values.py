@@ -1078,9 +1078,6 @@ class W_Prim(W_Procedure):
     def get_result_arity(self):
         return self.result_arity
 
-    def call(self, args, env, cont):
-        return self.call_with_extra_info(args, env, cont, None)
-
     def call_with_extra_info(self, args, env, cont, extra_call_info):
         jit.promote(self)
         return self.code(args, env, cont, extra_call_info)
@@ -1469,7 +1466,6 @@ class W_StringInputPort(W_InputPort):
         self.ptr = 0
 
     def readline(self):
-        # import pdb; pdb.set_trace()
         from rpython.rlib.rstring import find
         start = self.ptr
         assert start >= 0
