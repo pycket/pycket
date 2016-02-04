@@ -15,7 +15,6 @@ def _get_full_name(ast):
     if lam is None:
         mod = ast.surrounding_module
         if mod is None:
-            print ast.tostring()
             filename = "<unknown>"
         else:
             filename = mod.full_module_path()
