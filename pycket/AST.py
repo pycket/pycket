@@ -2,14 +2,15 @@ from rpython.rlib import jit, objectmodel
 
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
-    _immutable_fields_ = ["should_enter", "surrounding_lambda"]
+    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "surrounding_module", "_stringrepr"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda", "surrounding_module"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
     mvars = None
     surrounding_lambda = None
+    surrounding_module = None
 
     simple = False
 
@@ -33,6 +34,13 @@ class AST(object):
         self.surrounding_lambda = lam
         for child in self.direct_children():
             child.set_surrounding_lambda(lam)
+
+    def set_surrounding_module(self, mod):
+        from pycket.interpreter import Module
+        assert isinstance(mod, Module)
+        self.surrounding_module = mod
+        for child in self.direct_children():
+            child.set_surrounding_module(mod)
 
     def set_should_enter(self):
         """ Set the should_enter field and returns whether or not the field was

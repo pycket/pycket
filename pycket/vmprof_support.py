@@ -13,7 +13,13 @@ def _get_full_name(ast):
     # TODO: Provide mor source information for code lacking a surrounding lambda
     lam = ast.surrounding_lambda
     if lam is None:
-        return "rkt:<module>:?:?"
+        mod = ast.surrounding_module
+        if mod is None:
+            print ast.tostring()
+            filename = "<unknown>"
+        else:
+            filename = mod.full_module_path()
+        return "rkt:<module>:%s:?" % filename
     filename = lam.srcfile
     srcline  = lam.srcpos
     return "rkt:<lambda>:%s:%s" % (filename, srcline)

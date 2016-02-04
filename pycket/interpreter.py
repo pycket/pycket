@@ -449,12 +449,19 @@ class Module(AST):
             defs.update(b.defined_vars())
         self.defs = defs
 
+        for b in self.direct_children():
+            b.set_surrounding_module(self)
+
     def rebuild_body(self):
         return self.requires + self.body
 
     def set_parent_module(self, parent):
         assert isinstance(parent, Module)
         self.parent = parent
+
+    def set_surrounding_module(self, mod):
+        assert isinstance(mod, Module)
+        self.surrounding_module = mod
 
     def collect_submodules(self, acc):
         acc.append(self)
