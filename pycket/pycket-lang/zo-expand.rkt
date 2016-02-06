@@ -228,6 +228,7 @@
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
+    ((with-cont-mark? body-form) "with-cont-mark ")
     ((let-one? body-form) "let-one ")
     ((let-void? body-form) "let-void ")
     ((case-lam? body-form) "case-lam ")
@@ -269,7 +270,15 @@
   (let* ([seqs (seq-forms seq-expr)]
          [vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
     vals)) ;;(list-ref vals (sub1 (length vals)))))
-    
+
+(define (handle-wcm body-form toplevels localref-stack)
+  (let ([wcm-key (with-cont-mark-key body-form)]
+        [wcm-val (with-cont-mark-val body-form)]
+        [wcm-body (with-cont-mark-body body-form)])
+    (hash* 'wcm-key (to-ast-single wcm-key toplevels localref-stack)
+           'wcm-val (to-ast-single wcm-val toplevels localref-stack)
+           'wcm-body (to-ast-single wcm-body toplevels localref-stack))))
+
 (define (handle-assign body-form toplevels localref-stack)
   (let ([id (assign-id body-form)]
         [rhs (assign-rhs body-form)]
@@ -419,6 +428,9 @@
       ;; if
       ((branch? body-form)
        (handle-if body-form toplevels localref-stack))
+      ;; with-continuation-mark
+      ((with-cont-mark? body-form)
+       (handle-wcm body-form toplevels localref-stack))
       ;; apply-values
       ((apply-values? body-form)
        (handle-apply-values body-form toplevels localref-stack))
