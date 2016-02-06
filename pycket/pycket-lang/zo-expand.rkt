@@ -187,10 +187,9 @@
                              'lambda '()
                              'body (list args))])
 
-  ;; (call-with-values lam proc)
+    ;; (call-with-values lam proc)
     (hash* 'operator (hash* 'source-name "call-with-values")
-           'operands (list lambda-form proc))
-    ))
+           'operands (list lambda-form proc))))
 
 (define (handle-localref lref-form toplevels localref-stack)
   (let* ([pos (localref-pos lref-form)]
@@ -216,10 +215,11 @@
   (let* ([newstack-prev (cons 'let-one-uninitialized-slot localref-stack)] ;; push uninitialized slot
          [rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)] ;; evaluate rhs
          [newstack (cons rhs (cdr newstack-prev))]) ;; put the rhs to the slot
-    (hash* 'let-bindings '()
-           'let-body (list (to-ast-single (let-one-body letform)
-                                          toplevels
-                                          newstack)))))
+    ;; let-bindings are empty (let-one doesn't bind anything), so no need to produce
+    ;; let form in the ast, just producing the body
+    (to-ast-single (let-one-body letform)
+                   toplevels
+                   newstack)))
 
 (define (body-name body-form)
   (cond
@@ -229,6 +229,7 @@
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
     ((with-cont-mark? body-form) "with-cont-mark ")
+    ((boxenv? body-form) "boxenv ")
     ((let-one? body-form) "let-one ")
     ((let-void? body-form) "let-void ")
     ((case-lam? body-form) "case-lam ")
@@ -278,6 +279,14 @@
     (hash* 'wcm-key (to-ast-single wcm-key toplevels localref-stack)
            'wcm-val (to-ast-single wcm-val toplevels localref-stack)
            'wcm-body (to-ast-single wcm-body toplevels localref-stack))))
+
+;; boxenv case: lambda arg is mutated inside the body
+(define (handle-boxenv body-form toplevels localref-stack)
+  (let* ([pos (boxenv-pos body-form)]
+         [pre-pos (take localref-stack pos)]
+         [post-pos (drop localref-stack pos)]
+         [boxed-slot (list (box (car post-pos)))])
+    (to-ast-single (boxenv-body body-form) toplevels (append pre-pos boxed-slot (cdr post-pos)))))
 
 (define (handle-assign body-form toplevels localref-stack)
   (let ([id (assign-id body-form)]
@@ -345,7 +354,7 @@
        'let-bindings (list (list binding-list
                                  (to-ast-single rhs toplevels localref-stack)))
        ;; let-body <- body
-       'let-body (to-ast-single body toplevels localref-stack)))))
+       'let-body (list (to-ast-single body toplevels localref-stack))))))
 
 (define (handle-list list-form toplevels localref-stack)
   ;; currently don't know how we can have a list as a body form,
@@ -431,6 +440,9 @@
       ;; with-continuation-mark
       ((with-cont-mark? body-form)
        (handle-wcm body-form toplevels localref-stack))
+      ;; boxenv
+      ((boxenv? body-form)
+       (handle-boxenv body-form toplevels localref-stack))
       ;; apply-values
       ((apply-values? body-form)
        (handle-apply-values body-form toplevels localref-stack))
