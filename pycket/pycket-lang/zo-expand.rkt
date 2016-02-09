@@ -192,15 +192,16 @@
            'operands (list lambda-form proc))))
 
 (define (handle-localref lref-form toplevels localref-stack)
-  (let* ([pos (localref-pos lref-form)]
-         [stack-slot-raw (list-ref localref-stack pos)]
-         [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
-    (cond
-      [(hash? stack-slot) stack-slot]
-      [else (hash* 'lexical stack-slot)])))
-
-;;(define (handle-toplevel toplevel-form toplevels)
-  ;;(let ((pos (toplevel-pos toplevel-form)))
+  (begin
+    (when DEBUG
+      (display (string-append "Localref-stack size : " (number->string (length localref-stack)) " -- ") (current-output-port))
+      (displayln (string-append "Requested for pos : " (number->string (localref-pos lref-form))) (current-output-port)))
+    (let* ([pos (localref-pos lref-form)]
+           [stack-slot-raw (list-ref localref-stack pos)]
+           [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
+      (cond
+        [(hash? stack-slot) stack-slot]
+        [else (hash* 'lexical stack-slot)]))))
 
 (define (handle-module-variable mod-var toplevels localref-stack)
   (let ([name (symbol->string (module-variable-sym mod-var))]
@@ -229,6 +230,7 @@
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
     ((with-cont-mark? body-form) "with-cont-mark ")
+    ((with-immed-mark? body-form) "with-immed-mark ")
     ((boxenv? body-form) "boxenv ")
     ((let-one? body-form) "let-one ")
     ((let-void? body-form) "let-void ")
@@ -280,6 +282,22 @@
            'wcm-val (to-ast-single wcm-val toplevels localref-stack)
            'wcm-body (to-ast-single wcm-body toplevels localref-stack))))
 
+(define (handle-immed-mark body-form toplevels localref-stack)
+  (let* ([key (with-immed-mark-key body-form)]
+         [body (with-immed-mark-body body-form)]
+         [mark-formal (symbol->string (gensym))]
+         [lam-form
+          (hash* 'source (hash* '%p (string-append pycket-dir "fromBytecode_" module-name ".rkt"))
+                 'position 321
+                 'span 123
+                 'module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))
+                 'lambda (list (hash* 'lexical mark-formal))
+                 'body (list (to-ast-single body toplevels (cons mark-formal localref-stack))))])
+    
+    (hash* 'operator (hash* 'source-name "call-with-immediate-continuation-mark")
+           'operands (list (to-ast-single key toplevels localref-stack)
+                           lam-form))))
+
 ;; boxenv case: lambda arg is mutated inside the body
 (define (handle-boxenv body-form toplevels localref-stack)
   (let* ([pos (boxenv-pos body-form)]
@@ -303,7 +321,10 @@
          [boxes? (let-void-boxes? body-form)]
          [body (let-void-body body-form)]
          [boxls (build-list count (lambda (x) (box 'uninitialized-slot)))]
-         [newstack (append boxls localref-stack)])
+         [newstack (begin
+                     (when DEBUG
+                       (displayln (string-append "LetVoid pushes " (number->string count) " boxes..")))
+                     (append boxls localref-stack))])
     (to-ast-single body toplevels newstack)))
 
 (define (handle-case-lambda body-form toplevels localref-stack)
@@ -330,7 +351,6 @@
                                      (hash* 'lambda arg-mapping
                                             'body body))))
                              clauses))))
-    
 
 (define (handle-install-value body-form toplevels localref-stack)
   ;; Runs rhs to obtain count results, and installs them into existing
@@ -369,20 +389,19 @@
 (define (to-ast-single body-form toplevels localref-stack)
   (begin
     (when DEBUG
-      (begin
-        (display (body-name body-form))
-        (display "- ")
-        (if (localref? body-form)
-            (begin (display (number->string (localref-pos body-form)))
-                   (display " - extracting : ")
-                   (display (list-ref localref-stack (localref-pos body-form))))
-            (if (primval? body-form)
-                (display (get-primval-name (primval-id body-form)))
-                (display "")))
-        (display " - LocalRefStack : ")
-        (display (number->string (length localref-stack)))
-        (display localref-stack)
-        (newline)(newline)))
+      (display (body-name body-form))
+      (display "- ")
+      (if (localref? body-form)
+          (begin (display (number->string (localref-pos body-form)))
+                 (display " - extracting : ")
+                 (display (list-ref localref-stack (localref-pos body-form))))
+          (if (primval? body-form)
+              (display (get-primval-name (primval-id body-form)))
+              (display "")))
+      (display " - LocalRefStack : ")
+      (display (number->string (length localref-stack)))
+      (display localref-stack)
+      (newline)(newline))
     (cond
       ;;;;;;;
       ;
@@ -440,6 +459,9 @@
       ;; with-continuation-mark
       ((with-cont-mark? body-form)
        (handle-wcm body-form toplevels localref-stack))
+      ;; with-immed-mark
+      ((with-immed-mark? body-form)
+       (handle-immed-mark body-form toplevels localref-stack))
       ;; boxenv
       ((boxenv? body-form)
        (handle-boxenv body-form toplevels localref-stack))
