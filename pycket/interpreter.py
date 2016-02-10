@@ -493,8 +493,9 @@ class Module(AST):
 
     def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
-        new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
-        return Module(self.name, new_body, self.config, lang=self.lang)
+        new_body = [b.assign_convert(local_muts, None) for b in self.body]
+        self.body = new_body
+        return self
 
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
@@ -546,7 +547,6 @@ class Module(AST):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
-
         if self.lang is not None:
             interpret_one(self.lang, self.env)
         elif self.parent is not None:
