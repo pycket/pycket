@@ -1049,7 +1049,7 @@ class Var(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def free_vars(self):
+    def _free_vars(self):
         return {self.sym: None}
 
     def _tostring(self):
@@ -1133,7 +1133,7 @@ class ModuleVar(Var):
         self.modenv = None
         self.w_value = None
 
-    def free_vars(self):
+    def _free_vars(self):
         return {}
 
     def _lookup(self, env):
@@ -1371,8 +1371,9 @@ class CaseLambda(AST):
             return w_closure
         return values.W_Closure.make(self, env)
 
-    def free_vars(self):
-        result = AST.free_vars(self)
+    def _free_vars(self):
+        # call _free_vars() to avoid populating the free vars cache
+        result = AST._free_vars(self)
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
@@ -1511,7 +1512,7 @@ class Lambda(SequencedBodyAST):
                 del x[lv]
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         result = free_vars_lambda(self.body, self.args)
         return result
 
@@ -1657,8 +1658,8 @@ class Letrec(SequencedBodyAST):
             x[lv] = None
         return x
 
-    def free_vars(self):
-        x = AST.free_vars(self)
+    def _free_vars(self):
+        x = AST._free_vars(self)
         for v in self.args.elems:
             if v in x:
                 del x[v]
@@ -1807,7 +1808,7 @@ class Let(SequencedBodyAST):
             x.update(b.mutated_vars())
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         x = {}
         for b in self.body:
             x.update(b.free_vars())
