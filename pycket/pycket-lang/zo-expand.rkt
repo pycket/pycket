@@ -241,6 +241,7 @@
     ((application? body-form) "application ")
     ((def-values? body-form) "def-values ")
     ((seq? body-form) "seq ")
+    ((splice? body-form) "splice ")
     ((assign? body-form) "SET! ")
     ((branch? body-form) "branch ")
     ((apply-values? body-form) "apply-values ")
@@ -263,16 +264,16 @@
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id toplevels localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
-  #|
-  (let* ([toplevel-id (list-ref toplevels (toplevel-pos form))]
-         [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)])
-  (to-ast-single toplevel-id-str toplevels localref-stack)))
-|#
   
 (define (handle-seq seq-expr toplevels localref-stack)
   (let* ([seqs (seq-forms seq-expr)]
-         [vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
-    vals)) ;;(list-ref vals (sub1 (length vals)))))
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
+    exprs))
+
+(define (handle-splice splice-expr toplevels localref-stack)
+  (let* ([splices (splice-forms splice-expr)]
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) splices)])
+    exprs))
 
 (define (handle-wcm body-form toplevels localref-stack)
   (let ([wcm-key (with-cont-mark-key body-form)]
@@ -442,6 +443,9 @@
       ;; seq
       ((seq? body-form)
        (handle-seq body-form toplevels localref-stack))
+      ;; splice
+      ((splice? body-form)
+       (handle-splice body-form toplevels localref-stack))
       ;; module-variable
       ((module-variable? body-form)
        (handle-module-variable body-form toplevels localref-stack))
