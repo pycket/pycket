@@ -66,9 +66,8 @@ class CallGraph(object):
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
             return False
-        todo = []
-        for key in reachable:
-            todo.append((key, Path(starting_from, None)))
+        init = Path(starting_from, None)
+        todo = [(key, init) for key in reachable]
         visited = {}
         while todo:
             current, path = todo.pop()
@@ -83,8 +82,9 @@ class CallGraph(object):
                 continue
             reachable = self.calls.get(current, None)
             if reachable:
+                path = Path(current, path)
                 for key in reachable:
-                    todo.append((key, Path(current, path)))
+                    todo.append((key, path))
             visited[current] = None
         return False
 
