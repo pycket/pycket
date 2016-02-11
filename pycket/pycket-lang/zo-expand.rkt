@@ -374,7 +374,8 @@
        'let-bindings (list (list binding-list
                                  (to-ast-single rhs toplevels localref-stack)))
        ;; let-body <- body
-       'let-body (list (to-ast-single body toplevels localref-stack))))))
+       'let-body (let ([body-ast (to-ast-single body toplevels localref-stack)])
+                   (if (list? body-ast) body-ast (list body-ast)))))))
 
 (define (handle-list list-form toplevels localref-stack)
   ;; currently don't know how we can have a list as a body form,
