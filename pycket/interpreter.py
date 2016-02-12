@@ -501,8 +501,9 @@ class Module(AST):
 
     def assign_convert_module(self):
         local_muts = self.mod_mutated_vars()
-        new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
-        return Module(self.name, new_body, self.config, lang=self.lang)
+        new_body = [b.assign_convert(local_muts, None) for b in self.body]
+        self.body = new_body
+        return self
 
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
@@ -554,7 +555,6 @@ class Module(AST):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
-
         if self.lang is not None:
             interpret_one(self.lang, self.env)
         elif self.parent is not None:
@@ -1057,7 +1057,7 @@ class Var(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def free_vars(self):
+    def _free_vars(self):
         return {self.sym: None}
 
     def _tostring(self):
@@ -1141,7 +1141,7 @@ class ModuleVar(Var):
         self.modenv = None
         self.w_value = None
 
-    def free_vars(self):
+    def _free_vars(self):
         return {}
 
     def _lookup(self, env):
@@ -1379,8 +1379,9 @@ class CaseLambda(AST):
             return w_closure
         return values.W_Closure.make(self, env)
 
-    def free_vars(self):
-        result = AST.free_vars(self)
+    def _free_vars(self):
+        # call _free_vars() to avoid populating the free vars cache
+        result = AST._free_vars(self)
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
@@ -1519,7 +1520,7 @@ class Lambda(SequencedBodyAST):
                 del x[lv]
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         result = free_vars_lambda(self.body, self.args)
         return result
 
@@ -1665,8 +1666,8 @@ class Letrec(SequencedBodyAST):
             x[lv] = None
         return x
 
-    def free_vars(self):
-        x = AST.free_vars(self)
+    def _free_vars(self):
+        x = AST._free_vars(self)
         for v in self.args.elems:
             if v in x:
                 del x[v]
@@ -1815,7 +1816,7 @@ class Let(SequencedBodyAST):
             x.update(b.mutated_vars())
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         x = {}
         for b in self.body:
             x.update(b.free_vars())

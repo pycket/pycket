@@ -2,13 +2,15 @@ from rpython.rlib import jit, objectmodel
 
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "surrounding_module", "_stringrepr"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "surrounding_module", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda", "surrounding_module"]
+
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
-    mvars = None
+    _mvars = None
+    _fvars = None
     surrounding_lambda = None
     surrounding_module = None
 
@@ -69,6 +71,11 @@ class AST(object):
             child.collect_submodules(acc)
 
     def free_vars(self):
+        if self._fvars is None:
+            self._fvars = self._free_vars()
+        return self._fvars
+
+    def _free_vars(self):
         free_vars = {}
         for child in self.direct_children():
             free_vars.update(child.free_vars())
@@ -86,10 +93,9 @@ class AST(object):
         raise NotImplementedError("abstract base class")
 
     def mutated_vars(self):
-        if self.mvars is not None:
-            return self.mvars
-        self.mvars = self._mutated_vars()
-        return self.mvars
+        if self._mvars is None:
+            self._mvars = self._mutated_vars()
+        return self._mvars
 
     def _mutated_vars(self):
         raise NotImplementedError("abstract base class")
