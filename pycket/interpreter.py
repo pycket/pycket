@@ -492,9 +492,13 @@ class Module(AST):
         return self.rebuild_body()
 
     def assign_convert_module(self):
+        """
+        Because references to modules are kept in the module environment, modules
+        should never be duplicated/copied. Rather than producing a converted module,
+        update the body of the module with the assingnment convert body.
+        """
         local_muts = self.mod_mutated_vars()
-        new_body = [b.assign_convert(local_muts, None) for b in self.body]
-        self.body = new_body
+        self.body = [b.assign_convert(local_muts, None) for b in self.body]
         return self
 
     def _tostring(self):
@@ -824,9 +828,9 @@ class App(AST):
             return App.make(rator, rands)
 
     def assign_convert(self, vars, env_structure):
-        return App.make(self.rator.assign_convert(vars, env_structure),
-                   [e.assign_convert(vars, env_structure) for e in self.rands],
-                   env_structure=env_structure)
+        rator = self.rator.assign_convert(vars, env_structure)
+        rands = [r.assign_convert(vars, env_structure) for r in self.rands]
+        return App.make(rator, rands, env_structure=env_structure)
 
     def direct_children(self):
         return [self.rator] + self.rands
