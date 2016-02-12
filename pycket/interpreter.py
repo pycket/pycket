@@ -432,7 +432,7 @@ class Module(AST):
 
         # Collect submodules and set their parents
         submodules = []
-        for b in body:
+        for b in self.body:
             b.collect_submodules(submodules)
         self.submodules = submodules[:]
         for s in self.submodules:
@@ -444,7 +444,7 @@ class Module(AST):
         self.config = config
 
         defs = {}
-        for b in body:
+        for b in self.body:
             defs.update(b.defined_vars())
         self.defs = defs
 
