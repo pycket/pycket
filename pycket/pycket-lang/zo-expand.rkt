@@ -39,8 +39,8 @@
           (hash-set! table n (car b)))))
     table))
 
-(define (compile-json config language topmod body1 top-require-forms body-forms pycket?)
-  (let ([whole-body (append top-require-forms body-forms)])
+(define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
+  (let ([whole-body (append top-reqs-provs body-forms)])
     (hash* 'language (list language)
            'module-name topmod
            'config config
@@ -241,6 +241,7 @@
     ((application? body-form) "application ")
     ((def-values? body-form) "def-values ")
     ((seq? body-form) "seq ")
+    ((splice? body-form) "splice ")
     ((assign? body-form) "SET! ")
     ((branch? body-form) "branch ")
     ((apply-values? body-form) "apply-values ")
@@ -263,16 +264,16 @@
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id toplevels localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
-  #|
-  (let* ([toplevel-id (list-ref toplevels (toplevel-pos form))]
-         [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)])
-  (to-ast-single toplevel-id-str toplevels localref-stack)))
-|#
   
 (define (handle-seq seq-expr toplevels localref-stack)
   (let* ([seqs (seq-forms seq-expr)]
-         [vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
-    vals)) ;;(list-ref vals (sub1 (length vals)))))
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
+    exprs))
+
+(define (handle-splice splice-expr toplevels localref-stack)
+  (let* ([splices (splice-forms splice-expr)]
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) splices)])
+    exprs))
 
 (define (handle-wcm body-form toplevels localref-stack)
   (let ([wcm-key (with-cont-mark-key body-form)]
@@ -374,7 +375,8 @@
        'let-bindings (list (list binding-list
                                  (to-ast-single rhs toplevels localref-stack)))
        ;; let-body <- body
-       'let-body (list (to-ast-single body toplevels localref-stack))))))
+       'let-body (let ([body-ast (to-ast-single body toplevels localref-stack)])
+                   (if (list? body-ast) body-ast (list body-ast)))))))
 
 (define (handle-list list-form toplevels localref-stack)
   ;; currently don't know how we can have a list as a body form,
@@ -441,6 +443,9 @@
       ;; seq
       ((seq? body-form)
        (handle-seq body-form toplevels localref-stack))
+      ;; splice
+      ((splice? body-form)
+       (handle-splice body-form toplevels localref-stack))
       ;; module-variable
       ((module-variable? body-form)
        (handle-module-variable body-form toplevels localref-stack))
@@ -549,6 +554,32 @@
   
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
+
+  (define top-provides (cadr (assv 0 (mod-provides code))))
+  (define top-provide-names (map (λ (prov) (list (provided-name prov)
+                                                 (provided-src-name prov))) top-provides))
+  (define (handle-provides provs out)
+    (cond
+      ((null? provs) out)
+      (else (let*
+                ([pr (car provs)]
+                 [out-name (car pr)]
+                 [orig-name (cadr pr)])
+              (handle-provides
+               (cdr provs)
+               (cons
+                (if (eqv? out-name orig-name)
+                    ;; no rename-out
+                    (hash* 'source-name (symbol->string orig-name)
+                           'source-module (list (string-append pycket-dir module-name ".rkt")))
+                    ;; rename-out
+                    (list (hash* 'toplevel "rename")
+                          (hash* 'source-name (symbol->string orig-name)
+                                 'source-module (list (string-append pycket-dir module-name ".rkt")))
+                          (hash* 'toplevel (symbol->string out-name)))) out))))))
+  
+  (define topProvides (list (cons (hash* 'source-name "#%provide")
+                                  (handle-provides top-provide-names '()))))
   
   (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
   (define phase0 (assv 0 top-reqs))
@@ -582,23 +613,35 @@
                                                       'source-name (symbol->string
                                                                     (module-variable-sym runtime-mod)))
                                      'operands (list (hash 'quote #f))))))))
+  
+  (define (self-mod? mpi)
+    (let-values ([(mod-path base-path) (module-path-index-split mpi)])
+      (and (not mod-path) (not base-path))))
 
   (define reqs (cdr phase0-reqs))
-  (define top-level-req-forms (map (lambda (req)
-                                      (let ([resolved-req-path (resolved-module-path-name
-                                                              (module-path-index-resolve req))])
-                                        (if (or (list? resolved-req-path) (symbol? resolved-req-path))
-                                            (error 'req-forms "don't know how to handle a submodule here")
-                                            (hash* 'require (list (list (path->string resolved-req-path)))))))
-                                    reqs))
 
+  (define top-level-req-forms (map (lambda (req-mod)
+                                     (if (self-mod? req-mod)
+                                         (error 'req-forms "there is a 'self' require at the top level??")
+                                         (let-values ([(module-path base-path) (module-path-index-split req-mod)])
+                                           (if (and (symbol? module-path) (not base-path)) ;; relative to an unspecified dir
+                                               (let ([resolved-req-path (resolved-module-path-name
+                                                                         (module-path-index-resolve req-mod))])
+                                                 (if (or (list? resolved-req-path) (symbol? resolved-req-path))
+                                                     (error 'req-forms "don't know how to handle a submodule here")
+                                                     (hash* 'require (list (list (path->string resolved-req-path))))))
+                                               (if (and (string? module-path) (self-mod? base-path))
+                                                   (hash* 'require (list (list (string-append (path->string (current-directory)) module-path))))
+                                                   (error 'req-forms "don't know how to handle this toplevel require yet"))))))
+                                   reqs))
+  
   ;; body-forms is a (listof hash hash)  
 
   (define final-json-hash (compile-json global-config
                                         (if lang-pycket? "#%kernel" lang)
                                         (string-append sub-dirs-str "fromBytecode_" module-name)
                                         runtime-config
-                                        top-level-req-forms
+                                        (append top-level-req-forms topProvides)
                                         (to-ast (mod-body code) toplevels)
                                         lang-pycket?))
   
