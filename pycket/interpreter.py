@@ -575,13 +575,13 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["fname", "modtable", "path[*]"]
+    _immutable_fields_ = ["fname", "loader", "path[*]"]
     simple = True
 
-    def __init__(self, fname, modtable, path=None):
-        self.fname    = fname
-        self.path     = path if path is not None else []
-        self.modtable = modtable
+    def __init__(self, fname, loader, path=None):
+        self.fname  = fname
+        self.path   = path if path is not None else []
+        self.loader = loader
 
     def _mutated_vars(self):
         return variable_set()
@@ -589,12 +589,13 @@ class Require(AST):
     def assign_convert(self, vars, env_structure):
         return self
 
-    @jit.elidable
     def find_module(self, env):
-        if self.modtable is not None:
-            module = self.modtable.lookup(self.fname)
+        assert not jit.we_are_jitted()
+        if self.loader is not None:
+            module = self.loader.lazy_load(self.fname)
         else:
             module = env.toplevel_env().module_env.current_module
+        assert module is not None
         module = module.resolve_submodule_path(self.path)
         return module
 

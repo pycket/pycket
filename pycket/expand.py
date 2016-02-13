@@ -247,11 +247,11 @@ def parse_ast(json_string):
 def parse_module(json_string, bytecode_expand=False):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
-    reader = JsonReader(bytecode_expand)
+    reader = JsonLoader(bytecode_expand)
     return reader.to_module(json).assign_convert_module()
 
 def to_ast(json, modtable, lib=_FN):
-    reader = JsonReader(_FN)
+    reader = JsonLoader(_FN)
     ast = reader.to_ast(json)
     return ast.assign_convert(variable_set(), None)
 
@@ -316,9 +316,8 @@ class ModTable(object):
         self.current_modules.append(fname)
 
     def pop(self):
-        if not self.current_modules:
-            raise SchemeException("No current module")
-        self.current_modules.pop()
+        assert self.current_modules, "malformed JSON"
+        return self.current_modules.pop()
 
     def current_mod(self):
         if not self.current_modules:
@@ -335,7 +334,7 @@ class ModTable(object):
     def lookup(self, fname):
         if fname.startswith("#%"):
             return None
-        return self.table[fname]
+        return self.table.get(fname, None)
 
     def enter_module(self, fname):
         # Pre-emptive pushing to prevent recursive expansion due to submodules
@@ -345,7 +344,7 @@ class ModTable(object):
 
     def exit_module(self, fname, module):
         self.add_module(fname, module)
-        self.pop()
+        assert self.pop() == fname
 
 def shorten_submodule_path(path):
     if path is None:
@@ -390,7 +389,9 @@ def parse_path(p):
         srcmod = None
     return srcmod, path
 
-class JsonReader(object):
+class JsonLoader(object):
+
+    _immutable_fields_ = ["modtable", "bytecode_expand"]
 
     def __init__(self, bytecode_expand=False):
         self.modtable = ModTable()
@@ -401,17 +402,15 @@ class JsonReader(object):
 
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
-        assert not self.modtable.has_module(fname)
-        self.modtable.enter_module(fname)
         data = expand_file_rpython(fname, self._lib_string())
+        self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
         self.modtable.exit_module(fname, module)
         return module
 
     def load_json_ast_rpython(self, modname, fname):
-        dbgprint("load_json_ast_rpython", "", lib=self._lib_string(), filename=fname)
-        self.modtable.enter_module(modname)
         data = readfile_rpython(fname)
+        self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
         self.modtable.exit_module(modname, module)
         return module
@@ -425,7 +424,6 @@ class JsonReader(object):
         return self.load_json_ast_rpython(rkt_file, json_file)
 
     def to_bindings(self, arr):
-        #dbgprint("to_bindings", arr)
         varss = [None] * len(arr)
         rhss  = [None] * len(arr)
         for i, v in enumerate(arr):
@@ -442,17 +440,23 @@ class JsonReader(object):
         body = [self.to_ast(x) for x in lam["body"].value_array()]
         return make_lambda(fmls, rest, body, pos, sourcefile)
 
-    def _to_require(self, fname, path=None, lib=_FN):
-        dbgprint("_to_require", fname, lib=self._lib_string(), filename=fname)
+    def _to_require(self, fname, path=None):
         path = shorten_submodule_path(path)
         modtable = self.modtable
+        if modtable.builtin(fname):
+            return VOID
+        return Require(fname, self, path=path)
 
-        if modtable.has_module(fname):
-            if modtable.builtin(fname):
-                return VOID
-            return Require(fname, modtable, path=path)
-        module = self.expand_file_cached(fname)
-        return Require(fname, modtable, path=path)
+    def lazy_load(self, fname):
+        modtable = self.modtable
+        module = modtable.lookup(fname)
+        if module is not None:
+            return module
+        try:
+            module = self.expand_file_cached(fname)
+        except ExpandException:
+            module = None
+        return module
 
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
@@ -503,7 +507,7 @@ class JsonReader(object):
         if json.is_array:
             arr = json.value_array()
             rator = arr[0].value_object()
-            if JsonReader.is_builtin_operation(rator):
+            if JsonLoader.is_builtin_operation(rator):
                 ast_elem = rator["source-name"].value_string()
                 if ast_elem == "begin":
                     return Begin([self.to_ast(x) for x in arr[1:]])

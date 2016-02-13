@@ -8,7 +8,7 @@ from rpython.rlib          import jit, objectmodel
 from rpython.rlib.nonconst import NonConstant
 
 def make_entry_point(pycketconfig=None):
-    from pycket.expand import JsonReader, PermException
+    from pycket.expand import JsonLoader, PermException
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
@@ -42,7 +42,7 @@ def make_entry_point(pycketconfig=None):
         module_name, json_ast = ensure_json_ast(config, names)
 
         entry_flag = 'byte-expand' in names
-        reader = JsonReader(bytecode_expand=entry_flag)
+        reader = JsonLoader(bytecode_expand=entry_flag)
         if json_ast is None:
             ast = reader.expand_to_ast(module_name)
         else:
