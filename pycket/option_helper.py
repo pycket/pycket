@@ -123,23 +123,23 @@ def parse_args(argv):
             if to <= i + 1:
                 print "missing argument after -%s" % arg
                 retval = 5
-                break            
-            
+                break
+
             i += 1
-            
+
             if argv[i] == "-R":
                 if to <= i + 1:
                     print "missing argument after -b -R"
                     retval = 5
                     break
-                
+
                 names['byte-expand'] = 'go'
                 i += 1
-            
+
             names['use-bytecode-of'] = "%s" % (argv[i])
 
             retval = 0
-            
+
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True
 
@@ -178,13 +178,13 @@ def ensure_json_ast(config, names):
     # assert not mcons
 
     if 'use-bytecode-of' in names:
-        
+
         file_name = names['use-bytecode-of']
         assert file_name.endswith('.rkt')
-        
+
         json_file = "fromBytecode_"+file_name+".json"
         json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)
-            
+
     elif config["mode"] is _eval:
         code = names['exprs']
         if 'file' in names:
@@ -192,9 +192,9 @@ def ensure_json_ast(config, names):
         else:
             file_name = _temporary_file()
         assert not file_name.endswith('.json')
-        
+
         json_file = ensure_json_ast_eval(code, file_name, stdlib)
-            
+
     elif config["mode"] is _run:
         assert not stdlib
         assert 'file' in names
