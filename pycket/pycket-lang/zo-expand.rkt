@@ -39,8 +39,8 @@
           (hash-set! table n (car b)))))
     table))
 
-(define (compile-json config language topmod body1 top-require-forms body-forms pycket?)
-  (let ([whole-body (append top-require-forms body-forms)])
+(define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
+  (let ([whole-body (append top-reqs-provs body-forms)])
     (hash* 'language (list language)
            'module-name topmod
            'config config
@@ -187,21 +187,21 @@
                              'lambda '()
                              'body (list args))])
 
-  ;; (call-with-values lam proc)
+    ;; (call-with-values lam proc)
     (hash* 'operator (hash* 'source-name "call-with-values")
-           'operands (list lambda-form proc))
-    ))
+           'operands (list lambda-form proc))))
 
 (define (handle-localref lref-form toplevels localref-stack)
-  (let* ([pos (localref-pos lref-form)]
-         [stack-slot-raw (list-ref localref-stack pos)]
-         [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
-    (cond
-      [(hash? stack-slot) stack-slot]
-      [else (hash* 'lexical stack-slot)])))
-
-;;(define (handle-toplevel toplevel-form toplevels)
-  ;;(let ((pos (toplevel-pos toplevel-form)))
+  (begin
+    (when DEBUG
+      (display (string-append "Localref-stack size : " (number->string (length localref-stack)) " -- ") (current-output-port))
+      (displayln (string-append "Requested for pos : " (number->string (localref-pos lref-form))) (current-output-port)))
+    (let* ([pos (localref-pos lref-form)]
+           [stack-slot-raw (list-ref localref-stack pos)]
+           [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
+      (cond
+        [(hash? stack-slot) stack-slot]
+        [else (hash* 'lexical stack-slot)]))))
 
 (define (handle-module-variable mod-var toplevels localref-stack)
   (let ([name (symbol->string (module-variable-sym mod-var))]
@@ -216,10 +216,11 @@
   (let* ([newstack-prev (cons 'let-one-uninitialized-slot localref-stack)] ;; push uninitialized slot
          [rhs (to-ast-single (let-one-rhs letform) toplevels newstack-prev)] ;; evaluate rhs
          [newstack (cons rhs (cdr newstack-prev))]) ;; put the rhs to the slot
-    (hash* 'let-bindings '()
-           'let-body (list (to-ast-single (let-one-body letform)
-                                          toplevels
-                                          newstack)))))
+    ;; let-bindings are empty (let-one doesn't bind anything), so no need to produce
+    ;; let form in the ast, just producing the body
+    (to-ast-single (let-one-body letform)
+                   toplevels
+                   newstack)))
 
 (define (body-name body-form)
   (cond
@@ -228,6 +229,9 @@
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
+    ((with-cont-mark? body-form) "with-cont-mark ")
+    ((with-immed-mark? body-form) "with-immed-mark ")
+    ((boxenv? body-form) "boxenv ")
     ((let-one? body-form) "let-one ")
     ((let-void? body-form) "let-void ")
     ((case-lam? body-form) "case-lam ")
@@ -237,6 +241,7 @@
     ((application? body-form) "application ")
     ((def-values? body-form) "def-values ")
     ((seq? body-form) "seq ")
+    ((splice? body-form) "splice ")
     ((assign? body-form) "SET! ")
     ((branch? body-form) "branch ")
     ((apply-values? body-form) "apply-values ")
@@ -259,17 +264,49 @@
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id toplevels localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
-  #|
-  (let* ([toplevel-id (list-ref toplevels (toplevel-pos form))]
-         [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)])
-  (to-ast-single toplevel-id-str toplevels localref-stack)))
-|#
   
 (define (handle-seq seq-expr toplevels localref-stack)
   (let* ([seqs (seq-forms seq-expr)]
-         [vals (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
-    vals)) ;;(list-ref vals (sub1 (length vals)))))
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) seqs)])
+    exprs))
+
+(define (handle-splice splice-expr toplevels localref-stack)
+  (let* ([splices (splice-forms splice-expr)]
+         [exprs (map (λ (expr) (to-ast-single expr toplevels localref-stack)) splices)])
+    exprs))
+
+(define (handle-wcm body-form toplevels localref-stack)
+  (let ([wcm-key (with-cont-mark-key body-form)]
+        [wcm-val (with-cont-mark-val body-form)]
+        [wcm-body (with-cont-mark-body body-form)])
+    (hash* 'wcm-key (to-ast-single wcm-key toplevels localref-stack)
+           'wcm-val (to-ast-single wcm-val toplevels localref-stack)
+           'wcm-body (to-ast-single wcm-body toplevels localref-stack))))
+
+(define (handle-immed-mark body-form toplevels localref-stack)
+  (let* ([key (with-immed-mark-key body-form)]
+         [body (with-immed-mark-body body-form)]
+         [mark-formal (symbol->string (gensym))]
+         [lam-form
+          (hash* 'source (hash* '%p (string-append pycket-dir "fromBytecode_" module-name ".rkt"))
+                 'position 321
+                 'span 123
+                 'module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))
+                 'lambda (list (hash* 'lexical mark-formal))
+                 'body (list (to-ast-single body toplevels (cons mark-formal localref-stack))))])
     
+    (hash* 'operator (hash* 'source-name "call-with-immediate-continuation-mark")
+           'operands (list (to-ast-single key toplevels localref-stack)
+                           lam-form))))
+
+;; boxenv case: lambda arg is mutated inside the body
+(define (handle-boxenv body-form toplevels localref-stack)
+  (let* ([pos (boxenv-pos body-form)]
+         [pre-pos (take localref-stack pos)]
+         [post-pos (drop localref-stack pos)]
+         [boxed-slot (list (box (car post-pos)))])
+    (to-ast-single (boxenv-body body-form) toplevels (append pre-pos boxed-slot (cdr post-pos)))))
+
 (define (handle-assign body-form toplevels localref-stack)
   (let ([id (assign-id body-form)]
         [rhs (assign-rhs body-form)]
@@ -285,7 +322,10 @@
          [boxes? (let-void-boxes? body-form)]
          [body (let-void-body body-form)]
          [boxls (build-list count (lambda (x) (box 'uninitialized-slot)))]
-         [newstack (append boxls localref-stack)])
+         [newstack (begin
+                     (when DEBUG
+                       (displayln (string-append "LetVoid pushes " (number->string count) " boxes..")))
+                     (append boxls localref-stack))])
     (to-ast-single body toplevels newstack)))
 
 (define (handle-case-lambda body-form toplevels localref-stack)
@@ -312,7 +352,6 @@
                                      (hash* 'lambda arg-mapping
                                             'body body))))
                              clauses))))
-    
 
 (define (handle-install-value body-form toplevels localref-stack)
   ;; Runs rhs to obtain count results, and installs them into existing
@@ -336,7 +375,8 @@
        'let-bindings (list (list binding-list
                                  (to-ast-single rhs toplevels localref-stack)))
        ;; let-body <- body
-       'let-body (to-ast-single body toplevels localref-stack)))))
+       'let-body (let ([body-ast (to-ast-single body toplevels localref-stack)])
+                   (if (list? body-ast) body-ast (list body-ast)))))))
 
 (define (handle-list list-form toplevels localref-stack)
   ;; currently don't know how we can have a list as a body form,
@@ -351,20 +391,19 @@
 (define (to-ast-single body-form toplevels localref-stack)
   (begin
     (when DEBUG
-      (begin
-        (display (body-name body-form))
-        (display "- ")
-        (if (localref? body-form)
-            (begin (display (number->string (localref-pos body-form)))
-                   (display " - extracting : ")
-                   (display (list-ref localref-stack (localref-pos body-form))))
-            (if (primval? body-form)
-                (display (get-primval-name (primval-id body-form)))
-                (display "")))
-        (display " - LocalRefStack : ")
-        (display (number->string (length localref-stack)))
-        (display localref-stack)
-        (newline)(newline)))
+      (display (body-name body-form))
+      (display "- ")
+      (if (localref? body-form)
+          (begin (display (number->string (localref-pos body-form)))
+                 (display " - extracting : ")
+                 (display (list-ref localref-stack (localref-pos body-form))))
+          (if (primval? body-form)
+              (display (get-primval-name (primval-id body-form)))
+              (display "")))
+      (display " - LocalRefStack : ")
+      (display (number->string (length localref-stack)))
+      (display localref-stack)
+      (newline)(newline))
     (cond
       ;;;;;;;
       ;
@@ -404,6 +443,9 @@
       ;; seq
       ((seq? body-form)
        (handle-seq body-form toplevels localref-stack))
+      ;; splice
+      ((splice? body-form)
+       (handle-splice body-form toplevels localref-stack))
       ;; module-variable
       ((module-variable? body-form)
        (handle-module-variable body-form toplevels localref-stack))
@@ -419,6 +461,15 @@
       ;; if
       ((branch? body-form)
        (handle-if body-form toplevels localref-stack))
+      ;; with-continuation-mark
+      ((with-cont-mark? body-form)
+       (handle-wcm body-form toplevels localref-stack))
+      ;; with-immed-mark
+      ((with-immed-mark? body-form)
+       (handle-immed-mark body-form toplevels localref-stack))
+      ;; boxenv
+      ((boxenv? body-form)
+       (handle-boxenv body-form toplevels localref-stack))
       ;; apply-values
       ((apply-values? body-form)
        (handle-apply-values body-form toplevels localref-stack))
@@ -503,6 +554,32 @@
   
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
+
+  (define top-provides (cadr (assv 0 (mod-provides code))))
+  (define top-provide-names (map (λ (prov) (list (provided-name prov)
+                                                 (provided-src-name prov))) top-provides))
+  (define (handle-provides provs out)
+    (cond
+      ((null? provs) out)
+      (else (let*
+                ([pr (car provs)]
+                 [out-name (car pr)]
+                 [orig-name (cadr pr)])
+              (handle-provides
+               (cdr provs)
+               (cons
+                (if (eqv? out-name orig-name)
+                    ;; no rename-out
+                    (hash* 'source-name (symbol->string orig-name)
+                           'source-module (list (string-append pycket-dir module-name ".rkt")))
+                    ;; rename-out
+                    (list (hash* 'toplevel "rename")
+                          (hash* 'source-name (symbol->string orig-name)
+                                 'source-module (list (string-append pycket-dir module-name ".rkt")))
+                          (hash* 'toplevel (symbol->string out-name)))) out))))))
+  
+  (define topProvides (list (cons (hash* 'source-name "#%provide")
+                                  (handle-provides top-provide-names '()))))
   
   (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
   (define phase0 (assv 0 top-reqs))
@@ -536,23 +613,35 @@
                                                       'source-name (symbol->string
                                                                     (module-variable-sym runtime-mod)))
                                      'operands (list (hash 'quote #f))))))))
+  
+  (define (self-mod? mpi)
+    (let-values ([(mod-path base-path) (module-path-index-split mpi)])
+      (and (not mod-path) (not base-path))))
 
   (define reqs (cdr phase0-reqs))
-  (define top-level-req-forms (map (lambda (req)
-                                      (let ([resolved-req-path (resolved-module-path-name
-                                                              (module-path-index-resolve req))])
-                                        (if (or (list? resolved-req-path) (symbol? resolved-req-path))
-                                            (error 'req-forms "don't know how to handle a submodule here")
-                                            (hash* 'require (list (list (path->string resolved-req-path)))))))
-                                    reqs))
 
+  (define top-level-req-forms (map (lambda (req-mod)
+                                     (if (self-mod? req-mod)
+                                         (error 'req-forms "there is a 'self' require at the top level??")
+                                         (let-values ([(module-path base-path) (module-path-index-split req-mod)])
+                                           (if (and (symbol? module-path) (not base-path)) ;; relative to an unspecified dir
+                                               (let ([resolved-req-path (resolved-module-path-name
+                                                                         (module-path-index-resolve req-mod))])
+                                                 (if (or (list? resolved-req-path) (symbol? resolved-req-path))
+                                                     (error 'req-forms "don't know how to handle a submodule here")
+                                                     (hash* 'require (list (list (path->string resolved-req-path))))))
+                                               (if (and (string? module-path) (self-mod? base-path))
+                                                   (hash* 'require (list (list (string-append (path->string (current-directory)) module-path))))
+                                                   (error 'req-forms "don't know how to handle this toplevel require yet"))))))
+                                   reqs))
+  
   ;; body-forms is a (listof hash hash)  
 
   (define final-json-hash (compile-json global-config
                                         (if lang-pycket? "#%kernel" lang)
                                         (string-append sub-dirs-str "fromBytecode_" module-name)
                                         runtime-config
-                                        top-level-req-forms
+                                        (append top-level-req-forms topProvides)
                                         (to-ast (mod-body code) toplevels)
                                         lang-pycket?))
   

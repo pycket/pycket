@@ -152,7 +152,8 @@
      (list (join-first (require-json #'path)
                        (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
-    [((~datum lib) path) '()];;(require-json #'path)]
+    [((~datum lib) path) (list (resolve-module (resolve-module-path `(lib ,(syntax-e #'path)) #f)))]
+    [((~datum lib) _ ...) (error 'expand "`lib` multiple paths not supported")]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))

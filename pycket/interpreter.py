@@ -432,7 +432,7 @@ class Module(AST):
 
         # Collect submodules and set their parents
         submodules = []
-        for b in body:
+        for b in self.body:
             b.collect_submodules(submodules)
         self.submodules = submodules[:]
         for s in self.submodules:
@@ -444,7 +444,7 @@ class Module(AST):
         self.config = config
 
         defs = {}
-        for b in body:
+        for b in self.body:
             defs.update(b.defined_vars())
         self.defs = defs
 
@@ -492,9 +492,14 @@ class Module(AST):
         return self.rebuild_body()
 
     def assign_convert_module(self):
+        """
+        Because references to modules are kept in the module environment, modules
+        should never be duplicated/copied. Rather than producing a converted module,
+        update the body of the module with the assingnment convert body.
+        """
         local_muts = self.mod_mutated_vars()
-        new_body = [b.assign_convert(local_muts, None) for b in self.rebuild_body()]
-        return Module(self.name, new_body, self.config, lang=self.lang)
+        self.body = [b.assign_convert(local_muts, None) for b in self.body]
+        return self
 
     def _tostring(self):
         return "(module %s %s)"%(self.name," ".join([s.tostring() for s in self.body]))
@@ -546,7 +551,6 @@ class Module(AST):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
-
         if self.lang is not None:
             interpret_one(self.lang, self.env)
         elif self.parent is not None:
@@ -571,13 +575,13 @@ class Module(AST):
         module_env.current_module = old
 
 class Require(AST):
-    _immutable_fields_ = ["fname", "modtable", "path[*]"]
+    _immutable_fields_ = ["fname", "loader", "path[*]"]
     simple = True
 
-    def __init__(self, fname, modtable, path=None):
-        self.fname    = fname
-        self.path     = path if path is not None else []
-        self.modtable = modtable
+    def __init__(self, fname, loader, path=None):
+        self.fname  = fname
+        self.path   = path if path is not None else []
+        self.loader = loader
 
     def _mutated_vars(self):
         return variable_set()
@@ -585,12 +589,13 @@ class Require(AST):
     def assign_convert(self, vars, env_structure):
         return self
 
-    @jit.elidable
     def find_module(self, env):
-        if self.modtable is not None:
-            module = self.modtable.lookup(self.fname)
+        assert not jit.we_are_jitted()
+        if self.loader is not None:
+            module = self.loader.lazy_load(self.fname)
         else:
             module = env.toplevel_env().module_env.current_module
+        assert module is not None
         module = module.resolve_submodule_path(self.path)
         return module
 
@@ -824,9 +829,9 @@ class App(AST):
             return App.make(rator, rands)
 
     def assign_convert(self, vars, env_structure):
-        return App.make(self.rator.assign_convert(vars, env_structure),
-                   [e.assign_convert(vars, env_structure) for e in self.rands],
-                   env_structure=env_structure)
+        rator = self.rator.assign_convert(vars, env_structure)
+        rands = [r.assign_convert(vars, env_structure) for r in self.rands]
+        return App.make(rator, rands, env_structure=env_structure)
 
     def direct_children(self):
         return [self.rator] + self.rands
@@ -1049,7 +1054,7 @@ class Var(AST):
     def _mutated_vars(self):
         return variable_set()
 
-    def free_vars(self):
+    def _free_vars(self):
         return {self.sym: None}
 
     def _tostring(self):
@@ -1133,7 +1138,7 @@ class ModuleVar(Var):
         self.modenv = None
         self.w_value = None
 
-    def free_vars(self):
+    def _free_vars(self):
         return {}
 
     def _lookup(self, env):
@@ -1371,8 +1376,9 @@ class CaseLambda(AST):
             return w_closure
         return values.W_Closure.make(self, env)
 
-    def free_vars(self):
-        result = AST.free_vars(self)
+    def _free_vars(self):
+        # call _free_vars() to avoid populating the free vars cache
+        result = AST._free_vars(self)
         if self.recursive_sym in result:
             del result[self.recursive_sym]
         return result
@@ -1511,7 +1517,7 @@ class Lambda(SequencedBodyAST):
                 del x[lv]
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         result = free_vars_lambda(self.body, self.args)
         return result
 
@@ -1657,8 +1663,8 @@ class Letrec(SequencedBodyAST):
             x[lv] = None
         return x
 
-    def free_vars(self):
-        x = AST.free_vars(self)
+    def _free_vars(self):
+        x = AST._free_vars(self)
         for v in self.args.elems:
             if v in x:
                 del x[v]
@@ -1807,7 +1813,7 @@ class Let(SequencedBodyAST):
             x.update(b.mutated_vars())
         return x
 
-    def free_vars(self):
+    def _free_vars(self):
         x = {}
         for b in self.body:
             x.update(b.free_vars())
