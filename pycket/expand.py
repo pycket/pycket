@@ -250,11 +250,6 @@ def parse_module(json_string, bytecode_expand=False):
     reader = JsonLoader(bytecode_expand)
     return reader.to_module(json).assign_convert_module()
 
-def to_ast(json, modtable, lib=_FN):
-    reader = JsonLoader(_FN)
-    ast = reader.to_ast(json)
-    return ast.assign_convert(variable_set(), None)
-
 #### ========================== Implementation functions
 
 DO_DEBUG_PRINTS = False
