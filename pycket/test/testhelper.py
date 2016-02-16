@@ -5,7 +5,7 @@
 #
 import os
 from tempfile import NamedTemporaryFile, gettempdir
-from pycket.expand import expand, expand_to_ast, expand_string, ModTable, parse_module
+from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_module
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.env import ToplevelEnv
@@ -125,10 +125,8 @@ def parse_file(fname, *replacements, **kwargs):
 
     if kwargs.get("inplace", False):
         assert not replacements
-        modtable = ModTable()
-        modtable.enter_module(fname)
-        ast = expand_to_ast(fname, modtable)
-        modtable.exit_module(fname, ast)
+        reader = JsonLoader(bytecode_expand=False)
+        ast = reader.expand_to_ast(fname)
         return ast
 
     with file(fname) as f:
