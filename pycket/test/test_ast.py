@@ -21,7 +21,11 @@ def expr_ast(s):
 
 def test_symlist_depth():
     from pycket.env import SymList
-    s = SymList([1, 2, 3, 4], SymList([], None))
+    s1 = W_Symbol.make("1")
+    s2 = W_Symbol.make("2")
+    s3 = W_Symbol.make("3")
+    s4 = W_Symbol.make("4")
+    s = SymList([s1, s2, s3, s4], SymList([], None))
     assert s.depth_and_size() == (2, 4)
 
 def test_mutvars():

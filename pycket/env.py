@@ -4,6 +4,7 @@ from pycket.error             import SchemeException
 from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
+from pycket.heapprof          import HeapProf
 
 
 class SymList(object):
@@ -11,6 +12,7 @@ class SymList(object):
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
+        self.hprofs = [HeapProf(w_sym.asciivalue) for w_sym in elems]
         self.prev = prev
 
     def check_plausibility(self, env):
@@ -176,7 +178,8 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make",
+                   unbox_num=True, nonull=True)
 class ConsEnv(Env):
     _immutable_fields_ = ["_prev"]
     def __init__ (self, prev):
@@ -187,35 +190,64 @@ class ConsEnv(Env):
         return self._get_size_list()
 
     @staticmethod
-    def make(vals, prev):
+    @jit.unroll_safe
+    def make(vals, prev, env_structure):
         if vals:
+            for i, w_val in enumerate(vals):
+                env_structure.hprofs[i].see_write(w_val)
             return ConsEnv._make(vals, prev)
         return prev
 
     @staticmethod
-    def make0(prev):
+    def make0(prev, env_structure):
         return prev
 
     @staticmethod
-    def make1(w_val, prev):
+    def make1(w_val, prev, env_structure):
+        env_structure.hprofs[0].see_write(w_val)
         return ConsEnv._make1(w_val, prev)
 
     @staticmethod
-    def make2(w_val1, w_val2, prev):
+    def make2(w_val1, w_val2, prev, env_structure):
+        env_structure.hprofs[0].see_write(w_val1)
+        env_structure.hprofs[1].see_write(w_val2)
         return ConsEnv._make2(w_val1, w_val2, prev)
 
     @staticmethod
-    def make_n(n_vals, prev):
+    def make_n(n_vals, prev, env_structure):
         if n_vals:
             return ConsEnv._make_n(n_vals, prev)
         return prev
+
+    def get_list(self, i, env_structure):
+        from pycket.values import W_Fixnum
+        hprof = env_structure.hprofs[i]
+        # XXX there is some duplication with the type-specialized env classes
+        # in theory we could predict their type based on the hprofs, but that's
+        # a bit annoying
+        if hprof.should_propagate_info():
+            if hprof.can_fold_read_int():
+                return W_Fixnum(hprof.read_constant_int())
+            elif hprof.can_fold_read_obj():
+                w_res = hprof.try_read_constant_obj()
+                if w_res is not None:
+                    return w_res
+        result = self._get_list(i)
+        if hprof.should_propagate_info() and hprof.class_is_known():
+            cls = hprof.read_constant_cls()
+            jit.record_exact_class(result, cls)
+        return result
+
+    def set_list(self, i, w_val, env_structure):
+        env_structure.hprofs[i].see_write(w_val)
+        self._set_list(i, w_val)
 
     @jit.unroll_safe
     def lookup(self, sym, env_structure):
         jit.promote(env_structure)
         for i, s in enumerate(env_structure.elems):
             if s is sym:
-                v = self._get_list(i)
+                v = self.get_list(i, env_structure)
                 assert v is not None
                 return v
         prev = self.get_prev(env_structure)

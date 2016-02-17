@@ -177,7 +177,7 @@ class LetCont(Cont):
                 else:
                     if not jit.we_are_jitted():
                         ast.env_speculation_works = False
-            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
+            env = self._construct_env(ast.args, len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             # XXX remove copy
@@ -194,17 +194,17 @@ class LetCont(Cont):
                                  self.env, self.prev))
 
     @jit.unroll_safe
-    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+    def _construct_env(self, env_structure, len_self, vals, len_vals, new_length, prev):
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
-            return ConsEnv.make0(prev)
+            return ConsEnv.make0(prev, env_structure)
         if new_length == 1:
             if len_self == 1:
                 elem = self._get_list(0)
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
-            return ConsEnv.make1(elem, prev)
+            return ConsEnv.make1(elem, prev, env_structure)
         if new_length == 2:
             if len_self == 0:
                 assert len_vals == 2
@@ -218,14 +218,14 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
-            return ConsEnv.make2(elem1, elem2, prev)
-        env = ConsEnv.make_n(new_length, prev)
+            return ConsEnv.make2(elem1, elem2, prev, env_structure)
+        env = ConsEnv.make_n(new_length, prev, env_structure)
         i = 0
         for j in range(len_self):
-            env._set_list(i, self._get_list(j))
+            env.set_list(i, self._get_list(j), env_structure)
             i += 1
         for j in range(len_vals):
-            env._set_list(i, vals.get_value(j))
+            env.set_list(i, vals.get_value(j), env_structure)
             i += 1
         return env
 
@@ -1644,11 +1644,11 @@ class Letrec(SequencedBodyAST):
     @jit.unroll_safe
     def interpret(self, env, cont):
         n_elems = len(self.args.elems)
-        env_new = ConsEnv.make_n(n_elems, env)
+        env_new = ConsEnv.make_n(n_elems, env, self.args)
         if n_elems:
             assert isinstance(env_new, ConsEnv)
             for i in range(n_elems):
-                env_new._set_list(i, values.W_Cell(None))
+                env_new.set_list(i, values.W_Cell(None), self.args)
         return self.rhss[0], env_new, LetrecCont(self.counting_asts[0], env_new, cont)
 
     def direct_children(self):

@@ -1204,7 +1204,7 @@ class W_Closure(W_Procedure):
         self.caselam = caselam
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
-            self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
+            self._set_list(i, ConsEnv.make(vals, env.toplevel_env(), lam.frees))
 
     def enable_jitting(self):
         self.caselam.enable_jitting()
@@ -1256,7 +1256,7 @@ class W_Closure(W_Procedure):
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
+            ConsEnv.make(actuals, prev, lam.env_structure),
             cont)
 
     def call(self, args, env, cont):
@@ -1311,7 +1311,7 @@ class W_Closure1AsEnv(ConsEnv):
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 self, env_structure, env)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
+            ConsEnv.make(actuals, prev, lam.env_structure),
             cont)
 
     def call(self, args, env, cont):
@@ -1355,7 +1355,7 @@ class W_PromotableClosure(W_Procedure):
     _immutable_fields_ = ["closure"]
 
     def __init__(self, caselam, toplevel_env):
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        self.closure = W_Closure._make([ConsEnv.make0(toplevel_env, None)] * len(caselam.lams), caselam, toplevel_env)
 
     def enable_jitting(self):
         self.closure.enable_jitting()
