@@ -379,9 +379,10 @@ def parse_path(p):
     srcmod, path = arr[0], arr[1:]
     # Relative module names go into the path.
     # None value for the srcmod indicate the current module
-    if srcmod in [".", ".."]:
-        path   = arr
-        srcmod = None
+    if srcmod in (".", ".."):
+        return None, arr
+    if not ModTable.builtin(srcmod):
+        srcmod = os.path.abspath(srcmod)
     return srcmod, path
 
 class JsonLoader(object):
@@ -440,6 +441,7 @@ class JsonLoader(object):
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
+        fname = os.path.abspath(fname)
         return Require(fname, self, path=path)
 
     def lazy_load(self, fname):
