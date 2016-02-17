@@ -8,11 +8,12 @@ from pycket.heapprof          import HeapProf
 
 
 class SymList(object):
-    _immutable_fields_ = ["elems[*]", "prev"]
+    _immutable_fields_ = ["elems[*]", "prev", "hprofs[*]"]
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
-        self.hprofs = [HeapProf(w_sym.asciivalue) for w_sym in elems]
+        self.hprofs = [HeapProf(w_sym.asciivalue) for w_sym in elems] + [
+                HeapProf("prev")]
         self.prev = prev
 
     def check_plausibility(self, env):
@@ -195,6 +196,7 @@ class ConsEnv(Env):
         if vals:
             for i, w_val in enumerate(vals):
                 env_structure.hprofs[i].see_write(w_val)
+            env_structure.hprofs[len(vals)].see_write(prev)
             return ConsEnv._make(vals, prev)
         return prev
 
@@ -205,17 +207,20 @@ class ConsEnv(Env):
     @staticmethod
     def make1(w_val, prev, env_structure):
         env_structure.hprofs[0].see_write(w_val)
+        env_structure.hprofs[1].see_write(prev)
         return ConsEnv._make1(w_val, prev)
 
     @staticmethod
     def make2(w_val1, w_val2, prev, env_structure):
         env_structure.hprofs[0].see_write(w_val1)
         env_structure.hprofs[1].see_write(w_val2)
+        env_structure.hprofs[2].see_write(prev)
         return ConsEnv._make2(w_val1, w_val2, prev)
 
     @staticmethod
     def make_n(n_vals, prev, env_structure):
         if n_vals:
+            env_structure.hprofs[n_vals].see_write(prev)
             return ConsEnv._make_n(n_vals, prev)
         return prev
 
@@ -234,6 +239,7 @@ class ConsEnv(Env):
                     return w_res
         result = self._get_list(i)
         if hprof.should_propagate_info() and hprof.class_is_known():
+            assert result is not None
             cls = hprof.read_constant_cls()
             jit.record_exact_class(result, cls)
         return result
@@ -256,7 +262,17 @@ class ConsEnv(Env):
     def get_prev(self, env_structure):
         jit.promote(env_structure)
         if env_structure.elems:
-            return self._prev
+            hprof = env_structure.hprofs[len(env_structure.elems)]
+            if hprof.should_propagate_info() and hprof.can_fold_read_obj():
+                res = hprof.try_read_constant_obj()
+                if res is not None:
+                    return res
+            result = self._prev
+            if hprof.should_propagate_info() and hprof.class_is_known():
+                assert result is not None
+                cls = hprof.read_constant_cls()
+                jit.record_exact_class(result, cls)
+            return result
         return self
 
     def __repr__(self):

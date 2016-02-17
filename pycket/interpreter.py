@@ -211,6 +211,7 @@ class LetCont(Cont):
         result = self._get_list(i)
         if hprof.should_propagate_info() and hprof.class_is_known():
             cls = hprof.read_constant_cls()
+            assert result is not None
             jit.record_exact_class(result, cls)
         return result
 
