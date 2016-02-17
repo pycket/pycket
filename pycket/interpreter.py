@@ -155,6 +155,9 @@ class LetCont(Cont):
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
+        if vals_w:
+            for i, w_val in enumerate(vals_w):
+                ast.hprofs[i].see_write(w_val)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -193,6 +196,24 @@ class LetCont(Cont):
                     LetCont.make(vals_w, ast, rhsindex + 1,
                                  self.env, self.prev))
 
+    def get_list(self, i):
+        # XXX code duplication
+        from pycket.values import W_Fixnum
+        ast, _ = self.counting_ast.unpack(Let)
+        hprof = ast.hprofs[i]
+        if hprof.should_propagate_info():
+            if hprof.can_fold_read_int():
+                return W_Fixnum(hprof.read_constant_int())
+            elif hprof.can_fold_read_obj():
+                w_res = hprof.try_read_constant_obj()
+                if w_res is not None:
+                    return w_res
+        result = self._get_list(i)
+        if hprof.should_propagate_info() and hprof.class_is_known():
+            cls = hprof.read_constant_cls()
+            jit.record_exact_class(result, cls)
+        return result
+
     @jit.unroll_safe
     def _construct_env(self, env_structure, len_self, vals, len_vals, new_length, prev):
         # this is a complete mess. however, it really helps warmup a lot
@@ -200,7 +221,7 @@ class LetCont(Cont):
             return ConsEnv.make0(prev, env_structure)
         if new_length == 1:
             if len_self == 1:
-                elem = self._get_list(0)
+                elem = self.get_list(0)
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
@@ -212,17 +233,17 @@ class LetCont(Cont):
                 elem2 = vals.get_value(1)
             elif len_self == 1:
                 assert len_vals == 1
-                elem1 = self._get_list(0)
+                elem1 = self.get_list(0)
                 elem2 = vals.get_value(0)
             else:
                 assert len_self == 2 and len_vals == 0
-                elem1 = self._get_list(0)
-                elem2 = self._get_list(1)
+                elem1 = self.get_list(0)
+                elem2 = self.get_list(1)
             return ConsEnv.make2(elem1, elem2, prev, env_structure)
         env = ConsEnv.make_n(new_length, prev, env_structure)
         i = 0
         for j in range(len_self):
-            env.set_list(i, self._get_list(j), env_structure)
+            env.set_list(i, self.get_list(j), env_structure)
             i += 1
         for j in range(len_vals):
             env.set_list(i, vals.get_value(j), env_structure)
@@ -1748,15 +1769,17 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "hprofs[*]", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
+        from pycket.heapprof import HeapProf
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         assert len(counts) > 0 # otherwise just use a begin
         assert isinstance(args, SymList)
         self.counts = counts
         self.rhss = rhss
         self.args = args
+        self.hprofs = [HeapProf(w_sym.asciivalue) for w_sym in args.elems]
         self.env_speculation_works = True
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
