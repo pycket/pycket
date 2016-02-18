@@ -398,6 +398,8 @@ class JsonLoader(object):
 
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
+        assert fname is not None
+        fname = os.path.abspath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -405,6 +407,8 @@ class JsonLoader(object):
         return module
 
     def load_json_ast_rpython(self, modname, fname):
+        assert modname is not None
+        modname = os.path.abspath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
