@@ -7,6 +7,7 @@ from pycket.arity import Arity
 from pycket.base import SingleResultMixin
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
+from pycket.heapprof import HeapProf
 from pycket.prims.expose import default, make_call_method
 from pycket.small_list import inline_small_list
 from pycket.values_parameter import W_Parameter
@@ -50,13 +51,17 @@ current_inspector_param = W_Parameter(current_inspector)
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = [
+            # Name and super
             "name", "super",
+            # Struct layout info
             "init_field_cnt", "auto_field_cnt", "total_field_cnt",
-            "total_auto_field_cnt", "total_init_field_cnt",
-            "auto_v", "props", "inspector", "immutables[*]",
+            "total_auto_field_cnt", "total_init_field_cnt", "auto_v",
+            # Properties and access control
+            "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
-            "constructor_arity", "procedure_source"]
+            "constructor_arity", "procedure_source",
+            "heap_profs[*]" ]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -195,6 +200,7 @@ class W_StructType(values.W_Object):
             self.initialize_prop(props, values.wrap(w_prop_procedure, proc_spec))
         return self.attach_prop(props, 0, False, env, cont)
 
+    @jit.unroll_safe
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
                  auto_v, inspector, proc_spec, immutables, guard, constr_name):
         assert isinstance(name, values.W_Symbol)
@@ -233,6 +239,9 @@ class W_StructType(values.W_Object):
 
         self._calculate_offsets()
         self._generate_methods(constr_name)
+        # TODO: Should heap profiling information for inherited fields be shared
+        # between a struct type and its super types?
+        self.heap_profs = [HeapProf("%s.%d" % (name.asciivalue, i)) for i in range(self.total_field_cnt)]
 
     @jit.unroll_safe
     def _generate_methods(self, constr_name):
@@ -634,17 +643,31 @@ class W_Struct(W_RootStruct):
 
     # unsafe versions
     def _ref(self, i):
+        st = self.struct_type()
+        hprof = st.heap_profs[i]
+        if hprof.should_propagate_info():
+            if hprof.can_fold_read_int():
+                return values.wrap(hprof.read_constant_int())
+            elif hprof.can_fold_read_obj():
+                w_res = hprof.try_read_constant_obj()
+                if w_res is not None:
+                    return w_res
         w_res = self._get_list(i)
-        immutable = self.struct_type().is_immutable_field_index(i)
+        immutable = st.is_immutable_field_index(i)
         if not immutable:
             assert isinstance(w_res, values.W_Cell)
             w_res = w_res.get_val()
+        if hprof.should_propagate_info() and hprof.class_is_known():
+            cls = hprof.read_constant_cls()
+            assert w_res is not None
+            jit.record_exact_class(w_res, cls)
         return w_res
 
     def _set(self, k, val):
         w_cell = self._get_list(k)
         assert isinstance(w_cell, values.W_Cell)
         w_cell.set_val(val)
+        self.struct_type().heap_profs[k].see_write(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
@@ -855,6 +878,7 @@ def construct_struct_final(struct_type, field_values, env, cont):
     assert len(field_values) == struct_type.total_field_cnt
     constant_false = []
     for i, value in enumerate(field_values):
+        struct_type.heap_profs[i].see_write(value)
         if not struct_type.is_immutable_field_index(i):
             value = values.W_Cell(value)
             field_values[i] = value
