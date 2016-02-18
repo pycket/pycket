@@ -1589,7 +1589,10 @@ class Lambda(SequencedBodyAST):
         i = 0
         for v in self.frees.elems:
             if v is not recursive_sym:
-                vals[i] = env.lookup(v, self.enclosing_env_structure)
+                vals[i] = w_val = env.lookup(v, self.enclosing_env_structure)
+                # store info about the W_Closure1AsEnv that is about to be
+                # constructed
+                self.frees.hprofs[i].see_write(w_val)
                 i += 1
         return vals
 

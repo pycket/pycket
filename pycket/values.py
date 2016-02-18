@@ -1222,7 +1222,7 @@ class W_Closure(W_Procedure):
             env_size = len(caselam.lams[0].frees.elems)
             vals = caselam.lams[0].collect_frees_without_recursive(
                     caselam.recursive_sym, env)
-            return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env())
+            return W_Closure1AsEnv.make(vals, caselam, env.toplevel_env(), caselam.lams[0].frees)
         envs = [None] * num_lams
         return W_Closure._make(envs, caselam, env)
 
@@ -1272,11 +1272,13 @@ class W_Closure1AsEnv(ConsEnv):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals, caselam, prev):
+    def make(vals, caselam, prev, env_structure):
         recursive_sym = caselam.recursive_sym
         if not vals:
             for s in caselam.lams[0].frees.elems:
                 assert s is recursive_sym
+        env_structure.hprofs[len(caselam.lams[0].frees.elems)].see_write(prev)
+        env_structure.see_caselam(caselam)
         return W_Closure1AsEnv._make(vals, caselam, prev)
 
     def iscallable(self):
@@ -1332,7 +1334,8 @@ class W_Closure1AsEnv(ConsEnv):
         jit.promote(env_structure)
         if len(env_structure.elems) == self._get_size_list():
             return ConsEnv.lookup(self, sym, env_structure)
-        recursive_sym = jit.promote(self.caselam).recursive_sym
+        caselam = env_structure._get_caselam(self)
+        recursive_sym = jit.promote(caselam).recursive_sym
         if sym is recursive_sym:
             return self
         i = 0
@@ -1340,7 +1343,7 @@ class W_Closure1AsEnv(ConsEnv):
             if s is recursive_sym:
                 continue
             if s is sym:
-                v = self._get_list(i)
+                v = self.get_list(i, env_structure)
                 assert v is not None
                 return v
             i += 1 # only count non-self references
