@@ -61,7 +61,7 @@ class W_StructType(values.W_Object):
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
             "constructor_arity", "procedure_source",
-            "heap_profs[*]" ]
+            "hprofs[*]" ]
     unbound_prefab_types = {}
 
     @staticmethod
@@ -241,7 +241,7 @@ class W_StructType(values.W_Object):
         self._generate_methods(constr_name)
         # TODO: Should heap profiling information for inherited fields be shared
         # between a struct type and its super types?
-        self.heap_profs = [HeapProf("%s.%d" % (name.asciivalue, i)) for i in range(self.total_field_cnt)]
+        self.hprofs = [HeapProf("%s.%d" % (name.asciivalue, i)) for i in range(self.total_field_cnt)]
 
     @jit.unroll_safe
     def _generate_methods(self, constr_name):
@@ -644,7 +644,7 @@ class W_Struct(W_RootStruct):
     # unsafe versions
     def _ref(self, i):
         st = self.struct_type()
-        hprof = st.heap_profs[i]
+        hprof = st.hprofs[i]
         if hprof.should_propagate_info():
             if hprof.can_fold_read_int():
                 return values.wrap(hprof.read_constant_int())
@@ -667,7 +667,7 @@ class W_Struct(W_RootStruct):
         w_cell = self._get_list(k)
         assert isinstance(w_cell, values.W_Cell)
         w_cell.set_val(val)
-        self.struct_type().heap_profs[k].see_write(val)
+        self.struct_type().hprofs[k].see_write(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
@@ -878,7 +878,7 @@ def construct_struct_final(struct_type, field_values, env, cont):
     assert len(field_values) == struct_type.total_field_cnt
     constant_false = []
     for i, value in enumerate(field_values):
-        struct_type.heap_profs[i].see_write(value)
+        struct_type.hprofs[i].see_write(value)
         if not struct_type.is_immutable_field_index(i):
             value = values.W_Cell(value)
             field_values[i] = value
