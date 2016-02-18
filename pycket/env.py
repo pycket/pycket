@@ -1,20 +1,46 @@
 from rpython.rlib             import jit, objectmodel
+
+from pycket.AST               import AST
 from pycket.small_list        import inline_small_list
 from pycket.error             import SchemeException
-from pycket.base              import W_Object
+from pycket.base              import W_Object, W_ProtoObject
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
 from pycket.heapprof          import HeapProf
 
+class Sentinel(AST):
+    pass
+
+UNKNOWN_CASELAM = Sentinel()
 
 class SymList(object):
-    _immutable_fields_ = ["elems[*]", "prev", "hprofs[*]"]
+    _immutable_fields_ = ["elems[*]", "prev", "hprofs[*]", "caselam1?"]
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
         self.hprofs = [HeapProf(w_sym.asciivalue) for w_sym in elems] + [
                 HeapProf("prev")]
         self.prev = prev
+        self.caselam1 = UNKNOWN_CASELAM
+
+    def see_caselam(self, caselam):
+        if self.caselam1 is None:
+            return
+        if self.caselam1 is caselam:
+            return
+        if self.caselam1 is UNKNOWN_CASELAM:
+            self.caselam1 = caselam
+            return
+        self.caselam1 = None
+
+    def _get_caselam(self, env):
+        from pycket.interpreter import CaseLambda
+        if self.hprofs[0].should_propagate_info():
+            if self.caselam1 is not None and self.caselam1 is not UNKNOWN_CASELAM:
+                caselam1 = self.caselam1
+                assert isinstance(caselam1, CaseLambda)
+                return caselam1
+        return env.caselam
 
     def check_plausibility(self, env):
         if self.elems:
