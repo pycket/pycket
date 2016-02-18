@@ -1246,7 +1246,7 @@ def mpi_resolve(a):
 # FIXME: Proper semantics.
 @expose("load", [values_string.W_String], simple=False)
 def load(lib, env, cont):
-    from pycket.expand import ensure_json_ast_run, load_json_ast_rpython
+    from pycket.expand import ensure_json_ast_run
     lib_name = lib.tostring()
     json_ast = ensure_json_ast_run(lib_name)
     if json_ast is None:

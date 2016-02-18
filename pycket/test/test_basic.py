@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-from pycket.expand import expand, to_ast
+from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
 from pycket import values_string

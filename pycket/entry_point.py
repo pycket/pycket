@@ -8,7 +8,7 @@ from rpython.rlib          import jit, objectmodel
 from rpython.rlib.nonconst import NonConstant
 
 def make_entry_point(pycketconfig=None):
-    from pycket.expand import load_json_ast_rpython, expand_to_ast, PermException, ModTable
+    from pycket.expand import JsonLoader, PermException
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
@@ -40,16 +40,12 @@ def make_entry_point(pycketconfig=None):
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
         module_name, json_ast = ensure_json_ast(config, names)
 
-        modtable = ModTable()
-        modtable.enter_module(module_name)
         entry_flag = 'byte-expand' in names
-
+        reader = JsonLoader(bytecode_expand=entry_flag)
         if json_ast is None:
-            ast = expand_to_ast(module_name, modtable, byte_flag=entry_flag)
+            ast = reader.expand_to_ast(module_name)
         else:
-            ast = load_json_ast_rpython(json_ast, modtable, byte_flag=entry_flag)
-
-        modtable.exit_module(module_name, ast)
+            ast = reader.load_json_ast_rpython(module_name, json_ast)
 
         env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)

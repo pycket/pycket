@@ -43,8 +43,8 @@ def readfile_rpython(fname):
 
 #### ========================== Functions for expanding code to json
 
-fn = "-l pycket/expand --"
-be = "-l pycket/zo-expand --"
+_FN = "-l pycket/expand --"
+_BE = "-l pycket/zo-expand --"
 
 
 current_racket_proc = None
@@ -55,7 +55,7 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
     from subprocess import Popen, PIPE
 
     if not byte_option:
-        cmd = "racket %s --loop --stdin --stdout %s" % (fn, "" if srcloc else "--omit-srcloc")
+        cmd = "racket %s --loop --stdin --stdout %s" % (_FN, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
         cmd = "racket -l pycket/zo-expand -- --stdout %s" % tmp_module
@@ -89,7 +89,7 @@ def expand_file(fname):
     "NON_RPYTHON"
     from subprocess import Popen, PIPE
 
-    cmd = "racket %s --stdout \"%s\"" % (fn, fname)
+    cmd = "racket %s --stdout \"%s\"" % (_FN, fname)
     process = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
     data, err = process.communicate()
     if len(data) == 0:
@@ -100,7 +100,7 @@ def expand_file(fname):
 
 # Call the Racket expander and read its output from STDOUT rather than producing an
 # intermediate (possibly cached) file.
-def expand_file_rpython(rkt_file, lib=fn):
+def expand_file_rpython(rkt_file, lib=_FN):
     from rpython.rlib.rfile import create_popen_file
     cmd = "racket %s --stdout \"%s\" 2>&1" % (lib, rkt_file)
     if not os.access(rkt_file, os.R_OK):
@@ -112,29 +112,12 @@ def expand_file_rpython(rkt_file, lib=fn):
         raise ExpandException("Racket produced an error and said '%s'" % out)
     return out
 
-def expand_file_cached(rkt_file, modtable, lib=fn):
-    dbgprint("expand_file_cached", "", lib=lib, filename=rkt_file)
-
-    try:
-        json_file = ensure_json_ast_run(rkt_file, lib)
-    except PermException:
-        return expand_to_ast(rkt_file, modtable, lib)
-    return load_json_ast_rpython(json_file, modtable, lib)
-
-# Expand and load the module without generating intermediate JSON files.
-def expand_to_ast(fname, modtable, lib=fn, byte_flag=False):
-    if byte_flag:
-        lib = be
-    data = expand_file_rpython(fname, lib)
-    reader = JsonReader(modtable, lib)
-    return reader.to_module(pycket_json.loads(data)).assign_convert_module()
-
 def expand(s, wrap=False, stdlib=False):
     data = expand_string(s)
     return pycket_json.loads(data)
 
 def wrap_for_tempfile(func):
-    def wrap(rkt_file, json_file, lib=fn):
+    def wrap(rkt_file, json_file, lib=_FN):
         "NOT_RPYTHON"
         try:
             os.remove(json_file)
@@ -154,13 +137,13 @@ def wrap_for_tempfile(func):
     wrap.__name__ = func.__name__
     return wrap
 
-def expand_file_to_json(rkt_file, json_file, lib=fn):
+def expand_file_to_json(rkt_file, json_file, lib=_FN):
     if not we_are_translated():
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, lib)
     return _expand_file_to_json(rkt_file, json_file, lib)
 
-def _expand_file_to_json(rkt_file, json_file, lib=fn, byte_flag=False):
-    lib = be if byte_flag else fn
+def _expand_file_to_json(rkt_file, json_file, lib=_FN, byte_flag=False):
+    lib = _BE if byte_flag else _FN
 
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
 
@@ -177,9 +160,7 @@ def _expand_file_to_json(rkt_file, json_file, lib=fn, byte_flag=False):
     except OSError:
         pass
 
-    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (
-        fn,
-        json_file, rkt_file)
+    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (_FN, json_file, rkt_file)
 
     if "zo-expand" in lib:
         print "Transforming %s bytecode to %s" % (rkt_file, json_file)
@@ -203,9 +184,7 @@ def expand_code_to_json(code, json_file, stdlib=True, mcons=False, wrap=True):
         pass
     except OSError:
         pass
-    cmd = "racket %s --output \"%s\" --stdin" % (
-        fn,
-        json_file)
+    cmd = "racket %s --output \"%s\" --stdin" % (_FN, json_file)
     # print cmd
     pipe = create_popen_file(cmd, "w")
     pipe.write("#lang s-exp pycket%s" % (" #:stdlib" if stdlib else ""))
@@ -227,7 +206,7 @@ def needs_update(file_name, json_name):
     return True
 
 
-def _json_name(file_name, lib=fn):
+def _json_name(file_name, lib=_FN):
     if 'zo-expand' in lib:
         fileDirs = file_name.split("/")
         l = len(fileDirs)
@@ -242,11 +221,9 @@ def _json_name(file_name, lib=fn):
     else:
         return file_name + '.json'
 
-def ensure_json_ast_run(file_name, lib=fn):
+def ensure_json_ast_run(file_name, lib=_FN):
     json = _json_name(file_name, lib)
-
     dbgprint("ensure_json_ast_run", json, lib=lib, filename=file_name)
-
     if needs_update(file_name, json):
         return expand_file_to_json(file_name, json, lib)
     else:
@@ -262,29 +239,16 @@ def ensure_json_ast_eval(code, file_name, stdlib=True, mcons=False, wrap=True):
 
 #### ========================== Functions for parsing json to an AST
 
-def load_json_ast_rpython(fname, modtable, lib=fn, byte_flag=False):
-    dbgprint("load_json_ast_rpython", "", lib=lib, filename=fname)
-    if byte_flag:
-        lib = be
-    data = readfile_rpython(fname)
-    reader = JsonReader(modtable, lib)
-    return reader.to_module(pycket_json.loads(data)).assign_convert_module()
-
 def parse_ast(json_string):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     return to_ast(json, modtable)
 
-def parse_module(json_string, lib=fn):
+def parse_module(json_string, bytecode_expand=False):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
-    reader = JsonReader(modtable, fn)
+    reader = JsonLoader(bytecode_expand)
     return reader.to_module(json).assign_convert_module()
-
-def to_ast(json, modtable, lib=fn):
-    reader = JsonReader(modtable, fn)
-    ast = reader.to_ast(json)
-    return ast.assign_convert(variable_set(), None)
 
 #### ========================== Implementation functions
 
@@ -333,7 +297,8 @@ def mksym(json):
 # Modules (aside from builtins like #%kernel) are listed in the table
 # as paths to their implementing files which are assumed to be normalized.
 class ModTable(object):
-    _immutable_fields_ = ["table"]
+    _attrs_ = ["table", "current_modules"]
+    _immutable_fields_ = ["table", "current_modules"]
 
     def __init__(self):
         self.table = {}
@@ -346,9 +311,8 @@ class ModTable(object):
         self.current_modules.append(fname)
 
     def pop(self):
-        if not self.current_modules:
-            raise SchemeException("No current module")
-        self.current_modules.pop()
+        assert self.current_modules, "malformed JSON"
+        return self.current_modules.pop()
 
     def current_mod(self):
         if not self.current_modules:
@@ -365,7 +329,7 @@ class ModTable(object):
     def lookup(self, fname):
         if fname.startswith("#%"):
             return None
-        return self.table[fname]
+        return self.table.get(fname, None)
 
     def enter_module(self, fname):
         # Pre-emptive pushing to prevent recursive expansion due to submodules
@@ -375,7 +339,7 @@ class ModTable(object):
 
     def exit_module(self, fname, module):
         self.add_module(fname, module)
-        self.pop()
+        assert self.pop() == fname
 
 def shorten_submodule_path(path):
     if path is None:
@@ -415,19 +379,47 @@ def parse_path(p):
     srcmod, path = arr[0], arr[1:]
     # Relative module names go into the path.
     # None value for the srcmod indicate the current module
-    if srcmod in [".", ".."]:
-        path   = arr
-        srcmod = None
+    if srcmod in (".", ".."):
+        return None, arr
+    if not ModTable.builtin(srcmod):
+        srcmod = os.path.abspath(srcmod)
     return srcmod, path
 
-class JsonReader(object):
+class JsonLoader(object):
 
-    def __init__(self, modtable, lib):
-        self.modtable = modtable
-        self.lib = lib
+    _immutable_fields_ = ["modtable", "bytecode_expand"]
+
+    def __init__(self, bytecode_expand=False):
+        self.modtable = ModTable()
+        self.bytecode_expand = bytecode_expand
+
+    def _lib_string(self):
+        return _BE if self.bytecode_expand else _FN
+
+    # Expand and load the module without generating intermediate JSON files.
+    def expand_to_ast(self, fname):
+        data = expand_file_rpython(fname, self._lib_string())
+        self.modtable.enter_module(fname)
+        module = self.to_module(pycket_json.loads(data)).assign_convert_module()
+        self.modtable.exit_module(fname, module)
+        return module
+
+    def load_json_ast_rpython(self, modname, fname):
+        data = readfile_rpython(fname)
+        self.modtable.enter_module(modname)
+        module = self.to_module(pycket_json.loads(data)).assign_convert_module()
+        self.modtable.exit_module(modname, module)
+        return module
+
+    def expand_file_cached(self, rkt_file):
+        dbgprint("expand_file_cached", "", lib=self._lib_string(), filename=rkt_file)
+        try:
+            json_file = ensure_json_ast_run(rkt_file, self._lib_string())
+        except PermException:
+            return self.expand_to_ast(rkt_file)
+        return self.load_json_ast_rpython(rkt_file, json_file)
 
     def to_bindings(self, arr):
-        #dbgprint("to_bindings", arr)
         varss = [None] * len(arr)
         rhss  = [None] * len(arr)
         for i, v in enumerate(arr):
@@ -444,22 +436,27 @@ class JsonReader(object):
         body = [self.to_ast(x) for x in lam["body"].value_array()]
         return make_lambda(fmls, rest, body, pos, sourcefile)
 
-    def _to_require(self, fname, path=None, lib=fn):
-        dbgprint("_to_require", fname, lib=self.lib, filename=fname)
+    def _to_require(self, fname, path=None):
         path = shorten_submodule_path(path)
         modtable = self.modtable
+        if modtable.builtin(fname):
+            return VOID
+        fname = os.path.abspath(fname)
+        return Require(fname, self, path=path)
 
-        if modtable.has_module(fname):
-            if modtable.builtin(fname):
-                return VOID
-            return Require(fname, modtable, path=path)
-        modtable.enter_module(fname)
-        module = expand_file_cached(fname, modtable, lib)
-        modtable.exit_module(fname, module)
-        return Require(fname, modtable, path=path)
+    def lazy_load(self, fname):
+        modtable = self.modtable
+        module = modtable.lookup(fname)
+        if module is not None:
+            return module
+        try:
+            module = self.expand_file_cached(fname)
+        except ExpandException:
+            module = None
+        return module
 
     def _parse_require(self, path):
-        dbgprint("parse_require", path, self.lib, path)
+        dbgprint("parse_require", path, self._lib_string(), path)
         fname, subs = path[0], path[1:]
         if fname in [".", ".."]:
             # fname field is not used in this case, so we just give an idea of which
@@ -468,7 +465,7 @@ class JsonReader(object):
         return self._to_require(fname, path=subs)
 
     def to_module(self, json):
-        dbgprint("to_module", json, lib=self.lib, filename="")
+        dbgprint("to_module", json, lib=self._lib_string(), filename="")
 
         # YYY
         obj = json.value_object()
@@ -501,13 +498,13 @@ class JsonReader(object):
                     rator["source-module"].value_string() == "#%kernel"))
 
     def to_ast(self, json):
-        dbgprint("to_ast", json, lib=self.lib, filename="")
+        dbgprint("to_ast", json, lib=self._lib_string(), filename="")
         mksym = values.W_Symbol.make
 
         if json.is_array:
             arr = json.value_array()
             rator = arr[0].value_object()
-            if JsonReader.is_builtin_operation(rator):
+            if JsonLoader.is_builtin_operation(rator):
                 ast_elem = rator["source-name"].value_string()
                 if ast_elem == "begin":
                     return Begin([self.to_ast(x) for x in arr[1:]])

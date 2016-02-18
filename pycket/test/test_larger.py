@@ -1,5 +1,5 @@
 import pytest
-from pycket.expand import expand, expand_string, to_ast
+from pycket.expand import expand, expand_string
 from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.values import *
