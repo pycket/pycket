@@ -664,10 +664,13 @@ class W_Struct(W_RootStruct):
         return w_res
 
     def _set(self, k, val):
+        hprof = self.struct_type().hprofs[k]
+        if not hprof.write_necessary(val):
+            return
         w_cell = self._get_list(k)
         assert isinstance(w_cell, values.W_Cell)
         w_cell.set_val(val)
-        self.struct_type().hprofs[k].see_write(val)
+        hprof.see_write(val)
 
     # We provide a method to get properties from a struct rather than a struct_type,
     # since impersonators can override struct properties.
