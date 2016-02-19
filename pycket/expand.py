@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 import os
+import rpath
 import sys
 
 from rpython.rlib import streamio
@@ -126,7 +127,7 @@ def wrap_for_tempfile(func):
         except OSError:
             pass
         from tempfile import mktemp
-        json_file = os.path.realpath(json_file)
+        json_file = os.path.abspath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
         out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
@@ -382,7 +383,7 @@ def parse_path(p):
     if srcmod in (".", ".."):
         return None, arr
     if not ModTable.builtin(srcmod):
-        srcmod = os.path.realpath(srcmod)
+        srcmod = rpath.realpath(srcmod)
     return srcmod, path
 
 class JsonLoader(object):
@@ -399,7 +400,7 @@ class JsonLoader(object):
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
         assert fname is not None
-        fname = os.path.realpath(fname)
+        fname = rpath.realpath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -408,7 +409,7 @@ class JsonLoader(object):
 
     def load_json_ast_rpython(self, modname, fname):
         assert modname is not None
-        modname = os.path.realpath(modname)
+        modname = rpath.realpath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -445,7 +446,7 @@ class JsonLoader(object):
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
-        fname = os.path.realpath(fname)
+        fname = rpath.realpath(fname)
         return Require(fname, self, path=path)
 
     def lazy_load(self, fname):
