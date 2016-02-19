@@ -139,12 +139,29 @@
          [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]
 
          [num-args (lam-num-params lam-form)]
-         [symbols-for-formals (map (lambda (x) (symbol->string (gensym))) (range num-args))]
-         [body (to-ast-single (lam-body lam-form) toplevels (if is-inlined
-                                                                (cons 'lambda-dummy
-                                                                      (append symbols-for-formals localref-stack))
-                                                                (append symbols-for-formals localref-stack)))]
-         [lamBda (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals)])
+         [symbols-for-formals (map (lambda (x) (symbol->string (gensym 'lam.))) (range num-args))]
+
+         [captured-stack-pos (lam-closure-map lam-form)]
+         ;; vector of stack positions that are captured when evaluating the lambda form to create a closure.
+         
+         [rest? (lam-rest? lam-form)]
+         [rest-formal (if rest? (symbol->string (gensym 'lam.rest.)) 'hokarz)]
+         [lamBda
+          (let ([args (map (lambda (sym) (hash* 'lexical sym)) symbols-for-formals)])
+            (if rest?
+                (hash* 'improper (list args ;; list of regular args list and the rest argument
+                                       (hash* 'lexical rest-formal)))
+                args))]
+         [total-symbols (if rest? (append symbols-for-formals (list rest-formal)) symbols-for-formals)]
+         [body (to-ast-single (lam-body lam-form)
+                              toplevels
+                              (if is-inlined
+                                  (append (build-list (vector-length captured-stack-pos)
+                                                      (lambda (x) (string->symbol
+                                                                   (string-append "lambda-dummy-"
+                                                                                  (number->string x)))))
+                                          (append total-symbols localref-stack))
+                                  (append total-symbols localref-stack)))])
     ;; pycket seems to omit source and position (and sets the span to 0) if lam-name is ()
     (if (null? source)
         (hash* 'span 0 'module module 'lambda lamBda 'body (list body))
@@ -195,13 +212,21 @@
   (begin
     (when DEBUG
       (display (string-append "Localref-stack size : " (number->string (length localref-stack)) " -- ") (current-output-port))
-      (displayln (string-append "Requested for pos : " (number->string (localref-pos lref-form))) (current-output-port)))
+      (displayln (string-append "Requested for pos : " (number->string (localref-pos lref-form)) "\n") (current-output-port)))
     (let* ([pos (localref-pos lref-form)]
            [stack-slot-raw (list-ref localref-stack pos)]
            [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
       (cond
         [(hash? stack-slot) stack-slot]
-        [else (hash* 'lexical stack-slot)]))))
+        [else (hash* 'lexical (if (string-contains? (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot) "dummy")
+                                  (error 'handle-localref (string-append "I shouldn't have extracted this: "
+                                                                         (if (symbol? stack-slot)
+                                                                             (symbol->string stack-slot)
+                                                                             stack-slot)
+                                                                         (begin (displayln ", something's wrong")
+                                                                                (displayln "here's the stack: ")
+                                                                                (displayln localref-stack) "")))
+                                  stack-slot))]))))
 
 (define (handle-module-variable mod-var toplevels localref-stack)
   (let ([name (symbol->string (module-variable-sym mod-var))]
@@ -328,6 +353,7 @@
                      (append boxls localref-stack))])
     (to-ast-single body toplevels newstack)))
 
+
 (define (handle-case-lambda body-form toplevels localref-stack)
   (let ([clauses (case-lam-clauses body-form)])
     (hash* 'case-lambda (map (lambda (clause)
@@ -391,18 +417,21 @@
 (define (to-ast-single body-form toplevels localref-stack)
   (begin
     (when DEBUG
+      (display "\n---------------------------------\n")
       (display (body-name body-form))
       (display "- ")
       (if (localref? body-form)
-          (begin (display (number->string (localref-pos body-form)))
+          (begin (displayln (string-append "localref-stack size : " (number->string (length localref-stack))))
+                 (display (string-append "Get pos : " (number->string (localref-pos body-form))))
                  (display " - extracting : ")
                  (display (list-ref localref-stack (localref-pos body-form))))
           (if (primval? body-form)
               (display (get-primval-name (primval-id body-form)))
               (display "")))
-      (display " - LocalRefStack : ")
-      (display (number->string (length localref-stack)))
+      (display " - LocalRefStack size : ")
+      (displayln (number->string (length localref-stack)))(newline)
       (display localref-stack)
+      (display "\n---------------------------------")
       (newline)(newline))
     (cond
       ;;;;;;;
@@ -578,8 +607,10 @@
                                  'source-module (list (string-append pycket-dir module-name ".rkt")))
                           (hash* 'toplevel (symbol->string out-name)))) out))))))
   
-  (define topProvides (list (cons (hash* 'source-name "#%provide")
-                                  (handle-provides top-provide-names '()))))
+  (define topProvides (if (not (empty? top-provide-names))
+                          (list (cons (hash* 'source-name "#%provide")
+                                      (handle-provides top-provide-names '())))
+                          '()))
   
   (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
   (define phase0 (assv 0 top-reqs))
