@@ -454,11 +454,7 @@ class JsonLoader(object):
         module = modtable.lookup(fname)
         if module is not None:
             return module
-        try:
-            module = self.expand_file_cached(fname)
-        except ExpandException:
-            module = None
-        return module
+        return self.expand_file_cached(fname)
 
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
