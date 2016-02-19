@@ -382,7 +382,7 @@ def parse_path(p):
     if srcmod in (".", ".."):
         return None, arr
     if not ModTable.builtin(srcmod):
-        srcmod = os.path.abspath(srcmod)
+        srcmod = os.path.realpath(srcmod)
     return srcmod, path
 
 class JsonLoader(object):
@@ -399,7 +399,7 @@ class JsonLoader(object):
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
         assert fname is not None
-        fname = os.path.abspath(fname)
+        fname = os.path.realpath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -408,7 +408,7 @@ class JsonLoader(object):
 
     def load_json_ast_rpython(self, modname, fname):
         assert modname is not None
-        modname = os.path.abspath(modname)
+        modname = os.path.realpath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -445,7 +445,7 @@ class JsonLoader(object):
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
-        fname = os.path.abspath(fname)
+        fname = os.path.realpath(fname)
         return Require(fname, self, path=path)
 
     def lazy_load(self, fname):
