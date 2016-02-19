@@ -170,8 +170,8 @@
 (define (handle-inline-variant iv-form toplevels localref-stack)
   (let ([direct (inline-variant-direct iv-form)]
         [inline (inline-variant-inline iv-form)])
-    ;; don't know what to do with the inline yet
-    (to-ast-single direct toplevels localref-stack)))
+    ;; using inlined version if possible (clearly possible if inline-variant form exists)
+    (to-ast-single inline toplevels localref-stack)))
 
 (define (handle-closure closure-form toplevels localref-stack)
   (let ([code (closure-code closure-form)])
@@ -617,11 +617,14 @@
   (define phase0-reqs (cdr phase0))
   (define lang-mod-path (resolved-module-path-name
                        (module-path-index-resolve (car phase0-reqs))))
-  (define lang (if (or (list? lang-mod-path) (symbol? lang-mod-path))
+  (define lang (if (list? lang-mod-path)
                    (error 'lang-config "don't know how to handle a submodule here")
-                   (path->string lang-mod-path)))
+                   (if (symbol? lang-mod-path)
+                       (symbol->string lang-mod-path)
+                       (path->string lang-mod-path))))
   
-  (define lang-pycket? (string-contains? lang "pycket-lang"))
+  (define lang-pycket? (or (string=? lang "#%kernel")
+                           (string-contains? lang "pycket-lang")))
   
   (define runtime-config
     (if lang-pycket?
