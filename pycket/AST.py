@@ -1,29 +1,20 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr", "app_like", "count", "the_lam", "in_cycle", "is_bad"]
-    _immutable_fields_ = ["should_enter", "surrounding_lambda", "app_like"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
-    mvars = None
+    _mvars = None
+    _fvars = None
     surrounding_lambda = None
-    app_like = False
 
     simple = False
 
-    is_label = False
-
-    in_cycle = False
-
-    the_lam = None
-
-    is_bad = False
-
-    count = 0
-
-    def defined_vars(self): return {}
+    def defined_vars(self):
+        return {}
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
@@ -62,7 +53,16 @@ class AST(object):
     def direct_children(self):
         return []
 
+    def collect_submodules(self, acc):
+        for child in self.direct_children():
+            child.collect_submodules(acc)
+
     def free_vars(self):
+        if self._fvars is None:
+            self._fvars = self._free_vars()
+        return self._fvars
+
+    def _free_vars(self):
         free_vars = {}
         for child in self.direct_children():
             free_vars.update(child.free_vars())
@@ -80,10 +80,9 @@ class AST(object):
         raise NotImplementedError("abstract base class")
 
     def mutated_vars(self):
-        if self.mvars is not None:
-            return self.mvars
-        self.mvars = self._mutated_vars()
-        return self.mvars
+        if self._mvars is None:
+            self._mvars = self._mutated_vars()
+        return self._mvars
 
     def _mutated_vars(self):
         raise NotImplementedError("abstract base class")

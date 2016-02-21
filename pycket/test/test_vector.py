@@ -35,6 +35,10 @@ def test_vec_strategies_empty():
     vec = run("(make-vector 0)")
     print "Second size: %s" % vec.length()
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run("(vector-immutable)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
+    vec = run("(vector-immutable 'hello)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_fixnum():
     vec = run("(vector 1 2 3)")
@@ -56,6 +60,8 @@ def test_vec_strategies_fixnum_singleton():
 def test_vec_strategies_object():
     vec = run("(vector (cons 1 2) 2 3)")
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run("(vector-immutable (cons 1 2) 2 3)")
+    assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_stays_fixnum():
     vec = run("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")
@@ -204,3 +210,28 @@ def test_eq_and_vectors_agree(doctest):
     #t
     """
 
+def test_vector_to_immutable_vector(doctest):
+    r"""
+    ! (define fl-vector^ (vector-immutable 1.0 2.0 3.0))
+    ! (define fl-vector (vector 1.0 2.0 3.0))
+    ! (define fx-vector (vector 1 2 3))
+    ! (define ch-vector (vector #\a #\b #\c))
+    > (eq? fl-vector^ (vector->immutable-vector fl-vector^))
+    #t
+    > (eq? fl-vector (vector->immutable-vector fl-vector))
+    #f
+    > (eq? fx-vector (vector->immutable-vector fx-vector))
+    #f
+    > (eq? ch-vector (vector->immutable-vector ch-vector))
+    #f
+    """
+
+def test_copy_vector_strategy_preserve():
+    vec = run("(vector->immutable-vector (vector 1.0 2.0 3.0))")
+    assert vec.strategy is FlonumImmutableVectorStrategy.singleton
+    vec = run("(vector->immutable-vector (vector 1 2 3))")
+    assert vec.strategy is FixnumImmutableVectorStrategy.singleton
+    vec = run(r"(vector->immutable-vector (vector #\a #\b #\c))")
+    assert vec.strategy is CharacterImmutableVectorStrategy.singleton
+    vec = run(r"(vector->immutable-vector (vector #\a #\b #\c 1 1.0))")
+    assert vec.strategy is ObjectImmutableVectorStrategy.singleton

@@ -175,17 +175,17 @@ def test_struct_auto_values(source):
 def test_struct_guard():
     run(
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard 
-      (lambda (name type-name) (cond 
-        [(string? name) name] 
+    ((lambda (name) (struct thing (name) #:transparent #:guard
+      (lambda (name type-name) (cond
+        [(string? name) name]
         [else (error type-name \"bad name: ~e\" name)])))
     (thing? (thing name))) \"apple\")
     """, w_true)
     e = pytest.raises(SchemeException, run,
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard 
-      (lambda (name type-name) (cond 
-        [(string? name) name] 
+    ((lambda (name) (struct thing (name) #:transparent #:guard
+      (lambda (name type-name) (cond
+        [(string? name) name]
         [else (error type-name "bad name")])))
     (thing? (thing name))) 1)
     """)
@@ -198,7 +198,7 @@ def test_struct_guard2():
 
     (define-values (s:o make-o o? o-ref o-set!)
         (make-struct-type 'o #f 1 0 'odefault null (make-inspector) #f null (lambda (o n) (+ o 1))))
-    
+
     (define x (o-ref (make-o 10) 0))
     """)
     ov = m.defs[W_Symbol.make("x")]
@@ -526,3 +526,110 @@ def test_procedure():
     """)
     ov = m.defs[W_Symbol.make("x")]
     assert ov.value == 1
+
+def test_struct_immutable_boolean(source):
+    """
+    (struct struct-with-immu (a b c))
+    (define struct-i (struct-with-immu 1 #f 2))
+
+    (let ([first-ok (equal? (struct-with-immu-a struct-i)  1)]
+          [immu-ok  (equal? (struct-with-immu-b struct-i) #f)]
+          [last-ok  (equal? (struct-with-immu-c struct-i)  2)])
+      (and first-ok immu-ok last-ok))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+def test_struct_immutable_boolean1(source):
+    """
+    (struct struct-with-immu (a b [c #:mutable]))
+    (define struct-i (struct-with-immu 1 #f 2))
+    (set-struct-with-immu-c! struct-i 3)
+
+    (let ([first-ok (equal? (struct-with-immu-a struct-i)  1)]
+          [immu-ok  (equal? (struct-with-immu-b struct-i) #f)]
+          [last-ok  (equal? (struct-with-immu-c struct-i)  3)])
+      (and first-ok immu-ok last-ok))
+    """
+    result = run_mod_expr(source, wrap=True)
+    assert result == w_true
+
+def test_struct_tostring(doctest):
+    """
+    ! (struct a (a))
+    ! (struct b a (b) #:transparent)
+    ! (struct b1 a (b))
+    ! (struct a1 (a) #:transparent)
+    ! (struct b2 a1 (b))
+    ! (struct b3 a1 (b) #:transparent)
+    > (format "~v" (a 1))
+    "#<a>"
+    > (format "~v" (b 1 2))
+    "(b ... 2)"
+    > (format "~v" (b1 1 2))
+    "#<b1>"
+    > (format "~v" (b2 1 2))
+    "(b2 1 ...)"
+    > (format "~v" (b3 1 2))
+    "(b3 1 2)"
+    """
+
+def test_auto_values(doctest):
+    """
+    ! (struct posn (x y [z #:auto]) #:auto-value 0 #:transparent)
+    ! (struct color-posn posn (hue) #:mutable)
+    ! (define cp (color-posn 1 2 "blue"))
+    > (format "~v" (posn 1 2))
+    "(posn 1 2 0)"
+    > (posn? (posn 1 2))
+    #t
+    > (posn-y (posn 1 2))
+    2
+    > (color-posn-hue cp)
+    "blue"
+    > (format "~v" cp)
+    "(color-posn 1 2 0 ...)"
+    """
+    assert doctest
+
+def test_struct_operations_arity(doctest):
+    """
+    ! (require racket/base)
+    ! (struct posn (x [y #:mutable] [z #:auto]) #:auto-value 0 #:transparent)
+    > (procedure-arity posn-x)
+    1
+    > (procedure-arity posn-y)
+    1
+    > (procedure-arity posn-z)
+    1
+    > (procedure-arity set-posn-y!)
+    2
+    > (procedure-arity posn)
+    2
+    """
+
+@skip
+def test_serializable(source):
+    """
+    (= (point-x (deserialize (serialize (point 1 2)))) 1)
+    """
+    extra = """
+    (require racket/serialize)
+    (serializable-struct point (x y))
+    """
+    result = run_mod_expr(source, extra=extra, wrap=True)
+    assert result == w_true
+
+def test_inherited_auto_values(doctest):
+    """
+    ! (struct test1 ([a #:auto] [b #:auto] [c #:auto]) #:auto-value 0 #:transparent)
+    ! (struct test2 test1 () #:transparent)
+    ! (struct test3 test2 () #:transparent)
+    > (test1? (test1))
+    #t
+    > (test2? (test2))
+    #t
+    > (test3? (test3))
+    #t
+    """
+

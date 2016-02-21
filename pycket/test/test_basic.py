@@ -1,5 +1,8 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pytest
-from pycket.expand import expand, to_ast
+from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
 from pycket import values_string
@@ -323,6 +326,7 @@ def test_eqv():
         "(eqv? 2 2)", "#t",
         "(eqv? '() '())", "#t",
         "(eqv? 100000000 100000000)", "#t",
+        "(eqv? 1.0+2i 1.0+2i)", "#t",
         "(eqv? (cons 1 2) (cons 1 2))", "#f",
         """(eqv? (lambda () 1)
                  (lambda () 2))""", "#f",
@@ -429,6 +433,43 @@ def test_with_continuation_mark():
     sym = W_Symbol.make("result")
     assert isinstance(m.defs[sym], values_string.W_String)
     assert m.defs[sym].as_str_utf8() == "ham"
+
+def test_with_continuation_mark2(doctest):
+    u"""
+    > (with-continuation-mark 'hello 'bye (let ([x (call-with-immediate-continuation-mark 'hello (λ (x) x) #f)]) x))
+    #f
+    """
+
+def test_with_continuation_mark3():
+    m = run_mod(
+    """
+    #lang racket/base
+    (define result
+        (let* ([extract
+	        (lambda (k) (continuation-mark-set->list
+	           (continuation-marks k)
+	           'x))]
+           [go
+	        (lambda (in?)
+              (lambda ()
+	        	      (let ([k (with-continuation-mark 'x 10
+	        			 (begin0
+	        			  (with-continuation-mark 'x 11
+	        			    (call/cc
+	        			     (lambda (k )
+	        			       (with-continuation-mark 'x 12
+	        				 (if in?
+	        				     (extract k)
+	        				     k)))))
+	        			  (+ 2 3)))])
+	        		(if in?
+	        		    k
+	        		    (extract k)))))])
+        ((go #t))))
+    (define valid (equal? result '(11 10)))
+    """)
+    sym = W_Symbol.make("valid")
+    assert m.defs[sym] is w_true
 
 def test_with_continuation_mark_impersonator():
     m = run_mod(
@@ -604,3 +645,40 @@ def test_should_enter_downrecursion():
     assert f.body[0].should_enter
     assert f.body[0].els.body[0].should_enter
 
+def test_reader_graph(doctest):
+    """
+    ! (require racket/shared)
+    ! (define x (make-placeholder #f))
+    ! (define y (list 1 2 x))
+    > (pair? (shared ([x (cons x x)]) x))
+    #t
+    > (shared ([x (cons x x)]) (eq? (car x) (cdr x)))
+    #t
+    > (make-reader-graph 1)
+    1
+    > (make-reader-graph '(1 2))
+    '(1 2)
+    > (placeholder-set! x y)
+    > (length (make-reader-graph y))
+    3
+    > (list? (caddr (make-reader-graph y)))
+    #true
+    > (placeholder? (caddr (make-reader-graph y)))
+    #false
+    """
+    assert doctest
+
+def test_wrap_values():
+    assert isinstance(wrap(1), W_Fixnum)
+    assert isinstance(wrap(1.0), W_Flonum)
+    assert isinstance(wrap(W_Fixnum(1)), W_Fixnum)
+    assert wrap(w_void) is w_void
+    assert wrap(True) is w_true
+    assert wrap(False) is w_false
+
+    assert isinstance(wrap(1, 2), W_UnwrappedFixnumCons)
+    assert isinstance(wrap(1, w_null), W_UnwrappedFixnumConsProper)
+    assert isinstance(wrap(1.0, 2), W_UnwrappedFlonumCons)
+    assert isinstance(wrap(1.0, w_null), W_UnwrappedFlonumConsProper)
+    assert isinstance(wrap(True, 2), W_WrappedCons)
+    assert isinstance(wrap(True, w_null), W_WrappedConsProper)

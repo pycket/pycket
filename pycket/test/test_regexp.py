@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 
 def test_make_regexp(doctest):
     """
@@ -35,14 +37,48 @@ def test_regexp_match(doctest):
     #f
     """
 
-def test_regexp_match_positions(doctest):
+def test_regexp_match_character_negation(doctest):
     """
+    > (regexp-match #px"^([^\t]+)" "ZA,LS,SZ")
+    '("ZA,LS,SZ" "ZA,LS,SZ")
+    > (regexp-match #px"^([^#\t]+)[\t]([^\t]+)[\t]([^\t]+)(?:[\t](.*))?" "ZA,LS,SZ\t-2615+02800\tAfrica/Johannesburg")
+    '("ZA,LS,SZ\t-2615+02800\tAfrica/Johannesburg" "ZA,LS,SZ" "-2615+02800" "Africa/Johannesburg" #f)
+    """
+
+def test_regexp_match_positions(doctest):
+    ur"""
+    > (regexp-match-positions #rx"a|b" "dog")
+    #f
     > (regexp-match-positions #rx"a|b" "cat")
     '((1 . 2))
     > (regexp-match-positions #rx"[a-zA-Z]+(c)" "abc")
     '((0 . 3) (2 . 3))
     > (regexp-match-positions #rx"[a-zA-Z]+(c)" "______________________abc")
     '((22 . 25) (24 . 25))
+    > (regexp-match-positions #px"\\s+$" "blue ")
+    '((4 . 5))
+    > (regexp-match-positions #px"β" "λΖχβα")
+    '((3 . 4))
+    """
+
+def test_regexp_match_positions_end(doctest):
+    ur"""
+    > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "dog")) list)
+    '(#f #f)
+    > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" "cat")) list)
+    '(((1 . 2)) #"a")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "abc")) list)
+    '(((0 . 3) (2 . 3)) #"c")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "abc" 0 #f #f #"" 3)) list)
+    '(((0 . 3) (2 . 3)) #"abc")
+    > (call-with-values (λ () (regexp-match-positions/end #rx"[a-zA-Z]+(c)" "______________________abc")) list)
+    '(((22 . 25) (24 . 25)) #"c")
+    > (call-with-values (λ () (regexp-match-positions/end #px"\\s+$" "blue ")) list)
+    '(((4 . 5)) #" ")
+    > (car (call-with-values (λ () (regexp-match-positions/end #px"β" "λΖχβα")) list))
+    '((3 . 4))
+    > (bytes-ref (cadr (call-with-values (λ () (regexp-match-positions/end #px"β" "λΖχβα")) list)) 0)
+    178
     """
 
 def test_regexp_match_p(doctest):
@@ -126,3 +162,59 @@ def test_regexp_match_group_fail(doctest):
     > (regexp-match "(?:^|[^0-9\\(])(\\(([0-9][0-9][0-9])\\)|([0-9][0-9][0-9])) ([0-9][0-9][0-9])[ -]([0-9][0-9][0-9][0-9])(?:[^0-9]|$)" "(375) 729-6365")
     '("(375) 729-6365" "(375)" "375" #f "729" "6365")
     """
+
+def test_regexp_match_group_with_brackets(doctest):
+    r"""
+    ! (require racket/string)
+    > (regexp-match #px"[]]" "]")
+    '("]")
+    > (regexp-match #px"[]]" "d")
+    #f
+    > (regexp-match #px"[^]]" "]")
+    #f
+    > (regexp-match #px"[^]]" "d")
+    '("d")
+    > (regexp-match #px"[][]" "[")
+    '("[")
+    > (regexp-match #px"[][]" "]")
+    '("]")
+    > (regexp-match #px"[][]" "a")
+    #f
+    > (regexp-match* #px"[][.*?+|(){}\\$^]" "][.*?+|(){}\\^]")
+    '("]" "[" "." "*" "?" "+" "|" "(" ")" "{" "}" "^" "]")
+    """
+
+def test_regexp_replace(doctest):
+    r"""
+    ! (require (only-in '#%kernel regexp-replace*))
+    ! (define sample "hello")
+    > (regexp-replace #rx"mi" "mi casa" "su")
+    "su casa"
+    > (regexp-replace #rx"([Mm])i ([a-zA-Z]*)" "Mi Casa" "\\1y \\2")
+    "My Casa"
+    > (regexp-replace #rx"([Mm])i ([a-zA-Z]*)" "mi cerveza Mi Mi Mi"
+                  "\\1y \\2")
+    "my cerveza Mi Mi Mi"
+    > (regexp-replace #rx"x" "12x4x6" "\\\\")
+    "12\\4x6"
+    > (eq? sample (regexp-replace #rx"z" sample "Z"))
+    #t
+    """
+
+def test_regexp_replace_star(doctest):
+    r"""
+    ! (require (only-in '#%kernel regexp-replace*))
+    ! (define sample "hello")
+    > (regexp-replace* #rx"mi" "mi casa" "su")
+    "su casa"
+    > (regexp-replace* #rx"([Mm])i ([a-zA-Z]*)" "Mi Casa" "\\1y \\2")
+    "My Casa"
+    > (regexp-replace* #rx"([Mm])i ([a-zA-Z]*)" "mi cerveza Mi Mi Mi"
+                  "\\1y \\2")
+    "my cerveza My Mi Mi"
+    > (regexp-replace* #rx"x" "12x4x6" "\\\\")
+    "12\\4\\6"
+    > (eq? sample (regexp-replace* #rx"z" sample "Z"))
+    #t
+    """
+

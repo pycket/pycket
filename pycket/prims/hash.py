@@ -2,111 +2,132 @@
 # -*- coding: utf-8 -*-
 from pycket              import impersonators as imp
 from pycket              import values
-from pycket              import values_hash
-from pycket.values_hash  import (
-    W_HashTable, W_SimpleHashTable, W_EqvHashTable, W_EqualHashTable, W_EqHashTable,
-    make_simple_table, w_missing)
+from pycket.hash.base    import W_HashTable, W_ImmutableHashTable, w_missing
+from pycket.hash.simple  import (
+    W_EqvMutableHashTable, W_EqMutableHashTable,
+    W_EqvImmutableHashTable, W_EqImmutableHashTable,
+    make_simple_mutable_table, make_simple_mutable_table_assocs,
+    make_simple_immutable_table, make_simple_immutable_table_assocs)
+from pycket.hash.equal   import W_EqualHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
+from rpython.rlib        import jit, objectmodel
+
+_KEY = 0
+_VALUE = 1
+_KEY_AND_VALUE = 2
 
 @expose("hash-iterate-first", [W_HashTable])
 def hash_iterate_first(ht):
     if ht.length() == 0:
         return values.w_false
-    return values.W_Fixnum.make(0)
+    return values.W_Fixnum.ZERO
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    if ht.length()-1 == pos.value:
+    index = pos.value
+    if index >= ht.length() - 1:
         return values.w_false
-    return values.W_Fixnum.make(pos.value + 1)
+    return values.W_Fixnum(index + 1)
 
-def hash_iter_ref(ht, pos, key=False):
-    n = pos.value
+@objectmodel.specialize.arg(4)
+def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
+    from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
-        if key:
-            return w_key
-        else:
-            return w_val
+        if returns == _KEY:
+            return return_value(w_key, env, cont)
+        if returns == _VALUE:
+            return return_value(w_val, env, cont)
+        if returns == _KEY_AND_VALUE:
+            vals = values.Values._make2(w_key, w_val)
+            return return_multi_vals(vals, env, cont)
     except KeyError:
         raise SchemeException("hash-iterate-key: invalid position")
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
+@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_key(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
 
-@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum])
-def hash_iterate_key(ht, pos):
-    return hash_iter_ref(ht, pos, key=True)
+@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_value(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
 
-@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum])
-def hash_iterate_value(ht, pos):
-    return hash_iter_ref(ht, pos, key=False)
+@expose("hash-iterate-key+value", [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_key_value(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
 
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
-def hash_for_each(h, f, env, cont):
-    from pycket.interpreter import return_value
-    f.enable_jitting()
-    return return_value(values.w_void, env,
-            hash_for_each_cont(f, h, 0, env, cont))
+def hash_for_each(ht, f, env, cont):
+    return hash_for_each_loop(ht, f, 0, env, cont)
 
-@continuation
-def hash_for_each_cont(f, ht, index, env, cont, _vals):
+@loop_label
+def hash_for_each_loop(ht, f, index, env, cont):
     from pycket.interpreter import return_value
-    nextindex = index + 1
     try:
         w_key, w_value = ht.get_item(index)
     except KeyError:
-        return return_value(values.w_void, env,
-                hash_for_each_cont(f, ht, nextindex, env, cont))
+        return hash_for_each_loop(ht, f, index + 1, env, cont)
     except IndexError:
         return return_value(values.w_void, env, cont)
-    after = hash_for_each_cont(f, ht, nextindex, env, cont)
-    return f.call([w_key, w_value], env, after)
+    return f.call([w_key, w_value], env,
+            hash_for_each_cont(ht, f, index, env, cont))
 
+@continuation
+def hash_for_each_cont(ht, f, index, env, cont, _vals):
+    return hash_for_each_loop(ht, f, index + 1, env, cont)
 
 @expose("hash-map", [W_HashTable, procedure], simple=False)
 def hash_map(h, f, env, cont):
     from pycket.interpreter import return_value
     acc = values.w_null
-    f.enable_jitting()
-    return return_value(w_missing, env,
-            hash_map_cont(f, h, 0, acc, env, cont))
+    return hash_map_loop(f, h, 0, acc, env, cont)
+    # f.enable_jitting()
+    # return return_value(w_missing, env,
+            # hash_map_cont(f, h, 0, acc, env, cont))
 
-@continuation
-def hash_map_cont(f, ht, index, w_acc, env, cont, vals):
-    from pycket.interpreter import return_value, check_one_val
-    w_val = check_one_val(vals)
-    if w_val is not w_missing:
-        w_acc = values.W_Cons.make(w_val, w_acc)
-    nextindex = index + 1
+@loop_label
+def hash_map_loop(f, ht, index, w_acc, env, cont):
+    from pycket.interpreter import return_value
     try:
         w_key, w_value = ht.get_item(index)
     except KeyError:
-        return return_value(w_missing, env,
-                hash_map_cont(f, ht, nextindex, w_acc, env, cont))
+        return hash_map_loop(f, ht, index + 1, w_acc, env, cont)
     except IndexError:
         return return_value(w_acc, env, cont)
-    after = hash_map_cont(f, ht, nextindex, w_acc, env, cont)
+    after = hash_map_cont(f, ht, index, w_acc, env, cont)
     return f.call([w_key, w_value], env, after)
 
+@continuation
+def hash_map_cont(f, ht, index, w_acc, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_val = check_one_val(_vals)
+    w_acc = values.W_Cons.make(w_val, w_acc)
+    return hash_map_loop(f, ht, index + 1, w_acc, env, cont)
+
+@jit.elidable
 def from_assocs(assocs, fname):
-    lsts = values.from_list(assocs)
-    keys = [None] * len(lsts)
-    vals = [None] * len(lsts)
-    for i, lst in enumerate(lsts):
-        if not isinstance(lst, values.W_Cons):
+    if not assocs.is_proper_list():
+        raise SchemeException("%s: expected proper list" % fname)
+    keys = []
+    vals = []
+    while isinstance(assocs, values.W_Cons):
+        val, assocs = assocs.car(), assocs.cdr()
+        if not isinstance(val, values.W_Cons):
             raise SchemeException("%s: expected list of pairs" % fname)
-        keys[i], vals[i] = lst.car(), lst.cdr()
-    return keys, vals
+        keys.append(val.car())
+        vals.append(val.cdr())
+    return keys[:], vals[:]
 
 @expose("make-weak-hasheq", [])
 def make_weak_hasheq():
     # FIXME: not actually weak
-    return make_simple_table(W_EqvHashTable, None, None)
+    return make_simple_mutable_table(W_EqvMutableHashTable, None, None)
 
-@expose("make-weak-hash", [default(values.W_List, None)])
+@expose(["make-weak-hash", "make-late-weak-hasheq"], [default(values.W_List, None)])
 def make_weak_hash(assocs):
     if assocs is None:
         return W_EqualHashTable([], [], immutable=False)
@@ -119,8 +140,11 @@ def make_immutable_hash(assocs):
 
 @expose("make-immutable-hasheq", [default(values.W_List, values.w_null)])
 def make_immutable_hasheq(assocs):
-    keys, vals = from_assocs(assocs, "make-immutable-hasheq")
-    return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
+    return make_simple_immutable_table_assocs(W_EqImmutableHashTable, assocs, "make-immutable-hasheq")
+
+@expose("make-immutable-hasheqv", [default(values.W_List, values.w_null)])
+def make_immutable_hasheqv(assocs):
+    return make_simple_immutable_table_assocs(W_EqvImmutableHashTable, assocs, "make-immutable-hasheq")
 
 @expose("hash")
 def hash(args):
@@ -136,7 +160,7 @@ def hasheq(args):
         raise SchemeException("hasheq: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return make_simple_table(W_EqHashTable, keys, vals, immutable=True)
+    return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
 
 @expose("hasheqv")
 def hasheqv(args):
@@ -144,7 +168,7 @@ def hasheqv(args):
         raise SchemeException("hasheqv: key does not have a corresponding value")
     keys = [args[i] for i in range(0, len(args), 2)]
     vals = [args[i] for i in range(1, len(args), 2)]
-    return make_simple_table(W_EqvHashTable, keys, vals, immutable=True)
+    return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
 
 @expose("make-hash", [default(values.W_List, values.w_null)])
 def make_hash(pairs):
@@ -152,27 +176,11 @@ def make_hash(pairs):
 
 @expose("make-hasheq", [default(values.W_List, values.w_null)])
 def make_hasheq(pairs):
-    lsts = values.from_list(pairs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return make_simple_table(W_EqHashTable, keys, vals)
+    return make_simple_mutable_table_assocs(W_EqMutableHashTable, pairs, "make-hasheq")
 
 @expose("make-hasheqv", [default(values.W_List, values.w_null)])
 def make_hasheqv(pairs):
-    lsts = values.from_list(pairs)
-    keys = []
-    vals = []
-    for lst in lsts:
-        if not isinstance(lst, values.W_Cons):
-            raise SchemeException("make-hash: expected list of pairs")
-        keys.append(lst.car())
-        vals.append(lst.cdr())
-    return make_simple_table(W_EqvHashTable, keys, vals)
+    return make_simple_mutable_table_assocs(W_EqvMutableHashTable, pairs, "make-hasheqv")
 
 @expose("hash-set!", [W_HashTable, values.W_Object, values.W_Object], simple=False)
 def hash_set_bang(ht, k, v, env, cont):
@@ -198,10 +206,9 @@ def hash_set(table, key, val, env, cont):
         raise SchemeException("hash-set: not given an immutable table")
 
     # Fast path
-    if isinstance(table, W_SimpleHashTable):
-        copy = table.make_copy()
-        copy.data[key] = val
-        return return_value(copy, env, cont)
+    if isinstance(table, W_ImmutableHashTable):
+        new_table = table.assoc(key, val)
+        return return_value(new_table, env, cont)
 
     return hash_copy(table, env,
             hash_set_cont(key, val, env, cont))
@@ -226,7 +233,11 @@ def hash_ref(ht, k, default, env, cont):
 def hash_remove_bang(ht, k, env, cont):
     return ht.hash_remove_inplace(k, env, cont)
 
-define_nyi("hash-remove", [W_HashTable, values.W_Object])
+@expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
+def hash_remove(ht, k, env, cont):
+    if not ht.immutable():
+        raise SchemeException("hash-remove: expected immutable hash table")
+    return ht.hash_remove(k, env, cont)
 
 define_nyi("hash-clear!", [W_HashTable])
 
@@ -256,6 +267,9 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
             hash_copy_ref_cont(keys, idx, src, new, env, cont))
 
 def hash_copy(src, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(src, W_ImmutableHashTable):
+        return return_value(src.make_copy(), env, cont)
     new = src.make_empty()
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 
@@ -264,8 +278,8 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
-    return values.W_Fixnum(0)
+    return values.W_Fixnum.ZERO

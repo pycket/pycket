@@ -1,23 +1,30 @@
 import inspect
 
-from rpython.rlib import jit, unroll
-
+from rpython.rlib import jit, objectmodel, unroll
 
 class Link(object):
     _immutable_fields_ = ["key", "next"]
     def __init__(self, k, v, next):
         from pycket.values import W_Object
-        assert isinstance(k, W_Object)
-        assert isinstance(v, W_Object)
+        assert isinstance(k, W_Object) and isinstance(v, W_Object)
         assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v
         self.next = next
 
+    @jit.unroll_safe
+    def clone(self):
+        marks = None
+        while self is not None:
+            marks = Link(self.key, self.val, marks)
+            self = self.next
+        return marks
+
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = ['return_safe']
+    _immutable_fields_ = []
+    _attrs_ = ['marks']
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
@@ -26,21 +33,33 @@ class BaseCont(object):
     def __init__(self):
         self.marks = None
 
+    def clone(self):
+        result = self._clone()
+        if self.marks is not None:
+            result.marks = self.marks.clone()
+        return result
+
+    def _clone(self):
+        raise NotImplementedError("abstract method")
+
     def get_ast(self):
         return None # best effort
 
     def get_next_executed_ast(self):
         return None # best effort
 
+    def get_previous_continuation(self, upto=[]):
+        return None
+
     @jit.unroll_safe
-    def find_cm(self, k):
+    def find_cm(self, k, not_found=None):
         from pycket.prims.equal import eqp_logic
         l = self.marks
         while l is not None:
             if eqp_logic(l.key, k):
                 return l.val
             l = l.next
-        return None
+        return not_found
 
     @jit.unroll_safe
     def update_cm(self, k, v):
@@ -53,23 +72,24 @@ class BaseCont(object):
             l = l.next
         self.marks = Link(k, v, self.marks)
 
-    def get_marks(self, key):
+    def get_marks(self, key, upto=[]):
         from pycket import values
         v = self.find_cm(key)
         return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
 
     # XXX: why isn't this in Cont?
     @jit.unroll_safe
-    def get_mark_first(self, key):
+    def get_mark_first(self, key, upto=[]):
         p = self
-        while isinstance(p, Cont):
+        while p is not None:
             v = p.find_cm(key)
-            if v:
+            if v is not None:
                 return v
-            elif p.prev:
-                p = p.prev
-        return p.find_cm(key)
+            p = p.get_previous_continuation(upto=upto)
+        return None
 
+    def append(self, tail, upto=None):
+        return tail
 
     def plug_reduce(self, _vals, env):
         raise NotImplementedError("abstract method")
@@ -83,19 +103,25 @@ class BaseCont(object):
 
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
+
+    def _clone(self):
+        return NilCont()
+
     def plug_reduce(self, vals, env):
         from pycket.interpreter import Done
         raise Done(vals)
 
-nil_continuation = NilCont()
-
 class Cont(BaseCont):
+
     _immutable_fields_ = ['env', 'prev']
+
     def __init__(self, env, prev):
-        # TODO: Consider using a dictionary to store the marks
         BaseCont.__init__(self)
         self.env = env
         self.prev = prev
+
+    def get_previous_continuation(self, upto=[]):
+        return self.prev
 
     def get_ast(self):
         return self.prev.get_ast()
@@ -103,13 +129,60 @@ class Cont(BaseCont):
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
 
-    def get_marks(self, key):
+    def append(self, tail, upto=None):
+        rest = self.prev.append(tail, upto)
+        head = self.clone()
+        assert isinstance(head, Cont)
+        head.prev = rest
+        return head
+
+    def get_marks(self, key, upto=[]):
         from pycket import values
-        v = self.find_cm(key)
-        if v is not None:
-            return values.W_Cons.make(v, self.prev.get_marks(key))
-        else:
-            return self.prev.get_marks(key)
+        while self is not None:
+            v = self.find_cm(key)
+            prev = self.get_previous_continuation(upto=upto)
+            if v is not None:
+                rest = prev.get_marks(key, upto=upto) if prev is not None else values.w_null
+                return values.W_Cons.make(v, rest)
+            self = prev
+        return values.w_null
+
+class Prompt(Cont):
+
+    _immutable_fields_ = ['tag', 'handler']
+
+    def __init__(self, tag, handler, env, prev):
+        Cont.__init__(self, env, prev)
+        self.tag     = tag
+        self.handler = handler
+
+    def _clone(self):
+        return Prompt(self.tag, self.handler, self.env, self.prev)
+
+    def get_previous_continuation(self, upto=[]):
+        for tag in upto:
+            if tag is self.tag:
+                return None
+        return self.prev
+
+    def append(self, tail, upto=None):
+        if upto is self.tag:
+            return tail
+        return Cont.append(self, tail, upto)
+
+    def plug_reduce(self, _vals, env):
+        return self.prev.plug_reduce(_vals, env)
+
+class Barrier(Cont):
+
+    def _clone(self):
+        return Barrier(self.env, self.prev)
+
+    def get_previous_continuation(self, upto=[]):
+        return None
+
+    def plug_reduce(self, _vals, env):
+        return self.prev.plug_reduce(_vals, env)
 
 def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
@@ -119,6 +192,11 @@ def _make_args_class(base, argnames):
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
+
+        def _copy_args(self, other):
+            for _, name in unroll_argnames:
+                val = getattr(self, name)
+                setattr(other, name, val)
 
         def _get_args(self):
             args = ()
@@ -155,10 +233,18 @@ def continuation(func):
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
+    def clone(self):
+        result = objectmodel.instantiate(PrimCont)
+        Cont.__init__(result, self.env, self.prev)
+        self._copy_args(result)
+        return result
+
     def plug_reduce(self, vals, env):
         args = self._get_args()
         args += (self.env, self.prev, vals,)
         return func(*args)
+
+    PrimCont.clone = clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
@@ -208,9 +294,7 @@ def make_label(func, enter=False):
     strrepr = "%s(%s:%s:%s)" % (clsname, func.func_name, func.__module__,
                                 func.__code__.co_firstlineno)
     class Label(AST):
-        is_label = True
         should_enter = enter
-        app_like     = False
         def interpret(self, env, cont):
             assert type(cont) is Args
             args = cont._get_args()
@@ -235,7 +319,6 @@ def guarded_loop(pred):
         noloop = make_label(func, enter=False)
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
-
 
 def loop_label(func):
     return make_label(func, enter=True)

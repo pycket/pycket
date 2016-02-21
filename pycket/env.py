@@ -86,8 +86,10 @@ class ModuleEnv(object):
         from pycket.interpreter import Module
         # note that `name` and `module.name` are different!
         assert isinstance(module, Module)
-        #if name not in self.modules:
-        self.modules[name] = module
+        if name in self.modules:
+            assert module is self.modules[name]
+        else:
+            self.modules[name] = module
 
     @jit.elidable
     def _find_module(self, name):
@@ -175,7 +177,7 @@ class ToplevelEnv(Env):
             self.version = Version()
 
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class ConsEnv(Env):
     _immutable_fields_ = ["_prev"]
     def __init__ (self, prev):
