@@ -1707,31 +1707,27 @@ def _make_symlist_counts(varss):
 def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    if 1 == len(varss) and 1 == len(varss[0]):
+    if len(varss) == 1 and len(varss[0]) == 1:
         return make_let_singlevar(varss[0][0], rhss[0], body)
     symlist, counts = _make_symlist_counts(varss)
     return Let(symlist, counts, rhss, body)
 
 def make_let_singlevar(sym, rhs, body):
-    if 1 == len(body):
-        b, = body
-        # XXX These are not correctness preserving
-        if isinstance(b, App):
-            rator = b.rator
-            x = {}
-            for rand in b.rands:
-                x.update(rand.free_vars())
-            if (isinstance(rator, LexicalVar) and
-                    sym is rator.sym and
-                    rator.sym not in x):
-                return App.make_let_converted(rhs, b.rands)
-        elif isinstance(b, If):
-            tst = b.tst
-            if (isinstance(tst, LexicalVar) and tst.sym is sym and
-                    sym not in b.thn.free_vars() and
-                    sym not in b.els.free_vars() and
-                    rhs.simple):
-                return If(rhs, b.thn, b.els)
+    # Try to convert nested lets into a single let e.g.
+    # (let ([v1 e1]) (let ([v2 e2]) e3)) => (let ([v1 e1] [v2 e2]) e3)
+    # This improves the performance of some of the AST anaylsis/transformation
+    # passes and flattens the environment, reducing allocation and pointer hopping.
+    if len(body) == 1:
+        b = body[0]
+        if isinstance(b, Let):
+            for r in b.rhss:
+                if sym in r.free_vars():
+                    break
+            else:
+                varss = [[sym]] + b._rebuild_args()
+                rhss  = [rhs] + b.rhss
+                body  = b.body
+                return make_let(varss, rhss, body)
     return Let(SymList([sym]), [1], [rhs], body)
 
 def make_letrec(varss, rhss, body):
@@ -1925,6 +1921,14 @@ class Let(SequencedBodyAST):
         env_structures.reverse()
         remove_num_envs.reverse()
         return self, sub_env_structure, env_structures, remove_num_envs[:]
+
+    def _rebuild_args(self):
+        start = 0
+        result = [None] * len(self.counts)
+        for i, c in enumerate(self.counts):
+            result[i] = [self.args.elems[start+j] for j in range(c)]
+            start += c
+        return result
 
     def _tostring(self):
         result = ["(let ("]
