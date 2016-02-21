@@ -263,11 +263,6 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
             assert i == 0
             return W_Flonum(self.vals_flo_0)
 
-        def _clone_small_list(self):
-            result = objectmodel.instantiate(Size1Flo)
-            result.vals_flo_0 = self.vals_flo_0
-            return result
-
         def _set_list(self, i, val):
             raise NotImplementedError()
     Size1Flo.__name__ = cls.__name__ + Size1Flo.__name__
