@@ -80,7 +80,7 @@
       (list (current-module) #t)))
 
 (define (full-path-string p)
-  (path->string (resolve-path (simplify-path p #f))))
+  (path->string (normalize-path (simplify-path p #t))))
 
 (define (desymbolize s)
   (cond
