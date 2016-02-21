@@ -620,7 +620,7 @@ class JsonLoader(object):
                 else:
                     vs, rhss = self.to_bindings(bindings)
                     assert isinstance(rhss[0], AST)
-                    return make_let(list(vs), list(rhss), body)
+                    return make_let(vs, rhss, body)
             if "variable-reference" in obj:
                 current_mod = self.modtable.current_mod()
                 if obj["variable-reference"].is_bool: # assumes that only boolean here is #f
