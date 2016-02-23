@@ -80,7 +80,7 @@
       (list (current-module) #t)))
 
 (define (full-path-string p)
-  (path->string (simplify-path p #f)))
+  (path->string (normalize-path (simplify-path p #t))))
 
 (define (desymbolize s)
   (cond
@@ -425,7 +425,7 @@
     [(i:identifier _)
      (match (identifier-binding #'i (current-phase))
        ['lexical (hash 'lexical  (id->sym v))]
-       [#f       
+       [#f
         (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
@@ -482,7 +482,7 @@
        (hash-has-key? m 'module-name)))
 
 (define (convert mod mod/loc [config? #t])
-  (syntax-parse (list mod mod/loc) 
+  (syntax-parse (list mod mod/loc)
     #:literal-sets ((kernel-literals #:phase (current-phase)))
     [((module name:id lang:expr (#%plain-module-begin forms ...))
       (_ _ _                    (_ forms* ...)))
