@@ -201,7 +201,9 @@ def test_lists():
 def test_box():
     run("(unbox (box #t))", w_true)
     run("(unbox (box-immutable #f))", w_false)
+    run("(unsafe-unbox (box #t))", w_true)
     run("(let ([b (box 5)]) (begin (set-box! b #f) (unbox b)))", w_false)
+    run("(let* ([b (box 5)] [r (box-cas! b 5 6)]) (and r (eqv? (unbox b) 6)))", w_true)
 
 def test_fib_ycombinator():
     Y = """

@@ -23,8 +23,8 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = []
     _attrs_ = ['marks']
+    _immutable_fields_ = []
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
@@ -312,11 +312,16 @@ def make_label(func, enter=False):
 
     return make
 
-# Choose whether or not to use a loop label based on a given predicate
-def guarded_loop(pred):
+# Choose whether or not to use a loop label based on a given predicate.
+# The always_use_labels parameter will ensure that a label is used whether the
+# predicate tests True or False.
+# When always_use_labels is False, we will only use a label when the predicate
+# is true, saving the overhead of trampolining under the assumption that the
+# predicate gives some indication of the recursion depth.
+def guarded_loop(pred, always_use_labels=True):
     def wrapper(func):
         loop   = make_label(func, enter=True)
-        noloop = make_label(func, enter=False)
+        noloop = make_label(func, enter=False) if always_use_labels else func
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
 

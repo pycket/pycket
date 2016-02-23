@@ -14,7 +14,6 @@ def make_entry_point(pycketconfig=None):
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
 
-
     def entry_point(argv):
         if not objectmodel.we_are_translated():
             import sys
@@ -74,7 +73,7 @@ def target(driver, args): #pragma: no cover
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
         base_name = 'pycket'
-    base_name += '-%(backend)s'
+    base_name += '-%(backend)s-hidden'
     if not config.translation.jit:
         base_name += '-%(backend)s-nojit'
 

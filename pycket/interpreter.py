@@ -109,6 +109,7 @@ class LetrecCont(Cont):
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast"]
+
     return_safe = True
 
     def __init__(self, counting_ast, env, prev):
