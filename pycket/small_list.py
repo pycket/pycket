@@ -2,7 +2,103 @@ from pycket import config
 
 from rpython.rlib.unroll import unrolling_iterable
 from rpython.rlib        import jit, debug, objectmodel
+from itertools           import product
 
+FIXNUM = 'i'
+FLONUM = 'f'
+OBJECT = 'r'
+
+ALL_TYPES = (FIXNUM, FLONUM, OBJECT)
+
+def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
+
+    classes = {}
+
+    for spec in product(types, repeat=size):
+
+        attrs = ["_%s_%s_%s" % (attrname, i, s) for i, s in enumerate(spec)]
+        indexes = range(len(attrs))
+        unrolling_enumerate_attrs = unrolling_iterable(zip(indexes, attrs, spec))
+
+        class Specialized(cls):
+            _immutable_fields_ = attrs
+
+            def _init_list(self, args):
+                from pycket.values import W_Fixnum, W_Flonum, W_Object
+                assert len(args) == size
+                for i, attr, typ in unrolling_enumerate_attrs:
+                    val = args[i]
+                    if typ == FIXNUM:
+                        assert type(val) is W_Fixnum
+                        setattr(self, attr, val.value)
+                    elif typ == FLONUM:
+                        assert type(val) is W_Flonum
+                        setattr(self, attr, val.value)
+                    else:
+                        assert isinstance(val, W_Object)
+                        setattr(self, attr, val)
+
+            def _get_list(self, i):
+                from pycket.values import wrap
+                for j, attr, typ in unrolling_enumerate_attrs:
+                    if i == j:
+                        val = getattr(self, attr)
+                        return wrap(val)
+                raise IndexError
+
+            def _set_list(self, i, val):
+                raise NotImplementedError
+
+            def _get_full_list(self):
+                from pycket.values import wrap
+                results = [None] * size
+                for i, attr, typ in unrolling_enumerate_attrs:
+                    val = getattr(self, attr)
+                    results[i] = wrap(val)
+                return results
+
+            def _get_size_list(self):
+                return size
+
+            def _clone_small_list(self):
+                result = objectmodel.instantiate(Specialized)
+                for i, attr, typ in unrolling_enumerate_attrs:
+                    val = getattr(self, attr)
+                    setattr(result, attr, val)
+                return result
+
+        Specialized.__name__ = "Fixed(%s, size=%d, type=%s)" % (cls.__name__, size, "".join(spec))
+        classes[spec] = Specialized
+
+    singleton = next(classes.itervalues())
+
+    @jit.elidable
+    def _lookup_class(*signature):
+        if len(classes) == 1:
+            return singleton
+        return classes[signature]
+
+    @jit.unroll_safe
+    def make(elems, *args):
+        from pycket.values import W_Fixnum, W_Flonum, W_Object
+        assert len(elems) == size
+        signature = ()
+        for e in elems:
+            t = type(e)
+            if t is W_Fixnum:
+                signature += (FIXNUM,)
+            elif t is W_Flonum:
+                signature += (FLONUM,)
+            else:
+                assert issubclass(t, W_Object)
+                signature += (OBJECT,)
+        cls = _lookup_class(*signature)
+        result = objectmodel.instantiate(cls)
+        cls._init_list(result, elems)
+        cls.__init__(result, *args)
+        return result
+
+    return make
 
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
@@ -347,3 +443,9 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     add_clone_method(Size2Fixed11)
 
     return make, make1, make2
+
+def example():
+    from pycket import values
+    classes = make_specialized_classes(object, 5)
+    xs = (values.wrap(1), values.wrap(2), values.wrap(1.2), values.w_false, values.w_false)
+    print classes(xs)
