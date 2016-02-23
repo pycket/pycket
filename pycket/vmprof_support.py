@@ -4,7 +4,7 @@ from pycket.base  import W_Object
 from pycket.error import SchemeException
 from rpython.rlib import objectmodel, rvmprof
 
-def _get_code(ast, env):
+def _get_code(ast, *args):
     return ast
 
 vmprof_profile = rvmprof.vmprof_execute_code("pycket", _get_code, result_class=W_Object)
