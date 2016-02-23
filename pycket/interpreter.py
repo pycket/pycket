@@ -1010,7 +1010,7 @@ class Begin(SequencedBodyAST):
             x.update(r.mutated_vars())
         return x
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline # XXX fix this
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
@@ -1299,7 +1299,7 @@ class If(AST):
                        [tst],
                        [If(LexicalVar(fresh), thn, els)])
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline # XXX fix this
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if w_val is values.w_false:
@@ -1800,7 +1800,7 @@ class Let(SequencedBodyAST):
             env_structure = env_structure.prev
         return env
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline # XXX fix this
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
@@ -2026,18 +2026,22 @@ def inner_interpret_two_state(ast, env, cont):
 
 @vmprof_profile
 def _call_interpret(ast, env, cont):
-    t = type(ast)
-    # Manual conditionals to force specialization in translation
-    # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
-    # (see Jones, Gomard, Sestof 1993)
-    if t is Let:
-        return ast.interpret(env, cont)
-    elif t is If:
-        return ast.interpret(env, cont)
-    elif t is Begin:
-        return ast.interpret(env, cont)
-    else:
-        return ast.interpret(env, cont)
+    jit.enter_portal_frame(ast._vmprof_unique_id)
+    try:
+        t = type(ast)
+        # Manual conditionals to force specialization in translation
+        # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
+        # (see Jones, Gomard, Sestof 1993)
+        if t is Let:
+            return ast.interpret(env, cont)
+        elif t is If:
+            return ast.interpret(env, cont)
+        elif t is Begin:
+            return ast.interpret(env, cont)
+        else:
+            return ast.interpret(env, cont)
+    finally:
+        jit.leave_portal_frame()
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
