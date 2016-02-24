@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 import os
+import rpath
 import sys
 
 from rpython.rlib import streamio
@@ -125,7 +126,7 @@ def wrap_for_tempfile(func):
         except OSError:
             pass
         from tempfile import mktemp
-        json_file = os.path.realpath(json_file)
+        json_file = os.path.abspath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
         out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
@@ -247,11 +248,6 @@ def parse_module(json_string, bytecode_expand=False):
     modtable = ModTable()
     reader = JsonLoader(bytecode_expand)
     return reader.to_module(json).assign_convert_module()
-
-def to_ast(json, modtable, lib=_FN):
-    reader = JsonLoader(_FN)
-    ast = reader.to_ast(json)
-    return ast.assign_convert(variable_set(), None)
 
 #### ========================== Implementation functions
 
@@ -382,9 +378,10 @@ def parse_path(p):
     srcmod, path = arr[0], arr[1:]
     # Relative module names go into the path.
     # None value for the srcmod indicate the current module
-    if srcmod in [".", ".."]:
-        path   = arr
-        srcmod = None
+    if srcmod in (".", ".."):
+        return None, arr
+    if not ModTable.builtin(srcmod):
+        srcmod = rpath.realpath(srcmod)
     return srcmod, path
 
 class JsonLoader(object):
@@ -400,6 +397,8 @@ class JsonLoader(object):
 
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
+        assert fname is not None
+        fname = rpath.realpath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -407,6 +406,8 @@ class JsonLoader(object):
         return module
 
     def load_json_ast_rpython(self, modname, fname):
+        assert modname is not None
+        modname = rpath.realpath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data)).assign_convert_module()
@@ -443,6 +444,7 @@ class JsonLoader(object):
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
+        fname = rpath.realpath(fname)
         return Require(fname, self, path=path)
 
     def lazy_load(self, fname):
@@ -450,11 +452,7 @@ class JsonLoader(object):
         module = modtable.lookup(fname)
         if module is not None:
             return module
-        try:
-            module = self.expand_file_cached(fname)
-        except ExpandException:
-            module = None
-        return module
+        return self.expand_file_cached(fname)
 
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
