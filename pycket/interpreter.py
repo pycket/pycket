@@ -559,6 +559,7 @@ class Module(AST):
         module_env = env.toplevel_env().module_env
         old = module_env.current_module
         module_env.current_module = self
+        jit.enter_portal_frame(self._vmprof_unique_id)
         if self.lang is not None:
             interpret_one(self.lang, self.env)
         elif self.parent is not None:
@@ -581,6 +582,7 @@ class Module(AST):
                 vs = interpret_one(f, self.env)
                 continue
         module_env.current_module = old
+        jit.leave_portal_frame()
 
     def mark_tail_nodes(self, tail_position=False):
         for b in self.body:
@@ -2074,7 +2076,7 @@ def inner_interpret_two_state(ast, env, cont):
 
 @vmprof_profile
 def _call_interpret(ast, env, cont):
-    jit.enter_portal_frame(ast._vmprof_unique_id)
+    # jit.enter_portal_frame(ast._vmprof_unique_id)
     try:
         t = type(ast)
         # Manual conditionals to force specialization in translation
@@ -2089,7 +2091,8 @@ def _call_interpret(ast, env, cont):
         else:
             return ast.interpret(env, cont)
     finally:
-        jit.leave_portal_frame()
+        if ast._tail_position:
+            jit.leave_portal_frame()
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:

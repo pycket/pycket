@@ -1255,6 +1255,7 @@ class W_Closure(W_Procedure):
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
+        jit.enter_portal_frame(lam._vmprof_unique_id)
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
@@ -1303,6 +1304,7 @@ class W_Closure1AsEnv(ConsEnv):
         lam = self.caselam.lams[0]
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
+        jit.enter_portal_frame(lam._vmprof_unique_id)
         actuals = lam.match_args(args)
         if actuals is None:
             lam.raise_nice_error(args)

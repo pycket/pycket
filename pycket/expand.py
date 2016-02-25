@@ -44,7 +44,9 @@ def readfile_rpython(fname):
 #### ========================== Functions for expanding code to json
 
 def make_module_ready(mod):
-    return mod.assign_convert_module().make_ready()
+    mod = mod.assign_convert_module()
+    mod.mark_tail_nodes()
+    return mod.make_ready()
 
 _FN = "-l pycket/expand --"
 _BE = "-l pycket/zo-expand --"
