@@ -582,6 +582,10 @@ class Module(AST):
                 continue
         module_env.current_module = old
 
+    def mark_tail_nodes(self, tail_position=False):
+        for b in self.body:
+            b.mark_tail_nodes(tail_position=True)
+
 class Require(AST):
     _immutable_fields_ = ["fname", "loader", "path[*]"]
     simple = True
@@ -780,6 +784,11 @@ class WithContinuationMark(AST):
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
+    def mark_tail_nodes(self, tail_position=False):
+        self.key.mark_tail_nodes(tail_position=False)
+        self.value.mark_tail_nodes(tail_position=False)
+        self.body.mark_tail_nodes(tail_position=True)
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
@@ -957,6 +966,12 @@ class SequencedBodyAST(AST):
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
 
+    def mark_tail_nodes(self, tail_position=False):
+        stop = len(self.body) - 1
+        for i in range(stop):
+            self.body[i].mark_tail_nodes(tail_position=False)
+        self.body[stop].mark_tail_nodes(tail_position=tail_position)
+
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
 
@@ -989,6 +1004,10 @@ class Begin0(AST):
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
+
+    def mark_tail_nodes(self, tail_position=False):
+        self.first.mark_tail_nodes(tail_position=False)
+        self.body.mark_tail_nodes(tail_position=True)
 
 class Begin(SequencedBodyAST):
     @staticmethod
@@ -1067,7 +1086,6 @@ class Var(AST):
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
-
 
 class CellRef(Var):
     simple = True
@@ -1277,6 +1295,10 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
+    def mark_tail_nodes(self, tail_position=False):
+        self._tail_position = True
+        self.rhs.mark_tail_nodes(tail_position=False)
+
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
 
@@ -1315,6 +1337,10 @@ class If(AST):
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
+
+    def mark_tail_nodes(self, tail_position=False):
+        self.thn.mark_tail_nodes(tail_position)
+        self.els.mark_tail_nodes(tail_position)
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1448,6 +1474,11 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
+    def mark_tail_nodes(self, tail_position=False):
+        self._tail_position = tail_position
+        for lam in self.lams:
+            lam.mark_tail_nodes()
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure',
@@ -1579,6 +1610,10 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def mark_tail_nodes(self, tail_position=False):
+        self._tail_position = tail_position
+        SequencedBodyAST.mark_tail_nodes(self, tail_position=True)
+
     def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
@@ -1692,6 +1727,11 @@ class Letrec(SequencedBodyAST):
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+
+    def mark_tail_nodes(self, tail_position=False):
+        for rhs in self.rhss:
+            rhs.mark_tail_nodes(tail_position=False)
+        SequencedBodyAST.mark_tail_nodes(self, tail_position=tail_position)
 
     def _tostring(self):
         vars = []
@@ -1831,6 +1871,11 @@ class Let(SequencedBodyAST):
         for b in self.rhss:
             x.update(b.free_vars())
         return x
+
+    def mark_tail_nodes(self, tail_position=False):
+        for rhs in self.rhss:
+            rhs.mark_tail_nodes(tail_position=False)
+        SequencedBodyAST.mark_tail_nodes(self, tail_position=tail_position)
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
@@ -1990,6 +2035,9 @@ class DefineValues(AST):
 
     def direct_children(self):
         return [self.rhs]
+
+    def mark_tail_nodes(self, tail_position=False):
+        self.rhs.mark_tail_nodes(tail_position=tail_position)
 
     def _mutated_vars(self):
         return self.rhs.mutated_vars()

@@ -2,8 +2,8 @@ from rpython.rlib import jit, objectmodel
 
 
 class AST(object):
-    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "surrounding_module", "_stringrepr"]
-    _immutable_fields_ = ["should_enter", "surrounding_lambda", "surrounding_module"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "surrounding_module", "_stringrepr", "_tail_position"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda", "surrounding_module", "_tail_position"]
 
     _settled_ = True
 
@@ -13,6 +13,7 @@ class AST(object):
     _fvars = None
     surrounding_lambda = None
     surrounding_module = None
+    _tail_position = False
 
     simple = False
 
@@ -69,6 +70,9 @@ class AST(object):
     def collect_submodules(self, acc):
         for child in self.direct_children():
             child.collect_submodules(acc)
+
+    def mark_tail_nodes(self, tail_position=False):
+        self._tail_position = tail_position
 
     def free_vars(self):
         if self._fvars is None:
