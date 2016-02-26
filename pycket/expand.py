@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 import os
+import rpath
 import sys
 
 from rpython.rlib import streamio
@@ -131,7 +132,7 @@ def wrap_for_tempfile(func):
         except OSError:
             pass
         from tempfile import mktemp
-        json_file = os.path.realpath(json_file)
+        json_file = os.path.abspath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
         out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
@@ -355,20 +356,59 @@ def shorten_submodule_path(path):
             acc.append(p)
     return acc[:]
 
-def get_srcloc(o):
-    pos = o["position"].value_int() if "position" in o else -1
-    source = o["source"] if "source" in o else None
-    if source and source.is_object:
-        v = source.value_object()
-        if "%p" in v:
-            sourcefile = v["%p"].value_string()
-        elif "quote" in v:
-            sourcefile = v["quote"].value_string()
-        else:
-            assert 0
+class SourceInfo(object):
+
+    _immutable_ = True
+
+    def __init__(self, position, line, column, span, sourcefile):
+        self.position = position
+        self.line = line
+        self.column = column
+        self.span = span
+        self.sourcefile = sourcefile
+
+@specialize.arg(2)
+def getkey(obj, key, expect):
+    if expect == 'i':
+        default = -1
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_int:
+            raise ValueError("expected int")
+        return result.value_int()
+    elif expect == 's':
+        default = None
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_string:
+            raise ValueError("expected string")
+        return result.value_string()
+    elif expect == 'o':
+        default = None
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_object:
+            raise ValueError("expected string")
+        return result.value_object()
     else:
-        sourcefile = None
-    return (pos, sourcefile)
+        assert False
+
+def get_srcloc(o):
+    position = getkey(o, "position", expect='i')
+    line     = getkey(o, "line", expect='i')
+    column   = getkey(o, "column", expect='i')
+    span     = getkey(o, "span", expect='i')
+
+    sourcefile = None
+    source = getkey(o, "source", expect='o')
+    if source is not None:
+        sourcefile = (getkey(source, "%p", expect='s') or
+                      getkey(source, "quote", expect='s'))
+
+    return SourceInfo(position, line, column, span, sourcefile)
 
 def convert_path(path):
     return [p.value_string() for p in path]
@@ -382,7 +422,7 @@ def parse_path(p):
     if srcmod in (".", ".."):
         return None, arr
     if not ModTable.builtin(srcmod):
-        srcmod = os.path.abspath(srcmod)
+        srcmod = rpath.realpath(srcmod)
     return srcmod, path
 
 class JsonLoader(object):
@@ -398,6 +438,8 @@ class JsonLoader(object):
 
     # Expand and load the module without generating intermediate JSON files.
     def expand_to_ast(self, fname):
+        assert fname is not None
+        fname = rpath.realpath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
         module = self.to_module(pycket_json.loads(data))
@@ -406,6 +448,8 @@ class JsonLoader(object):
         return module
 
     def load_json_ast_rpython(self, modname, fname):
+        assert modname is not None
+        modname = rpath.realpath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
         module = self.to_module(pycket_json.loads(data))
@@ -434,16 +478,16 @@ class JsonLoader(object):
 
     def _to_lambda(self, lam):
         fmls, rest = to_formals(lam["lambda"])
-        pos, sourcefile = get_srcloc(lam)
+        sourceinfo = get_srcloc(lam)
         body = [self.to_ast(x) for x in lam["body"].value_array()]
-        return make_lambda(fmls, rest, body, pos, sourcefile)
+        return make_lambda(fmls, rest, body, sourceinfo)
 
     def _to_require(self, fname, path=None):
         path = shorten_submodule_path(path)
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
-        fname = os.path.abspath(fname)
+        fname = rpath.realpath(fname)
         return Require(fname, self, path=path)
 
     def lazy_load(self, fname):
@@ -451,11 +495,7 @@ class JsonLoader(object):
         module = modtable.lookup(fname)
         if module is not None:
             return module
-        try:
-            module = self.expand_file_cached(fname)
-        except ExpandException:
-            module = None
-        return module
+        return self.expand_file_cached(fname)
 
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
