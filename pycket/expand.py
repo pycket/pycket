@@ -356,20 +356,59 @@ def shorten_submodule_path(path):
             acc.append(p)
     return acc[:]
 
-def get_srcloc(o):
-    pos = o["position"].value_int() if "position" in o else -1
-    source = o["source"] if "source" in o else None
-    if source and source.is_object:
-        v = source.value_object()
-        if "%p" in v:
-            sourcefile = v["%p"].value_string()
-        elif "quote" in v:
-            sourcefile = v["quote"].value_string()
-        else:
-            assert 0
+class SourceInfo(object):
+
+    _immutable_ = True
+
+    def __init__(self, position, line, column, span, sourcefile):
+        self.position = position
+        self.line = line
+        self.column = column
+        self.span = span
+        self.sourcefile = sourcefile
+
+@specialize.arg(2)
+def getkey(obj, key, expect):
+    if expect == 'i':
+        default = -1
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_int:
+            raise ValueError("expected int")
+        return result.value_int()
+    elif expect == 's':
+        default = None
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_string:
+            raise ValueError("expected string")
+        return result.value_string()
+    elif expect == 'o':
+        default = None
+        result = obj.get(key, None)
+        if result is None:
+            return default
+        if not result.is_object:
+            raise ValueError("expected string")
+        return result.value_object()
     else:
-        sourcefile = None
-    return (pos, sourcefile)
+        assert False
+
+def get_srcloc(o):
+    position = getkey(o, "position", expect='i')
+    line     = getkey(o, "line", expect='i')
+    column   = getkey(o, "column", expect='i')
+    span     = getkey(o, "span", expect='i')
+
+    sourcefile = None
+    source = getkey(o, "source", expect='o')
+    if source is not None:
+        sourcefile = (getkey(source, "%p", expect='s') or
+                      getkey(source, "quote", expect='s'))
+
+    return SourceInfo(position, line, column, span, sourcefile)
 
 def convert_path(path):
     return [p.value_string() for p in path]
@@ -437,9 +476,9 @@ class JsonLoader(object):
 
     def _to_lambda(self, lam):
         fmls, rest = to_formals(lam["lambda"])
-        pos, sourcefile = get_srcloc(lam)
+        sourceinfo = get_srcloc(lam)
         body = [self.to_ast(x) for x in lam["body"].value_array()]
-        return make_lambda(fmls, rest, body, pos, sourcefile)
+        return make_lambda(fmls, rest, body, sourceinfo)
 
     def _to_require(self, fname, path=None):
         path = shorten_submodule_path(path)
