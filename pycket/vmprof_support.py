@@ -19,8 +19,9 @@ def _get_full_name(ast):
         else:
             filename = mod.full_module_path()
         return "rkt:<module>:%s:?" % filename
-    filename = lam.srcfile
-    srcline  = lam.srcpos
+    info = lam.sourceinfo
+    filename = info.sourcefile if info.sourcefile is not None else "<unknown>"
+    srcline  = info.line
     return "rkt:<lambda>:%s:%s" % (filename, srcline)
 
 rvmprof.register_code_object_class(AST, _get_full_name)
