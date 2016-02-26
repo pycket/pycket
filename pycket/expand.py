@@ -369,32 +369,23 @@ class SourceInfo(object):
 
 @specialize.arg(2)
 def getkey(obj, key, expect):
+    default = -1 if expect == 'i' else None
+    result = obj.get(key, None)
+    if result is None:
+        return default
     if expect == 'i':
-        default = -1
-        result = obj.get(key, None)
-        if result is None:
-            return default
         if not result.is_int:
-            raise ValueError("expected int")
+            raise ValueError("key %s: expected int got %s" % (key, result.tostring()))
         return result.value_int()
-    elif expect == 's':
-        default = None
-        result = obj.get(key, None)
-        if result is None:
-            return default
+    if expect == 's':
         if not result.is_string:
-            raise ValueError("expected string")
+            raise ValueError("key %s: expected string got %s" % (key, result.tostring()))
         return result.value_string()
-    elif expect == 'o':
-        default = None
-        result = obj.get(key, None)
-        if result is None:
-            return default
+    if expect == 'o':
         if not result.is_object:
-            raise ValueError("expected string")
+            raise ValueError("key %s: expected object got %s" % (key, result.tostring()))
         return result.value_object()
-    else:
-        assert False
+    assert False
 
 def get_srcloc(o):
     position = getkey(o, "position", expect='i')
