@@ -10,6 +10,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.unroll import unrolling_iterable
 from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
@@ -367,37 +368,34 @@ class SourceInfo(object):
         self.span = span
         self.sourcefile = sourcefile
 
+JSON_TYPES = unrolling_iterable(['string', 'int', 'float', 'object', 'array'])
+
 @specialize.arg(2)
-def getkey(obj, key, expect):
-    default = -1 if expect == 'i' else None
+def getkey(obj, key, type, throws=False):
     result = obj.get(key, None)
     if result is None:
-        return default
-    if expect == 'i':
-        if not result.is_int:
-            raise ValueError("key %s: expected int got %s" % (key, result.tostring()))
-        return result.value_int()
-    if expect == 's':
-        if not result.is_string:
-            raise ValueError("key %s: expected string got %s" % (key, result.tostring()))
-        return result.value_string()
-    if expect == 'o':
-        if not result.is_object:
-            raise ValueError("key %s: expected object got %s" % (key, result.tostring()))
-        return result.value_object()
+        if throws:
+            raise KeyError
+        return -1 if type == 'i' else None
+    for t in JSON_TYPES:
+        if type == t or type == t[0]:
+            if not getattr(result, "is_" + t):
+                raise ValueError("cannot decode key '%s' with value %s as type %s" %
+                                 (key, result.tostring(), t))
+            return getattr(result, "value_" + t)()
     assert False
 
 def get_srcloc(o):
-    position = getkey(o, "position", expect='i')
-    line     = getkey(o, "line", expect='i')
-    column   = getkey(o, "column", expect='i')
-    span     = getkey(o, "span", expect='i')
+    position = getkey(o, "position", type='i')
+    line     = getkey(o, "line", type='i')
+    column   = getkey(o, "column", type='i')
+    span     = getkey(o, "span", type='i')
 
     sourcefile = None
-    source = getkey(o, "source", expect='o')
+    source = getkey(o, "source", type='o')
     if source is not None:
-        sourcefile = (getkey(source, "%p", expect='s') or
-                      getkey(source, "quote", expect='s'))
+        sourcefile = (getkey(source, "%p", type='s') or
+                      getkey(source, "quote", type='s'))
 
     return SourceInfo(position, line, column, span, sourcefile)
 
@@ -503,11 +501,8 @@ class JsonLoader(object):
         assert "body-forms" in obj, "got malformed JSON from expander"
 
         config = {}
-        try:
-            config_obj = obj["config"].value_object()
-        except KeyError:
-            pass
-        else:
+        config_obj = getkey(obj, "config", type='o')
+        if config_obj is not None:
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 
