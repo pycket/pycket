@@ -14,6 +14,7 @@ class o:
     viewloops = True
 conftest.option = o
 
+from rpython.rlib.nonconst import NonConstant
 from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
@@ -22,6 +23,7 @@ from pycket.interpreter import *
 from pycket.values import *
 from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
 from pycket.expand import JsonLoader, expand, expand_string, parse_module
+from pycket import pycket_json
 
 
 class TestLLtype(LLJitMixin):
@@ -74,8 +76,9 @@ class TestLLtype(LLJitMixin):
 
     def test_setbang(self):
 
-        loader = Jsonloader(bytecode_expand=False)
+        loader = JsonLoader(bytecode_expand=False)
         ast = loader.to_ast(expand("""
+        #lang pycket
         (let ([n 1000])
           (letrec ([countdown (lambda () (if (< n 0) 1 (begin (set! n (- n 1)) (countdown))))])
             (countdown)))
@@ -117,15 +120,20 @@ class TestLLtype(LLJitMixin):
 
     # needs to be fixed to use modules
     def run_string(self, str):
-        ast = parse_module(expand_string(str))
-        env = ToplevelEnv()
+        _json = pycket_json.loads(expand_string(str))
+        _env = ToplevelEnv()
 
         def interp_w():
+            loader = JsonLoader(False)
+            ast = loader.to_module(NonConstant(_json)).assign_convert_module()
+            env = NonConstant(_env)
+            env.globalconfig.load(ast)
+            env.commanline_arguments = []
             interpret_module(ast, env)
 
-        interp_w() # check that it runs
+        # interp_w() # check that it runs
 
-        ast = parse_module(expand_string(str))
+        # ast = parse_module(expand_string(str))
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)
 
     def test_imp_vec(self):
