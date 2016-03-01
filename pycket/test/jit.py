@@ -28,6 +28,25 @@ from pycket import pycket_json
 
 class TestLLtype(LLJitMixin):
 
+    def test_unroll_regression(self):
+        self.run_string(u"""
+        #lang pycket
+
+        (define N 1000)
+
+        (define loop
+          (λ (f n acc N)
+            (if (>= n N) acc
+              (loop f (+ n 1) (f acc) N))))
+
+        (define f3 (λ (x) (add1 x)))
+        (define f4 (λ (x) (add1 x)))
+
+        ;; These are the same loop, but the second one is 10x slower
+        (loop f3 0 0 N)
+        (loop f4 0 0 N)
+        """)
+
     def test_countdown_x(self):
         self.run_string("""
         #lang pycket
