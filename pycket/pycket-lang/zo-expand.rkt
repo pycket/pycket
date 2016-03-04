@@ -202,7 +202,7 @@ put the usual application-rands to the operands
                                     [usual-prefix "/racket/private/"] ; TODO: figure out why they have a new way of naming lam's
                                     [lamname (if (and (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
                                                      (not (string-contains? (symbol->string name) "kw.rkt")))
-                                                 (begin (displayln name) (error 'handle-lambda "lam name has an unusual form"))
+                                                 (begin (displayln name) (error 'handle-lambda (format "lam name has an unusual form : ~a" name)))
                                                  (if (string-contains? (symbol->string name) "kw.rkt")
                                                      "kw.rkt" "more-scheme.rkt"))])
                                (hash* '%p (string-append collects-dir usual-prefix lamname))))))]
@@ -349,6 +349,22 @@ put the usual application-rands to the operands
     (hash* 'source-name name
            'source-module (list module-path))))
 
+(define (handle-varref varref-form localref-stack)
+  (let ([top (varref-toplevel varref-form)]
+        [dummy (varref-dummy varref-form)])
+    (if (and (boolean? top) top) ;; varref-toplevel can be #t
+        (error 'handle-varref (format "we got a #t at varref : ~a" varref-form))
+        (let ([topvar (list-ref TOPLEVELS (toplevel-pos top))])          
+          (if (and (not (module-variable? topvar)) topvar) ;; not #f
+              (error 'handle-varref "toplevel is not a module variable (and not #f) : ~a" topvar)
+              (let ([name (symbol->string (if (module-variable? topvar) (module-variable-sym topvar) 'false))])
+                (hash* 'source (hash* '%p (string-append pycket-dir "fromBytecode_" module-name ".rkt"))
+                       'variable-reference (hash* 'source-name name)
+                       'module (hash* '%mpi (hash* '%p (string-append pycket-dir "fromBytecode_" module-name ".rkt")))
+                       'position 12
+                       'span 11
+                       'original true)))))))
+
 (define (handle-let-one letform localref-stack current-closure-refs)
   (begin
     (when DEBUG
@@ -382,6 +398,7 @@ put the usual application-rands to the operands
     ((case-lam? body-form) "case-lam ")
     ((install-value? body-form) "install-value ")
     ((module-variable? body-form) "module-variable ")
+    ((varref? body-form) "varref ")
     ((primval? body-form) "primval ")
     ((application? body-form) "application ")
     ((def-values? body-form) "def-values ")
@@ -668,6 +685,9 @@ put the usual application-rands to the operands
       ;; module-variable
       ((module-variable? body-form)
        (handle-module-variable body-form localref-stack))
+      ;; varref
+      ((varref? body-form)
+       (handle-varref body-form localref-stack))
       ;; primval : operations from run-time
       ((primval? body-form)
        (handle-primval body-form))
