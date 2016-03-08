@@ -10,6 +10,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.unroll import unrolling_iterable
 from pycket import pycket_json
 from pycket.error import SchemeException
 from pycket.interpreter import *
@@ -356,20 +357,47 @@ def shorten_submodule_path(path):
             acc.append(p)
     return acc[:]
 
+class SourceInfo(object):
+
+    _immutable_ = True
+
+    def __init__(self, position, line, column, span, sourcefile):
+        self.position = position
+        self.line = line
+        self.column = column
+        self.span = span
+        self.sourcefile = sourcefile
+
+JSON_TYPES = unrolling_iterable(['string', 'int', 'float', 'object', 'array'])
+
+@specialize.arg(2)
+def getkey(obj, key, type, throws=False):
+    result = obj.get(key, None)
+    if result is None:
+        if throws:
+            raise KeyError
+        return -1 if type == 'i' else None
+    for t in JSON_TYPES:
+        if type == t or type == t[0]:
+            if not getattr(result, "is_" + t):
+                raise ValueError("cannot decode key '%s' with value %s as type %s" %
+                                 (key, result.tostring(), t))
+            return getattr(result, "value_" + t)()
+    assert False
+
 def get_srcloc(o):
-    pos = o["position"].value_int() if "position" in o else -1
-    source = o["source"] if "source" in o else None
-    if source and source.is_object:
-        v = source.value_object()
-        if "%p" in v:
-            sourcefile = v["%p"].value_string()
-        elif "quote" in v:
-            sourcefile = v["quote"].value_string()
-        else:
-            assert 0
-    else:
-        sourcefile = None
-    return (pos, sourcefile)
+    position = getkey(o, "position", type='i')
+    line     = getkey(o, "line", type='i')
+    column   = getkey(o, "column", type='i')
+    span     = getkey(o, "span", type='i')
+
+    sourcefile = None
+    source = getkey(o, "source", type='o')
+    if source is not None:
+        sourcefile = (getkey(source, "%p", type='s') or
+                      getkey(source, "quote", type='s'))
+
+    return SourceInfo(position, line, column, span, sourcefile)
 
 def convert_path(path):
     return [p.value_string() for p in path]
@@ -437,9 +465,9 @@ class JsonLoader(object):
 
     def _to_lambda(self, lam):
         fmls, rest = to_formals(lam["lambda"])
-        pos, sourcefile = get_srcloc(lam)
+        sourceinfo = get_srcloc(lam)
         body = [self.to_ast(x) for x in lam["body"].value_array()]
-        return make_lambda(fmls, rest, body, pos, sourcefile)
+        return make_lambda(fmls, rest, body, sourceinfo)
 
     def _to_require(self, fname, path=None):
         path = shorten_submodule_path(path)
@@ -454,11 +482,7 @@ class JsonLoader(object):
         module = modtable.lookup(fname)
         if module is not None:
             return module
-        try:
-            module = self.expand_file_cached(fname)
-        except ExpandException:
-            module = None
-        return module
+        return self.expand_file_cached(fname)
 
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
@@ -477,11 +501,8 @@ class JsonLoader(object):
         assert "body-forms" in obj, "got malformed JSON from expander"
 
         config = {}
-        try:
-            config_obj = obj["config"].value_object()
-        except KeyError:
-            pass
-        else:
+        config_obj = getkey(obj, "config", type='o')
+        if config_obj is not None:
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 

@@ -1318,11 +1318,11 @@ class If(AST):
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
-def make_lambda(formals, rest, body, srcpos, srcfile):
+def make_lambda(formals, rest, body, sourceinfo=None):
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
     args = SymList(args.elems, frees)
-    return Lambda(formals, rest, args, frees, body, srcpos, srcfile)
+    return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
 
 def free_vars_lambda(body, args):
@@ -1414,11 +1414,12 @@ class CaseLambda(AST):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
-        file, pos = lam.srcfile, lam.srcpos
-        if file and (pos >= 0):
-            return "#<procedure:%s:%s>" % (lam.srcfile, lam.srcpos)
-        if file:
-            return "#<procedure:%s>" % (lam.srcfile)
+        info = lam.sourceinfo
+        file, pos = info.sourcefile, info.position
+        if file and pos >= 0:
+            return "#<procedure:%s:%s>" % (file, pos)
+        if file is not None:
+            return "#<procedure:%s>" % file
         return "#<procedure>"
 
     def get_arity(self):
@@ -1444,12 +1445,11 @@ class CaseLambda(AST):
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure',
-                          "srcfile", "srcpos"]
+                          "sourceinfo"]
     simple = True
-    def __init__ (self, formals, rest, args, frees, body, srcpos, srcfile, enclosing_env_structure=None, env_structure=None):
+    def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
-        self.srcpos = srcpos
-        self.srcfile = srcfile
+        self.sourceinfo = sourceinfo
         self.formals = formals
         self.rest = rest
         self.args = args
@@ -1499,7 +1499,7 @@ class Lambda(SequencedBodyAST):
             cells = [Cell(LexicalVar(v, self.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
         return Lambda(self.formals, self.rest, self.args, self.frees, new_body,
-                      self.srcpos, self.srcfile, env_structure, sub_env_structure)
+                      self.sourceinfo, env_structure, sub_env_structure)
 
     def direct_children(self):
         return self.body[:]

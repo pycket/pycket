@@ -91,14 +91,12 @@ class W_CStructType(W_CType):
         self.abi       = abi
         self.alignment = alignment
 
-    @jit.elidable
     def sizeof(self):
         size = 0
         for type in self.types:
             size += type.sizeof()
         return size
 
-    @jit.elidable
     def alignof(self):
         alignment = 0
         for type in self.types:
