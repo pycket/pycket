@@ -936,6 +936,8 @@ class W_StructPredicate(values.W_Procedure):
     @make_call_method([values.W_Object])
     @jit.unroll_safe
     def call(self, struct):
+        from pycket.impersonators import get_base_object
+        struct = get_base_object(struct)
         if isinstance(struct, W_RootStruct):
             struct_type = struct.struct_type()
             while isinstance(struct_type, W_StructType):
