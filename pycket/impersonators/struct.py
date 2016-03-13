@@ -283,7 +283,6 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         after = self.post_set_cont(override, field, val, app, env, cont)
         return handler.call_with_extra_info([self, val], env, after, app)
 
-    @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_prop(self, property, env, cont):
         pair = self.get_property(property, default=NONE_PAIR)
         # Struct properties can only be associated with Pairs which contain both
@@ -361,7 +360,7 @@ class W_InterposeStructStack(values_struct.W_RootStruct):
     def set_with_extra_info(self, field, val, app, env, cont):
         pass
 
-    @guarded_loop(enter_above_depth(5), always_use_labels=False)
+    # @guarded_loop(enter_above_depth(5), always_use_labels=False)
     def get_prop(self, property, env, cont):
         pair = self.get_property(property, NONE_PAIR)
         # Struct properties can only be associated with Pairs which contain both

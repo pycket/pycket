@@ -633,3 +633,28 @@ def test_rfindler_impersonator_examples(doctest):
     13
     """
 
+def test_impersonate_procedure_callable_struct():
+    m = run_mod(
+    """
+    #lang racket/kernel
+    (#%require racket/private/define
+               racket/private/small-scheme
+               racket/private/more-scheme)
+    (define-values (struct:keyword-procedure mk-kw-proc keyword-procedure?
+                                             keyword-procedure-ref keyword-procedure-set!)
+      (make-struct-type 'keyword-procedure #f 4 0 #f
+                        (list (cons prop:checked-procedure #t))
+                        (current-inspector)
+                        #f
+                        '(0 1 2 3)))
+    (define-values (struct:okp make-optional-keyword-procedure okp? okp-ref okp-set!)
+      (make-struct-type 'procedure
+                        struct:keyword-procedure
+                        1 0 #f
+                        (list)
+                        (current-inspector) 0))
+    (define v5 (make-optional-keyword-procedure #f #f null '(#:x) #f))
+    (define cv2 (chaperone-procedure v5 void))
+    (define result (keyword-procedure? cv2))
+    """)
+    assert m.defs[W_Symbol.make("result")] is w_true

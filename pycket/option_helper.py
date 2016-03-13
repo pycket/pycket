@@ -4,7 +4,7 @@
 import os
 
 from .expand import (expand_file_to_json, expand_code_to_json, _expand_file_to_json,
-                     ensure_json_ast_eval, ensure_json_ast_run,
+                     ensure_json_ast_eval, ensure_json_ast_run, _json_name, _BE,
                      PermException, SchemeException)
 
 from rpython.rlib import jit
@@ -182,7 +182,8 @@ def ensure_json_ast(config, names):
         file_name = names['use-bytecode-of']
         assert file_name.endswith('.rkt')
 
-        json_file = "fromBytecode_"+file_name+".json"
+        #json_file = "fromBytecode_"+file_name+".json"
+        json_file = _json_name(file_name, _BE)
         json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)
 
     elif config["mode"] is _eval:
