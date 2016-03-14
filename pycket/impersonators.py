@@ -197,6 +197,22 @@ class W_InterposeProcedure(values.W_Procedure):
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
+    # XXX Tricksy bits ahead. Since structs can act like procedures, a struct
+    # may be proxied by a procedure proxy, thus it supports struct type,
+    # ref, set, and struct property access.
+    def ref_with_extra_info(self, field, app, env, cont):
+        return self.inner.ref_with_extra_info(field, app, env, cont)
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        return self.inner.set_with_extra_info(field, val, app, env, cont)
+
+    def struct_type(self):
+        return self.inner.struct_type()
+
+    def get_prop(self, property, env, cont):
+        return self.inner.get_prop(property, env, cont)
+
+
 class W_ImpProcedure(W_InterposeProcedure):
     import_from_mixin(ImpersonatorMixin)
 
