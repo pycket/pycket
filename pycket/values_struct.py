@@ -966,8 +966,8 @@ class W_StructFieldAccessor(values.W_Procedure):
     def get_arity(self):
         return Arity.ONE
 
-    @make_call_method([W_RootStruct], simple=False,
-        name="<struct-field-accessor-method>")
+    @make_call_method([values.W_Object], simple=False,
+                      name="<struct-field-accessor-method>")
     def call_with_extra_info(self, struct, env, cont, app):
         jit.promote(self)
         return self.accessor.access(struct, self.field, env, cont, app)
@@ -986,15 +986,17 @@ class W_StructAccessor(values.W_Procedure):
         return Arity.TWO
 
     def access(self, struct, field, env, cont, app):
-        assert isinstance(struct, W_RootStruct)
-        jit.promote(self)
-        offset = struct.struct_type().get_offset(self.type)
+        self = jit.promote(self)
+        st = jit.promote(struct.struct_type())
+        if st is None:
+            raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
+        offset = st.get_offset(self.type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
-    @make_call_method([W_RootStruct, values.W_Fixnum], simple=False,
-        name="<struct-accessor-method>")
+    @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
+                      name="<struct-accessor-method>")
     def call_with_extra_info(self, struct, field, env, cont, app):
         return self.access(struct, field.value, env, cont, app)
 
@@ -1014,7 +1016,7 @@ class W_StructFieldMutator(values.W_Procedure):
     def get_arity(self):
         return Arity.TWO
 
-    @make_call_method([W_RootStruct, values.W_Object], simple=False,
+    @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")
     def call_with_extra_info(self, struct, val, env, cont, app):
         return self.mutator.mutate(struct, self.field, val, env, cont, app)
@@ -1033,14 +1035,16 @@ class W_StructMutator(values.W_Procedure):
         return Arity.THREE
 
     def mutate(self, struct, field, val, env, cont, app):
-        assert isinstance(struct, W_RootStruct)
-        jit.promote(self)
-        offset = struct.struct_type().get_offset(self.type)
+        self = jit.promote(self)
+        st = jit.promote(struct.struct_type())
+        if st is None:
+            raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
+        offset = st.get_offset(self.type)
         if offset == -1:
             raise SchemeException("cannot reference an identifier before its definition")
         return struct.set_with_extra_info(field + offset, val, app, env, cont)
 
-    @make_call_method([W_RootStruct, values.W_Fixnum, values.W_Object],
+    @make_call_method([values.W_Object, values.W_Fixnum, values.W_Object],
                       simple=False, name="<struct-mutator-method>")
     def call_with_extra_info(self, struct, field, val, env, cont, app):
         return self.mutate(struct, field.value, val, env, cont, app)
@@ -1126,7 +1130,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
             w_val = arg.read_prop_precise(self.property)
             if w_val is not None:
                 return return_value(w_val, env, cont)
-        elif isinstance(arg, W_RootStruct):
+        elif arg.struct_type() is not None:
             return arg.get_prop(self.property, env, cont)
         elif fail is not None:
             if fail.iscallable():
