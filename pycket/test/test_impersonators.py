@@ -658,3 +658,20 @@ def test_impersonate_procedure_callable_struct():
     (define result (keyword-procedure? cv2))
     """)
     assert m.defs[W_Symbol.make("result")] is w_true
+
+def test_impersonate_procedure_callable_struct2(doctest):
+    u"""
+    ! (require racket/private/kw)
+    ! (struct annotated-proc (base note) #:property prop:procedure (struct-field-index base))
+    ! (define example (annotated-proc (λ (x) x) "The identity function"))
+    ! (define imp (impersonate-procedure example add1))
+    > (imp 5)
+    6
+    > (annotated-proc-note example)
+    "The identity function"
+    > (annotated-proc-note imp)
+    "The identity function"
+    > (eq? (annotated-proc-note example) (annotated-proc-note imp))
+    #t
+    """
+

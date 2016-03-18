@@ -110,7 +110,7 @@ NONE_PAIR = Pair(None, None)
 CompositeMap = make_composite_map_type(shared_storage=True)
 
 @jit.unroll_safe
-def impersonator_args(overrides, handlers, prop_keys, prop_vals):
+def impersonator_args(struct, overrides, handlers, prop_keys, prop_vals):
     from pycket.prims.struct_structinfo import struct_info
     assert len(overrides) == len(handlers)
 
@@ -121,21 +121,26 @@ def impersonator_args(overrides, handlers, prop_keys, prop_vals):
 
     handler_map = W_InterposeStructBase.EMPTY_HANDLER_MAP
 
+    struct_type = jit.promote(struct.struct_type())
     for i, op in enumerate(overrides):
         base = get_base_object(op)
         if isinstance(base, values_struct.W_StructFieldAccessor):
             if handlers[i] is not values.w_false:
-                idx = tag_handler_accessor(base.field)
+                field = base.get_absolute_index(struct_type)
+                idx = tag_handler_accessor(field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
-                idx = tag_override_accessor(base.field)
+                field = base.get_absolute_index(struct_type)
+                idx = tag_override_accessor(field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif isinstance(base, values_struct.W_StructFieldMutator):
             if handlers[i] is not values.w_false:
-                idx = tag_handler_mutator(base.field)
+                field = base.get_absolute_index(struct_type)
+                idx = tag_handler_mutator(field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, handlers[i])
             if type(op) is not values_struct.W_StructFieldAccessor:
-                idx = tag_override_mutator(base.field)
+                field = base.get_absolute_index(struct_type)
+                idx = tag_override_mutator(field)
                 _handlers, handler_map = add_handler_field(handler_map, _handlers, idx, op)
         elif base is struct_info and handlers[i] is not values.w_false:
             idx = INFO_HANDLER_IDX
@@ -184,7 +189,7 @@ def has_property_descriptor(map):
 def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
     assert isinstance(inner, values_struct.W_RootStruct)
     assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
-    map, _handlers = impersonator_args(overrides, handlers, prop_keys, prop_vals)
+    map, _handlers = impersonator_args(inner, overrides, handlers, prop_keys, prop_vals)
     return cls.make(_handlers, inner, map)
 
 INFO_HANDLER_IDX  = -1
