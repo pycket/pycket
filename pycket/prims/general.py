@@ -230,11 +230,11 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
     from pycket.interpreter import check_one_val, return_value
     if isinstance(v, values_struct.W_RootStruct):
         struct_type = jit.promote(v.struct_type())
-        while isinstance(struct_type, values_struct.W_StructType):
-            if struct_type is type:
-                return v.ref_with_extra_info(0, calling_app, env,
-                        receive_first_field(proc, v, v1, v2, env, cont))
-            struct_type = struct_type.super
+        if type.has_subtype(struct_type):
+            offset = struct_type.get_offset(type)
+            assert offset != -1
+            return v.ref_with_extra_info(offset, calling_app, env,
+                    receive_first_field(proc, v, v1, v2, env, cont))
     return proc.call([v, v1, v2], env, cont)
 
 ################################################################
@@ -525,11 +525,10 @@ def do_is_procedure_arity(n):
 @expose("procedure-arity-includes?",
         [procedure, values.W_Integer, default(values.W_Object, values.w_false)])
 def procedure_arity_includes(proc, k, kw_ok):
-    if kw_ok is values.w_false:
-        if isinstance(proc, values_struct.W_RootStruct):
-            w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
-            if w_prop_val is not None:
-                return values.w_false
+    if kw_ok is values.w_false and isinstance(proc, values_struct.W_RootStruct):
+        w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
+        if w_prop_val is not None:
+            return values.w_false
     arity = proc.get_arity()
     if isinstance(k, values.W_Integer):
         try:

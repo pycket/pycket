@@ -327,6 +327,14 @@ class W_StructType(values.W_Object):
             self = self.super
         return True
 
+    def has_subtype(self, type):
+        while isinstance(type, W_StructType):
+            if type is self:
+                return True
+            type = type.super
+        return False
+
+
     def hash_value(self):
         pass
 

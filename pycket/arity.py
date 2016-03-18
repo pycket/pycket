@@ -11,6 +11,9 @@ class Arity(object):
         self.arity_list = arity_list
         self.at_least = at_least
 
+    def __repr__(self):
+        return "Arity(arity_list=%r, at_least=%r)" % (self.arity_list, self.at_least)
+
     @jit.elidable
     def list_includes(self, arity):
         return arity in self.arity_list
