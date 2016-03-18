@@ -213,7 +213,6 @@ def check_cont(proc, v, v1, v2, app, env, cont, _vals):
     val = check_one_val(_vals)
     if val is not values.w_false:
         return v.ref_with_extra_info(1, app, env, cont)
-        # return return_value(v._ref(1), env, cont)
     return proc.call([v, v1, v2], env, cont)
 
 @continuation
