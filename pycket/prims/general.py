@@ -208,19 +208,20 @@ expose_val("prop:output-port", values_struct.w_prop_output_port)
 expose_val("prop:input-port", values_struct.w_prop_input_port)
 
 @continuation
-def check_cont(proc, v, v1, v2, env, cont, _vals):
+def check_cont(proc, v, v1, v2, app, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     val = check_one_val(_vals)
     if val is not values.w_false:
-        return return_value(v._ref(1), env, cont)
+        return v.ref_with_extra_info(1, app, env, cont)
+        # return return_value(v._ref(1), env, cont)
     return proc.call([v, v1, v2], env, cont)
 
 @continuation
-def receive_first_field(proc, v, v1, v2, env, cont, _vals):
+def receive_first_field(proc, v, v1, v2, app, env, cont, _vals):
     from pycket.interpreter import check_one_val
     first_field = check_one_val(_vals)
     return first_field.call([v1, v2], env,
-                            check_cont(proc, v, v1, v2, env, cont))
+                            check_cont(proc, v, v1, v2, app, env, cont))
 
 @expose("checked-procedure-check-and-extract",
         [values_struct.W_StructType, values.W_Object, procedure,
@@ -234,7 +235,7 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
             offset = struct_type.get_offset(type)
             assert offset != -1
             return v.ref_with_extra_info(offset, calling_app, env,
-                    receive_first_field(proc, v, v1, v2, env, cont))
+                    receive_first_field(proc, v, v1, v2, calling_app, env, cont))
     return proc.call([v, v1, v2], env, cont)
 
 ################################################################
