@@ -977,7 +977,7 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field_name = field_name
 
     def get_absolute_index(self, type):
-        return self.accessor.type.get_offset(type) + self.field
+        return type.get_offset(self.accessor.type) + self.field
 
     def get_arity(self):
         return Arity.ONE
@@ -1033,7 +1033,7 @@ class W_StructFieldMutator(values.W_Procedure):
         return Arity.TWO
 
     def get_absolute_index(self, type):
-        return self.mutator.type.get_offset(type) + self.field
+        return type.get_offset(self.mutator.type) + self.field
 
     @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")
