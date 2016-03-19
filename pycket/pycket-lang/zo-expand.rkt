@@ -146,6 +146,9 @@
 (define (handle-regexp racket-regexp)
   (hash* 'quote (hash* 'regexp (object-name racket-regexp))))
 
+(define (handle-byte-regexp racket-byte-regexp)
+  (hash* 'quote (hash* 'byte-regexp (bytes->list (object-name racket-byte-regexp)))))
+
 (define (handle-void racket-void)
   (hash* 'operator (hash* 'source-name "void")
          'operands (list)))
@@ -412,6 +415,7 @@ put the usual application-rands to the operands
     ((symbol? body-form) "Symbol ")
     ((keyword? body-form) "Keyword ")
     ((regexp? body-form) "Regexp ")
+    ((byte-regexp? body-form) "Byte Regexp ")
     ((void? body-form) "Void ")
     ((with-cont-mark? body-form) "with-cont-mark ")
     ((with-immed-mark? body-form) "with-immed-mark ")
@@ -684,6 +688,8 @@ put the usual application-rands to the operands
        (hash* 'quote (handle-keyword body-form)))
       ((regexp? body-form)
        (handle-regexp body-form))
+      ((byte-regexp? body-form)
+       (handle-byte-regexp body-form))
       ((void? body-form)
        (handle-void body-form))
 
