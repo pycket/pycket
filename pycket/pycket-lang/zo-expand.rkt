@@ -146,6 +146,9 @@
 (define (handle-symbol racket-sym)
   (hash* 'toplevel (symbol->string racket-sym)))
 
+(define (handle-char racket-char)
+  (hash* 'char (number->string (char->integer racket-char))))
+
 (define (handle-keyword racket-kw)
   (hash* 'keyword (keyword->string racket-kw)))
 
@@ -419,6 +422,7 @@ put the usual application-rands to the operands
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
     ((symbol? body-form) "Symbol ")
+    ((char? body-form) "Char ")
     ((keyword? body-form) "Keyword ")
     ((regexp? body-form) "Regexp ")
     ((byte-regexp? body-form) "Byte Regexp ")
@@ -656,6 +660,7 @@ put the usual application-rands to the operands
                       [(keyword? form) (handle-keyword form)]
                       [(number? form) (handle-number form)]
                       [(symbol? form) (handle-symbol form)]
+                      [(char? form) (handle-char form)]
                       [else (error 'handle-list (format "we have a new kind of list bytecode element : ~a" list-form))]))
                   list-form))))
 
@@ -690,6 +695,8 @@ put the usual application-rands to the operands
        (handle-string body-form))
       ((symbol? body-form)
        (hash* 'quote (handle-symbol body-form)))
+      ((char? body-form)
+       (hash* 'quote (handle-char body-form)))
       ((keyword? body-form)
        (hash* 'quote (handle-keyword body-form)))
       ((regexp? body-form)
