@@ -106,6 +106,10 @@
      'then (to-ast-single then localref-stack current-closure-refs)
      'else (to-ast-single else localref-stack current-closure-refs))))
 
+(define extended-reals (list +inf.0 +inf.f
+                             -inf.0 -inf.f
+                             +nan.0 +nan.f))
+
 ;; TODO: we'll probably need a more precise one
 (define (handle-number racket-num)
   (hash* 'number
@@ -124,7 +128,9 @@
            [else
             (cond
               [(real? racket-num)
-               (hash* 'real racket-num)]
+               (if (memv racket-num extended-reals)
+                   (hash* 'extended-real (number->string racket-num))
+                   (hash* 'real racket-num))]
               [else ; this part assumes (for the moment) it's a complex num
                (let ([real (real-part racket-num)]
                      [imag (imag-part racket-num)])
