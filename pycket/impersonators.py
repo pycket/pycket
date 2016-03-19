@@ -197,6 +197,22 @@ class W_InterposeProcedure(values.W_Procedure):
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
 
+    # XXX Tricksy bits ahead. Since structs can act like procedures, a struct
+    # may be proxied by a procedure proxy, thus it supports struct type,
+    # ref, set, and struct property access.
+    def ref_with_extra_info(self, field, app, env, cont):
+        return self.inner.ref_with_extra_info(field, app, env, cont)
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        return self.inner.set_with_extra_info(field, val, app, env, cont)
+
+    def struct_type(self):
+        return self.inner.struct_type()
+
+    def get_prop(self, property, env, cont):
+        return self.inner.get_prop(property, env, cont)
+
+
 class W_ImpProcedure(W_InterposeProcedure):
     import_from_mixin(ImpersonatorMixin)
 
@@ -412,19 +428,23 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         # Does not deal with properties as of yet
         # TODO: Avoid allocating the mutators and accessors when they are empty
+        st = inner.struct_type()
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 op = values.w_false if type(op) is values_struct.W_StructFieldAccessor else op
-                jit.promote(base.field)
-                mask[base.field] = self
-                accessors[2 * base.field] = op
-                accessors[2 * base.field + 1] = handlers[i]
+                offset = st.get_offset(base.accessor.type)
+                index = jit.promote(base.field + offset)
+                mask[index] = self
+                accessors[2 * index] = op
+                accessors[2 * index + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 jit.promote(base.field)
+                offset = st.get_offset(base.mutator.type)
+                index = jit.promote(base.field + offset)
                 op = values.w_false if type(op) is values_struct.W_StructFieldMutator else op
-                mutators[2 * base.field] = op
-                mutators[2 * base.field + 1] = handlers[i]
+                mutators[2 * index] = op
+                mutators[2 * index + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 if struct_props is None:
                     struct_props = {}
