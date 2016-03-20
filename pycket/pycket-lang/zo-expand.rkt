@@ -1,6 +1,6 @@
 #lang racket
 
-(require compiler/zo-parse setup/dirs
+(require compiler/zo-parse setup/dirs racket/undefined
          (only-in pycket/expand hash* global-config))
 
 (provide to-ast-wrapper
@@ -339,20 +339,21 @@ put the usual application-rands to the operands
            'operands (list lambda-form proc))))
 
 (define (handle-localref lref-form localref-stack)
-  (begin
-    (when DEBUG
-      (display (string-append "Localref-stack size : " (number->string (length localref-stack)) " -- ") (current-output-port))
-      (displayln (string-append "Requested for pos : " (number->string (localref-pos lref-form)) "\n") (current-output-port)))
-    (let* ([pos (localref-pos lref-form)]
-           [stack-slot-raw (list-ref localref-stack pos)]
-           [stack-slot (if (box? stack-slot-raw) (unbox stack-slot-raw) stack-slot-raw)])
-      (cond
-        [(hash? stack-slot) stack-slot]
-        [else (hash* 'lexical (if (string-contains? (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot) "dummy")
-                                  (error 'handle-localref
-                                         (format "pos: ~a shouldn't have extracted this: ~a \n here's the stack: \n~a\n lambda-inlined? : ~a\n"
-                                                 pos stack-slot localref-stack))
-                                  stack-slot))]))))
+  (let* ([clear? (localref-clear? lref-form)]
+         [unbox? (localref-unbox? lref-form)]
+         [pos (localref-pos lref-form)]
+         [stack-slot (let ([slot (with-handlers ([exn:fail? (lambda (e) (displayln (format "getting pos ~a, from ~a" pos localref-stack)) (raise e))]) (list-ref localref-stack pos))])
+                       (if (and unbox? (not (box? slot)))
+                           (error 'handle-localref (format "unbox? is true, but pos --~a-- doesn't look like a box : ~a\n\n here's the stack : ~a"  pos slot localref-stack))
+                           (if unbox? (unbox slot) slot)))])
+    (cond
+      [(hash? stack-slot) (error 'handle-localref "interesting... we seem to have a hash in the stack")#;stack-slot]
+      [else (hash* 'lexical (if (and false (let ([slot-payload (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot)])
+                                             (or (box? slot-payload) (string-contains? slot-payload "dummy") (string-contains? slot-payload "uninitialized") (string-contains? slot-payload "slot"))))
+                                (error 'handle-localref
+                                       (format "pos: ~a shouldn't have extracted this: ~a \n here's the stack: \n~a\n"
+                                               pos stack-slot localref-stack))
+                                stack-slot))])))
 
 (define (self-mod? mpi)
     (let-values ([(mod-path base-path) (module-path-index-split mpi)])
@@ -390,7 +391,7 @@ put the usual application-rands to the operands
         [dummy (varref-dummy varref-form)])
     (if (and (boolean? top) top) ;; varref-toplevel can be #t
         (error 'handle-varref (format "we got a #t at varref : ~a" varref-form))
-        (let ([topvar (list-ref TOPLEVELS (toplevel-pos top))])          
+        (let ([topvar (list-ref TOPLEVELS (toplevel-pos top))])
           (if (and (not (module-variable? topvar)) topvar) ;; not #f
               (error 'handle-varref "toplevel is not a module variable (and not #f) : ~a" topvar)
               (let ([name (symbol->string (if (module-variable? topvar) (module-variable-sym topvar) 'false))])
@@ -405,15 +406,14 @@ put the usual application-rands to the operands
   (begin
     (when DEBUG
       (displayln (format "LET-ONE - UNUSED? ==> ~a" (let-one-unused? letform))))
-    (let* ([bindingname (symbol->string (gensym 'letone))]
-           [newstack (cons bindingname localref-stack)] ;; push uninitialized slot
-           #;[rhs (to-ast-single (let-one-rhs letform) toplevels newstack current-closure-refs)]) ;; evaluate rhs
-      #;[newstack (cons rhs (cdr newstack-prev))]
-      ;; let-bindings are empty (let-one doesn't bind anything), so no need to produce
-      ;; let form in the ast, just producing the body
-      (hash* 'let-bindings (list (list (list bindingname)
+    (let* ([unused? (let-one-unused? letform)]
+           [bindingname (if unused? "letone-not-used" (symbol->string (gensym 'letone)))]
+           [newstack (cons bindingname localref-stack)]) ;; push uninitialized slot
+      (hash* 'let-bindings (list (list (if unused? '() (list bindingname))
                                        (to-ast-single (let-one-rhs letform) newstack current-closure-refs)))
-             'let-body (list (to-ast-single (let-one-body letform) newstack current-closure-refs))))))
+             'let-body (list (to-ast-single (let-one-body letform)
+                                            (if unused? localref-stack newstack) ;; if unused?, then rhs is not pushed to the stack
+                                            current-closure-refs))))))
 
 (define (body-name body-form)
   (cond
@@ -517,8 +517,11 @@ put the usual application-rands to the operands
   (let* ([pos (boxenv-pos body-form)]
          [pre-pos (take localref-stack pos)]
          [post-pos (drop localref-stack pos)]
-         [boxed-slot (list (box (car post-pos)))])
-    (to-ast-single (boxenv-body body-form) (append pre-pos boxed-slot (cdr post-pos)) current-closure-refs)))
+         [boxed-slot (box (car post-pos))])
+    (begin
+      (when DEBUG
+        (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
+      (to-ast-single (boxenv-body body-form) (append pre-pos (list boxed-slot) (cdr post-pos)) current-closure-refs))))
 
 (define (handle-assign body-form localref-stack current-closure-refs)
   (let ([id (assign-id body-form)]
@@ -534,10 +537,11 @@ put the usual application-rands to the operands
   (let* ([count (let-void-count body-form)]
          [boxes? (let-void-boxes? body-form)]
          [body (let-void-body body-form)]
-         [boxls (build-list count (λ (x) (box 'uninitialized-slot)))]
+         [slot (if boxes? (box undefined) 'uninitialized-slot)]
+         [boxls (build-list count (λ (x) slot))]
          [newstack (begin
                      (when DEBUG
-                       (displayln (string-append "LetVoid pushes " (number->string count) " boxes..")))
+                       (displayln (format "LetVoid pushes ~a slots.. boxes? : ~a" count boxes?)))
                      (append boxls localref-stack))])
     (to-ast-single body newstack current-closure-refs)))
 
@@ -553,18 +557,31 @@ put the usual application-rands to the operands
 
          [binding-list (map (λ (c) (symbol->string (gensym (string-append "inst-val" (number->string c) ".")))) count-lst)]
          
-         [box-positions (map (λ (p) (+ p pos)) count-lst)])
-    (begin
-      ;; setting the boxes that let-void has put in the stack
-      (for ([i box-positions]) (set-box! (list-ref localref-stack i) (list-ref binding-list (- i pos))))
-      ;; producing json for pycket
-      (hash*
-       ;; let-bindings <- [count] {eval rhs}
-       'let-bindings (list (list binding-list
-                                 (to-ast-single rhs localref-stack current-closure-refs)))
-       ;; let-body <- body
-       'let-body (let ([body-ast (to-ast-single body localref-stack current-closure-refs)])
-                   (if (list? body-ast) body-ast (list body-ast)))))))
+         [slot-positions (map (λ (p) (+ p pos)) count-lst)]
+
+         ; it's important to compute the rhs *before* modifying the stack slots
+         [rhs-ready (list (list binding-list
+                                (to-ast-single rhs localref-stack current-closure-refs)))]
+
+         [mod-region (let ([reg (map (λ (p) (list-ref localref-stack p)) slot-positions)])
+                       (begin (when DEBUG (displayln (format "install val boxes? : ~a --\nOLD modified region : ~a\n" boxes? reg))) reg))]
+         [modified-stack (begin
+                           ;; check the validity of the slot-positions
+                           (if (andmap (λ (slot) (if boxes? (box? slot) (symbol=? slot 'uninitialized-slot))) mod-region)
+                               'ok
+                               (error 'handle-install-value (format "boxes? : ~a --- to be modified region doesn't look good : ~a" boxes? mod-region)))
+                           (let* ([pre-mod (take localref-stack (first slot-positions))]
+                                  [post-mod (drop localref-stack (+ pos count))]
+                                  [new-region (if boxes? (map box binding-list) binding-list)]) ;; if boxes?, we construct new boxes
+                             (begin (when DEBUG (displayln (format "NEW modified region : ~a\n" new-region)))
+                                    (append pre-mod new-region post-mod))))])
+    ;; producing json for pycket
+    (hash*
+     ;; let-bindings <- [count] {eval rhs}
+     'let-bindings rhs-ready
+     ;; let-body <- body
+     'let-body (let ([body-ast (to-ast-single body modified-stack current-closure-refs)])
+                 (if (list? body-ast) body-ast (list body-ast))))))
 
 
 (define (handle-let-rec letrec-form localref-stack current-closure-refs)
@@ -575,9 +592,16 @@ put the usual application-rands to the operands
                                   (symbol->string name)
                                   (symbol->string (vector-ref name 0)))))
                           procs)]
-         [box-positions (range (length procs))]
+         [slot-count (length procs)]
+         [slot-positions (range slot-count)]
          [reversed-proc-names (reverse proc-names)]
-         [setting-the-stack-boxes
+         [new-localref-stack (begin
+                      ;; check the validity of the pre-installed slots
+                      (if (andmap (λ (p) (symbol=? (list-ref localref-stack p) 'uninitialized-slot)) slot-positions)
+                          'ok
+                          (error 'handle-let-rec (format "posiitons : ~a ---- to be modified slots don't look good : ~a" slot-positions localref-stack)))
+                      (append reversed-proc-names (drop localref-stack slot-count)))]
+         #;[setting-the-stack-boxes
           (begin
             (when DEBUG
               (displayln "--------------")
@@ -590,15 +614,15 @@ put the usual application-rands to the operands
               (displayln localref-stack)
               (displayln "--------------")) 'dummy)]
 
-         [proc-bodies (map (lambda (proc)
-                             (to-ast-single proc localref-stack current-closure-refs))
+         [proc-bodies (map (λ (proc)
+                             (to-ast-single proc new-localref-stack current-closure-refs))
                            procs)]
          [body (let-rec-body letrec-form)])
     
-    (hash* 'letrec-bindings (map (lambda (p-name p-body)
+    (hash* 'letrec-bindings (map (λ (p-name p-body)
                                    (list (list p-name) p-body))
                                  proc-names proc-bodies)
-           'letrec-body (list (to-ast-single body localref-stack current-closure-refs)))))
+           'letrec-body (list (to-ast-single body new-localref-stack current-closure-refs)))))
 
 
 (define (handle-case-lambda body-form localref-stack current-closure-refs)
@@ -622,7 +646,11 @@ put the usual application-rands to the operands
                              [captured-stack-positions (vector->list (lam-closure-map clause))]
                              [current-stack-length (length localref-stack)]
                              [captured-current-stack-items (map (λ (pos) (if (>= pos current-stack-length)
-                                                                             (list-ref TOPLEVELS pos)
+                                                                             (with-handlers ([exn:fail? (lambda (e)
+
+                                                                                                          (displayln (format "pos : ~a - toplevels : ~a" pos TOPLEVELS))
+                                                                                                          (raise e))])
+                                                                               (list-ref TOPLEVELS pos))
                                                                              (list-ref localref-stack pos))) captured-stack-positions)]
 
                              [new-localref-stack-1 (if multiple-args?
@@ -668,14 +696,14 @@ put the usual application-rands to the operands
 (define (to-ast-single body-form localref-stack current-closure-refs)
   (begin
     (when DEBUG
+      (display (format "\nTOPLEVELS : ~a" TOPLEVELS))
       (display "\n---------------------------------\n")
       (display (body-name body-form))
       (display "- ")
       (if (localref? body-form)
-          (begin (displayln (string-append "localref-stack size : " (number->string (length localref-stack))))
-                 (display (string-append "Get pos : " (number->string (localref-pos body-form))))
-                 (display " - extracting : ")
-                 (display (list-ref localref-stack (localref-pos body-form))))
+          (begin (displayln (format "localref-stack size : ~a" (length localref-stack)))
+                 (display (format "Get pos : ~a - Unbox? : ~a - Clear? : ~a" (localref-pos body-form) (localref-unbox? body-form) (localref-clear? body-form)))
+                 (display (format " - extracting : ~a" (list-ref localref-stack (localref-pos body-form)))))
           (if (primval? body-form)
               (display (get-primval-name (primval-id body-form)))
               (display "")))
