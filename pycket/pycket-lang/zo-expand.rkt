@@ -158,6 +158,9 @@
 (define (handle-byte-regexp racket-byte-regexp)
   (hash* 'quote (hash* 'byte-regexp (bytes->list (object-name racket-byte-regexp)))))
 
+(define (handle-bytes racket-bytes)
+  (hash* 'quote (hash* 'bytes (bytes->list racket-bytes))))
+
 (define (handle-void racket-void)
   (hash* 'operator (hash* 'source-name "void")
          'operands (list)))
@@ -426,6 +429,7 @@ put the usual application-rands to the operands
     ((keyword? body-form) "Keyword ")
     ((regexp? body-form) "Regexp ")
     ((byte-regexp? body-form) "Byte Regexp ")
+    ((bytes? body-form) "Byte String ")
     ((void? body-form) "Void ")
     ((with-cont-mark? body-form) "with-cont-mark ")
     ((with-immed-mark? body-form) "with-immed-mark ")
@@ -696,7 +700,7 @@ put the usual application-rands to the operands
 (define (to-ast-single body-form localref-stack current-closure-refs)
   (begin
     (when DEBUG
-      (display (format "\nTOPLEVELS : ~a" TOPLEVELS))
+      ;(display (format "\nTOPLEVELS : ~a" TOPLEVELS))
       (display "\n---------------------------------\n")
       (display (body-name body-form))
       (display "- ")
@@ -731,6 +735,8 @@ put the usual application-rands to the operands
        (handle-regexp body-form))
       ((byte-regexp? body-form)
        (handle-byte-regexp body-form))
+      ((bytes? body-form)
+       (handle-bytes body-form))
       ((void? body-form)
        (handle-void body-form))
 
