@@ -54,12 +54,13 @@
 
 (define (add-toplevel! sym pos)
   (let*
-      ([len (length TOPLEVELS)])
-    (if (> pos len)
-        (error 'add-toplevel! "investigate")
-        (begin
-          (set! TOPLEVELS (append TOPLEVELS (list sym)))
-          TOPLEVELS))))
+      ([len (length TOPLEVELS)]
+       [diff (- pos len)]
+       [padding (build-list diff (λ (x) (string->symbol (string-append (symbol->string 'dummy-toplevel) (number->string x)))))])
+    (begin
+      (when DEBUG (displayln (format "add-toplevel! : adding toplevel : ~a - with offset : ~a" sym diff)))
+      (set! TOPLEVELS (append TOPLEVELS padding (list sym)))
+      TOPLEVELS)))
 
 (define (handle-def-values def-values-form localref-stack current-closure-refs)
   (let ([ids (def-values-ids def-values-form)]
@@ -141,10 +142,14 @@
   (hash 'quote racket-bool))
 
 (define (handle-string racket-str)
-  (hash* 'quote (hash* 'string racket-str)))
+  (hash* 'string racket-str))
 
 (define (handle-symbol racket-sym)
-  (hash* 'toplevel (symbol->string racket-sym)))
+  (let ([s (symbol->string racket-sym)])
+    (hash* 'toplevel s)
+    #;(if (or (equal? s "string?") (equal? s "symbol?"))
+        (hash* 'source-name s)
+        (hash* 'toplevel s))))
 
 (define (handle-char racket-char)
   (hash* 'char (number->string (char->integer racket-char))))
@@ -710,6 +715,8 @@ put the usual application-rands to the operands
                       [(number? form) (handle-number form)]
                       [(symbol? form) (handle-symbol form)]
                       [(char? form) (handle-char form)]
+                      [(string? form) (handle-string form)]
+                      [(list? form) (handle-list form localref-stack current-closure-refs)]
                       [else (error 'handle-list (format "we have a new kind of list bytecode element : ~a" form))]))
                   list-form))))
 
@@ -741,7 +748,7 @@ put the usual application-rands to the operands
       ((number? body-form)
        (hash* 'quote (handle-number body-form)))
       ((string? body-form)
-       (handle-string body-form))
+       (hash* 'quote (handle-string body-form)))
       ((symbol? body-form)
        (hash* 'quote (handle-symbol body-form)))
       ((char? body-form)
