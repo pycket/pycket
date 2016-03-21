@@ -290,10 +290,10 @@ put the usual application-rands to the operands
         (display "Current-closure-refs ===>  ")
         (displayln current-closure-refs)
         (display "inside??? ====>   ")
-        (displayln (if (ormap (lambda (cr) (string=? gen-id cr)) current-closure-refs) true false)))
+        (displayln (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs) true false)))
       
         
-      (if (ormap (lambda (cr) (string=? gen-id cr)) current-closure-refs) ;(memv gen-id current-closure-refs) somehow doesn't work?? 
+      (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs) ;(memv gen-id current-closure-refs) somehow doesn't work?? 
           (hash* 'lexical gen-id)
           (if (lam? code)
               (handle-lambda code localref-stack (cons gen-id current-closure-refs))
@@ -373,6 +373,21 @@ put the usual application-rands to the operands
                   (path->string path)))
             (if (and (string? module-path) (self-mod? base-path))
                 (string-append relative-current-dir module-path)
+                (if (string? module-path) ;; it may be resolved
+                    (with-handlers ([exn:fail? (λ (e)
+                                                 (string-append relative-current-dir module-path))])
+                      (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
+                        (if (symbol? path)
+                            (symbol->string path)
+                            (path->string path))))
+                    (begin (displayln module-path)
+                           (error 'module-path-index->path-string "cannot handle module path index"))))
+            #;(if (string? module-path)
+                (string-append relative-current-dir module-path)
+                (begin (displayln module-path)
+                           (error 'module-path-index->path-string "cannot handle module path index")))
+            #;(if (and (string? module-path) (self-mod? base-path))
+                (string-append relative-current-dir module-path)
                 (if (and (string? module-path) (not (self-mod? base-path))) ;; this can be resolved as well
                     (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
                       (if (symbol? path)
@@ -410,12 +425,13 @@ put the usual application-rands to the operands
     (when DEBUG
       (displayln (format "LET-ONE - UNUSED? ==> ~a" (let-one-unused? letform))))
     (let* ([unused? (let-one-unused? letform)]
-           [bindingname (if unused? "letone-not-used" (symbol->string (gensym 'letone)))]
+           [bindingname (if unused? "letone-not-used-slot" (symbol->string (gensym 'letone)))]
            [newstack (cons bindingname localref-stack)]) ;; push uninitialized slot
       (hash* 'let-bindings (list (list (if unused? '() (list bindingname))
                                        (to-ast-single (let-one-rhs letform) newstack current-closure-refs)))
              'let-body (list (to-ast-single (let-one-body letform)
-                                            (if unused? localref-stack newstack) ;; if unused?, then rhs is not pushed to the stack
+                                            newstack
+                                            ;(if unused? localref-stack newstack) ;; if unused?, then rhs is not pushed to the stack
                                             current-closure-refs))))))
 
 (define (body-name body-form)
@@ -563,12 +579,10 @@ put the usual application-rands to the operands
          
          [slot-positions (map (λ (p) (+ p pos)) count-lst)]
 
-         ; it's important to compute the rhs *before* modifying the stack slots
-         [rhs-ready (list (list binding-list
-                                (to-ast-single rhs localref-stack current-closure-refs)))]
-
          [mod-region (let ([reg (map (λ (p) (list-ref localref-stack p)) slot-positions)])
-                       (begin (when DEBUG (displayln (format "install val boxes? : ~a --\nOLD modified region : ~a\n" boxes? reg))) reg))]
+                       (begin
+                         (when DEBUG (displayln (format "install val boxes? : ~a --\nOLD modified region : ~a\n" boxes? reg)))
+                         reg))]
          [modified-stack (begin
                            ;; check the validity of the slot-positions
                            (if (andmap (λ (slot) (if boxes? (box? slot) (symbol=? slot 'uninitialized-slot))) mod-region)
@@ -578,7 +592,10 @@ put the usual application-rands to the operands
                                   [post-mod (drop localref-stack (+ pos count))]
                                   [new-region (if boxes? (map box binding-list) binding-list)]) ;; if boxes?, we construct new boxes
                              (begin (when DEBUG (displayln (format "NEW modified region : ~a\n" new-region)))
-                                    (append pre-mod new-region post-mod))))])
+                                    (append pre-mod new-region post-mod))))]
+         ; it's important to compute the rhs on un-modified stack slots
+         [rhs-ready (list (list binding-list
+                                (to-ast-single rhs localref-stack current-closure-refs)))])
     ;; producing json for pycket
     (hash*
      ;; let-bindings <- [count] {eval rhs}
@@ -693,7 +710,7 @@ put the usual application-rands to the operands
                       [(number? form) (handle-number form)]
                       [(symbol? form) (handle-symbol form)]
                       [(char? form) (handle-char form)]
-                      [else (error 'handle-list (format "we have a new kind of list bytecode element : ~a" list-form))]))
+                      [else (error 'handle-list (format "we have a new kind of list bytecode element : ~a" form))]))
                   list-form))))
 
 ;; stack : (listof symbol?/prefix?/hash?)
