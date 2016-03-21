@@ -43,6 +43,11 @@
           (hash-set! table n (car b)))))
     table))
 
+(define primitives (hash-values primitive-table))
+
+(define (value? form)
+  (ormap (λ (f) (f form)) (list list? hash? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
+
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
     (hash* 'language (list language)
@@ -139,15 +144,14 @@
                         'imag-part (handle-number imag)))])])))
 
 (define (handle-boolean racket-bool)
-  (hash 'quote racket-bool))
+  racket-bool)
 
 (define (handle-string racket-str)
   (hash* 'string racket-str))
 
 (define (handle-symbol racket-sym)
   (let ([s (symbol->string racket-sym)])
-    (hash* 'toplevel s)
-    #;(if (or (equal? s "string?") (equal? s "symbol?"))
+    (if (memv racket-sym primitives)
         (hash* 'source-name s)
         (hash* 'toplevel s))))
 
@@ -158,17 +162,29 @@
   (hash* 'keyword (keyword->string racket-kw)))
 
 (define (handle-regexp racket-regexp)
-  (hash* 'quote (hash* 'regexp (object-name racket-regexp))))
+  (hash* 'regexp (object-name racket-regexp)))
 
 (define (handle-byte-regexp racket-byte-regexp)
-  (hash* 'quote (hash* 'byte-regexp (bytes->list (object-name racket-byte-regexp)))))
+  (hash* 'byte-regexp (bytes->list (object-name racket-byte-regexp))))
 
 (define (handle-bytes racket-bytes)
-  (hash* 'quote (hash* 'bytes (bytes->list racket-bytes))))
+  (hash* 'bytes (bytes->list racket-bytes)))
 
 (define (handle-void racket-void)
   (hash* 'operator (hash* 'source-name "void")
          'operands (list)))
+
+(define (handle-hash racket-hash)
+  (let* ([keys (hash-keys racket-hash)]
+         [vals (hash-values racket-hash)]
+         [keys-asts (map to-ast-val keys)]
+         [vals-asts (map to-ast-val vals)])
+    (hash* 'hash-keys keys-asts
+           'hash-vals vals-asts)))
+
+
+(define (handle-list list-form)
+  (map to-ast-val list-form))
 
 (define (get-primval-name id)
   (symbol->string (hash-ref primitive-table id)))
@@ -441,7 +457,8 @@ put the usual application-rands to the operands
 
 (define (body-name body-form)
   (cond
-    ((list? body-form) (begin (displayln body-form) "ATTENTION : we have a LIST"))
+    ((list? body-form) "List ")
+    ((hash? body-form) "Hash ")
     ((boolean? body-form) "Boolean ")
     ((number? body-form) "Number ")
     ((string? body-form) "String ")
@@ -705,20 +722,40 @@ put the usual application-rands to the operands
            'span 456
            'module (hash* '%mpi (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt"))))))
 
-(define (handle-list list-form localref-stack current-closure-refs)
-  (if (null? list-form)
-      (hash* 'source-name "null")
-      (hash* 'quote
-             (map (λ (form)
-                    (cond
-                      [(keyword? form) (handle-keyword form)]
-                      [(number? form) (handle-number form)]
-                      [(symbol? form) (handle-symbol form)]
-                      [(char? form) (handle-char form)]
-                      [(string? form) (handle-string form)]
-                      [(list? form) (handle-list form localref-stack current-closure-refs)]
-                      [else (error 'handle-list (format "we have a new kind of list bytecode element : ~a" form))]))
-                  list-form))))
+
+
+
+(define (to-ast-val val-form)
+  (cond
+    ((list? val-form) 
+     (handle-list val-form))
+    ((hash? val-form)
+     (handle-hash val-form))
+    ((number? val-form)
+     (handle-number val-form))
+    ((string? val-form)
+     (handle-string val-form))
+    ((symbol? val-form)
+     (handle-symbol val-form))
+    ((char? val-form)
+     (handle-char val-form))
+    ((keyword? val-form)
+     (handle-keyword val-form))
+    ((regexp? val-form)
+     (handle-regexp val-form))
+    ((byte-regexp? val-form)
+     (handle-byte-regexp val-form))
+    ((bytes? val-form)
+     (handle-bytes val-form))
+    ;; keep the boolean? and void? here
+    ;; for they can be in lists/hashes
+    ;; note that they're (not value?)
+    ;; because they're handled differently as a bytecode body-form (than as a value)
+    ((boolean? val-form)
+     (handle-boolean val-form))
+    ((void? val-form)
+     (handle-void val-form))
+    (else (error 'to-ast-val (format "unhandled value : ~a" val-form)))))
 
 ;; stack : (listof symbol?/prefix?/hash?)
 (define (to-ast-single body-form localref-stack current-closure-refs)
@@ -741,30 +778,19 @@ put the usual application-rands to the operands
       (display "\n---------------------------------")
       (newline)(newline))
     (cond
-      ((list? body-form) 
-       (handle-list body-form localref-stack current-closure-refs))
-      ((boolean? body-form)
-       (handle-boolean body-form))
-      ((number? body-form)
-       (hash* 'quote (handle-number body-form)))
-      ((string? body-form)
-       (hash* 'quote (handle-string body-form)))
-      ((symbol? body-form)
-       (hash* 'quote (handle-symbol body-form)))
-      ((char? body-form)
-       (hash* 'quote (handle-char body-form)))
-      ((keyword? body-form)
-       (hash* 'quote (handle-keyword body-form)))
-      ((regexp? body-form)
-       (handle-regexp body-form))
-      ((byte-regexp? body-form)
-       (handle-byte-regexp body-form))
-      ((bytes? body-form)
-       (handle-bytes body-form))
-      ((void? body-form)
+      ;; VALUES
+      
+      ((value? body-form)
+       (hash* 'quote (to-ast-val body-form)))
+      
+      ;; specially handled vals
+      ((void? body-form) 
        (handle-void body-form))
+      ((boolean? body-form) ;; note it uses hash (instead of hash*)
+       (hash 'quote (handle-boolean body-form)))
 
-      ((hash? body-form) (error 'to-ast-single "we got a hash")) ;; return already hashed body-form
+      ;; FORMS
+      
       ;; let-void
       ((let-void? body-form)
        (handle-let-void body-form localref-stack current-closure-refs))
