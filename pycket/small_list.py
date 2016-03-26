@@ -8,11 +8,24 @@ FIXNUM = 'i'
 FLONUM = 'f'
 OBJECT = 'r'
 
+def index(spec):
+    """NOT RPYTHON"""
+    acc = 0
+    for i in spec:
+        if i == FIXNUM:
+            v = 0
+        elif i == FLONUM:
+            v = 1
+        elif i == OBJECT:
+            v = 2
+        acc = acc * 3 + v
+    return acc
+
 ALL_TYPES = (FIXNUM, FLONUM, OBJECT)
 
 def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
 
-    classes = {}
+    classes = [None] * (3 ** size)
 
     for spec in product(types, repeat=size):
 
@@ -68,31 +81,34 @@ def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
                 return result
 
         Specialized.__name__ = "Fixed(%s, size=%d, type=%s)" % (cls.__name__, size, "".join(spec))
-        classes[spec] = Specialized
+        classes[index(spec)] = Specialized
 
-    singleton = next(classes.itervalues())
+    unspecialized = classes[-1]
 
     @jit.elidable
     def _lookup_class(*signature):
         if len(classes) == 1:
-            return singleton
+            return unspecialized
         return classes[signature]
+
+    def type_to_index(cls):
+        from pycket.values import W_Fixnum, W_Flonum, W_Object
+        if cls is W_Fixnum:
+            return 0
+        if cls is W_Flonum:
+            return 1
+        assert cls is W_Object
+        return 2
 
     @jit.unroll_safe
     def make(elems, *args):
         from pycket.values import W_Fixnum, W_Flonum, W_Object
         assert len(elems) == size
-        signature = ()
+        spec = 0
         for e in elems:
             t = type(e)
-            if t is W_Fixnum:
-                signature += (FIXNUM,)
-            elif t is W_Flonum:
-                signature += (FLONUM,)
-            else:
-                assert issubclass(t, W_Object)
-                signature += (OBJECT,)
-        cls = _lookup_class(*signature)
+            spec = spec * 3 + type_to_index(t)
+        cls = classes[spec]
         result = objectmodel.instantiate(cls)
         cls._init_list(result, elems)
         cls.__init__(result, *args)
