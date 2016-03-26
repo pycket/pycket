@@ -1,3 +1,4 @@
+import py
 from pycket import config
 
 from rpython.rlib.unroll import unrolling_iterable
@@ -24,6 +25,8 @@ def index(spec):
 ALL_TYPES = (FIXNUM, FLONUM, OBJECT)
 
 def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
+
+    print "Specializing: %s %d" % (cls.__name__, size)
 
     classes = [None] * (3 ** size)
 
@@ -60,7 +63,19 @@ def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
                 raise IndexError
 
             def _set_list(self, i, val):
-                raise NotImplementedError
+                from pycket.values import W_Fixnum, W_Flonum, W_Object
+                for index, attr, typ in unrolling_enumerate_attrs:
+                    if index == i:
+                        if typ == FIXNUM:
+                            assert type(val) is W_Fixnum
+                            setattr(self, attr, val.value)
+                        elif typ == FLONUM:
+                            assert type(val) is W_Flonum
+                            setattr(self, attr, val.value)
+                        else:
+                            assert isinstance(val, W_Object)
+                            setattr(self, attr, val)
+                raise IndexError
 
             def _get_full_list(self):
                 from pycket.values import wrap
@@ -114,7 +129,33 @@ def make_specialized_classes(cls, size, attrname="list", types=ALL_TYPES):
         cls.__init__(result, *args)
         return result
 
-    return make
+    elems = ["elem%d" % i for i in range(size)]
+    args  = ", ".join(elems + ["*args"])
+    spec = "0"
+    for elem in elems:
+        spec = "(%s * 3 + type_to_index(type(%s)))" % (spec, elem)
+
+    sets = []
+    for i, elem in enumerate(elems):
+        line = "cls._set_list(%d, %s)" % (i, elem)
+        sets.append(line)
+    sets = "; ".join(sets)
+
+    namespace = locals().copy()
+    code = py.code.Source("""
+    def make_variadic(%s):
+        from pycket.values import W_Fixnum, W_Flonum, W_Object
+        assert len(elems) == size
+        spec = (%s)
+        cls = classes[spec]
+        result = objectmodel.instantiate(cls)
+        %s
+        cls.__init__(result, *args)
+        return result
+    """ % (args, spec, sets)).compile()
+    exec code in namespace
+
+    return make, namespace['make_variadic']
 
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
@@ -197,6 +238,28 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
 
             newcls = type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), methods)
             return newcls
+
+        if unbox_num and immutable:
+            make_methods = []
+            for size in range(sizemin, sizemax):
+                make_method, make_variadic = make_specialized_classes(cls, size)
+                setattr(cls, "%s%d" % (factoryname, size), staticmethod(make_variadic))
+                make_methods.append(make_method)
+
+            specializations = unrolling_iterable(enumerate(range(sizemin, sizemax)))
+
+            def make(elems, *args):
+                if elems is None:
+                    elems = []
+                l = len(elems)
+                for i, size in specializations:
+                    if size == l:
+                        return make_methods[i](elems, *args)
+                    result = objectmodel.instantiate(cls_arbitrary)
+                    cls.__init__(result, *args)
+                    setattr(result, attrname, [None] * l)
+            setattr(cls, factoryname, staticmethod(make))
+            return cls
 
         classes = map(make_class, range(sizemin, sizemax))
 
