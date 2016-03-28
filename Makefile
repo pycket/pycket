@@ -31,16 +31,16 @@ translate-no-type-size-specialization: pycket-c-no-type-size-specialization
 translate-no-jit: pycket-c-nojit
 
 pycket-c: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py
 
 pycket-c-no-prune-env: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --no-prune-env
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-prune-env
 
 pycket-c-no-two-state: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --no-two-state
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-two-state
 
 pycket-c-no-callgraph: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --no-callgraph
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-callgraph
 
 pycket-c-no-strategies: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-strategies
