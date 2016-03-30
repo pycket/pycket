@@ -633,6 +633,9 @@ def safe_return_multi_vals(vals, env, cont):
 def return_multi_vals_direct(vals, env, cont):
     return cont.plug_reduce(vals, env)
 
+def return_void(env, cont):
+    return return_value(values.w_void, env, cont)
+
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
     def __init__(self, expr, need_cell_flags=None):
@@ -1707,10 +1710,24 @@ def _make_symlist_counts(varss):
 def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    if len(varss) == 1 and len(varss[0]) == 1:
-        return make_let_singlevar(varss[0][0], rhss[0], body)
-    symlist, counts = _make_symlist_counts(varss)
-    return Let(symlist, counts, rhss, body)
+
+    if len(body) != 1 or not isinstance(body[0], Let):
+        return _make_let_direct(varss, rhss, body)
+
+    body = body[0]
+    assert isinstance(body, Let)
+    for rhs in body.rhss:
+        frees = rhs.free_vars()
+        for vars in varss:
+            for var in vars:
+                if var in frees:
+                    return _make_let_direct(varss, rhss, [body])
+    # At this point, we know the inner let does not
+    # reference vars in the outer let
+    varss = varss + body._rebuild_args()
+    rhss  = rhss  + body.rhss
+    body  = body.body
+    return make_let(varss, rhss, body)
 
 def make_let_singlevar(sym, rhs, body):
     # Try to convert nested lets into a single let e.g.
@@ -1729,6 +1746,10 @@ def make_let_singlevar(sym, rhs, body):
                 body  = b.body
                 return make_let(varss, rhss, body)
     return Let(SymList([sym]), [1], [rhs], body)
+
+def _make_let_direct(varss, rhss, body):
+    symlist, counts = _make_symlist_counts(varss)
+    return Let(symlist, counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
     if not varss:
