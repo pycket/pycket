@@ -2,12 +2,34 @@
 # -*- coding: utf-8 -*-
 
 from pycket                    import values, values_parameter, values_string
-from pycket.parser_definitions import ArgParser, EndOfInput
 from pycket.arity              import Arity
-from pycket.cont               import continuation, loop_label, call_cont, Barrier, Prompt
+from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, Prompt
 from pycket.error              import SchemeException
+from pycket.parser_definitions import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
+from pycket.small_list         import add_clone_method
 from rpython.rlib              import jit
+from rpython.rlib.objectmodel  import specialize
+
+@add_clone_method
+class DynamicWindValueCont(Cont):
+
+    _immutable_fields_ = ['pre', 'post']
+
+    def __init__(self, pre, post, env, cont):
+        Cont.__init__(self, env, cont)
+        self.pre  = pre
+        self.post = post
+
+    def has_unwind(self):
+        return True
+
+    def unwind(self, env, cont):
+        return self.post.call([], env, cont)
+
+    def plug_reduce(self, _vals, env):
+        cont = dynamic_wind_post_cont(_vals, env, self.prev)
+        return self.post.call([], env, self.prev)
 
 @continuation
 def post_build_exception(env, cont, _vals):
@@ -27,12 +49,35 @@ def convert_runtime_exception(exn, env, cont):
     return exn_fail.constructor.call([message, marks], env, cont)
 
 @jit.unroll_safe
-def find_continuation_prompt(tag, cont):
+@specialize.arg(2)
+def find_continuation_prompt(tag, cont, unwind=False):
+    if unwind:
+        unwind_frames = []
     while cont is not None:
         if isinstance(cont, Prompt) and cont.tag is tag:
+            if unwind:
+                return cont, unwind_frames
             return cont
+        if unwind and cont.has_unwind():
+            unwind_frames.append(cont)
         cont = cont.get_previous_continuation()
+    if unwind:
+        return None, unwind_frames
     return None
+
+def unwind_frames(frames, post, args, env, final_cont):
+    return do_unwind_frames(frames, 0, post, args, env, final_cont)
+
+def do_unwind_frames(frames, index, post, args, env, final_cont):
+    if index >= len(frames):
+        return post.call(args, env, final_cont)
+    frame = frames[index]
+    ctxt  = unwind_next_frame(frames, index, post, args, final_cont, env, frame.prev)
+    return frame.unwind(env, ctxt)
+
+@continuation
+def unwind_next_frame(frames, index, post, args, final_cont, env, cont, _vals):
+    return do_unwind_frames(frames, index + 1, post, args, env, final_cont)
 
 @expose("continuation-prompt-available?", [values.W_ContinuationPromptTag, default(values.W_Continuation, None)], simple=False)
 def cont_prompt_avail(tag, continuation, env, cont):
@@ -44,8 +89,9 @@ def cont_prompt_avail(tag, continuation, env, cont):
     return return_value(available, env, cont)
 
 @continuation
-def dynamic_wind_pre_cont(value, post, env, cont, _vals):
-    return value.call([], env, dynamic_wind_value_cont(post, env, cont))
+def dynamic_wind_pre_cont(value, pre, post, env, cont, _vals):
+    cont = DynamicWindValueCont(pre, post, env, cont)
+    return value.call([], env, cont)
 
 @continuation
 def dynamic_wind_value_cont(post, env, cont, _vals):
@@ -58,7 +104,7 @@ def dynamic_wind_post_cont(val, env, cont, _vals):
 
 @expose("dynamic-wind", [procedure, procedure, procedure], simple=False)
 def dynamic_wind(pre, value, post, env, cont):
-    return pre.call([], env, dynamic_wind_pre_cont(value, post, env, cont))
+    return pre.call([], env, dynamic_wind_pre_cont(value, pre, post, env, cont))
 
 @expose(["call/cc", "call-with-current-continuation"],
         [procedure, default(values.W_ContinuationPromptTag, None)],
@@ -104,7 +150,7 @@ def abort_current_continuation(args, env, cont):
     tag, args = args[0], args[1:]
     if not isinstance(tag, values.W_ContinuationPromptTag):
         raise SchemeException("abort-current-continuation: expected prompt-tag for argument 0")
-    prompt = find_continuation_prompt(tag, cont)
+    prompt, frames = find_continuation_prompt(tag, cont, unwind=True)
     if prompt is None:
         raise SchemeException("abort-current-continuation: no such prompt exists")
     handler = prompt.handler
@@ -116,6 +162,8 @@ def abort_current_continuation(args, env, cont):
         cont = Prompt(tag, None, env, cont)
         handler = args[0]
         args = []
+    if frames:
+        return unwind_frames(frames, handler, args, env, cont)
     return handler.call(args, env, cont)
 
 expose("abort-current-continuation", simple=False)(abort_current_continuation)
