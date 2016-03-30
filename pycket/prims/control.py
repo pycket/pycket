@@ -29,7 +29,7 @@ class DynamicWindValueCont(Cont):
 
     def plug_reduce(self, _vals, env):
         cont = dynamic_wind_post_cont(_vals, env, self.prev)
-        return self.post.call([], env, self.prev)
+        return self.post.call([], env, cont)
 
 @continuation
 def post_build_exception(env, cont, _vals):
@@ -51,14 +51,14 @@ def convert_runtime_exception(exn, env, cont):
 @jit.unroll_safe
 @specialize.arg(2)
 def find_continuation_prompt(tag, cont, unwind=False):
-    if unwind:
-        unwind_frames = []
+    unwind_frames = [] if unwind else None
     while cont is not None:
         if isinstance(cont, Prompt) and cont.tag is tag:
             if unwind:
                 return cont, unwind_frames
             return cont
         if unwind and cont.has_unwind():
+            assert isinstance(cont, Cont)
             unwind_frames.append(cont)
         cont = cont.get_previous_continuation()
     if unwind:
