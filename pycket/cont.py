@@ -33,6 +33,16 @@ class BaseCont(object):
     def __init__(self):
         self.marks = None
 
+    def has_unwind(self):
+        return False
+
+    def has_rewind(self):
+        return False
+
+    def unwind(self, env, cont):
+        from pycket.interpreter import return_void
+        return return_void(env, cont)
+
     def clone(self):
         result = self._clone()
         if self.marks is not None:
