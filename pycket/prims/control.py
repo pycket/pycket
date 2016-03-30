@@ -3,7 +3,7 @@
 
 from pycket                    import values, values_parameter, values_string
 from pycket.arity              import Arity
-from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, Prompt
+from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, NilCont, Prompt
 from pycket.error              import SchemeException
 from pycket.parser_definitions import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
@@ -27,6 +27,12 @@ class DynamicWindValueCont(Cont):
     def unwind(self, env, cont):
         return self.post.call([], env, cont)
 
+    def has_rewind(self):
+        return True
+
+    def rewind(self, env, cont):
+        return self.pre.call([], env, cont)
+
     def plug_reduce(self, _vals, env):
         cont = dynamic_wind_post_cont(_vals, env, self.prev)
         return self.post.call([], env, cont)
@@ -48,21 +54,41 @@ def convert_runtime_exception(exn, env, cont):
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
+def install_continuation(cont, prompt_tag, args, env, current_cont):
+    from pycket.interpreter import return_multi_vals
+
+    # Find the common merge point for these two continuations
+    base, unwind = find_continuation_prompt(prompt_tag, current_cont, direction='unwind')
+    _   , rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
+
+    if base is None:
+        base = NilCont()
+
+    if prompt_tag is not None:
+        cont = cont.append(base, prompt_tag)
+
+    if not unwind and not rewind:
+        return return_multi_vals(values.Values.make(args), env, cont)
+
+    assert False, "unwinding/rewinding not yet supported"
+    # Unwind the existing stack
+    # Rewind into the new portions of the old stack
+
 @jit.unroll_safe
 @specialize.arg(2)
-def find_continuation_prompt(tag, cont, unwind=False):
-    unwind_frames = [] if unwind else None
+def find_continuation_prompt(tag, cont, direction=None):
+    wind_frames = [] if direction is not None else None
     while cont is not None:
         if isinstance(cont, Prompt) and cont.tag is tag:
-            if unwind:
-                return cont, unwind_frames
+            if direction is not None:
+                return cont, wind_frames
             return cont
-        if unwind and cont.has_unwind():
+        if direction is not None and getattr(cont, "has_" + direction)():
             assert isinstance(cont, Cont)
-            unwind_frames.append(cont)
+            wind_frames.append(cont)
         cont = cont.get_previous_continuation()
-    if unwind:
-        return None, unwind_frames
+    if direction is not None:
+        return None, wind_frames
     return None
 
 def unwind_frames(frames, post, args, env, final_cont):
@@ -150,7 +176,7 @@ def abort_current_continuation(args, env, cont):
     tag, args = args[0], args[1:]
     if not isinstance(tag, values.W_ContinuationPromptTag):
         raise SchemeException("abort-current-continuation: expected prompt-tag for argument 0")
-    prompt, frames = find_continuation_prompt(tag, cont, unwind=True)
+    prompt, frames = find_continuation_prompt(tag, cont, direction='unwind')
     if prompt is None:
         raise SchemeException("abort-current-continuation: no such prompt exists")
     handler = prompt.handler
