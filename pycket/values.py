@@ -1156,7 +1156,7 @@ def from_list_iter(lst):
 class W_Continuation(W_Procedure):
     errorname = "continuation"
 
-    _immutable_fields_ = ["cont"]
+    _immutable_fields_ = ["cont", "prompt_tag"]
 
     def __init__(self, cont, prompt_tag=None):
         self.cont = cont
