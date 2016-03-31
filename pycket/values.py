@@ -1166,14 +1166,8 @@ class W_Continuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        # from pycket.interpreter   import return_multi_vals
         from pycket.prims.control import install_continuation
         return install_continuation(self.cont, self.prompt_tag, args, env, cont)
-        # if self.prompt_tag is not None:
-            # cont = self.cont.append(NilCont(), self.prompt_tag)
-        # else:
-            # cont = self.cont
-        # return return_multi_vals(Values.make(args), env, cont)
 
     def tostring(self):
         return "#<continuation>"
@@ -1191,9 +1185,9 @@ class W_ComposableContinuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        from pycket.interpreter import return_multi_vals
-        kont = self.cont.append(cont, self.prompt_tag)
-        return return_multi_vals(Values.make(args), env, kont)
+        from pycket.prims.control import install_continuation
+        return install_continuation(
+                self.cont, self.prompt_tag, args, env, cont, extend=True)
 
     def tostring(self):
         return "#<continuation>"
