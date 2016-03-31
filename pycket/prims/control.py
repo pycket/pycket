@@ -64,11 +64,17 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
     # Find the common merge point for these two continuations
     _   , rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
 
+    # The extend option controls whether or not we remove frames from the
+    # existing continuation, or simply stack the new continuation on top.
+    # This is what differentiates call-with-current-continuation from
+    # call-with-composable-continuation.
     if extend:
         base, unwind = current_cont, None
     else:
         base, unwind = find_continuation_prompt(
                 prompt_tag, current_cont, direction='unwind')
+
+    # Append the continuations at the appropriate prompt
 
     if base is None:
         base = NilCont()
