@@ -99,7 +99,7 @@ def do_unwind_cont(frames, env, cont, _vals):
 def do_rewind_cont(frames, env, cont, _vals):
     return rewind_frames(frames, env, cont)
 
-@jit.unroll_safe
+@jit.elidable
 @specialize.arg(2)
 def find_continuation_prompt(tag, cont, direction=None):
     wind_frames = [] if direction is not None else None
