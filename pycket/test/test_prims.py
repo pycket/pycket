@@ -753,6 +753,27 @@ def test_dynamic_wind(doctest):
     2
     """
 
+def test_dynamic_wind2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define acc 0)
+    (define v
+      (let/cc k
+        (dynamic-wind
+          (lambda () (set! acc (+ acc 1)))
+          (lambda () (set! acc (+ acc 1)) 42)
+          (lambda () (set! acc (+ acc 1))))))
+    """)
+    acc = m.defs[values.W_Symbol.make("acc")]
+    v   = m.defs[values.W_Symbol.make("v")]
+    assert isinstance(acc, values.W_Cell)
+    acc = acc.get_val()
+
+    assert isinstance(v, values.W_Fixnum) and v.value == 42
+    assert isinstance(acc, values.W_Fixnum) and acc.value == 3
+
 def test_bytes_conversions():
     m = run_mod(
     """
