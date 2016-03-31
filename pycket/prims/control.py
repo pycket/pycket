@@ -62,7 +62,7 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
     from pycket.interpreter import return_multi_vals, return_void
 
     # Find the common merge point for these two continuations
-    _   , rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
+    _, rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
 
     # The extend option controls whether or not we remove frames from the
     # existing continuation, or simply stack the new continuation on top.
@@ -84,7 +84,8 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
 
     # Fast path if no unwinding is required (avoids continuation allocation)
     if not unwind and not rewind:
-        return return_multi_vals(values.Values.make(args), env, cont)
+        args = values.Values.make(args)
+        return return_multi_vals(args, env, cont)
 
     # NOTE: All the continuations pushed here expect no arguments
     # They simply wrap functions which we could call directly, but using
