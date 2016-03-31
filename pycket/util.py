@@ -24,7 +24,7 @@ def memoize_constructor(cls):
     setattr(cls, "make", staticmethod(memoize(cls)))
     return cls
 
-def add_copy_method(copy_method="copy", mutable_fields=()):
+def add_copy_method(copy_method="copy"):
     def wrapper(cls):
         """
         This attempts to produce a method which will copy the immutable contents of
@@ -43,7 +43,7 @@ def add_copy_method(copy_method="copy", mutable_fields=()):
             fields = getattr(base, "_immutable_fields_", [])
             field_names.extend(fields)
 
-        field_names = unrolling_iterable(field_names + list(mutable_fields))
+        field_names = unrolling_iterable(field_names)
 
         def copy(self):
             result = objectmodel.instantiate(cls)
