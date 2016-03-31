@@ -1,4 +1,3 @@
-import inspect
 import py
 from pycket import config
 
@@ -186,25 +185,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
     return wrapper
 
 def add_clone_method(cls):
-    """
-    This attempts to produce a method which will copy the immutable contents of
-    a given data type from the '_immutable_fields_' annotation of the class.
-
-    The methods employed here will only work for certain types of class
-    specifications (i.e. only works if all the desired fields are present in the
-    '_immutable_fields_' annotation of the class definition).
-    The mutable fields of the class must be copied separately as well.
-    """
-    field_names = []
-
-    for base in inspect.getmro(cls):
-        if base is object:
-            continue
-        fields = getattr(base, "_immutable_fields_", [])
-        field_names.extend(fields)
-
-    field_names = unrolling_iterable(field_names)
-
+    field_names = unrolling_iterable(cls._immutable_fields_)
     def _clone_small_list(self):
         result = objectmodel.instantiate(cls)
         for attr in field_names:

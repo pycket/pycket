@@ -7,11 +7,11 @@ from pycket.cont               import continuation, loop_label, call_cont, Barri
 from pycket.error              import SchemeException
 from pycket.parser_definitions import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
-from pycket.small_list         import add_clone_method
+from pycket.util               import add_copy_method
 from rpython.rlib              import jit
 from rpython.rlib.objectmodel  import specialize
 
-@add_clone_method
+@add_copy_method(copy_method="_clone")
 class DynamicWindValueCont(Cont):
 
     _immutable_fields_ = ['pre', 'post']

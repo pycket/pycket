@@ -47,6 +47,8 @@ class BaseCont(object):
         result = self._clone()
         if self.marks is not None:
             result.marks = self.marks.clone()
+        else:
+            result.marks = None
         return result
 
     def _clone(self):
