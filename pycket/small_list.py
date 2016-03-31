@@ -1,8 +1,11 @@
 import py
 from pycket import config
+from pycket.util import add_copy_method
 
 from rpython.rlib.unroll import unrolling_iterable
 from rpython.rlib        import jit, debug, objectmodel
+
+add_clone_method = add_copy_method("_clone")
 
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
@@ -62,28 +65,22 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
                         assert val is not None
                     setattr(self, attr, elems[i])
                 cls.__init__(self, *args)
-            def _clone(self):
-                # Allocate and fill in small list values
-                result = objectmodel.instantiate(newcls)
-                for _, attr in unrolling_enumerate_attrs:
-                    value = getattr(self, attr)
-                    setattr(result, attr, value)
-                return result
 
             # Methods for the new class being built
             methods = {
-                gettername          : _get_list,
-                listsizename        : _get_size_list,
-                listgettername      : _get_full_list,
-                settername          : _set_list,
-                "__init__"          : _init,
-                "_clone_small_list" : _clone,
+                gettername     : _get_list,
+                listsizename   : _get_size_list,
+                listgettername : _get_full_list,
+                settername     : _set_list,
+                "__init__"     : _init,
             }
 
-            if immutable:
-                methods["_immutable_fields_"] = attrs
-
             newcls = type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), methods)
+
+            if immutable:
+                setattr(newcls, "_immutable_fields_", attrs)
+                newcls = add_clone_method(newcls)
+
             return newcls
 
         classes = map(make_class, range(sizemin, sizemax))
@@ -103,27 +100,20 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
             debug.make_sure_not_resized(elems)
             setattr(self, attrname, elems)
             cls.__init__(self, *args)
-        def _clone(self):
-            result = objectmodel.instantiate(cls_arbitrary)
-            values = getattr(self, attrname)
-            if not immutable:
-                # Only copy if the storage is mutable
-                values = values[:]
-            setattr(result, attrname, values)
-            return result
 
         methods = {
-            gettername          : _get_arbitrary,
-            listsizename        : _get_size_list_arbitrary,
-            listgettername      : _get_list_arbitrary,
-            settername          : _set_arbitrary,
-            "__init__"          : _init,
-            "_clone_small_list" : _clone,
+            gettername     : _get_arbitrary,
+            listsizename   : _get_size_list_arbitrary,
+            listgettername : _get_list_arbitrary,
+            settername     : _set_arbitrary,
+            "__init__"     : _init,
         }
 
-        if immutable:
-            methods["_immutable_fields_"] = ["%s[*]" % (attrname, )]
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), methods)
+
+        if immutable:
+            setattr(cls_arbitrary, "_immutable_fields_", ["%s[*]" % (attrname,)])
+            cls_arbitrary = add_clone_method(cls_arbitrary)
 
         def make(elems, *args):
             if classes:
@@ -183,17 +173,6 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
         setattr(cls, factoryname + "_n", staticmethod(make_n))
         return cls
     return wrapper
-
-def add_clone_method(cls):
-    field_names = unrolling_iterable(cls._immutable_fields_)
-    def _clone_small_list(self):
-        result = objectmodel.instantiate(cls)
-        for attr in field_names:
-            val = getattr(self, attr)
-            setattr(result, attr, val)
-        return result
-    cls._clone_small_list = _clone_small_list
-    return cls
 
 def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2):
     # XXX quite brute force

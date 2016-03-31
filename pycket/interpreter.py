@@ -115,11 +115,6 @@ class LetCont(Cont):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
 
-    def _clone(self):
-        result = self._clone_small_list()
-        LetCont.__init__(result, self.counting_ast, self.env, self.prev)
-        return result
-
     def get_ast(self):
         return self.counting_ast.ast
 
