@@ -58,12 +58,17 @@ def convert_runtime_exception(exn, env, cont):
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
-def install_continuation(cont, prompt_tag, args, env, current_cont):
+def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
     from pycket.interpreter import return_multi_vals, return_void
 
     # Find the common merge point for these two continuations
-    base, unwind = find_continuation_prompt(prompt_tag, current_cont, direction='unwind')
     _   , rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
+
+    if extend:
+        base, unwind = current_cont, None
+    else:
+        base, unwind = find_continuation_prompt(
+                prompt_tag, current_cont, direction='unwind')
 
     if base is None:
         base = NilCont()
