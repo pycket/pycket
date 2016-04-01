@@ -58,29 +58,70 @@ def convert_runtime_exception(exn, env, cont):
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
+@jit.elidable
+def scan_continuation(curr, prompt_tag):
+    """
+    Segment a continuation based on a given continuation-prompt-tag.
+    The head of the continuation, up to and including the desired continuation
+    prompt is reversed (in place), and the tail is returned un-altered.
+    """
+    xs = []
+    while isinstance(curr, Cont):
+        xs.append(curr)
+        if isinstance(curr, Prompt) and curr.tag is prompt_tag:
+            break
+        curr = curr.prev
+    return xs
+
+@jit.elidable
+def find_merge_point(c1, c2):
+    i = len(c1) - 1
+    j = len(c2) - 1
+    while i >= 0 and j >= 0 and c1[i] is c2[j]:
+        i -= 1
+        j -= 1
+    unwind = None
+    rewind = None
+
+    r1 = c1[-1] if i == len(c1) - 1 else c1[i+1]
+    r2 = c2[-1] if j == len(c2) - 1 else c2[j+1]
+
+    while i >= 0:
+        if isinstance(c1[i], DynamicWindValueCont):
+            if unwind is None:
+                unwind = []
+            unwind.append(c1[i])
+        i -= 1
+    while j >= 0:
+        if isinstance(c2[j], DynamicWindValueCont):
+            if rewind is None:
+                rewind = []
+            rewind.append(c2[j])
+        j -= 1
+    return r1, r2, unwind, rewind
+
 def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
     from pycket.interpreter import return_multi_vals, return_void
 
     # Find the common merge point for these two continuations
-    _, rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
+    # _, rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
 
     # The extend option controls whether or not we remove frames from the
     # existing continuation, or simply stack the new continuation on top.
     # This is what differentiates call-with-current-continuation from
     # call-with-composable-continuation.
     if extend:
+        _   , rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
         base, unwind = current_cont, None
+        stop         = None
     else:
-        base, unwind = find_continuation_prompt(
-                prompt_tag, current_cont, direction='unwind')
+        head1 = scan_continuation(current_cont, prompt_tag)
+        head2 = scan_continuation(cont, prompt_tag)
+        base, stop, unwind, rewind = find_merge_point(head1, head2)
 
     # Append the continuations at the appropriate prompt
-
-    if base is None:
-        base = NilCont()
-
-    if prompt_tag is not None:
-        cont = cont.append(base, prompt_tag)
+    if base is not None:
+        cont = cont.append(base, stop=stop, upto=prompt_tag)
 
     # Fast path if no unwinding is required (avoids continuation allocation)
     if not unwind and not rewind:
@@ -94,6 +135,7 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
     if rewind:
         cont = do_rewind_cont(rewind, env, cont)
     if unwind:
+        unwind = [x for x in reversed(unwind)]
         cont = do_unwind_cont(unwind, env, cont)
     return return_void(env, cont)
 
