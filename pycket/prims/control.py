@@ -80,22 +80,18 @@ def find_merge_point(c1, c2):
     while i >= 0 and j >= 0 and c1[i] is c2[j]:
         i -= 1
         j -= 1
-    unwind = None
-    rewind = None
+    unwind = []
+    rewind = []
 
     r1 = c1[-1] if i == len(c1) - 1 else c1[i+1]
     r2 = c2[-1] if j == len(c2) - 1 else c2[j+1]
 
     while i >= 0:
         if isinstance(c1[i], DynamicWindValueCont):
-            if unwind is None:
-                unwind = []
             unwind.append(c1[i])
         i -= 1
     while j >= 0:
         if isinstance(c2[j], DynamicWindValueCont):
-            if rewind is None:
-                rewind = []
             rewind.append(c2[j])
         j -= 1
     return r1, r2, unwind, rewind
@@ -103,9 +99,7 @@ def find_merge_point(c1, c2):
 def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
     from pycket.interpreter import return_multi_vals, return_void
 
-    # Find the common merge point for these two continuations
-    # _, rewind = find_continuation_prompt(prompt_tag, cont, direction='rewind')
-
+    # Find the common merge point for two continuations
     # The extend option controls whether or not we remove frames from the
     # existing continuation, or simply stack the new continuation on top.
     # This is what differentiates call-with-current-continuation from
