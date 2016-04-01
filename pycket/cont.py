@@ -100,7 +100,7 @@ class BaseCont(object):
             p = p.get_previous_continuation(upto=upto)
         return None
 
-    def append(self, tail, upto=None):
+    def append(self, tail, upto=None, stop=None):
         return tail
 
     def plug_reduce(self, _vals, env):
@@ -141,8 +141,10 @@ class Cont(BaseCont):
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
 
-    def append(self, tail, upto=None):
-        rest = self.prev.append(tail, upto)
+    def append(self, tail, upto=None, stop=None):
+        if self is stop:
+            return tail
+        rest = self.prev.append(tail, upto, stop)
         head = self.clone()
         assert isinstance(head, Cont)
         head.prev = rest
@@ -177,10 +179,10 @@ class Prompt(Cont):
                 return None
         return self.prev
 
-    def append(self, tail, upto=None):
-        if upto is self.tag:
+    def append(self, tail, upto=None, stop=None):
+        if upto is self.tag or stop is tail:
             return tail
-        return Cont.append(self, tail, upto)
+        return Cont.append(self, tail, upto, stop)
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
