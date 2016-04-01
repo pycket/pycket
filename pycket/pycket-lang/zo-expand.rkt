@@ -386,39 +386,55 @@ put the usual application-rands to the operands
     (let-values ([(mod-path base-path) (module-path-index-split mpi)])
       (and (not mod-path) (not base-path))))
 
-(define (module-path-index->path-string mod-idx)
+(define (module-path-index->path-string mod-idx)    
   (if (self-mod? mod-idx)
       (error 'module-path-index->path-string "don't know what to do with a self module index here")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
-        (if (or (list? module-path) (symbol? module-path)) ;; then it can be resolved
+        (if (or (list? module-path) (symbol? module-path)) ;; then it is resolved
             (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
               (if (symbol? path)
                   (symbol->string path)
                   (path->string path)))
-            (if (and (string? module-path) (self-mod? base-path))
-                (string-append relative-current-dir module-path)
-                (if (string? module-path) ;; it may be resolved
-                    (with-handlers ([exn:fail? (λ (e)
-                                                 (string-append relative-current-dir module-path))])
+            (if (not (string? module-path))
+                (error 'module-path-index->path-string "module-path is not a list, symbol or string : ~a, in ~a" module-path mod-idx)
+                ;; resolving manually using the base-path
+                (if (self-mod? base-path)
+                    (string-append relative-current-dir module-path)
+                    (let ([base-path-str (if (resolved-module-path? base-path)
+                                             (path->string (resolved-module-path-name base-path))
+                                             (module-path-index->path-string base-path))])
+                      (begin ;; sanity-check : should end with .rkt
+                        (when (not (string-suffix? base-path-str ".rkt"))
+                          (error 'module-path-index->path-string "something's wrong with the resolved base path : ~a" base-path-str))
+                        (let* ([spl (string-split base-path-str "/")]
+                               [real-base (string-append "/" (string-join (take spl (sub1 (length spl))) "/") "/")])
+                          (string-append real-base module-path))))))
+            
+            #;(if (and (string? module-path) (self-mod? base-path))
+                  (clean-append relative-current-dir module-path)
+                  (if (string? module-path) ;; it may be resolved
+                      (with-handlers ([exn:fail? (λ (e)
+                                                   (clean-append relative-current-dir module-path))])
+                        (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
+                          (if (symbol? path)
+                              (symbol->string path)
+                              (path->string path))))
+                      (begin (displayln module-path)
+                             (error 'module-path-index->path-string "cannot handle module path index"))))
+            #;(if (string? module-path)
+                  (string-append relative-current-dir module-path)
+                  (begin (displayln module-path)
+                         (error 'module-path-index->path-string "cannot handle module path index")))
+            #;(if (and (string? module-path) (self-mod? base-path))
+                  (string-append relative-current-dir module-path)
+                  (if (and (string? module-path) (not (self-mod? base-path))) ;; this can be resolved as well
                       (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
                         (if (symbol? path)
                             (symbol->string path)
-                            (path->string path))))
-                    (begin (displayln module-path)
-                           (error 'module-path-index->path-string "cannot handle module path index"))))
-            #;(if (string? module-path)
-                (string-append relative-current-dir module-path)
-                (begin (displayln module-path)
-                           (error 'module-path-index->path-string "cannot handle module path index")))
-            #;(if (and (string? module-path) (self-mod? base-path))
-                (string-append relative-current-dir module-path)
-                (if (and (string? module-path) (not (self-mod? base-path))) ;; this can be resolved as well
-                    (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
-                      (if (symbol? path)
-                          (symbol->string path)
-                          (path->string path)))
-                    (begin (displayln module-path)
-                           (error 'module-path-index->path-string "cannot handle module path index"))))))))
+                            (path->string path)))
+                      (begin (displayln module-path)
+                             (error 'module-path-index->path-string "cannot handle module path index"))))
+            ))))
 
 (define (handle-module-variable mod-var localref-stack)
   (let* ([name (symbol->string (module-variable-sym mod-var))]
@@ -430,19 +446,57 @@ put the usual application-rands to the operands
 
 (define (handle-varref varref-form localref-stack)
   (let ([top (varref-toplevel varref-form)]
-        [dummy (varref-dummy varref-form)])
-    (if (and (boolean? top) top) ;; varref-toplevel can be #t
-        (error 'handle-varref (format "we got a #t at varref : ~a" varref-form))
-        (let ([topvar (list-ref TOPLEVELS (toplevel-pos top))])
-          (if (and (not (module-variable? topvar)) topvar) ;; not #f
-              (error 'handle-varref "toplevel is not a module variable (and not #f) : ~a" topvar)
-              (let ([name (symbol->string (if (module-variable? topvar) (module-variable-sym topvar) 'false))])
-                (hash* 'source (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt"))
-                       'variable-reference (hash* 'source-name name)
-                       'module (hash* '%mpi (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt")))
+        [dummy (varref-dummy varref-form)]
+        [current-mod-path (string-append relative-current-dir "fromBytecode_" module-name ".rkt")])
+    (if (boolean? top) ;; varref-toplevel is a boolean
+        (error 'handle-varref (format "we got a bool at varref : ~a" varref-form))
+        (let* ([topvar (list-ref TOPLEVELS (toplevel-pos top))]
+               [name (cond
+                       [(boolean? topvar)
+                        (if topvar
+                            (error 'handle-varref (format "we got a TRUE bool from TOPLEVELS : ~a - varref : ~a" topvar varref-form))
+                            false)]
+                       [(symbol? topvar) (symbol->string topvar)]
+                       [(module-variable? topvar) (symbol->string (module-variable-sym topvar))])]
+               [path-str (if (or (symbol? topvar) (boolean? topvar))
+                             current-mod-path
+                             ;; it's a module-variable
+                             (module-path-index->path-string (module-variable-modidx topvar)))]
+               [is-lifted? false]
+               [name-ref-hash (if (boolean? topvar) 'dummy
+                                  (if (memv (string->symbol name) primitives) ;; it's a primitive
+                                      (hash* 'source-name name)
+                                      (if (string-contains? name ".")
+                                          (let* ([mod-split (string-split name ".")]
+                                                 [original-mod (car mod-split)])
+                                            (begin
+                                              (set! is-lifted? true)
+                                              ;; sanity check : second part of the "." should be all numbers
+                                              (with-handlers ([exn:fail?
+                                                               (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
+                                                (string->number (cadr mod-split)))
+                                              (hash* 'source-name name
+                                                     'source-module path-str
+                                                     'module original-mod)))
+                                          (hash* 'source-name name
+                                                 'source-module path-str))))]
+               [source-mod (cond
+                             [(or (symbol? topvar) (boolean? topvar)) path-str]
+                             [(memv (string->symbol name) primitives) current-mod-path]
+                             [(module-variable? topvar)
+                              (if is-lifted? ;; assumption : all lifted var-refs are from kw.rkt
+                                  (string-append collects-dir "/racket/private/kw.rkt")
+                                  current-mod-path)])]
+               [final-hash 
+                (hash* 'source (hash* '%p source-mod)
+                       'module (hash* '%mpi (hash* '%p source-mod))
+                       'variable-reference name-ref-hash
                        'position 12
                        'span 11
-                       'original true)))))))
+                       'original true)])
+          (if (boolean? topvar) ;; (hash* 'var false) produces '#hash() 
+              (hash-set final-hash 'variable-reference name) ;; adding it with hash-set works
+              final-hash)))))
 
 (define (handle-let-one letform localref-stack current-closure-refs)
   (begin
