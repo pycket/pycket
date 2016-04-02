@@ -45,6 +45,10 @@ class TestLLtype(LLJitMixin):
         ;; These are the same loop, but the second one is 10x slower
         (loop f3 0 0 N)
         (loop f4 0 0 N)
+        (loop f3 0 0 N)
+        (loop f4 0 0 N)
+        (loop f3 0 0 N)
+        (loop f4 0 0 N)
         """)
 
     def test_countdown_x(self):

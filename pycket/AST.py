@@ -99,3 +99,46 @@ class AST(object):
     def __str__(self):
         return self.tostring()
 
+    # stackfull mode support methods
+
+    def switch_to_interpret_stack(self, env, cont):
+        try:
+            w_val = self.interpret_stack(env)
+        except ConvertStack, cv:
+            cv.chain(cont)
+            return cv.ast, cv.env, cv.topcont
+        return cont.plug_reduce(w_val, env)
+
+    def interpret_stack(self, env):
+        from pycket.base import W_StackTrampoline
+        while 1:
+            w_val = self._interpret_stack(env)
+            if isinstance(w_val, W_StackTrampoline):
+                self = w_val.ast
+                env = w_val.env
+            else:
+                return w_val
+
+    def _interpret_stack(self, env):
+        if self.simple:
+            return self.interpret_simple(env)
+        raise ConvertStack(self, env)
+
+
+class ConvertStack(Exception):
+    def __init__(self, ast, env):
+        self.ast = ast
+        self.topcont = None
+        self.patchcont = None
+        self.env = env
+
+    def chain(self, newcont):
+        from pycket.cont import BaseCont
+        assert isinstance(newcont, BaseCont)
+        if self.topcont is None:
+            self.topcont = newcont
+        if self.patchcont is not None:
+            self.patchcont.prev = newcont
+        self.patchcont = newcont
+
+

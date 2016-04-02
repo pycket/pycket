@@ -21,6 +21,11 @@ class W_ProtoObject(object):
     def get_all_values(self):
         raise NotImplementedError("not a real value!")
 
+class W_StackTrampoline(W_ProtoObject):
+    def __init__(self, ast, env):
+        self.ast = ast
+        self.env = env
+
 class W_Object(W_ProtoObject):
     __metaclass__ = extendabletype
     _attrs_ = []

@@ -1,4 +1,4 @@
-from pycket.AST               import AST
+from pycket.AST               import AST, ConvertStack
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.prims.expose      import prim_env, make_call_method
@@ -1806,9 +1806,35 @@ class Let(SequencedBodyAST):
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
-        env = self._prune_env(env, 0)
-        return self.rhss[0], env, LetCont.make(
-                None, self, 0, env, cont)
+        return self.switch_to_interpret_stack(env, cont)
+        #env = self._prune_env(env, 0)
+        #return self.rhss[0], env, LetCont.make(
+        #        None, self, 0, env, cont)
+
+    def _interpret_stack(self, env):
+        from pycket.base import W_StackTrampoline
+        vals_w = [None] * len(self.args.elems)
+        index = 0
+        for i, rhs in enumerate(self.rhss):
+            env = self._prune_env(env, i)
+            try:
+                values = rhs.interpret_stack(env)
+            except ConvertStack, cv:
+                cont = LetCont.make(vals_w[:index], self, i, env, None)
+                cv.chain(cont)
+                raise
+            for j in range(values.num_values()):
+                vals_w[index] = values.get_value(j)
+                index += 1
+        env = ConsEnv.make(vals_w, env)
+        for i, body in enumerate(self.body[:-1]):
+            try:
+                res = body.interpret_stack(env)
+            except ConvertStack, cv:
+                cont = BeginCont(self.counting_asts[i + 1], env, None)
+                cv.chain(cont)
+                raise
+        return W_StackTrampoline(self.body[-1], env)
 
     def direct_children(self):
         return self.rhss + self.body
