@@ -1815,6 +1815,7 @@ class Let(SequencedBodyAST):
         from pycket.base import W_StackTrampoline
         vals_w = [None] * len(self.args.elems)
         index = 0
+        i = -100
         for i, rhs in enumerate(self.rhss):
             env = self._prune_env(env, i)
             try:
@@ -1826,6 +1827,8 @@ class Let(SequencedBodyAST):
             for j in range(values.num_values()):
                 vals_w[index] = values.get_value(j)
                 index += 1
+        assert i != -100
+        env = self._prune_env(env, i + 1)
         env = ConsEnv.make(vals_w, env)
         for i, body in enumerate(self.body[:-1]):
             try:
