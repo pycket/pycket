@@ -957,6 +957,7 @@ class SequencedBodyAST(AST):
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
 
+    @jit.unroll_safe
     def _interpret_stack_body(self, env):
         for i in range(len(self.body) - 1):
             body = self.body[i]
@@ -1842,6 +1843,7 @@ class Let(SequencedBodyAST):
         #return self.rhss[0], env, LetCont.make(
         #        None, self, 0, env, cont)
 
+    @jit.unroll_safe
     def _interpret_stack(self, env):
         vals_w = [None] * len(self.args.elems)
         index = 0
