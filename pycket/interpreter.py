@@ -844,7 +844,7 @@ class App(AST):
     # Let conversion ensures that all the participants in an application
     # are simple.
     @jit.unroll_safe
-    def interpret(self, env, cont):
+    def _eval_callable_and_args(self, env):
         rator = self.rator
         if (not env.pycketconfig().callgraph and
                 isinstance(rator, ModuleVar) and
@@ -858,7 +858,16 @@ class App(AST):
             # fast path
             jit.promote(w_callable)
             w_callable = w_callable.closure
+        return w_callable, args_w
+
+    def interpret(self, env, cont):
+        w_callable, args_w = self._eval_callable_and_args(env)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
+
+    def _interpret_stack(self, env):
+        w_callable, args_w = self._eval_callable_and_args(env)
+        return w_callable.call_with_extra_info_and_stack(
+                args_w, env, self)
 
     def _tostring(self):
         elements = [self.rator] + self.rands
@@ -947,6 +956,18 @@ class SequencedBodyAST(AST):
         else:
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
+
+    def _interpret_stack_body(self, env):
+        for i in range(len(self.body) - 1):
+            body = self.body[i]
+            try:
+                res = body.interpret_stack(env)
+            except ConvertStack, cv:
+                cont = BeginCont(self.counting_asts[i + 1], env, None)
+                cv.chain(cont)
+                raise
+        return W_StackTrampoline(self.body[-1], env)
+
 
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
@@ -1590,6 +1611,7 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
 
@@ -1838,14 +1860,7 @@ class Let(SequencedBodyAST):
         assert i != -100
         env = self._prune_env(env, i + 1)
         env = ConsEnv.make(vals_w, env)
-        for i, body in enumerate(self.body[:-1]):
-            try:
-                res = body.interpret_stack(env)
-            except ConvertStack, cv:
-                cont = BeginCont(self.counting_asts[i + 1], env, None)
-                cv.chain(cont)
-                raise
-        return W_StackTrampoline(self.body[-1], env)
+        return SequencedBodyAST._interpret_stack_body(self, env)
 
     def direct_children(self):
         return self.rhss + self.body

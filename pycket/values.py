@@ -1290,15 +1290,13 @@ class W_Closure1AsEnv(ConsEnv):
     def get_arity(self):
         return self.caselam.get_arity()
 
-    def call_with_extra_info(self, args, env, cont, calling_app):
+    def _construct_env(self, args, env, calling_app):
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
         jit.promote(self.caselam)
         jit.promote(env_structure)
         lam = self.caselam.lams[0]
-        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
         if actuals is None:
             lam.raise_nice_error(args)
@@ -1306,12 +1304,24 @@ class W_Closure1AsEnv(ConsEnv):
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 self, env_structure, env)
-        return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
-            cont)
+        return ConsEnv.make(actuals, prev)
+
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        lam = self.caselam.lams[0]
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
+        env = self._construct_env(args, env, calling_app)
+        return lam.make_begin_cont(env, cont)
 
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
+
+    def call_with_extra_info_and_stack(self, args, env, calling_app):
+        # XXX callgraph??!
+        env = self._construct_env(args, env, calling_app)
+        lam = self.caselam.lams[0]
+        return lam._interpret_stack_body(env)
+
 
     # ____________________________________________________________
     # methods as a ConsEnv

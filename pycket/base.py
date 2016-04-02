@@ -53,6 +53,10 @@ class W_Object(W_ProtoObject):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
+    def call_with_extra_info_and_stack(self, args, env, app):
+        from pycket.AST import ConvertStack
+        raise ConvertStack(app, env)
+
     def enable_jitting(self):
         pass # need to override in callables that are based on an AST
 
