@@ -7,6 +7,7 @@ from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.arity             import Arity
 from pycket                   import config
+from pycket.base              import W_StackTrampoline
 
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
@@ -1297,6 +1298,14 @@ class If(AST):
         else:
             return self.thn, env, cont
 
+    def _interpret_stack(self, env):
+        w_val = self.tst.interpret_simple(env)
+        if w_val is values.w_false:
+            return W_StackTrampoline(self.els, env)
+        else:
+            return W_StackTrampoline(self.thn, env)
+
+
     def assign_convert(self, vars, env_structure):
         sub_env_structure = env_structure
         return If(self.tst.assign_convert(vars, env_structure),
@@ -1812,7 +1821,6 @@ class Let(SequencedBodyAST):
         #        None, self, 0, env, cont)
 
     def _interpret_stack(self, env):
-        from pycket.base import W_StackTrampoline
         vals_w = [None] * len(self.args.elems)
         index = 0
         i = -100
