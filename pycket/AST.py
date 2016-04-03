@@ -146,12 +146,13 @@ class ConvertStack(Exception):
         self.env = env
 
     def chain(self, newcont):
-        from pycket.cont import BaseCont
-        assert isinstance(newcont, BaseCont)
+        from pycket.cont import Cont, Cont
         if self.topcont is None:
             self.topcont = newcont
         if self.patchcont is not None:
-            self.patchcont.prev = newcont
+            patchcont = self.patchcont
+            assert isinstance(patchcont, Cont)
+            patchcont.prev = newcont
         self.patchcont = newcont
 
 
