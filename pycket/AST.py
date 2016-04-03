@@ -112,10 +112,14 @@ class AST(object):
     def interpret_stack(self, env):
         from pycket.base import W_StackTrampoline
         while 1:
+            stackfull_driver.jit_merge_point(ast=self, env=env)
             w_val = self._interpret_stack(env)
             if isinstance(w_val, W_StackTrampoline):
                 self = w_val.ast
+                assert self is not None
                 env = w_val.env
+                if self.should_enter:
+                    stackfull_driver.can_enter_jit(ast=self, env=env)
             else:
                 return w_val
 
@@ -123,6 +127,15 @@ class AST(object):
         if self.simple:
             return self.interpret_simple(env)
         raise ConvertStack(self, env)
+
+def get_printable_location_stackfull(green_ast):
+    return "stackfull: %s" % (green_ast.tostring(), )
+
+stackfull_driver = jit.JitDriver(
+        reds=["env"],
+        greens=["ast"],
+        get_printable_location=get_printable_location_stackfull,
+        should_unroll_one_iteration=lambda *args : True)
 
 
 class ConvertStack(Exception):
