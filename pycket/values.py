@@ -1082,6 +1082,19 @@ class W_Prim(W_Procedure):
         jit.promote(self)
         return self.code(args, env, cont, extra_call_info)
 
+    def call_with_extra_info_and_stack(self, args, env, extra_call_info):
+        if self.simple1 is not None and len(args) == 1:
+            result = self.simple1(args[0])
+        elif self.simple2 is not None and len(args) == 2:
+            result = self.simple2(args[0], args[1])
+        else:
+            return W_Procedure.call_with_extra_info_and_stack(
+                    self, args, env, extra_call_info)
+        if result is None:
+            result = w_void
+        return result
+
+
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
@@ -1238,22 +1251,31 @@ class W_Closure(W_Procedure):
             single_lambda.raise_nice_error(args)
         raise SchemeException("No matching arity in case-lambda")
 
-    def call_with_extra_info(self, args, env, cont, calling_app):
+    def _construct_env_and_find_lambda(self, args, env, calling_app):
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
         jit.promote(self.caselam)
         jit.promote(env_structure)
         (actuals, frees, lam) = self._find_lam(args)
-        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
-            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         # specialize on the fact that often we end up executing in the
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
-        return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
-            cont)
+        env = ConsEnv.make(actuals, prev)
+        return env, lam
+
+    def call_with_extra_info(self, args, env, cont, calling_app):
+        env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
+        return lam.make_begin_cont(env, cont)
+
+    def call_with_extra_info_and_stack(self, args, env, calling_app):
+        env, lam = self._construct_env_and_find_lambda(args, env, calling_app)
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, None, env)
+        return lam._interpret_stack_body(env)
 
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
@@ -1317,9 +1339,10 @@ class W_Closure1AsEnv(ConsEnv):
         return self.call_with_extra_info(args, env, cont, None)
 
     def call_with_extra_info_and_stack(self, args, env, calling_app):
-        # XXX callgraph??!
-        env = self._construct_env(args, env, calling_app)
         lam = self.caselam.lams[0]
+        if not jit.we_are_jitted() and env.pycketconfig().callgraph:
+            env.toplevel_env().callgraph.register_call(lam, calling_app, None, env)
+        env = self._construct_env(args, env, calling_app)
         return lam._interpret_stack_body(env)
 
 

@@ -37,7 +37,6 @@ class CallGraph(object):
             lam_in_subdct = False
         else:
             lam_in_subdct = lam in subdct
-        cont_ast = cont.get_next_executed_ast()
         config = env.pycketconfig()
         is_recursive = False
         if not lam_in_subdct:
@@ -49,6 +48,9 @@ class CallGraph(object):
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.
+        if cont is None:
+            return
+        cont_ast = cont.get_next_executed_ast()
         same_lambda = cont_ast and cont_ast.surrounding_lambda is calling_lam
         if same_lambda:
             if lam_in_subdct: # did not call is_recursive yet
