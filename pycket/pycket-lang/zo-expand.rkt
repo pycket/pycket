@@ -46,7 +46,7 @@
 (define primitives (hash-values primitive-table))
 
 (define (value? form)
-  (ormap (λ (f) (f form)) (list list? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
+  (ormap (λ (f) (f form)) (list list? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
 
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
@@ -195,6 +195,12 @@
 
 (define (handle-list list-form)
   (map to-ast-val list-form))
+
+(define (handle-pair pair-form)
+  (let ([first-vals (takef pair-form (λ (_) #t))]
+        [last-val (dropf pair-form (λ (_) #t))])
+    (hash* 'improper (list (map to-ast-val first-vals)
+                           (to-ast-val last-val)))))
 
 (define (get-primval-name id)
   (symbol->string (hash-ref primitive-table id)))
@@ -848,6 +854,8 @@ put the usual application-rands to the operands
   (cond
     ((list? val-form) 
      (handle-list val-form))
+    ((pair? val-form)
+     (handle-pair val-form))
     ((hash? val-form)
      (handle-hash val-form))
     ((vector? val-form)
