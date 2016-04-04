@@ -57,51 +57,20 @@
                            whole-body
                            (cons body1 whole-body)))))
 
-(define (add-toplevel! sym pos)
-  (let*
-      ([len (length TOPLEVELS)]
-       [diff (- pos len)]
-       [padding (build-list diff (λ (x) (string->symbol (string-append (symbol->string 'dummy-toplevel) (number->string x)))))])
-    (begin
-      (when DEBUG (displayln (format "add-toplevel! : adding toplevel : ~a - with offset : ~a" sym diff)))
-      (set! TOPLEVELS (append TOPLEVELS padding (list sym)))
-      TOPLEVELS)))
 
 (define (handle-def-values def-values-form localref-stack current-closure-refs)
   (let ([ids (def-values-ids def-values-form)]
         [rhs (def-values-rhs def-values-form)])
     (cond
-      ((ormap (λ (def) (not (toplevel? def))) ids)
+      ((ormap (λ (def) (not (toplevel? def))) ids) ;; just a sanity check
        (error 'handle-def-values "def-values : detected a non toplevel?"))
       (else
        (let* ([poss (map toplevel-pos ids)]
-              [number-of-toplevels (length TOPLEVELS)]
-              [toplevel-lift-defs (filter (λ (p) (>= p number-of-toplevels)) poss)]
-              [toplevel-lift-def (if (> (length toplevel-lift-defs) 1)
-                                (error 'handle-def-values "INVESTIGATE: more than one lifted toplevel def-value's")
-                                (if (zero? (length toplevel-lift-defs))
-                                    #f
-                                    (car toplevel-lift-defs)))]
-              [lift-name (if (not toplevel-lift-def) #f (let ([name (if (lam? rhs) (lam-name rhs)
-                                                                        (if (inline-variant? rhs) (lam-name (inline-variant-direct rhs))
-                                                                            (error 'handle-def-values (format "couldn't get the name from ~a" rhs))))])
-                                                          (if (symbol? name) name (gensym (vector-ref name 0)))))]
-              
-              [adding-the-toplevel (if lift-name (begin (add-toplevel! lift-name toplevel-lift-def) #t) #f)]
-              
-              [syms (begin (when DEBUG
-                             (displayln (format "ids : ~a" ids))
-                             (displayln (format "toplevels length : ~a" (length TOPLEVELS)))
-                             (displayln (format "def-values for ====> ~a" (if (null? poss) "-NA-" (list-ref TOPLEVELS (car poss)))))
-                             (displayln (format "\nlocalrefstack ====> \n~a" localref-stack)))
-                           (map (λ (p) (list-ref TOPLEVELS p)) poss))]
+              [syms (map (λ (p) (list-ref TOPLEVELS p)) poss)]
               [symstrs (map (λ (sym) (if (symbol? sym) (symbol->string sym) sym)) syms)])
          (hash* 'define-values symstrs
                 'define-values-names symstrs
-                'define-values-body (to-ast-single rhs
-                                                   (append symstrs localref-stack)
-                                                   ;localref-stack
-                                                   current-closure-refs)))))))
+                'define-values-body (to-ast-single rhs (append symstrs localref-stack) current-closure-refs)))))))
 
 (define (handle-if if-form localref-stack current-closure-refs)
   (let ([test (branch-test if-form)]
@@ -1061,11 +1030,7 @@ put the usual application-rands to the operands
   (define comp-top (zo-parse (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.zo"))))
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
-  
-  ;; toplevels : #f | global-bucket | module-variable
-  (define toplevels (prefix-toplevels (mod-prefix code)))
-  (set-toplevels! toplevels)
-  
+    
   ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
   ;; langDep -> '(collects #"racket" #"main.rkt")
 
@@ -1073,47 +1038,8 @@ put the usual application-rands to the operands
   (define syntax-phase-provides (caddr (assv 0 (mod-provides code))))
 
   (define all-provides '() #;(append regular-provides syntax-phase-provides))
-
-  (define (handle-provides provs out)
-  (cond
-    [(null? provs) out]
-    [else
-     (let*
-         ([current-module-path (string-append relative-current-dir module-name ".rkt")]
-          [pr (car provs)]
-          [out-name (symbol->string (provided-name pr))]
-          [src (provided-src pr)]
-          [src-path (if (not src) ;; then it's from our current module
-                        current-module-path
-                        (let ([path (resolved-module-path-name
-                                     (module-path-index-resolve src))])
-                          (if (symbol? path)
-                              (symbol->string path)
-                              (path->string path))))]
-          [orig-name (symbol->string (provided-src-name pr))]
-          [nom-src (provided-nom-src pr)] ;; <- interesting that this is a list
-          [nom-src-path (if (not src)
-                            current-module-path
-                            (let ([path (resolved-module-path-name
-                                         (module-path-index-resolve
-                                          (begin (when (> (length nom-src) 1) (error 'handle-provides "we got more than one nom-srcs"))
-                                                 (car nom-src))))])
-                              (if (symbol? path)
-                                  (symbol->string path)
-                                  (path->string path))))]
-          [provided-ast-node (if (string=? out-name orig-name)
-                                 ;; no rename-out
-                                 (hash* 'source-name out-name
-                                        'source-module src-path)
-                                 ;; rename-out
-                                 (list (hash* 'toplevel "rename")
-                                       (hash* 'source-name orig-name
-                                              'source-module nom-src-path)
-                                       (hash* 'toplevel out-name)))])
-       (handle-provides (cdr provs)
-                        (cons provided-ast-node out)))]))
   
-  (define top-provides (if (not (empty? all-provides))
+  (define top-provides '() #;(if (not (empty? all-provides))
                            (list (cons (hash* 'source-name "#%provide")
                                        (handle-provides all-provides '())))
                            '()))
@@ -1121,14 +1047,7 @@ put the usual application-rands to the operands
   (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
   (define phase0 (assv 0 top-reqs))
   (define phase0-reqs (cdr phase0))
-  #;(define lang-mod-path (resolved-module-path-name
-                       (module-path-index-resolve (car phase0-reqs))))
-  #;(define lang (if (list? lang-mod-path)
-                   (error 'lang-config "don't know how to handle a submodule here")
-                   (if (symbol? lang-mod-path)
-                       (symbol->string lang-mod-path)
-                       (path->string lang-mod-path))))
-
+  
   (define lang (module-path-index->path-string (car phase0-reqs)))
   
   (define lang-pycket? (or (string=? lang "#%kernel")
@@ -1159,23 +1078,63 @@ put the usual application-rands to the operands
   (define reqs (cdr phase0-reqs))
 
   (define top-level-req-forms
-    (map (lambda (req-mod)
-           (hash* 'require (list (list (module-path-index->path-string req-mod))))
-           #;(if (self-mod? req-mod)
-                 (begin (displayln req-mod) (error 'req-forms "there is a 'self' require at the top level??"))
-                 (let-values ([(module-path base-path) (module-path-index-split req-mod)])
-                   (if (and (list? module-path) (not base-path)) ;; ''#%builtin
-                       (hash* 'require (list (list (symbol->string (cadr module-path)))))
-                       (if (and (symbol? module-path) (not base-path)) ;; relative to an unspecified dir
-                           (let ([resolved-req-path (resolved-module-path-name
-                                                     (module-path-index-resolve req-mod))])
-                             (if (or (list? resolved-req-path) (symbol? resolved-req-path))
-                                 (begin (displayln req-mod) (error 'req-forms "don't know how to handle a submodule here"))
-                                 (hash* 'require (list (list (path->string resolved-req-path))))))
-                           (if (and (string? module-path) (self-mod? base-path))
-                               (hash* 'require (list (list (string-append (path->string (current-directory)) module-path))))
-                               (begin (displayln req-mod) (error 'req-forms "don't know how to handle this toplevel require yet"))))))))
-         reqs))
+    (map (λ (req-mod) (hash* 'require (list (list (module-path-index->path-string req-mod))))) reqs))
+
+  ;; code-body : listof def-values
+  (define (prepare-toplevels code-body)
+    ;; new-toplevels : (listof (listof pos-num top-sym))
+    (let ([new-toplevels (collect-toplevels code-body)])
+      (if (null? new-toplevels)
+          toplevels
+          (let ([top-len (length toplevels)]
+                [new-top-len (length new-toplevels)]
+                [poss (map car new-toplevels)])
+            (begin
+              ;; sanity check 1 : first pos starts from (length <global>toplevels)
+              (let ([first-pos (caar new-toplevels)])
+                (when (not (= first-pos top-len))
+                  (error 'prepare-toplevels "first pos should be : ~a -- but we got : ~a" top-len first-pos)))
+              ;; sanity check 2 : new-toplevels are ascending consecutive (+1)
+              (foldr (λ (prev current)
+                       (if (= (add1 prev) current)
+                           prev
+                           (error 'prepare-toplevels "new toplevels are not consecutive : ~a" new-toplevels)))
+                     (last poss)
+                     (take poss (sub1 new-top-len)))
+              ;; at this point, we know everything's in place,
+              ;; so we can safely append new-toplevels to the current global toplevels
+              (let ([top-syms (map cadr new-toplevels)])
+                (set! toplevels (append toplevels top-syms))) ; <- order is really important here
+              toplevels)))))
+
+  ;; collect-toplevels : (listof def-values) -> (listof top-var-sym pos-num)
+  (define (collect-toplevels code-body)
+    (sort
+     (filter
+      (compose not null?)
+      (map (λ (defval)
+             (let ([def-ids (def-values-ids defval)]
+                   [def-rhs (def-values-rhs defval)])
+               ;; sanity check : def-values-ids points to only one toplevel var
+               (if (not (and (list? def-ids) (= 1 (length def-ids))))
+                   (error 'collect-toplevels "more than one toplevel defs at def-values : ~a" defval)
+                   (let* ([top (car def-ids)]
+                          [pos (toplevel-pos top)])
+                     (if (< pos (length toplevels))
+                         '(); <- this is the real prefix-toplevels from comp-top
+                         (let ([sym (let ([name (cond [(lam? def-rhs) (lam-name def-rhs)]
+                                                      [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
+                                                      [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
+                                      (if (symbol? name) name (gensym (vector-ref name 0))))])
+                           (list pos sym)))))))
+           (filter def-values? code-body)))
+     (λ (l1 l2) (< (car l1) (car l2)))))
+
+  ;; toplevels : #f | global-bucket | module-variable
+  (define toplevels (prefix-toplevels (mod-prefix code)))
+  (define complete-toplevels (prepare-toplevels (mod-body code)))
+  (set-toplevels! complete-toplevels)
+
   
   ;; body-forms is a (listof hash hash)  
 
