@@ -130,6 +130,11 @@
                     [den (denominator racket-num)])
                  (hash* 'numerator (handle-number num)
                         'denominator (handle-number den)))]
+              [(complex? racket-num)
+               (let ([real (real-part racket-num)]
+                     [imag (imag-part racket-num)])
+                 (hash* 'real-part (hash* 'integer (number->string real))
+                        'imag-part (hash* 'integer (number->string imag))))]
               [else (error 'handle-num (format "handle this exact num: ~a" racket-num))])]
            [else
             (cond
@@ -137,11 +142,13 @@
                (if (memv racket-num extended-reals)
                    (hash* 'extended-real (number->string racket-num))
                    (hash* 'real racket-num))]
-              [else ; this part assumes (for the moment) it's a complex num
+              [(complex? racket-num)
                (let ([real (real-part racket-num)]
                      [imag (imag-part racket-num)])
-                 (hash* 'real-part (handle-number real)
-                        'imag-part (handle-number imag)))])])))
+                 (hash* 'real-part (hash* 'real (number->string real))
+                        'imag-part (hash* 'real (number->string imag))))]
+              [else
+               (error 'handle-num (format "handle this inexact num: ~a" racket-num))])])))
 
 (define (handle-boolean racket-bool)
   racket-bool)
