@@ -282,9 +282,13 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)
         result_arity = Arity.ONE if simple else None
+        if simple:
+            func_simple = func_arg_unwrap
+        else:
+            func_simple = None
         p = values.W_Prim(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          simple1=call1, simple2=call2)
+                          simple1=call1, simple2=call2, func_simple=func_simple)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env:

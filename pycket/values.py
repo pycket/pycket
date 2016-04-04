@@ -1063,7 +1063,7 @@ class W_ThunkProcCMK(W_Procedure):
 class W_Prim(W_Procedure):
     _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None, func_simple=None):
         self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
@@ -1071,6 +1071,7 @@ class W_Prim(W_Procedure):
         self.result_arity = result_arity
         self.simple1 = simple1
         self.simple2 = simple2
+        self.func_simple = func_simple
 
     def get_arity(self):
         return self.arity
@@ -1087,6 +1088,8 @@ class W_Prim(W_Procedure):
             result = self.simple1(args[0])
         elif self.simple2 is not None and len(args) == 2:
             result = self.simple2(args[0], args[1])
+        elif self.func_simple is not None:
+            result = self.func_simple(args)
         else:
             return W_Procedure.call_with_extra_info_and_stack(
                     self, args, env, extra_call_info)
