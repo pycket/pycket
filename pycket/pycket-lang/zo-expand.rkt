@@ -85,7 +85,6 @@
                              -inf.0 -inf.f
                              +nan.0 +nan.f))
 
-;; TODO: we'll probably need a more precise one
 (define (handle-number racket-num)
   (hash* 'number
          (cond
@@ -94,7 +93,7 @@
               [(integer? racket-num)
                (hash* 'integer (number->string racket-num))]
               [(rational? racket-num)
-               (let ;; assumes it's an exact rational
+               (let
                    ([num (numerator racket-num)]
                     [den (denominator racket-num)])
                  (hash* 'numerator (handle-number num)
@@ -206,8 +205,7 @@ put the usual application-rands to the operands
                      'operands operands-evaluated)
               (hash* 'operator (hash* 'letrec-bindings (list (list (list closure-ref)
                                                                    (handle-closure rator newlocalstack current-closure-refs)))
-                                      'letrec-body (list (hash* 'lexical closure-ref))
-                                      #;(list (hash* 'operator (hash* 'lexical closure-ref) 'operands operands-evaluated)))
+                                      'letrec-body (list (hash* 'lexical closure-ref)))
                      'operands operands-evaluated)))
         (hash* 'operator rator-evaluated
                'operands operands-evaluated))))
@@ -215,6 +213,7 @@ put the usual application-rands to the operands
 
 (define (handle-lambda lam-form localref-stack current-closure-refs)
   (let* ([name (lam-name lam-form)]
+         ;; TODO : revisit
          [source (if (null? name) '()
                      (if (vector? name)
                          (let* ([real-name (path->string (vector-ref name 1))]
@@ -235,8 +234,7 @@ put the usual application-rands to the operands
          [span 123]
          ;; module seems to be the same for every lambda form,
          ;; pointing to a private module about chaperones/impersonators
-         [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]
-                                     ;(string-append collects-dir "/racket/private/qq-and-or.rkt")))]
+         [module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))]                                     
 
          [num-args (lam-num-params lam-form)]
 
@@ -245,6 +243,7 @@ put the usual application-rands to the operands
                              (error 'handle-lambda "investigate: num-args and (length param-types) are not equal"))
                            (lam-param-types lam-form))] ;; val - ref - flonum - fixnum - extflonum
          ;; formal symbols
+         ;; TODO : refactor/cleanup
          [symbols-for-formals (map (λ (x)
                                      (begin
                                        (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
@@ -277,10 +276,6 @@ put the usual application-rands to the operands
 
          [new-localref-stack (append captured-current-stack-items new-localref-stack-1)]
 
-
-         ;[new-localref-stack (append total-symbols-with-closure-map localref-stack)]
-         
-         
          [lamBda
           (let ([args (map (λ (sym) (hash* 'lexical (if (box? sym) (unbox sym) sym))) symbols-for-formals)])
             (if rest?
@@ -313,8 +308,7 @@ put the usual application-rands to the operands
         (display "inside??? ====>   ")
         (displayln (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs) true false)))
       
-        
-      (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs) ;(memv gen-id current-closure-refs) somehow doesn't work?? 
+      (if (ormap (λ (cr) (string=? gen-id cr)) current-closure-refs)
           (hash* 'lexical gen-id)
           (if (lam? code)
               (handle-lambda code localref-stack (cons gen-id current-closure-refs))
@@ -325,14 +319,6 @@ put the usual application-rands to the operands
          [args-part (apply-values-args-expr app-form)]
 
          [proc (to-ast-single proc-part localref-stack current-closure-refs)]
-
-         #;[mod-var (if (not (toplevel? proc-part))
-                      (error 'handle-apply-values (format "proc is NOT a toplevel, but : ~a" proc-part))
-                      (list-ref TOPLEVELS (toplevel-pos proc-part)))]
-
-         #;[proc (if (not (module-variable? mod-var))
-                   (error 'handle-apply-values "toplevel is NOT a module-variable")
-                   (to-ast-single mod-var localref-stack current-closure-refs))]
 
          [m (if (toplevel? proc-part)
                 (let ([t (list-ref TOPLEVELS (toplevel-pos proc-part))])
@@ -362,19 +348,21 @@ put the usual application-rands to the operands
     (hash* 'operator (hash* 'source-name "call-with-values")
            'operands (list lambda-form proc))))
 
+;; TODO : refactor/cleanup (don't need boxes anymore)
 (define (handle-localref lref-form localref-stack)
   (let* ([clear? (localref-clear? lref-form)]
          [unbox? (localref-unbox? lref-form)]
          [pos (localref-pos lref-form)]
-         [stack-slot (let ([slot (with-handlers ([exn:fail? (lambda (e) (displayln (format "getting pos ~a, from ~a" pos localref-stack)) (raise e))]) (list-ref localref-stack pos))])
-                       (begin
-                         #;(when (and unbox? (not (box? slot)))
-                           (error 'handle-localref (format "unbox? is true, but pos --~a-- doesn't look like a box : ~a\n\n here's the stack : ~a"  pos slot localref-stack)))
-                         (when (and (not unbox?) (box? slot) DEBUG)
-                           (displayln
-                            (format "localref warning : unbox? is false, but pos --~a-- is a box : ~a\n\n" pos slot)))
-                         #;(if unbox? (unbox slot) slot)
-                         (if (box? slot) (unbox slot) slot)))])
+         [stack-slot
+          (let
+              ([slot (with-handlers ([exn:fail? (lambda (e) (displayln (format "getting pos ~a, from ~a" pos localref-stack)) (raise e))])
+                       (list-ref localref-stack pos))])
+            (begin
+              (when (and (not unbox?) (box? slot) DEBUG)
+                (displayln
+                 (format "localref warning : unbox? is false, but pos --~a-- is a box : ~a\n\n" pos slot)))
+              #;(if unbox? (unbox slot) slot)
+              (if (box? slot) (unbox slot) slot)))])
     (cond
       [(hash? stack-slot) (error 'handle-localref "interesting... we seem to have a hash in the stack slot : ~a" stack-slot)]
       [(box? stack-slot) (error 'handle-localref "we have unboxing issues with pos : ~a - slot : ~a" pos stack-slot)]
@@ -382,9 +370,7 @@ put the usual application-rands to the operands
                    (let ([slot-payload (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot)])
                      (if (or (box? slot-payload)
                              (and (string? stack-slot)
-                                  (string-contains? stack-slot "dummy")
-                                  #;(string-contains? slot-payload "uninitialized")
-                                  #;(string-contains? stack-slot "slot")))
+                                  (string-contains? stack-slot "dummy")))
                          (error 'handle-localref
                                 "pos: ~a shouldn't have extracted this: ~a \n here's the stack: \n~a\n"
                                 pos stack-slot localref-stack)
@@ -416,33 +402,7 @@ put the usual application-rands to the operands
                           (error 'module-path-index->path-string "something's wrong with the resolved base path : ~a" base-path-str))
                         (let* ([spl (string-split base-path-str "/")]
                                [real-base (string-append "/" (string-join (take spl (sub1 (length spl))) "/") "/")])
-                          (string-append real-base module-path))))))
-            
-            #;(if (and (string? module-path) (self-mod? base-path))
-                  (clean-append relative-current-dir module-path)
-                  (if (string? module-path) ;; it may be resolved
-                      (with-handlers ([exn:fail? (λ (e)
-                                                   (clean-append relative-current-dir module-path))])
-                        (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
-                          (if (symbol? path)
-                              (symbol->string path)
-                              (path->string path))))
-                      (begin (displayln module-path)
-                             (error 'module-path-index->path-string "cannot handle module path index"))))
-            #;(if (string? module-path)
-                  (string-append relative-current-dir module-path)
-                  (begin (displayln module-path)
-                         (error 'module-path-index->path-string "cannot handle module path index")))
-            #;(if (and (string? module-path) (self-mod? base-path))
-                  (string-append relative-current-dir module-path)
-                  (if (and (string? module-path) (not (self-mod? base-path))) ;; this can be resolved as well
-                      (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
-                        (if (symbol? path)
-                            (symbol->string path)
-                            (path->string path)))
-                      (begin (displayln module-path)
-                             (error 'module-path-index->path-string "cannot handle module path index"))))
-            ))))
+                          (string-append real-base module-path))))))))))
 
 (define (handle-module-variable mod-var localref-stack)
   (let* ([name (symbol->string (module-variable-sym mod-var))]
@@ -470,6 +430,7 @@ put the usual application-rands to the operands
                              current-mod-path
                              ;; it's a module-variable
                              (module-path-index->path-string (module-variable-modidx topvar)))]
+               ;; TODO : refactor
                [is-lifted? false]
                [name-ref-hash (if (boolean? topvar) 'dummy
                                   (if (memv (string->symbol name) primitives) ;; it's a primitive
@@ -646,8 +607,6 @@ put the usual application-rands to the operands
          [boxes? (let-void-boxes? body-form)]
          [body (let-void-body body-form)]
          [count-lst (range count)]
-         ;[slot (if boxes? (box 'uninit-box-slot) 'uninitialized-slot)]
-         ;[boxls (build-list count (λ (x) slot))]
          [payload (if boxes? "let-void-box-" "let-void-")]
          [new-slots (map (λ (s) (symbol->string (gensym (string-append payload (number->string s) ".")))) count-lst)]
          [rhss (map (λ (r) (hash* 'quote (hash* 'toplevel "uninitialized"))) count-lst)]
@@ -678,28 +637,13 @@ put the usual application-rands to the operands
          [mod-region (let ([reg (map (λ (p) (list-ref localref-stack p)) slot-positions)])
                        (begin
                          (when DEBUG (displayln (format "install val boxes? : ~a --\nModified region : ~a\n" boxes? reg)))
-                         #;(when (not (andmap (λ (slot) (if boxes?
-                                                          (string-contains? slot "let-void-box")
-                                                          (string-contains? slot "let-void"))) reg))
-                           (error 'handle-install-value "boxes? : ~a --- to be modified region doesn't look good : ~a" boxes? reg))
                          reg))]
 
          [set-nodes (map (λ (let-void-slot inst-val-binding)
                            (list (hash* 'source-name "set!")
                                  (hash* 'lexical let-void-slot)
                                  (hash* 'lexical inst-val-binding))) mod-region binding-list)]
-         
-         #;[modified-stack (begin
-                           ;; check the validity of the slot-positions
-                           (if (andmap (λ (slot) (if boxes? (box? slot) (symbol=? slot 'uninitialized-slot))) mod-region)
-                               'ok
-                               (error 'handle-install-value (format "boxes? : ~a --- to be modified region doesn't look good : ~a" boxes? mod-region)))
-                           (let* ([pre-mod (take localref-stack (first slot-positions))]
-                                  [post-mod (drop localref-stack (+ pos count))]
-                                  [new-region (if boxes? (map box binding-list) binding-list)]) ;; if boxes?, we construct new boxes
-                             (begin (when DEBUG (displayln (format "NEW modified region : ~a\n" new-region)))
-                                    (append pre-mod new-region post-mod))))]
-         
+                  
          [rhs-ready (list (list binding-list
                                 (to-ast-single rhs localref-stack current-closure-refs)))])
     ;; producing json for pycket
@@ -731,9 +675,7 @@ put the usual application-rands to the operands
                 (error 'handle-let-rec (format "posiitons : ~a ---- to be modified slots don't look good : ~a" slot-positions localref-stack)))
             (append reversed-proc-names (drop localref-stack slot-count)))]
 
-         [proc-bodies (map (λ (proc)
-                             (to-ast-single proc new-localref-stack current-closure-refs))
-                           procs)]
+         [proc-bodies (map (λ (proc) (to-ast-single proc new-localref-stack current-closure-refs)) procs)]
          [body (let-rec-body letrec-form)])
     
     (hash* 'letrec-bindings (map (λ (p-name p-body)
@@ -764,6 +706,7 @@ put the usual application-rands to the operands
                              
                              [multiple-args? (lam-rest? clause)] ;; is the rest? true
 
+                             ;; TODO : refactor/cleanup
                              [symbols-for-formals (map (λ (x)
                                      (begin
                                        (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
@@ -1019,26 +962,16 @@ put the usual application-rands to the operands
   (define dep-file (read (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.dep"))))
   
   (define version (car dep-file))
-
-
-  ;; config
-  ;; global-config
-  
-  ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
-  ;; langDep -> '(collects #"racket" #"main.rkt")
   
   (define comp-top (zo-parse (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.zo"))))
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
-    
-  ;; language          (language . ("/home/caner/programs/racket/collects/racket/main.rkt"))
-  ;; langDep -> '(collects #"racket" #"main.rkt")
 
   (define regular-provides (cadr (assv 0 (mod-provides code))))
   (define syntax-phase-provides (caddr (assv 0 (mod-provides code))))
 
   (define all-provides '() #;(append regular-provides syntax-phase-provides))
-  
+  ;; removed handle-provides (since we don't care about the provides now)
   (define top-provides '() #;(if (not (empty? all-provides))
                            (list (cons (hash* 'source-name "#%provide")
                                        (handle-provides all-provides '())))
@@ -1135,9 +1068,6 @@ put the usual application-rands to the operands
   (define complete-toplevels (prepare-toplevels (mod-body code)))
   (set-toplevels! complete-toplevels)
 
-  
-  ;; body-forms is a (listof hash hash)  
-
   (define final-json-hash (compile-json global-config
                                         (if lang-pycket? "#%kernel" lang)
                                         (string-append sub-dirs-str "fromBytecode_" module-name)
@@ -1150,4 +1080,3 @@ put the usual application-rands to the operands
     (write-json final-json-hash out)
     (newline out)
     (flush-output out)))
-
