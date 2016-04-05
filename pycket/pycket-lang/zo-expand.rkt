@@ -1015,8 +1015,17 @@ put the usual application-rands to the operands
 
   ;; code-body : listof def-values
   (define (prepare-toplevels code-body)
-    ;; new-toplevels : (listof (listof pos-num top-sym))
-    (let ([new-toplevels (collect-toplevels code-body)])
+    (let* ([toplen (length toplevels)]
+           [new-toplevels** (filter def-values? code-body)]
+           [new-toplevels* (filter (λ (defval)
+                                     (let ([ids (def-values-ids defval)])
+                                       (cond
+                                         [(= 1 (length ids)) #t]
+                                         [(ormap (λ (top) (> (toplevel-pos top) toplen)) ids)
+                                          (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " ids defval)]
+                                         [else #f]))) new-toplevels**)]
+           ;; new-toplevels : (listof (listof pos-num top-sym))
+           [new-toplevels (collect-toplevels new-toplevels*)])
       (if (null? new-toplevels)
           toplevels
           (let ([top-len (length toplevels)]
@@ -1060,7 +1069,7 @@ put the usual application-rands to the operands
                                                       [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
                                       (if (symbol? name) name (gensym (vector-ref name 0))))])
                            (list pos sym)))))))
-           (filter def-values? code-body)))
+           code-body))
      (λ (l1 l2) (< (car l1) (car l2)))))
 
   ;; toplevels : #f | global-bucket | module-variable
