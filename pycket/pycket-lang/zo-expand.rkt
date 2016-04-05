@@ -96,8 +96,8 @@
                (let
                    ([num (numerator racket-num)]
                     [den (denominator racket-num)])
-                 (hash* 'numerator (handle-number num)
-                        'denominator (handle-number den)))]
+                 (hash* 'numerator (hash* 'integer (number->string num))
+                        'denominator (hash* 'integer (number->string den))))]
               [(complex? racket-num)
                (let ([real (real-part racket-num)]
                      [imag (imag-part racket-num)])
@@ -1015,60 +1015,54 @@ put the usual application-rands to the operands
 
   ;; code-body : listof def-values
   (define (prepare-toplevels code-body)
-    (let* ([toplen (length toplevels)]
-           [new-toplevels** (filter def-values? code-body)]
-           [new-toplevels* (filter (λ (defval)
-                                     (let ([ids (def-values-ids defval)])
-                                       (cond
-                                         [(= 1 (length ids)) #t]
-                                         [(ormap (λ (top) (> (toplevel-pos top) toplen)) ids)
-                                          (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " ids defval)]
-                                         [else #f]))) new-toplevels**)]
-           ;; new-toplevels : (listof (listof pos-num top-sym))
-           [new-toplevels (collect-toplevels new-toplevels*)])
+    (let* ([defvals (filter def-values? code-body)]
+           [new-toplevels (collect-toplevels defvals)]) ;; <-- ((pos-num top-sym) ...)
       (if (null? new-toplevels)
-          toplevels
-          (let ([top-len (length toplevels)]
-                [new-top-len (length new-toplevels)]
-                [poss (map car new-toplevels)])
-            (begin
-              ;; sanity check 1 : first pos starts from (length <global>toplevels)
-              (let ([first-pos (caar new-toplevels)])
-                (when (not (= first-pos top-len))
-                  (error 'prepare-toplevels "first pos should be : ~a -- but we got : ~a" top-len first-pos)))
-              ;; sanity check 2 : new-toplevels are ascending consecutive (+1)
-              (foldr (λ (prev current)
-                       (if (= (add1 prev) current)
-                           prev
-                           (error 'prepare-toplevels "new toplevels are not consecutive : ~a" new-toplevels)))
-                     (last poss)
-                     (take poss (sub1 new-top-len)))
-              ;; at this point, we know everything's in place,
-              ;; so we can safely append new-toplevels to the current global toplevels
-              (let ([top-syms (map cadr new-toplevels)])
-                (set! toplevels (append toplevels top-syms))) ; <- order is really important here
-              toplevels)))))
+          toplevels ;; don't bother
+          (let*
+              ([toplen (length toplevels)]
+               ;; aligning new toplevels like ((30 x) (32 a) (35 b)) ==> ((30 x) (31 dummy) (32 a) (33 dummy) (34 dummy) (35 b))
+               ;; we know that there's no reference in the code to the missing toplevels, but the position matters (for list-ref)
+               ;; TODO : revisit : use a hashmap for toplevels
+               [aligned-new-toplevels (foldr (λ (x rest)
+                                               (if (or (null? rest)
+                                                       (= 1 (- (caar rest) (car x))))
+                                                   (cons x rest)
+                                                   (let ([diff (- (caar rest) (car x) 1)])
+                                                     (cons x (append (build-list diff (λ (n) (list (+ n x 1) 'dummytop))) rest))))) null new-toplevels)]
 
-  ;; collect-toplevels : (listof def-values) -> (listof top-var-sym pos-num)
+               [padded-new-toplevels (let* ([diff (- (caar aligned-new-toplevels) toplen)]
+                                            [pad (build-list diff (λ (n) (list (+ n toplen) 'dummytop)))])
+                                       (append pad aligned-new-toplevels))])
+                                       
+            ;; at this point, we know everything's in place,
+            ;; so we can safely append prepared new-toplevels to the current global toplevels
+            (let ([top-syms (map cadr padded-new-toplevels)])
+              (append toplevels top-syms))))))
+  
+  ;; collect-toplevels : (listof def-values) -> (listof pos-num top-var-sym)
   (define (collect-toplevels code-body)
     (sort
      (filter
       (compose not null?)
       (map (λ (defval)
-             (let ([def-ids (def-values-ids defval)]
-                   [def-rhs (def-values-rhs defval)])
-               ;; sanity check : def-values-ids points to only one toplevel var
-               (if (not (and (list? def-ids) (= 1 (length def-ids))))
-                   (error 'collect-toplevels "more than one toplevel defs at def-values : ~a" defval)
-                   (let* ([top (car def-ids)]
-                          [pos (toplevel-pos top)])
-                     (if (< pos (length toplevels))
-                         '(); <- this is the real prefix-toplevels from comp-top
-                         (let ([sym (let ([name (cond [(lam? def-rhs) (lam-name def-rhs)]
-                                                      [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
-                                                      [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
-                                      (if (symbol? name) name (gensym (vector-ref name 0))))])
-                           (list pos sym)))))))
+             (let* ([def-ids (def-values-ids defval)]
+                    [def-rhs (def-values-rhs defval)]
+                    [poss (map toplevel-pos def-ids)]
+                    [toplen (length toplevels)]) ; <- this is the real prefix-toplevels from comp-top
+               (if (= (length poss) 1)
+                   (if (< (car poss) toplen)
+                       '()
+                       (let ([sym (let ([name (cond [(lam? def-rhs) (lam-name def-rhs)]
+                                                    [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
+                                                    [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
+                                    (if (symbol? name) name (gensym (vector-ref name 0))))])
+                         (list (car poss) sym)))
+                   ;; we have multiple toplevels at the defval
+                   (if (ormap (λ (pos) (>= pos toplen)) poss)
+                       (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " poss defval)
+                       ;; then all the top-posses are < toplen, thus we ignore
+                       '()))))
            code-body))
      (λ (l1 l2) (< (car l1) (car l2)))))
 
