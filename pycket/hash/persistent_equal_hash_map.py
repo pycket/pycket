@@ -186,8 +186,9 @@ class BitmapIndexedNode(INode):
                 list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                 return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
 
-    @objectmodel.always_inline
-    def find_step(self, shift, hash_val, key, not_found):
+    def find_step(self, shift, hash_val, key, not_found, env, cont):
+        from pycket.interpreter import return_value
+        from pycket.prims.equal import equal_pred
         bit = bitpos(hash_val, shift)
         if (self._bitmap & bit) == 0:
             return not_found
@@ -195,10 +196,19 @@ class BitmapIndexedNode(INode):
         key_or_null = self._array[2 * idx]
         val_or_node = self._array[2 * idx + 1]
         if key_or_null is None:
-            return val_or_node
-        if equal(key, key_or_null):
-            return val_or_node
-        return not_found
+            return return_value(val_or_node, env, cont)
+        cont = self.find_step_cont(val_or_node, not_found, env, cont)
+        return equal_pred(key, key_or_null, env, cont)
+
+    @continuation
+    @staticmethod
+    def find_step_cont(val_or_node, not_found, env, cont, _vals):
+        from pycket.interpreter import check_one_val, return_value
+        from pycket.values      import w_false
+        val = check_one_val(_vals)
+        if val is w_false:
+            return return_value(not_found, env, cont)
+        return return_value(val_or_node, env, cont)
 
     @jit.dont_look_inside
     def without_inode(self, shift, hash, key):
@@ -324,13 +334,15 @@ class ArrayNode(INode):
 
         return BitmapIndexedNode(bitmap, new_array, self._size - 1)
 
-    @objectmodel.always_inline
-    def find_step(self, shift, hash_val, key, not_found):
+    # @objectmodel.always_inline
+    def find_step(self, shift, hash_val, key, not_found, env, cont):
+        from pycket.interpreter import check_one_val, return_value
         idx = mask(hash_val, shift)
         node = self._array[idx]
-        if node is None:
-            return not_found
-        return node
+        return return_value(not_found if node is None else node, env, cont)
+        # if node is None:
+            # return not_found
+        # return node
 
 class HashCollisionNode(INode):
 
@@ -393,13 +405,47 @@ class HashCollisionNode(INode):
         return BitmapIndexedNode(edit, new_array, self._size) \
                                 .assoc_inode(shift, hash_val, key, val, added_leaf)
 
-    @objectmodel.always_inline
-    def find_step(self, shift, hash_val, key, not_found):
-        for x in range(0, len(self._array), 2):
-            key_or_nil = self._array[x]
-            if key_or_nil is not None and equal(key_or_nil, key):
-                return self._array[x + 1]
-        return not_found
+    # @objectmodel.always_inline
+    def find_step(self, shift, hash_val, key, not_found, env, cont):
+        return self.find_step_loop(shift, hash_val, key, not_found, 0, env, cont)
+        # for x in range(0, len(self._array), 2):
+            # key_or_nil = self._array[x]
+            # if key_or_nil is not None and equal(key_or_nil, key):
+                # return self._array[x + 1]
+        # return not_found
+
+    @loop_label
+    @jit.unroll_safe
+    def find_step_loop(self, shift, hash_val, key, not_found, x, env, cont):
+        from pycket.interpreter import return_value
+        from pycket.prims.equal import equal_pred
+        stop = len(self._array)
+        if i >= stop:
+            return return_value(not_found, env, cont)
+        key_or_nil = self._array[x]
+        if key_or_nil is None:
+            return self.find_step_loop(shift, hash_val, key, not_found, x + 2, env, cont)
+        cont = self.find_step_equal_cont(shift, hash_val, key, not_found, x, env, cont)
+        return equal_pred(key_or_nil, key, env, cont)
+
+    @continuation
+    def find_step_equal_cont(self, shift, hash_val, key, not_found, x, env, cont, _vals):
+        from pycket.interpreter import check_one_val, return_value
+        from pycket.values      import w_false
+        val = check_one_val(_vals)
+        if val is not w_false:
+            return return_value(self._array[x+1], env, cont)
+        return self.find_step_loop(shift, hash_val, key, not_found, x + 2, env, cont)
+        # key_or_nil = None
+        # while x < stop:
+            # key_or_nil = self._array[x]
+            # if key_or_nil is not None:
+                # break
+            # x += 2
+        # else:
+            # return return_value(not_found, env, cont)
+        # assert result is not None
+        # return return_value(self._array[x], env, cont)
 
     def find_index(self, key):
         i = r_int(0)
@@ -456,7 +502,7 @@ class PersistentHashMap(W_Object):
         newcnt = added_leaf.adjust_size(self._cnt)
         return PersistentHashMap(newcnt, new_root)
 
-    def val_at(self, key, not_found):
+    def val_at(self, key, not_found, env, cont):
         if self._root is None:
             return not_found
 
@@ -466,11 +512,11 @@ class PersistentHashMap(W_Object):
         while True:
             t = type(val_or_node)
             if t is BitmapIndexedNode:
-                val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                val_or_node = val_or_node.find_step(shift, hashval, key, not_found, env, cont)
             elif t is ArrayNode:
-                val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                val_or_node = val_or_node.find_step(shift, hashval, key, not_found, env, cont)
             elif t is HashCollisionNode:
-                val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
+                val_or_node = val_or_node.find_step(shift, hashval, key, not_found, env, cont)
             else:
                 return val_or_node
             shift += 5
@@ -513,6 +559,19 @@ class PersistentHashMap(W_Object):
 
     def make_copy(self):
         return PersistentHashMap(self._cnt, self._root)
+
+@loop_label
+def val_at_loop(val_or_node, key, hashval, shift, not_found, env, cont):
+    from pycket.interpreter import return_value
+    if not isinstance(val_or_node, INode):
+        assert isinstance(val_or_node, W_Object)
+        return return_value(val_or_node, env, cont)
+    cont = val_at_cont(key, hash_val, shift, not_found, env, cont)
+    return val_or_node.find_step(shift, hashval, key, not_found, env, cont)
+
+@continuation
+def val_at_cont(key, hash_val, shift, not_found, env, cont, _vals):
+    return val_at_loop(_vals, key, hash_val, shift + 5, not_found, env, cont)
 
 PersistentHashMap.INode = INode
 PersistentHashMap.BitmapIndexedNode = BitmapIndexedNode

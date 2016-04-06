@@ -92,6 +92,9 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = idx + 1
     return equal_vec_func(a, b, inc, info, env, cont)
 
+def equal_pred(a, b, env, cont):
+    return equal_func(a, b, EqualInfo.BASIC_SINGLETON, env, cont)
+
 def equal_func(a, b, info, env, cont):
     return equal_func_loop(a, b, info, env, cont)
 
