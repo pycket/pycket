@@ -86,6 +86,13 @@
                              -inf.0 -inf.f
                              +nan.0 +nan.f))
 
+(define (convert-single-precs ext-real)
+  (cond
+    [(or (eqv? ext-real -nan.f) (eqv? ext-real +nan.f)) +nan.0]
+    [(eqv? ext-real +inf.f) +inf.0]
+    [(eqv? ext-real -inf.f) -inf.0]
+    [else ext-real]))
+
 (define (handle-number racket-num)
   (hash* 'number
          (cond
@@ -109,8 +116,8 @@
             (cond
               [(real? racket-num)
                (if (memv racket-num extended-reals)
-                   (hash* 'extended-real (number->string racket-num))
-                   (hash* 'real racket-num))]
+                   (hash* 'extended-real (number->string (convert-single-precs racket-num)))
+                   (hash* 'real (+ 0.0 (* 1.0 (inexact->exact racket-num)))))]
               [(complex? racket-num)
                (let ([real (real-part racket-num)]
                      [imag (imag-part racket-num)])
