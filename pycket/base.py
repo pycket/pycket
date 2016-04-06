@@ -105,6 +105,9 @@ class W_Object(W_ProtoObject):
     def eqv(self, other):
         return self is other # default implementation
 
+    def has_simple_equal_hash(self):
+        return True
+
     def hash_equal(self, info=None):
         return objectmodel.compute_hash(self) # default implementation
 

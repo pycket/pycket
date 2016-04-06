@@ -29,6 +29,9 @@ class ProxyMixin(object):
     def get_properties(self):
         return self.properties
 
+    def has_simple_equal_hash(self):
+        return False
+
     def immutable(self):
         return get_base_object(self.inner).immutable()
 

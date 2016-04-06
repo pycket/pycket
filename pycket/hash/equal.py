@@ -2,11 +2,16 @@
 from pycket                   import config
 from pycket                   import values, values_string
 from pycket.base              import SingletonMeta
-from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
-from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
+from pycket.error             import SchemeException
+from pycket.hash.base         import (
+    W_HashTable,
+    W_ImmutableHashTable,
+    get_dict_item,
+    w_missing)
+from pycket.hash.simple       import W_EqualImmutableHashTable
 from rpython.rlib             import rerased
-from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
+from rpython.rlib.objectmodel import import_from_mixin, r_dict
 
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
@@ -298,15 +303,14 @@ class ByteHashmapStrategy(HashmapStrategy):
         return r_dict(cmp_bytes, hash_bytes)
 
 class W_EqualHashTable(W_HashTable):
-    _attrs_ = ['strategy', 'hstorage', 'is_immutable']
-    _immutable_fields_ = ['is_immutable']
-    def __init__(self, keys, vals, immutable=False):
+    _attrs_ = ['strategy', 'hstorage']
+    def __init__(self, keys, vals):
         self.is_immutable = immutable
         self.strategy = _find_strategy_class(keys)
         self.hstorage = self.strategy.create_storage(keys, vals)
 
     def immutable(self):
-        return self.is_immutable
+        return False
 
     def hash_items(self):
         return self.strategy.items(self)
@@ -329,4 +333,58 @@ class W_EqualHashTable(W_HashTable):
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.hash_items()]
         return "#hash(%s)" % " ".join(lst)
+
+# A variant of the immutable tables which can handle data types which cannot
+# be compared for equality in a simple way.
+class W_HybridImmutableHashTable(W_ImmutableHashTable):
+    _attrs_ = _immutable_fields_ = ['immutable_table', 'unhashable_data']
+
+    def __init__(self):
+        self.immutable_table = None
+        self.unhashable_data = None
+
+    def immutable(self):
+        return True
+
+    def hash_items(self):
+        pass
+
+    def hash_set(self, key, val, env, cont):
+        if key.has_simple_equal_hash():
+            pass
+
+    def hash_ref(self, key, env, cont):
+        pass
+
+    def length(self):
+        return self.immutable_table.length() + self.unhashable_data.length()
+
+    def tostring(self):
+        pass
+
+@continuation
+def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_vals)
+    return new.hash_set(keys[idx][0], val, env,
+            hash_copy_set_cont(keys, idx, src, new, env, cont))
+
+@continuation
+def hash_copy_set_cont(keys, idx, src, new, env, cont, _vals):
+    return hash_copy_loop(keys, idx + 1, src, new, env, cont)
+
+@loop_label
+def hash_copy_loop(keys, idx, src, new, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(keys):
+        return return_value(new, env, cont)
+    return src.hash_ref(keys[idx][0], env,
+            hash_copy_ref_cont(keys, idx, src, new, env, cont))
+
+def hash_copy(src, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(src, W_ImmutableHashTable):
+        return return_value(src.make_copy(), env, cont)
+    new = src.make_empty()
+    return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 
