@@ -13,6 +13,7 @@
 (define relative-current-dir 'rel-dir-beSetBy-main)
 
 (define TOPLEVELS '())
+(define TOPSYNTAX '())
 
 ;; FROM
 ;; https://github.com/racket/compiler/blob/master/compiler-lib/compiler/decompile.rkt#L14
@@ -382,7 +383,7 @@ put the usual application-rands to the operands
 
 (define (module-path-index->path-string mod-idx)    
   (if (self-mod? mod-idx)
-      (error 'module-path-index->path-string "don't know what to do with a self module index here")
+      (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
         (if (or (list? module-path) (symbol? module-path)) ;; then it is resolved
             (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
@@ -519,6 +520,7 @@ put the usual application-rands to the operands
     ((inline-variant? body-form) "inline-variant ")
     ((closure? body-form) "closure ")
     ((toplevel? body-form) "toplevel ")
+    ((topsyntax? body-form) "topsyntax ")
     ((hash? body-form) "Already hashed Val (pushed by let-one)")
     (else "Unknown: ")))
 
@@ -533,6 +535,21 @@ put the usual application-rands to the operands
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
+
+(define (handle-topsyntax topsyn-form localref-stack current-closure-refs)
+  (let* ([pos (topsyntax-pos topsyn-form)]
+         [selected-stx (list-ref TOPSYNTAX pos)] ;; stx?
+         [content (stx-content selected-stx)] ;; stx-obj?
+         [datum (stx-obj-datum content)]
+         [src-loc (stx-obj-srcloc content)]
+         [position (if (not src-loc) 12345 (srcloc-position src-loc))]
+         [span (if (not src-loc) 11 (srcloc-span src-loc))]
+         [source-path (if (not src-loc) (string-append relative-current-dir module-name ".rkt") (path->string (srcloc-source src-loc)))])
+    (hash* 'quote-syntax (to-ast-val datum)
+           'source (hash* '%p source-path)
+           'module (hash* '%mpi (hash* '%p source-path))
+           'position position
+           'span span)))
   
 (define (handle-seq seq-expr localref-stack current-closure-refs)
   (let* ([seqs (seq-forms seq-expr)]
@@ -788,6 +805,8 @@ put the usual application-rands to the operands
      (handle-byte-regexp val-form))
     ((bytes? val-form)
      (handle-bytes val-form))
+    ((stx-obj? val-form)
+     (to-ast-val (stx-obj-datum val-form)))
     ;; keep the boolean? and void? here
     ;; for they can be in lists/hashes
     ;; note that they're (not value?)
@@ -904,6 +923,8 @@ put the usual application-rands to the operands
       ;; closure (procedure constant)
       ((closure? body-form)
        (handle-closure body-form localref-stack current-closure-refs))
+      ((topsyntax? body-form)
+       (handle-topsyntax body-form localref-stack current-closure-refs))
       (else (begin (display "-- NOT SUPPORTED YET: ")
                    (display body-form)
                    (newline)(newline)
@@ -918,13 +939,14 @@ put the usual application-rands to the operands
     (set! module-name mod-name)
     (set! relative-current-dir rel-current-dir)))
 
-(define (set-toplevels! toplevels)
-  (set! TOPLEVELS toplevels))
+(define (set-toplevels! toplevels topsyntaxes)
+  (set! TOPLEVELS toplevels)
+  (set! TOPSYNTAX topsyntaxes))
 
-(define (to-ast-wrapper body-forms toplevels debug mod-name relative-dir)
+(define (to-ast-wrapper body-forms toplevels topstxs debug mod-name relative-dir)
   (begin
     (set-globals! debug mod-name relative-dir)
-    (set-toplevels! toplevels)
+    (set-toplevels! toplevels topstxs)
     (to-ast body-forms)))
 
 (module+ main
@@ -1069,7 +1091,10 @@ put the usual application-rands to the operands
   ;; toplevels : #f | global-bucket | module-variable
   (define toplevels (prefix-toplevels (mod-prefix code)))
   (define complete-toplevels (prepare-toplevels (mod-body code)))
-  (set-toplevels! complete-toplevels)
+
+  (define topsyntaxes (prefix-stxs (mod-prefix code))) ;; (listof stx?)
+  
+  (set-toplevels! complete-toplevels topsyntaxes)
 
   (define final-json-hash (compile-json global-config
                                         (if lang-pycket? "#%kernel" lang)
