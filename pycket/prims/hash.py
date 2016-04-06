@@ -8,7 +8,7 @@ from pycket.hash.simple  import (
     W_EqvImmutableHashTable, W_EqImmutableHashTable,
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
-from pycket.hash.equal   import W_EqualHashTable, hash_copy
+from pycket.hash.equal   import W_EqualHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -248,6 +248,32 @@ define_nyi("hash-clear", [W_HashTable])
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
+
+@continuation
+def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    val = check_one_val(_vals)
+    return new.hash_set(keys[idx][0], val, env,
+            hash_copy_set_cont(keys, idx, src, new, env, cont))
+
+@continuation
+def hash_copy_set_cont(keys, idx, src, new, env, cont, _vals):
+    return hash_copy_loop(keys, idx + 1, src, new, env, cont)
+
+@loop_label
+def hash_copy_loop(keys, idx, src, new, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(keys):
+        return return_value(new, env, cont)
+    return src.hash_ref(keys[idx][0], env,
+            hash_copy_ref_cont(keys, idx, src, new, env, cont))
+
+def hash_copy(src, env, cont):
+    from pycket.interpreter import return_value
+    if isinstance(src, W_ImmutableHashTable):
+        return return_value(src.make_copy(), env, cont)
+    new = src.make_empty()
+    return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 
 expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 
