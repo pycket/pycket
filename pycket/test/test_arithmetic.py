@@ -817,6 +817,8 @@ def test_fixnum_unsafe(doctest):
     #t
     > (unsafe-fxand 2 3)
     2
+    > (unsafe-fxior 2 3)
+    3
     > (unsafe-fxlshift 10 10)
     10240
     > (unsafe-fxrshift 1 20)

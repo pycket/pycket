@@ -114,6 +114,8 @@ def vector2immutablevector(v, env, cont):
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)],
         simple=False)
 def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
+    from pycket.interpreter import return_value
+
     if dest.immutable():
         raise SchemeException("vector-copy!: given an immutable destination")
     src_start  = _src_start.value if _src_start is not None else 0
@@ -123,6 +125,9 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     src_range  = src_end - src_start
     dest_range = dest.length() - dest_start
 
+    if src_range == 0:
+        return return_value(values.w_void, env, cont)
+
     if not (0 <= dest_start < dest.length()):
         raise SchemeException("vector-copy!: destination start out of bounds")
     if not (0 <= src_start <= src.length()) or not (0 <= src_start <= src.length()):
@@ -130,8 +135,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     if dest_range < src_range:
         raise SchemeException("vector-copy!: not enough room in target vector")
 
-    return vector_copy_loop(src, src_start, src_end,
-                dest, dest_start, 0, env, cont)
+    return vector_copy_loop(src, src_start, src_end, dest, dest_start, 0, env, cont)
 
 @loop_label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):

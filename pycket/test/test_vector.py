@@ -187,11 +187,16 @@ def test_flvector_set_wrong_type():
 def test_vector_copy_bang(doctest):
     """
     > (define v (vector 'A 'p 'p 'l 'e))
+    > (define src (vector))
+    > (define dest (vector 1))
     > (vector-copy! v 4 #(y))
     > (vector-copy! v 0 v 3 4)
     > v
     '#(l p p l y)
     > (vector-copy v 0 #() 0 0)
+    > (vector-copy! dest 1 src 0)
+    > dest
+    '#(1)
     """
 
 def test_list_vector_conversion():
