@@ -54,10 +54,10 @@ class INode(W_ProtoObject):
     def __init__(self, size):
         self._size = size
 
-    def assoc_inode(self, shift, hash_val, key, val, added_leaf):
+    def assoc_inode(self, shift, hash_val, key, val, added_leaf, env, cont):
         pass
 
-    def without_inode(self, shift, hash, key):
+    def without_inode(self, shift, hash, key, env, cont):
         pass
 
     def _get_item_node(self, index):
@@ -74,6 +74,8 @@ class INode(W_ProtoObject):
     def _subnodes(self):
         "NOT RPYTHON"
         pass
+
+NONE_NODE = W_Object()
 
 class BitmapIndexedNode(INode):
 
@@ -447,17 +449,41 @@ class HashCollisionNode(INode):
         # assert result is not None
         # return return_value(self._array[x], env, cont)
 
-    def find_index(self, key):
-        i = r_int(0)
-        while i < len(self._array):
-            if equal(key, self._array[i]):
-                return i
+    def find_index(self, key, env, cont):
+        return self._find_index(key, 0, env, cont)
 
-            i += 2
+    @loop_label
+    def _find_index(self, key, i, env, cont):
+        from pycket.interpreter import return_value
+        from pycket.values      import W_Fixnum
+        from pycket.prims.equal import equal_pred
+        if i >= len(self._array):
+            return return_value(W_Fixnum.MINUS_ONE, env, cont)
+        k1 = self._array[i]
+        cont = self.find_index_cont(key, i, env, cont)
+        return equal_pred(key, k1, env, cont)
 
-        return r_int(-1)
+    @continuation
+    def find_index_cont(self, key, i, env, cont, _vals):
+        from pycket.interpreter import check_one_val, return_value
+        from pycket.values      import w_false, W_Fixnum
+        val = check_one_val(_vals)
+        if val is not w_false:
+            idx = W_Fixnum(i)
+            return return_value(idx, env, cont)
+        return self._find_index(key, i + 2, env, cont)
 
-    @jit.dont_look_inside
+    # def find_index(self, key):
+        # i = r_int(0)
+        # while i < len(self._array):
+            # if equal(key, self._array[i]):
+                # return i
+
+            # i += 2
+
+        # return r_int(-1)
+
+    # @jit.dont_look_inside
     def without_inode(self, shift, hash, key):
         idx = self.find_index(key)
         if idx == -1:
@@ -468,6 +494,26 @@ class HashCollisionNode(INode):
 
         new_array = remove_pair(self._array, r_uint(idx) / 2)
         return HashCollisionNode(self._hash, new_array, self._size - 1)
+
+    def without_inode(self, shift, hash, key, env, cont):
+        cont = self.without_inode_cont(shift, hash, key, env, cont)
+        return self.find_index(key, env, cont)
+
+    @continuation
+    def without_inode_cont(self, shift, hash, key, env, cont, _vals):
+        from pycket.interpreter import check_one_val, return_value
+        from pycket.values      import W_Fixnum
+        val = check_one_val(_vals)
+        assert isinstance(val, W_Fixnum)
+        idx = val.value
+        if idx == -1:
+            return return_value(self, env, cont)
+        if len(self._array) == 1:
+            return return_value(NONE_NODE, env, cont)
+        new_array = remove_pair(self._array, r_uint(idx) / 2)
+        node = HashCollisionNode(self._hash, new_array, self.size - 1)
+        return return_value(node, env, cont)
+
 
 class PersistentHashMap(W_Object):
 
@@ -560,18 +606,20 @@ class PersistentHashMap(W_Object):
     def make_copy(self):
         return PersistentHashMap(self._cnt, self._root)
 
-@loop_label
-def val_at_loop(val_or_node, key, hashval, shift, not_found, env, cont):
-    from pycket.interpreter import return_value
-    if not isinstance(val_or_node, INode):
-        assert isinstance(val_or_node, W_Object)
-        return return_value(val_or_node, env, cont)
-    cont = val_at_cont(key, hash_val, shift, not_found, env, cont)
-    return val_or_node.find_step(shift, hashval, key, not_found, env, cont)
+    @loop_label
+    @staticmethod
+    def val_at_loop(val_or_node, key, hashval, shift, not_found, env, cont):
+        from pycket.interpreter import return_value
+        if not isinstance(val_or_node, INode):
+            assert isinstance(val_or_node, W_Object)
+            return return_value(val_or_node, env, cont)
+        cont = val_at_cont(key, hash_val, shift, not_found, env, cont)
+        return val_or_node.find_step(shift, hashval, key, not_found, env, cont)
 
-@continuation
-def val_at_cont(key, hash_val, shift, not_found, env, cont, _vals):
-    return val_at_loop(_vals, key, hash_val, shift + 5, not_found, env, cont)
+    @continuation
+    @staticmethod
+    def val_at_cont(key, hash_val, shift, not_found, env, cont, _vals):
+        return val_at_loop(_vals, key, hash_val, shift + 5, not_found, env, cont)
 
 PersistentHashMap.INode = INode
 PersistentHashMap.BitmapIndexedNode = BitmapIndexedNode

@@ -614,9 +614,10 @@ class W_Fixnum(W_Integer):
     def hash_equal(self, info=None):
         return self.value
 
-W_Fixnum.ZERO = W_Fixnum.make(0)
-W_Fixnum.ONE  = W_Fixnum.make(1)
-W_Fixnum.TWO  = W_Fixnum.make(2)
+W_Fixnum.MINUS_ONE = W_Fixnum.make(-1)
+W_Fixnum.ZERO      = W_Fixnum.make(0)
+W_Fixnum.ONE       = W_Fixnum.make(1)
+W_Fixnum.TWO       = W_Fixnum.make(2)
 
 class W_Flonum(W_Number):
     _immutable_fields_ = ["value"]
