@@ -38,6 +38,12 @@ def test_mutvars():
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
 
+def test_normalize():
+    from pycket.interpreter import Context
+    p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? 3 4) (+ x y) (+ x y)))")
+    c = Context.normalize_term(p)
+    import pdb; pdb.set_trace()
+
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
     from pycket.values import W_PromotableClosure

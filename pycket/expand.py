@@ -643,7 +643,7 @@ class JsonLoader(object):
                 cond = self.to_ast(obj["test"])
                 then = self.to_ast(obj["then"])
                 els  = self.to_ast(obj["else"])
-                return If.make_let_converted(cond, then, els)
+                return If(cond, then, els)
             if "quote" in obj:
                 return Quote(to_value(obj["quote"]))
             if "quote-syntax" in obj:

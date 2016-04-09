@@ -84,6 +84,9 @@ class AST(object):
             self._mvars = self._mutated_vars()
         return self._mvars
 
+    def normalize(self, ctxt):
+        return ctxt.plug(self)
+
     def _mutated_vars(self):
         raise NotImplementedError("abstract base class")
 

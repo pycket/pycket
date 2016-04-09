@@ -10,8 +10,10 @@ from pycket                   import config
 
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
+import inspect
 import sys
 
 # imported for side effects
@@ -29,6 +31,95 @@ BUILTIN_MODULES = [
     "#%extfl",
     "#%futures",
     "#%network" ]
+
+class Context(object):
+
+    __metaclass__ = extendabletype
+    _attrs_ = []
+
+    def plug(self, ast):
+        raise NotImplementedError("absract base class")
+
+class __extend__(Context):
+
+    def context(func):
+        argspec  = inspect.getargspec(func)
+        assert argspec.varargs  is None
+        assert argspec.keywords is None
+        assert argspec.defaults is None
+        argnames = argspec.args[:-1]
+
+        class PrimContext(Context):
+            _attrs_ = ["args"]
+            _immutable_fields_ = ["args"]
+            def __init__(self, *args):
+                Context.__init__(self)
+                self.args = args
+
+            def plug(self, ast):
+                args = self.args + (ast,)
+                return func(*args)
+
+        def make_context(*args):
+            return PrimContext(*args)
+        make_context.__name__ = "%sContext" % func.__name__.replace("_", "")
+
+        return make_context
+
+    @context
+    def Nil(ast):
+        return ast
+
+    Nil = Nil()
+
+    @staticmethod
+    def normalize_term(expr):
+        return expr.normalize(Context.Nil)
+
+    @staticmethod
+    def normalize_name(expr, ctxt, hint="g"):
+        ctxt = Context.Name(ctxt, hint)
+        return expr.normalize(ctxt)
+
+    @staticmethod
+    def Let(xs, Ms, body, ctxt):
+        return Context._Let(xs, Ms, body, 0, ctxt)
+
+    @staticmethod
+    @context
+    def _Let(xs, Ms, body, i, ctxt, ast):
+        assert len(xs) == len(Ms)
+        if i == len(Ms) - 1:
+            body = body.normalize(ctxt)
+            return make_let([xs[i]], [ast], [body])
+        X = xs[i]
+        i += 1
+        x_, M = xs[i], Ms[i]
+        ctxt    = Context._Let(xs, Ms, body, i, ctxt)
+        result  = make_let([X], [ast], [M.normalize(ctxt)])
+        return result
+
+    @staticmethod
+    @context
+    def If(thn, els, ctxt, tst):
+        thn = Context.normalize_term(thn)
+        els = Context.normalize_term(els)
+        result = If(tst, thn, els)
+        return ctxt.plug(result)
+
+    @staticmethod
+    @context
+    def Name(ctxt, hint, ast):
+        if ast.simple:
+            return ctxt.plug(ast)
+        sym  = Gensym.gensym(hint=hint)
+        body = ctxt.plug(sym)
+        return make_let_singlevar(sym, ast, [body])
+
+    @staticmethod
+    @context
+    def App(args, i, ctxt, ast):
+        return Context.normalize()
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
@@ -1272,22 +1363,21 @@ class SetBang(AST):
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
-    def __init__ (self, tst, thn, els):
-        assert tst.simple
+    def __init__(self, tst, thn, els):
         self.tst = tst
         self.thn = thn
         self.els = els
 
-    @staticmethod
-    def make_let_converted(tst, thn, els):
-        if tst.simple:
-            return If(tst, thn, els)
-        else:
-            fresh = Gensym.gensym("if_")
-            return Let(SymList([fresh]),
-                       [1],
-                       [tst],
-                       [If(LexicalVar(fresh), thn, els)])
+    # @staticmethod
+    # def make_let_converted(tst, thn, els):
+        # if tst.simple:
+            # return If(tst, thn, els)
+        # else:
+            # fresh = Gensym.gensym("if_")
+            # return Let(SymList([fresh]),
+                       # [1],
+                       # [tst],
+                       # [If(LexicalVar(fresh), thn, els)])
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
@@ -1305,6 +1395,10 @@ class If(AST):
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
+
+    def normalize(self, ctxt):
+        ctxt = Context.If(self.thn, self.els, ctxt)
+        return Context.normalize_name(self.tst, ctxt, hint="if")
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1864,6 +1958,14 @@ class Let(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
+
+    def normalize(self, ctxt):
+        args = self._rebuild_args()
+        # x, xs = args[0], args[1:]
+        # M, Ms = self.rhss[0], self.rhss[1:]
+        body  = Begin.make(self.body)
+        ctxt  = Context.Let(args, self.rhss, body, ctxt)
+        return self.rhss[0].normalize(ctxt)
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         if not config.prune_env:
