@@ -54,19 +54,17 @@ class __extend__(Context):
         argnames = argspec.args[:-1]
 
         class PrimContext(Context):
-            _attrs_ = ["args"]
-            _immutable_fields_ = ["args"]
+            _attrs_ = _immutable_fields_ = ["args"]
+
             def __init__(self, *args):
                 Context.__init__(self)
                 self.args = args
 
-            def __getitem__(self, ast):
-                args = self.args + (ast,)
-                return func(*args)
-
             def plug(self, ast):
                 args = self.args + (ast,)
                 return func(*args)
+
+            __getitem__ = plug
 
         def make_context(*args):
             return PrimContext(*args)
@@ -88,8 +86,11 @@ class __extend__(Context):
     Nil = Nil()
 
     @staticmethod
-    def normalize_term(expr):
-        return expr.normalize(Context.Nil)
+    @specialize.arg(2)
+    def normalize_term(expr, ctxt=Nil, expect=AST):
+        result = expr.normalize(ctxt)
+        assert isinstance(result, expect)
+        return result
 
     @staticmethod
     def normalize_name(expr, ctxt, hint="g"):
@@ -102,7 +103,7 @@ class __extend__(Context):
             return ctxt.plug(Context.EmptyList)
         expr = exprs[i]
         ctxt = Context.Names(exprs, i, ctxt)
-        return Context.normalize_name(expr, ctxt, hint="App")
+        return Context.normalize_name(expr, ctxt, hint="AppRands")
 
     @staticmethod
     def Let(xs, Ms, body, ctxt):
@@ -113,13 +114,14 @@ class __extend__(Context):
     def _Let(xs, Ms, body, i, ctxt, ast):
         assert len(xs) == len(Ms)
         if i == len(Ms) - 1:
-            body = body.normalize(ctxt)
+            body = Context.normalize_term(body, ctxt)
             return make_let([xs[i]], [ast], [body])
         X = xs[i]
         i += 1
         x_, M = xs[i], Ms[i]
-        ctxt    = Context._Let(xs, Ms, body, i, ctxt)
-        result  = make_let([X], [ast], [M.normalize(ctxt)])
+        ctxt   = Context._Let(xs, Ms, body, i, ctxt)
+        body   = Context.normalize_term(M, ctxt) 
+        result = make_let([X], [ast], [body])
         return result
 
     @staticmethod
@@ -140,7 +142,6 @@ class __extend__(Context):
     @context
     def AppRands(rator, ctxt, ast):
         assert isinstance(ast, Context.AstList)
-        import pdb; pdb.set_trace()
         rands  = ast.nodes
         result = App.make(rator, rands)
         return ctxt.plug(result)
@@ -152,7 +153,7 @@ class __extend__(Context):
             return ctxt.plug(ast)
         sym  = Gensym.gensym(hint=hint)
         var  = LexicalVar(sym)
-        body = ctxt.plug(var)
+        body = Context.normalize_term(var, ctxt)
         return make_let_singlevar(sym, ast, [body])
 
     @staticmethod
@@ -167,11 +168,6 @@ class __extend__(Context):
         assert isinstance(ast, Context.AstList)
         ast = Context.AstList([expr] + ast.nodes)
         return ctxt.plug(ast)
-
-    @staticmethod
-    @context
-    def App(args, i, ctxt, ast):
-        return Context.normalize()
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
@@ -684,6 +680,12 @@ class Module(AST):
             assert self is not None
         return self
 
+    def normalize(self, ctxt):
+        # Return the current module, as it is not safe to duplicate module forms
+        for i, b in enumerate(self.body):
+            self.body[i] = Context.normalize_term(b)
+        return ctxt.plug(self)
+
     def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
@@ -942,35 +944,35 @@ class App(AST):
                         return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
-    @staticmethod
-    def make_let_converted(rator, rands):
-        all_args = [rator] + rands
-        fresh_vars = []
-        fresh_rhss = []
+    # @staticmethod
+    # def make_let_converted(rator, rands):
+        # all_args = [rator] + rands
+        # fresh_vars = []
+        # fresh_rhss = []
 
-        name = "AppRator_"
-        for i, rand in enumerate(all_args):
-            if not rand.simple:
-                fresh_rand = Gensym.gensym(name)
-                fresh_rand_var = LexicalVar(fresh_rand)
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    if not fresh_vars:
-                        all_args[i] = fresh_rand_var
-                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
-                    else:
-                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
-                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-                all_args[i] = fresh_rand_var
-                fresh_rhss.append(rand)
-                fresh_vars.append(fresh_rand)
-            name = "AppRand%s_"%i
-        # The body is an App operating on the freshly bound symbols
-        if fresh_vars:
-            fresh_body = [App.make(all_args[0], all_args[1:])]
-            return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-        else:
-            return App.make(rator, rands)
+        # name = "AppRator_"
+        # for i, rand in enumerate(all_args):
+            # if not rand.simple:
+                # fresh_rand = Gensym.gensym(name)
+                # fresh_rand_var = LexicalVar(fresh_rand)
+                # if isinstance(rand, Let) and len(rand.body) == 1:
+                    # # this is quadratic for now :-(
+                    # if not fresh_vars:
+                        # all_args[i] = fresh_rand_var
+                        # return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
+                    # else:
+                        # fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
+                        # return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+                # all_args[i] = fresh_rand_var
+                # fresh_rhss.append(rand)
+                # fresh_vars.append(fresh_rand)
+            # name = "AppRand%s_"%i
+        # # The body is an App operating on the freshly bound symbols
+        # if fresh_vars:
+            # fresh_body = [App.make(all_args[0], all_args[1:])]
+            # return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
+        # else:
+            # return App.make(rator, rands)
 
     def assign_convert(self, vars, env_structure):
         rator = self.rator.assign_convert(vars, env_structure)
@@ -1006,7 +1008,7 @@ class App(AST):
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def normalize(self, ctxt):
-        ctxt   = Context.AppRator(self.rands, ctxt)
+        ctxt = Context.AppRator(self.rands, ctxt)
         return Context.normalize_name(self.rator, ctxt, hint="AppRator")
 
     def _tostring(self):
@@ -1128,8 +1130,8 @@ class Begin0(AST):
 
     def normalize(self, ctxt):
         first  = Context.normalize_term(self.first)
-        body   = [Context.normalize_term(b) for b in self.body]
-        result = Begin0.make(first, body)
+        body   = Context.normalize_term(self.body)
+        result = Begin0(first, body)
         return ctxt.plug(result)
 
     def interpret(self, env, cont):
@@ -1148,8 +1150,8 @@ class Begin(SequencedBodyAST):
         if isinstance(b0, Let):
             rest    = body[1:]
             letbody = b0.body
-            letargs = bo._rebuild_args()
-            letrhss = bo.rhss
+            letargs = b0._rebuild_args()
+            letrhss = b0.rhss
             return make_let(letargs, letrhss, letbody + rest)
 
         return Begin(body)
@@ -1583,6 +1585,7 @@ class CaseLambda(AST):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
+        assert isinstance(lam, Lambda)
         info = lam.sourceinfo
         file, pos = info.sourcefile, info.position
         if file and pos >= 0:
@@ -1611,9 +1614,15 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
+    @staticmethod
+    def normalize_lambda(lam):
+        lam = Context.normalize_term(lam)
+        assert isinstance(lam, Lambda)
+        return lam
+
     def normalize(self, ctxt):
-        lams   = [Context.normalize_term(lam) for lam in self.lams]
-        result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self.arity)
+        lams   = [CaseLambda.normalize_lambda(lam) for lam in self.lams]
+        result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
         return ctxt.plug(result)
 
 class Lambda(SequencedBodyAST):
@@ -1975,15 +1984,15 @@ class Let(SequencedBodyAST):
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
 
-    def replace_innermost_with_app(self, newsym, rator, rands):
-        assert len(self.body) == 1
-        body = self.body[0]
-        if isinstance(body, Let) and len(body.body) == 1:
-            new_body = body.replace_innermost_with_app(newsym, rator, rands)
-        else:
-            app_body = [App.make_let_converted(rator, rands)]
-            new_body = Let(SymList([newsym]), [1], [body], app_body)
-        return Let(self.args, self.counts, self.rhss, [new_body])
+    # def replace_innermost_with_app(self, newsym, rator, rands):
+        # assert len(self.body) == 1
+        # body = self.body[0]
+        # if isinstance(body, Let) and len(body.body) == 1:
+            # new_body = body.replace_innermost_with_app(newsym, rator, rands)
+        # else:
+            # app_body = [App.make_let_converted(rator, rands)]
+            # new_body = Let(SymList([newsym]), [1], [body], app_body)
+        # return Let(self.args, self.counts, self.rhss, [new_body])
 
     @jit.unroll_safe
     def _prune_env(self, env, i):

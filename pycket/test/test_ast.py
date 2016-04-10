@@ -43,6 +43,7 @@ def test_normalize():
     # p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
     # p = expr_ast("(let ([x (let ([y 5]) y)]) x)")
     p = expr_ast("(equal? (equal? 1 2) (equal? 3 4))")
+    # p = expr_ast("(lambda (rec n) (if (<= n 1) 1 (let ([f1 (rec (- n 1))]) (let ([f2 (rec (- n 2))]) (+ f1 f2)))))")
     c = Context.normalize_term(p)
     import pdb; pdb.set_trace()
 
