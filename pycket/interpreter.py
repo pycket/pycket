@@ -42,6 +42,9 @@ class Context(object):
 
 class __extend__(Context):
 
+    # Below are the set of defunctionalized continuations used in the
+    # paper describing the ANF transformation.
+
     def context(func):
         argspec  = inspect.getargspec(func)
         assert argspec.varargs  is None
@@ -66,6 +69,13 @@ class __extend__(Context):
 
         return make_context
 
+    class AstList(AST):
+        _attrs_ = ["nodes"]
+        def __init__(self, nodes):
+            self.nodes = nodes
+
+    EmptyList = AstList([])
+
     @context
     def Nil(ast):
         return ast
@@ -80,6 +90,14 @@ class __extend__(Context):
     def normalize_name(expr, ctxt, hint="g"):
         ctxt = Context.Name(ctxt, hint)
         return expr.normalize(ctxt)
+
+    @staticmethod
+    def normalize_names(exprs, ctxt, i=0):
+        if i >= len(exprs):
+            return ctxt.plug(Context.EmptyList)
+        expr = exprs[i]
+        ctxt = Context.Names(exprs, i, ctxt)
+        return Context.normalize_name(expr, ctxt, hint="App")
 
     @staticmethod
     def Let(xs, Ms, body, ctxt):
@@ -109,12 +127,39 @@ class __extend__(Context):
 
     @staticmethod
     @context
+    def AppRator(args, ctxt, ast):
+        ctxt = Context.AppRands(ast, ctxt)
+        return Context.normalize_names(args, ctxt)
+
+    @staticmethod
+    @context
+    def AppRands(rator, ctxt, ast):
+        assert isinstance(ast, Context.AstList)
+        rands  = ast.nodes
+        result = App.make(rator, rands)
+        return ctxt.plug(result)
+
+    @staticmethod
+    @context
     def Name(ctxt, hint, ast):
         if ast.simple:
             return ctxt.plug(ast)
         sym  = Gensym.gensym(hint=hint)
         body = ctxt.plug(sym)
         return make_let_singlevar(sym, ast, [body])
+
+    @staticmethod
+    @context
+    def Names(exprs, i, ctxt, ast):
+        ctxt = Context.Append(ast, ctxt)
+        return Context.normalize_names(exprs, ctxt, i+1)
+
+    @staticmethod
+    @context
+    def Append(expr, ctxt, ast):
+        assert isinstance(ast, Context.AstList)
+        ast = Context.AstList([expr] + ast.nodes)
+        return ctxt.plug(ast)
 
     @staticmethod
     @context
@@ -949,6 +994,10 @@ class App(AST):
             jit.promote(w_callable)
             w_callable = w_callable.closure
         return w_callable.call_with_extra_info(args_w, env, cont, self)
+
+    def normalize(self, ctxt):
+        ctxt = Context.AppRator(self.rands, ctxt)
+        return Context.normalize_name(self.rator, ctxt)
 
     def _tostring(self):
         elements = [self.rator] + self.rands

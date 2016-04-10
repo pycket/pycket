@@ -40,7 +40,7 @@ def test_mutvars():
 
 def test_normalize():
     from pycket.interpreter import Context
-    p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? 3 4) (+ x y) (+ x y)))")
+    p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
     c = Context.normalize_term(p)
     import pdb; pdb.set_trace()
 
