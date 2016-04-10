@@ -60,6 +60,10 @@ class __extend__(Context):
                 Context.__init__(self)
                 self.args = args
 
+            def __getitem__(self, ast):
+                args = self.args + (ast,)
+                return func(*args)
+
             def plug(self, ast):
                 args = self.args + (ast,)
                 return func(*args)
@@ -136,6 +140,7 @@ class __extend__(Context):
     @context
     def AppRands(rator, ctxt, ast):
         assert isinstance(ast, Context.AstList)
+        import pdb; pdb.set_trace()
         rands  = ast.nodes
         result = App.make(rator, rands)
         return ctxt.plug(result)
@@ -146,7 +151,8 @@ class __extend__(Context):
         if ast.simple:
             return ctxt.plug(ast)
         sym  = Gensym.gensym(hint=hint)
-        body = ctxt.plug(sym)
+        var  = LexicalVar(sym)
+        body = ctxt.plug(var)
         return make_let_singlevar(sym, ast, [body])
 
     @staticmethod
@@ -917,9 +923,6 @@ class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
     def __init__ (self, rator, rands, env_structure=None):
-        assert rator.simple
-        for r in rands:
-            assert r.simple
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
@@ -1003,9 +1006,8 @@ class App(AST):
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def normalize(self, ctxt):
-        ctxt = Context.AppRator(self.rands, ctxt)
-        result = Context.normalize_name(self.rator, ctxt)
-        return ctxt.plug(result)
+        ctxt   = Context.AppRator(self.rands, ctxt)
+        return Context.normalize_name(self.rator, ctxt, hint="AppRator")
 
     def _tostring(self):
         elements = [self.rator] + self.rands
@@ -1039,7 +1041,6 @@ class SimplePrimApp1(App):
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
-
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
@@ -1124,6 +1125,12 @@ class Begin0(AST):
 
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+
+    def normalize(self, ctxt):
+        first  = Context.normalize_term(self.first)
+        body   = [Context.normalize_term(b) for b in self.body]
+        result = Begin0.make(first, body)
+        return ctxt.plug(result)
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
@@ -1222,7 +1229,6 @@ class Var(AST):
     def _tostring(self):
         return "%s" % self.sym.variable_name()
 
-
 class CellRef(Var):
     simple = True
 
@@ -1271,7 +1277,6 @@ class Gensym(object):
         counter = Gensym.get_counter(hint)
         count = counter.next_value()
         return values.W_Symbol(unicode(hint + str(count)))
-
 
 class LexicalVar(Var):
     def _lookup(self, env):
@@ -1606,6 +1611,11 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
+    def normalize(self, ctxt):
+        lams   = [Context.normalize_term(lam) for lam in self.lams]
+        result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self.arity)
+        return ctxt.plug(result)
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure',
@@ -1736,6 +1746,14 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def normalize(self, ctxt):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Lambda(self.formals, self.rest, self.args, self.frees, body,
+                        sourceinfo=self.sourceinfo,
+                        enclosing_env_structure=self.enclosing_env_structure,
+                        env_structure=self.env_structure)
+        return ctxt.plug(result)
+
     def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
@@ -1849,6 +1867,22 @@ class Letrec(SequencedBodyAST):
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+
+    def normalize(self, ctxt):
+        # XXX could we do something smarter here?
+        args = self._rebuild_args()
+        rhss = [Context.normalize_term(rhs) for rhs in self.rhss]
+        body = [Context.normalize_term(b)   for b   in self.body]
+        result = make_letrec(args, rhss, body)
+        return ctxt.plug(result)
+
+    def _rebuild_args(self):
+        start = 0
+        result = [None] * len(self.counts)
+        for i, c in enumerate(self.counts):
+            result[i] = [self.args.elems[start+j] for j in range(c)]
+            start += c
+        return result
 
     def _tostring(self):
         vars = []
@@ -2033,9 +2067,7 @@ class Let(SequencedBodyAST):
         return result
 
     def normalize(self, ctxt):
-        args = self._rebuild_args()
-        # x, xs = args[0], args[1:]
-        # M, Ms = self.rhss[0], self.rhss[1:]
+        args  = self._rebuild_args()
         body  = Begin.make(self.body)
         ctxt  = Context.Let(args, self.rhss, body, ctxt)
         return self.rhss[0].normalize(ctxt)
@@ -2177,6 +2209,11 @@ class DefineValues(AST):
 
     def direct_children(self):
         return [self.rhs]
+
+    def normalize(self, ctxt):
+        rhs    = Context.normalize_term(self.rhs)
+        result = DefineValues(self.names, rhs, self.display_names)
+        return ctxt.plug(result)
 
     def _mutated_vars(self):
         return self.rhs.mutated_vars()

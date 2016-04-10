@@ -638,7 +638,7 @@ class JsonLoader(object):
             if "operator" in obj:
                 rator = self.to_ast(obj["operator"])
                 rands = [self.to_ast(x) for x in obj["operands"].value_array()]
-                return App.make_let_converted(rator, rands)
+                return App.make(rator, rands)
             if "test" in obj:
                 cond = self.to_ast(obj["test"])
                 then = self.to_ast(obj["then"])
