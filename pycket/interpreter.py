@@ -43,7 +43,8 @@ class Context(object):
 class __extend__(Context):
 
     # Below are the set of defunctionalized continuations used in the
-    # paper describing the ANF transformation.
+    # paper "The Essence of Compiling with Continuations"
+    # https://dl.acm.org/citation.cfm?id=989393.989443&coll=DL&dl=GUIDE
 
     def context(func):
         argspec  = inspect.getargspec(func)
@@ -906,6 +907,12 @@ class WithContinuationMark(AST):
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
+    def normalize(self, ctxt):
+        key   = Context.normalize_term(self.key)
+        value = Context.normalize_term(self.value)
+        body  = Context.normalize_term(self.body)
+        return WithContinuationMark(key, value, body)
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
@@ -997,7 +1004,8 @@ class App(AST):
 
     def normalize(self, ctxt):
         ctxt = Context.AppRator(self.rands, ctxt)
-        return Context.normalize_name(self.rator, ctxt)
+        result = Context.normalize_name(self.rator, ctxt)
+        return ctxt.plug(result)
 
     def _tostring(self):
         elements = [self.rator] + self.rands
@@ -1121,12 +1129,23 @@ class Begin0(AST):
         return self.first, env, Begin0Cont(self, env, cont)
 
 class Begin(SequencedBodyAST):
+
     @staticmethod
     def make(body):
         if len(body) == 1:
             return body[0]
-        else:
-            return Begin(body)
+
+        # Convert (begin (let ([...]) letbody) rest ...) =>
+        #         (let ([...]) letbody ... rest ...)
+        b0 = body[0]
+        if isinstance(b0, Let):
+            rest    = body[1:]
+            letbody = b0.body
+            letargs = bo._rebuild_args()
+            letrhss = bo.rhss
+            return make_let(letargs, letrhss, letbody + rest)
+
+        return Begin(body)
 
     def assign_convert(self, vars, env_structure):
         return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
@@ -1143,6 +1162,11 @@ class Begin(SequencedBodyAST):
     @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
+
+    def normalize(self, ctxt):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Begin.make(body)
+        return ctxt.plug(result)
 
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
