@@ -923,10 +923,11 @@ class WithContinuationMark(AST):
         return self.key, env, WCMKeyCont(self, env, cont)
 
     def normalize(self, ctxt):
-        key   = Context.normalize_term(self.key)
-        value = Context.normalize_term(self.value)
-        body  = Context.normalize_term(self.body)
-        return WithContinuationMark(key, value, body)
+        key    = Context.normalize_term(self.key)
+        value  = Context.normalize_term(self.value)
+        body   = Context.normalize_term(self.body)
+        result = WithContinuationMark(key, value, body)
+        return ctxt.plug(result)
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
@@ -1417,8 +1418,7 @@ class SetBang(AST):
 
     def normalize(self, ctxt):
         ctxt = Context.SetBang(self.var, ctxt)
-        return Context.normalize_name(self.rhs, ctxt)
-        # return self.rhs.normalize(ctxt)
+        return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
 
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())

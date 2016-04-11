@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol, W_Fixnum
@@ -38,14 +41,14 @@ def test_mutvars():
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
 
-# def test_normalize():
-    # from pycket.interpreter import Context
+def test_normalize():
+    from pycket.interpreter import Context
     # # p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
     # # p = expr_ast("(let ([x (let ([y 5]) y)]) x)")
     # p = expr_ast("(set! x (equal? 1 2))")
     # # p = expr_ast("(lambda (rec n) (if (<= n 1) 1 (let ([f1 (rec (- n 1))]) (let ([f2 (rec (- n 2))]) (+ f1 f2)))))")
-    # c = Context.normalize_term(p)
-    # import pdb; pdb.set_trace()
+    p = expr_ast(u"(with-continuation-mark 'hello 'bye (let ([x (call-with-immediate-continuation-mark 'hello (λ (x) x) #f)]) x))")
+    c = Context.normalize_term(p)
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
@@ -109,12 +112,12 @@ def test_copy_to_env():
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")
     inner_let = p.body[0].body[0]
-    assert inner_let.remove_num_envs == [0, 0, 0]
+    assert inner_let.remove_num_envs == [0, 0, 0, 0]
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
-    inner_let = p.body[0].body[1]
-    assert inner_let.remove_num_envs == [0, 0, 0]
+    inner_let = p.body[0].body[0].body[1]
+    assert inner_let.remove_num_envs == [1, 1, 1]
 
 def test_reclambda():
     # simple case:
