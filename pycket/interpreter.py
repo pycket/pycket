@@ -170,6 +170,12 @@ class __extend__(Context):
         ast = Context.AstList([expr] + ast.nodes)
         return ctxt.plug(ast)
 
+    @staticmethod
+    @context
+    def SetBang(var, ctxt, ast):
+        ast = SetBang(var, ast)
+        return ctxt.plug(ast)
+
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
 
@@ -1408,6 +1414,11 @@ class SetBang(AST):
 
     def direct_children(self):
         return [self.var, self.rhs]
+
+    def normalize(self, ctxt):
+        ctxt = Context.SetBang(self.var, ctxt)
+        return Context.normalize_name(self.rhs, ctxt)
+        # return self.rhs.normalize(ctxt)
 
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())

@@ -629,7 +629,6 @@ def test_should_enter_downrecursion():
     """
 
     ast = parse_module(expand_string(str))
-    import pdb; pdb.set_trace()
     env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
     append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]

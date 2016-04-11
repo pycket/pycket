@@ -25,6 +25,7 @@ class AST(object):
         return return_value_direct(self.interpret_simple(env), env, cont)
 
     def interpret_simple(self, env):
+        import pdb; pdb.set_trace()
         raise NotImplementedError("abstract base class")
 
     def set_surrounding_lambda(self, lam):
