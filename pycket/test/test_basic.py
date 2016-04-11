@@ -626,11 +626,10 @@ def test_should_enter_downrecursion():
                (define fn-1 (n-1 f))
                (lambda (x) (f (fn-1 x))))]))
         (n->f 10)
-
-
     """
 
     ast = parse_module(expand_string(str))
+    import pdb; pdb.set_trace()
     env = ToplevelEnv(config.get_testing_config(**{"pycket.callgraph":True}))
     m = interpret_module(ast, env)
     append = m.defs[W_Symbol.make("append")].closure.caselam.lams[0]
@@ -643,7 +642,7 @@ def test_should_enter_downrecursion():
     assert append.body[0].els.body[0].should_enter
 
     assert f.body[0].should_enter
-    assert f.body[0].els.body[0].should_enter
+    assert f.body[0].els.body[0].body[0].should_enter
 
 def test_reader_graph(doctest):
     """

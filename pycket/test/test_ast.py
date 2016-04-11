@@ -38,14 +38,14 @@ def test_mutvars():
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
 
-def test_normalize():
-    from pycket.interpreter import Context
-    # p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
-    # p = expr_ast("(let ([x (let ([y 5]) y)]) x)")
-    p = expr_ast("(equal? (equal? 1 2) (equal? 3 4))")
-    # p = expr_ast("(lambda (rec n) (if (<= n 1) 1 (let ([f1 (rec (- n 1))]) (let ([f2 (rec (- n 2))]) (+ f1 f2)))))")
-    c = Context.normalize_term(p)
-    import pdb; pdb.set_trace()
+# def test_normalize():
+    # from pycket.interpreter import Context
+    # # p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
+    # # p = expr_ast("(let ([x (let ([y 5]) y)]) x)")
+    # p = expr_ast("(equal? (equal? 1 2) (equal? 3 4))")
+    # # p = expr_ast("(lambda (rec n) (if (<= n 1) 1 (let ([f1 (rec (- n 1))]) (let ([f2 (rec (- n 2))]) (+ f1 f2)))))")
+    # c = Context.normalize_term(p)
+    # import pdb; pdb.set_trace()
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
@@ -197,9 +197,13 @@ def test_bottom_up_let_conversion():
     lam = caselam.lams[0]
     f, g1, g2, h1, h2, a, b = lam.args.elems
     let = lam.body[0]
-    for fn in [g2, g1, h2, h1]:
-        assert let.rhss[0].rator.sym is fn
-        let = let.body[0]
+    assert let.rhss[0].rator.sym is g2
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is g1
+    assert let.rhss[1].rator.sym is h2
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is h1
+    let = let.body[0]
     assert let.rator.sym is f
 
     caselam = expr_ast("(lambda (f f2 x) %s x %s)" % ("(f (f2 " * 10, "))" * 10))
@@ -217,9 +221,11 @@ def test_bottom_up_let_conversion_bug_append():
     lam = caselam.lams[0]
     cons, car, cdr, a, b, append = lam.args.elems
     let = lam.body[0]
-    for fn in [car, cdr, append]:
-        assert let.rhss[0].rator.sym is fn
-        let = let.body[0]
+    assert let.rhss[0].rator.sym is car
+    assert let.rhss[1].rator.sym is cdr
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is append
+    let = let.body[0]
     assert let.rator.sym is cons
 
 

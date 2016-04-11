@@ -6,6 +6,8 @@ from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
+import sys; sys.setrecursionlimit(10000)
+
 def test_flonum_tostring():
     from rpython.rtyper.test.test_llinterp import interpret
     import math
