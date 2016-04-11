@@ -43,12 +43,9 @@ def test_mutvars():
 
 def test_normalize():
     from pycket.interpreter import Context
-    # # p = expr_ast("(let ([x 1] [y (let ([x 2]) x)]) (if (equal? (+ 3 4) 4) (+ x y) (+ x y)))")
-    # # p = expr_ast("(let ([x (let ([y 5]) y)]) x)")
-    # p = expr_ast("(set! x (equal? 1 2))")
-    # # p = expr_ast("(lambda (rec n) (if (<= n 1) 1 (let ([f1 (rec (- n 1))]) (let ([f2 (rec (- n 2))]) (+ f1 f2)))))")
-    p = expr_ast(u"(with-continuation-mark 'hello 'bye (let ([x (call-with-immediate-continuation-mark 'hello (λ (x) x) #f)]) x))")
+    p = expr_ast(u"""(let ([x 5]) (let ([y 6]) y) x)""")
     c = Context.normalize_term(p)
+    import pdb; pdb.set_trace()
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv

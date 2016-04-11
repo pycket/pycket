@@ -103,7 +103,7 @@ class __extend__(Context):
             return ctxt.plug(Context.EmptyList)
         expr = exprs[i]
         ctxt = Context.Names(exprs, i, ctxt)
-        return Context.normalize_name(expr, ctxt, hint="AppRands")
+        return Context.normalize_name(expr, ctxt, hint="AppRand")
 
     @staticmethod
     def Let(xs, Ms, body, ctxt):
@@ -136,12 +136,12 @@ class __extend__(Context):
     @staticmethod
     @context
     def AppRator(args, ctxt, ast):
-        ctxt = Context.AppRands(ast, ctxt)
+        ctxt = Context.AppRand(ast, ctxt)
         return Context.normalize_names(args, ctxt)
 
     @staticmethod
     @context
-    def AppRands(rator, ctxt, ast):
+    def AppRand(rator, ctxt, ast):
         assert isinstance(ast, Context.AstList)
         rands  = ast.nodes
         result = App.make(rator, rands)
@@ -1416,6 +1416,10 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
+    # def normalize(self, ctxt):
+        # rhs    = Context.normalize_term(self.rhs)
+        # result = SetBang(self.var, rhs)
+        # return ctxt.plug(result)
     def normalize(self, ctxt):
         ctxt = Context.SetBang(self.var, ctxt)
         return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
