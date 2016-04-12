@@ -203,8 +203,8 @@ put the usual application-rands to the operands
          [rands (application-rands app-form)]
          [newlocalstack (append (map (λ (x) 'app-empty-slot) (range (length rands)))
                                 localref-stack)]
-         ;; the application pushes empty slots to run body over, so it will push the current local references further
-         ;; we kinda simulate it here to make the localref pos indices point to the right identifier
+         ;; the application pushes empty slots to run the args over, so it will push the existing local refs further in the stack
+         ;; we simulate it here to make the localref pos indices point to the right identifier
          [rator-evaluated (to-ast-single rator newlocalstack current-closure-refs)]
          [operands-evaluated (map (λ (rand) (to-ast-single rand newlocalstack current-closure-refs)) rands)])
     (if (closure? rator)
@@ -226,7 +226,8 @@ put the usual application-rands to the operands
          ;; TODO : revisit
          [source (if (null? name) '()
                      (if (vector? name)
-                         (let* ([real-name (path->string (vector-ref name 1))]
+                         (hash* '%p (path->string (vector-ref name 1)))
+                         #;(let* ([real-name (path->string (vector-ref name 1))]
                                 [splt (string-split real-name "/")])
                            (let-values ([(subs mod) (split-at splt (sub1 (length splt)))])
                              (hash* '%p (string-append "/" (string-join (append subs (list (string-append "fromBytecode_" (car mod)))) "/")))))
@@ -240,7 +241,7 @@ put the usual application-rands to the operands
                                                  (if (string-contains? (symbol->string name) "kw.rkt")
                                                      "kw.rkt" "more-scheme.rkt"))])
                                (hash* '%p (string-append collects-dir usual-prefix lamname))))))]
-         [position 321] ;; don't know what exactly are these two
+         [position 321] ;; TODO: span&pos info are inside the lam-name
          [span 123]
          ;; module seems to be the same for every lambda form,
          ;; pointing to a private module about chaperones/impersonators
@@ -347,7 +348,7 @@ put the usual application-rands to the operands
          [args (to-ast-single args-part new-localref-stack current-closure-refs)]
 
          ;; construct the lam (lambda () args)
-         [lambda-form (hash* 'source (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt")) ;; toplevel application
+         [lambda-form (hash* 'source (hash* '%p (string-append relative-current-dir module-name ".rkt"))
                              'position 321
                              'span 123
                              'module (hash* '%mpi (hash* '%p mod-path))
@@ -390,7 +391,7 @@ put the usual application-rands to the operands
     (let-values ([(mod-path base-path) (module-path-index-split mpi)])
       (and (not mod-path) (not base-path))))
 
-(define (module-path-index->path-string mod-idx)    
+(define (module-path-index->path-string mod-idx)
   (if (self-mod? mod-idx)
       (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
@@ -425,7 +426,7 @@ put the usual application-rands to the operands
 (define (handle-varref varref-form localref-stack)
   (let ([top (varref-toplevel varref-form)]
         [dummy (varref-dummy varref-form)]
-        [current-mod-path (string-append relative-current-dir "fromBytecode_" module-name ".rkt")])
+        [current-mod-path (string-append relative-current-dir module-name ".rkt")])
     (if (boolean? top) ;; varref-toplevel is a boolean
         (error 'handle-varref (format "we got a bool at varref : ~a" varref-form))
         (let* ([topvar (list-ref TOPLEVELS (toplevel-pos top))]
@@ -484,7 +485,7 @@ put the usual application-rands to the operands
     (let* ([unused? (let-one-unused? letform)]
            [bindingname (if unused? "letone-not-used-slot" (symbol->string (gensym 'letone)))]
            [newstack (cons bindingname localref-stack)]) ;; push uninitialized slot
-      (hash* 'let-bindings (list (list (if unused? '() (list bindingname))
+      (hash* 'let-bindings (list (list (list bindingname)
                                        (to-ast-single (let-one-rhs letform) newstack current-closure-refs)))
              'let-body (list (to-ast-single (let-one-body letform)
                                             newstack
@@ -553,7 +554,9 @@ put the usual application-rands to the operands
          [src-loc (stx-obj-srcloc content)]
          [position (if (not src-loc) 12345 (srcloc-position src-loc))]
          [span (if (not src-loc) 11 (srcloc-span src-loc))]
-         [source-path (if (not src-loc) (string-append relative-current-dir module-name ".rkt") (path->string (srcloc-source src-loc)))])
+         [source-path (if (not src-loc)
+                          (string-append relative-current-dir module-name ".rkt")
+                          (path->string (srcloc-source src-loc)))])
     (hash* 'quote-syntax (to-ast-val datum)
            'source (hash* '%p source-path)
            'module (hash* '%mpi (hash* '%p source-path))
@@ -595,7 +598,7 @@ put the usual application-rands to the operands
          [body (with-immed-mark-body body-form)]
          [mark-formal (symbol->string (gensym))]
          [lam-form
-          (hash* 'source (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt"))
+          (hash* 'source (hash* '%p (string-append relative-current-dir module-name ".rkt"))
                  'position 321
                  'span 123
                  'module (hash* '%mpi (hash* '%p (string-append collects-dir "/racket/private/kw.rkt")))
@@ -780,10 +783,10 @@ put the usual application-rands to the operands
                                'body (list body)))))
                 clauses)
            'original true
-           'source (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt"))
+           'source (hash* '%p (string-append relative-current-dir module-name ".rkt"))
            'position 987
            'span 456
-           'module (hash* '%mpi (hash* '%p (string-append relative-current-dir "fromBytecode_" module-name ".rkt"))))))
+           'module (hash* '%mpi (hash* '%p (string-append relative-current-dir module-name ".rkt"))))))
 
 
 
@@ -969,6 +972,9 @@ put the usual application-rands to the operands
   (command-line
    #:once-each
    [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+   #:once-any
+   [("--output") file "write output to output <file>"
+    (set! out (open-output-file file #:exists 'replace))]
    [("--stdout") "write output to standart out" (set! out (current-output-port))]
 
    #:args (file.rkt)
@@ -986,9 +992,9 @@ put the usual application-rands to the operands
        (set-globals! debug mod-name sub-dirs-str)
        (managed-compile-zo file.rkt)
        ;; setting the output port
-       (when (not (output-port? out))
-         (set! out (open-output-file (string-append sub-dirs-str "fromBytecode_" mod-name ".rkt.json")
-                                     #:exists 'replace))))))
+       (if out out
+           (set! out (open-output-file (string-append sub-dirs-str mod-name ".rkt.json")
+                                       #:exists 'replace))))))
 
   (define dep-file (read (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.dep"))))
   
@@ -1027,9 +1033,9 @@ put the usual application-rands to the operands
                [resolved-mod-path (resolved-module-path-name
                                  (module-path-index-resolve (module-variable-modidx runtime-mod)))]
                [runtime-config (if (or (list? resolved-mod-path)
-                                      (symbol? resolved-mod-path))
-                                  (error 'runtimeConfigModule "don't know how to handle a submodule here")
-                                  (path->string resolved-mod-path))])
+                                       (symbol? resolved-mod-path))
+                                   (error 'runtimeConfigModule "don't know how to handle a submodule here")
+                                   (path->string resolved-mod-path))])
           (hash* 'language (list "#%kernel")
                  'module-name (symbol->string (mod-srcname (car pre-submods)))
                  'body-forms (list
@@ -1105,9 +1111,9 @@ put the usual application-rands to the operands
   
   (set-toplevels! complete-toplevels topsyntaxes)
 
-  (define final-json-hash (compile-json global-config
+  (define final-json-hash (compile-json (hash-set global-config 'bytecode-expand "true")
                                         (if lang-pycket? "#%kernel" lang)
-                                        (string-append sub-dirs-str "fromBytecode_" module-name)
+                                        (string-append sub-dirs-str module-name)
                                         runtime-config
                                         (append top-level-req-forms top-provides)
                                         (to-ast (mod-body code))

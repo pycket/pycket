@@ -119,7 +119,7 @@ def expand(s, wrap=False, stdlib=False):
     return pycket_json.loads(data)
 
 def wrap_for_tempfile(func):
-    def wrap(rkt_file, json_file, lib=_FN):
+    def wrap(rkt_file, json_file, byte_flag=False):
         "NOT_RPYTHON"
         try:
             os.remove(json_file)
@@ -131,7 +131,7 @@ def wrap_for_tempfile(func):
         json_file = os.path.abspath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
-        out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
+        out = func(rkt_file, tmp_json_file, byte_flag) # this may be a problem in the future if the given func doesn't expect a third arg (byte_flag)
         assert tmp_json_file == out
         os.rename(tmp_json_file, json_file)
         return json_file
@@ -139,14 +139,16 @@ def wrap_for_tempfile(func):
     wrap.__name__ = func.__name__
     return wrap
 
-def expand_file_to_json(rkt_file, json_file, lib=_FN):
+def expand_file_to_json(rkt_file, json_file, byte_flag=False):
+    
     if not we_are_translated():
-        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, lib)
-    return _expand_file_to_json(rkt_file, json_file, lib)
+        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, byte_flag)
 
-def _expand_file_to_json(rkt_file, json_file, lib=_FN, byte_flag=False):
+    return _expand_file_to_json(rkt_file, json_file, byte_flag)
+
+def _expand_file_to_json(rkt_file, json_file, byte_flag=False):
     lib = _BE if byte_flag else _FN
-
+        
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
 
     from rpython.rlib.rfile import create_popen_file
@@ -162,11 +164,11 @@ def _expand_file_to_json(rkt_file, json_file, lib=_FN, byte_flag=False):
     except OSError:
         pass
 
-    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (_FN, json_file, rkt_file)
+    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
 
-    if "zo-expand" in lib:
+    if byte_flag:
         print "Transforming %s bytecode to %s" % (rkt_file, json_file)
-        cmd = "racket %s %s" % (lib, rkt_file)
+        #cmd = "racket %s --output \"%s\" \"%s\"" % (lib, json_file, rkt_file)
     else:
         print "Expanding %s to %s" % (rkt_file, json_file)
 
@@ -209,19 +211,7 @@ def needs_update(file_name, json_name):
 
 
 def _json_name(file_name, lib=_FN):
-    if 'zo-expand' in lib:
-        fileDirs = file_name.split("/")
-        l = len(fileDirs)
-        k = l-1 # is there a better way to do this (prove that the slice below has a non-negative stop)
-        assert k >= 0
-        modName = fileDirs[k]
-        subs = fileDirs[0:k]
-        subsStr = '/'.join(subs)
-        if len(subs) > 0:
-            subsStr += '/'
-        return subsStr + 'fromBytecode_' + modName + '.json'
-    else:
-        return file_name + '.json'
+    return file_name + '.json'
 
 def ensure_json_ast_run(file_name, lib=_FN):
     json = _json_name(file_name, lib)
@@ -421,7 +411,7 @@ class JsonLoader(object):
     def __init__(self, bytecode_expand=False):
         self.modtable = ModTable()
         self.bytecode_expand = bytecode_expand
-
+        
     def _lib_string(self):
         return _BE if self.bytecode_expand else _FN
 
@@ -495,7 +485,7 @@ class JsonLoader(object):
 
     def to_module(self, json):
         dbgprint("to_module", json, lib=self._lib_string(), filename="")
-
+        
         # YYY
         obj = json.value_object()
         assert "body-forms" in obj, "got malformed JSON from expander"
@@ -506,13 +496,24 @@ class JsonLoader(object):
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 
+            # check if the json is from bytecode if we're going for bytecode expansion
+            if 'bytecode-expand' not in config:
+                raise ValueError("No \"bytecode-expand\" flag in json in %s" % json.tostring())
+            if config['bytecode-expand'] == "true":
+                be_json = True
+            else:
+                be_json = False
+
+            if self.bytecode_expand != be_json:
+                raise ValueError("Byte-expansion is : %s, but \"bytecode-expand\" in json is : %s, in %s" % (self.bytecode_expand, be_json, obj["module-name"].value_string()))
+
         try:
             lang_arr = obj["language"].value_array()
         except KeyError:
             lang = None
         else:
             lang = self._parse_require([lang_arr[0].value_string()]) if lang_arr else None
-
+        
         body = [self.to_ast(x) for x in obj["body-forms"].value_array()]
         name = obj["module-name"].value_string()
         return Module(name, body, config, lang=lang)
