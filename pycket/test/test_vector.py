@@ -240,3 +240,9 @@ def test_copy_vector_strategy_preserve():
     assert vec.strategy is CharacterImmutableVectorStrategy.singleton
     vec = run(r"(vector->immutable-vector (vector #\a #\b #\c 1 1.0))")
     assert vec.strategy is ObjectImmutableVectorStrategy.singleton
+
+def test_constant_strategy():
+    vec = run("(make-vector 10 #f)")
+    assert vec.strategy is ConstantVectorStrategy.singleton
+    vec = run("(vector->immutable-vector (make-vector 10 #t))")
+    assert vec.strategy is ConstantImmutableVectorStrategy.singleton

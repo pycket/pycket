@@ -105,10 +105,9 @@ class W_Vector(W_MVector):
 
     @staticmethod
     def fromelement(elem, times, immutable=False):
-        check_list = [elem]
-        if times == 0:
-            check_list = []
-        strategy = _find_strategy_class(check_list, immutable)
+        strategy = ConstantVectorStrategy.singleton
+        if immutable:
+            strategy = strategy.immutable_variant()
         storage = strategy.create_storage_for_element(elem, times)
         return W_Vector(strategy, storage, times)
 
@@ -269,7 +268,6 @@ class UnwrappedVectorStrategyMixin(object):
     def _copy_storage(self, w_vector, immutable=False):
         strategy = self if not immutable else self.immutable_variant()
         l = self.unerase(w_vector.get_storage())[:]
-        # return strategy, strategy.erase(l), w_vector.
         return W_Vector(strategy, self.erase(l), w_vector.len)
 
     def _storage(self, w_vector):
@@ -284,9 +282,6 @@ class UnwrappedVectorStrategyMixin(object):
     def _set(self, w_vector, i, w_val):
         assert i >= 0
         self._storage(w_vector)[i] = self.unwrap(w_val)
-
-    # def length(self, w_vector):
-    #     return len(self._storage(w_vector))
 
     @jit.look_inside_iff(
         lambda strategy, w_vector: jit.isconstant(w_vector.length()) and
@@ -307,21 +302,31 @@ class UnwrappedVectorStrategyMixin(object):
         if not elements_w:
             return self.erase([])
         l = [self.unwrap(e) for e in elements_w]
-        # l = [self.unwrap(elements_w[0])] * len(elements_w)
-        # for i in range(1, len(elements_w)):
-            # l[i] = self.unwrap(elements_w[i])
         return self.erase(l)
 
 class ConstantVectorStrategy(VectorStrategy):
+    import_from_mixin(UnwrappedVectorStrategyMixin)
 
     erase, unerase = rerased.new_erasing_pair("constant-vector-strategy")
     erase   = staticmethod(erase)
     unerase = staticmethod(unerase)
 
+    def _copy_storage(self, w_vector, immutable=False):
+        strategy = self if not immutable else self.immutable_variant()
+        l = self.unerase(w_vector.get_storage())
+        return W_Vector(strategy, self.erase(l), w_vector.len)
+
     def is_correct_type(self, w_vector, w_obj):
         from pycket.prims.equal import eqp_logic
         val = self.unerase(w_vector.get_storage())
         return eqp_logic(val, w_obj)
+
+    def ref_all(self, w_vector):
+        elem = self._storage(w_vector)
+        return [elem] * w_vector.length()
+
+    def create_storage_for_element(self, element, times):
+        return self.erase(element)
 
     def _ref(self, w_vector, i):
         return self._storage(w_vector)
@@ -330,6 +335,12 @@ class ConstantVectorStrategy(VectorStrategy):
         # This should be impossible. Writing a conflicting value should despecialize
         # the vector.
         assert False
+
+    def immutable_variant(self):
+        return ConstantImmutableVectorStrategy.singleton
+
+class ConstantImmutableVectorStrategy(ConstantVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
 
 class ObjectVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
