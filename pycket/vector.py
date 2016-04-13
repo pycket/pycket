@@ -355,10 +355,8 @@ class ConstantVectorStrategy(VectorStrategy):
             elif valtype is W_Flonum:
                 newstrategy = FlonumVectorStrategy.singleton
             else:
-                import pdb; pdb.set_trace()
                 newstrategy = ObjectVectorStrategy.singleton
         else:
-            import pdb; pdb.set_trace()
             newstrategy = ObjectVectorStrategy.singleton
         storage = newstrategy.create_storage_for_element(val, len)
         w_vector.set_strategy(newstrategy)
