@@ -74,6 +74,10 @@ def test_vec_strategies_stays_flonum():
 def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
     assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run('(let ([vec (make-vector 3 1)]) (vector-set! vec 1 "Anna") vec)')
+    assert isinstance(vec.strategy, ObjectVectorStrategy)
+    vec = run('(let ([vec (make-vector 3 1)]) (vector-set! vec 1 2) vec)')
+    assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_character():
     vec1 = run(r"(vector #\A #\B #\C)")
