@@ -210,14 +210,14 @@ def needs_update(file_name, json_name):
     return True
 
 
-def _json_name(file_name, lib=_FN):
+def _json_name(file_name):
     return file_name + '.json'
 
-def ensure_json_ast_run(file_name, lib=_FN):
-    json = _json_name(file_name, lib)
-    dbgprint("ensure_json_ast_run", json, lib=lib, filename=file_name)
+def ensure_json_ast_run(file_name, byte_flag=False):
+    json = _json_name(file_name)
+    dbgprint("ensure_json_ast_run", json, filename=file_name)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json, lib)
+        return expand_file_to_json(file_name, json, byte_flag)
     else:
         return json
 
@@ -437,7 +437,7 @@ class JsonLoader(object):
     def expand_file_cached(self, rkt_file):
         dbgprint("expand_file_cached", "", lib=self._lib_string(), filename=rkt_file)
         try:
-            json_file = ensure_json_ast_run(rkt_file, self._lib_string())
+            json_file = ensure_json_ast_run(rkt_file, self.bytecode_expand)
         except PermException:
             return self.expand_to_ast(rkt_file)
         return self.load_json_ast_rpython(rkt_file, json_file)
