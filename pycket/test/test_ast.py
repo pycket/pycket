@@ -8,7 +8,8 @@ from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
-                                SimplePrimApp1, SimplePrimApp2
+                                SimplePrimApp1, SimplePrimApp2,
+                                WithContinuationMark
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
 
@@ -40,12 +41,6 @@ def test_mutvars():
     #    assert p.mutated_vars() == make_symbols({"x": None})
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
-
-def test_normalize():
-    from pycket.interpreter import Context
-    p = expr_ast(u"""(let ([x 5]) (let ([y 6]) y) x)""")
-    c = Context.normalize_term(p)
-    import pdb; pdb.set_trace()
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
@@ -239,4 +234,21 @@ def test_specialized_app_for_simple_prims():
 def test_simple_prim_calls_are_simple_expressions():
     p = expr_ast("(car (cons 1 2))")
     assert isinstance(p, SimplePrimApp1)
+
+def test_nested_lets():
+    p = expr_ast("(let ([x (let ([y (equal? 1 2)]) y)]) (equal? #t x))")
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], App)
+    let_body = p.body[0]
+    assert isinstance(let_body, Let)
+    let_body = let_body.body[0]
+    assert isinstance(let_body, App)
+
+def test_nontrivial_with_continuation_mark():
+    p = expr_ast("(with-continuation-mark 'key 'val (equal? (equal? 1 2) 3))")
+    assert isinstance(p, WithContinuationMark)
+    body = p.body
+    assert isinstance(body, Let)
+    assert isinstance(body.rhss[0], App)
+    assert isinstance(body.body[0], App)
 

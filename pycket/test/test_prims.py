@@ -815,7 +815,6 @@ def test_dynamic_wind4():
             l))
     (define equal (equal? val '((1 . 5) (2 . 6) (3 . 5) (1 . 5) (2 . 6) (3 . 5))))
     """)
-    import pdb; pdb.set_trace()
     val   = m.defs[values.W_Symbol.make("val")]
     equal = m.defs[values.W_Symbol.make("equal")]
     assert equal is values.w_true
