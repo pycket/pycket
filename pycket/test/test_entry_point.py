@@ -151,7 +151,7 @@ class TestOptions(object):
         assert names1['use-bytecode-of'] == f_name and names2['use-bytecode-of'] == f_name
         assert names2['byte-expand'] == 'go'
         assert args1 == [] and args2 == []
-        
+
 
 class TestCommandline(object):
     """These are quire similar to TestOptions but targeted at the higher level

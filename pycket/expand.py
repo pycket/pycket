@@ -140,7 +140,7 @@ def wrap_for_tempfile(func):
     return wrap
 
 def expand_file_to_json(rkt_file, json_file, byte_flag=False):
-    
+
     if not we_are_translated():
         return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, byte_flag)
 
@@ -148,7 +148,7 @@ def expand_file_to_json(rkt_file, json_file, byte_flag=False):
 
 def _expand_file_to_json(rkt_file, json_file, byte_flag=False):
     lib = _BE if byte_flag else _FN
-        
+
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
 
     from rpython.rlib.rfile import create_popen_file
@@ -411,7 +411,7 @@ class JsonLoader(object):
     def __init__(self, bytecode_expand=False):
         self.modtable = ModTable()
         self.bytecode_expand = bytecode_expand
-        
+
     def _lib_string(self):
         return _BE if self.bytecode_expand else _FN
 
@@ -485,7 +485,7 @@ class JsonLoader(object):
 
     def to_module(self, json):
         dbgprint("to_module", json, lib=self._lib_string(), filename="")
-        
+
         # YYY
         obj = json.value_object()
         assert "body-forms" in obj, "got malformed JSON from expander"
@@ -497,15 +497,17 @@ class JsonLoader(object):
                 config[k] = v.value_string()
 
             # check if the json is from bytecode if we're going for bytecode expansion
-            if 'bytecode-expand' not in config:
-                raise ValueError("No \"bytecode-expand\" flag in json in %s" % json.tostring())
-            if config['bytecode-expand'] == "true":
-                be_json = True
-            else:
-                be_json = False
+            try:
+                be_json = config["bytecode-expand"] == "true"
+            except KeyError:
+                raise ValueError('No "bytecode-expand" flag in json in %s' %
+                                 json.tostring())
 
             if self.bytecode_expand != be_json:
-                raise ValueError("Byte-expansion is : %s, but \"bytecode-expand\" in json is : %s, in %s" % (self.bytecode_expand, be_json, obj["module-name"].value_string()))
+                modname = getkey(obj, "module-name", type='s')
+                raise ValueError('Byte-expansion is : %s, but "bytecode-expand" '
+                                 'in json is : %s, in %s' %
+                                 (self.bytecode_expand, be_json, modname))
 
         try:
             lang_arr = obj["language"].value_array()
@@ -513,9 +515,9 @@ class JsonLoader(object):
             lang = None
         else:
             lang = self._parse_require([lang_arr[0].value_string()]) if lang_arr else None
-        
-        body = [self.to_ast(x) for x in obj["body-forms"].value_array()]
-        name = obj["module-name"].value_string()
+
+        body = [self.to_ast(x) for x in getkey(obj, "body-forms", type='a')]
+        name = getkey(obj, "module-name", type='s')
         return Module(name, body, config, lang=lang)
 
     @staticmethod
