@@ -168,7 +168,8 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (full-path-string (find-system-path k)))))
     (hash-set* sysconfig
-               'version (version))))
+               'version (version)
+               'bytecode-expand "false")))
 
 (require syntax/id-table)
 ;; FIXME: we really need a table for every phase, which means a table from phases to id tables
