@@ -121,8 +121,8 @@ class __extend__(Context):
         X = xs[i]
         i += 1
         x_, M = xs[i], Ms[i]
-        ctxt   = Context._Let(xs, Ms, body, i, ctxt)
-        body   = Context.normalize_term(M, ctxt) 
+        ctxt  = Context._Let(xs, Ms, body, i, ctxt)
+        body  = Context.normalize_term(M, ctxt)
         return make_let([X], [ast], [body])
 
     @staticmethod
