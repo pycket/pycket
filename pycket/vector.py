@@ -223,7 +223,7 @@ class VectorStrategy(object):
         if check:
             self.indexcheck(w_vector, i)
         if not self.is_correct_type(w_vector, w_val):
-            self.dehomogenize(w_vector)
+            self.dehomogenize(w_vector, hint=type(w_val))
             # Now, try again. no need to use the safe version, we already
             # checked the index
             w_vector.unsafe_set(i, w_val)
@@ -251,7 +251,7 @@ class VectorStrategy(object):
     def create_storage_for_elements(self, elements):
         raise NotImplementedError("abstract base class")
 
-    def dehomogenize(self, w_vector):
+    def dehomogenize(self, w_vector, hint=None):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
 
 class ImmutableVectorStrategyMixin(object):
@@ -315,8 +315,6 @@ class UnwrappedVectorStrategyMixin(object):
 
 class ConstantVectorStrategy(VectorStrategy):
     # Strategy desribing a vector whose contents are all the same object.
-    # TODO: Figure out if it is worthwhile to despecialize to other unboxed
-    # strategies rather than straight to ObjectVectorStrategy
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
     erase, unerase = rerased.new_erasing_pair("constant-vector-strategy")
@@ -332,7 +330,6 @@ class ConstantVectorStrategy(VectorStrategy):
         return self.erase([element])
 
     def _ref(self, w_vector, i):
-        assert i >= 0
         return self._storage(w_vector)[0]
 
     def _set(self, w_vector, i, w_val):
@@ -347,6 +344,25 @@ class ConstantVectorStrategy(VectorStrategy):
     def ref_all(self, w_vector):
         val = self._storage(w_vector)[0]
         return [val] * w_vector.length()
+
+    def dehomogenize(self, w_vector, hint=None):
+        val = self._storage(w_vector)[0]
+        len = w_vector.length()
+        valtype = type(val)
+        if len and hint is valtype:
+            if valtype is W_Fixnum:
+                newstrategy = FixnumVectorStrategy.singleton
+            elif valtype is W_Flonum:
+                newstrategy = FlonumVectorStrategy.singleton
+            else:
+                import pdb; pdb.set_trace()
+                newstrategy = ObjectVectorStrategy.singleton
+        else:
+            import pdb; pdb.set_trace()
+            newstrategy = ObjectVectorStrategy.singleton
+        storage = newstrategy.create_storage_for_element(val, len)
+        w_vector.set_strategy(newstrategy)
+        w_vector.set_storage(storage)
 
 class ConstantImmutableVectorStrategy(ConstantVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
@@ -370,7 +386,7 @@ class ObjectVectorStrategy(VectorStrategy):
     def create_storage_for_elements(self, elements_w):
         return self.erase(elements_w)
 
-    def dehomogenize(self, w_vector):
+    def dehomogenize(self, w_vector, hint=None):
         assert 0 # should be unreachable because is_correct_type is always True
 
     def immutable_variant(self):

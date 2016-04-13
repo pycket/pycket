@@ -232,13 +232,13 @@ class W_VectorSuper(W_Object):
     def get_storage(self):
         raise NotImplementedError
 
-    def set_storage(self):
+    def set_storage(self, storage):
         raise NotImplementedError
 
     def get_strategy(self):
         raise NotImplementedError
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         raise NotImplementedError
 
 # Things that are vector?

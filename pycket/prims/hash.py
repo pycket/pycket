@@ -286,7 +286,6 @@ def equal_secondary_hash_code(v):
 
 @expose("eq-hash-code", [values.W_Object])
 def eq_hash_code(v):
-    from rpython.rlib.longlong2float import float2longlong
     t = type(v)
     if t is values.W_Fixnum:
         return v
