@@ -44,17 +44,17 @@ def test_vec_strategies_fixnum():
     vec = run("(vector 1 2 3)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
     vec = run("(make-vector 2)")
-    assert isinstance(vec.strategy, FixnumVectorStrategy)
+    assert isinstance(vec.strategy, ConstantVectorStrategy)
 
 def test_vec_strategies_flonum():
     vec = run("(vector 1.0 2.1 3.2)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
     vec = run("(make-vector 2 1.2)")
-    assert isinstance(vec.strategy, FlonumVectorStrategy)
+    assert isinstance(vec.strategy, ConstantVectorStrategy)
 
 def test_vec_strategies_fixnum_singleton():
     vec1 = run("(vector 1 2 3)")
-    vec2 = run("(make-vector 2)")
+    vec2 = run("(vector 3 2 1)")
     assert vec1.strategy is vec2.strategy
 
 def test_vec_strategies_object():
@@ -64,11 +64,11 @@ def test_vec_strategies_object():
     assert isinstance(vec.strategy, ObjectImmutableVectorStrategy)
 
 def test_vec_strategies_stays_fixnum():
-    vec = run("(let ([vec (make-vector 3)]) (vector-set! vec 1 5) vec)")
+    vec = run("(let ([vec (vector 0 0 0)]) (vector-set! vec 1 5) vec)")
     assert isinstance(vec.strategy, FixnumVectorStrategy)
 
 def test_vec_strategies_stays_flonum():
-    vec = run("(let ([vec (make-vector 3 1.2)]) (vector-set! vec 1 5.5) vec)")
+    vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 5.5) vec)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
 
 def test_vec_strategies_dehomogenize():
@@ -82,12 +82,12 @@ def test_vec_strategies_character():
     assert isinstance(vec2.strategy, CharacterVectorStrategy)
 
 def test_vec_strategies_stays_character():
-    vec = run(r"(let ([vec (make-vector 3 #\A)]) (vector-set! vec 1 #\D) vec)")
+    vec = run(r"(let ([vec (vector #\A #\A #\A)]) (vector-set! vec 1 #\D) vec)")
     assert isinstance(vec.strategy, CharacterVectorStrategy)
 
 def test_vec_strategies_character_singleton():
     vec1 = run(r"(vector #\A #\A #\A)")
-    vec2 = run(r"(make-vector 2 #\B)")
+    vec2 = run(r"(vector #\B #\B)")
     assert vec1.strategy is vec2.strategy
 
 def test_vec_strategies_character_ref(doctest):
@@ -193,7 +193,7 @@ def test_vector_copy_bang(doctest):
     > (vector-copy! v 0 v 3 4)
     > v
     '#(l p p l y)
-    > (vector-copy v 0 #() 0 0)
+    > (vector-copy! v 0 #() 0 0)
     > (vector-copy! dest 1 src 0)
     > dest
     '#(1)

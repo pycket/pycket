@@ -5,7 +5,7 @@ from pycket import config
 
 from rpython.rlib import debug, jit
 from rpython.rlib import rerased
-from rpython.rlib.objectmodel import newlist_hint, import_from_mixin, specialize
+from rpython.rlib.objectmodel import newlist_hint, import_from_mixin, specialize, we_are_translated
 from rpython.rlib.rarithmetic import intmask
 
 
@@ -105,7 +105,10 @@ class W_Vector(W_MVector):
 
     @staticmethod
     def fromelement(elem, times, immutable=False):
-        strategy = ConstantVectorStrategy.singleton
+        if times == 0:
+            strategy = ObjectVectorStrategy.singleton
+        else:
+            strategy = ConstantVectorStrategy.singleton
         if immutable:
             strategy = strategy.immutable_variant()
         storage = strategy.create_storage_for_element(elem, times)
@@ -304,40 +307,46 @@ class UnwrappedVectorStrategyMixin(object):
         l = [self.unwrap(e) for e in elements_w]
         return self.erase(l)
 
+    def wrap(self, obj):
+        return obj
+
+    def unwrap(self, w_obj):
+        return w_obj
+
 class ConstantVectorStrategy(VectorStrategy):
+    # Strategy desribing a vector whose contents are all the same object.
+    # TODO: Figure out if it is worthwhile to despecialize to other unboxed
+    # strategies rather than straight to ObjectVectorStrategy
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
     erase, unerase = rerased.new_erasing_pair("constant-vector-strategy")
     erase   = staticmethod(erase)
     unerase = staticmethod(unerase)
 
-    def _copy_storage(self, w_vector, immutable=False):
-        strategy = self if not immutable else self.immutable_variant()
-        l = self.unerase(w_vector.get_storage())
-        return W_Vector(strategy, self.erase(l), w_vector.len)
-
     def is_correct_type(self, w_vector, w_obj):
         from pycket.prims.equal import eqp_logic
-        val = self.unerase(w_vector.get_storage())
+        val = self._storage(w_vector)[0]
         return eqp_logic(val, w_obj)
 
-    def ref_all(self, w_vector):
-        elem = self._storage(w_vector)
-        return [elem] * w_vector.length()
-
     def create_storage_for_element(self, element, times):
-        return self.erase(element)
+        return self.erase([element])
 
     def _ref(self, w_vector, i):
-        return self._storage(w_vector)
+        assert i >= 0
+        return self._storage(w_vector)[0]
 
     def _set(self, w_vector, i, w_val):
-        # This should be impossible. Writing a conflicting value should despecialize
-        # the vector.
-        assert False
+        if not we_are_translated():
+            from pycket.prims.equal import eqp_logic
+            self.indexcheck(w_vector, i)
+            assert eqp_logic(w_val, self._storage(w_vector)[0])
 
     def immutable_variant(self):
         return ConstantImmutableVectorStrategy.singleton
+
+    def ref_all(self, w_vector):
+        val = self._storage(w_vector)[0]
+        return [val] * w_vector.length()
 
 class ConstantImmutableVectorStrategy(ConstantVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
