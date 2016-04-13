@@ -456,10 +456,10 @@ put the usual application-rands to the operands
                                                                (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
                                                 (string->number (cadr mod-split)))
                                               (hash* 'source-name name
-                                                     'source-module path-str
+                                                     'source-module (list path-str)
                                                      'module original-mod)))
                                           (hash* 'source-name name
-                                                 'source-module path-str))))]
+                                                 'source-module (list path-str)))))]
                [source-mod (cond
                              [(or (symbol? topvar) (boolean? topvar)) path-str]
                              [(memv (string->symbol name) primitives) current-mod-path]
@@ -541,7 +541,7 @@ put the usual application-rands to the operands
     (cond
       [(symbol? toplevel-id)
        (hash* 'source-name toplevel-id-str
-              'source-module module-dir)]
+              'source-module (list module-dir))]
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
