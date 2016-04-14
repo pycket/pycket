@@ -13,7 +13,7 @@ class Link(object):
         self.next = next
 
     @jit.unroll_safe
-    def clone(self):
+    def clone_links(self):
         marks = None
         while self is not None:
             marks = Link(self.key, self.val, marks)
@@ -46,7 +46,7 @@ class BaseCont(object):
     def clone(self):
         result = self._clone()
         if self.marks is not None:
-            result.marks = self.marks.clone()
+            result.marks = self.marks.clone_links()
         else:
             result.marks = None
         return result
@@ -143,7 +143,7 @@ class Cont(BaseCont):
 
     def append(self, tail, upto=None, stop=None):
         if self is stop:
-            return tail
+            return self.clone()
         rest = self.prev.append(tail, upto, stop)
         head = self.clone()
         assert isinstance(head, Cont)
@@ -247,7 +247,7 @@ def continuation(func):
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
-    def clone(self):
+    def _clone(self):
         result = objectmodel.instantiate(PrimCont)
         Cont.__init__(result, self.env, self.prev)
         self._copy_args(result)
@@ -258,7 +258,7 @@ def continuation(func):
         args += (self.env, self.prev, vals,)
         return func(*args)
 
-    PrimCont.clone = clone
+    PrimCont._clone = _clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
