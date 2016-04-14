@@ -264,6 +264,9 @@ class ImmutableVectorStrategyMixin(object):
     def _set(self, w_vector, i, w_val):
         assert 0, "unreachable"
 
+    def dehomogenize(self, w_vector, hint=None):
+        assert 0, "unreachable"
+
 class UnwrappedVectorStrategyMixin(object):
     # the concrete class needs to implement:
     # erase, unerase, is_correct_type, wrap, unwrap
