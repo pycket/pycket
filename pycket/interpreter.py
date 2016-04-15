@@ -86,7 +86,7 @@ class __extend__(Context):
     Nil = Nil()
 
     @staticmethod
-    @specialize.arg(2)
+    @specialize.call_location()
     def normalize_term(expr, ctxt=Nil, expect=AST):
         result = expr.normalize(ctxt)
         assert isinstance(result, expect)
@@ -1416,10 +1416,6 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
-    # def normalize(self, ctxt):
-        # rhs    = Context.normalize_term(self.rhs)
-        # result = SetBang(self.var, rhs)
-        # return ctxt.plug(result)
     def normalize(self, ctxt):
         ctxt = Context.SetBang(self.var, ctxt)
         return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
@@ -1589,14 +1585,8 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
-    @staticmethod
-    def normalize_lambda(lam):
-        lam = Context.normalize_term(lam)
-        assert isinstance(lam, Lambda)
-        return lam
-
     def normalize(self, ctxt):
-        lams   = [CaseLambda.normalize_lambda(lam) for lam in self.lams]
+        lams   = [Context.normalize_term(lam, expect=Lambda) for lam in self.lams]
         result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
         return ctxt.plug(result)
 
