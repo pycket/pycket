@@ -71,12 +71,16 @@ class __extend__(Context):
 
         class TrampolineAST(AST):
 
+            _attrs_ = _immutable_fields_ = []
+
             def normalize(self, ctxt):
                 assert type(ctxt) is TrampolineContext
                 ast, ctxt = ctxt.ast, ctxt.prev
                 return ctxt.plug_direct(ast)
 
         class TrampolineContext(Context):
+
+            _attrs_ = _immutable_fields_ = ["ast", "prev"]
 
             def __init__(self, ast, prev):
                 self.ast  = ast
@@ -89,6 +93,7 @@ class __extend__(Context):
 
         the_ast = TrampolineAST()
 
+        @objectmodel.always_inline
         def make_context(*args):
             return PrimContext(*args)
         make_context.__name__ = "%sContext" % func.__name__.replace("_", "")
