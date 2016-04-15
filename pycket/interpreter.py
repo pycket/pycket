@@ -60,17 +60,44 @@ class __extend__(Context):
                 Context.__init__(self)
                 self.args = args
 
-            def plug(self, ast):
+            def plug_direct(self, ast):
                 args = self.args + (ast,)
                 return func(*args)
 
+            def plug(self, ast):
+                return the_ast, TrampolineContext(ast, self)
+
             __getitem__ = plug
+
+        class TrampolineAST(AST):
+
+            def normalize(self, ctxt):
+                assert type(ctxt) is TrampolineContext
+                ast, ctxt = ctxt.ast, ctxt.prev
+                return ctxt.plug_direct(ast)
+
+        class TrampolineContext(Context):
+
+            def __init__(self, ast, prev):
+                self.ast  = ast
+                self.prev = prev
+
+            def plug_direct(self, ast):
+                return self.prev.plug_direct(ast)
+
+            plug = plug_direct
+
+        the_ast = TrampolineAST()
 
         def make_context(*args):
             return PrimContext(*args)
         make_context.__name__ = "%sContext" % func.__name__.replace("_", "")
 
         return make_context
+
+    class Done(Exception):
+        def __init__(self, ast):
+            self.ast = ast
 
     class AstList(AST):
         _attrs_ = ["nodes"]
@@ -79,23 +106,32 @@ class __extend__(Context):
 
     EmptyList = AstList([])
 
+    @staticmethod
+    @objectmodel.always_inline
+    def yields(ast):
+        raise Context.Done(ast)
+
     @context
     def Nil(ast):
-        return ast
+        Context.yields(ast)
 
     Nil = Nil()
 
     @staticmethod
     @specialize.arg(2)
     def normalize_term(expr, ctxt=Nil, expect=AST):
-        result = expr.normalize(ctxt)
-        assert isinstance(result, expect)
-        return result
+        try:
+            while True:
+                expr, ctxt = expr.normalize(ctxt)
+        except Context.Done as e:
+            expr = e.ast
+        assert isinstance(expr, expect)
+        return expr
 
     @staticmethod
     def normalize_name(expr, ctxt, hint="g"):
         ctxt = Context.Name(ctxt, hint)
-        return expr.normalize(ctxt)
+        return expr, ctxt
 
     @staticmethod
     def normalize_names(exprs, ctxt, i=0):
@@ -113,7 +149,7 @@ class __extend__(Context):
         sym  = Gensym.gensym(hint=hint)
         var  = LexicalVar(sym)
         body = Context.normalize_term(var, ctxt)
-        return make_let_singlevar(sym, ast, [body])
+        Context.yields(make_let_singlevar(sym, ast, [body]))
 
     @staticmethod
     @context
@@ -133,13 +169,13 @@ class __extend__(Context):
             body = Context.normalize_term(body, ctxt)
             # Body may have been wrapped in a begin for convenience
             body = body.body if isinstance(body, Begin) else [body]
-            return make_let([xs[i]], [ast], body)
+            Context.yields(make_let([xs[i]], [ast], body))
         X = xs[i]
         i += 1
         x_, M = xs[i], Ms[i]
         ctxt  = Context._Let(xs, Ms, body, i, ctxt)
         body  = Context.normalize_term(M, ctxt)
-        return make_let([X], [ast], [body])
+        Context.yields(make_let([X], [ast], [body]))
 
     @staticmethod
     @context
@@ -2038,7 +2074,8 @@ class Let(SequencedBodyAST):
         args = self._rebuild_args()
         body = Begin.make(self.body)
         ctxt = Context.Let(args, self.rhss, body, ctxt)
-        return self.rhss[0].normalize(ctxt)
+        return self.rhss[0], ctxt
+        # return self.rhss[0].normalize(ctxt)
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         if not config.prune_env:
