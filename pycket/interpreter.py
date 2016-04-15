@@ -47,7 +47,7 @@ class __extend__(Context):
     # https://dl.acm.org/citation.cfm?id=989393.989443&coll=DL&dl=GUIDE
 
     def context(func):
-        argspec  = inspect.getargspec(func)
+        argspec = inspect.getargspec(func)
         assert argspec.varargs  is None
         assert argspec.keywords is None
         assert argspec.defaults is None
@@ -86,7 +86,7 @@ class __extend__(Context):
     Nil = Nil()
 
     @staticmethod
-    @specialize.call_location()
+    @specialize.arg(2)
     def normalize_term(expr, ctxt=Nil, expect=AST):
         result = expr.normalize(ctxt)
         assert isinstance(result, expect)
@@ -104,6 +104,22 @@ class __extend__(Context):
         expr = exprs[i]
         ctxt = Context.Names(exprs, i, ctxt)
         return Context.normalize_name(expr, ctxt, hint="AppRand")
+
+    @staticmethod
+    @context
+    def Name(ctxt, hint, ast):
+        if ast.simple:
+            return ctxt.plug(ast)
+        sym  = Gensym.gensym(hint=hint)
+        var  = LexicalVar(sym)
+        body = Context.normalize_term(var, ctxt)
+        return make_let_singlevar(sym, ast, [body])
+
+    @staticmethod
+    @context
+    def Names(exprs, i, ctxt, ast):
+        ctxt = Context.Append(ast, ctxt)
+        return Context.normalize_names(exprs, ctxt, i+1)
 
     @staticmethod
     def Let(xs, Ms, body, ctxt):
@@ -146,22 +162,6 @@ class __extend__(Context):
         rands  = ast.nodes
         result = App.make(rator, rands)
         return ctxt.plug(result)
-
-    @staticmethod
-    @context
-    def Name(ctxt, hint, ast):
-        if ast.simple:
-            return ctxt.plug(ast)
-        sym  = Gensym.gensym(hint=hint)
-        var  = LexicalVar(sym)
-        body = Context.normalize_term(var, ctxt)
-        return make_let_singlevar(sym, ast, [body])
-
-    @staticmethod
-    @context
-    def Names(exprs, i, ctxt, ast):
-        ctxt = Context.Append(ast, ctxt)
-        return Context.normalize_names(exprs, ctxt, i+1)
 
     @staticmethod
     @context
