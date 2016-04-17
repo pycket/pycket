@@ -83,6 +83,7 @@ class __extend__(Context):
             _attrs_ = _immutable_fields_ = ["ast", "prev"]
 
             def __init__(self, ast, prev):
+                assert type(prev) is PrimContext
                 self.ast  = ast
                 self.prev = prev
 
@@ -1507,7 +1508,6 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
-
 def free_vars_lambda(body, args):
     x = {}
     for b in body:
@@ -2080,7 +2080,6 @@ class Let(SequencedBodyAST):
         body = Begin.make(self.body)
         ctxt = Context.Let(args, self.rhss, body, ctxt)
         return self.rhss[0], ctxt
-        # return self.rhss[0].normalize(ctxt)
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         if not config.prune_env:
