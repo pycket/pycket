@@ -84,6 +84,17 @@ class AST(object):
             self._mvars = self._mutated_vars()
         return self._mvars
 
+    def _clean_cache(self):
+        self._mvars = None
+        self._fvars = None
+
+    def clean_caches(self):
+        nodes = [self]
+        while nodes:
+            node = nodes.pop()
+            node._clean_cache()
+            nodes.extend(node.direct_children())
+
     def normalize(self, ctxt):
         return ctxt.plug(self)
 
