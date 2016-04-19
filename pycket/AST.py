@@ -96,7 +96,7 @@ class AST(object):
             node._clean_cache()
             nodes.extend(node.direct_children())
 
-    def compute_live_before(self, after=None):
+    def compute_live_before(self, after):
         """
         Annotates AST nodes with the set of variables which are live before
         execution. The input |after| is the set of variables which are live
@@ -107,7 +107,7 @@ class AST(object):
         The live after set allows us to slim down the environment during execution
         by only saving values which may be referenced later.
         """
-        return after if after is not None else {}
+        return after
 
     def normalize(self, ctxt):
         return ctxt.plug(self)

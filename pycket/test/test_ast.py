@@ -253,8 +253,12 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body.body[0], App)
 
 def test_variable_liveness():
+    x = W_Symbol.make("x")
     p = expr_ast("(let ([x 5]) (+ x 7))")
     p.compute_live_before()
     assert isinstance(p, Let)
+    assert p.live_before == {}
+    assert p.rhss[0].live_before == {}
+    assert p.body[0].live_before == {x: None}
     import pdb; pdb.set_trace()
 

@@ -1110,15 +1110,13 @@ class SequencedBodyAST(AST):
                 for i in range(counts_needed)]
 
     @staticmethod
-    def live_before_sequence(nodes, after=None):
-        if after is None:
-            after = {}
+    def live_before_sequence(nodes, after):
         for b in reversed(nodes):
             after.update(b.free_vars())
             b.live_before = after.copy()
         return after
 
-    def compute_live_before(self, after=None):
+    def compute_live_before(self, after):
         after = SequencedBodyAST.live_before_sequence(self.body, after)
         self.live_before = after.copy()
         return after
@@ -1503,6 +1501,9 @@ class If(AST):
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
+
+    def compute_live_before(self, after):
+        pass
 
     def normalize(self, ctxt):
         ctxt = Context.If(self.thn, self.els, ctxt)
@@ -2090,7 +2091,7 @@ class Let(SequencedBodyAST):
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
 
-    def compute_live_before(self, after=None):
+    def compute_live_before(self, after):
         # TODO: Using immutable hash tables for this process would probably be
         # more efficient than all the copying
 
