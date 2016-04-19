@@ -1,12 +1,13 @@
-from pycket.AST               import AST
-from pycket                   import values, values_string, values_parameter
-from pycket                   import vector
-from pycket.prims.expose      import prim_env, make_call_method
-from pycket.error             import SchemeException
-from pycket.cont              import Cont, NilCont, label
-from pycket.env               import SymList, ConsEnv, ToplevelEnv
-from pycket.arity             import Arity
-from pycket                   import config
+from pycket                          import config
+from pycket                          import values, values_string, values_parameter
+from pycket                          import vector
+from pycket.AST                      import AST
+from pycket.arity                    import Arity
+from pycket.cont                     import Cont, NilCont, label
+from pycket.env                      import SymList, ConsEnv, ToplevelEnv
+from pycket.error                    import SchemeException
+from pycket.prims.expose             import prim_env, make_call_method
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
@@ -1108,6 +1109,20 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    @staticmethod
+    def live_before_sequence(nodes, after=None):
+        if after is None:
+            after = {}
+        for b in reversed(nodes):
+            after.update(b.free_vars())
+            b.live_before = after.copy()
+        return after
+
+    def compute_live_before(self, after=None):
+        after = SequencedBodyAST.live_before_sequence(self.body, after)
+        self.live_before = after.copy()
+        return after
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
@@ -2074,6 +2089,23 @@ class Let(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
+
+    def compute_live_before(self, after=None):
+        # TODO: Using immutable hash tables for this process would probably be
+        # more efficient than all the copying
+
+        # Compute variable liveness before the body of the let expression
+        after = SequencedBodyAST.live_before_sequence(self.body, after)
+        # Variables bound by the let cannot be live in the binding clauses
+        for var in self.args.elems:
+            try:
+                del after[var]
+            except KeyError:
+                pass
+        # Compute liveness for the rhs
+        after = SequencedBodyAST.live_before_sequence(self.rhss, after)
+        self.live_before = after
+        return after
 
     def normalize(self, ctxt):
         args = self._rebuild_args()

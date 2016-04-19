@@ -1,7 +1,7 @@
 from rpython.rlib import jit
 
 class AST(object):
-    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr", "live_before"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
@@ -9,6 +9,7 @@ class AST(object):
     _stringrepr = None # default value
     _mvars = None
     _fvars = None
+    live_before = None
     surrounding_lambda = None
 
     simple = False
@@ -94,6 +95,19 @@ class AST(object):
             node = nodes.pop()
             node._clean_cache()
             nodes.extend(node.direct_children())
+
+    def compute_live_before(self, after=None):
+        """
+        Annotates AST nodes with the set of variables which are live before
+        execution. The input |after| is the set of variables which are live
+        after the current expression in execution order. Similarly, the return
+        value is the set of variables which are live before the current expression
+        executes.
+
+        The live after set allows us to slim down the environment during execution
+        by only saving values which may be referenced later.
+        """
+        return after if after is not None else {}
 
     def normalize(self, ctxt):
         return ctxt.plug(self)
