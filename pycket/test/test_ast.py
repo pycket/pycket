@@ -270,9 +270,18 @@ def test_variable_liveness2():
         assert rhs.live_before == {}
 
     body = p.body[0]
-    import pdb; pdb.set_trace()
     assert isinstance(body, If)
     assert body.tst.live_before == {x: None, y: None, z: None}
     assert body.thn.live_before == {y: None}
     assert body.els.live_before == {z: None}
 
+def test_variable_liveness3():
+    p = expr_ast("(letrec ([x (lambda (a b) (+ (a x) (b x)))] [y (x 1 2)]) y)")
+    p.compute_live_before({})
+    x, y = p.args.elems
+    assert p.live_before == {}
+    assert p.rhss[0].live_before == {x: None, y: None}
+    assert p.rhss[1].live_before == {x: None, y: None}
+
+    body = p.body[0]
+    assert body.live_before == {y: None}
