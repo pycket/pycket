@@ -733,6 +733,11 @@ class Module(AST):
             assert self is not None
         return self
 
+    def compute_live_before(self, after):
+        for b in self.body:
+            b.compute_live_before({})
+        return after
+
     def normalize(self, ctxt):
         # Return the current module, as it is not safe to duplicate module forms
         for i, b in enumerate(self.body):
@@ -951,6 +956,13 @@ class WithContinuationMark(AST):
                                                     self.value.tostring(),
                                                     self.body.tostring())
 
+    def compute_live_before(self, after):
+        after = self.body.compute_live_before(after)
+        after = self.value.compute_live_before(after)
+        after = self.key.compute_live_before(after)
+        self.live_before = after.copy()
+        return after
+
     def assign_convert(self, vars, env_structure):
         return WithContinuationMark(self.key.assign_convert(vars, env_structure),
                                     self.value.assign_convert(vars, env_structure),
@@ -1158,6 +1170,12 @@ class Begin0(AST):
     def assign_convert(self, vars, env_structure):
         return Begin0(self.first.assign_convert(vars, env_structure),
                       self.body.assign_convert(vars, env_structure))
+
+    def compute_live_before(self, after):
+        after = self.body.compute_live_before(after)
+        after = self.first.compute_live_before(after)
+        self.live_before = after.copy()
+        return after
 
     def direct_children(self):
         return [self.first, self.body]
@@ -1469,6 +1487,11 @@ class SetBang(AST):
 
     def interpret(self, env, cont):
         return self.rhs, env, SetBangCont(self, env, cont)
+
+    def compute_live_before(self, after):
+        after = self.rhs.compute_live_before(after)
+        self.live_before = after.copy()
+        return after
 
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),
@@ -2277,6 +2300,11 @@ class DefineValues(AST):
 
     def interpret(self, env, cont):
         return self.rhs.interpret(env, cont)
+
+    def compute_live_before(self, after):
+        after = self.rhs.compute_live_before(after)
+        self.live_before = after.copy()
+        return after
 
     def assign_convert(self, vars, env_structure):
         mut = False
