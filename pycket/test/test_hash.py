@@ -499,3 +499,23 @@ def test_persistent_hash__collisions_removal2():
         assert v >= 990
         assert v % 10 == k
         assert acc.val_at(k, None) is v
+
+def test_persistent_hash_union():
+    HashTable = make_persistent_hash_type()
+    acc1 = HashTable.EMPTY
+    acc2 = HashTable.EMPTY
+
+    for i in range(128):
+        acc1 = acc1.assoc(i, i)
+
+    for i in range(128, 256):
+        acc2 = acc2.assoc(i, i)
+
+    assert len(acc1) == 128
+    assert len(acc2) == 128
+
+    acc3 = acc1 + acc2
+    assert len(acc3) == 256
+    for i in range(256):
+        assert i in acc3
+

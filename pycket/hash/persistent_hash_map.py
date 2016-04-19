@@ -11,6 +11,14 @@ def mask(hash, shift):
 def bitpos(hash, shift):
     return (1 << mask(hash, shift)) & MASK_32
 
+def bit_count(i):
+    # TODO: See about implementing this via the POPCNT instruction on
+    # supporting architectures
+    assert isinstance(i, r_uint)
+    i = i - ((i >> 1) & r_uint(0x55555555))
+    i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
+    return (((i + (i >> 4) & r_uint(0xF0F0F0F)) * r_uint(0x1010101)) & r_uint(0xffffffff)) >> 24
+
 def validate_persistent_hash(ht):
     "NOT RPYTHON"
     root = ht._root
@@ -44,6 +52,12 @@ class Box(object):
         return size + int(self._val)
 
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
+
+    class Missing(super):
+        def __init__(self):
+            pass
+
+    MISSING = Missing()
 
     class INode(super):
 
@@ -442,6 +456,31 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def __len__(self):
             return self._cnt
 
+        def __contains__(self, key):
+            return self.val_at(key, MISSING) is not MISSING
+
+        def union(self, other):
+            """
+            Performs a right biased union via iterated insertion. This could be
+            made faster at the cost of me figuring out how to actually implement
+            a proper union operation.
+            This skews the asymptotics a little since the implementation of
+            iteration is O(n lg n) as is insertion.
+            """
+            assert isinstance(other, PersistentHashMap)
+            count = self._cnt
+            root  = BitmapIndexedNode_EMPTY if self._root is None else self._root
+            for key, val in other.iteritems():
+                added_leaf = Box()
+                hash = hashfun(key) & MASK_32
+                root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
+                count = added_leaf.adjust_size(count)
+            if root is self._root:
+                return self
+            return PersistentHashMap(count, root)
+
+        __add__ = union
+
         def iteritems(self):
             for i in range(self._cnt):
                 yield self.get_item(i)
@@ -534,14 +573,6 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         added_leaf = Box()
         return BitmapIndexedNode_EMPTY.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
-
-    def bit_count(i):
-        # TODO: See about implementing this via the POPCNT instruction on
-        # supporting architectures
-        assert isinstance(i, r_uint)
-        i = i - ((i >> 1) & r_uint(0x55555555))
-        i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
-        return (((i + (i >> 4) & r_uint(0xF0F0F0F)) * r_uint(0x1010101)) & r_uint(0xffffffff)) >> 24
 
     def list_copy(from_lst, from_loc, to_list, to_loc, count):
         from_loc = r_uint(from_loc)
