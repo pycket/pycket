@@ -107,6 +107,8 @@ class AST(object):
         The live after set allows us to slim down the environment during execution
         by only saving values which may be referenced later.
         """
+        after.update(self.free_vars())
+        self.live_before = after.copy()
         return after
 
     def normalize(self, ctxt):

@@ -410,6 +410,9 @@ def test_persistent_hash_collisions():
         validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i)
 
+    for i in range(10):
+        assert i in acc
+
     assert len(acc) == 10
     assert len(list(acc.iteritems())) == 10
     for k, v in acc.iteritems():
@@ -426,6 +429,9 @@ def test_persistent_hash_collisions2():
         validate_persistent_hash(acc)
         acc = acc.assoc(i % 128, i)
 
+    for i in range(128):
+        assert i in acc
+
     assert len(acc) == 128
     assert len(list(acc.iteritems())) == 128
     for k, v in acc.iteritems():
@@ -438,6 +444,9 @@ def test_persistent_hash_removal():
     for i in range(1000):
         validate_persistent_hash(acc)
         acc = acc.assoc(i % 10, i).without(i % 10)
+
+    for i in range(128):
+        assert i not in acc
 
     assert len(acc) == 0
     assert list(acc.iteritems()) == []
@@ -499,3 +508,5 @@ def test_persistent_hash__collisions_removal2():
         assert v >= 990
         assert v % 10 == k
         assert acc.val_at(k, None) is v
+
+

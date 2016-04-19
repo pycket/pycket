@@ -1112,7 +1112,7 @@ class SequencedBodyAST(AST):
     @staticmethod
     def live_before_sequence(nodes, after):
         for b in reversed(nodes):
-            after.update(b.free_vars())
+            after = b.compute_live_before(after)
             b.live_before = after.copy()
         return after
 
@@ -1485,6 +1485,12 @@ class If(AST):
         self.thn = thn
         self.els = els
 
+    @staticmethod
+    def make(tst, thn, els):
+        if isinstance(tst, Quote):
+            return thn if tst.value is not values.w_false else els
+        return If(tst, thn, els)
+
     @objectmodel.always_inline
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
@@ -1503,7 +1509,14 @@ class If(AST):
         return [self.tst, self.thn, self.els]
 
     def compute_live_before(self, after):
-        pass
+        thn = after
+        els = after.copy()
+        after_thn = self.thn.compute_live_before(after)
+        after_els = self.els.compute_live_before(els)
+        after_thn.update(after_els)
+        after = self.tst.compute_live_before(after_thn)
+        self.live_before = after.copy()
+        return after
 
     def normalize(self, ctxt):
         ctxt = Context.If(self.thn, self.els, ctxt)
@@ -2105,7 +2118,7 @@ class Let(SequencedBodyAST):
                 pass
         # Compute liveness for the rhs
         after = SequencedBodyAST.live_before_sequence(self.rhss, after)
-        self.live_before = after
+        self.live_before = after.copy()
         return after
 
     def normalize(self, ctxt):

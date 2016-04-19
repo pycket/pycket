@@ -45,6 +45,12 @@ class Box(object):
 
 def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
 
+    class Missing(super):
+        def __init__(self):
+            pass
+
+    missing = Missing()
+
     class INode(super):
 
         _attrs_ = ['_size']
@@ -441,6 +447,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
         def __len__(self):
             return self._cnt
+
+        def __contains__(self, key):
+            return self.val_at(key, missing) is not missing
 
         def iteritems(self):
             for i in range(self._cnt):
