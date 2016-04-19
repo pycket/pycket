@@ -1064,14 +1064,14 @@ put the usual application-rands to the operands
                      (if (and (list? lang) (null? (cdr lang))) ;; (quoted mpi) like '("#%kernel")
                          (car lang)
                          (error 'lang-pycket? "unusual lang form : ~a" lang)))])
-      (or (string=? lang* "#%kernel") (string-contains? lang* "pycket-lang"))))
+      (or (string-contains? lang* "#%kernel") (string-contains? lang* "kernel.rkt") (string-contains? lang* "pycket-lang"))))
     
   (define runtime-config ;; TODO : revisit : submodule handling should handle this
     (if lang-pycket?
         'dont-care ;; if lang-pycket?, then the runtime-config will never be added to the body forms
         (let* ([pre-submods (mod-pre-submodules code)]
                [runtime-prefix (mod-prefix (car pre-submods))]
-               [runtime-mod (car (prefix-toplevels runtime-prefix))]
+               [runtime-mod (car (filter module-variable? (prefix-toplevels runtime-prefix)))]
                ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
                [resolved-mod-path (resolved-module-path-name
                                  (module-path-index-resolve (module-variable-modidx runtime-mod)))]
@@ -1090,6 +1090,8 @@ put the usual application-rands to the operands
 
   (define reqs (cdr phase0-reqs))
 
+  ;; TODO: proper submod handling
+  
   (define top-level-req-forms
     (map (λ (req-mod)
            (let ([mod-path (module-path-index->path-string req-mod)])
