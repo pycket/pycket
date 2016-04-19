@@ -106,6 +106,8 @@ class AST(object):
 
         The live after set allows us to slim down the environment during execution
         by only saving values which may be referenced later.
+        The default case here updates the after set with the free variables of
+        the expression and annotates the current node, but does not recur.
         """
         after.update(self.free_vars())
         self.live_before = after.copy()

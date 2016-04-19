@@ -68,6 +68,17 @@ class SymList(object):
                 return True
         return False
 
+    @jit.unroll_safe
+    def shrink_env(self, env, desired):
+        jit.promote(self)
+        jit.promote(desired)
+        if desired is None:
+            return env.toplevel_env()
+        prev = self.shrink_env(env, desired.prev)
+        vals = [env.lookup(d) for d in desired.elems]
+        return ConsEnv.make(vals, prev)
+
+
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
 

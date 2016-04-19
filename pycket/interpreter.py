@@ -1897,6 +1897,17 @@ class Letrec(SequencedBodyAST):
                 del x[v]
         return x
 
+    def compute_live_before(self, after):
+        after = SequencedBodyAST.live_before_sequence(self.body, after)
+        after = SequencedBodyAST.live_before_sequence(self.rhss, after)
+        for var in self.args.elems:
+            try:
+                del after[var]
+            except KeyError:
+                pass
+        self.live_before = after.copy()
+        return after
+
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
         for b in self.body + self.rhss:
