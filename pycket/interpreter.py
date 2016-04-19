@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket                          import config
 from pycket                          import values, values_string, values_parameter
 from pycket                          import vector
@@ -973,7 +976,7 @@ class WithContinuationMark(AST):
         return ctxt.plug(result)
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
+    _immutable_fields_ = ["rator", "rands[*]"]
 
     def __init__ (self, rator, rands, env_structure=None):
         self.rator = rator
@@ -1098,11 +1101,12 @@ class SimplePrimApp2(App):
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]", "counting_asts[*]"]
-    def __init__(self, body, counts_needed=-1):
+    _immutable_fields_ = ["body[*]", "counting_asts[*]", "body_env_structures[*]"]
+    def __init__(self, body, counts_needed=-1, body_env_structures=None):
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+        self.body_env_structures = body_env_structures
         if counts_needed < len(self.body) + 1:
             counts_needed = len(self.body) + 1
         self.counting_asts = [
@@ -1127,6 +1131,12 @@ class SequencedBodyAST(AST):
         jit.promote(i)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
+        elif self.body_env_structures is not None:
+            curr_env_structure = self.body_env_structures[i]
+            next_env_structure = self.body_env_structures[i+1]
+            next_env = curr_env_structure.shrink_env(env, next_env_structure)
+            return self.body[i], env, BeginCont(
+                    self.counting_asts[i + 1], next_env, prev)
         else:
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
@@ -1173,7 +1183,7 @@ class Begin0(AST):
 class Begin(SequencedBodyAST):
 
     @staticmethod
-    def make(body):
+    def make(body, body_env_structures=None):
         if len(body) == 1:
             return body[0]
 
@@ -1187,10 +1197,18 @@ class Begin(SequencedBodyAST):
             letrhss = b0.rhss
             return make_let(letargs, letrhss, letbody + rest)
 
-        return Begin(body)
+        return Begin(body, body_env_structures=body_env_structures)
 
     def assign_convert(self, vars, env_structure):
-        return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
+        body = [None] * len(self.body)
+        body_env_structures = [None] * len(self.body)
+        for i, b in enumerate(self.body):
+            assert b.live_before is not None
+            env_structure = env_structure.remove_dead_vars(b.live_before)
+            body_env_structures[i] = env_structure
+            body[i] = b.assign_convert(vars, env_structure)
+        result = Begin.make(body, body_env_structures=body_env_structures)
+        return result
 
     def direct_children(self):
         return self.body

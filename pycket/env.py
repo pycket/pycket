@@ -78,6 +78,13 @@ class SymList(object):
         vals = [env.lookup(d) for d in desired.elems]
         return ConsEnv.make(vals, prev)
 
+    def remove_dead_vars(self, live_set):
+        vars = []
+        while self is not None:
+            for var in self.elems:
+                if var in live_set:
+                    vars.append(var)
+        return vars[:]
 
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
