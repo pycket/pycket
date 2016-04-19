@@ -3,7 +3,7 @@
 (require compiler/zo-parse setup/dirs racket/undefined
          (only-in pycket/expand hash* global-config))
 
-(provide to-ast-wrapper
+(provide to-ast-wrapper to-ast-val
          primitive-table)
 
 (define DEBUG #f)
@@ -11,6 +11,7 @@
 (define collects-dir (path->string (find-collects-dir)))
 (define module-name 'beSetBy-main)
 (define relative-current-dir 'rel-dir-beSetBy-main)
+(define TEST #f)
 
 (define TOPLEVELS '())
 (define TOPSYNTAX '())
@@ -47,7 +48,7 @@
 (define primitives (hash-values primitive-table))
 
 (define (value? form)
-  (ormap (λ (f) (f form)) (list list? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
+  (ormap (λ (f) (f form)) (list list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
 
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
@@ -140,6 +141,12 @@
         (hash* 'source-name s)
         (hash* 'toplevel s))))
 
+(define (handle-prefab p-srt)
+  (let ([p-key (prefab-struct-key p-srt)]
+        [struct-ls (vector->list (struct->vector p-srt))])
+    (hash* 'prefab-key (to-ast-val p-key)
+           'struct (map to-ast-val (cdr struct-ls)))))
+
 (define (handle-char racket-char)
   (hash* 'char (number->string (char->integer racket-char))))
 
@@ -173,6 +180,9 @@
 
 (define (handle-list list-form)
   (map to-ast-val list-form))
+
+(define (handle-box box-form)
+  (hash* 'box (to-ast-val (unbox box-form))))
 
 (define (handle-pair pair-form)
   (let ([first-vals (takef pair-form (λ (_) #t))]
@@ -236,7 +246,7 @@ put the usual application-rands to the operands
                                     [usual-prefix "/racket/private/"] ; TODO: figure out why they have a new way of naming lam's
                                     [lamname (if (and (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
                                                      (not (string-contains? (symbol->string name) "kw.rkt")))
-                                                 (begin (displayln (format "writing lam name : ~a" name))
+                                                 (begin (when DEBUG (displayln (format "writing lam name : ~a" name)))
                                                         (symbol->string name))#;(error 'handle-lambda (format "lam name has an unusual form : ~a" name))
                                                  (if (string-contains? (symbol->string name) "kw.rkt")
                                                      "kw.rkt" "more-scheme.rkt"))])
@@ -275,8 +285,16 @@ put the usual application-rands to the operands
          [captured-stack-positions (vector->list (lam-closure-map lam-form))] ;; vector
          [current-stack-length (length localref-stack)]
          [captured-current-stack-items (map (λ (pos) (if (>= pos current-stack-length)
-                                                         (begin (displayln current-stack-length) (list-ref TOPLEVELS pos))
-                                                         (list-ref localref-stack pos))) captured-stack-positions)]
+                                                         (begin (when DEBUG (displayln current-stack-length))
+                                                                (with-handlers
+                                                                  ([exn:fail?
+                                                                    (lambda (e)
+                                                                      (error 'top-error
+                                                                             "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
+                                                                             TOPLEVELS pos captured-stack-positions localref-stack))])
+                                                                  (list-ref TOPLEVELS pos)))
+                                                         (list-ref localref-stack pos)))
+                                            captured-stack-positions)]
 
          [new-localref-stack-1 (if rest?
                                    (append symbols-for-formals (list rest-formal) localref-stack)
@@ -395,25 +413,28 @@ put the usual application-rands to the operands
   (if (self-mod? mod-idx)
       (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
-        (if (or (list? module-path) (symbol? module-path)) ;; then it is resolved
-            (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
-              (if (symbol? path)
-                  (symbol->string path)
-                  (path->string path)))
-            (if (not (string? module-path))
-                (error 'module-path-index->path-string "module-path is not a list, symbol or string : ~a, in ~a" module-path mod-idx)
-                ;; resolving manually using the base-path
-                (if (self-mod? base-path)
-                    (string-append relative-current-dir module-path)
-                    (let ([base-path-str (if (resolved-module-path? base-path)
-                                             (path->string (resolved-module-path-name base-path))
-                                             (module-path-index->path-string base-path))])
-                      (begin ;; sanity-check : should end with .rkt
-                        (when (not (string-suffix? base-path-str ".rkt"))
-                          (error 'module-path-index->path-string "something's wrong with the resolved base path : ~a" base-path-str))
-                        (let* ([spl (string-split base-path-str "/")]
-                               [real-base (string-append "/" (string-join (take spl (sub1 (length spl))) "/") "/")])
-                          (string-append real-base module-path))))))))))
+        (if (list? module-path) ;; it may be resolved
+            (with-handlers ([exn:fail? (λ (e) (map (λ (s) (if (symbol? s) (symbol->string s) s)) (cdr module-path)))])
+              (path->string (resolved-module-path-name (module-path-index-resolve mod-idx))))
+            (if (symbol? module-path) ;; then it is resolved
+                (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
+                  (if (symbol? path)
+                      (symbol->string path)
+                      (path->string path)))
+                (if (not (string? module-path))
+                    (error 'module-path-index->path-string "module-path is not a list, symbol or string : ~a, in ~a" module-path mod-idx)
+                    ;; resolving manually using the base-path
+                    (if (self-mod? base-path)
+                        (string-append relative-current-dir module-path)
+                        (let ([base-path-str (if (resolved-module-path? base-path)
+                                                 (path->string (resolved-module-path-name base-path))
+                                                 (module-path-index->path-string base-path))])
+                          (begin ;; sanity-check : should end with .rkt
+                            (when (not (string-suffix? base-path-str ".rkt"))
+                              (error 'module-path-index->path-string "something's wrong with the resolved base path : ~a" base-path-str))
+                            (let* ([spl (string-split base-path-str "/")]
+                                   [real-base (string-append "/" (string-join (take spl (sub1 (length spl))) "/") "/")])
+                              (string-append real-base module-path)))))))))))
 
 (define (handle-module-variable mod-var localref-stack)
   (let* ([name (symbol->string (module-variable-sym mod-var))]
@@ -421,18 +442,21 @@ put the usual application-rands to the operands
          [module-path
           (module-path-index->path-string mod-idx)])
     (hash* 'source-name name
-           'source-module (list module-path))))
+           'source-module (if (and TEST (string? module-path) ;; TODO : refactor
+                                   (string-contains? module-path (string-append "/" module-name ".rkt")))
+                              (list ".")
+                              (if (list? module-path) module-path (list module-path))))))
 
 (define (handle-varref varref-form localref-stack)
   (let ([top (varref-toplevel varref-form)]
         [dummy (varref-dummy varref-form)]
         [current-mod-path (string-append relative-current-dir module-name ".rkt")])
-    (if (boolean? top) ;; varref-toplevel is a boolean
-        (error 'handle-varref (format "we got a bool at varref : ~a" varref-form))
-        (let* ([topvar (list-ref TOPLEVELS (toplevel-pos top))]
+    ;(if (boolean? top) ;; varref-toplevel is a boolean
+    ;    (error 'handle-varref (format "we got a bool at varref : ~a" varref-form))
+        (let* ([topvar (if (boolean? top) top (list-ref TOPLEVELS (toplevel-pos top)))]
                [name (cond
                        [(boolean? topvar)
-                        (if topvar
+                        topvar #;(if topvar
                             (error 'handle-varref (format "we got a TRUE bool from TOPLEVELS : ~a - varref : ~a" topvar varref-form))
                             false)]
                        [(symbol? topvar) (symbol->string topvar)]
@@ -443,7 +467,7 @@ put the usual application-rands to the operands
                              (module-path-index->path-string (module-variable-modidx topvar)))]
                ;; TODO : refactor
                [is-lifted? false]
-               [name-ref-hash (if (boolean? topvar) 'dummy
+               [name-ref-hash (if (boolean? topvar) topvar
                                   (if (memv (string->symbol name) primitives) ;; it's a primitive
                                       (hash* 'source-name name)
                                       (if (string-contains? name ".")
@@ -456,10 +480,12 @@ put the usual application-rands to the operands
                                                                (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
                                                 (string->number (cadr mod-split)))
                                               (hash* 'source-name name
-                                                     'source-module (list path-str)
+                                                     'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name ".rkt")))
+                                                                        (list ".") (list path-str))
                                                      'module original-mod)))
                                           (hash* 'source-name name
-                                                 'source-module (list path-str)))))]
+                                                 'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name ".rkt")))
+                                                                    (list ".") (list path-str))))))]
                [source-mod (cond
                              [(or (symbol? topvar) (boolean? topvar)) path-str]
                              [(memv (string->symbol name) primitives) current-mod-path]
@@ -476,7 +502,7 @@ put the usual application-rands to the operands
                        'original true)])
           (if (boolean? topvar) ;; (hash* 'var false) produces '#hash() 
               (hash-set final-hash 'variable-reference name) ;; adding it with hash-set works
-              final-hash)))))
+              final-hash))))
 
 (define (handle-let-one letform localref-stack current-closure-refs)
   (begin
@@ -532,6 +558,7 @@ put the usual application-rands to the operands
     ((toplevel? body-form) "toplevel ")
     ((topsyntax? body-form) "topsyntax ")
     ((hash? body-form) "Already hashed Val (pushed by let-one)")
+    ((prefab-struct-key body-form) "Prefab struct ")
     (else "Unknown: ")))
 
 (define (handle-toplevel form localref-stack)
@@ -541,7 +568,8 @@ put the usual application-rands to the operands
     (cond
       [(symbol? toplevel-id)
        (hash* 'source-name toplevel-id-str
-              'source-module (list module-dir))]
+              'source-module (if (and TEST (string-contains? module-dir (string-append "/" module-name ".rkt")))
+                                 (list ".") (list module-dir)))]
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id localref-stack)]
       [else (error 'handle-toplevel "not sure how to handle this kind of toplevel form")])))
@@ -718,7 +746,8 @@ put the usual application-rands to the operands
     (hash* 'case-lambda
            (map (λ (clause-raw)
                   (if (and (not (lam? clause-raw)) (not (closure? clause-raw)))
-                      (begin (displayln clause-raw (current-output-port)) (error 'handle-case-lambda "not a lam clause?"))
+                      (begin (when DEBUG (displayln clause-raw))
+                             (error 'handle-case-lambda "not a lam clause?"))
                       (let* ([clause (if (lam? clause-raw) clause-raw (closure-code clause-raw))] ;; assumes there's a lam in the closure
 
                              ;; TODO : make use of 'handle-lambda for these
@@ -795,6 +824,8 @@ put the usual application-rands to the operands
   (cond
     ((list? val-form) 
      (handle-list val-form))
+    ((box? val-form)
+     (handle-box val-form))
     ((pair? val-form)
      (handle-pair val-form))
     ((hash? val-form)
@@ -827,6 +858,8 @@ put the usual application-rands to the operands
      (handle-boolean val-form))
     ((void? val-form)
      (handle-void val-form))
+    ((prefab-struct-key val-form)
+     (handle-prefab val-form))
     (else (error 'to-ast-val (format "unhandled value : ~a" val-form)))))
 
 ;; stack : (listof symbol?/prefix?/hash?)
@@ -937,6 +970,9 @@ put the usual application-rands to the operands
        (handle-closure body-form localref-stack current-closure-refs))
       ((topsyntax? body-form)
        (handle-topsyntax body-form localref-stack current-closure-refs))
+      ;; prefab handling needs to stay here (b/c all the above are prefabs)
+      ((prefab-struct-key body-form)
+       (hash* 'quote (handle-prefab body-form)))
       (else (begin (display "-- NOT SUPPORTED YET: ")
                    (display body-form)
                    (newline)(newline)
@@ -945,11 +981,12 @@ put the usual application-rands to the operands
 (define (to-ast body-forms)
   (map (lambda (form) (to-ast-single form '() '())) body-forms))
 
-(define (set-globals! debug mod-name rel-current-dir)
+(define (set-globals! debug mod-name rel-current-dir test)
   (begin
     (set! DEBUG debug)
     (set! module-name mod-name)
-    (set! relative-current-dir rel-current-dir)))
+    (set! relative-current-dir rel-current-dir)
+    (set! TEST test)))
 
 (define (set-toplevels! toplevels topsyntaxes)
   (set! TOPLEVELS toplevels)
@@ -957,7 +994,7 @@ put the usual application-rands to the operands
 
 (define (to-ast-wrapper body-forms toplevels topstxs debug mod-name relative-dir)
   (begin
-    (set-globals! debug mod-name relative-dir)
+    (set-globals! debug mod-name relative-dir false)
     (set-toplevels! toplevels topstxs)
     (to-ast body-forms)))
 
@@ -967,16 +1004,18 @@ put the usual application-rands to the operands
   (define debug #f)
   (define sub-dirs-str #f)
   (define out #f)
+  (define test #f)
 
 
   (command-line
    #:once-each
    [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+   [("--test") "running from test" (set! test #t)] ;; put ["."] to all source-module paths
    #:once-any
    [("--output") file "write output to output <file>"
     (set! out (open-output-file file #:exists 'replace))]
    [("--stdout") "write output to standart out" (set! out (current-output-port))]
-
+   
    #:args (file.rkt)
    (let* ([subs (string-split file.rkt "/")]
           [sub-dirs (take subs (max (sub1 (length subs)) 0))]
@@ -989,12 +1028,12 @@ put the usual application-rands to the operands
      (begin
        ;; setting the stage
        (set! sub-dirs-str sub-dirs-str*)
-       (set-globals! debug mod-name sub-dirs-str)
+       (set-globals! debug mod-name sub-dirs-str test)
        (managed-compile-zo file.rkt)
        ;; setting the output port
-       (if out out
-           (set! out (open-output-file (string-append sub-dirs-str mod-name ".rkt.json")
-                                       #:exists 'replace))))))
+       (when (not out)
+         (set! out (open-output-file (string-append sub-dirs-str mod-name ".rkt.json")
+                                     #:exists 'replace))))))
 
   (define dep-file (read (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.dep"))))
   
@@ -1019,11 +1058,15 @@ put the usual application-rands to the operands
   (define phase0-reqs (cdr phase0))
   
   (define lang (module-path-index->path-string (car phase0-reqs)))
-  
-  (define lang-pycket? (or (string=? lang "#%kernel")
-                           (string-contains? lang "pycket-lang")))
-  
-  (define runtime-config
+
+  (define lang-pycket?
+    (let ([lang* (if (string? lang) lang
+                     (if (and (list? lang) (null? (cdr lang))) ;; (quoted mpi) like '("#%kernel")
+                         (car lang)
+                         (error 'lang-pycket? "unusual lang form : ~a" lang)))])
+      (or (string=? lang* "#%kernel") (string-contains? lang* "pycket-lang"))))
+    
+  (define runtime-config ;; TODO : revisit : submodule handling should handle this
     (if lang-pycket?
         'dont-care ;; if lang-pycket?, then the runtime-config will never be added to the body forms
         (let* ([pre-submods (mod-pre-submodules code)]
@@ -1040,7 +1083,7 @@ put the usual application-rands to the operands
                  'module-name (symbol->string (mod-srcname (car pre-submods)))
                  'body-forms (list
                               (hash* 'require (list (list runtime-config)))
-                              (hash* 'operator (hash* 'source-module (list runtime-config)
+                              (hash* 'operator (hash* 'source-module (if test (list ".") (list runtime-config))
                                                       'source-name (symbol->string
                                                                     (module-variable-sym runtime-mod)))
                                      'operands (list (hash 'quote #f))))))))
@@ -1048,7 +1091,9 @@ put the usual application-rands to the operands
   (define reqs (cdr phase0-reqs))
 
   (define top-level-req-forms
-    (map (λ (req-mod) (hash* 'require (list (list (module-path-index->path-string req-mod))))) reqs))
+    (map (λ (req-mod)
+           (let ([mod-path (module-path-index->path-string req-mod)])
+             (hash* 'require (list (if (list? mod-path) mod-path (list mod-path)))))) reqs))
 
   ;; code-body : listof def-values
   (define (prepare-toplevels code-body)
@@ -1094,7 +1139,7 @@ put the usual application-rands to the operands
                                                     [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
                                                     [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
                                     (if (symbol? name) name (gensym (vector-ref name 0))))])
-                         (list (car poss) sym)))
+                         (list (car poss) (gensym sym))))
                    ;; we have multiple toplevels at the defval
                    (if (ormap (λ (pos) (>= pos toplen)) poss)
                        (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " poss defval)
