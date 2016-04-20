@@ -534,6 +534,12 @@ def make_persistent_hash_type(
                 keys[i] = self.get_item(i)[0]
             return keys
 
+        def vals(self):
+            vals = [None] * self._cnt
+            for i in range(self._cnt):
+                vals[i] = self.get_item(i)[1]
+            return vals
+
         @jit.dont_look_inside
         def assoc(self, key, val):
             key = restrict_key_type(key)
@@ -583,6 +589,22 @@ def make_persistent_hash_type(
                 return self
             return PersistentHashMap(self._cnt - 1, new_root)
 
+        @jit.dont_look_inside
+        def without_many(self, keys):
+            root  = self._root
+            count = self._cnt
+            if root is None:
+                return self
+            for key in keys:
+                if root is None:
+                    return PersistentHashMap.EMPTY
+                key = restrict_key_type(key)
+                new_root = root.without_inode(0, hashfun(key) & MASK_32, key)
+                if new_root is not root:
+                    root = new_root
+                    count -= 1
+            return PersistentHashMap(count, root)
+
         def get_item(self, index):
             return self._elidable_get_item(index)
 
@@ -609,6 +631,10 @@ def make_persistent_hash_type(
             assert key_or_none is not None
             assert not isinstance(val_or_node, INode)
             return restrict_types(key_or_none, val_or_node)
+
+        @staticmethod
+        def singleton(key, val=None):
+            return PersistentHashMap.EMPTY.assoc(key, val)
 
         def make_copy(self):
             return PersistentHashMap(self._cnt, self._root)
