@@ -590,7 +590,8 @@ class __extend__(values.W_Flonum):
         v2 = other.value
         if math.floor(v1) != v1 or math.floor(v2) != v2:
             raise SchemeException("quotient: expected integer")
-        return values.W_Flonum(v1 / v2)
+        val = math.floor(v1 / v2)
+        return values.W_Flonum(val)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Flonum)

@@ -141,12 +141,16 @@ class W_EqMutableHashTable(W_SimpleMutableHashTable):
 
 W_EqvImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
+        keytype=values.W_Object,
+        valtype=values.W_Object,
         name="W_EqvImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqvMutableHashTable.hash_value(x)),
         equal=W_EqvMutableHashTable.cmp_value)
 
 W_EqImmutableHashTable = make_persistent_hash_type(
         super=W_ImmutableHashTable,
+        keytype=values.W_Object,
+        valtype=values.W_Object,
         name="W_EqImmutableHashTable",
         hashfun=lambda x: r_uint(W_EqMutableHashTable.hash_value(x)),
         equal=W_EqMutableHashTable.cmp_value)

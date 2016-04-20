@@ -269,6 +269,7 @@ def continuation(func):
     return make_continuation
 
 def make_label(func, enter=False):
+    import pycket.values
     from pycket.AST import AST
 
     func = jit.unroll_safe(func)
