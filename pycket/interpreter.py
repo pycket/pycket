@@ -37,7 +37,6 @@ BUILTIN_MODULES = [
     "#%futures",
     "#%network" ]
 
-
 class Context(object):
 
     __metaclass__ = extendabletype
@@ -757,7 +756,7 @@ class Module(AST):
 
     def compute_live_before(self, after):
         for b in self.body:
-            b.compute_live_before({})
+            b.compute_live_before(SymbolSet.EMPTY)
         return after
 
     def normalize(self, ctxt):
@@ -982,7 +981,7 @@ class WithContinuationMark(AST):
         after = self.body.compute_live_before(after)
         after = self.value.compute_live_before(after)
         after = self.key.compute_live_before(after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     def assign_convert(self, vars, env_structure):
@@ -1151,12 +1150,12 @@ class SequencedBodyAST(AST):
     def live_before_sequence(nodes, after):
         for b in reversed(nodes):
             after = b.compute_live_before(after)
-            b.live_before = after.copy()
+            b.live_before = after
         return after
 
     def compute_live_before(self, after):
         after = SequencedBodyAST.live_before_sequence(self.body, after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     @objectmodel.always_inline
@@ -1196,7 +1195,7 @@ class Begin0(AST):
     def compute_live_before(self, after):
         after = self.body.compute_live_before(after)
         after = self.first.compute_live_before(after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     def direct_children(self):
@@ -1512,7 +1511,7 @@ class SetBang(AST):
 
     def compute_live_before(self, after):
         after = self.rhs.compute_live_before(after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     def assign_convert(self, vars, env_structure):
@@ -1572,13 +1571,11 @@ class If(AST):
         return [self.tst, self.thn, self.els]
 
     def compute_live_before(self, after):
-        thn = after
-        els = after.copy()
         after_thn = self.thn.compute_live_before(after)
-        after_els = self.els.compute_live_before(els)
-        after_thn.update(after_els)
-        after = self.tst.compute_live_before(after_thn)
-        self.live_before = after.copy()
+        after_els = self.els.compute_live_before(after)
+        after = after_thn.union(after_els)
+        after = self.tst.compute_live_before(after)
+        self.live_before = after
         return after
 
     def normalize(self, ctxt):
@@ -1963,11 +1960,8 @@ class Letrec(SequencedBodyAST):
         after = SequencedBodyAST.live_before_sequence(self.body, after)
         after = SequencedBodyAST.live_before_sequence(self.rhss, after)
         for var in self.args.elems:
-            try:
-                del after[var]
-            except KeyError:
-                pass
-        self.live_before = after.copy()
+            after = after.without(var)
+        self.live_before = after
         return after
 
     def assign_convert(self, vars, env_structure):
@@ -2146,14 +2140,6 @@ class Let(SequencedBodyAST):
         for b in self.rhss:
             x = x.union(b.free_vars())
         return x
-        # for b in self.body:
-            # x.update(b.free_vars())
-        # for v in self.args.elems:
-            # if v in x:
-                # del x[v]
-        # for b in self.rhss:
-            # x.update(b.free_vars())
-        # return x
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
@@ -2185,20 +2171,14 @@ class Let(SequencedBodyAST):
         return result
 
     def compute_live_before(self, after):
-        # TODO: Using immutable hash tables for this process would probably be
-        # more efficient than all the copying
-
         # Compute variable liveness before the body of the let expression
         after = SequencedBodyAST.live_before_sequence(self.body, after)
         # Variables bound by the let cannot be live in the binding clauses
         for var in self.args.elems:
-            try:
-                del after[var]
-            except KeyError:
-                pass
+            after = after.without(var)
         # Compute liveness for the rhs
         after = SequencedBodyAST.live_before_sequence(self.rhss, after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     def normalize(self, ctxt):
@@ -2328,7 +2308,7 @@ class DefineValues(AST):
 
     def compute_live_before(self, after):
         after = self.rhs.compute_live_before(after)
-        self.live_before = after.copy()
+        self.live_before = after
         return after
 
     def assign_convert(self, vars, env_structure):

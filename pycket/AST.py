@@ -1,4 +1,5 @@
-from rpython.rlib                    import jit, objectmodel
+
+from rpython.rlib import jit, objectmodel
 
 class AST(object):
     _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr", "live_before"]
@@ -111,8 +112,8 @@ class AST(object):
         The default case here updates the after set with the free variables of
         the expression and annotates the current node, but does not recur.
         """
-        after.update(self.free_vars())
-        self.live_before = after.copy()
+        after = after.union(self.free_vars())
+        self.live_before = after
         return after
 
     def normalize(self, ctxt):
