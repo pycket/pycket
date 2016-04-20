@@ -590,14 +590,13 @@ def make_persistent_hash_type(
             if root is None:
                 return self
             for key in keys:
-                key = restrict_key_type(key)
                 if root is None:
-                    break
+                    return PersistentHashMap.EMPTY
+                key = restrict_key_type(key)
                 new_root = root.without_inode(0, hashfun(key) & MASK_32, key)
-                if new_root is root:
-                    continue
-                root = new_root
-                count -= 1
+                if new_root is not root:
+                    root = new_root
+                    count -= 1
             return PersistentHashMap(count, root)
 
         def get_item(self, index):

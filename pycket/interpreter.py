@@ -1344,7 +1344,6 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
-
 def free_vars_lambda(body, args):
     x = SymbolSet.EMPTY
     for b in body:
