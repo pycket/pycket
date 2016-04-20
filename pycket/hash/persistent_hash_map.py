@@ -583,6 +583,23 @@ def make_persistent_hash_type(
                 return self
             return PersistentHashMap(self._cnt - 1, new_root)
 
+        @jit.dont_look_inside
+        def without_many(self, keys):
+            root  = self._root
+            count = self._cnt
+            if root is None:
+                return self
+            for key in keys:
+                key = restrict_key_type(key)
+                if root is None:
+                    break
+                new_root = root.without_inode(0, hashfun(key) & MASK_32, key)
+                if new_root is root:
+                    continue
+                root = new_root
+                count -= 1
+            return PersistentHashMap(count, root)
+
         def get_item(self, index):
             return self._elidable_get_item(index)
 

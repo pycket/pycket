@@ -1349,8 +1349,7 @@ def free_vars_lambda(body, args):
     x = SymbolSet.EMPTY
     for b in body:
         x = x.union(b.free_vars())
-    for v in args.elems:
-        x = x.without(v)
+    x = x.without_many(args.elems)
     return x
 
 class CaseLambda(AST):
@@ -1682,13 +1681,8 @@ class Letrec(SequencedBodyAST):
 
     def _free_vars(self):
         x = AST._free_vars(self)
-        for v in self.args.elems:
-            x = x.without(v)
+        x = x.without_many(self.args.elems)
         return x
-        # for v in self.args.elems:
-            # if v in x:
-                # del x[v]
-        # return x
 
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
@@ -1851,8 +1845,7 @@ class Let(SequencedBodyAST):
         x = SymbolSet.EMPTY
         for b in self.body:
             x = x.union(b.free_vars())
-        for v in self.args.elems:
-            x = x.without(v)
+        x = x.without_many(self.args.elems)
         for b in self.rhss:
             x = x.union(b.free_vars())
         return x
@@ -1904,8 +1897,7 @@ class Let(SequencedBodyAST):
         free_vars_not_from_let = SymbolSet.EMPTY
         for b in self.body:
             free_vars_not_from_let = free_vars_not_from_let.union(b.free_vars())
-        for x in self.args.elems:
-            free_vars_not_from_let = free_vars_not_from_let.without(x)
+        free_vars_not_from_let = free_vars_not_from_let.without_many(self.args.elems)
         # at most, we can remove all envs, apart from the one introduced by let
         curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
         max_needed = 0
