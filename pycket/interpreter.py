@@ -1076,7 +1076,7 @@ class Var(AST):
         return variable_set()
 
     def _free_vars(self):
-        return SymbolSet.EMPTY.assoc(self.sym, None)
+        return SymbolSet.singleton(self.sym)
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
@@ -1848,14 +1848,6 @@ class Let(SequencedBodyAST):
         for b in self.rhss:
             x = x.union(b.free_vars())
         return x
-        # for b in self.body:
-            # x.update(b.free_vars())
-        # for v in self.args.elems:
-            # if v in x:
-                # del x[v]
-        # for b in self.rhss:
-            # x.update(b.free_vars())
-        # return x
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
