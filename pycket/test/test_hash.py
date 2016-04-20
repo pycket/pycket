@@ -528,4 +528,13 @@ def test_persistent_hash_union():
     for i in range(256):
         assert i in acc3
 
+def test_without_many():
+    HashTable = make_persistent_hash_type()
+    acc = HashTable.EMPTY
+
+    for i in range(256):
+        acc = acc.assoc(i, i)
+
+    acc = acc.without_many(range(256))
+    assert len(acc) == 0
 
