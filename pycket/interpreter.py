@@ -243,6 +243,9 @@ SymbolSet = make_persistent_hash_type(
     hashfun=hashfun,
     equal=equal)
 
+def compute_live_before(ast):
+    return ast.compute_live_before(SymbolSet.EMPTY)
+
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
 
@@ -1164,12 +1167,12 @@ class SequencedBodyAST(AST):
         jit.promote(i)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
-        elif self.body_env_structures is not None:
-            curr_env_structure = self.body_env_structures[i]
-            next_env_structure = self.body_env_structures[i+1]
-            next_env = curr_env_structure.shrink_env(env, next_env_structure)
-            return self.body[i], env, BeginCont(
-                    self.counting_asts[i + 1], next_env, prev)
+        # elif self.body_env_structures is not None:
+            # curr_env_structure = self.body_env_structures[i]
+            # next_env_structure = self.body_env_structures[i+1]
+            # next_env = curr_env_structure.shrink_env(env, next_env_structure)
+            # return self.body[i], env, BeginCont(
+                    # self.counting_asts[i + 1], next_env, prev)
         else:
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
@@ -1242,8 +1245,7 @@ class Begin(SequencedBodyAST):
         body = [None] * len(self.body)
         body_env_structures = [None] * len(self.body)
         for i, b in enumerate(self.body):
-            assert b.live_before is not None
-            env_structure = env_structure.remove_dead_vars(b.live_before)
+            # env_structure = env_structure.remove_dead_vars(b.live_before)
             body_env_structures[i] = env_structure
             body[i] = b.assign_convert(vars, env_structure)
         result = Begin.make(body, body_env_structures=body_env_structures)

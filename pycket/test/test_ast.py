@@ -9,7 +9,7 @@ from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
                                 SimplePrimApp1, SimplePrimApp2,
-                                WithContinuationMark
+                                WithContinuationMark, compute_live_before
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
 
@@ -254,34 +254,41 @@ def test_nontrivial_with_continuation_mark():
 
 def test_variable_liveness():
     p = expr_ast("(let ([x 5]) (+ x 7))")
-    p.compute_live_before({})
+    compute_live_before(p)
     x = p.args.elems[0]
     assert isinstance(p, Let)
-    assert p.live_before == {}
-    assert p.rhss[0].live_before == {}
-    assert p.body[0].live_before == {x: None}
+    assert len(p.live_before) == 0
+    assert len(p.rhss[0].live_before) == 0
+    body = p.body[0].live_before
+    assert len(body) == 1 and body.haskey(x)
 
 def test_variable_liveness2():
     p = expr_ast("(let ([x 1] [y 2] [z 3]) (if x y z))")
-    p.compute_live_before({})
+    compute_live_before(p)
     x, y, z = p.args.elems
     assert isinstance(p, Let)
     for rhs in p.rhss:
-        assert rhs.live_before == {}
+        assert len(rhs.live_before) == 0
 
     body = p.body[0]
     assert isinstance(body, If)
-    assert body.tst.live_before == {x: None, y: None, z: None}
-    assert body.thn.live_before == {y: None}
-    assert body.els.live_before == {z: None}
+    for i in [x, y, z]:
+        assert body.tst.live_before.haskey(x)
+    assert body.thn.live_before.haskey(y)
+    assert body.els.live_before.haskey(z)
 
 def test_variable_liveness3():
     p = expr_ast("(letrec ([x (lambda (a b) (+ (a x) (b x)))] [y (x 1 2)]) y)")
-    p.compute_live_before({})
+    compute_live_before(p)
     x, y = p.args.elems
-    assert p.live_before == {}
-    assert p.rhss[0].live_before == {x: None, y: None}
-    assert p.rhss[1].live_before == {x: None, y: None}
+    assert len(p.live_before) == 0
+    rhs0, rhs1 = p.rhss
 
-    body = p.body[0]
-    assert body.live_before == {y: None}
+    assert len(rhs0.live_before) == 2
+    assert len(rhs1.live_before) == 2
+    for key in [x, y]:
+        assert key in rhs0.live_before
+        assert key in rhs1.live_before
+
+    body = p.body[0].live_before
+    assert len(body) == 1 and y in body

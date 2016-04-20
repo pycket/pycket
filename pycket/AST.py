@@ -116,6 +116,15 @@ class AST(object):
         self.live_before = after
         return after
 
+    def adjust_environment(self, env_structure=None):
+        """
+        Attempts to adjust the environment based on information from the live
+        variable sets computed by |compute_live_before|.
+        This will modify the env_structures of various AST nodes so that
+        """
+        for child in self.direct_children():
+            child.adjust_environment(env_structure)
+
     def normalize(self, ctxt):
         return ctxt.plug(self)
 
