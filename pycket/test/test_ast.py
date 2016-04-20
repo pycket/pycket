@@ -292,3 +292,17 @@ def test_variable_liveness3():
 
     body = p.body[0].live_before
     assert len(body) == 1 and y in body
+
+# def test_variable_liveness4():
+    # p = expr_ast("(let ([x 5] [y 8] [z 9]) (+ x 7) (+ y 9))")
+    # compute_live_before(p)
+    # # x = p.args.elems[0]
+    # # assert isinstance(p, Let)
+    # # assert len(p.live_before) == 0
+    # # assert len(p.rhss[0].live_before) == 0
+    # # body = p.body[0].live_before
+    # # assert len(body) == 1 and body.haskey(x)
+    # p.adjust_environment()
+    # import pdb; pdb.set_trace()
+
+

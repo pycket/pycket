@@ -5,6 +5,15 @@ from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
 
+class EnvDelta(object):
+    _attrs_ = _immutable_fields_ = ["old", "new"]
+
+    def __init__(self, old, new):
+        self.old = old
+        self.new = new
+
+    def diff_env(self, env):
+        return self.old.shrink_env(env, self.new)
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
@@ -14,6 +23,7 @@ class SymList(object):
         self.prev = prev
 
     def check_plausibility(self, env):
+        return None
         if self.elems:
             assert len(self.elems) == env.consenv_get_size()
         if self.prev:
@@ -75,16 +85,17 @@ class SymList(object):
         if desired is None:
             return env.toplevel_env()
         prev = self.shrink_env(env, desired.prev)
-        vals = [env.lookup(d) for d in desired.elems]
+        vals = [env.lookup(d, self) for d in desired.elems]
         return ConsEnv.make(vals, prev)
 
     def remove_dead_vars(self, live_set):
         vars = []
         while self is not None:
             for var in self.elems:
-                if var in live_set:
+                if live_set.haskey(var):
                     vars.append(var)
-        return vars[:]
+            self = self.prev
+        return SymList(vars[:], None)
 
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)

@@ -7,7 +7,7 @@ from pycket                          import vector
 from pycket.AST                      import AST
 from pycket.arity                    import Arity
 from pycket.cont                     import Cont, NilCont, label
-from pycket.env                      import SymList, ConsEnv, ToplevelEnv
+from pycket.env                      import SymList, ConsEnv, ToplevelEnv, EnvDelta
 from pycket.error                    import SchemeException
 from pycket.prims.expose             import prim_env, make_call_method
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
@@ -346,7 +346,6 @@ class LetCont(Cont):
         if not env.pycketconfig().fuse_conts:
             fuse = False
         counting_ast = ast.counting_asts[rhsindex]
-
         # try to fuse the two Conts
         if fuse and not vals_w:
             if isinstance(prev, LetCont) and prev._get_size_list() == 0:
@@ -366,6 +365,8 @@ class LetCont(Cont):
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
+        # if ast.rhss_env_deltas is not None:
+            # env = ast.rhss_env_deltas[rhsindex + 1].diff_env(env)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -1012,7 +1013,7 @@ class WithContinuationMark(AST):
         return ctxt.plug(result)
 
 class App(AST):
-    _immutable_fields_ = ["rator", "rands[*]"]
+    _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
     def __init__ (self, rator, rands, env_structure=None):
         self.rator = rator
@@ -1047,6 +1048,13 @@ class App(AST):
         for r in self.rands:
             x.update(r.mutated_vars())
         return x
+
+    def adjust_environment(self, env_structure=None):
+        """
+        Subterms of applications are all simple due to A-normalization.
+        Thus, we do not need to restrict their environment.
+        """
+        pass
 
     # Let conversion ensures that all the participants in an application
     # are simple.
@@ -1137,12 +1145,12 @@ class SimplePrimApp2(App):
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]", "counting_asts[*]", "body_env_structures[*]"]
-    def __init__(self, body, counts_needed=-1, body_env_structures=None):
+    _immutable_fields_ = ["body[*]", "counting_asts[*]", "body_env_deltas[*]"]
+    def __init__(self, body, counts_needed=-1):
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
-        self.body_env_structures = body_env_structures
+        self.body_env_deltas = None
         if counts_needed < len(self.body) + 1:
             counts_needed = len(self.body) + 1
         self.counting_asts = [
@@ -1161,18 +1169,29 @@ class SequencedBodyAST(AST):
         self.live_before = after
         return after
 
+    def adjust_environment(self, env_structure=None):
+        if env_structure is not None:
+            self.body_env_deltas = [None] * len(self.body)
+        for i, b in enumerate(self.body):
+            if env_structure is not None:
+                new_env_structure = env_structure.remove_dead_vars(b.live_before)
+                self.body_env_deltas[i] = EnvDelta(env_structure, new_env_structure)
+                env_structure = new_env_structure
+            b.adjust_environment(env_structure)
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
+        if i == 0 and self.body_env_deltas is not None:
+            env = self.body_env_deltas[0].diff_env(env)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
-        # elif self.body_env_structures is not None:
-            # curr_env_structure = self.body_env_structures[i]
-            # next_env_structure = self.body_env_structures[i+1]
-            # next_env = curr_env_structure.shrink_env(env, next_env_structure)
-            # return self.body[i], env, BeginCont(
-                    # self.counting_asts[i + 1], next_env, prev)
+        elif self.body_env_deltas is not None:
+            diff = self.body_env_deltas[i + 1].diff_env(env)
+            next_env = diff.shrink_env(env)
+            return self.body[i], env, BeginCont(
+                    self.counting_asts[i + 1], next_env, prev)
         else:
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
@@ -1225,7 +1244,7 @@ class Begin0(AST):
 class Begin(SequencedBodyAST):
 
     @staticmethod
-    def make(body, body_env_structures=None):
+    def make(body):
         if len(body) == 1:
             return body[0]
 
@@ -1239,16 +1258,13 @@ class Begin(SequencedBodyAST):
             letrhss = b0.rhss
             return make_let(letargs, letrhss, letbody + rest)
 
-        return Begin(body, body_env_structures=body_env_structures)
+        return Begin(body)
 
     def assign_convert(self, vars, env_structure):
         body = [None] * len(self.body)
-        body_env_structures = [None] * len(self.body)
         for i, b in enumerate(self.body):
-            # env_structure = env_structure.remove_dead_vars(b.live_before)
-            body_env_structures[i] = env_structure
             body[i] = b.assign_convert(vars, env_structure)
-        result = Begin.make(body, body_env_structures=body_env_structures)
+        result = Begin.make(body)
         return result
 
     def direct_children(self):
@@ -1313,6 +1329,10 @@ class Var(AST):
 
     def direct_children(self):
         return []
+
+    def adjust_environment(self, env_structure=None):
+        if env_structure is not None:
+            self.env_structure = env_structure
 
     def _mutated_vars(self):
         return variable_set()
@@ -1718,6 +1738,12 @@ class CaseLambda(AST):
         result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
         return ctxt.plug(result)
 
+    def compute_live_before(self, after):
+        after_all = SymbolSet.EMPTY
+        for lam in self.lams:
+            after_all = after_all.union(lam.compute_live_before(after))
+        return after_all
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure',
@@ -1855,6 +1881,10 @@ class Lambda(SequencedBodyAST):
                         env_structure=self.env_structure)
         return ctxt.plug(result)
 
+    def compute_live_before(self, after):
+        after = SequencedBodyAST.live_before_sequence(self.body, after)
+        return after.without_many(self.args.elems)
+
     def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
@@ -1952,14 +1982,6 @@ class Letrec(SequencedBodyAST):
         x = x.without_many(self.args.elems)
         return x
 
-    def compute_live_before(self, after):
-        after = SequencedBodyAST.live_before_sequence(self.body, after)
-        after = SequencedBodyAST.live_before_sequence(self.rhss, after)
-        for var in self.args.elems:
-            after = after.without(var)
-        self.live_before = after
-        return after
-
     def assign_convert(self, vars, env_structure):
         local_muts = variable_set()
         for b in self.body + self.rhss:
@@ -1974,6 +1996,20 @@ class Letrec(SequencedBodyAST):
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+
+    def compute_live_before(self, after):
+        after = SequencedBodyAST.live_before_sequence(self.body, after)
+        after = SequencedBodyAST.live_before_sequence(self.rhss, after)
+        for var in self.args.elems:
+            after = after.without(var)
+        self.live_before = after
+        return after
+
+    def adjust_environment(self, env_structure):
+        env_structure = SymList(self.args.elems, env_structure)
+        for rhs in self.rhss:
+            rhs.adjust_environment(env_structure)
+        SequencedBodyAST.adjust_environment(self, env_structure)
 
     def normalize(self, ctxt):
         # XXX could we do something smarter here?
@@ -2072,7 +2108,7 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]", "rhss_env_deltas[*]"]
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
@@ -2082,6 +2118,7 @@ class Let(SequencedBodyAST):
         self.rhss = rhss
         self.args = args
         self.env_speculation_works = True
+        self.rhss_env_deltas = None
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
@@ -2109,6 +2146,8 @@ class Let(SequencedBodyAST):
     @objectmodel.always_inline
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
+        # if self.rhss_env_deltas is not None:
+            # env = self.rhss_env_deltas[0].diff_env(env)
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
 
@@ -2175,6 +2214,18 @@ class Let(SequencedBodyAST):
         after = SequencedBodyAST.live_before_sequence(self.rhss, after)
         self.live_before = after
         return after
+
+    def adjust_environment(self, env_structure=None):
+        if env_structure is not None:
+            self.rhss_env_deltas = [None] * len(self.rhss)
+        for i, rhs in enumerate(self.rhss):
+            # if env_structure is not None:
+                # new_env_structure = env_structure.remove_dead_vars(rhs.live_before)
+                # self.rhss_env_deltas[i] = EnvDelta(env_structure, new_env_structure)
+                # env_structure = new_env_structure
+            rhs.adjust_environment(env_structure)
+        sub_env_structure = SymList(self.args.elems, env_structure)
+        SequencedBodyAST.adjust_environment(self, sub_env_structure)
 
     def normalize(self, ctxt):
         args = self._rebuild_args()

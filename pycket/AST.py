@@ -3,7 +3,7 @@ from rpython.rlib import jit, objectmodel
 
 class AST(object):
     _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr", "live_before"]
-    _immutable_fields_ = ["should_enter", "surrounding_lambda", "env_structure"]
+    _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
