@@ -13,6 +13,7 @@ from pycket.prims.expose             import prim_env, make_call_method
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
+from rpython.rlib.rarithmetic import r_uint
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
@@ -35,6 +36,7 @@ BUILTIN_MODULES = [
     "#%extfl",
     "#%futures",
     "#%network" ]
+
 
 class Context(object):
 
@@ -221,6 +223,26 @@ class __extend__(Context):
     def SetBang(var, ctxt, ast):
         ast = SetBang(var, ast)
         return ctxt.plug(ast)
+
+@objectmodel.always_inline
+def equal(a, b):
+    assert a is None or isinstance(a, values.W_Symbol)
+    assert b is None or isinstance(b, values.W_Symbol)
+    return a is b
+
+@objectmodel.always_inline
+def hashfun(v):
+    assert v is None or isinstance(v, values.W_Symbol)
+    return r_uint(compute_hash(v))
+
+SymbolSet = make_persistent_hash_type(
+    super=values.W_ProtoObject,
+    base=object,
+    keytype=values.W_Symbol,
+    valtype=values.W_Symbol,
+    name="SymbolSet",
+    hashfun=hashfun,
+    equal=equal)
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
@@ -1295,7 +1317,7 @@ class Var(AST):
         return variable_set()
 
     def _free_vars(self):
-        return {self.sym: None}
+        return SymbolSet.EMPTY.assoc(self.sym, None)
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
@@ -1377,7 +1399,7 @@ class ModuleVar(Var):
         self.w_value = None
 
     def _free_vars(self):
-        return {}
+        return SymbolSet.EMPTY
 
     def _lookup(self, env):
         w_res = self.w_value
@@ -1579,12 +1601,11 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
 def free_vars_lambda(body, args):
-    x = {}
+    x = SymbolSet.EMPTY
     for b in body:
-        x.update(b.free_vars())
+        x = x.union(b.free_vars())
     for v in args.elems:
-        if v in x:
-            del x[v]
+        x = x.without(v)
     return x
 
 class CaseLambda(AST):
@@ -1633,9 +1654,7 @@ class CaseLambda(AST):
     def _free_vars(self):
         # call _free_vars() to avoid populating the free vars cache
         result = AST._free_vars(self)
-        if self.recursive_sym in result:
-            del result[self.recursive_sym]
-        return result
+        return result.without(self.recursive_sym)
 
     def direct_children(self):
         # the copy is needed for weird annotator reasons that I don't understand :-(
@@ -1778,8 +1797,7 @@ class Lambda(SequencedBodyAST):
         return x
 
     def _free_vars(self):
-        result = free_vars_lambda(self.body, self.args)
-        return result
+        return free_vars_lambda(self.body, self.args)
 
     def match_args(self, args):
         fmls_len = len(self.formals)
@@ -1934,9 +1952,12 @@ class Letrec(SequencedBodyAST):
     def _free_vars(self):
         x = AST._free_vars(self)
         for v in self.args.elems:
-            if v in x:
-                del x[v]
+            x = x.without(v)
         return x
+        # for v in self.args.elems:
+            # if v in x:
+                # del x[v]
+        # return x
 
     def compute_live_before(self, after):
         after = SequencedBodyAST.live_before_sequence(self.body, after)
@@ -2012,7 +2033,7 @@ def make_let(varss, rhss, body):
         frees = rhs.free_vars()
         for vars in varss:
             for var in vars:
-                if var in frees:
+                if frees.haskey(var):
                     return _make_let_direct(varss, rhss, [body])
     # At this point, we know the inner let does not
     # reference vars in the outer let
@@ -2030,7 +2051,7 @@ def make_let_singlevar(sym, rhs, body):
         b = body[0]
         if isinstance(b, Let):
             for r in b.rhss:
-                if sym in r.free_vars():
+                if r.free_vars().haskey(sym):
                     break
             else:
                 varss = [[sym]] + b._rebuild_args()
@@ -2117,15 +2138,22 @@ class Let(SequencedBodyAST):
         return x
 
     def _free_vars(self):
-        x = {}
+        x = SymbolSet.EMPTY
         for b in self.body:
-            x.update(b.free_vars())
+            x = x.union(b.free_vars())
         for v in self.args.elems:
-            if v in x:
-                del x[v]
+            x = x.without(v)
         for b in self.rhss:
-            x.update(b.free_vars())
+            x = x.union(b.free_vars())
         return x
+        # for b in self.body:
+            # x.update(b.free_vars())
+        # for v in self.args.elems:
+            # if v in x:
+                # del x[v]
+        # for b in self.rhss:
+            # x.update(b.free_vars())
+        # return x
 
     def assign_convert(self, vars, env_structure):
         sub_env_structure = SymList(self.args.elems, env_structure)
@@ -2186,14 +2214,11 @@ class Let(SequencedBodyAST):
             env_structures.append(sub_env_structure)
             return self, sub_env_structure, env_structures, remove_num_envs
         # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = {}
+        free_vars_not_from_let = SymbolSet.EMPTY
         for b in self.body:
-            free_vars_not_from_let.update(b.free_vars())
+            free_vars_not_from_let = free_vars_not_from_let.union(b.free_vars())
         for x in self.args.elems:
-            try:
-                del free_vars_not_from_let[x]
-            except KeyError:
-                pass
+            free_vars_not_from_let = free_vars_not_from_let.without(x)
         # at most, we can remove all envs, apart from the one introduced by let
         curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
         max_needed = 0

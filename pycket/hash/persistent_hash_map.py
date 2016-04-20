@@ -11,6 +11,14 @@ def mask(hash, shift):
 def bitpos(hash, shift):
     return (1 << mask(hash, shift)) & MASK_32
 
+def bit_count(i):
+    # TODO: See about implementing this via the POPCNT instruction on
+    # supporting architectures
+    assert isinstance(i, r_uint)
+    i = i - ((i >> 1) & r_uint(0x55555555))
+    i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
+    return (((i + (i >> 4) & r_uint(0xF0F0F0F)) * r_uint(0x1010101)) & r_uint(0xffffffff)) >> 24
+
 def validate_persistent_hash(ht):
     "NOT RPYTHON"
     root = ht._root
@@ -43,7 +51,44 @@ class Box(object):
     def adjust_size(self, size):
         return size + int(self._val)
 
-def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=hash, equal=eq):
+def make_persistent_hash_type(
+        super   = object,
+        base    = None,
+        keytype = None,
+        valtype = None,
+        name    = "PersistentHashMap",
+        hashfun = hash,
+        equal   = eq):
+
+    if base is None:
+        base = super
+
+    if keytype is None:
+        keytype = super
+    if valtype is None:
+        valtype = super
+
+    @objectmodel.always_inline
+    def restrict_key_type(k):
+        if keytype is not None:
+            assert k is None or isinstance(k, keytype)
+        return k
+
+    @objectmodel.always_inline
+    def restrict_val_type(v):
+        if valtype is not None:
+            assert v is None or isinstance(v, valtype)
+        return v
+
+    @objectmodel.always_inline
+    def restrict_types(k, v):
+        return restrict_key_type(k), restrict_val_type(v)
+
+    class Missing(valtype):
+        def __init__(self):
+            pass
+
+    MISSING = Missing()
 
     class Missing(super):
         def __init__(self):
@@ -434,7 +479,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
     HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name
 
-    class PersistentHashMap(super):
+    class PersistentHashMap(base):
 
         _attrs_ = ['_cnt', '_root']
         _immutable_fields_ = ['_cnt', '_root']
@@ -448,15 +493,57 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         def __len__(self):
             return self._cnt
 
-        def __contains__(self, key):
-            return self.val_at(key, missing) is not missing
+        def haskey(self, key):
+            return self.val_at(key, MISSING) is not MISSING
+
+        __contains__ = haskey
+
+        def union(self, other):
+            """
+            Performs a right biased union via iterated insertion. This could be
+            made faster at the cost of me figuring out how to actually implement
+            a proper union operation.
+            This skews the asymptotics a little since the implementation of
+            iteration is O(n lg n) as is insertion.
+            """
+            assert isinstance(other, PersistentHashMap)
+            if not self._cnt:
+                return other
+            if not other._cnt:
+                return self
+            count = self._cnt
+            root  = self._root
+            assert root is not None
+
+            for key, val in other.iteritems():
+                added_leaf = Box()
+                hash = hashfun(key) & MASK_32
+                root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
+                count = added_leaf.adjust_size(count)
+            if root is self._root:
+                return self
+            return PersistentHashMap(count, root)
+
+        __add__ = union
 
         def iteritems(self):
             for i in range(self._cnt):
                 yield self.get_item(i)
 
+        def __iter__(self):
+            for i in range(self._cnt):
+                yield self.get_item(i)[0]
+
+        def keys(self):
+            keys = [None] * self._cnt
+            for i in range(self._cnt):
+                keys[i] = self.get_item(i)[0]
+            return keys
+
         @jit.dont_look_inside
         def assoc(self, key, val):
+            key = restrict_key_type(key)
+            val = restrict_val_type(val)
             added_leaf = Box()
 
             root = BitmapIndexedNode_EMPTY if self._root is None else self._root
@@ -471,6 +558,9 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
             return PersistentHashMap(newcnt, new_root)
 
         def val_at(self, key, not_found):
+            key = restrict_key_type(key)
+            not_found = restrict_val_type(not_found)
+
             if self._root is None:
                 return not_found
 
@@ -486,11 +576,12 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
                 elif t is HashCollisionNode:
                     val_or_node = val_or_node.find_step(shift, hashval, key, not_found)
                 else:
-                    return val_or_node
+                    return restrict_val_type(val_or_node)
                 shift += 5
 
         @jit.dont_look_inside
         def without(self, key):
+            key = restrict_key_type(key)
             if self._root is None:
                 return self
             new_root = self._root.without_inode(0, hashfun(key) & MASK_32, key)
@@ -523,7 +614,7 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
 
             assert key_or_none is not None
             assert not isinstance(val_or_node, INode)
-            return key_or_none, val_or_node
+            return restrict_types(key_or_none, val_or_node)
 
         def make_copy(self):
             return PersistentHashMap(self._cnt, self._root)
@@ -544,19 +635,10 @@ def make_persistent_hash_type(super=object, name="PersistentHashMap", hashfun=ha
         return BitmapIndexedNode_EMPTY.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
 
-    def bit_count(i):
-        # TODO: See about implementing this via the POPCNT instruction on
-        # supporting architectures
-        assert isinstance(i, r_uint)
-        i = i - ((i >> 1) & r_uint(0x55555555))
-        i = (i & r_uint(0x33333333)) + ((i >> 2) & r_uint(0x33333333))
-        return (((i + (i >> 4) & r_uint(0xF0F0F0F)) * r_uint(0x1010101)) & r_uint(0xffffffff)) >> 24
-
     def list_copy(from_lst, from_loc, to_list, to_loc, count):
         from_loc = r_uint(from_loc)
         to_loc = r_uint(to_loc)
         count = r_uint(count)
-
         i = r_uint(0)
         while i < count:
             to_list[to_loc + i] = from_lst[from_loc+i]

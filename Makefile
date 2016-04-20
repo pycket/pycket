@@ -61,11 +61,8 @@ setup:
 test: $(PYFILES)
 	$(PYTEST) pycket
 
-test-bytecode-recursive: $(PYFILES)
-	$(PYTEST) --bytecode recursive pycket
-
-test-bytecode-no-recursive: $(PYFILES)
-	$(PYTEST) --bytecode nonRecursive pycket
+test-bytecode: $(PYFILES)
+	$(PYTEST) --bytecode go pycket
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)

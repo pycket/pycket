@@ -49,7 +49,7 @@ def test_quotient():
     res = run("(quotient 8.0 2.0)")
     assert isinstance(res, W_Flonum) and res.value == 4.0
     res = run("(quotient 1.0 2.0)")
-    assert isinstance(res, W_Flonum) and res.value == 0.5
+    assert isinstance(res, W_Flonum) and res.value == 0.0
 
 def test_remainder(doctest):
     """

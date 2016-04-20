@@ -60,7 +60,7 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
         cmd = "racket %s --loop --stdin --stdout %s" % (_FN, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
-        cmd = "racket -l pycket/zo-expand -- --stdout %s" % tmp_module
+        cmd = "racket -l pycket/zo-expand -- --test --stdout %s" % tmp_module
 
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
