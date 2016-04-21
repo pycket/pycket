@@ -242,7 +242,8 @@ def finalize_module(mod):
     mod = mod.assign_convert_module()
     compute_live_before(mod)
     mod.adjust_environment()
-    mod.clean_caches()
+    if objectmodel.we_are_translated():
+        mod.clean_caches()
     return mod
 
 def parse_module(json_string, bytecode_expand=False):

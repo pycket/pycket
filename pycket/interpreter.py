@@ -363,10 +363,10 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        if not pruning_done:
-            env = ast._prune_env(env, rhsindex + 1)
+        # if not pruning_done:
+            # env = ast._prune_env(env, rhsindex + 1)
         # if ast.rhss_env_deltas is not None:
-            # env = ast.rhss_env_deltas[rhsindex + 1].diff_env(env)
+            # env = ast.rhss_env_deltas[rhsindex].diff_env(env)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -1049,12 +1049,13 @@ class App(AST):
             x.update(r.mutated_vars())
         return x
 
-    def adjust_environment(self, env_structure=None):
-        """
-        Subterms of applications are all simple due to A-normalization.
-        Thus, we do not need to restrict their environment.
-        """
-        pass
+    def compute_live_before(self, after):
+        after_all = SymbolSet.EMPTY
+        for r in reversed(self.rands):
+            after_all = after_all.union(r.compute_live_before(after))
+        after_all = after_all.union(self.rator.compute_live_before(after))
+        self.live_before = after_all
+        return after_all
 
     # Let conversion ensures that all the participants in an application
     # are simple.
@@ -1172,6 +1173,7 @@ class SequencedBodyAST(AST):
     def adjust_environment(self, env_structure=None):
         if env_structure is not None:
             self.body_env_deltas = [None] * len(self.body)
+            # env_structure = env_structure.remove_dead_vars(self.body[0].live_before)
         for i, b in enumerate(self.body):
             if env_structure is not None:
                 new_env_structure = env_structure.remove_dead_vars(b.live_before)
@@ -1188,10 +1190,9 @@ class SequencedBodyAST(AST):
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         elif self.body_env_deltas is not None:
-            diff = self.body_env_deltas[i + 1].diff_env(env)
-            next_env = diff.shrink_env(env)
+            new_env  = self.body_env_deltas[i + 1].diff_env(env)
             return self.body[i], env, BeginCont(
-                    self.counting_asts[i + 1], next_env, prev)
+                    self.counting_asts[i + 1], new_env, prev)
         else:
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
@@ -1742,6 +1743,7 @@ class CaseLambda(AST):
         after_all = SymbolSet.EMPTY
         for lam in self.lams:
             after_all = after_all.union(lam.compute_live_before(after))
+        self.live_before = after_all
         return after_all
 
 class Lambda(SequencedBodyAST):
@@ -1881,8 +1883,15 @@ class Lambda(SequencedBodyAST):
                         env_structure=self.env_structure)
         return ctxt.plug(result)
 
+    def adjust_environment(self, env_structure=None):
+        if env_structure is not None:
+            self.enclosing_env_structure = env_structure
+        sub_env_structure = self.args
+        SequencedBodyAST.adjust_environment(self, sub_env_structure)
+
     def compute_live_before(self, after):
         after = SequencedBodyAST.live_before_sequence(self.body, after)
+        self.live_before = after
         return after.without_many(self.args.elems)
 
     def _tostring(self):
@@ -2145,9 +2154,9 @@ class Let(SequencedBodyAST):
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
-        env = self._prune_env(env, 0)
-        # if self.rhss_env_deltas is not None:
-            # env = self.rhss_env_deltas[0].diff_env(env)
+        # env = self._prune_env(env, 0)
+        if self.rhss_env_deltas is not None:
+            env = self.rhss_env_deltas[0].diff_env(env)
         return self.rhss[0], env, LetCont.make(
                 None, self, 0, env, cont)
 
@@ -2216,8 +2225,8 @@ class Let(SequencedBodyAST):
         return after
 
     def adjust_environment(self, env_structure=None):
-        if env_structure is not None:
-            self.rhss_env_deltas = [None] * len(self.rhss)
+        # if env_structure is not None:
+            # self.rhss_env_deltas = [None] * len(self.rhss)
         for i, rhs in enumerate(self.rhss):
             # if env_structure is not None:
                 # new_env_structure = env_structure.remove_dead_vars(rhs.live_before)
