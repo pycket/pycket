@@ -179,7 +179,6 @@ class ToplevelEnv(Env):
         self._pycketconfig = pycketconfig
 
     def lookup(self, sym, env_structure):
-        import pdb; pdb.set_trace()
         raise SchemeException("variable %s is unbound" % sym.variable_name())
 
     def toplevel_lookup(self, sym):

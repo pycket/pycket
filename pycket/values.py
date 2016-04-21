@@ -1249,8 +1249,10 @@ class W_Closure(W_Procedure):
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         # specialize on the fact that often we end up executing in the
         # same environment.
-        prev = lam.env_structure.prev.find_env_in_chain_speculate(
-                frees, env_structure, env)
+        # prev = self._prev
+        # prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                # frees, env_structure, env)
+        prev = frees
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
@@ -1304,8 +1306,9 @@ class W_Closure1AsEnv(ConsEnv):
             lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
-        prev = lam.env_structure.prev.find_env_in_chain_speculate(
-                self, env_structure, env)
+        # prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                # self, env_structure, env)
+        prev = self
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
