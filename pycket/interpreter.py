@@ -960,7 +960,7 @@ class VariableReference(AST):
             return self
 
     def direct_children(self):
-        return []
+        return [self.var]
 
     def _mutated_vars(self):
         return variable_set()

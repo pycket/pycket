@@ -89,6 +89,7 @@ class SymList(object):
         return ConsEnv.make(vals, prev)
 
     def remove_dead_vars(self, live_set):
+        assert live_set is not None
         vars = []
         while self is not None:
             for var in self.elems:
