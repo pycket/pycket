@@ -60,7 +60,7 @@ def expand_string(s, reuse=True, srcloc=True, byte_option=False, tmp_file_name=F
         cmd = "racket %s --loop --stdin --stdout %s" % (_FN, "" if srcloc else "--omit-srcloc")
     else:
         tmp_module = tmp_file_name + '.rkt'
-        cmd = "racket -l pycket/zo-expand -- --stdout %s" % tmp_module
+        cmd = "racket -l pycket/zo-expand -- --test --stdout %s" % tmp_module
 
     if current_racket_proc and reuse and current_racket_proc.poll() is None:
         process = current_racket_proc
@@ -119,7 +119,7 @@ def expand(s, wrap=False, stdlib=False):
     return pycket_json.loads(data)
 
 def wrap_for_tempfile(func):
-    def wrap(rkt_file, json_file, lib=_FN):
+    def wrap(rkt_file, json_file, byte_flag=False):
         "NOT_RPYTHON"
         try:
             os.remove(json_file)
@@ -131,7 +131,7 @@ def wrap_for_tempfile(func):
         json_file = os.path.abspath(json_file)
         tmp_json_file = mktemp(suffix='.json',
                                prefix=json_file[:json_file.rfind('.')])
-        out = func(rkt_file, tmp_json_file, lib) # this may be a problem in the future if the given func doesn't expect a third arg (lib)
+        out = func(rkt_file, tmp_json_file, byte_flag) # this may be a problem in the future if the given func doesn't expect a third arg (byte_flag)
         assert tmp_json_file == out
         os.rename(tmp_json_file, json_file)
         return json_file
@@ -139,12 +139,14 @@ def wrap_for_tempfile(func):
     wrap.__name__ = func.__name__
     return wrap
 
-def expand_file_to_json(rkt_file, json_file, lib=_FN):
-    if not we_are_translated():
-        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, lib)
-    return _expand_file_to_json(rkt_file, json_file, lib)
+def expand_file_to_json(rkt_file, json_file, byte_flag=False):
 
-def _expand_file_to_json(rkt_file, json_file, lib=_FN, byte_flag=False):
+    if not we_are_translated():
+        return wrap_for_tempfile(_expand_file_to_json)(rkt_file, json_file, byte_flag)
+
+    return _expand_file_to_json(rkt_file, json_file, byte_flag)
+
+def _expand_file_to_json(rkt_file, json_file, byte_flag=False):
     lib = _BE if byte_flag else _FN
 
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
@@ -162,11 +164,11 @@ def _expand_file_to_json(rkt_file, json_file, lib=_FN, byte_flag=False):
     except OSError:
         pass
 
-    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (_FN, json_file, rkt_file)
+    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
 
-    if "zo-expand" in lib:
+    if byte_flag:
         print "Transforming %s bytecode to %s" % (rkt_file, json_file)
-        cmd = "racket %s %s" % (lib, rkt_file)
+        #cmd = "racket %s --output \"%s\" \"%s\"" % (lib, json_file, rkt_file)
     else:
         print "Expanding %s to %s" % (rkt_file, json_file)
 
@@ -208,26 +210,14 @@ def needs_update(file_name, json_name):
     return True
 
 
-def _json_name(file_name, lib=_FN):
-    if 'zo-expand' in lib:
-        fileDirs = file_name.split("/")
-        l = len(fileDirs)
-        k = l-1 # is there a better way to do this (prove that the slice below has a non-negative stop)
-        assert k >= 0
-        modName = fileDirs[k]
-        subs = fileDirs[0:k]
-        subsStr = '/'.join(subs)
-        if len(subs) > 0:
-            subsStr += '/'
-        return subsStr + 'fromBytecode_' + modName + '.json'
-    else:
-        return file_name + '.json'
+def _json_name(file_name):
+    return file_name + '.json'
 
-def ensure_json_ast_run(file_name, lib=_FN):
-    json = _json_name(file_name, lib)
-    dbgprint("ensure_json_ast_run", json, lib=lib, filename=file_name)
+def ensure_json_ast_run(file_name, byte_flag=False):
+    json = _json_name(file_name)
+    dbgprint("ensure_json_ast_run", json, filename=file_name)
     if needs_update(file_name, json):
-        return expand_file_to_json(file_name, json, lib)
+        return expand_file_to_json(file_name, json, byte_flag)
     else:
         return json
 
@@ -447,7 +437,7 @@ class JsonLoader(object):
     def expand_file_cached(self, rkt_file):
         dbgprint("expand_file_cached", "", lib=self._lib_string(), filename=rkt_file)
         try:
-            json_file = ensure_json_ast_run(rkt_file, self._lib_string())
+            json_file = ensure_json_ast_run(rkt_file, self.bytecode_expand)
         except PermException:
             return self.expand_to_ast(rkt_file)
         return self.load_json_ast_rpython(rkt_file, json_file)
@@ -506,6 +496,19 @@ class JsonLoader(object):
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 
+            # check if the json is from bytecode if we're going for bytecode expansion
+            try:
+                be_json = config["bytecode-expand"] == "true"
+            except KeyError:
+                raise ValueError('No "bytecode-expand" flag in json in %s' %
+                                 json.tostring())
+
+            if self.bytecode_expand != be_json:
+                modname = getkey(obj, "module-name", type='s')
+                raise ValueError('Byte-expansion is : %s, but "bytecode-expand" '
+                                 'in json is : %s, in %s' %
+                                 (self.bytecode_expand, be_json, modname))
+
         try:
             lang_arr = obj["language"].value_array()
         except KeyError:
@@ -513,8 +516,8 @@ class JsonLoader(object):
         else:
             lang = self._parse_require([lang_arr[0].value_string()]) if lang_arr else None
 
-        body = [self.to_ast(x) for x in obj["body-forms"].value_array()]
-        name = obj["module-name"].value_string()
+        body = [self.to_ast(x) for x in getkey(obj, "body-forms", type='a')]
+        name = getkey(obj, "module-name", type='s')
         return Module(name, body, config, lang=lang)
 
     @staticmethod
@@ -622,7 +625,7 @@ class JsonLoader(object):
                 else:
                     vs, rhss = self.to_bindings(bindings)
                     assert isinstance(rhss[0], AST)
-                    return make_let(list(vs), list(rhss), body)
+                    return make_let(vs, rhss, body)
             if "variable-reference" in obj:
                 current_mod = self.modtable.current_mod()
                 if obj["variable-reference"].is_bool: # assumes that only boolean here is #f

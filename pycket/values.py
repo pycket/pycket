@@ -246,13 +246,13 @@ class W_VectorSuper(W_Object):
     def get_storage(self):
         raise NotImplementedError
 
-    def set_storage(self):
+    def set_storage(self, storage):
         raise NotImplementedError
 
     def get_strategy(self):
         raise NotImplementedError
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         raise NotImplementedError
 
 # Things that are vector?
@@ -1169,7 +1169,7 @@ def from_list_iter(lst):
 class W_Continuation(W_Procedure):
     errorname = "continuation"
 
-    _immutable_fields_ = ["cont"]
+    _immutable_fields_ = ["cont", "prompt_tag"]
 
     def __init__(self, cont, prompt_tag=None):
         self.cont = cont
@@ -1180,12 +1180,8 @@ class W_Continuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        from pycket.interpreter import return_multi_vals
-        if self.prompt_tag is not None:
-            cont = self.cont.append(NilCont(), self.prompt_tag)
-        else:
-            cont = self.cont
-        return return_multi_vals(Values.make(args), env, cont)
+        from pycket.prims.control import install_continuation
+        return install_continuation(self.cont, self.prompt_tag, args, env, cont)
 
     def tostring(self):
         return "#<continuation>"
@@ -1203,9 +1199,9 @@ class W_ComposableContinuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        from pycket.interpreter import return_multi_vals
-        kont = self.cont.append(cont, self.prompt_tag)
-        return return_multi_vals(Values.make(args), env, kont)
+        from pycket.prims.control import install_continuation
+        return install_continuation(
+                self.cont, self.prompt_tag, args, env, cont, extend=True)
 
     def tostring(self):
         return "#<continuation>"

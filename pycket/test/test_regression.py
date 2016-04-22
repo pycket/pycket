@@ -5,8 +5,8 @@
 #
 
 import pytest
-from pycket.interpreter import *
 from pycket.values import *
+from pycket.interpreter import *
 from pycket.prims import *
 from pycket.test.testhelper import *
 

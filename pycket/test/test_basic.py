@@ -446,6 +446,8 @@ def test_with_continuation_mark3():
     m = run_mod(
     """
     #lang racket/base
+    (define a 1)
+    (set! a 2)
     (define result
         (let* ([extract
 	        (lambda (k) (continuation-mark-set->list
@@ -463,7 +465,7 @@ def test_with_continuation_mark3():
 	        				 (if in?
 	        				     (extract k)
 	        				     k)))))
-	        			  (+ 2 3)))])
+	        			  (+ a 3)))])
 	        		(if in?
 	        		    k
 	        		    (extract k)))))])

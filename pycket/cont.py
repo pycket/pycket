@@ -13,7 +13,7 @@ class Link(object):
         self.next = next
 
     @jit.unroll_safe
-    def clone(self):
+    def clone_links(self):
         marks = None
         while self is not None:
             marks = Link(self.key, self.val, marks)
@@ -33,10 +33,22 @@ class BaseCont(object):
     def __init__(self):
         self.marks = None
 
+    def has_unwind(self):
+        return False
+
+    def has_rewind(self):
+        return False
+
+    def unwind(self, env, cont):
+        from pycket.interpreter import return_void
+        return return_void(env, cont)
+
     def clone(self):
         result = self._clone()
         if self.marks is not None:
-            result.marks = self.marks.clone()
+            result.marks = self.marks.clone_links()
+        else:
+            result.marks = None
         return result
 
     def _clone(self):
@@ -88,7 +100,7 @@ class BaseCont(object):
             p = p.get_previous_continuation(upto=upto)
         return None
 
-    def append(self, tail, upto=None):
+    def append(self, tail, upto=None, stop=None):
         return tail
 
     def plug_reduce(self, _vals, env):
@@ -129,8 +141,10 @@ class Cont(BaseCont):
     def get_next_executed_ast(self):
         return self.prev.get_next_executed_ast()
 
-    def append(self, tail, upto=None):
-        rest = self.prev.append(tail, upto)
+    def append(self, tail, upto=None, stop=None):
+        if self is stop:
+            return self.clone()
+        rest = self.prev.append(tail, upto, stop)
         head = self.clone()
         assert isinstance(head, Cont)
         head.prev = rest
@@ -165,10 +179,10 @@ class Prompt(Cont):
                 return None
         return self.prev
 
-    def append(self, tail, upto=None):
-        if upto is self.tag:
+    def append(self, tail, upto=None, stop=None):
+        if upto is self.tag or stop is tail:
             return tail
-        return Cont.append(self, tail, upto)
+        return Cont.append(self, tail, upto, stop)
 
     def plug_reduce(self, _vals, env):
         return self.prev.plug_reduce(_vals, env)
@@ -233,7 +247,7 @@ def continuation(func):
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
-    def clone(self):
+    def _clone(self):
         result = objectmodel.instantiate(PrimCont)
         Cont.__init__(result, self.env, self.prev)
         self._copy_args(result)
@@ -244,7 +258,7 @@ def continuation(func):
         args += (self.env, self.prev, vals,)
         return func(*args)
 
-    PrimCont.clone = clone
+    PrimCont._clone = _clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
@@ -255,6 +269,7 @@ def continuation(func):
     return make_continuation
 
 def make_label(func, enter=False):
+    import pycket.values
     from pycket.AST import AST
 
     func = jit.unroll_safe(func)
@@ -346,3 +361,4 @@ def call_cont(proc, env, cont, vals):
 @continuation
 def call_extra_cont(proc, calling_app, env, cont, vals):
     return proc.call_with_extra_info(vals.get_all_values(), env, cont, calling_app)
+

@@ -28,6 +28,74 @@ from pycket import pycket_json
 
 class TestLLtype(LLJitMixin):
 
+    def test_sieve00(self):
+        self.run_string(u"""
+#lang pycket
+
+;; Use the partner file "streams.rkt" to implement the Sieve of Eratosthenes.
+;; Then compute and print the 10,000th prime number.
+
+
+  ;; ;; A stream is a cons of a value and a thunk that computes the next value when applied
+  (struct stream (first rest))
+
+  ;;--------------------------------------------------------------------------------------------------
+
+  (define (make-stream hd thunk)
+    (stream hd thunk))
+
+  ;; Destruct a stream into its first value and the new stream produced by de-thunking the tail
+  (define (stream-unfold st)
+    (values (stream-first st) ((stream-rest st))))
+
+  ;; [stream-get st i] Get the [i]-th element from the stream [st]
+  (define (stream-get st i)
+    (define-values (hd tl) (stream-unfold st))
+    (cond [(= i 0) hd]
+          [else    (stream-get tl (sub1 i))]))
+
+  ;; [stream-take st n] Collect the first [n] elements of the stream [st].
+  (define (stream-take st n)
+    (cond [(= n 0) '()]
+          [else (define-values (hd tl) (stream-unfold st))
+                (cons hd (stream-take tl (sub1 n)))]))
+;;--------------------------------------------------------------------------------------------------
+
+;; `count-from n` Build a stream of integers starting from `n` and iteratively adding 1
+(define (count-from n)
+  (make-stream n (lambda () (count-from (add1 n)))))
+
+;; `sift n st` Filter all elements in `st` that are equal to `n`.
+;; Return a new stream.
+(define (sift n st)
+  (define-values (hd tl) (stream-unfold st))
+  (cond [(= 0 (modulo hd n)) (sift n tl)]
+        [else (make-stream hd (lambda () (sift n tl)))]))
+
+;; `sieve st` Sieve of Eratosthenes
+(define (sieve st)
+  (define-values (hd tl) (stream-unfold st))
+  (make-stream hd (lambda () (sieve (sift hd tl)))))
+
+;; stream of prime numbers
+(define primes (sieve (count-from 2)))
+
+;; Compute the 10,000th prime number
+(define N-1 9)
+
+(define (main)
+  (printf "The ~a-th prime number is: ~a\n" (add1 N-1) (stream-get primes N-1)))
+
+(time (main))
+
+"""
+)
+
+
+    def test_sieve01(self):
+        self.run_file("sieve01.rkt")
+
+
     def test_unroll_regression(self):
         self.run_string(u"""
         #lang pycket
@@ -144,13 +212,13 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             loader = JsonLoader(False)
-            ast = loader.to_module(NonConstant(_json)).assign_convert_module()
-            env = NonConstant(_env)
+            ast = loader.to_module((_json)).assign_convert_module()
+            env = (_env)
             env.globalconfig.load(ast)
             env.commanline_arguments = []
             interpret_module(ast, env)
 
-        # interp_w() # check that it runs
+        interp_w() # check that it runs
 
         # ast = parse_module(expand_string(str))
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True)

@@ -283,3 +283,24 @@ def equal_hash_code(v):
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
     return values.W_Fixnum.ZERO
+
+@expose("eq-hash-code", [values.W_Object])
+def eq_hash_code(v):
+    t = type(v)
+    if t is values.W_Fixnum:
+        return v
+
+    if t is values.W_Flonum:
+        hash = objectmodel.compute_hash(v.value)
+    elif t is values.W_Character:
+        hash = objectmodel.compute_hash(v.value)
+    else:
+        hash = objectmodel.compute_hash(v)
+    return values.W_Fixnum(hash)
+
+@expose("eqv-hash-code", [values.W_Object])
+def eqv_hash_code(v):
+    hash = v.hash_eqv()
+    return values.W_Fixnum(hash)
+
+

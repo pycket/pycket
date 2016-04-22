@@ -753,6 +753,71 @@ def test_dynamic_wind(doctest):
     2
     """
 
+def test_dynamic_wind2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define acc 0)
+    (define v
+      (let/cc k
+        (dynamic-wind
+          (lambda () (set! acc (+ acc 1)))
+          (lambda () (set! acc (+ acc 1)) 42)
+          (lambda () (set! acc (+ acc 1))))))
+    """)
+    acc = m.defs[values.W_Symbol.make("acc")]
+    v   = m.defs[values.W_Symbol.make("v")]
+    assert isinstance(acc, values.W_Cell)
+    acc = acc.get_val()
+
+    assert isinstance(v, values.W_Fixnum) and v.value == 42
+    assert isinstance(acc, values.W_Fixnum) and acc.value == 3
+
+def test_dynamic_wind3():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+      (let/ec k0
+          (let/ec k1
+            (dynamic-wind
+             void
+             (lambda () (k0 'cancel))
+             (lambda () (k1 'cancel-canceled))))))
+    """)
+    val = m.defs[values.W_Symbol.make("val")]
+    assert val is values.W_Symbol.make("cancel-canceled")
+
+def test_dynamic_wind4():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+        (let* ([x (make-parameter 0)]
+                 [l null]
+                 [add (lambda (a b)
+                        (set! l (append l (list (cons a b)))))])
+            (let ([k (parameterize ([x 5])
+                       (dynamic-wind
+                           (lambda () (add 1 (x)))
+                           (lambda () (parameterize ([x 6])
+                                        (let ([k+e (let/cc k (cons k void))])
+                                          (add 2 (x))
+                                          ((cdr k+e))
+                                          (car k+e))))
+                           (lambda () (add 3 (x)))))])
+              (parameterize ([x 7])
+                (let/cc esc
+                  (k (cons void esc)))))
+            l))
+    (define equal (equal? val '((1 . 5) (2 . 6) (3 . 5) (1 . 5) (2 . 6) (3 . 5))))
+    """)
+    val = m.defs[values.W_Symbol.make("equal")]
+    assert val is values.w_true
+
 def test_bytes_conversions():
     m = run_mod(
     """
