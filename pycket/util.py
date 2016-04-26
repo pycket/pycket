@@ -27,7 +27,7 @@ def memoize_constructor(cls):
 def strip(str):
     return str.replace("[*]", "")
 
-def add_copy_method(copy_method="copy"):
+def add_copy_method(copy_method="copy", field_list="_immutable_fields_"):
     def wrapper(cls):
         """
         This attempts to produce a method which will copy the immutable contents of
@@ -43,7 +43,7 @@ def add_copy_method(copy_method="copy"):
         for base in inspect.getmro(cls):
             if base is object:
                 continue
-            fields = getattr(base, "_immutable_fields_", [])
+            fields = getattr(base, field_list, [])
             field_names.extend(map(strip, fields))
 
         field_names = unrolling_iterable(field_names)

@@ -100,6 +100,10 @@ class AST(object):
         self.live_after = before
         return before
 
+    def set_env_structure(self, env_structure=None):
+        for child in self.direct_children():
+            child.set_env_structure(env_structure)
+
     def mutated_vars(self):
         if self._mvars is None:
             self._mvars = self._mutated_vars()
@@ -137,5 +141,4 @@ class AST(object):
 
     def __str__(self):
         return self.tostring()
-
 

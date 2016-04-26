@@ -365,6 +365,8 @@ class LetCont(Cont):
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
+        if rhsindex == len(ast.rhss) - 1:
+            pass
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -756,6 +758,15 @@ class Module(AST):
             assert self is not None
         return self
 
+    def _compute_live_after(self, before):
+        for child in self.direct_children():
+            compute_live_after(child)
+        return before
+
+    def set_env_structure(self, env_structure=None):
+        for child in self.direct_children():
+            child.set_env_structure(env_structure=None)
+
     def normalize(self, ctxt):
         # Return the current module, as it is not safe to duplicate module forms
         for i, b in enumerate(self.body):
@@ -1145,6 +1156,10 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    def set_env_structure(self, env_structure):
+        for b in self.body:
+            b.set_env_structure(env_structure)
+
     @staticmethod
     def live_after_sequence(asts, before):
         for ast in reversed(asts):
@@ -1293,6 +1308,10 @@ class Var(AST):
 
     def direct_children(self):
         return []
+
+    def set_env_structure(self, env_structure=None):
+        if env_structure is not None:
+            self.env_structure = env_structure
 
     def _mutated_vars(self):
         return variable_set()
@@ -1820,6 +1839,12 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def set_env_structure(self, env_structure=None):
+        if env_structure is not None:
+            self.enclosing_env_structure = env_structure
+        sub_env_structure = SymList(self.args.elems, self.frees)
+        SequencedBodyAST.set_env_structure(self, sub_env_structure)
+
     def _compute_live_after(self, before):
         body = SequencedBodyAST.live_after_sequence(self.body, SymbolSet.EMPTY)
         free = self.free_vars()
@@ -1945,6 +1970,12 @@ class Letrec(SequencedBodyAST):
         new_rhss = [rhs.assign_convert(new_vars, sub_env_structure) for rhs in self.rhss]
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
+
+    def set_env_structure(self, env_structure=None):
+        env_structure = SymList(self.args.elems, env_structure)
+        for rhs in self.rhss:
+            rhs.set_env_structure(env_structure)
+        SequencedBodyAST.set_env_structure(self, env_structure)
 
     def normalize(self, ctxt):
         # XXX could we do something smarter here?
@@ -2140,6 +2171,12 @@ class Let(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
+
+    def set_env_structure(self, env_structure=None):
+        for rhs in self.rhss:
+            rhs.set_env_structure(env_structure)
+        env_structure = SymList(self.args.elems, env_structure)
+        SequencedBodyAST.set_env_structure(self, env_structure)
 
     def _compute_live_after(self, before):
         before = SequencedBodyAST.live_after_sequence(self.body, before)
