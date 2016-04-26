@@ -1,7 +1,7 @@
 from rpython.rlib                    import jit, objectmodel
 
 class AST(object):
-    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr", "live_after"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
@@ -80,6 +80,26 @@ class AST(object):
         """
         raise NotImplementedError("abstract base class")
 
+    def compute_live_after(self, before):
+        """
+        Annotates AST nodes with the set of variables which are live after
+        execution. The input |before| is the set of variables which are live
+        after the current expression in execution order. Similarly, the return
+        value is the set of variables which are live after the current expression
+        executes.
+        The live after set allows us to slim down the environment during execution
+        by only saving values which may be referenced later.
+        The default case here updates the after set with the free variables of
+        the expression and annotates the current node, but does not recur.
+        """
+        self.live_after = before
+        return self._compute_live_after(before)
+
+    def _compute_live_after(self, before):
+        before = before.union(self.free_vars())
+        self.live_after = before
+        return before
+
     def mutated_vars(self):
         if self._mvars is None:
             self._mvars = self._mutated_vars()
@@ -88,8 +108,12 @@ class AST(object):
     def _clean_cache(self):
         self._mvars = None
         self._fvars = None
+        self.live_after = None
 
     def clean_caches(self):
+        # Don't clean the caches if we are testing
+        if not objectmodel.we_are_translated():
+            return
         nodes = [self]
         while nodes:
             node = nodes.pop()

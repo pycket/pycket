@@ -242,6 +242,9 @@ SymbolSet = make_persistent_hash_type(
     hashfun=hashfun,
     equal=equal)
 
+def compute_live_after(ast):
+    return ast.compute_live_after(SymbolSet.EMPTY)
+
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
 
@@ -976,6 +979,12 @@ class WithContinuationMark(AST):
                                     self.value.assign_convert(vars, env_structure),
                                     self.body.assign_convert(vars, env_structure))
 
+    def _compute_live_after(self, before):
+        before = self.body.compute_live_after(before)
+        before = self.value.compute_live_after(before)
+        before = self.key.compute_live_after(before)
+        return before
+
     def direct_children(self):
         return [self.key, self.value, self.body]
 
@@ -1051,6 +1060,10 @@ class App(AST):
             w_callable = w_callable.closure
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
+    def _compute_live_after(self, before):
+        before = SequencedBodyAST.live_after_sequence(self.rands, before)
+        before = self.rator.compute_live_after(before)
+        return before
     def normalize(self, ctxt):
         ctxt = Context.AppRator(self.rands, ctxt)
         return Context.normalize_name(self.rator, ctxt, hint="AppRator")
@@ -1132,6 +1145,16 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    @staticmethod
+    def live_after_sequence(asts, before):
+        for ast in reversed(asts):
+            ast.live_after = before
+            before = ast.compute_live_after(before)
+        return before
+
+    def _compute_live_after(self, before):
+        return SequencedBodyAST.live_after_sequence(self.body, before)
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
@@ -1171,6 +1194,11 @@ class Begin0(AST):
 
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+
+    def _compute_live_after(self, before):
+        before = self.body.compute_live_after(before)
+        before = self.first.compute_live_after(before)
+        return before
 
     def normalize(self, ctxt):
         first  = Context.normalize_term(self.first)
@@ -1513,6 +1541,12 @@ class If(AST):
     def direct_children(self):
         return [self.tst, self.thn, self.els]
 
+    def _compute_live_after(self, before):
+        thn = self.thn.compute_live_after(before)
+        els = self.els.compute_live_after(before)
+        before = thn.union(els)
+        return self.tst.compute_live_after(before)
+
     def normalize(self, ctxt):
         ctxt = Context.If(self.thn, self.els, ctxt)
         return Context.normalize_name(self.tst, ctxt, hint="if")
@@ -1645,6 +1679,12 @@ class CaseLambda(AST):
             else:
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
+
+    def _compute_live_after(self, before):
+        before_all = SymbolSet.EMPTY
+        for lam in self.lams:
+            before_all = before_all.union(lam.compute_live_after(before))
+        return before_all
 
     def normalize(self, ctxt):
         lams   = [Context.normalize_term(lam, expect=Lambda) for lam in self.lams]
@@ -1780,6 +1820,12 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def _compute_live_after(self, before):
+        body = SequencedBodyAST.live_after_sequence(self.body, SymbolSet.EMPTY)
+        free = self.free_vars()
+        args = self.args.elems
+        return before.union(free).without_many(args)
+
     def normalize(self, ctxt):
         body = [Context.normalize_term(b) for b in self.body]
         result = Lambda(self.formals, self.rest, self.args, self.frees, body,
@@ -1907,6 +1953,11 @@ class Letrec(SequencedBodyAST):
         body = [Context.normalize_term(b)   for b   in self.body]
         result = make_letrec(args, rhss, body)
         return ctxt.plug(result)
+
+    def _compute_live_after(self, before):
+        before = SequencedBodyAST.live_after_sequence(self.body, before)
+        before = SequencedBodyAST.live_after_sequence(self.rhss, before)
+        return before.without_many(self.args.elems)
 
     def _rebuild_args(self):
         start = 0
@@ -2089,6 +2140,12 @@ class Let(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
+
+    def _compute_live_after(self, before):
+        before = SequencedBodyAST.live_after_sequence(self.body, before)
+        before = SequencedBodyAST.live_after_sequence(self.rhss, before)
+        before = before.without_many(self.args.elems)
+        return before
 
     def normalize(self, ctxt):
         args = self._rebuild_args()

@@ -9,7 +9,7 @@ from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If,
                                 SimplePrimApp1, SimplePrimApp2,
-                                WithContinuationMark
+                                WithContinuationMark, compute_live_after
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
 
@@ -251,4 +251,47 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body, Let)
     assert isinstance(body.rhss[0], App)
     assert isinstance(body.body[0], App)
+
+
+def test_variable_liveness():
+    p = expr_ast("(let ([x 5]) (+ x 7))")
+    compute_live_after(p)
+    x = p.args.elems[0]
+    assert isinstance(p, Let)
+    rhs = p.rhss[0]
+    assert len(p.live_after) == 0
+    assert len(rhs.live_after) == 1 and rhs.live_after.haskey(x)
+    body = p.body[0].live_after
+    assert len(body) == 0
+
+def test_variable_liveness2():
+    p = expr_ast("(let ([x 1] [y 2] [z 3]) (if x y z))")
+    compute_live_after(p)
+    x, y, z = p.args.elems
+    assert isinstance(p, Let)
+    for rhs in p.rhss:
+        assert len(rhs.live_after) == 3
+        assert all(arg in rhs.live_after for arg in p.args.elems)
+
+    body = p.body[0]
+    assert isinstance(body, If)
+    for i in [x, y, z]:
+        assert body.tst.live_after.haskey(x)
+    assert body.thn.live_after.haskey(y)
+    assert body.els.live_after.haskey(z)
+
+def test_variable_liveness3():
+    p = expr_ast("(letrec ([x (lambda (a b) (+ (a x) (b x)))] [y (x 1 2)]) y)")
+    compute_live_after(p)
+    x, y = p.args.elems
+    assert len(p.live_after) == 0
+    rhs0, rhs1 = p.rhss
+
+    assert len(rhs0.live_after) == 2
+    assert len(rhs1.live_after) == 1
+    assert x in rhs0.live_after and y in rhs0.live_after
+    assert y in rhs1.live_after
+
+    body = p.body[0].live_after
+    assert len(body) == 1 and y in body
 
