@@ -68,6 +68,16 @@ class SymList(object):
                 return True
         return False
 
+    @jit.unroll_safe
+    def filter(self, symbols):
+        elems = []
+        while self is not None:
+            for sym in self.elems:
+                if symbols.haskey(sym):
+                    elems.append(sym)
+            self = self.prev
+        return SymList(elems[:], None)
+
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
 
@@ -128,6 +138,14 @@ class Env(W_Object):
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
 
+    @jit.unroll_safe
+    def collect_vars(self, vars, env_structure):
+        vars = jit.promote(vars)
+        env_structure = jit.promote(env_structure)
+        if not vars:
+            return self
+        lst = [self.lookup(v, env_structure) for v in vars]
+        return ConsEnv.make(lst, self.toplevel_env())
 
 class Version(object):
     pass
@@ -150,7 +168,6 @@ class ToplevelEnv(Env):
         self._pycketconfig = pycketconfig
 
     def lookup(self, sym, env_structure):
-        import pdb; pdb.set_trace()
         raise SchemeException("variable %s is unbound" % sym.variable_name())
 
     def toplevel_lookup(self, sym):

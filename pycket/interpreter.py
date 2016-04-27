@@ -342,8 +342,8 @@ class LetCont(Cont):
     @staticmethod
     @jit.unroll_safe
     def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
-        if not env.pycketconfig().fuse_conts:
-            fuse = False
+        # if not env.pycketconfig().fuse_conts:
+            # fuse = False
         counting_ast = ast.counting_asts[rhsindex]
 
         # try to fuse the two Conts
@@ -363,8 +363,11 @@ class LetCont(Cont):
                     combined_ast = counting_ast.combine(prev_counting_ast)
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
-        if rhsindex == len(ast.rhss) - 1:
-            pass
+        if rhsindex == len(ast.rhss) - 1 and ast.env_structure is not None:
+            assert ast.env_structure.prev is None
+            ast = jit.promote(ast)
+            vars = ast.env_structure.elems
+            env  = env.collect_vars(vars, ast.surrounding_env_structure)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -1073,6 +1076,7 @@ class App(AST):
         before = SequencedBodyAST.live_after_sequence(self.rands, before)
         before = self.rator.compute_live_after(before)
         return before
+
     def normalize(self, ctxt):
         ctxt = Context.AppRator(self.rands, ctxt)
         return Context.normalize_name(self.rator, ctxt, hint="AppRator")
@@ -1527,6 +1531,9 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
+    def compute_live_after(self, before):
+        return self.rhs.compute_live_after(before)
+
     def normalize(self, ctxt):
         ctxt = Context.SetBang(self.var, ctxt)
         return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
@@ -1840,7 +1847,7 @@ class Lambda(SequencedBodyAST):
     def set_env_structure(self, env_structure=None):
         if env_structure is not None:
             self.enclosing_env_structure = env_structure
-        sub_env_structure = SymList(self.args.elems, self.frees)
+        self.env_structure = sub_env_structure = SymList(self.args.elems, self.frees)
         SequencedBodyAST.set_env_structure(self, sub_env_structure)
 
     def _compute_live_after(self, before):
@@ -2019,7 +2026,7 @@ def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
 
-    if len(body) != 1 or not isinstance(body[0], Let):
+    if True or len(body) != 1 or not isinstance(body[0], Let):
         return _make_let_direct(varss, rhss, body)
 
     body = body[0]
@@ -2077,7 +2084,7 @@ def make_letrec(varss, rhss, body):
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
-    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
+    _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]", "surrounding_env_structure", "env_structure"]
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
@@ -2172,8 +2179,16 @@ class Let(SequencedBodyAST):
     def set_env_structure(self, env_structure=None):
         for rhs in self.rhss:
             rhs.set_env_structure(env_structure)
-        env_structure = SymList(self.args.elems, env_structure)
-        SequencedBodyAST.set_env_structure(self, env_structure)
+
+        if env_structure is not None:
+            prev = env_structure.filter(self.rhss[-1].live_after)
+        else:
+            prev = None
+        sub_env_structure = SymList(self.args.elems, prev)
+
+        SequencedBodyAST.set_env_structure(self, sub_env_structure)
+        self.surrounding_env_structure = env_structure
+        self.env_structure = prev
 
     def _compute_live_after(self, before):
         before = SequencedBodyAST.live_after_sequence(self.body, before)
@@ -2257,6 +2272,9 @@ class DefineValues(AST):
 
     def direct_children(self):
         return [self.rhs]
+
+    def _compute_live_after(self, before):
+        return self.rhs.compute_live_after(before)
 
     def normalize(self, ctxt):
         rhs    = Context.normalize_term(self.rhs)

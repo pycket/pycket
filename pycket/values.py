@@ -1249,8 +1249,9 @@ class W_Closure(W_Procedure):
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         # specialize on the fact that often we end up executing in the
         # same environment.
-        prev = lam.env_structure.prev.find_env_in_chain_speculate(
-                frees, env_structure, env)
+        # prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                # frees, env_structure, env)
+        prev = frees
         return lam.make_begin_cont(
             ConsEnv.make(actuals, prev),
             cont)
@@ -1291,11 +1292,11 @@ class W_Closure1AsEnv(ConsEnv):
         return self.caselam.get_arity()
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        env_structure = None
-        if calling_app is not None:
-            env_structure = calling_app.env_structure
+        # env_structure = None
+        # if calling_app is not None:
+            # env_structure = calling_app.env_structure
         jit.promote(self.caselam)
-        jit.promote(env_structure)
+        # jit.promote(env_structure)
         lam = self.caselam.lams[0]
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
@@ -1304,10 +1305,10 @@ class W_Closure1AsEnv(ConsEnv):
             lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
-        prev = lam.env_structure.prev.find_env_in_chain_speculate(
-                self, env_structure, env)
+        # prev = lam.env_structure.prev.find_env_in_chain_speculate(
+                # self, env_structure, env)
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
+            ConsEnv.make(actuals, self),
             cont)
 
     def call(self, args, env, cont):
