@@ -43,6 +43,13 @@ class W_HashTable(W_Object):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
 
+    def hash_iterate_next(self, pos):
+        i = pos.value
+        if i >= self.length() - 1:
+            return values.w_false
+        return values.wrap(i + 1)
+
+
 class W_MutableHashTable(W_HashTable):
     _attrs_ = []
     _immutable_fields_ = []
