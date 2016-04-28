@@ -144,14 +144,10 @@ class TestOptions(object):
     def test_b(self):
         f_name = 'dummy.rkt'
         argv1 = ['arg0', "-b", f_name]
-        argv2 = ['arg0', "-b", "-R", f_name]
         config1, names1, args1, retval1 = parse_args(argv1)
-        config2, names2, args2, retval2 = parse_args(argv2)
-        assert retval1 == 0 and retval2 == 0
-        assert names1['use-bytecode-of'] == f_name and names2['use-bytecode-of'] == f_name
-        assert names2['byte-expand'] == 'go'
-        assert args1 == [] and args2 == []
-        
+        assert retval1 == 0
+        assert names1['byte-expand'] == f_name
+        assert args1 == []
 
 class TestCommandline(object):
     """These are quire similar to TestOptions but targeted at the higher level

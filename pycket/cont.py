@@ -13,7 +13,7 @@ class Link(object):
         self.next = next
 
     @jit.unroll_safe
-    def clone(self):
+    def clone_links(self):
         marks = None
         while self is not None:
             marks = Link(self.key, self.val, marks)
@@ -23,8 +23,8 @@ class Link(object):
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
     # so that they can be saved without saving the whole continuation.
-    _immutable_fields_ = []
     _attrs_ = ['marks']
+    _immutable_fields_ = []
 
     # This field denotes whether or not it is safe to directly invoke the
     # plug_reduce operation of the continuation.
@@ -46,7 +46,7 @@ class BaseCont(object):
     def clone(self):
         result = self._clone()
         if self.marks is not None:
-            result.marks = self.marks.clone()
+            result.marks = self.marks.clone_links()
         else:
             result.marks = None
         return result
@@ -143,7 +143,7 @@ class Cont(BaseCont):
 
     def append(self, tail, upto=None, stop=None):
         if self is stop:
-            return tail
+            return self.clone()
         rest = self.prev.append(tail, upto, stop)
         head = self.clone()
         assert isinstance(head, Cont)
@@ -247,7 +247,7 @@ def continuation(func):
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
-    def clone(self):
+    def _clone(self):
         result = objectmodel.instantiate(PrimCont)
         Cont.__init__(result, self.env, self.prev)
         self._copy_args(result)
@@ -258,7 +258,7 @@ def continuation(func):
         args += (self.env, self.prev, vals,)
         return func(*args)
 
-    PrimCont.clone = clone
+    PrimCont._clone = _clone
     PrimCont.plug_reduce = plug_reduce
     PrimCont.__name__ = func.func_name + "PrimCont"
 
@@ -269,6 +269,7 @@ def continuation(func):
     return make_continuation
 
 def make_label(func, enter=False):
+    import pycket.values
     from pycket.AST import AST
 
     func = jit.unroll_safe(func)
@@ -326,11 +327,16 @@ def make_label(func, enter=False):
 
     return make
 
-# Choose whether or not to use a loop label based on a given predicate
-def guarded_loop(pred):
+# Choose whether or not to use a loop label based on a given predicate.
+# The always_use_labels parameter will ensure that a label is used whether the
+# predicate tests True or False.
+# When always_use_labels is False, we will only use a label when the predicate
+# is true, saving the overhead of trampolining under the assumption that the
+# predicate gives some indication of the recursion depth.
+def guarded_loop(pred, always_use_labels=True):
     def wrapper(func):
         loop   = make_label(func, enter=True)
-        noloop = make_label(func, enter=False)
+        noloop = make_label(func, enter=False) if always_use_labels else func
         return lambda *args: loop(*args) if pred(*args) else noloop(*args)
     return wrapper
 

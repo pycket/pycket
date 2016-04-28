@@ -264,9 +264,8 @@ def define_struct(name, super=values.w_null, fields=[]):
     expose_val("make-" + name, struct_constr)
     expose_val(name + "?", struct_pred)
     for field, field_name in enumerate(fields):
-        w_num = field
-        w_name = values.W_Symbol.make(field_name)
-        acc = values_struct.W_StructFieldAccessor(struct_acc, w_num, w_name)
+        w_name =  values.W_Symbol.make(field_name)
+        acc = values_struct.W_StructFieldAccessor(struct_acc, field, w_name)
         expose_val(name + "-" + field_name, acc)
     return struct_type
 

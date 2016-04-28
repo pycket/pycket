@@ -3,7 +3,7 @@
 
 from pycket                   import config
 from pycket.arity             import Arity
-from pycket.base              import W_Object, W_ProtoObject
+from pycket.base              import W_Object, W_ProtoObject, UnhashableType
 from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
@@ -24,6 +24,18 @@ from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check
 
 UNROLLING_CUTOFF = 5
 
+def elidable_iff(pred):
+    def wrapper(func):
+        func = jit.unroll_safe(func)
+
+        def trampoline(*args):
+            if jit.we_are_jitted() and pred(*args):
+                return elidable_func(*args)
+            return func(*args)
+
+        return trampoline
+    return wrapper
+
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
     def __init__(self):
@@ -39,6 +51,10 @@ class Values(W_ProtoObject):
     def make1(w_value):
         assert w_value is not None
         return w_value
+
+    @staticmethod
+    def make2(w_value1, w_value2):
+        return Values._make2(w_value1, w_value2)
 
     def num_values(self):
         return self._get_size_list()
@@ -185,12 +201,10 @@ class W_ContinuationMarkKey(W_Object):
     def __init__(self, name):
         self.name = name
 
-    @label
     def get_cmk(self, value, env, cont):
         from pycket.interpreter import return_value
         return return_value(value, env, cont)
 
-    @label
     def set_cmk(self, body, value, update, env, cont):
         update.update_cm(self, value)
         return body.call([], env, cont)
@@ -212,10 +226,10 @@ class W_VectorSuper(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    def vector_set(self, i, new, env, cont):
+    def vector_set(self, i, new, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
-    def vector_ref(self, i, env, cont):
+    def vector_ref(self, i, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
     def length(self):
@@ -232,13 +246,13 @@ class W_VectorSuper(W_Object):
     def get_storage(self):
         raise NotImplementedError
 
-    def set_storage(self):
+    def set_storage(self, storage):
         raise NotImplementedError
 
     def get_strategy(self):
         raise NotImplementedError
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         raise NotImplementedError
 
 # Things that are vector?
@@ -371,6 +385,9 @@ class W_Box(W_Object):
     errorname = "box"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
+    def hash_equal(self, info=None):
+        raise UnhashableType
 
     def unbox(self, env, cont):
         raise NotImplementedError("abstract base class")
