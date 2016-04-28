@@ -1,7 +1,7 @@
 
 from pycket                   import config
 from pycket                   import values, values_string
-from pycket.base              import SingletonMeta
+from pycket.base              import SingletonMeta, UnhashableType
 from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
@@ -182,30 +182,86 @@ class EmptyHashmapStrategy(HashmapStrategy):
         w_dict.strategy = strategy
         w_dict.hstorage = storage
 
+class Bucket(object):
+    _attrs_ = _immutable_fields_ = ["entries"]
+
+    def __init__(self):
+        self.entries = []
+
+    def add_entry(self, key, val):
+        self.entries.append((key, val))
+
+    def size(self):
+        return len(self.entries)
+
+UNHASHABLE_TAG = 0b0001
+
+def tagged_hash(w_object):
+    try:
+        return w_object.hash_equal() << 1
+    except UnhashableType:
+        return UNHASHABLE_TAG
 
 class ObjectHashmapStrategy(HashmapStrategy):
     erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
+    def get_bucket(self, w_dict, w_key, nonull=False):
+        hash    = tagged_hash(w_key)
+        storage = self.unerase(w_dict.hstorage)
+        bucket  = storage.get(hash, None)
+
+        if nonull and bucket is None:
+            storage[hash] = bucket = Bucket()
+
+        return bucket
+
     def get(self, w_dict, w_key, env, cont):
-        return equal_hash_ref_loop(self.unerase(w_dict.hstorage), 0, w_key, env, cont)
+        from pycket.interpreter import return_value
+        bucket = self.get_bucket(w_dict, w_key)
+        if bucket is None:
+            return return_value(w_missing, env, cont)
+        entries = bucket.entries
+        return equal_hash_ref_loop(entries, 0, w_key, env, cont)
 
     def set(self, w_dict, w_key, w_val, env, cont):
-        return equal_hash_set_loop(self.unerase(w_dict.hstorage), 0, w_key, w_val, env, cont)
+        bucket = self.get_bucket(w_dict, w_key, nonull=True)
+        return equal_hash_set_loop(bucket.entries, 0, w_key, w_val, env, cont)
 
     def items(self, w_dict):
-        return self.unerase(w_dict.hstorage)
+        items = []
+        storage = self.unerase(w_dict.hstorage)
+        for bucket in storage.itervalues():
+            for item in bucket.entries:
+                items.append(item)
+        return items
 
     def get_item(self, w_dict, i):
-        try:
-            return self.unerase(w_dict.hstorage)[i]
-        except IndexError:
-            raise
+        storage = self.unerase(w_dict.hstorage)
+        for bucket in storage.itervalues():
+            size = bucket.size()
+            if size > i:
+                return bucket.entries[i]
+            i -= size
+        raise IndexError
+
 
     def length(self, w_dict):
-        return len(self.unerase(w_dict.hstorage))
+        storage = self.unerase(w_dict.hstorage)
+        size = 0
+        for bucket in storage.itervalues():
+            size += bucket.size()
+        return size
 
     def create_storage(self, keys, vals):
-        return self.erase([(k, vals[i]) for i, k in enumerate(keys)])
+        storage = {}
+        for i, key in enumerate(keys):
+            val  = vals[i]
+            hash = tagged_hash(key)
+            bucket = storage.get(hash, None)
+            if bucket is None:
+                storage[hash] = bucket = Bucket()
+            bucket.add_entry(key, val)
+        return self.erase(storage)
 
 
 class FixnumHashmapStrategy(HashmapStrategy):

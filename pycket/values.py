@@ -3,7 +3,7 @@
 
 from pycket                   import config
 from pycket.arity             import Arity
-from pycket.base              import W_Object, W_ProtoObject
+from pycket.base              import W_Object, W_ProtoObject, UnhashableType
 from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
@@ -385,6 +385,9 @@ class W_Box(W_Object):
     errorname = "box"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
+    def hash_equal(self, info=None):
+        raise UnhashableType
 
     def unbox(self, env, cont):
         raise NotImplementedError("abstract base class")

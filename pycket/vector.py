@@ -1,6 +1,6 @@
 
 from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Character, UNROLLING_CUTOFF, wrap
-from pycket.base import W_Object, SingletonMeta
+from pycket.base import W_Object, SingletonMeta, UnhashableType
 from pycket import config
 
 from rpython.rlib import debug, jit
@@ -125,11 +125,14 @@ class W_Vector(W_MVector):
         return self.strategy._copy_storage(self, immutable=immutable)
 
     def hash_equal(self, info=None):
-        x = 0x456789
-        for i in range(self.len):
-            hash = self.ref(i).hash_equal(info=info)
-            x = intmask((1000003 * x) ^ hash)
-        return x
+        raise UnhashableType
+
+    # def hash_equal(self, info=None):
+        # x = 0x456789
+        # for i in range(self.len):
+            # hash = self.ref(i).hash_equal(info=info)
+            # x = intmask((1000003 * x) ^ hash)
+        # return x
 
     def equal(self, other):
         # XXX could be optimized using strategies
