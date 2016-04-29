@@ -43,11 +43,10 @@ class W_HashTable(W_Object):
         # see get_dict_item at the bottom of the file for the interface
         raise NotImplementedError("abstract method")
 
-    def hash_iterate_next(self, pos):
-        i = pos.value
+    def hash_iterate_next(self, i):
         if i >= self.length() - 1:
-            return values.w_false
-        return values.wrap(i + 1)
+            raise IndexError
+        return i + 1
 
 
 class W_MutableHashTable(W_HashTable):
@@ -86,6 +85,20 @@ def ll_get_dict_item(RES, dict, i):
         return r
     else:
         raise KeyError
+
+def next_valid_index(d, i):
+    """
+    Probes the hash table for the next valid index into the table. Raises
+    IndexError when the end of the table is reached
+    """
+    while True:
+        i += 1
+        try:
+            get_dict_item(d, i)
+        except KeyError:
+            continue
+        else:
+            return i
 
 from rpython.rtyper.extregistry import ExtRegistryEntry
 

@@ -26,7 +26,11 @@ def hash_iterate_first(ht):
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    return ht.hash_iterate_next(pos)
+    try:
+        next = ht.hash_iterate_next(pos.value)
+    except IndexError:
+        return values.w_false
+    return values.wrap(next)
 
 @objectmodel.specialize.arg(4)
 def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):

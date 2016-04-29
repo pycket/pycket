@@ -2,7 +2,7 @@
 from pycket                   import config
 from pycket                   import values, values_string
 from pycket.base              import SingletonMeta, UnhashableType
-from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
+from pycket.hash.base         import W_HashTable, get_dict_item, next_valid_index, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
 from rpython.rlib             import rerased
@@ -67,10 +67,9 @@ class HashmapStrategy(object):
         raise NotImplementedError("abstract base class")
 
     def hash_iterate_next(self, w_dict, i):
-        index = i.value
-        if index >= self.length(w_dict) - 1:
-            return values.w_false
-        return values.wrap(index + 1)
+        if i >= self.length(w_dict) - 1:
+            raise IndexError
+        return i + 1
 
     def length(self, w_dict):
         raise NotImplementedError("abstract base class")
@@ -223,7 +222,6 @@ class ObjectHashmapStrategy(HashmapStrategy):
         bucket = self.get_bucket(w_dict, w_key, nonull=True)
         return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
 
-
     def items(self, w_dict):
         items = []
         storage = self.unerase(w_dict.hstorage)
@@ -258,11 +256,10 @@ class ObjectHashmapStrategy(HashmapStrategy):
                 raise IndexError
             return bucket[subindex]
 
-        def hash_iterate_next(self, w_dict, pos):
+        def hash_iterate_next(self, w_dict, i):
             from pycket.hash.persistent_hash_map import MASK_32
-            storage = self.unerase(w_dict.hstorage)
-            i = pos.value
             assert i >= 0
+            storage = self.unerase(w_dict.hstorage)
             index    = r_uint(i & MASK_32)
             subindex = r_uint((i >> 32) & MASK_32)
 
@@ -270,13 +267,10 @@ class ObjectHashmapStrategy(HashmapStrategy):
             subindex += 1
             if subindex == r_uint(len(bucket)):
                 subindex = r_uint(0)
-                index += r_uint(1)
-
-            if index >= r_uint(len(storage)):
-                return values.w_false
+                index = r_uint(next_valid_index(storage, intmask(index)))
 
             next = intmask((subindex << r_uint(32)) | index)
-            return values.wrap(next)
+            return next
 
     def length(self, w_dict):
         storage = self.unerase(w_dict.hstorage)
