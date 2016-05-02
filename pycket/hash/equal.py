@@ -2,7 +2,7 @@
 from pycket                   import config
 from pycket                   import values, values_string
 from pycket.base              import SingletonMeta, UnhashableType
-from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
+from pycket.hash.base         import W_HashTable, get_dict_item, next_valid_index, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
 from rpython.rlib             import rerased
