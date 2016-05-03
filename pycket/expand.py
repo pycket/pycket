@@ -508,13 +508,7 @@ class JsonLoader(object):
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
 
-            # check if the json is from bytecode if we're going for bytecode expansion
-            try:
-                be_json = config["bytecode-expand"] == "true"
-            except KeyError:
-                raise ValueError('No "bytecode-expand" flag in json in %s' %
-                                 json.tostring())
-
+            be_json = config.get("bytecode_expand", "false") == "true"
             if self.bytecode_expand != be_json:
                 modname = getkey(obj, "module-name", type='s')
                 raise ValueError('Byte-expansion is : %s, but "bytecode-expand" '

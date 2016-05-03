@@ -4,7 +4,7 @@ from pycket import config
 from pycket import values
 from pycket import vector as values_vector
 from pycket.arity import Arity
-from pycket.base import SingleResultMixin
+from pycket.base import SingleResultMixin, UnhashableType
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import default, make_call_method
@@ -596,6 +596,9 @@ class W_RootStruct(values.W_Object):
 
     def vals(self):
         raise NotImplementedError("abstract base class")
+
+    def hash_equal(self, info=None):
+        raise UnhashableType
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
