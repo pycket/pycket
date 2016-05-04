@@ -22,7 +22,7 @@ from pycket.test.testhelper import parse_file
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
-from pycket.expand import JsonLoader, expand, expand_string, parse_module
+from pycket.expand import JsonLoader, expand, expand_string, parse_module, finalize_module
 from pycket import pycket_json
 
 
@@ -91,6 +91,16 @@ class TestLLtype(LLJitMixin):
 """
 )
 
+    def test_fib(self):
+        self.run_string("""
+        #lang pycket
+        (define (fib n)
+          (if (<= n 1) 1
+            (let ([f1 (fib (- n 1))]
+                  [f2 (fib (- n 2))])
+              (+ f1 f2))))
+        (fib 30)
+        """)
 
     def test_sieve01(self):
         self.run_file("sieve01.rkt")
@@ -212,7 +222,7 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             loader = JsonLoader(False)
-            ast = loader.to_module((_json)).assign_convert_module()
+            ast = finalize_module(loader.to_module(_json))
             env = (_env)
             env.globalconfig.load(ast)
             env.commanline_arguments = []

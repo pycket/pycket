@@ -144,7 +144,9 @@ class Env(W_Object):
         env_structure = jit.promote(env_structure)
         if not vars:
             return self
-        lst = [self.lookup(v, env_structure) for v in vars]
+        lst = [None] * len(vars)
+        for i, var in enumerate(vars):
+            lst[i] = self.lookup(var, env_structure)
         return ConsEnv.make(lst, self.toplevel_env())
 
 class Version(object):

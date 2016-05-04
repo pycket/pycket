@@ -365,8 +365,8 @@ class LetCont(Cont):
                     return FusedLet0BeginCont(combined_ast, env, prev.prev)
 
         if rhsindex == len(ast.rhss) - 1 and ast.env_structure is not None:
-            assert ast.env_structure.prev is None
             ast = jit.promote(ast)
+            assert ast.env_structure.prev is None
             vars = ast.env_structure.elems
             env  = env.collect_vars(vars, ast.surrounding_env_structure)
         return LetCont._make(vals_w, counting_ast, env, prev)
