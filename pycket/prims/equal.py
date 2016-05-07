@@ -173,16 +173,19 @@ def equal_func_impl(a, b, info, env, cont, n):
                 # FIXME: it should work with cycles properly and be an equal?-recur
                 w_equal_recur = equalp.w_prim
                 return w_equal_proc.call([a, b, w_equal_recur], env, cont)
-        if not a.struct_type().isopaque and not b.struct_type().isopaque:
+        if not a_type.isopaque and not b_type.isopaque:
             # This is probably not correct even if struct2vector were done
             # correct, due to side effects, but it is close enough for now.
             # Though the racket documentation says that `equal?` can elide
             # impersonator/chaperone handlers.
-            a_imm = len(a_type.immutables) == a_type.total_field_cnt
-            b_imm = len(b_type.immutables) == b_type.total_field_cnt
+            a_imm = a_type.all_fields_immutable()
+            b_imm = b_type.all_fields_immutable()
             a = values_struct.struct2vector(a, immutable=a_imm)
             b = values_struct.struct2vector(b, immutable=b_imm)
             return equal_func_unroll_n(a, b, info, env, cont, n)
+
+    if for_chaperone == EqualInfo.BASIC and a.is_proxy() and b.is_proxy():
+        return equal_func_unroll_n(a.get_proxied(), b.get_proxied(), info, env, cont, n)
 
     if a.equal(b):
         return return_value(values.w_true, env, cont)

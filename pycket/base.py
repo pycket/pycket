@@ -3,6 +3,9 @@ from pycket.error          import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib          import jit, objectmodel
 
+class UnhashableType(Exception):
+    pass
+
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
     return values (Values)"""
@@ -87,6 +90,8 @@ class W_Object(W_ProtoObject):
     def is_proxy(self):
         return self.is_chaperone() or self.is_impersonator()
     def get_proxied(self):
+        return self
+    def get_base(self):
         return self
     def get_properties(self):
         return {}

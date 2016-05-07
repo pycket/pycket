@@ -140,63 +140,57 @@ def chaperone_hash(args):
 
 @expose("impersonate-procedure", arity=Arity.geq(2))
 def impersonate_procedure(args):
-    unpacked = unpack_procedure_args(args, "impersonate-procedure")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ImpProcedure(*unpacked)
+    return imp.make_interpose_procedure(imp.W_ImpProcedure, proc, check, keys, vals)
 
 @expose("unsafe-impersonate-procedure", arity=Arity.geq(2))
 def impersonate_procedure(args):
-    unpacked = unpack_procedure_args(args, "unsafe-impersonate-procedure")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "unsafe-impersonate-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_UnsafeImpProcedure(*unpacked)
+    return imp.make_interpose_procedure(imp.W_UnsafeImpProcedure, proc, check, keys, vals)
 
 @expose("impersonate-procedure*", arity=Arity.geq(2))
 def impersonate_procedure_star(args):
-    unpacked = unpack_procedure_args(args, "impersonate-procedure*")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "impersonate-procedure*")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ImpProcedure(*unpacked, self_arg=True)
+    return imp.make_interpose_procedure(imp.W_ImpProcedureStar, proc, check, keys, vals)
 
 @expose("chaperone-procedure", arity=Arity.geq(2))
 def chaperone_procedure(args):
-    unpacked = unpack_procedure_args(args, "chaperone-procedure")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ChpProcedure(*unpacked)
+    return imp.make_interpose_procedure(imp.W_ChpProcedure, proc, check, keys, vals)
 
 @expose("unsafe-chaperone-procedure", arity=Arity.geq(2))
 def chaperone_procedure(args):
-    unpacked = unpack_procedure_args(args, "unsafe-chaperone-procedure")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "unsafe-chaperone-procedure")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_UnsafeChpProcedure(*unpacked)
+    return imp.make_interpose_procedure(imp.W_UnsafeChpProcedure, proc, check, keys, vals)
 
 @expose("chaperone-procedure*", arity=Arity.geq(2))
 def chaperone_procedure_star(args):
-    unpacked = unpack_procedure_args(args, "chaperone-procedure*")
-    proc, check, keys, _ = unpacked
+    proc, check, keys, vals = unpack_procedure_args(args, "chaperone-procedure*")
     if check is values.w_false and not keys:
         return proc
-    return imp.W_ChpProcedure(*unpacked, self_arg=True)
+    return imp.make_interpose_procedure(imp.W_ChpProcedureStar, proc, check, keys, vals)
 
 @expose("impersonate-vector", arity=Arity.geq(3))
 def impersonate_vector(args):
     unpacked = unpack_vector_args(args, "impersonate-vector")
     if unpacked[0].immutable():
         raise SchemeException("impersonate-vector: cannot impersonate immutable vector")
-    return imp.W_ImpVector(*unpacked)
+    return imp.make_interpose_vector(imp.W_ImpVector, *unpacked)
 
 @expose("chaperone-vector", arity=Arity.geq(3))
 def chaperone_vector(args):
     unpacked = unpack_vector_args(args, "chaperone-vector")
-    return imp.W_ChpVector(*unpacked)
+    return imp.make_interpose_vector(imp.W_ChpVector, *unpacked)
 
 # Need to check that fields are mutable
 @expose("impersonate-struct", arity=Arity.geq(1))
@@ -255,7 +249,8 @@ def impersonate_struct(args):
     if all_false and not prop_keys:
         return struct
 
-    return imp.W_ImpStruct(struct, overrides, handlers, prop_keys, prop_vals)
+    return imp.make_struct_proxy(imp.W_ImpStruct,
+            struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-struct", arity=Arity.geq(1))
 @jit.unroll_safe
@@ -299,7 +294,8 @@ def chaperone_struct(args):
     if all_false and not prop_keys:
         return struct
 
-    return imp.W_ChpStruct(struct, overrides, handlers, prop_keys, prop_vals)
+    return imp.make_struct_proxy(imp.W_ChpStruct,
+            struct, overrides, handlers, prop_keys, prop_vals)
 
 @expose("chaperone-box", arity=Arity.geq(3))
 def chaperone_box(args):

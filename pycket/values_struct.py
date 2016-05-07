@@ -4,7 +4,7 @@ from pycket import config
 from pycket import values
 from pycket import vector as values_vector
 from pycket.arity import Arity
-from pycket.base import SingleResultMixin
+from pycket.base import SingleResultMixin, UnhashableType
 from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import default, make_call_method
@@ -195,6 +195,7 @@ class W_StructType(values.W_Object):
             self.initialize_prop(props, values.wrap(w_prop_procedure, proc_spec))
         return self.attach_prop(props, 0, False, env, cont)
 
+    @jit.unroll_safe
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
                  auto_v, inspector, proc_spec, immutables, guard, constr_name):
         assert isinstance(name, values.W_Symbol)
@@ -276,6 +277,10 @@ class W_StructType(values.W_Object):
     @jit.elidable
     def is_immutable_field_index(self, i):
         return i in self.immutable_fields
+
+    def all_fields_immutable(self):
+        self = jit.promote(self)
+        return self.total_field_cnt == len(self.immutable_fields)
 
     def struct_type_info(self, cont):
         name = self.name
@@ -591,6 +596,9 @@ class W_RootStruct(values.W_Object):
 
     def vals(self):
         raise NotImplementedError("abstract base class")
+
+    def hash_equal(self, info=None):
+        raise UnhashableType
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
@@ -971,6 +979,9 @@ class W_StructFieldAccessor(values.W_Procedure):
         self.field = field
         self.field_name = field_name
 
+    def get_absolute_index(self, type):
+        return type.get_offset(self.accessor.type) + self.field
+
     def get_arity(self):
         return Arity.ONE
 
@@ -1023,6 +1034,9 @@ class W_StructFieldMutator(values.W_Procedure):
 
     def get_arity(self):
         return Arity.TWO
+
+    def get_absolute_index(self, type):
+        return type.get_offset(self.mutator.type) + self.field
 
     @make_call_method([values.W_Object, values.W_Object], simple=False,
                       name="<struct-field-mutator-method>")

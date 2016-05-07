@@ -321,6 +321,7 @@ class LetrecCont(Cont):
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast"]
+
     return_safe = True
 
     def __init__(self, counting_ast, env, prev):
@@ -2247,7 +2248,7 @@ def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
+    if green_ast.should_enter:
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 
