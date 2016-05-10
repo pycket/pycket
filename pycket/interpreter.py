@@ -1078,6 +1078,11 @@ class App(AST):
         before = self.rator.compute_live_after(before)
         return before
 
+    def set_env_structure(self, env_structure=None):
+        AST.set_env_structure(self, env_structure)
+        if env_structure is not None:
+            self.env_structure = env_structure
+
     def normalize(self, ctxt):
         ctxt = Context.AppRator(self.rands, ctxt)
         return Context.normalize_name(self.rator, ctxt, hint="AppRator")
