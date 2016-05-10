@@ -48,6 +48,10 @@ class W_HashTable(W_Object):
             raise IndexError
         return i + 1
 
+    def hash_iterate_first(self):
+        if self.length() == 0:
+            raise IndexError
+        return 0
 
 class W_MutableHashTable(W_HashTable):
     _attrs_ = []
@@ -86,7 +90,8 @@ def ll_get_dict_item(RES, dict, i):
     else:
         raise KeyError
 
-def next_valid_index(d, i):
+@specialize.call_location()
+def next_valid_index(d, i, valid=bool):
     """
     Probes the hash table for the next valid index into the table. Raises
     IndexError when the end of the table is reached
@@ -94,7 +99,9 @@ def next_valid_index(d, i):
     while True:
         i += 1
         try:
-            get_dict_item(d, i)
+            val = get_dict_item(d, i)
+            if not valid(val):
+                continue
         except KeyError:
             continue
         else:

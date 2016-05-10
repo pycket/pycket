@@ -71,6 +71,9 @@ class HashmapStrategy(object):
             raise IndexError
         return i + 1
 
+    def hash_iterate_first(self, w_dict):
+        return 0
+
     def length(self, w_dict):
         raise NotImplementedError("abstract base class")
 
@@ -267,10 +270,15 @@ class ObjectHashmapStrategy(HashmapStrategy):
             subindex += 1
             if subindex == r_uint(len(bucket)):
                 subindex = r_uint(0)
-                index = r_uint(next_valid_index(storage, intmask(index)))
+                next = next_valid_index(
+                        storage, intmask(index), valid=lambda x: bool(x[1]))
+                index = r_uint(next)
 
             next = intmask((subindex << r_uint(32)) | index)
             return next
+
+        def hash_iterate_first(self, w_dict):
+            return next_valid_index(w_dict, 0, valid=lambda x: bool(x[1]))
 
     def length(self, w_dict):
         storage = self.unerase(w_dict.hstorage)
@@ -289,7 +297,6 @@ class ObjectHashmapStrategy(HashmapStrategy):
                 storage[hash] = bucket = []
             bucket.append((key, val))
         return self.erase(storage)
-
 
 class FixnumHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
@@ -405,6 +412,9 @@ class W_EqualHashTable(W_HashTable):
 
     def hash_iterate_next(self, pos):
         return self.strategy.hash_iterate_next(self, pos)
+
+    def hash_iterate_first(self):
+        return self.strategy.hash_iterate_first(self)
 
     def length(self):
         return self.strategy.length(self)
