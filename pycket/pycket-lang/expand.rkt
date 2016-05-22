@@ -476,6 +476,8 @@
                                      (datum->syntax #'lex (hash-keys ht*)))
                  'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
                                      (datum->syntax #'lex (hash-values ht*))))))]
+    [_ #:when (void? (syntax-e v))
+       (hash 'void #t)]
     ))
 
 (define (is-module? m)
