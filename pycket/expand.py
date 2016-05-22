@@ -762,6 +762,8 @@ def to_value(json):
         if "improper" in obj:
             improper = obj["improper"].value_array()
             return values.to_improper([to_value(v) for v in improper[0].value_array()], to_value(improper[1]))
+        if "void" in obj:
+            return values.w_void
         for i in ["toplevel", "lexical", "module", "source-name"]:
             if i in obj:
                 return values.W_Symbol.make(obj[i].value_string())
