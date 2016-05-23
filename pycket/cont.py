@@ -2,23 +2,44 @@ import inspect
 
 from rpython.rlib import jit, objectmodel, unroll
 
-class Link(object):
+class AbstractLink(object):
+
+    def __init__(self):
+        raise NotImplementedError("abstract base class")
+
+    def clone_links(self):
+        raise NotImplementedError("abstract base class")
+
+class Link(AbstractLink):
+
     _immutable_fields_ = ["key", "next"]
+
     def __init__(self, k, v, next):
         from pycket.values import W_Object
         assert isinstance(k, W_Object) and isinstance(v, W_Object)
-        assert next is None or isinstance(next, Link)
+        # assert next is None or isinstance(next, Link)
         self.key = k
         self.val = v
         self.next = next
 
     @jit.unroll_safe
     def clone_links(self):
-        marks = None
-        while self is not None:
-            marks = Link(self.key, self.val, marks)
-            self = self.next
-        return marks
+        next = self.next
+        rest = None
+        if next is not None:
+            rest = next.clone_links()
+        return Link(self.key, self.val, rest)
+
+class ForwardLink(AbstractLink):
+
+    _immutable_fields_ = ["cont"]
+
+    def __init__(self, cont):
+        assert isinstance(cont, BaseCont)
+        self.cont = cont
+
+    def clone_links(self):
+        return self
 
 class BaseCont(object):
     # Racket also keeps a separate stack for continuation marks
@@ -30,8 +51,8 @@ class BaseCont(object):
     # plug_reduce operation of the continuation.
     return_safe = False
 
-    def __init__(self):
-        self.marks = None
+    def __init__(self, marks=None):
+        self.marks = marks
 
     def has_unwind(self):
         return False
@@ -67,17 +88,19 @@ class BaseCont(object):
     def find_cm(self, k, not_found=None):
         from pycket.prims.equal import eqp_logic
         l = self.marks
-        while l is not None:
+        while isinstance(l, Link):
             if eqp_logic(l.key, k):
-                return l.val
+                return l.val, None
             l = l.next
-        return not_found
+        if isinstance(l, ForwardLink):
+            return not_found, l.cont
+        return not_found, None
 
     @jit.unroll_safe
     def update_cm(self, k, v):
         from pycket.prims.equal import eqp_logic
         l = self.marks
-        while l is not None:
+        while isinstance(l, Link):
             if eqp_logic(l.key, k):
                 l.val = v
                 return
@@ -86,19 +109,24 @@ class BaseCont(object):
 
     def get_marks(self, key, upto=[]):
         from pycket import values
-        v = self.find_cm(key)
-        return values.W_Cons.make(v, values.w_null) if v is not None else values.w_null
+        v, _ = self.find_cm(key)
+        if v is not None:
+            result = values.W_Cons.make(v, values.w_null)
+        else:
+            result = values.w_null
+        return result
 
-    # XXX: why isn't this in Cont?
     @jit.unroll_safe
     def get_mark_first(self, key, upto=[]):
         p = self
-        while p is not None:
-            v = p.find_cm(key)
+        while p is not None and not p.stop_at(upto):
+            v, p = p.find_cm(key)
             if v is not None:
                 return v
-            p = p.get_previous_continuation(upto=upto)
         return None
+
+    def stop_at(self, upto):
+        return False
 
     def append(self, tail, upto=None, stop=None):
         return tail
@@ -123,12 +151,26 @@ class NilCont(BaseCont):
         from pycket.interpreter import Done
         raise Done(vals)
 
+def get_forward_mark(prev):
+    assert isinstance(prev, BaseCont)
+    marks = prev.marks
+
+    # Cannot forward through continuation prompts or barriers, as they can delimit
+    # the search for continuation marks.
+    if isinstance(prev, Prompt) or isinstance(prev, Barrier):
+        return ForwardLink(prev)
+    if isinstance(marks, ForwardLink):
+        return marks
+    if marks is not None:
+        return ForwardLink(prev)
+    return None
+
 class Cont(BaseCont):
 
     _immutable_fields_ = ['env', 'prev']
 
     def __init__(self, env, prev):
-        BaseCont.__init__(self)
+        BaseCont.__init__(self, marks=get_forward_mark(prev))
         self.env = env
         self.prev = prev
 
@@ -153,7 +195,7 @@ class Cont(BaseCont):
     def get_marks(self, key, upto=[]):
         from pycket import values
         while self is not None:
-            v = self.find_cm(key)
+            v, _ = self.find_cm(key)
             prev = self.get_previous_continuation(upto=upto)
             if v is not None:
                 rest = prev.get_marks(key, upto=upto) if prev is not None else values.w_null
@@ -173,11 +215,16 @@ class Prompt(Cont):
     def _clone(self):
         return Prompt(self.tag, self.handler, self.env, self.prev)
 
-    def get_previous_continuation(self, upto=[]):
+    @jit.unroll_safe
+    def stop_at(self, upto):
         for tag in upto:
             if tag is self.tag:
-                return None
-        return self.prev
+                return True
+        return False
+
+    @jit.unroll_safe
+    def get_previous_continuation(self, upto=[]):
+        return self.prev if not self.stop_at(upto) else None
 
     def append(self, tail, upto=None, stop=None):
         if upto is self.tag or stop is tail:
