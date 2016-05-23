@@ -92,9 +92,8 @@ class BaseCont(object):
             if eqp_logic(l.key, k):
                 return l.val, None
             l = l.next
-        if isinstance(l, ForwardLink):
-            return not_found, l.cont
-        return not_found, None
+        marks = l.cont if isinstance(l, ForwardLink) else None
+        return not_found, marks
 
     @jit.unroll_safe
     def update_cm(self, k, v):
@@ -119,10 +118,13 @@ class BaseCont(object):
     @jit.unroll_safe
     def get_mark_first(self, key, upto=[]):
         p = self
-        while p is not None and not p.stop_at(upto):
-            v, p = p.find_cm(key)
+        while p is not None:
+            v, next = p.find_cm(key)
             if v is not None:
                 return v
+            if p.stop_at(upto):
+                break
+            p = next
         return None
 
     def stop_at(self, upto):
@@ -152,13 +154,14 @@ class NilCont(BaseCont):
         raise Done(vals)
 
 def get_forward_mark(prev):
-    assert isinstance(prev, BaseCont)
-    marks = prev.marks
-
     # Cannot forward through continuation prompts or barriers, as they can delimit
     # the search for continuation marks.
     if isinstance(prev, Prompt) or isinstance(prev, Barrier):
         return ForwardLink(prev)
+
+    assert isinstance(prev, BaseCont)
+    marks = prev.marks
+
     if isinstance(marks, ForwardLink):
         return marks
     if marks is not None:
@@ -222,7 +225,6 @@ class Prompt(Cont):
                 return True
         return False
 
-    @jit.unroll_safe
     def get_previous_continuation(self, upto=[]):
         return self.prev if not self.stop_at(upto) else None
 
