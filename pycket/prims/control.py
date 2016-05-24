@@ -334,7 +334,7 @@ def raise_exception(v, barrier, env, cont):
 
     handler = None
     while cont is not None:
-        handler = cont.find_cm(values.exn_handler_key)
+        handler, _ = cont.find_cm(values.exn_handler_key)
         if handler is not None:
             break
         cont = cont.get_previous_continuation()
