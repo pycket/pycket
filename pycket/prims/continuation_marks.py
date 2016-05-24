@@ -46,8 +46,9 @@ def get_marks_all(cont, keys, not_found, upto=[]):
         if cont is None:
             return values.w_null
         found = False
+        next  = None
         for i, key in enumerate(keys):
-            value = cont.find_cm(key)
+            value, _ = cont.find_cm(key)
             if value is not None:
                 found = True
             else:
@@ -107,7 +108,7 @@ def mk_cmk(s):
         [values.W_Object, procedure, default(values.W_Object, values.w_false)],
         simple=False)
 def cwicm(key, proc, default, env, cont):
-    lup = cont.find_cm(key)
+    lup, _ = cont.find_cm(key)
     val = default if lup is None else lup
     if isinstance(key, values.W_ContinuationMarkKey):
         return key.get_cmk(val, env, call_cont(proc, env, cont))
