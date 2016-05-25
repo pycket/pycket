@@ -155,13 +155,14 @@ def test_cont_fusion():
         FusedLet0Let0Cont, FusedLet0BeginCont,
     )
     from pycket.config import get_testing_config
+    from pycket.cont   import NilCont
     args = SymList([])
     counts = [1]
     rhss = 1
     letast1 = Let(args, counts, [1], [2])
     letast2 = Let(args, counts, [1], [2])
     env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = object()
+    prev = NilCont()
     let2 = LetCont.make([], letast2, 0, env, prev)
     let1 = LetCont.make([], letast1, 0, env, let2)
     assert isinstance(let1, FusedLet0Let0Cont)
