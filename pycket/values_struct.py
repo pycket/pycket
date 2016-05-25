@@ -332,6 +332,7 @@ class W_StructType(values.W_Object):
             self = self.super
         return True
 
+    @jit.elidable
     def has_subtype(self, type):
         while isinstance(type, W_StructType):
             if type is self:
