@@ -9,6 +9,45 @@ import math
 import sys
 
 @jit.elidable
+def intgcd(u, v):
+    # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
+    if not u:
+        return v
+    if not v:
+        return u
+
+    if v >= 0:
+        sign = 1
+    else:
+        sign = -1
+        v = abs(v)
+    u = abs(u)
+
+    shift = 0
+    while not (u & 1) and not (v & 1):
+        shift += 1
+        u >>= 1
+        v >>= 1
+    while not (u & 1):
+        u >>= 1
+
+    while True:
+        while not (v & 1):
+            v >>= 1
+
+        if u > v:
+            u, v = v, u
+        v -= u
+        if not v:
+            break
+
+    result = u << shift
+    if sign == -1:
+        result = -result
+    return result
+
+
+@jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
@@ -23,19 +62,19 @@ def gcd(u, v):
     u = u.abs()
 
     shift = 0
-    while (not u.and_(ONERBIGINT).toint() and
-           not v.and_(ONERBIGINT).toint()):
+    while (not u.and_(ONERBIGINT).tobool() and
+           not v.and_(ONERBIGINT).tobool()):
         shift += 1
         u = u.rshift(1)
         v = v.rshift(1)
-    while not u.and_(ONERBIGINT).toint():
+    while not u.and_(ONERBIGINT).tobool():
         u = u.rshift(1)
 
     # From here on, u is always odd.
     while True:
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        while not v.and_(ONERBIGINT).toint():
+        while not v.and_(ONERBIGINT).tobool():
             v = v.rshift(1)
 
         # Now u and v are both odd. Swap if necessary so u <= v,
@@ -925,50 +964,206 @@ class __extend__(values.W_Bignum):
         assert isinstance(other, values.W_Bignum)
         return self.value.lt(other.value)
 
-class __extend__(values.W_Rational):
+class __extend__(values.W_SmallRational):
+
+    def widen(self):
+        num = rbigint.fromint(self._numerator)
+        den = rbigint.fromint(self._denominator)
+        return values.W_BigRational(num, den)
+
     def same_numeric_class(self, other):
-        # nb: intentionally use the direct constructor
         if isinstance(other, values.W_Fixnum):
-            return self, values.W_Rational(rbigint.fromint(other.value), ONERBIGINT)
+            return self, values.W_SmallRational(other.value, 1)
         if isinstance(other, values.W_Bignum):
-            return self, values.W_Rational(other.value, ONERBIGINT)
-        if isinstance(other, values.W_Rational):
+            return self.widen().same_numeric_class(other)
+        if isinstance(other, values.W_SmallRational):
             return self, other
         return other.same_numeric_class_reversed(self)
 
     def arith_add_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_SmallRational)
+        n1 = self._numerator
+        d1 = self._denominator
+        n2 = other._numerator
+        d2 = other._denominator
+        try:
+            t1  = rarithmetic.ovfcheck(n1 * d2)
+            t2  = rarithmetic.ovfcheck(n2 * d1)
+            num = rarithmetic.ovfcheck(t1 + t2)
+            den = rarithmetic.ovfcheck(d1 * d2)
+            return values.W_SmallRational.fromint(num, den)
+        except OverflowError:
+            return self.widen().arith_add_same(other.widen())
+
+    def arith_sub_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        n1 = self._numerator
+        d1 = self._denominator
+        n2 = other._numerator
+        d2 = other._denominator
+        try:
+            t1  = rarithmetic.ovfcheck(n1 * d2)
+            t2  = rarithmetic.ovfcheck(n2 * d1)
+            num = rarithmetic.ovfcheck(t1 - t2)
+            den = rarithmetic.ovfcheck(d1 * d2)
+            return values.W_SmallRational.fromint(num, den)
+        except OverflowError:
+            return self.widen().arith_sub_same(other.widen())
+
+    def arith_mul_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        n1 = self._numerator
+        d1 = self._denominator
+        n2 = other._numerator
+        d2 = other._denominator
+        try:
+            num = rarithmetic.ovfcheck(n1 * n2)
+            den = rarithmetic.ovfcheck(d1 * d2)
+            return values.W_SmallRational.fromint(num, den)
+        except OverflowError:
+            return self.widen().arith_mul_same(other.widen())
+
+    def arith_div_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        n1 = self._numerator
+        d1 = self._denominator
+        n2 = other._numerator
+        d2 = other._denominator
+        try:
+            num = rarithmetic.ovfcheck(n1 * d2)
+            den = rarithmetic.ovfcheck(d1 * n2)
+            return values.W_SmallRational.fromint(num, den)
+        except OverflowError:
+            return self.widen().arith_div_same(other.widen())
+
+    def arith_pow_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        v = float(self._numerator) / float(self._denominator)
+        p = float(other._numerator) / float(other._denominator)
+        return values.W_Flonum(math.pow(v, p))
+
+    def arith_gcd_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        n1, d1 = self._numerator, self._denominator
+        n2, d2 = other._numerator, other._denominator
+        try:
+            a = rarithmetic.ovfcheck(n1 * d2)
+            b = rarithmetic.ovfcheck(n2 * d1)
+            den = rarithmetic.ovfcheck(d1 * d2)
+            num = intgcd(a, b)
+            return values.W_SmallRational.fromint(num, den)
+        except OverflowError:
+            return self.widen().arith_gcd_same(other.widen())
+
+    def arith_abs(self):
+        num = abs(self._numerator)
+        den = abs(self._denominator)
+        return values.W_SmallRational(num, den)
+
+    def arith_negativep(self):
+        return values.W_Bool.make(self._numerator < 0)
+
+    def arith_positivep(self):
+        return values.W_Bool.make(self._numerator > 0)
+
+    def arith_zerop(self):
+        return values.W_Bool.make(self._numerator == 0)
+
+    def arith_round(self):
+        num, den = self._numerator, self._denominator
+
+        result = num / den
+        diff1 = result * den - num
+        diff2 = abs(diff1 + den)
+        diff1 = abs(diff1)
+
+        if diff1 > diff2:
+            result = result + 1
+        elif diff1 == diff2 and result & 1:
+            # Round to even if we have a tie
+            result = result + 1
+        return values.wrap(result)
+
+    def arith_ceiling(self):
+        result = self._numerator / self._denominator + 1
+        return values.wrap(result)
+
+    def arith_floor(self):
+        return values.wrap(self._numerator / self._denominator)
+
+    def arith_truncate(self):
+        assert self._numerator != 0
+        if (self._numerator > 0) == (self._denominator > 0):
+            return self.arith_floor()
+        else:
+            return self.arith_ceiling()
+
+    def arith_inexact_exact(self):
+        return self
+
+    def arith_exact_inexact(self):
+        num, den = self._numerator, self._denominator
+        return values.wrap(float(num) / float(den))
+
+    # ------------------ comparisons ------------------
+
+    def arith_eq_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        return (self._numerator == other._numerator and
+                self._denominator == other._denominator)
+
+    def arith_lt_same(self, other):
+        assert isinstance(other, values.W_SmallRational)
+        ad = self._numerator * other._denominator
+        cb = other._numerator * self._denominator
+        return ad < cb
+
+class __extend__(values.W_BigRational):
+    def same_numeric_class(self, other):
+        # nb: intentionally use the direct constructor
+        if isinstance(other, values.W_Fixnum):
+            return self, values.W_BigRational(rbigint.fromint(other.value), ONERBIGINT)
+        if isinstance(other, values.W_Bignum):
+            return self, values.W_BigRational(other.value, ONERBIGINT)
+        if isinstance(other, values.W_SmallRational):
+            return self, other.widen()
+        if isinstance(other, values.W_BigRational):
+            return self, other
+        return other.same_numeric_class_reversed(self)
+
+    def arith_add_same(self, other):
+        assert isinstance(other, values.W_BigRational)
         return values.W_Rational.frombigint(
                 self._numerator.mul(other._denominator).add(other._numerator.mul(self._denominator)),
                 self._denominator.mul(other._denominator))
 
     def arith_sub_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         return values.W_Rational.frombigint(
                 self._numerator.mul(other._denominator).sub(other._numerator.mul(self._denominator)),
                 self._denominator.mul(other._denominator))
 
     def arith_mul_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         return values.W_Rational.frombigint(
             self._numerator.mul(other._numerator),
             self._denominator.mul(other._denominator))
 
     def arith_div_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         return values.W_Rational.frombigint(
             self._numerator.mul(other._denominator),
             self._denominator.mul(other._numerator))
 
     def arith_pow_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         # XXX Not precise
         v = self._numerator.tofloat()  / self._denominator.tofloat()
         p = other._numerator.tofloat() / other._denominator.tofloat()
         return values.W_Flonum(math.pow(v, p))
 
     def arith_gcd_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         num = gcd(self._numerator.mul(other._denominator),
                   other._numerator.mul(self._denominator))
         den = self._denominator.mul(other._denominator)
@@ -977,7 +1172,7 @@ class __extend__(values.W_Rational):
     def arith_abs(self):
         num = self._numerator.abs()
         den = self._denominator.abs()
-        return values.W_Rational(num, den)
+        return values.W_BigRational(num, den)
 
     def arith_negativep(self):
         return values.W_Bool.make(
@@ -1040,11 +1235,11 @@ class __extend__(values.W_Rational):
     # ------------------ comparisons ------------------
 
     def arith_eq_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         return self._numerator.eq(other._numerator) and self._denominator.eq(other._denominator)
 
     def arith_lt_same(self, other):
-        assert isinstance(other, values.W_Rational)
+        assert isinstance(other, values.W_BigRational)
         ad = self._numerator.mul(other._denominator)
         cb = other._numerator.mul(self._denominator)
         return ad.lt(cb)

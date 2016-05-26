@@ -502,7 +502,10 @@ class W_MCons(W_MList):
         self._cdr = d
 
 class W_Number(W_Object):
+
+    _attrs_ = []
     errorname = "number"
+
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -516,14 +519,9 @@ class W_Number(W_Object):
         return self.hash_equal(info=None)
 
 class W_Rational(W_Number):
-    _immutable_fields_ = ["_numerator", "_denominator"]
+
+    _attrs_ = []
     errorname = "rational"
-    def __init__(self, num, den):
-        assert isinstance(num, rbigint)
-        assert isinstance(den, rbigint)
-        self._numerator = num
-        self._denominator = den
-        assert den.gt(NULLRBIGINT)
 
     @staticmethod
     def make(num, den):
@@ -551,9 +549,17 @@ class W_Rational(W_Number):
         g = gcd(n, d)
         n = n.floordiv(g)
         d = d.floordiv(g)
+        try:
+            num = n.toint()
+            den = d.toint()
+            if den == 1:
+                return W_Fixnum(num)
+            return W_SmallRational.fromint(num, den)
+        except OverflowError:
+            pass
         if d.eq(rbigint.fromint(1)):
             return W_Bignum.frombigint(n)
-        return W_Rational(n, d)
+        return W_BigRational(n, d)
 
     @staticmethod
     def fromfloat(f):
@@ -565,20 +571,77 @@ class W_Rational(W_Number):
         _gcd = gcd(n, d)
         return W_Rational.fromint(n/_gcd, d/_gcd)
 
+    def asints(self):
+        raise NotImplementedError("abstract base class")
+
+class W_SmallRational(W_Rational):
+
+    _attrs_ = _immutable_fields_ = ["_numerator", "_denominator"]
+
+    def __init__(self, num, den):
+        self._numerator = num
+        self._denominator = den
+
+    @staticmethod
+    def fromint(n, d=1):
+        from pycket.arithmetic import intgcd
+        assert isinstance(n, int)
+        assert isinstance(d, int)
+        g = intgcd(n, d)
+        n, d = n / g, d / g
+        if d == 1:
+            return W_Fixnum(n)
+        return W_SmallRational(n, d)
+
+    def tostring(self):
+        return "%d/%d" % (self._numerator, self._denominator)
+
+    def equal(self, other):
+        if isinstance(other, W_BigRational):
+            return (other._numerator.int_eq(self._numerator) and
+                    other._denominator.int_eq(self._denominator))
+        if isinstance(other, W_SmallRational):
+            return (self._numerator == other._numerator and
+                    self._denominator == other._denominator)
+        return False
+
+    def hash_equal(self, info=None):
+        return self._numerator + 10000003 * self._denominator
+
+    def asints(self):
+        return self._numerator, self._denominator
+
+class W_BigRational(W_Rational):
+
+    _attrs_ = _immutable_fields_ = ["_numerator", "_denominator"]
+
+    def __init__(self, num, den):
+        assert isinstance(num, rbigint)
+        assert isinstance(den, rbigint)
+        self._numerator = num
+        self._denominator = den
+        if not jit.we_are_jitted():
+            assert den.gt(NULLRBIGINT)
+
     def tostring(self):
         return "%s/%s" % (self._numerator.str(), self._denominator.str())
 
     def equal(self, other):
-        if not isinstance(other, W_Rational):
-            return False
-        return (self._numerator.eq(other._numerator) and
-                self._denominator.eq(other._denominator))
+        if isinstance(other, W_BigRational):
+            return (other._numerator.eq(self._numerator) and
+                    other._denominator.eq(self._denominator))
+        if isinstance(other, W_SmallRational):
+            return (self._numerator.int_eq(other._numerator) and
+                    self._denominator.int_eq(other._denominator))
+        return False
 
     def hash_equal(self, info=None):
         hash1 = self._numerator.hash()
         hash2 = self._denominator.hash()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
+    def asints(self):
+        return self._numerator.toint(), self._denominator.toint()
 
 class W_Integer(W_Number):
     errorname = "integer"
