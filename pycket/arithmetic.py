@@ -4,9 +4,33 @@ from rpython.rlib              import rarithmetic, jit
 from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rtyper.raisingops import int_floordiv_ovf
+
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
+
+from pypy.interpreter.gateway import unwrap_spec
+from rpython.rtyper.lltypesystem import lltype
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib import jit
+
+# XXX maybe temporary: hide llop.int_{floordiv,mod} from the JIT,
+#     because now it expects only Python-style divisions, not the
+#     C-style divisions of these two ll operations
+@jit.dont_look_inside
+def int_floordiv(x, y):
+    return llop.int_floordiv(lltype.Signed, x, y)
+
+def int_floordiv_ovf(x, y):
+    if y == -1 and x < 0 and (r_uint(x) << 1) == 0:
+        raise OverflowError("integer division")
+    return int_floordiv(x, y)
+
+@jit.dont_look_inside
+def int_mod(x, y):
+    return llop.int_mod(lltype.Signed, x, y)
 
 @jit.elidable
 def gcd(u, v):

@@ -431,7 +431,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
+    return values.W_Fixnum.make(arithmetic.int_floordiv(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
