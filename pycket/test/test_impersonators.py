@@ -665,6 +665,7 @@ def test_impersonate_procedure_callable_struct2(doctest):
     ! (struct annotated-proc (base note) #:property prop:procedure (struct-field-index base))
     ! (define example (annotated-proc (λ (x) x) "The identity function"))
     ! (define imp (impersonate-procedure example add1))
+    ! (define imp2 (chaperone-struct example annotated-proc-note (λ (self x) x)))
     > (imp 5)
     6
     > (annotated-proc-note example)
@@ -673,5 +674,8 @@ def test_impersonate_procedure_callable_struct2(doctest):
     "The identity function"
     > (eq? (annotated-proc-note example) (annotated-proc-note imp))
     #t
+    > (eq? (annotated-proc-note example) (annotated-proc-note imp2))
+    #t
     """
+
 
