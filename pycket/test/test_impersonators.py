@@ -7,6 +7,9 @@ from pycket.impersonators import *
 from pycket.values_struct import *
 import pytest
 
+import sys
+sys.setrecursionlimit(10000)
+
 def test_impersonator_properties():
     m = run_mod(
     """
