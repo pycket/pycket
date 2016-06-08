@@ -25,6 +25,8 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--prune-env"),
     BoolOption("immutable_boolean_field_elision", "elide immutable boolean fields from structs",
                default=False, cmdline="--ibfe"),
+    BoolOption("hidden_classes", "use hidden classes to implement impersonators",
+               default=True, cmdline="--hidden-classes")
 ])
 
 def get_testing_config(**overrides):
@@ -66,6 +68,7 @@ exposed_options = ['strategies',
                    'type_size_specialization',
                    'prune_env',
                    'immutable_boolean_field_elision',
+                   'hidden_classes',
 ]
 
 def expose_options(config):

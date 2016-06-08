@@ -6,7 +6,13 @@ from pycket                    import values_struct
 from pycket.cont               import continuation, label, guarded_loop, call_cont, call_extra_cont
 from pycket.error              import SchemeException
 from pycket.hash.base          import W_HashTable
-from pycket.impersonators.base import (
+from pycket.prims.expose       import make_call_method
+from pycket.small_list         import inline_small_list
+from pycket.values             import UNROLLING_CUTOFF
+from rpython.rlib              import jit
+from rpython.rlib.objectmodel  import import_from_mixin, specialize
+
+from pycket.impersonators.hidden_classes.base import (
     ChaperoneMixin,
     EMPTY_PROPERTY_MAP,
     ImpersonatorMixin,
@@ -19,11 +25,6 @@ from pycket.impersonators.base import (
     impersonate_reference_cont,
     make_specialized_property_map
 )
-from pycket.prims.expose       import make_call_method
-from pycket.small_list         import inline_small_list
-from pycket.values             import UNROLLING_CUTOFF
-from rpython.rlib              import jit
-from rpython.rlib.objectmodel  import import_from_mixin, specialize
 
 @specialize.arg(0)
 def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):

@@ -2,7 +2,12 @@
 from pycket                    import values, values_struct
 from pycket.base               import SingletonMeta, W_Object
 from pycket.cont               import call_cont, continuation, guarded_loop, label
-from pycket.impersonators      import (
+from pycket.hidden_classes     import make_caching_map_type, make_map_type, make_composite_map_type
+from pycket.small_list         import inline_small_list
+from rpython.rlib              import jit, unroll
+from rpython.rlib.objectmodel  import import_from_mixin, specialize, always_inline
+
+from pycket.impersonators.hidden_classes import (
     ChaperoneMixin,
     ImpersonatorMixin,
     ProxyMixin,
@@ -13,10 +18,6 @@ from pycket.impersonators      import (
     make_property_map,
     impersonate_reference_cont
 )
-from pycket.hidden_classes     import make_caching_map_type, make_map_type, make_composite_map_type
-from pycket.small_list         import inline_small_list
-from rpython.rlib              import jit, unroll
-from rpython.rlib.objectmodel  import import_from_mixin, specialize, always_inline
 
 def is_static_handler(func):
     return isinstance(func, values.W_Prim) or isinstance(func, values.W_PromotableClosure)
