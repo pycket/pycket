@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 import math
 import operator
-from pycket import values
-from pycket import vector as values_vector
-from pycket.arity import Arity
-from pycket.error import SchemeException
-from pycket.prims.expose import expose, default, unsafe
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit, longlong2float, rarithmetic
+
+from pycket                                  import values
+from pycket                                  import vector as values_vector
+from pycket.arity                            import Arity
+from pycket.error                            import SchemeException
+from pycket.prims.expose                     import expose, default, unsafe
+
+from rpython.rlib                            import jit, longlong2float, rarithmetic
+from rpython.rlib.rbigint                    import rbigint
 from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype import Signed
+from rpython.rtyper.lltypesystem.lltype      import Signed
 
 # imported for side effects
 from pycket import arithmetic
@@ -431,7 +433,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(arithmetic.int_floordiv(a.value, b.value))
+    return values.W_Fixnum.make(rarithmetic.int_c_div(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
