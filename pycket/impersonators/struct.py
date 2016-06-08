@@ -45,13 +45,16 @@ TAG_BITS = 2
 
 # Helper functions used for tagging accessor and mutator indices
 # so we can use a single map to store both without segregating them
-def tag_handler_accessor(idx):
+@always_inline
+def tag_index(idx, tag):
     assert idx >= 0
-    return (idx << TAG_BITS) | HANDLER_ACCESSOR_TAG
+    return (idx << TAG_BITS) | tag
+
+def tag_handler_accessor(idx):
+    return tag_index(idx, HANDLER_ACCESSOR_TAG)
 
 def tag_handler_mutator(idx):
-    assert idx >= 0
-    return (idx << TAG_BITS) | HANDLER_MUTATOR_TAG
+    return tag_index(idx, HANDLER_MUTATOR_TAG)
 
 def tag_override_accessor(idx):
     assert idx >= 0
@@ -187,7 +190,7 @@ def has_property_descriptor(map):
 
 @specialize.arg(0)
 def make_struct_proxy(cls, inner, overrides, handlers, prop_keys, prop_vals):
-    assert isinstance(inner, values_struct.W_RootStruct)
+    # assert isinstance(inner, values_struct.W_RootStruct)
     assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
     map, _handlers = impersonator_args(inner, overrides, handlers, prop_keys, prop_vals)
     return cls.make(_handlers, inner, map)
