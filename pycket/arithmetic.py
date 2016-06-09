@@ -1,12 +1,25 @@
 from pycket                    import values
 from pycket.error              import SchemeException
 from rpython.rlib              import rarithmetic, jit
-from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
+from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rtyper.raisingops import int_floordiv_ovf
+
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
+
+from pypy.interpreter.gateway import unwrap_spec
+from rpython.rtyper.lltypesystem import lltype
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib import jit
+
+def int_floordiv_ovf(x, y):
+    if y == -1 and x < 0 and (r_uint(x) << 1) == 0:
+        raise OverflowError("integer division")
+    return int_c_div(x, y)
 
 @jit.elidable
 def gcd(u, v):

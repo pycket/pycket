@@ -212,10 +212,11 @@ def impersonate_struct(args):
     if len(args) % 2 != 0:
         raise SchemeException("impersonate-struct: arity mismatch")
 
-    if not isinstance(struct, values_struct.W_RootStruct):
+    base = imp.get_base_object(struct)
+    if not isinstance(base, values_struct.W_RootStruct):
         raise SchemeException("impersonate-struct: not given struct")
 
-    struct_type = struct.struct_type()
+    struct_type = base.struct_type()
     assert isinstance(struct_type, values_struct.W_StructType)
 
     # Consider storing immutables in an easier form in the structs implementation
@@ -271,7 +272,8 @@ def chaperone_struct(args):
     if len(args) % 2 != 0:
         raise SchemeException("chaperone-struct: arity mismatch")
 
-    if not isinstance(struct, values_struct.W_RootStruct):
+    base = imp.get_base_object(struct)
+    if not isinstance(base, values_struct.W_RootStruct):
         raise SchemeException("chaperone-struct: not given struct")
 
     all_false = True
