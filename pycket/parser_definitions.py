@@ -5,6 +5,7 @@ from pycket.argument_parser import ArgParser, EndOfInput
 # Common definitions for various argument validation functions
 
 class __extend_parser__(ArgParser):
+
     object          = (values.W_Object,)
 
     prompt_tag      = (values.W_ContinuationPromptTag,)

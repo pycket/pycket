@@ -1053,7 +1053,6 @@ def test_ctype_basetype(doctest):
     #t
     """
 
-
 def test_procedure_result_arity(doctest):
     """
     ! (define-struct node (x y z))
@@ -1064,3 +1063,18 @@ def test_procedure_result_arity(doctest):
     > (procedure-result-arity node-x)
     1
     """
+
+def test_string_to_keyword(doctest):
+    """
+    > (eq? (string->keyword "hello") (values '#:hello))
+    #t
+    > (eq? (string->keyword "muffin button") (values '#:|muffin button|))
+    #t
+    """
+
+def test_bytes_to_path_element(doctest):
+    """
+    > (path->string (bytes->path-element (string->bytes/locale "spenser")))
+    "spenser"
+    """
+
