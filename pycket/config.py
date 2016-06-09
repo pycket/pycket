@@ -49,6 +49,8 @@ def compute_executable_suffix(config):
         res.append("-no-strategies")
     if not config.type_size_specialization:
         res.append("-no-type-size-specialization")
+    if not config.hidden_classes:
+        res.append("-no-hidden-classes")
     if config.fuse_conts:
         res.append("-fuse-conts")
     if config.log_callgraph:
