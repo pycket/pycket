@@ -4,7 +4,6 @@
 # _____ Define and setup target ___
 
 from rpython.rlib          import jit, objectmodel
-from rpython.rlib.nonconst import NonConstant
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, PermException

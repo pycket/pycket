@@ -199,6 +199,8 @@ class W_StructType(values.W_Object):
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
                  auto_v, inspector, proc_spec, immutables, guard, constr_name):
         assert isinstance(name, values.W_Symbol)
+        assert (constr_name is values.w_false or
+                isinstance(constr_name, values.W_Symbol))
 
         self.name = name
         self.constructor_name = constr_name
