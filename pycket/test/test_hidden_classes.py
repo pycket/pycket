@@ -1,8 +1,8 @@
 
 import pytest
 
-from pycket.hidden_classes     import make_map_type
-from pycket.impersonators.base import W_ImpPropertyDescriptor
+from pycket.hidden_classes                    import make_map_type
+from pycket.impersonators.hidden_classes.base import W_ImpPropertyDescriptor
 
 def test_map():
     empty = make_map_type("__getitem__").EMPTY

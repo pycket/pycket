@@ -15,6 +15,9 @@ from pycket              import values_struct
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure
+
+from sys import platform
+
 import os
 
 w_quote_symbol = values.W_Symbol.make("quote")
@@ -1033,6 +1036,18 @@ def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
 @expose("custom-write?", [values.W_Object])
 def do_has_custom_write(v):
     return values.w_false
+
+@expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])
+def bytes_to_path_element(bytes, path_type):
+    from pycket.prims.general import w_unix_sym, w_windows_sym
+    if path_type is None:
+        path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
+    if path_type not in (w_unix_sym, w_windows_sym):
+        raise SchemeException("bytes->path-element: unknown system type %s" % path_type.tostring())
+    str = bytes.as_str()
+    if os.sep in str:
+        raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
+    return values.W_Path(str)
 
 def shutdown(env):
     # called before the interpreter exits

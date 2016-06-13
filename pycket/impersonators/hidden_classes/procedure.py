@@ -3,7 +3,11 @@ from pycket                    import values
 from pycket.base               import SingletonMeta
 from pycket.cont               import call_extra_cont, continuation, label
 from pycket.hidden_classes     import make_caching_map_type
-from pycket.impersonators      import (
+from pycket.small_list         import inline_small_list
+from rpython.rlib              import jit
+from rpython.rlib.objectmodel  import import_from_mixin, specialize
+
+from pycket.impersonators.hidden_classes import (
     ChaperoneMixin,
     EMPTY_PROPERTY_MAP,
     ImpersonatorMixin,
@@ -14,10 +18,6 @@ from pycket.impersonators      import (
     get_base_object,
     make_specialized_property_map
 )
-from pycket.small_list         import inline_small_list
-from rpython.rlib              import jit
-from rpython.rlib.objectmodel  import import_from_mixin, specialize
-
 
 @specialize.arg(0)
 def make_interpose_procedure(cls, code, check, prop_keys, prop_vals):
@@ -63,7 +63,7 @@ class W_InterposeProcedure(values.W_Procedure):
         return self.check is values.w_false
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        from pycket.impersonators.base import w_impersonator_prop_application_mark
+        from pycket.impersonators.hidden_classes.base import w_impersonator_prop_application_mark
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
         if not self.safe_proxy():
