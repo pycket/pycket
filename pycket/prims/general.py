@@ -1366,6 +1366,17 @@ def procedure_specialize(proc):
 def processor_count():
     return values.W_Fixnum.ONE
 
+@expose("cache-configuration", [values.W_Fixnum, values.W_Object])
+def cache_configuration(val, proc):
+    """
+    This function seems to be responsible for setting up callbacks in the
+    Racket runtime. We have no such callbacks as of yet. The corresponding Racket
+    implementation can be found at:
+
+    https://github.com/racket/racket/blob/161a9edb57c38ab71686d9a6e3c7920c96713fed/racket/src/racket/src/thread.c#L744
+    """
+    return values.w_false
+
 def make_stub_predicates(*names):
     for name in names:
         message = "%s: not yet implemented" % name
