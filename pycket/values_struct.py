@@ -50,7 +50,7 @@ current_inspector_param = W_Parameter(current_inspector)
 class W_StructType(values.W_Object):
     errorname = "struct-type-descriptor"
     _immutable_fields_ = [
-            "name", "super",
+            "name", "constructor_name", "super",
             "init_field_cnt", "auto_field_cnt", "total_field_cnt",
             "total_auto_field_cnt", "total_init_field_cnt",
             "auto_v", "props", "inspector", "immutables[*]",
@@ -199,8 +199,11 @@ class W_StructType(values.W_Object):
     def __init__(self, name, super_type, init_field_cnt, auto_field_cnt,
                  auto_v, inspector, proc_spec, immutables, guard, constr_name):
         assert isinstance(name, values.W_Symbol)
+        assert (constr_name is values.w_false or
+                isinstance(constr_name, values.W_Symbol))
 
         self.name = name
+        self.constructor_name = constr_name
         self.super = super_type
         self.init_field_cnt = init_field_cnt
         self.total_init_field_cnt = init_field_cnt
@@ -233,20 +236,15 @@ class W_StructType(values.W_Object):
             self.isopaque = self.inspector is not values.w_false
 
         self._calculate_offsets()
-        self._generate_methods(constr_name)
+        self._generate_methods()
 
     @jit.unroll_safe
-    def _generate_methods(self, constr_name):
+    def _generate_methods(self):
         """ Generate constructor, predicate, mutator, and accessor """
-        if isinstance(constr_name, values.W_Symbol):
-            constr_name = constr_name.utf8value
-        else:
-            constr_name = "make-" + self.name.utf8value
-
         count = self.total_init_field_cnt
         self.constructor_arity = Arity([count], -1)
 
-        self.constructor = W_StructConstructor(self, constr_name)
+        self.constructor = W_StructConstructor(self)
         self.predicate   = W_StructPredicate(self)
         self.accessor    = W_StructAccessor(self)
         self.mutator     = W_StructMutator(self)
@@ -921,12 +919,11 @@ def receive_guard_values_cont(init_type, struct_type, field_values,
                                       auto_field_start, env, cont)
 
 class W_StructConstructor(values.W_Procedure):
-    _immutable_fields_ = ["type", "constr_name"]
+    _immutable_fields_ = ["type"]
     import_from_mixin(SingleResultMixin)
 
-    def __init__(self, type, constr_name):
+    def __init__(self, type):
         self.type = type
-        self.constr_name = constr_name
 
     @make_call_method(simple=False)
     def call_with_extra_info(self, args, env, cont, app):

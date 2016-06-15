@@ -251,7 +251,7 @@ def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
     class Args(base):
-        _immutable_fields_ = getattr(base, '_immutable_fields_', []) + argnames
+        _immutable_fields_ = argnames
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])

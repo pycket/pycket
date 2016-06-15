@@ -82,6 +82,9 @@ def do_make_struct_type(name, super_type, w_init_field_cnt, w_auto_field_cnt,
     if inspector is None:
         inspector = values_struct.current_inspector_param.get(cont)
 
+    if constr_name is not values.w_false and not isinstance(constr_name, values.W_Symbol):
+        raise SchemeException("make-struct-type: constructor name mustbe be symbol? or #f")
+
     if not isinstance(super_type, values_struct.W_StructType) and super_type is not values.w_false:
         raise SchemeException("make-struct-type: expected a struct-type? or #f")
 

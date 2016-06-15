@@ -1212,7 +1212,9 @@ class W_ComposableContinuation(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
+    _immutable_ = True
     _immutable_fields_ = ["caselam"]
+
     @jit.unroll_safe
     def __init__(self, caselam, env):
         self.caselam = caselam
@@ -1278,6 +1280,7 @@ class W_Closure(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
+    _immutable_ = True
     _immutable_fields_ = ['caselam']
 
     def __init__(self, caselam, prev):

@@ -40,6 +40,9 @@ class W_Parameterization(W_Object):
         self.root = root
         self.map  = map
 
+    @jit.look_inside_iff(lambda self, params, vals: \
+            jit.loop_unrolling_heuristic(params, len(params), values.UNROLLING_CUTOFF) and
+            jit.loop_unrolling_heuristic(vals, len(vals), values.UNROLLING_CUTOFF))
     def extend(self, params, vals):
         assert len(params) == len(vals)
         map = self.map
