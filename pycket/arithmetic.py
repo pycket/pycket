@@ -22,6 +22,36 @@ def int_floordiv_ovf(x, y):
     return int_c_div(x, y)
 
 @jit.elidable
+def shift_to_odd(u):
+    """
+    Computes the number of lower order zero bits in the given rbigint.
+    This information is used in the gcd algorithm which only works on odd integers.
+    This is a nasty bit of hackery, as we inspect the internal representation of the
+    rbigint (rather than using their nice interface). This method is much faster
+    than performing iterated shifting, however.
+    """
+    import rpython.rlib.rbigint as big
+    WORD     = big.UDIGIT_TYPE
+    WORDSIZE = WORD.BITS
+
+    shift = 0
+    bit = 0
+    digit = 0
+    mask = WORD(0x1)
+
+    while digit < u.size and (u.udigit(digit) & mask) == 0:
+        shift += 1
+        if bit == WORDSIZE:
+            bit = 1
+            digit += 1
+            mask = WORD(0x1)
+        else:
+            bit += 1
+            mask = mask << 1
+
+    return shift
+
+@jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
@@ -35,21 +65,18 @@ def gcd(u, v):
         v = v.abs()
     u = u.abs()
 
-    shift = 0
-    while (not u.int_and_(1).tobool() and
-           not v.int_and_(1).tobool()):
-        shift += 1
-        u = u.rshift(1)
-        v = v.rshift(1)
-    while not u.int_and_(1).tobool():
-        u = u.rshift(1)
+    shiftu = shift_to_odd(u)
+    shiftv = shift_to_odd(v)
+    u = u.rshift(shiftu)
+    v = v.rshift(shiftv)
+    shift = min(shiftu, shiftv)
 
     # From here on, u is always odd.
     while True:
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        while not v.int_and_(1).tobool():
-            v = v.rshift(1)
+        # v = shift_to_zero(v)
+        v = v.rshift(shift_to_odd(v))
 
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
