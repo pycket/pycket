@@ -28,7 +28,7 @@ def gcd(u, v):
         return v
     if not v.tobool():
         return u
-    if v.ge(NULLRBIGINT):
+    if v.sign >= 0:
         sign = 1
     else:
         sign = -1
@@ -36,19 +36,19 @@ def gcd(u, v):
     u = u.abs()
 
     shift = 0
-    while (not u.and_(ONERBIGINT).toint() and
-           not v.and_(ONERBIGINT).toint()):
+    while (not u.int_and_(1).tobool() and
+           not v.int_and_(1).tobool()):
         shift += 1
         u = u.rshift(1)
         v = v.rshift(1)
-    while not u.and_(ONERBIGINT).toint():
+    while not u.int_and_(1).tobool():
         u = u.rshift(1)
 
     # From here on, u is always odd.
     while True:
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        while not v.and_(ONERBIGINT).toint():
+        while not v.int_and_(1).tobool():
             v = v.rshift(1)
 
         # Now u and v are both odd. Swap if necessary so u <= v,
