@@ -30,21 +30,19 @@ def shift_to_odd(u):
     rbigint (rather than using their nice interface). This method is much faster
     than performing iterated shifting, however.
     """
-    import rpython.rlib.rbigint as big
-    WORD     = big.UDIGIT_TYPE
-    WORDSIZE = WORD.BITS
+    from rpython.rlib.rbigint import UDIGIT_TYPE
 
     shift = 0
-    bit = 0
+    bit = 1
     digit = 0
-    mask = WORD(0x1)
+    mask = UDIGIT_TYPE(0x1)
 
     while digit < u.size and (u.udigit(digit) & mask) == 0:
         shift += 1
-        if bit == WORDSIZE:
+        if bit == UDIGIT_TYPE.BITS:
             bit = 1
             digit += 1
-            mask = WORD(0x1)
+            mask = UDIGIT_TYPE(0x1)
         else:
             bit += 1
             mask = mask << 1
