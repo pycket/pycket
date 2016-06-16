@@ -22,34 +22,59 @@ def int_floordiv_ovf(x, y):
     return int_c_div(x, y)
 
 @jit.elidable
+def shift_to_odd(u):
+    """
+    Computes the number of lower order zero bits in the given rbigint.
+    This information is used in the gcd algorithm which only works on odd integers.
+    This is a nasty bit of hackery, as we inspect the internal representation of the
+    rbigint (rather than using their nice interface). This method is much faster
+    than performing iterated shifting, however.
+    """
+    from rpython.rlib.rbigint import UDIGIT_TYPE
+
+    shift = 0
+    bit = 1
+    digit = 0
+    mask = UDIGIT_TYPE(0x1)
+
+    while digit < u.size and (u.udigit(digit) & mask) == 0:
+        shift += 1
+        if bit == UDIGIT_TYPE.BITS:
+            bit = 1
+            digit += 1
+            mask = UDIGIT_TYPE(0x1)
+        else:
+            bit += 1
+            mask = mask << 1
+
+    return shift
+
+@jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
         return v
     if not v.tobool():
         return u
-    if v.ge(NULLRBIGINT):
+    if v.sign >= 0:
         sign = 1
     else:
         sign = -1
         v = v.abs()
     u = u.abs()
 
-    shift = 0
-    while (not u.and_(ONERBIGINT).toint() and
-           not v.and_(ONERBIGINT).toint()):
-        shift += 1
-        u = u.rshift(1)
-        v = v.rshift(1)
-    while not u.and_(ONERBIGINT).toint():
-        u = u.rshift(1)
+    shiftu = shift_to_odd(u)
+    shiftv = shift_to_odd(v)
+    u = u.rshift(shiftu)
+    v = v.rshift(shiftv)
+    shift = min(shiftu, shiftv)
 
     # From here on, u is always odd.
     while True:
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        while not v.and_(ONERBIGINT).toint():
-            v = v.rshift(1)
+        # v = shift_to_zero(v)
+        v = v.rshift(shift_to_odd(v))
 
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
