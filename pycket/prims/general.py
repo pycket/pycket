@@ -1377,6 +1377,16 @@ def cache_configuration(val, proc):
     """
     return values.w_false
 
+@expose("make-readtable")
+def make_readtable(args):
+    print "making readtable", args
+    return values.w_void
+
+@expose("read/recursive")
+def read_recursive(args):
+    import pdb; pdb.set_trace()
+    return values.w_false
+
 def make_stub_predicates(*names):
     for name in names:
         message = "%s: not yet implemented" % name
