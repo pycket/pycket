@@ -549,6 +549,15 @@ def test_rational(doctest):
     2053851851851851851851851851851851851851852037037037037/38720187
     """
 
+def random_bigint(max_size):
+    from rpython.rlib.rbigint import rbigint
+    import random
+    size = random.randrange(1, max_size)
+    sign = random.choice([-1, 1])
+    digits = "".join([random.choice("0123456789") for _ in range(size)])
+    bignum = rbigint.fromstr(digits, base=10)
+    return bignum.int_mul(sign)
+
 def test_gcd():
     from pycket.arithmetic import gcd
     from rpython.rlib.rbigint import rbigint
@@ -562,17 +571,39 @@ def test_gcd():
         assert gcd_long(a, b) == r
         assert gcd_long(b, a) == r
         if b:
-            assert gcd_long(a, -b) == -r
-            assert gcd_long(-a, -b) == -r
-            assert gcd_long(-a, b) == r
+            assert gcd_long(a, -b) == r
+            assert gcd_long(-a, -b) == (-r if a else r)
+            assert gcd_long(a, b) == r
         else:
-            assert gcd_long(-a, b) == -r
+            assert gcd_long(-a, b) == r
         if a:
-            assert gcd_long(b, -a) == -r
-            assert gcd_long(-b, -a) == -r
+            assert gcd_long(b, -a) == r
+            assert gcd_long(-b, -a) == (-r if b else r)
             assert gcd_long(-b, a) == r
         else:
-            assert gcd_long(-b, a) == -r
+            assert gcd_long(-b, a) == r
+
+def test_gcd_random():
+    from pycket.arithmetic import gcd
+    for _ in range(100):
+        a = random_bigint(100)
+        b = random_bigint(100)
+        c = random_bigint(100)
+
+        # Commutative
+        assert gcd(a, b) == gcd(b, a)
+        # Idempotent
+        assert gcd(a, a) == a
+        assert gcd(b, b) == b
+        # Associative
+        assert gcd(a, gcd(b, c)) == gcd(gcd(a, b), c)
+
+        a = a.abs()
+        b = b.abs()
+        if a.ge(b):
+            assert gcd(a, b) == gcd(a.sub(b), b)
+        else:
+            assert gcd(a, b) == gcd(a, b.sub(a))
 
 def test_sub1(doctest):
     """
