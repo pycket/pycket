@@ -523,7 +523,8 @@ class W_Rational(W_Number):
         assert isinstance(den, rbigint)
         self._numerator = num
         self._denominator = den
-        assert den.gt(NULLRBIGINT)
+        if not we_are_translated():
+            assert den.gt(NULLRBIGINT)
 
     @staticmethod
     def make(num, den):

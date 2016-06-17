@@ -1013,8 +1013,7 @@ class __extend__(values.W_Rational):
 
     def arith_abs(self):
         num = self._numerator.abs()
-        den = self._denominator.abs()
-        return values.W_Rational(num, den)
+        return values.W_Rational(num, self._denominator)
 
     def arith_negativep(self):
         return values.W_Bool.make(self._numerator.sign == -1)
