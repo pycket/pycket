@@ -30,7 +30,7 @@ def shift_to_odd(u):
     rbigint (rather than using their nice interface). This method is much faster
     than performing iterated shifting, however.
     """
-    from rpython.rlib.rbigint import UDIGIT_TYPE
+    from rpython.rlib.rbigint import UDIGIT_TYPE, SHIFT
 
     shift = 0
     bit = 1
@@ -39,7 +39,7 @@ def shift_to_odd(u):
 
     while digit < u.size and (u.udigit(digit) & mask) == 0:
         shift += 1
-        if bit == UDIGIT_TYPE.BITS:
+        if bit == SHIFT:
             bit = 1
             digit += 1
             mask = UDIGIT_TYPE(0x1)
@@ -48,6 +48,9 @@ def shift_to_odd(u):
             mask = mask << 1
 
     return shift
+
+for i in range(128):
+    print i, shift_to_odd(ONERBIGINT.lshift(i))
 
 @jit.elidable
 def gcd(u, v):

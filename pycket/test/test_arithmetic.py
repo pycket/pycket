@@ -193,7 +193,6 @@ def test_neg_pos():
     run("(positive? -1/2)", w_false)
     run("(positive? 1/2)", w_true)
 
-
 def test_even_odd():
     run("(even? -1)", w_false)
     run("(even?  0)", w_true)
@@ -604,6 +603,12 @@ def test_gcd_random():
             assert gcd(a, b) == gcd(a.sub(b), b)
         else:
             assert gcd(a, b) == gcd(a, b.sub(a))
+
+def test_shift_to_odd():
+    from rpython.rlib.rbigint import ONERBIGINT
+    from pycket.arithmetic    import shift_to_odd
+    for i in range(1025):
+        assert i == shift_to_odd(ONERBIGINT.lshift(i))
 
 def test_sub1(doctest):
     """
