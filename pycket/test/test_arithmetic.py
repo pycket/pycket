@@ -572,7 +572,7 @@ def test_gcd():
         assert gcd_long(b, a) == r
         if b:
             assert gcd_long(a, -b) == r
-            assert gcd_long(-a, -b) == -r
+            assert gcd_long(-a, -b) == (-r if a else r)
             assert gcd_long(a, b) == r
         else:
             assert gcd_long(-a, b) == r

@@ -56,6 +56,8 @@ def gcd(u, v):
         return v.abs()
     if not v.tobool():
         return u.abs()
+
+    # The result is negative iff both inputs have a common -1 factor
     if v.sign == -1 and u.sign == -1:
         sign = -1
     else:
