@@ -73,10 +73,6 @@ def gcd(u, v):
 
     # From here on, u is always odd.
     while True:
-        # remove all factors of 2 in v -- they are not common
-        # note: v is not zero, so while will terminate
-        v = v.rshift(shift_to_odd(v))
-
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
         if u.gt(v):
@@ -84,6 +80,10 @@ def gcd(u, v):
         v = v.sub(u)
         if not v.tobool():
             break
+
+        # remove all factors of 2 in v -- they are not common
+        # note: v is not zero, so while will terminate
+        v = v.rshift(shift_to_odd(v))
     # restore common factors of 2
     result = u.lshift(shift)
     if sign == -1:
@@ -939,12 +939,10 @@ class __extend__(values.W_Bignum):
         return values.W_Bool.make(not self.value.tobool())
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self.value.lt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self.value.gt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == 1)
 
     def arith_evenp(self):
         return values.W_Bool.make(
@@ -1019,12 +1017,10 @@ class __extend__(values.W_Rational):
         return values.W_Rational(num, den)
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self._numerator.lt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self._numerator.gt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == 1)
 
     def arith_zerop(self):
         return values.W_Bool.make(not self._numerator.tobool())
@@ -1035,11 +1031,11 @@ class __extend__(values.W_Rational):
         diff2 = diff1.add(self._denominator).abs()
         diff1 = diff1.abs()
         if diff1.gt(diff2):
-            res2 = res1.add(ONERBIGINT)
+            res2 = res1.int_add(1)
             return values.W_Integer.frombigint(res2)
         elif diff1.eq(diff2):
-            if res1.and_(ONERBIGINT).tobool():
-                res2 = res1.add(ONERBIGINT)
+            if res1.int_and_(1).tobool():
+                res2 = res1.int_add(1)
                 return values.W_Integer.frombigint(res2)
             else:
                 return values.W_Integer.frombigint(res1)
@@ -1048,9 +1044,8 @@ class __extend__(values.W_Rational):
 
     def arith_ceiling(self):
         res1 = self._numerator.floordiv(self._denominator)
-        res = res1.add(ONERBIGINT)
+        res = res1.int_add(1)
         return values.W_Integer.frombigint(res)
-
 
     def arith_floor(self):
         res = self._numerator.floordiv(self._denominator)
