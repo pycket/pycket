@@ -49,9 +49,6 @@ def shift_to_odd(u):
 
     return shift
 
-for i in range(128):
-    print i, shift_to_odd(ONERBIGINT.lshift(i))
-
 @jit.elidable
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
