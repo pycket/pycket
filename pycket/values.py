@@ -607,6 +607,8 @@ class W_Integer(W_Number):
 
 @memoize_constructor
 class W_Fixnum(W_Integer):
+
+    _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
