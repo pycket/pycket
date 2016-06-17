@@ -1121,3 +1121,28 @@ def test_sqrt2():
     val = W_Flonum(-0.0).arith_sqrt().value
     assert math.copysign(1, val) == -1
 
+def test_integer_length(doctest):
+    """
+    > (integer-length 8)
+    4
+    > (integer-length -8)
+    3
+    > (integer-length 0)
+    0
+    > (integer-length (expt 2 10))
+    11
+    > (integer-length (expt 2 20))
+    21
+    > (integer-length (expt 2 100))
+    101
+    > (integer-length (- (expt 2 10)))
+    10
+    > (integer-length (- (expt 2 20)))
+    20
+    > (integer-length (- (expt 2 100)))
+    100
+    > (integer-length 3713820117856140828992454656)
+    92
+    """
+
+

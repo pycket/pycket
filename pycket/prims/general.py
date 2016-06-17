@@ -1384,7 +1384,6 @@ def make_readtable(args):
 
 @expose("read/recursive")
 def read_recursive(args):
-    import pdb; pdb.set_trace()
     return values.w_false
 
 def make_stub_predicates(*names):
