@@ -53,14 +53,14 @@ def shift_to_odd(u):
 def gcd(u, v):
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
-        return v
+        return v.abs()
     if not v.tobool():
-        return u
-    if v.sign >= 0:
-        sign = 1
-    else:
+        return u.abs()
+    if v.sign == -1 and u.sign == -1:
         sign = -1
-        v = v.abs()
+    else:
+        sign = 1
+    v = v.abs()
     u = u.abs()
 
     shiftu = shift_to_odd(u)
