@@ -75,7 +75,6 @@ def gcd(u, v):
     while True:
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        # v = shift_to_zero(v)
         v = v.rshift(shift_to_odd(v))
 
         # Now u and v are both odd. Swap if necessary so u <= v,
