@@ -537,7 +537,7 @@ def integer_to_integer_bytes(n, _size, signed):
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes(chars)
 
-@expose("integer-length", [values.W_Number])
+@expose("integer-length", [values.W_Object])
 @jit.elidable
 def integer_length(obj):
 
@@ -582,9 +582,7 @@ def integer_length(obj):
             bit_length -= 1
         return values.wrap(bit_length)
 
-        # Most of the time we can use the bit_length operation,
-    # TODO: Other cases
-    assert False
+    raise SchemeException("integer-length: expected exact-integer? got %s" % obj.tostring())
 
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])
