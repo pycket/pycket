@@ -51,7 +51,7 @@ def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
     def pred_eq(a):
-        return values.W_Bool.make(isinstance(a, typ) and a is val)
+        return values.W_Bool.make(a is val)
 
 for args in [
         ("output-port?", values.W_OutputPort),

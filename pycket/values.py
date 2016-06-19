@@ -1366,7 +1366,6 @@ class W_Closure1AsEnv(ConsEnv):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
-
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
