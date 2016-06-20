@@ -66,9 +66,10 @@ def gcd(u, v):
 
     shiftu = shift_to_odd(u)
     shiftv = shift_to_odd(v)
+    shift  = min(shiftu, shiftv)
 
     # Perform shift on each number, but guarantee that we will end up with a new
-    # digit array for each rbigint.
+    # digit array for each rbigint. They will be mutated
     if shiftu:
         u = u.rshift(shiftu, dont_invert=True)
         if u.sign == -1:
@@ -83,8 +84,6 @@ def gcd(u, v):
     else:
         v = rbigint(v._digits[:], 1, v.numdigits())
 
-    shift = min(shiftu, shiftv)
-
     # From here on, u is always odd.
     while True:
         # Now u and v are both odd. Swap if necessary so u <= v,
@@ -92,7 +91,7 @@ def gcd(u, v):
         if u.gt(v):
             u, v, = v, u
 
-        _v_isub(v, 0, v.numdigits(), u, u.numdigits())
+        assert _v_isub(v, 0, v.numdigits(), u, u.numdigits()) == 0
         v._normalize()
 
         if not v.tobool():
@@ -101,12 +100,12 @@ def gcd(u, v):
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
         # XXX: Better to perform multiple inplace shifts, or one
-        # shift which allocates a new array
+        # shift which allocates a new array?
         rshift = shift_to_odd(v)
         while rshift >= SHIFT:
-            _v_rshift(v, v, v.numdigits(), SHIFT - 1)
+            assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
             rshift -= SHIFT - 1
-        _v_rshift(v, v, v.numdigits(), rshift)
+        assert _v_rshift(v, v, v.numdigits(), rshift) == 0
         v._normalize()
         # v = v.rshift(shift_to_odd(v))
     # restore common factors of 2
