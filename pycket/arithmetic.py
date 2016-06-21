@@ -17,7 +17,9 @@ from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib import jit
 
 def int_floordiv_ovf(x, y):
-    if y == -1 and x < 0 and (r_uint(x) << 1) == 0:
+    # JIT: intentionally not short-circuited to produce only one guard
+    # and to remove the check fully if one of the arguments is known
+    if (x == -sys.maxint - 1) & (y == -1):
         raise OverflowError("integer division")
     return int_c_div(x, y)
 
@@ -426,7 +428,8 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        return values.W_Rational.fromint(self.value, other.value)
+        return values.W_Rational.fromint(
+            self.value, other.value, need_to_check=False)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
