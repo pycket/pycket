@@ -10,7 +10,6 @@ from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
 
-from pypy.interpreter.gateway import unwrap_spec
 from rpython.rtyper.lltypesystem import lltype
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rlib.rarithmetic import r_uint, intmask
