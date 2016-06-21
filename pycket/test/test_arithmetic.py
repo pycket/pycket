@@ -929,6 +929,13 @@ def test_floor(doctest):
     -3.0
     """
 
+def test_floor_denormalized(doctest):
+    """
+    > (floor (/ 17 4))
+    4
+    > (floor (/ -17 4))
+    -5
+    """
 
 def test_truncate(doctest):
     """
@@ -1145,5 +1152,4 @@ def test_integer_length(doctest):
     > (integer-length 3713820117856140828992454656)
     92
     """
-
 

@@ -515,7 +515,13 @@ class W_Number(W_Object):
     def hash_eqv(self):
         return self.hash_equal(info=None)
 
-class W_Rational(W_Number):
+
+class W_AbstractRational(W_Number):
+    def _rational_normalize(self):
+        raise NotImplementedError("abstract base class")
+
+
+class W_Rational(W_AbstractRational):
     _immutable_fields_ = ["_numerator", "_denominator"]
     errorname = "rational"
     def __init__(self, num, den):
@@ -525,6 +531,9 @@ class W_Rational(W_Number):
         self._denominator = den
         if not we_are_translated():
             assert den.gt(NULLRBIGINT)
+
+    def _rational_normalize(self):
+        return self
 
     @staticmethod
     def make(num, den):
@@ -576,8 +585,9 @@ class W_Rational(W_Number):
         return "%s/%s" % (self._numerator.str(), self._denominator.str())
 
     def equal(self, other):
-        if not isinstance(other, W_Rational):
+        if not isinstance(other, W_AbstractRational):
             return False
+        other = other._rational_normalize()
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
@@ -585,6 +595,25 @@ class W_Rational(W_Number):
         hash1 = self._numerator.hash()
         hash2 = self._denominator.hash()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
+
+
+class W_DenormalizedFixnumRational(W_AbstractRational):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def _rational_normalize(self):
+        return W_Rational.fromint(self.x, self.y)
+
+    def equal(self, other):
+        if not isinstance(other, W_AbstractRational):
+            return False
+        self = self._rational_normalize()
+        return self.equal(other)
+
+    def hash_equal(self, info=None):
+        self = self._rational_normalize()
+        return self.hash_equal()
 
 
 class W_Integer(W_Number):
@@ -639,6 +668,7 @@ class W_Fixnum(W_Integer):
 
     def hash_equal(self, info=None):
         return self.value
+
 
 W_Fixnum.ZERO = W_Fixnum.make(0)
 W_Fixnum.ONE  = W_Fixnum.make(1)

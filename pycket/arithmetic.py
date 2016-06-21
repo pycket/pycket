@@ -427,8 +427,7 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        return values.W_Rational.fromint(
-            self.value, other.value, need_to_check=False)
+        return values.W_DenormalizedFixnumRational(self.value, other.value)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -1221,3 +1220,46 @@ class __extend__(values.W_Complex):
 
     def arith_lt_same(self, other):
         raise SchemeException("can't compare complex numbers")
+
+
+W_MAXINT_PLUS_ONE = values.W_Integer.frombigint(
+    rbigint.fromint(sys.maxint).int_add(1))
+
+class __extend__(values.W_DenormalizedFixnumRational):
+    def same_numeric_class(self, other):
+        self = self._rational_normalize()
+        return self.same_numeric_class(other)
+
+    def arith_floor(self):
+        try:
+            res = self.x // self.y
+        except OverflowError:
+            W_MAXINT_PLUS_ONE
+        return values.W_Fixnum(res)
+
+    def arith_abs(self):
+        return self._rational_normalize().arith_abs()
+
+    def arith_negativep(self):
+        return self._rational_normalize().arith_negativep()
+
+    def arith_positivep(self):
+        return self._rational_normalize().arith_positivep()
+
+    def arith_zerop(self):
+        return self._rational_normalize().arith_zerop()
+
+    def arith_round(self):
+        return self._rational_normalize().arith_round()
+
+    def arith_ceiling(self):
+        return self._rational_normalize().arith_ceiling()
+
+    def arith_truncate(self):
+        return self._rational_normalize().arith_truncate()
+
+    def arith_inexact_exact(self):
+        return self._rational_normalize().arith_inexact_exact()
+
+    def arith_exact_inexact(self):
+        return self._rational_normalize().arith_exact_inexact()

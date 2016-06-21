@@ -82,7 +82,7 @@ def is_real(obj):
     return (isinstance(obj, values.W_Fixnum) or
             isinstance(obj, values.W_Bignum) or
             isinstance(obj, values.W_Flonum) or
-            isinstance(obj, values.W_Rational))
+            isinstance(obj, values.W_AbstractRational))
 
 @expose("real?", [values.W_Object])
 def realp(n):
@@ -113,14 +113,14 @@ def rationalp(n):
     if isinstance(n, values.W_Flonum):
         v = n.value
         return values.W_Bool.make(not (math.isnan(v) or math.isinf(v)))
-    return values.W_Bool.make(isinstance(n, values.W_Rational))
+    return values.W_Bool.make(isinstance(n, values.W_AbstractRational))
 
 def is_exact(n):
     if isinstance(n, values.W_Complex):
         return is_exact(n.real) and is_exact(n.imag)
     return (isinstance(n, values.W_Fixnum) or
             isinstance(n, values.W_Bignum) or
-            isinstance(n, values.W_Rational))
+            isinstance(n, values.W_AbstractRational))
 
 def is_inexact(n):
     if isinstance(n, values.W_Complex):
