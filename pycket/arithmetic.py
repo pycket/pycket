@@ -873,7 +873,8 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            return values.W_Rational.frombigint(self.value, other.value)
+            return values.W_Rational.frombigint(
+                    self.value, other.value, need_to_check=False)
         return values.W_Integer.frombigint(res)
 
     def arith_mod_same(self, other):

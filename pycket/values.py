@@ -541,18 +541,24 @@ class W_Rational(W_Number):
         return W_Rational.frombigint(num, den)
 
     @staticmethod
-    def fromint(n, d=1):
+    def fromint(n, d=1, need_to_check=True):
         assert isinstance(n, int)
         assert isinstance(d, int)
-        return W_Rational.frombigint(rbigint.fromint(n), rbigint.fromint(d))
+        from fractions import gcd
+        g = gcd(n, d)
+        n = n // g
+        d = d // g
+        if need_to_check and d == 1:
+            return W_Fixnum(n)
+        return W_Rational(rbigint.fromint(n), rbigint.fromint(d))
 
     @staticmethod
-    def frombigint(n, d=rbigint.fromint(1)):
+    def frombigint(n, d=rbigint.fromint(1), need_to_check=True):
         from pycket.arithmetic import gcd
         g = gcd(n, d)
         n = n.floordiv(g)
         d = d.floordiv(g)
-        if d.eq(rbigint.fromint(1)):
+        if need_to_check and d.eq(rbigint.fromint(1)):
             return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
