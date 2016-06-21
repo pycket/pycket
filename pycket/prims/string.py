@@ -81,6 +81,11 @@ def string_to_path(str):
 def string_to_unsymbol(v):
     return values.W_Symbol.make_unreadable(v.as_str_utf8())
 
+@expose("string->keyword", [W_String])
+def string_to_keyword(str):
+    repr = str.as_str_utf8()
+    return values.W_Keyword.make(repr)
+
 @expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
     return string.make_immutable()
@@ -89,11 +94,11 @@ def string_to_immutable_string(string):
 def string_to_symbol(v):
     return values.W_Symbol(v.as_unicode())
 
-@expose(["string->bytes/locale",
-         "string->bytes/utf-8"], [W_String,
-                                  default(values.W_Object, values.w_false),
-                                  default(values.W_Fixnum, values.W_Fixnum.ZERO),
-                                  default(values.W_Fixnum, None)])
+@expose(["string->bytes/locale", "string->bytes/utf-8"],
+        [W_String,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
     # assert errbyte is values.w_false
     # ignore for now

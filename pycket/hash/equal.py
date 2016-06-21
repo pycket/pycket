@@ -1,12 +1,15 @@
 
 from pycket                   import config
 from pycket                   import values, values_string
-from pycket.base              import SingletonMeta
-from pycket.hash.base         import W_HashTable, get_dict_item, w_missing
+from pycket.base              import SingletonMeta, UnhashableType
+from pycket.hash.base         import W_HashTable, get_dict_item, next_valid_index, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
 from rpython.rlib             import rerased
+from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
+
+import sys
 
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
@@ -62,6 +65,15 @@ class HashmapStrategy(object):
 
     def get_item(self, w_dict, i):
         raise NotImplementedError("abstract base class")
+
+    def hash_iterate_next(self, w_dict, i):
+        index = i.value
+        if index >= self.length(w_dict) - 1:
+            return values.w_false
+        return values.wrap(index + 1)
+
+    def hash_iterate_first(self, w_dict):
+        return 0
 
     def length(self, w_dict):
         raise NotImplementedError("abstract base class")
@@ -182,31 +194,112 @@ class EmptyHashmapStrategy(HashmapStrategy):
         w_dict.strategy = strategy
         w_dict.hstorage = storage
 
+UNHASHABLE_TAG = 0b0001
+
+def tagged_hash(w_object):
+    try:
+        return w_object.hash_equal() << 1
+    except UnhashableType:
+        return UNHASHABLE_TAG
 
 class ObjectHashmapStrategy(HashmapStrategy):
     erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
+    def get_bucket(self, w_dict, w_key, nonull=False):
+        hash    = tagged_hash(w_key)
+        storage = self.unerase(w_dict.hstorage)
+        bucket  = storage.get(hash, None)
+
+        if nonull and bucket is None:
+            storage[hash] = bucket = []
+
+        return bucket
+
     def get(self, w_dict, w_key, env, cont):
-        return equal_hash_ref_loop(self.unerase(w_dict.hstorage), 0, w_key, env, cont)
+        from pycket.interpreter import return_value
+        bucket = self.get_bucket(w_dict, w_key)
+        if not bucket:
+            return return_value(w_missing, env, cont)
+        return equal_hash_ref_loop(bucket, 0, w_key, env, cont)
 
     def set(self, w_dict, w_key, w_val, env, cont):
-        return equal_hash_set_loop(self.unerase(w_dict.hstorage), 0, w_key, w_val, env, cont)
+        bucket = self.get_bucket(w_dict, w_key, nonull=True)
+        return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
+
 
     def items(self, w_dict):
-        return self.unerase(w_dict.hstorage)
+        items = []
+        storage = self.unerase(w_dict.hstorage)
+        for bucket in storage.itervalues():
+            for item in bucket:
+                items.append(item)
+        return items
 
-    def get_item(self, w_dict, i):
-        try:
-            return self.unerase(w_dict.hstorage)[i]
-        except IndexError:
-            raise
+    if sys.maxint == 2147483647:
+
+        def get_item(self, w_dict, i):
+            storage = self.unerase(w_dict.hstorage)
+            for bucket in storage.itervalues():
+                size = len(bucket)
+                if size > i:
+                    return bucket[i]
+                i -= size
+            raise IndexError
+
+    else:
+
+        def get_item(self, w_dict, i):
+            from pycket.hash.persistent_hash_map import MASK_32
+            storage = self.unerase(w_dict.hstorage)
+            assert i >= 0
+            i = r_uint(i)
+            index = i & MASK_32
+            subindex = (i >> 32) & MASK_32
+
+            bucket = get_dict_item(storage, index)[1]
+            if bucket is None:
+                raise IndexError
+            return bucket[subindex]
+
+        def hash_iterate_next(self, w_dict, pos):
+            from pycket.hash.persistent_hash_map import MASK_32
+            storage = self.unerase(w_dict.hstorage)
+            i = pos.value
+            assert i >= 0
+            index    = r_uint(i & MASK_32)
+            subindex = r_uint((i >> 32) & MASK_32)
+
+            bucket = get_dict_item(storage, index)[1]
+            subindex += 1
+            if subindex == r_uint(len(bucket)):
+                subindex = r_uint(0)
+                next = next_valid_index(
+                        storage, intmask(index), valid=lambda x: bool(x[1]))
+                index = r_uint(next)
+
+            next = intmask((subindex << r_uint(32)) | index)
+            return values.wrap(next)
+
+        def hash_iterate_first(self, w_dict):
+            return next_valid_index(w_dict, 0, valid=lambda x: bool(x[1]))
 
     def length(self, w_dict):
-        return len(self.unerase(w_dict.hstorage))
+        storage = self.unerase(w_dict.hstorage)
+        size = 0
+        for bucket in storage.itervalues():
+            size += len(bucket)
+        return size
 
     def create_storage(self, keys, vals):
-        return self.erase([(k, vals[i]) for i, k in enumerate(keys)])
-
+        storage = {}
+        for i, key in enumerate(keys):
+            val  = vals[i]
+            hash = tagged_hash(key)
+            bucket = storage.get(hash, None)
+            if bucket is None:
+                storage[hash] = bucket = []
+            bucket.append((key, val))
+        return self.erase(storage)
 
 class FixnumHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
@@ -319,6 +412,12 @@ class W_EqualHashTable(W_HashTable):
 
     def get_item(self, i):
         return self.strategy.get_item(self, i)
+
+    def hash_iterate_next(self, pos):
+        return self.strategy.hash_iterate_next(self, pos)
+
+    def hash_iterate_first(self):
+        return self.strategy.hash_iterate_first(self)
 
     def length(self):
         return self.strategy.length(self)

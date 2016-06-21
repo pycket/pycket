@@ -26,10 +26,7 @@ def hash_iterate_first(ht):
 
 @expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    index = pos.value
-    if index >= ht.length() - 1:
-        return values.w_false
-    return values.W_Fixnum(index + 1)
+    return ht.hash_iterate_next(pos)
 
 @objectmodel.specialize.arg(4)
 def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
@@ -283,3 +280,24 @@ def equal_hash_code(v):
 @expose("equal-secondary-hash-code", [values.W_Object])
 def equal_secondary_hash_code(v):
     return values.W_Fixnum.ZERO
+
+@expose("eq-hash-code", [values.W_Object])
+def eq_hash_code(v):
+    t = type(v)
+    if t is values.W_Fixnum:
+        return v
+
+    if t is values.W_Flonum:
+        hash = objectmodel.compute_hash(v.value)
+    elif t is values.W_Character:
+        hash = objectmodel.compute_hash(v.value)
+    else:
+        hash = objectmodel.compute_hash(v)
+    return values.W_Fixnum(hash)
+
+@expose("eqv-hash-code", [values.W_Object])
+def eqv_hash_code(v):
+    hash = v.hash_eqv()
+    return values.W_Fixnum(hash)
+
+

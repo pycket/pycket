@@ -9,7 +9,10 @@ from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
 from pycket.vmprof_support    import vmprof_profile
 
+from pycket.hash.persistent_hash_map import make_persistent_hash_type
+
 from rpython.rlib             import jit, debug, objectmodel
+from rpython.rlib.rarithmetic import r_uint
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
 from small_list               import inline_small_list
 
@@ -30,6 +33,26 @@ BUILTIN_MODULES = [
     "#%extfl",
     "#%futures",
     "#%network" ]
+
+@objectmodel.always_inline
+def equal(a, b):
+    assert a is None or isinstance(a, values.W_Symbol)
+    assert b is None or isinstance(b, values.W_Symbol)
+    return a is b
+
+@objectmodel.always_inline
+def hashfun(v):
+    assert v is None or isinstance(v, values.W_Symbol)
+    return r_uint(compute_hash(v))
+
+SymbolSet = make_persistent_hash_type(
+    super=values.W_ProtoObject,
+    base=object,
+    keytype=values.W_Symbol,
+    valtype=values.W_Symbol,
+    name="SymbolSet",
+    hashfun=hashfun,
+    equal=equal)
 
 def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
@@ -110,16 +133,12 @@ class LetrecCont(Cont):
                    unbox_num=True, factoryname="_make")
 class LetCont(Cont):
     _immutable_fields_ = ["counting_ast"]
+
     return_safe = True
 
     def __init__(self, counting_ast, env, prev):
         Cont.__init__(self, env, prev)
         self.counting_ast  = counting_ast
-
-    def _clone(self):
-        result = self._clone_small_list()
-        LetCont.__init__(result, self.counting_ast, self.env, self.prev)
-        return result
 
     def get_ast(self):
         return self.counting_ast.ast
@@ -647,6 +666,9 @@ def safe_return_multi_vals(vals, env, cont):
 def return_multi_vals_direct(vals, env, cont):
     return cont.plug_reduce(vals, env)
 
+def return_void(env, cont):
+    return return_value(values.w_void, env, cont)
+
 class Cell(AST):
     _immutable_fields_ = ["expr", "need_cell_flags[*]"]
     def __init__(self, expr, need_cell_flags=None):
@@ -1084,7 +1106,7 @@ class Var(AST):
         return variable_set()
 
     def _free_vars(self):
-        return {self.sym: None}
+        return SymbolSet.singleton(self.sym)
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
@@ -1167,7 +1189,7 @@ class ModuleVar(Var):
         self.w_value = None
 
     def _free_vars(self):
-        return {}
+        return SymbolSet.EMPTY
 
     def _lookup(self, env):
         w_res = self.w_value
@@ -1359,14 +1381,11 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
-
 def free_vars_lambda(body, args):
-    x = {}
+    x = SymbolSet.EMPTY
     for b in body:
-        x.update(b.free_vars())
-    for v in args.elems:
-        if v in x:
-            del x[v]
+        x = x.union(b.free_vars())
+    x = x.without_many(args.elems)
     return x
 
 class CaseLambda(AST):
@@ -1415,9 +1434,7 @@ class CaseLambda(AST):
     def _free_vars(self):
         # call _free_vars() to avoid populating the free vars cache
         result = AST._free_vars(self)
-        if self.recursive_sym in result:
-            del result[self.recursive_sym]
-        return result
+        return result.without(self.recursive_sym)
 
     def direct_children(self):
         # the copy is needed for weird annotator reasons that I don't understand :-(
@@ -1559,8 +1576,7 @@ class Lambda(SequencedBodyAST):
         return x
 
     def _free_vars(self):
-        result = free_vars_lambda(self.body, self.args)
-        return result
+        return free_vars_lambda(self.body, self.args)
 
     def match_args(self, args):
         fmls_len = len(self.formals)
@@ -1710,9 +1726,7 @@ class Letrec(SequencedBodyAST):
 
     def _free_vars(self):
         x = AST._free_vars(self)
-        for v in self.args.elems:
-            if v in x:
-                del x[v]
+        x = x.without_many(self.args.elems)
         return x
 
     def assign_convert(self, vars, env_structure):
@@ -1757,32 +1771,46 @@ def _make_symlist_counts(varss):
 def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    if 1 == len(varss) and 1 == len(varss[0]):
-        return make_let_singlevar(varss[0][0], rhss[0], body)
-    symlist, counts = _make_symlist_counts(varss)
-    return Let(symlist, counts, rhss, body)
+
+    if len(body) != 1 or not isinstance(body[0], Let):
+        return _make_let_direct(varss, rhss, body)
+
+    body = body[0]
+    assert isinstance(body, Let)
+    for rhs in body.rhss:
+        frees = rhs.free_vars()
+        for vars in varss:
+            for var in vars:
+                if frees.haskey(var):
+                    return _make_let_direct(varss, rhss, [body])
+    # At this point, we know the inner let does not
+    # reference vars in the outer let
+    varss = varss + body._rebuild_args()
+    rhss  = rhss  + body.rhss
+    body  = body.body
+    return make_let(varss, rhss, body)
 
 def make_let_singlevar(sym, rhs, body):
-    if 1 == len(body):
-        b, = body
-        # XXX These are not correctness preserving
-        if isinstance(b, App):
-            rator = b.rator
-            x = {}
-            for rand in b.rands:
-                x.update(rand.free_vars())
-            if (isinstance(rator, LexicalVar) and
-                    sym is rator.sym and
-                    rator.sym not in x):
-                return App.make_let_converted(rhs, b.rands)
-        elif isinstance(b, If):
-            tst = b.tst
-            if (isinstance(tst, LexicalVar) and tst.sym is sym and
-                    sym not in b.thn.free_vars() and
-                    sym not in b.els.free_vars() and
-                    rhs.simple):
-                return If(rhs, b.thn, b.els)
+    # Try to convert nested lets into a single let e.g.
+    # (let ([v1 e1]) (let ([v2 e2]) e3)) => (let ([v1 e1] [v2 e2]) e3)
+    # This improves the performance of some of the AST anaylsis/transformation
+    # passes and flattens the environment, reducing allocation and pointer hopping.
+    if len(body) == 1:
+        b = body[0]
+        if isinstance(b, Let):
+            for r in b.rhss:
+                if r.free_vars().haskey(sym):
+                    break
+            else:
+                varss = [[sym]] + b._rebuild_args()
+                rhss  = [rhs] + b.rhss
+                body  = b.body
+                return make_let(varss, rhss, body)
     return Let(SymList([sym]), [1], [rhs], body)
+
+def _make_let_direct(varss, rhss, body):
+    symlist, counts = _make_symlist_counts(varss)
+    return Let(symlist, counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
     if not varss:
@@ -1864,14 +1892,12 @@ class Let(SequencedBodyAST):
         return x
 
     def _free_vars(self):
-        x = {}
+        x = SymbolSet.EMPTY
         for b in self.body:
-            x.update(b.free_vars())
-        for v in self.args.elems:
-            if v in x:
-                del x[v]
+            x = x.union(b.free_vars())
+        x = x.without_many(self.args.elems)
         for b in self.rhss:
-            x.update(b.free_vars())
+            x = x.union(b.free_vars())
         return x
 
     def mark_tail_nodes(self, tail_position=False):
@@ -1915,14 +1941,10 @@ class Let(SequencedBodyAST):
             env_structures.append(sub_env_structure)
             return self, sub_env_structure, env_structures, remove_num_envs
         # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = {}
+        free_vars_not_from_let = SymbolSet.EMPTY
         for b in self.body:
-            free_vars_not_from_let.update(b.free_vars())
-        for x in self.args.elems:
-            try:
-                del free_vars_not_from_let[x]
-            except KeyError:
-                pass
+            free_vars_not_from_let = free_vars_not_from_let.union(b.free_vars())
+        free_vars_not_from_let = free_vars_not_from_let.without_many(self.args.elems)
         # at most, we can remove all envs, apart from the one introduced by let
         curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
         max_needed = 0
@@ -1980,6 +2002,14 @@ class Let(SequencedBodyAST):
         env_structures.reverse()
         remove_num_envs.reverse()
         return self, sub_env_structure, env_structures, remove_num_envs[:]
+
+    def _rebuild_args(self):
+        start = 0
+        result = [None] * len(self.counts)
+        for i, c in enumerate(self.counts):
+            result[i] = [self.args.elems[start+j] for j in range(c)]
+            start += c
+        return result
 
     def _tostring(self):
         result = ["(let ("]
@@ -2054,7 +2084,7 @@ def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
         return 'Green_Ast is None'
     surrounding = green_ast.surrounding_lambda
-    if surrounding is not None and green_ast is surrounding.body[0]:
+    if green_ast.should_enter:
         return green_ast.tostring() + ' from ' + came_from.tostring()
     return green_ast.tostring()
 

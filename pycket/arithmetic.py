@@ -1,50 +1,114 @@
 from pycket                    import values
 from pycket.error              import SchemeException
 from rpython.rlib              import rarithmetic, jit
-from rpython.rlib.rarithmetic  import r_int, r_uint, intmask
+from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
-from rpython.rtyper.raisingops import int_floordiv_ovf
+
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
 
+from rpython.rtyper.lltypesystem import lltype
+from rpython.rtyper.lltypesystem.lloperation import llop
+from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib import jit
+
+def int_floordiv_ovf(x, y):
+    # JIT: intentionally not short-circuited to produce only one guard
+    # and to remove the check fully if one of the arguments is known
+    if (x == -sys.maxint - 1) & (y == -1):
+        raise OverflowError("integer division")
+    return int_c_div(x, y)
+
 @jit.elidable
-def gcd(u, v):
-    # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
-    if not u.tobool():
-        return v
-    if not v.tobool():
-        return u
-    if v.ge(NULLRBIGINT):
-        sign = 1
-    else:
-        sign = -1
-        v = v.abs()
-    u = u.abs()
+def shift_to_odd(u):
+    """
+    Computes the number of lower order zero bits in the given rbigint.
+    This information is used in the gcd algorithm which only works on odd integers.
+    This is a nasty bit of hackery, as we inspect the internal representation of the
+    rbigint (rather than using their nice interface). This method is much faster
+    than performing iterated shifting, however.
+    """
+    from rpython.rlib.rbigint import UDIGIT_TYPE, SHIFT
 
     shift = 0
-    while (not u.and_(ONERBIGINT).toint() and
-           not v.and_(ONERBIGINT).toint()):
+    bit = 1
+    digit = 0
+    mask = UDIGIT_TYPE(0x1)
+
+    while digit < u.numdigits() and (u.udigit(digit) & mask) == 0:
         shift += 1
-        u = u.rshift(1)
-        v = v.rshift(1)
-    while not u.and_(ONERBIGINT).toint():
-        u = u.rshift(1)
+        if bit == SHIFT:
+            bit = 1
+            digit += 1
+            mask = UDIGIT_TYPE(0x1)
+        else:
+            bit += 1
+            mask = mask << 1
+
+    return shift
+
+@jit.elidable
+def gcd(u, v):
+    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
+    # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
+    if not u.tobool():
+        return v.abs()
+    if not v.tobool():
+        return u.abs()
+
+    # The result is negative iff both inputs have a common -1 factor
+    if v.sign == -1 and u.sign == -1:
+        sign = -1
+    else:
+        sign = 1
+
+    shiftu = shift_to_odd(u)
+    shiftv = shift_to_odd(v)
+    shift  = min(shiftu, shiftv)
+
+    # Perform shift on each number, but guarantee that we will end up with a new
+    # digit array for each rbigint. They will be mutated
+    if shiftu:
+        u = u.rshift(shiftu, dont_invert=True)
+        if u.sign == -1:
+            u.sign = 1
+    else:
+        u = rbigint(u._digits[:], 1, u.numdigits())
+
+    if shiftv:
+        v = v.rshift(shiftv, dont_invert=True)
+        if v.sign == -1:
+            v.sign = 1
+    else:
+        v = rbigint(v._digits[:], 1, v.numdigits())
 
     # From here on, u is always odd.
     while True:
-        # remove all factors of 2 in v -- they are not common
-        # note: v is not zero, so while will terminate
-        while not v.and_(ONERBIGINT).toint():
-            v = v.rshift(1)
-
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
         if u.gt(v):
             u, v, = v, u
-        v = v.sub(u)
+
+        assert _v_isub(v, 0, v.numdigits(), u, u.numdigits()) == 0
+        v._normalize()
+
         if not v.tobool():
             break
+
+        # remove all factors of 2 in v -- they are not common
+        # note: v is not zero, so while will terminate
+        # XXX: Better to perform multiple inplace shifts, or one
+        # shift which allocates a new array?
+        rshift = shift_to_odd(v)
+        while rshift >= SHIFT:
+            assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
+            rshift -= SHIFT - 1
+        assert _v_rshift(v, v, v.numdigits(), rshift) == 0
+        v._normalize()
+        # v = v.rshift(shift_to_odd(v))
     # restore common factors of 2
     result = u.lshift(shift)
     if sign == -1:
@@ -363,7 +427,8 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        return values.W_Rational.fromint(self.value, other.value)
+        return values.W_Rational.fromint(
+            self.value, other.value, need_to_check=False)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -590,7 +655,8 @@ class __extend__(values.W_Flonum):
         v2 = other.value
         if math.floor(v1) != v1 or math.floor(v2) != v2:
             raise SchemeException("quotient: expected integer")
-        return values.W_Flonum(v1 / v2)
+        val = math.floor(v1 / v2)
+        return values.W_Flonum(val)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Flonum)
@@ -806,7 +872,8 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            return values.W_Rational.frombigint(self.value, other.value)
+            return values.W_Rational.frombigint(
+                    self.value, other.value, need_to_check=False)
         return values.W_Integer.frombigint(res)
 
     def arith_mod_same(self, other):
@@ -899,12 +966,10 @@ class __extend__(values.W_Bignum):
         return values.W_Bool.make(not self.value.tobool())
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self.value.lt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self.value.gt(NULLRBIGINT))
+        return values.W_Bool.make(self.value.sign == 1)
 
     def arith_evenp(self):
         return values.W_Bool.make(
@@ -975,16 +1040,13 @@ class __extend__(values.W_Rational):
 
     def arith_abs(self):
         num = self._numerator.abs()
-        den = self._denominator.abs()
-        return values.W_Rational(num, den)
+        return values.W_Rational(num, self._denominator)
 
     def arith_negativep(self):
-        return values.W_Bool.make(
-            self._numerator.lt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == -1)
 
     def arith_positivep(self):
-        return values.W_Bool.make(
-            self._numerator.gt(NULLRBIGINT))
+        return values.W_Bool.make(self._numerator.sign == 1)
 
     def arith_zerop(self):
         return values.W_Bool.make(not self._numerator.tobool())
@@ -995,11 +1057,11 @@ class __extend__(values.W_Rational):
         diff2 = diff1.add(self._denominator).abs()
         diff1 = diff1.abs()
         if diff1.gt(diff2):
-            res2 = res1.add(ONERBIGINT)
+            res2 = res1.int_add(1)
             return values.W_Integer.frombigint(res2)
         elif diff1.eq(diff2):
-            if res1.and_(ONERBIGINT).tobool():
-                res2 = res1.add(ONERBIGINT)
+            if res1.int_and_(1).tobool():
+                res2 = res1.int_add(1)
                 return values.W_Integer.frombigint(res2)
             else:
                 return values.W_Integer.frombigint(res1)
@@ -1008,9 +1070,8 @@ class __extend__(values.W_Rational):
 
     def arith_ceiling(self):
         res1 = self._numerator.floordiv(self._denominator)
-        res = res1.add(ONERBIGINT)
+        res = res1.int_add(1)
         return values.W_Integer.frombigint(res)
-
 
     def arith_floor(self):
         res = self._numerator.floordiv(self._denominator)

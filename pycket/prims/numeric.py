@@ -2,15 +2,19 @@
 # -*- coding: utf-8 -*-
 import math
 import operator
-from pycket import values
-from pycket import vector as values_vector
-from pycket.arity import Arity
-from pycket.error import SchemeException
-from pycket.prims.expose import expose, default, unsafe
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib         import jit, longlong2float, rarithmetic
+
+from pycket                                  import values
+from pycket                                  import vector as values_vector
+from pycket.arity                            import Arity
+from pycket.arithmetic                       import shift_to_odd
+from pycket.error                            import SchemeException
+from pycket.prims.expose                     import expose, default, unsafe
+
+from rpython.rlib                            import jit, longlong2float, rarithmetic
+from rpython.rlib.rarithmetic                import r_uint
+from rpython.rlib.rbigint                    import rbigint
 from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype import Signed
+from rpython.rtyper.lltypesystem.lltype      import Signed
 
 # imported for side effects
 from pycket import arithmetic
@@ -174,17 +178,17 @@ def make_arith(name, neutral_element, methname, supports_zero_args):
     do.__name__ = methname
 
 for args in [
-        ("+", values.W_Fixnum.ZERO, "arith_add", True),
-        ("-", values.W_Fixnum.ZERO, "arith_sub", False),
-        ("*", values.W_Fixnum.ONE, "arith_mul", True),
-        ("/", values.W_Fixnum.ONE, "arith_div", False),
-        ("max", None, "arith_max", False),
-        ("min", None, "arith_min", False),
-        ("gcd", values.W_Fixnum.ZERO, "arith_gcd", True),
-        ("lcm", values.W_Fixnum.ONE, "arith_lcm", True),
-        ("bitwise-and", values.W_Fixnum.make(-1), "arith_and", True),
-        ("bitwise-ior", values.W_Fixnum.ZERO, "arith_or", True),
-        ("bitwise-xor", values.W_Fixnum.ZERO, "arith_xor", True),
+        ("+"           , values.W_Fixnum.ZERO     , "arith_add" , True  ) ,
+        ("-"           , values.W_Fixnum.ZERO     , "arith_sub" , False ) ,
+        ("*"           , values.W_Fixnum.ONE      , "arith_mul" , True  ) ,
+        ("/"           , values.W_Fixnum.ONE      , "arith_div" , False ) ,
+        ("max"         , None                     , "arith_max" , False ) ,
+        ("min"         , None                     , "arith_min" , False ) ,
+        ("gcd"         , values.W_Fixnum.ZERO     , "arith_gcd" , True  )  ,
+        ("lcm"         , values.W_Fixnum.ONE      , "arith_lcm" , True  ) ,
+        ("bitwise-and" , values.W_Fixnum.make(-1) , "arith_and" , True  ) ,
+        ("bitwise-ior" , values.W_Fixnum.ZERO     , "arith_or"  , True  ) ,
+        ("bitwise-xor" , values.W_Fixnum.ZERO     , "arith_xor" , True  ) ,
         ]:
     make_arith(*args)
 
@@ -204,16 +208,16 @@ def make_fixedtype_binary_arith(
         do.__name__ = "fx_" + methname
 
 for args in [
-        ("+", "arith_add"),
-        ("-", "arith_sub"),
-        ("*", "arith_mul"),
-        ("/", "arith_div", False),
-        ("and", "arith_and", True, False),
-        ("max", "arith_max"),
-        ("min", "arith_min"),
-        ("quotient", "arith_quotient", True, False),
-        ("remainder", "arith_remainder", True, False),
-        ("modulo", "arith_mod", True, False),
+        ("+"         , "arith_add"                        ) ,
+        ("-"         , "arith_sub"                        ) ,
+        ("*"         , "arith_mul"                        ) ,
+        ("/"         , "arith_div"       , False          ) ,
+        ("and"       , "arith_and"       , True   , False ) ,
+        ("max"       , "arith_max"                        ) ,
+        ("min"       , "arith_min"                        ) ,
+        ("quotient"  , "arith_quotient"  , True   , False ) ,
+        ("remainder" , "arith_remainder" , True   , False ) ,
+        ("modulo"    , "arith_mod"       , True   , False ) ,
 ]:
     make_fixedtype_binary_arith(*args)
 
@@ -393,9 +397,17 @@ def unsafe_fxrshift(w_a, w_b):
     res = w_a.value >> w_b.value
     return values.W_Fixnum(res)
 
-@expose("unsafe-fxand", [unsafe(values.W_Fixnum), unsafe(values.W_Fixnum)])
+@expose("unsafe-fxand", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxand(w_a, w_b):
     return w_a.arith_and(w_b)
+
+@expose("unsafe-fxior", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxior(w_a, w_b):
+    return w_a.arith_or(w_b)
+
+@expose("unsafe-fxxor", [unsafe(values.W_Fixnum)] * 2)
+def unsafe_fxxor(w_a, w_b):
+    return w_a.arith_xor(w_b)
 
 @expose("unsafe-fx+", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxplus(a, b):
@@ -423,7 +435,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(llop.int_floordiv(Signed, a.value, b.value))
+    return values.W_Fixnum.make(rarithmetic.int_c_div(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
@@ -524,6 +536,53 @@ def integer_to_integer_bytes(n, _size, signed):
 
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
     return values.W_Bytes(chars)
+
+@expose("integer-length", [values.W_Object])
+@jit.elidable
+def integer_length(obj):
+
+    if isinstance(obj, values.W_Fixnum):
+        val = obj.value
+        if val < 0:
+            val = ~val
+
+        n = r_uint(val)
+        result = 0
+        while n:
+            n >>= r_uint(1)
+            result += 1
+        return values.wrap(result)
+
+    if isinstance(obj, values.W_Bignum):
+        # XXX The bit_length operation on rbigints is off by one for negative
+        # powers of two (this may be intentional?).
+        # So, we detect this case and apply a correction.
+        bignum = obj.value
+        negative_power_of_two = True
+
+        if not bignum.tobool():
+            return values.W_Fixnum.ZERO
+        elif bignum.sign != -1:
+            negative_power_of_two = False
+        else:
+            for i in range(bignum.size - 1):
+                if bignum.udigit(i) != 0:
+                    negative_power_of_two = False
+                    break
+
+            msd = bignum.udigit(r_uint(bignum.size - 1))
+            while msd:
+                if (msd & r_uint(0x1)) and msd != r_uint(1):
+                    negative_power_of_two = False
+                    break
+                msd >>= r_uint(1)
+
+        bit_length = bignum.bit_length()
+        if negative_power_of_two:
+            bit_length -= 1
+        return values.wrap(bit_length)
+
+    raise SchemeException("integer-length: expected exact-integer? got %s" % obj.tostring())
 
 # FIXME: implementation
 @expose("fxvector?", [values.W_Object])

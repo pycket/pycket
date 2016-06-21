@@ -9,6 +9,8 @@ from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
 
+skip = pytest.mark.skipif("True")
+
 def make_symbols(d):
     v = variable_set()
     for i, j in d.iteritems():
@@ -47,12 +49,13 @@ def test_cache_lambda_if_no_frees():
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
 
+@skip
 def test_remove_let():
     p = expr_ast("(let ([g cons]) (g 5 5))")
-    assert isinstance(p, App)
+    assert isinstance(p, Let)
 
     p = expr_ast("(let ([a 1]) (if a + -))")
-    assert isinstance(p, If)
+    assert isinstance(p, Let)
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
@@ -113,13 +116,15 @@ def test_reclambda():
 
     # immediate application
     p = expr_ast("(letrec ([a (lambda () a)]) (a))")
-    assert isinstance(p.rator, CaseLambda)
-    assert p.rator.recursive_sym is not None
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    assert p.rhss[0].recursive_sym is not None
 
     # immediate application
     p = expr_ast("(letrec ([a (lambda (b) (a b))]) (a 1))")
-    assert isinstance(p.rator, CaseLambda)
-    assert p.rator.recursive_sym is not None
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    assert p.rhss[0].recursive_sym is not None
 
     # immediate application, need a let because the variable appears not just
     # once (but not a letrec)
@@ -150,13 +155,14 @@ def test_cont_fusion():
         FusedLet0Let0Cont, FusedLet0BeginCont,
     )
     from pycket.config import get_testing_config
+    from pycket.cont   import NilCont
     args = SymList([])
     counts = [1]
     rhss = 1
     letast1 = Let(args, counts, [1], [2])
     letast2 = Let(args, counts, [1], [2])
     env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = object()
+    prev = NilCont()
     let2 = LetCont.make([], letast2, 0, env, prev)
     let1 = LetCont.make([], letast1, 0, env, let2)
     assert isinstance(let1, FusedLet0Let0Cont)

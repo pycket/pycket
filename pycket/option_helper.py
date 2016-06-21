@@ -4,7 +4,7 @@
 import os
 
 from .expand import (expand_file_to_json, expand_code_to_json, _expand_file_to_json,
-                     ensure_json_ast_eval, ensure_json_ast_run,
+                     ensure_json_ast_eval, ensure_json_ast_run, _json_name, _BE,
                      PermException, SchemeException)
 
 from rpython.rlib import jit
@@ -128,16 +128,7 @@ def parse_args(argv):
 
             i += 1
 
-            if argv[i] == "-R":
-                if to <= i + 1:
-                    print "missing argument after -b -R"
-                    retval = 5
-                    break
-
-                names['byte-expand'] = 'go'
-                i += 1
-
-            names['use-bytecode-of'] = "%s" % (argv[i])
+            names['byte-expand'] = "%s" % (argv[i])
 
             retval = 0
 
@@ -179,12 +170,12 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if 'use-bytecode-of' in names:
+    if 'byte-expand' in names:
 
-        file_name = names['use-bytecode-of']
+        file_name = names['byte-expand']
         assert file_name.endswith('.rkt')
 
-        json_file = "fromBytecode_"+file_name+".json"
+        json_file = _json_name(file_name)
         json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)
 
     elif config["mode"] is _eval:

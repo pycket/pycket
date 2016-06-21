@@ -1,6 +1,5 @@
 from rpython.rlib import jit, objectmodel
 
-
 class AST(object):
     _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "surrounding_module", "_stringrepr", "_tail_position"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda", "surrounding_module", "_tail_position"]
@@ -80,9 +79,10 @@ class AST(object):
         return self._fvars
 
     def _free_vars(self):
-        free_vars = {}
+        from pycket.interpreter import SymbolSet
+        free_vars = SymbolSet.EMPTY
         for child in self.direct_children():
-            free_vars.update(child.free_vars())
+            free_vars = free_vars.union(child.free_vars())
         return free_vars
 
     def assign_convert(self, vars, env_structure):
@@ -115,4 +115,5 @@ class AST(object):
 
     def __str__(self):
         return self.tostring()
+
 

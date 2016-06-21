@@ -3,7 +3,7 @@
 
 from pycket                   import config
 from pycket.arity             import Arity
-from pycket.base              import W_Object, W_ProtoObject
+from pycket.base              import W_Object, W_ProtoObject, UnhashableType
 from pycket.cont              import continuation, label, NilCont
 from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
@@ -24,6 +24,18 @@ from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check
 
 UNROLLING_CUTOFF = 5
 
+def elidable_iff(pred):
+    def wrapper(func):
+        func = jit.unroll_safe(func)
+
+        def trampoline(*args):
+            if jit.we_are_jitted() and pred(*args):
+                return elidable_func(*args)
+            return func(*args)
+
+        return trampoline
+    return wrapper
+
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
     def __init__(self):
@@ -39,6 +51,10 @@ class Values(W_ProtoObject):
     def make1(w_value):
         assert w_value is not None
         return w_value
+
+    @staticmethod
+    def make2(w_value1, w_value2):
+        return Values._make2(w_value1, w_value2)
 
     def num_values(self):
         return self._get_size_list()
@@ -185,12 +201,10 @@ class W_ContinuationMarkKey(W_Object):
     def __init__(self, name):
         self.name = name
 
-    @label
     def get_cmk(self, value, env, cont):
         from pycket.interpreter import return_value
         return return_value(value, env, cont)
 
-    @label
     def set_cmk(self, body, value, update, env, cont):
         update.update_cm(self, value)
         return body.call([], env, cont)
@@ -212,10 +226,10 @@ class W_VectorSuper(W_Object):
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
-    def vector_set(self, i, new, env, cont):
+    def vector_set(self, i, new, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
-    def vector_ref(self, i, env, cont):
+    def vector_ref(self, i, env, cont, app=None):
         raise NotImplementedError("abstract base class")
 
     def length(self):
@@ -232,13 +246,13 @@ class W_VectorSuper(W_Object):
     def get_storage(self):
         raise NotImplementedError
 
-    def set_storage(self):
+    def set_storage(self, storage):
         raise NotImplementedError
 
     def get_strategy(self):
         raise NotImplementedError
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         raise NotImplementedError
 
 # Things that are vector?
@@ -371,6 +385,9 @@ class W_Box(W_Object):
     errorname = "box"
     def __init__(self):
         raise NotImplementedError("abstract base class")
+
+    def hash_equal(self, info=None):
+        raise UnhashableType
 
     def unbox(self, env, cont):
         raise NotImplementedError("abstract base class")
@@ -506,7 +523,8 @@ class W_Rational(W_Number):
         assert isinstance(den, rbigint)
         self._numerator = num
         self._denominator = den
-        assert den.gt(NULLRBIGINT)
+        if not we_are_translated():
+            assert den.gt(NULLRBIGINT)
 
     @staticmethod
     def make(num, den):
@@ -523,18 +541,24 @@ class W_Rational(W_Number):
         return W_Rational.frombigint(num, den)
 
     @staticmethod
-    def fromint(n, d=1):
+    def fromint(n, d=1, need_to_check=True):
         assert isinstance(n, int)
         assert isinstance(d, int)
-        return W_Rational.frombigint(rbigint.fromint(n), rbigint.fromint(d))
+        from fractions import gcd
+        g = gcd(n, d)
+        n = n // g
+        d = d // g
+        if need_to_check and d == 1:
+            return W_Fixnum(n)
+        return W_Rational(rbigint.fromint(n), rbigint.fromint(d))
 
     @staticmethod
-    def frombigint(n, d=rbigint.fromint(1)):
+    def frombigint(n, d=rbigint.fromint(1), need_to_check=True):
         from pycket.arithmetic import gcd
         g = gcd(n, d)
         n = n.floordiv(g)
         d = d.floordiv(g)
-        if d.eq(rbigint.fromint(1)):
+        if need_to_check and d.eq(rbigint.fromint(1)):
             return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
@@ -590,6 +614,8 @@ class W_Integer(W_Number):
 
 @memoize_constructor
 class W_Fixnum(W_Integer):
+
+    _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
@@ -1155,7 +1181,7 @@ def from_list_iter(lst):
 class W_Continuation(W_Procedure):
     errorname = "continuation"
 
-    _immutable_fields_ = ["cont"]
+    _immutable_fields_ = ["cont", "prompt_tag"]
 
     def __init__(self, cont, prompt_tag=None):
         self.cont = cont
@@ -1166,12 +1192,8 @@ class W_Continuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        from pycket.interpreter import return_multi_vals
-        if self.prompt_tag is not None:
-            cont = self.cont.append(NilCont(), self.prompt_tag)
-        else:
-            cont = self.cont
-        return return_multi_vals(Values.make(args), env, cont)
+        from pycket.prims.control import install_continuation
+        return install_continuation(self.cont, self.prompt_tag, args, env, cont)
 
     def tostring(self):
         return "#<continuation>"
@@ -1189,16 +1211,18 @@ class W_ComposableContinuation(W_Procedure):
         return Arity.unknown
 
     def call(self, args, env, cont):
-        from pycket.interpreter import return_multi_vals
-        kont = self.cont.append(cont, self.prompt_tag)
-        return return_multi_vals(Values.make(args), env, kont)
+        from pycket.prims.control import install_continuation
+        return install_continuation(
+                self.cont, self.prompt_tag, args, env, cont, extend=True)
 
     def tostring(self):
         return "#<continuation>"
 
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
+    _immutable_ = True
     _immutable_fields_ = ["caselam"]
+
     @jit.unroll_safe
     def __init__(self, caselam, env):
         self.caselam = caselam
@@ -1265,6 +1289,7 @@ class W_Closure(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
+    _immutable_ = True
     _immutable_fields_ = ['caselam']
 
     def __init__(self, caselam, prev):
@@ -1348,7 +1373,6 @@ class W_Closure1AsEnv(ConsEnv):
             i += 1 # only count non-self references
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
-
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and

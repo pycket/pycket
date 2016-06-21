@@ -3,19 +3,12 @@
 (require syntax/parse syntax/modresolve
          (only-in racket/list append-map last-pair filter-map first add-between)
          racket/path
-         racket/bool
-         racket/pretty
          racket/dict racket/match
          racket/format
-         racket/extflonum
-         racket/syntax
-         (for-syntax racket/base))
-
-(provide hash* global-config)
+         racket/extflonum)
 
 (define keep-srcloc (make-parameter #t))
-(define current-phase (make-parameter 0))
-;; FIXME: we really need a table for every phase, which means a table from phases to id tables
+
 (define lexical-bindings (make-free-id-table))
 
 (define (register-all! x)
@@ -45,7 +38,7 @@
 
 (define (do-expand stx in-path)
   ;; error checking
-  (syntax-parse stx
+  (syntax-parse stx #:literals ()
     [((~and mod-datum (~datum module)) n:id lang:expr . rest)
      (void)]
     [((~and mod-datum (~datum module)) . rest)
@@ -58,12 +51,9 @@
     (values stx* (do-post-expand stx* in-path))))
 
 (define (do-post-expand stx in-path)
-  (define i (make-syntax-introducer))
-  (define m (i (datum->syntax
-                #f
-                `(module mod '#%kernel
-                  (define-values (stx) (quote-syntax ,(i stx)))
-                  (#%provide stx)))))
+  (define m `(module mod '#%kernel
+               (define-values (stx) (quote-syntax ,stx))
+               (#%provide stx)))
   (if (and in-path (keep-srcloc))
       (parameterize ([current-module-declare-name (make-resolved-module-path in-path)]
                      [current-module-declare-source in-path])
@@ -80,7 +70,7 @@
       (list (current-module) #t)))
 
 (define (full-path-string p)
-  (path->string (normalize-path (simplify-path p #t))))
+  (path->string (simplify-path p #f)))
 
 (define (desymbolize s)
   (cond
@@ -152,8 +142,7 @@
      (list (join-first (require-json #'path)
                        (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
-    [((~datum lib) path) (list (resolve-module (resolve-module-path `(lib ,(syntax-e #'path)) #f)))]
-    [((~datum lib) _ ...) (error 'expand "`lib` multiple paths not supported")]
+    [((~datum lib) path) '()];;(require-json #'path)]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
@@ -168,11 +157,9 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (full-path-string (find-system-path k)))))
     (hash-set* sysconfig
-               'version (version)
-               'bytecode-expand "false")))
+               'version (version))))
 
 (require syntax/id-table)
-;; FIXME: we really need a table for every phase, which means a table from phases to id tables
 (define table (make-free-id-table))
 (define sym-table (make-hash))
 
@@ -292,7 +279,11 @@
       (append path (list str))
       (list path str)))
   (syntax-parse (list v v/loc)
-                #:literal-sets ((kernel-literals #:phase (current-phase)))
+                #:literals
+                (let-values letrec-values begin0 if #%plain-lambda #%top
+                            module* module #%plain-app quote #%require quote-syntax
+                            with-continuation-mark #%declare #%provide case-lambda
+                            #%variable-reference)
     [(v:str _) (hash 'string (syntax-e #'v))]
     [(v _)
      #:when (path? (syntax-e #'v))
@@ -330,8 +321,8 @@
            'operands (map to-json
                           (syntax->list #'(e ...))
                           (syntax->list #'(e* ...))))]
-    [((with-continuation-mark e0 e1 e2)
-      (with-continuation-mark e0* e1* e2*))
+    [(((~literal with-continuation-mark) e0 e1 e2)
+      ((~literal with-continuation-mark) e0* e1* e2*))
      (hash 'wcm-key (to-json #'e0 #'e0*)
            'wcm-val (to-json #'e1 #'e1*)
            'wcm-body (to-json #'e2 #'e2*))]
@@ -385,28 +376,20 @@
      (hash 'quote
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
-    [((quote-syntax e _ ...)
-      (quote-syntax e* _ ...))
-     ;; XXX Ignore these mystical extra arguments for now.
-     ;; Is this safe/reasonable?
+    [((quote-syntax e) (quote-syntax e*))
      (hash 'quote-syntax
            (parameterize ([quoted? #t])
              (to-json #'e #'e*)))]
-    [((define-values (i ...) b)
-      (define-values (i* ...) b*))
+    [(((~literal define-values) (i ...) b)
+      ((~literal define-values) (i* ...) b*))
      (hash 'define-values (map id->sym (syntax->list #'(i ...)))
            'define-values-body (to-json #'b #'b*)
            ;; keep these separately because the real symbols
            ;; may be unreadable extra symbols
            'define-values-names (map (compose symbol->string syntax-e)
                                      (syntax->list #'(i ...))))]
-    [((define-syntaxes (i ...) b) _) #f]
-    [((begin-for-syntax b ...)
-      (begin-for-syntax b* ...))
-     (hash 'begin-for-syntax
-           (parameterize ([current-phase (add1 (current-phase))])
-             (filter (λ (x) (or (is-module? x) (and (hash? x) (hash-has-key? x 'begin-for-syntax))))
-                     (map to-json (syntax->list #'(b ...)) (syntax->list #'(b* ...))))))]
+    [(((~literal define-syntaxes) (i ...) b) _) #f]
+    [(((~literal begin-for-syntax) b ...) _) #f]
 
     [((#%require x ...) _)
      (let ([reqs (append-map require-json (syntax->list #'(x ...)))])
@@ -424,10 +407,9 @@
            (hash 'improper (list (map to-json s s*) (to-json r r*)))
            (map to-json s s*)))]
     [(i:identifier _)
-     (match (identifier-binding #'i (current-phase))
+     (match (identifier-binding* #'i)
        ['lexical (hash 'lexical  (id->sym v))]
-       [#f
-        (hash 'toplevel (symbol->string (syntax-e v)))]
+       [#f       (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
         (define idsym (id->sym #'i))
@@ -476,54 +458,37 @@
                                      (datum->syntax #'lex (hash-keys ht*)))
                  'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
                                      (datum->syntax #'lex (hash-values ht*))))))]
-    [_ #:when (void? (syntax-e v))
-       (hash 'void #t)]
     ))
 
-(define (is-module? m)
-  (and (hash? m)
-       (hash-has-key? m 'module-name)))
-
 (define (convert mod mod/loc [config? #t])
-  (syntax-parse (list mod mod/loc)
-    #:literal-sets ((kernel-literals #:phase (current-phase)))
+  (syntax-parse (list mod mod/loc) #:literals (module #%plain-module-begin)
     [((module name:id lang:expr (#%plain-module-begin forms ...))
-      (_ _ _                    (_ forms* ...)))
+      (_ _ _                    (#%plain-module-begin forms* ...)))
      (let ([lang-req (if (or (eq? (syntax-e #'lang) 'pycket)
                              (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                          (require-json #'#%kernel)
                          (require-json #'lang))])
-       (parameterize ([current-phase 0])
-         (hash* 'module-name (symbol->string (syntax-e #'name))
-                'body-forms (filter-map to-json
-                                        (syntax->list #'(forms ...))
-                                        (syntax->list #'(forms* ...)))
-                'language (first lang-req)
-                'config (and config? global-config))))]
+       (hash* 'module-name (symbol->string (syntax-e #'name))
+              'body-forms (filter-map to-json
+                                      (syntax->list #'(forms ...))
+                                      (syntax->list #'(forms* ...)))
+              'language (first lang-req)
+              'config (and config? global-config)))]
     [((module* name:id lang:expr (#%plain-module-begin forms ...))
-      (_ _ _                    (_ forms* ...)))
+      (_ _ _                    (#%plain-module-begin forms* ...)))
      (let ([lang-req (cond
                        [(not (syntax-e #'lang)) (list #f)]
                        [(or (eq? (syntax-e #'lang) 'pycket)
                         (eq? (syntax-e #'lang) 'pycket/mcons)) ;; cheat in this case
                         (require-json #'#%kernel)]
                        [else (require-json #'lang)])])
-       (define/with-syntax
-         ((_ _ _ (_ s-forms ...))
-          (_ _ _ (_ s-forms* ...)))
-         (if (false? (syntax-e #'lang))
-             (list (syntax-shift-phase-level mod (- (current-phase)))
-                   (syntax-shift-phase-level mod/loc (- (current-phase))))
-             (list mod mod/loc)))
-       (parameterize ([current-phase 0])
-         (hash* 'module-name (symbol->string (syntax-e #'name))
-                'body-forms (filter-map to-json
-                                        (syntax->list #'(s-forms ...))
-                                        (syntax->list #'(s-forms* ...)))
-                'language (first lang-req)
-                'config (and config? global-config))))]
-    [_
-     (error 'convert "bad ~a ~a" mod (syntax->datum mod))]))
+       (hash* 'module-name (symbol->string (syntax-e #'name))
+              'body-forms (filter-map to-json
+                                      (syntax->list #'(forms ...))
+                                      (syntax->list #'(forms* ...)))
+              'language (first lang-req)
+              'config (and config? global-config)))]
+    [_ (error 'convert)]))
 
 
 (module+ main
@@ -615,3 +580,4 @@
     (newline out)
     (flush-output out)
     (when loop? (loop))))
+

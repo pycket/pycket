@@ -16,12 +16,9 @@ def pytest_configure(config):
     if byte_flag == "":
         print "We have regular pycket expansion"
         config.byte_option = False
-    elif byte_flag == "nonRecursive":
-        print "We have NON-recursive bytecode expansion"
-        config.byte_option = "non-recursive"
-    elif byte_flag == "recursive":
-        print "We have recursive bytecode expansion"
-        config.byte_option = "recursive"
+    elif byte_flag == "go":
+        print "We have bytecode expansion"
+        config.byte_option = True
 
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
