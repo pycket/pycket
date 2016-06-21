@@ -502,6 +502,9 @@ class W_MCons(W_MList):
         self._cdr = d
 
 class W_Number(W_Object):
+    _attrs_ = []
+    _settled_ = True
+
     errorname = "number"
     def __init__(self):
         raise NotImplementedError("abstract base class")
@@ -588,6 +591,8 @@ class W_Rational(W_AbstractRational):
         if not isinstance(other, W_AbstractRational):
             return False
         other = other._rational_normalize()
+        if not isinstance(other, W_Rational):
+            return False
         return (self._numerator.eq(other._numerator) and
                 self._denominator.eq(other._denominator))
 
