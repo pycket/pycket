@@ -84,16 +84,27 @@ def copy_vector(v, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         return return_value(v._make_copy(immutable=True), env, cont)
+
     len = v.length()
-    data = [None] * len
+    if not len:
+        vector = values_vector.W_Vector.fromelements([])
+        return return_value(vector, env, cont)
+
+    # Do a little peeking to provide a hint to the strategy
+    base = imp.get_base_object(v)
+    assert isinstance(base, values_vector.W_Vector)
+    data = values_vector.W_Vector.fromelement(base.ref(0), len)
+
     return copy_vector_loop(v, data, len, 0, env, cont)
 
 @loop_label
 def copy_vector_loop(v, data, len, idx, env, cont):
     from pycket.interpreter import return_value
     if idx >= len:
-        vector = values_vector.W_Vector.fromelements(data, immutable=True)
-        return return_value(vector, env, cont)
+        # Freeze vector and return
+        strategy = data.strategy
+        data.strategy = strategy.immutable_variant()
+        return return_value(data, env, cont)
     return v.vector_ref(idx, env,
             copy_vector_ref_cont(v, data, len, idx, env, cont))
 
@@ -101,7 +112,7 @@ def copy_vector_loop(v, data, len, idx, env, cont):
 def copy_vector_ref_cont(v, data, len, idx, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    data[idx] = val
+    data.set(idx, val)
     return copy_vector_loop(v, data, len, idx + 1, env, cont)
 
 @expose("vector->immutable-vector", [values_vector.W_MVector], simple=False)

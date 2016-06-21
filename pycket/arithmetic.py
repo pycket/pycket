@@ -30,16 +30,16 @@ def shift_to_odd(u):
     rbigint (rather than using their nice interface). This method is much faster
     than performing iterated shifting, however.
     """
-    from rpython.rlib.rbigint import UDIGIT_TYPE
+    from rpython.rlib.rbigint import UDIGIT_TYPE, SHIFT
 
     shift = 0
     bit = 1
     digit = 0
     mask = UDIGIT_TYPE(0x1)
 
-    while digit < u.size and (u.udigit(digit) & mask) == 0:
+    while digit < u.numdigits() and (u.udigit(digit) & mask) == 0:
         shift += 1
-        if bit == UDIGIT_TYPE.BITS:
+        if bit == SHIFT:
             bit = 1
             digit += 1
             mask = UDIGIT_TYPE(0x1)
@@ -51,6 +51,7 @@ def shift_to_odd(u):
 
 @jit.elidable
 def gcd(u, v):
+    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
         return v.abs()
@@ -62,14 +63,26 @@ def gcd(u, v):
         sign = -1
     else:
         sign = 1
-    v = v.abs()
-    u = u.abs()
 
     shiftu = shift_to_odd(u)
     shiftv = shift_to_odd(v)
-    u = u.rshift(shiftu)
-    v = v.rshift(shiftv)
-    shift = min(shiftu, shiftv)
+    shift  = min(shiftu, shiftv)
+
+    # Perform shift on each number, but guarantee that we will end up with a new
+    # digit array for each rbigint. They will be mutated
+    if shiftu:
+        u = u.rshift(shiftu, dont_invert=True)
+        if u.sign == -1:
+            u.sign = 1
+    else:
+        u = rbigint(u._digits[:], 1, u.numdigits())
+
+    if shiftv:
+        v = v.rshift(shiftv, dont_invert=True)
+        if v.sign == -1:
+            v.sign = 1
+    else:
+        v = rbigint(v._digits[:], 1, v.numdigits())
 
     # From here on, u is always odd.
     while True:
@@ -77,13 +90,24 @@ def gcd(u, v):
         # then set v = v - u (which is even).
         if u.gt(v):
             u, v, = v, u
-        v = v.sub(u)
+
+        assert _v_isub(v, 0, v.numdigits(), u, u.numdigits()) == 0
+        v._normalize()
+
         if not v.tobool():
             break
 
         # remove all factors of 2 in v -- they are not common
         # note: v is not zero, so while will terminate
-        v = v.rshift(shift_to_odd(v))
+        # XXX: Better to perform multiple inplace shifts, or one
+        # shift which allocates a new array?
+        rshift = shift_to_odd(v)
+        while rshift >= SHIFT:
+            assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
+            rshift -= SHIFT - 1
+        assert _v_rshift(v, v, v.numdigits(), rshift) == 0
+        v._normalize()
+        # v = v.rshift(shift_to_odd(v))
     # restore common factors of 2
     result = u.lshift(shift)
     if sign == -1:
@@ -1013,8 +1037,7 @@ class __extend__(values.W_Rational):
 
     def arith_abs(self):
         num = self._numerator.abs()
-        den = self._denominator.abs()
-        return values.W_Rational(num, den)
+        return values.W_Rational(num, self._denominator)
 
     def arith_negativep(self):
         return values.W_Bool.make(self._numerator.sign == -1)

@@ -523,7 +523,8 @@ class W_Rational(W_Number):
         assert isinstance(den, rbigint)
         self._numerator = num
         self._denominator = den
-        assert den.gt(NULLRBIGINT)
+        if not we_are_translated():
+            assert den.gt(NULLRBIGINT)
 
     @staticmethod
     def make(num, den):
@@ -1365,7 +1366,6 @@ class W_Closure1AsEnv(ConsEnv):
             i += 1 # only count non-self references
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
-
 
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and

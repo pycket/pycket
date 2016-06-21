@@ -51,7 +51,7 @@ def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
     def pred_eq(a):
-        return values.W_Bool.make(isinstance(a, typ) and a is val)
+        return values.W_Bool.make(a is val)
 
 for args in [
         ("output-port?", values.W_OutputPort),
@@ -1375,6 +1375,15 @@ def cache_configuration(val, proc):
 
     https://github.com/racket/racket/blob/161a9edb57c38ab71686d9a6e3c7920c96713fed/racket/src/racket/src/thread.c#L744
     """
+    return values.w_false
+
+@expose("make-readtable")
+def make_readtable(args):
+    print "making readtable", args
+    return values.w_void
+
+@expose("read/recursive")
+def read_recursive(args):
     return values.w_false
 
 def make_stub_predicates(*names):
