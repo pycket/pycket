@@ -935,6 +935,10 @@ def test_floor_denormalized(doctest):
     4
     > (floor (/ -17 4))
     -5
+    > (floor (/ -9223372036854775808 -1)
+    9223372036854775808
+    > (floor (/ -9223372036854775808 -1)
+    9223372036854775808
     """
 
 def test_truncate(doctest):

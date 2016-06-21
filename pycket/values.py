@@ -598,12 +598,16 @@ class W_Rational(W_AbstractRational):
 
 
 class W_DenormalizedFixnumRational(W_AbstractRational):
+    _immutable_fields_ = ['x', 'y']
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
     def _rational_normalize(self):
         return W_Rational.fromint(self.x, self.y)
+
+    def tostring(self):
+        return self._rational_normalize().tostring()
 
     def equal(self, other):
         if not isinstance(other, W_AbstractRational):

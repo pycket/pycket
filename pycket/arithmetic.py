@@ -1234,7 +1234,7 @@ class __extend__(values.W_DenormalizedFixnumRational):
         try:
             res = self.x // self.y
         except OverflowError:
-            W_MAXINT_PLUS_ONE
+            return W_MAXINT_PLUS_ONE
         return values.W_Fixnum(res)
 
     def arith_abs(self):
