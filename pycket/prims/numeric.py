@@ -6,7 +6,6 @@ import operator
 from pycket                                  import values
 from pycket                                  import vector as values_vector
 from pycket.arity                            import Arity
-from pycket.arithmetic                       import shift_to_odd
 from pycket.error                            import SchemeException
 from pycket.prims.expose                     import expose, default, unsafe
 

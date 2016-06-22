@@ -23,7 +23,7 @@ def int_floordiv_ovf(x, y):
     return int_c_div(x, y)
 
 @jit.elidable
-def shift_to_odd(u):
+def count_trailing_zeros(u):
     """
     Computes the number of lower order zero bits in the given rbigint.
     This information is used in the gcd algorithm which only works on odd integers.
@@ -50,6 +50,34 @@ def shift_to_odd(u):
 
     return shift
 
+def gcd1(u, v, sign=1):
+    from rpython.rlib.rbigint import rbigint, NULLRBIGINT
+
+    assert u > 0
+    assert v > 0
+
+    shift = 0
+    while not (u & 1) and not (v & 1):
+        shift += 1
+        u >>= 1
+        v >>= 1
+    while not (u & 1):
+        u >>= 1
+
+    while True:
+        while not (v & 0x1):
+            v >>= 1
+
+        if u > v:
+            u, v = v, u
+
+        v -= u
+        if not v:
+            break
+
+    result = u << shift
+    return rbigint([result], sign, 1)
+
 @jit.elidable
 def gcd(u, v):
     from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
@@ -65,8 +93,11 @@ def gcd(u, v):
     else:
         sign = 1
 
-    shiftu = shift_to_odd(u)
-    shiftv = shift_to_odd(v)
+    if u.size == 1 and v.size == 1:
+        return gcd1(u.digit(0), v.digit(0), sign)
+
+    shiftu = count_trailing_zeros(u)
+    shiftv = count_trailing_zeros(v)
     shift  = min(shiftu, shiftv)
 
     # Perform shift on each number, but guarantee that we will end up with a new
@@ -102,13 +133,13 @@ def gcd(u, v):
         # note: v is not zero, so while will terminate
         # XXX: Better to perform multiple inplace shifts, or one
         # shift which allocates a new array?
-        rshift = shift_to_odd(v)
+        rshift = count_trailing_zeros(v)
         while rshift >= SHIFT:
             assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
             rshift -= SHIFT - 1
         assert _v_rshift(v, v, v.numdigits(), rshift) == 0
         v._normalize()
-        # v = v.rshift(shift_to_odd(v))
+
     # restore common factors of 2
     result = u.lshift(shift)
     if sign == -1:
