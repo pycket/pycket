@@ -50,6 +50,7 @@ def count_trailing_zeros(u):
 
     return shift
 
+@jit.elidable
 def gcd1(u, v):
     """
     Single word variant of the gcd function. Expects u and v to be positive.
