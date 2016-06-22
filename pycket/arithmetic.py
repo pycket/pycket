@@ -51,7 +51,7 @@ def count_trailing_zeros(u):
     return shift
 
 def gcd1(u, v, sign=1):
-    from rpython.rlib.rbigint import rbigint, NULLRBIGINT
+    from rpython.rlib.rbigint import rbigint
 
     assert u > 0
     assert v > 0
