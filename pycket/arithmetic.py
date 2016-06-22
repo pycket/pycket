@@ -1237,6 +1237,21 @@ class __extend__(values.W_DenormalizedFixnumRational):
             return W_MAXINT_PLUS_ONE
         return values.W_Fixnum(res)
 
+    def arith_ceiling(self):
+        try:
+            res1 = self.x // self.y
+        except OverflowError:
+            return W_MAXINT_PLUS_ONE
+        res = res1 + 1
+        return values.W_Fixnum(res)
+
+    def arith_truncate(self):
+        assert self.x
+        if (self.x >= 0) == (self.y >= 0):
+            return self.arith_floor()
+        else:
+            return self.arith_ceiling()
+
     def arith_abs(self):
         return self._rational_normalize().arith_abs()
 
@@ -1251,12 +1266,6 @@ class __extend__(values.W_DenormalizedFixnumRational):
 
     def arith_round(self):
         return self._rational_normalize().arith_round()
-
-    def arith_ceiling(self):
-        return self._rational_normalize().arith_ceiling()
-
-    def arith_truncate(self):
-        return self._rational_normalize().arith_truncate()
 
     def arith_inexact_exact(self):
         return self._rational_normalize().arith_inexact_exact()

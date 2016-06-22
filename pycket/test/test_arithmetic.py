@@ -935,9 +935,19 @@ def test_floor_denormalized(doctest):
     4
     > (floor (/ -17 4))
     -5
-    > (floor (/ -9223372036854775808 -1)
+    > (floor (/ -9223372036854775808 -1))
     9223372036854775808
-    > (floor (/ -9223372036854775808 -1)
+    > (floor (/ -9223372036854775808 -1))
+    9223372036854775808
+    """
+
+def test_ceiling_denormalized(doctest):
+    """
+    > (ceiling (/ 17 4))
+    5
+    > (ceiling (/ -17 4))
+    -4
+    > (ceiling (/ -9223372036854775808 -1))
     9223372036854775808
     """
 
@@ -953,6 +963,16 @@ def test_truncate(doctest):
     -2.0
     > (truncate +inf.0)
     +inf.0
+    """
+
+def test_truncate_denormalized(doctest):
+    """
+    > (truncate (/ 17 4))
+    4
+    > (truncate (/ -17 4))
+    -4
+    > (truncate (/ -9223372036854775808 -1))
+    9223372036854775808
     """
 
 def test_flceiling(doctest):
