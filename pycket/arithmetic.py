@@ -50,7 +50,10 @@ def count_trailing_zeros(u):
 
     return shift
 
-def gcd1(u, v, sign=1):
+def gcd1(u, v):
+    """
+    Single word variant of the gcd function. Expects u and v to be positive.
+    """
     from rpython.rlib.rbigint import rbigint
 
     assert u > 0
@@ -76,11 +79,11 @@ def gcd1(u, v, sign=1):
             break
 
     result = u << shift
-    return rbigint([result], sign, 1)
+    return result
 
 @jit.elidable
 def gcd(u, v):
-    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
+    from rpython.rlib.rbigint import rbigint, _v_isub, _v_rshift, SHIFT
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
         return v.abs()
@@ -94,7 +97,8 @@ def gcd(u, v):
         sign = 1
 
     if u.size == 1 and v.size == 1:
-        return gcd1(u.digit(0), v.digit(0), sign)
+        result = gcd1(u.digit(0), v.digit(0))
+        return rbigint([result], sign, 1)
 
     shiftu = count_trailing_zeros(u)
     shiftv = count_trailing_zeros(v)
@@ -538,15 +542,23 @@ class __extend__(values.W_Fixnum):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Fixnum)
-        if other.value:
-            try:
-                res = rarithmetic.ovfcheck(self.value % other.value)
-                return other.arith_gcd(values.W_Fixnum(res))
-            except OverflowError:
-                return values.W_Bignum(
-                    rbigint.fromint(self.value)).arith_gcd(other)
-        else:
+        u = self.value
+        v = other.value
+
+        if not u:
+            return other
+        if not v:
             return self
+
+        if u < 0 and v < 0:
+            sign = -1
+        else:
+            sign = 1
+        u = abs(u)
+        v = abs(v)
+
+        result = gcd1(u, v)
+        return values.W_Fixnum(sign * result)
 
     # ------------------ abs ------------------
     def arith_abs(self):
