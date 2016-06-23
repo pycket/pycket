@@ -605,11 +605,11 @@ def test_gcd_random():
         else:
             assert gcd(a, b) == gcd(a, b.sub(a))
 
-def test_shift_to_odd():
+def test_count_trailing_zeros():
     from rpython.rlib.rbigint import ONERBIGINT
-    from pycket.arithmetic    import shift_to_odd
+    from pycket.arithmetic    import count_trailing_zeros
     for i in range(1025):
-        assert i == shift_to_odd(ONERBIGINT.lshift(i))
+        assert i == count_trailing_zeros(ONERBIGINT.lshift(i))
 
 def test_sub1(doctest):
     """
