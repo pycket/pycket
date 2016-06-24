@@ -1,6 +1,6 @@
 from pycket                    import values
 from pycket.error              import SchemeException
-from rpython.rlib              import rarithmetic, jit
+from rpython.rlib              import rarithmetic, jit, objectmodel
 from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
@@ -93,6 +93,8 @@ def gcd(u, v):
         result = gcd1(u.digit(0), v.digit(0))
         return rbigint([result], sign, 1)
 
+    # Compute the factors of 2 for u and v and record the number of
+    # common 2 factors in shift.
     shiftu = count_trailing_zeros(u)
     shiftv = count_trailing_zeros(v)
     shift  = min(shiftu, shiftv)
@@ -115,6 +117,12 @@ def gcd(u, v):
 
     # From here on, u is always odd.
     while True:
+
+        if u.size == 1 and v.size == 1:
+            digit = gcd1(u.digit(0), v.digit(0))
+            u = rbigint([digit], 1, 1)
+            break
+
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
         if u.gt(v):
@@ -137,10 +145,9 @@ def gcd(u, v):
         assert _v_rshift(v, v, v.numdigits(), rshift) == 0
         v._normalize()
 
-    # restore common factors of 2
+    # restore common factors of 2 and sign
     result = u.lshift(shift)
-    if sign == -1:
-        result = result.neg()
+    result.sign = sign
     return result
 
 if sys.maxint > 2147483647:
