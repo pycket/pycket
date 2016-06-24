@@ -5,15 +5,8 @@ from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 
-from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
-
-from rpython.rtyper.lltypesystem import lltype
-from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rlib.rarithmetic import r_uint, intmask
-from rpython.rlib import jit
 
 def int_floordiv_ovf(x, y):
     # JIT: intentionally not short-circuited to produce only one guard
