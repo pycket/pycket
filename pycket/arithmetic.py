@@ -48,7 +48,6 @@ def gcd1(u, v):
     """
     Single word variant of the gcd function. Expects u and v to be positive.
     """
-    from rpython.rlib.rbigint import rbigint
 
     assert u > 0
     assert v > 0
@@ -77,7 +76,7 @@ def gcd1(u, v):
 
 @jit.elidable
 def gcd(u, v):
-    from rpython.rlib.rbigint import rbigint, _v_isub, _v_rshift, SHIFT
+    from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
     if not u.tobool():
         return v.abs()
