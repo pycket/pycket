@@ -1334,18 +1334,54 @@ def vector_to_values(v, start, end, env, cont):
         vals = [None] * (l - s)
         return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
 
+def reader_graph_loop_cons(v, d):
+    assert isinstance(v, values.W_Cons)
+    p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
+    d[v] = p
+    car = reader_graph_loop(v.car(), d)
+    cdr = reader_graph_loop(v.cdr(), d)
+    p._car = car
+    p._cdr = cdr
+    # FIXME: should change this to say if it's a proper list now ...
+    return p
+
+def reader_graph_loop_vector(v, d):
+    assert isinstance(v, values_vector.W_Vector)
+    len = v.length()
+    p = values_vector.W_Vector.fromelement(values.w_false, len)
+    d[v] = p
+    for i in range(len):
+        vi = v.ref(i)
+        p.set(i, reader_graph_loop(vi, d))
+    return p
+
+def reader_graph_loop_struct(v, d):
+    assert isinstance(v, values_struct.W_Struct)
+
+    type = v.struct_type()
+    assert type.isprefab
+
+    size = v._get_size_list()
+    p = values_struct.W_Struct.make_n(size, type)
+    d[v] = p
+    for i in range(size):
+        val = reader_graph_loop(v._ref(i), d)
+        p._set_list(i, val)
+
+    return p
+
 def reader_graph_loop(v, d):
     if v in d:
         return d[v]
+    if v.is_proxy():
+        # XXX Living dangrously
+        v = imp.get_base_object(v)
     if isinstance(v, values.W_Cons):
-        p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
-        d[v] = p
-        car = reader_graph_loop(v.car(), d)
-        cdr = reader_graph_loop(v.cdr(), d)
-        p._car = car
-        p._cdr = cdr
-        # FIXME: should change this to say if it's a proper list now ...
-        return p
+        return reader_graph_loop_cons(v, d)
+    if isinstance(v, values_vector.W_Vector):
+        return reader_graph_loop_vector(v, d)
+    if isinstance(v, values_struct.W_Struct):
+        return reader_graph_loop_struct(v, d)
     if isinstance(v, values.W_Placeholder):
         return reader_graph_loop(v.value, d)
     # XXX FIXME: doesn't handle stuff
