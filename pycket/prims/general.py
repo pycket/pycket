@@ -1339,6 +1339,7 @@ class ReaderGraphBuilder(object):
     def __init__(self):
         self.state = {}
 
+    @objectmodel.always_inline
     def reader_graph_loop_cons(self, v):
         assert isinstance(v, values.W_Cons)
         p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
@@ -1350,6 +1351,7 @@ class ReaderGraphBuilder(object):
         # FIXME: should change this to say if it's a proper list now ...
         return p
 
+    @objectmodel.always_inline
     def reader_graph_loop_vector(self, v):
         assert isinstance(v, values_vector.W_Vector)
         len = v.length()
@@ -1360,6 +1362,7 @@ class ReaderGraphBuilder(object):
             p.set(i, self.reader_graph_loop(vi))
         return p
 
+    @objectmodel.always_inline
     def reader_graph_loop_struct(self, v):
         assert isinstance(v, values_struct.W_Struct)
 
@@ -1376,6 +1379,25 @@ class ReaderGraphBuilder(object):
 
         return p
 
+    @objectmodel.always_inline
+    def reader_graph_loop_hash(self, v):
+        from pycket.hash.simple import W_EqualImmutableHashTable
+        assert isinstance(v, W_EqualImmutableHashTable)
+        index = 0
+        p = v.make_empty()
+        self.state[v] = p
+        while True:
+            try:
+                key, val = v.get_item(index)
+                key = self.reader_graph_loop(key)
+                val = self.reader_graph_loop(val)
+                p.assoc_inplace(key, val)
+            except IndexError:
+                break
+            index += 1
+        return p
+
+    @jit.dont_look_inside
     def reader_graph_loop(self, v):
         if v in self.state:
             return self.state[v]
@@ -1388,6 +1410,8 @@ class ReaderGraphBuilder(object):
             return self.reader_graph_loop_vector(v)
         if isinstance(v, values_struct.W_Struct):
             return self.reader_graph_loop_struct(v)
+        if isinstance(v, W_HashTable):
+            return self.reader_graph_loop_hash(v)
         if isinstance(v, values.W_Placeholder):
             return self.reader_graph_loop(v.value)
         # XXX FIXME: doesn't handle stuff
