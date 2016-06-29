@@ -1359,7 +1359,8 @@ def reader_graph_loop_struct(v, d):
     assert isinstance(v, values_struct.W_Struct)
 
     type = v.struct_type()
-    assert type.isprefab
+    if not type.isprefab:
+        return v
 
     size = v._get_size_list()
     p = values_struct.W_Struct.make_n(size, type)
