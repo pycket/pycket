@@ -1,28 +1,22 @@
 from pycket                    import values
 from pycket.error              import SchemeException
-from rpython.rlib              import rarithmetic, jit
+from rpython.rlib              import rarithmetic, jit, objectmodel
 from rpython.rlib.rarithmetic  import r_int, r_uint, intmask, int_c_div
 from rpython.rlib.objectmodel  import specialize
 from rpython.rlib.rbigint      import rbigint, NULLRBIGINT, ONERBIGINT
 
-from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rtyper.lltypesystem.lltype      import Signed
 import math
 import sys
 
-from pypy.interpreter.gateway import unwrap_spec
-from rpython.rtyper.lltypesystem import lltype
-from rpython.rtyper.lltypesystem.lloperation import llop
-from rpython.rlib.rarithmetic import r_uint, intmask
-from rpython.rlib import jit
-
 def int_floordiv_ovf(x, y):
-    if y == -1 and x < 0 and (r_uint(x) << 1) == 0:
+    # JIT: intentionally not short-circuited to produce only one guard
+    # and to remove the check fully if one of the arguments is known
+    if (x == -sys.maxint - 1) & (y == -1):
         raise OverflowError("integer division")
     return int_c_div(x, y)
 
 @jit.elidable
-def shift_to_odd(u):
+def count_trailing_zeros(u):
     """
     Computes the number of lower order zero bits in the given rbigint.
     This information is used in the gcd algorithm which only works on odd integers.
@@ -50,6 +44,37 @@ def shift_to_odd(u):
     return shift
 
 @jit.elidable
+def gcd1(u, v):
+    """
+    Single word variant of the gcd function. Expects u and v to be positive.
+    """
+
+    assert u > 0
+    assert v > 0
+
+    shift = 0
+    while not (u & 1) and not (v & 1):
+        shift += 1
+        u >>= 1
+        v >>= 1
+    while not (u & 1):
+        u >>= 1
+
+    while True:
+        while not (v & 0x1):
+            v >>= 1
+
+        if u > v:
+            u, v = v, u
+
+        v -= u
+        if not v:
+            break
+
+    result = u << shift
+    return result
+
+@jit.elidable
 def gcd(u, v):
     from rpython.rlib.rbigint import _v_isub, _v_rshift, SHIFT
     # binary gcd from https://en.wikipedia.org/wiki/Binary_GCD_algorithm
@@ -64,8 +89,14 @@ def gcd(u, v):
     else:
         sign = 1
 
-    shiftu = shift_to_odd(u)
-    shiftv = shift_to_odd(v)
+    if u.size == 1 and v.size == 1:
+        result = gcd1(u.digit(0), v.digit(0))
+        return rbigint([result], sign, 1)
+
+    # Compute the factors of 2 for u and v and record the number of
+    # common 2 factors in shift.
+    shiftu = count_trailing_zeros(u)
+    shiftv = count_trailing_zeros(v)
     shift  = min(shiftu, shiftv)
 
     # Perform shift on each number, but guarantee that we will end up with a new
@@ -86,6 +117,12 @@ def gcd(u, v):
 
     # From here on, u is always odd.
     while True:
+
+        if u.size == 1 and v.size == 1:
+            digit = gcd1(u.digit(0), v.digit(0))
+            u = rbigint([digit], 1, 1)
+            break
+
         # Now u and v are both odd. Swap if necessary so u <= v,
         # then set v = v - u (which is even).
         if u.gt(v):
@@ -101,17 +138,16 @@ def gcd(u, v):
         # note: v is not zero, so while will terminate
         # XXX: Better to perform multiple inplace shifts, or one
         # shift which allocates a new array?
-        rshift = shift_to_odd(v)
+        rshift = count_trailing_zeros(v)
         while rshift >= SHIFT:
             assert _v_rshift(v, v, v.numdigits(), SHIFT - 1) == 0
             rshift -= SHIFT - 1
         assert _v_rshift(v, v, v.numdigits(), rshift) == 0
         v._normalize()
-        # v = v.rshift(shift_to_odd(v))
-    # restore common factors of 2
+
+    # restore common factors of 2 and sign
     result = u.lshift(shift)
-    if sign == -1:
-        result = result.neg()
+    result.sign = sign
     return result
 
 if sys.maxint > 2147483647:
@@ -426,7 +462,8 @@ class __extend__(values.W_Fixnum):
             return self.arith_div(values.W_Bignum(rbigint.fromint(other.value)))
         if res * other.value == self.value:
             return values.W_Fixnum(res)
-        return values.W_Rational.fromint(self.value, other.value)
+        return values.W_Rational.fromint(
+            self.value, other.value, need_to_check=False)
 
     def arith_mod_same(self, other):
         assert isinstance(other, values.W_Fixnum)
@@ -505,15 +542,23 @@ class __extend__(values.W_Fixnum):
 
     def arith_gcd_same(self, other):
         assert isinstance(other, values.W_Fixnum)
-        if other.value:
-            try:
-                res = rarithmetic.ovfcheck(self.value % other.value)
-                return other.arith_gcd(values.W_Fixnum(res))
-            except OverflowError:
-                return values.W_Bignum(
-                    rbigint.fromint(self.value)).arith_gcd(other)
-        else:
+        u = self.value
+        v = other.value
+
+        if not u:
+            return other
+        if not v:
             return self
+
+        if u < 0 and v < 0:
+            sign = -1
+        else:
+            sign = 1
+        u = abs(u)
+        v = abs(v)
+
+        result = gcd1(u, v)
+        return values.W_Fixnum(sign * result)
 
     # ------------------ abs ------------------
     def arith_abs(self):
@@ -870,7 +915,8 @@ class __extend__(values.W_Bignum):
         except ZeroDivisionError:
             raise SchemeException("zero_divisor")
         if mod.tobool():
-            return values.W_Rational.frombigint(self.value, other.value)
+            return values.W_Rational.frombigint(
+                    self.value, other.value, need_to_check=False)
         return values.W_Integer.frombigint(res)
 
     def arith_mod_same(self, other):

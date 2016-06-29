@@ -937,7 +937,7 @@ class W_StructConstructor(values.W_Procedure):
         return self.type.constructor_arity
 
     def tostring(self):
-        return "#<procedure:%s>" % self.type.name
+        return "#<procedure:%s>" % self.type.name.variable_name()
 
 class W_StructPredicate(values.W_Procedure):
     errorname = "struct-predicate"
@@ -964,7 +964,7 @@ class W_StructPredicate(values.W_Procedure):
         return Arity.ONE
 
     def tostring(self):
-        return "#<procedure:%s?>" % self.type.name
+        return "#<procedure:%s?>" % self.type.name.variable_name()
 
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
@@ -990,7 +990,8 @@ class W_StructFieldAccessor(values.W_Procedure):
         return self.accessor.access(struct, self.field, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-%s>" % (self.accessor.type.name, self.field_name.variable_name())
+        name = self.accessor.type.name.variable_name()
+        return "#<procedure:%s-%s>" % (name, self.field_name.variable_name())
 
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"

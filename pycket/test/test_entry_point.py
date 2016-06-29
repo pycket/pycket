@@ -13,7 +13,7 @@ entry_point = make_entry_point()
 
 class TestOptions(object):
 
-    ok_jit_args = ['--jit', 'trace_limit=30000']
+    ok_jit_args = ['--jit', 'trace_limit=13000']
 
     def test_no_args(self):
         config, names, args, retval = parse_args(['arg0'])
@@ -167,9 +167,9 @@ class TestCommandline(object):
 
     def test_jitarg_works(self, empty_json):
         assert entry_point(
-            ['arg0', '--jit', 'trace_limit=30000',empty_json]) == 0
+            ['arg0', '--jit', 'trace_limit=13000',empty_json]) == 0
         assert entry_point(
-            ['arg0', empty_json, '--jit', 'trace_limit=30000']) == 0
+            ['arg0', empty_json, '--jit', 'trace_limit=13000']) == 0
 
     def test_eval(self, capfd):
         printval = 42
