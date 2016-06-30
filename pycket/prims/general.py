@@ -1389,11 +1389,12 @@ class ReaderGraphBuilder(object):
         while True:
             try:
                 key, val = v.get_item(index)
+            except IndexError:
+                break
+            else:
                 key = self.reader_graph_loop(key)
                 val = self.reader_graph_loop(val)
                 p.assoc_inplace(key, val)
-            except IndexError:
-                break
             index += 1
         return p
 
