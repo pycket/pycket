@@ -1377,11 +1377,11 @@ class ReaderGraphBuilder(object):
         return p
 
     def reader_graph_loop(self, v):
-        if v in self.state:
-            return self.state[v]
         if v.is_proxy():
             # XXX Living dangrously
             v = imp.get_base_object(v)
+        if v in self.state:
+            return self.state[v]
         if isinstance(v, values.W_Cons):
             return self.reader_graph_loop_cons(v)
         if isinstance(v, values_vector.W_Vector):
