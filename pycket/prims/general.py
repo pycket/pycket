@@ -1399,11 +1399,11 @@ class ReaderGraphBuilder(object):
 
     @jit.dont_look_inside
     def reader_graph_loop(self, v):
-        if v in self.state:
-            return self.state[v]
         if v.is_proxy():
             # XXX Living dangrously
             v = imp.get_base_object(v)
+        if v in self.state:
+            return self.state[v]
         if isinstance(v, values.W_Cons):
             return self.reader_graph_loop_cons(v)
         if isinstance(v, values_vector.W_Vector):
@@ -1444,10 +1444,10 @@ def cache_configuration(val, proc):
     """
     return values.w_false
 
-@expose("make-readtable")
-def make_readtable(args):
-    print "making readtable", args
-    return values.w_void
+@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
+def make_readtable(parent, char, sym, proc):
+    print "making readtable", [parent, char, sym, proc]
+    return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive")
 def read_recursive(args):
