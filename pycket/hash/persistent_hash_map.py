@@ -541,6 +541,21 @@ def make_persistent_hash_type(
             return vals
 
         @jit.dont_look_inside
+        def assoc_inplace(self, key, val):
+            key = restrict_key_type(key)
+            val = restrict_val_type(val)
+            added_leaf = Box()
+
+            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
+            hash = hashfun(key) & MASK_32
+
+            new_root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
+
+            self._root = new_root
+            self._cnt  = added_leaf.adjust_size(self._cnt)
+            return self
+
+        @jit.dont_look_inside
         def assoc(self, key, val):
             key = restrict_key_type(key)
             val = restrict_val_type(val)

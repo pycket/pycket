@@ -1334,26 +1334,94 @@ def vector_to_values(v, start, end, env, cont):
         vals = [None] * (l - s)
         return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
 
-def reader_graph_loop(v, d):
-    if v in d:
-        return d[v]
-    if isinstance(v, values.W_Cons):
+class ReaderGraphBuilder(object):
+
+    def __init__(self):
+        self.state = {}
+
+    @objectmodel.always_inline
+    def reader_graph_loop_cons(self, v):
+        assert isinstance(v, values.W_Cons)
         p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
-        d[v] = p
-        car = reader_graph_loop(v.car(), d)
-        cdr = reader_graph_loop(v.cdr(), d)
+        self.state[v] = p
+        car = self.reader_graph_loop(v.car())
+        cdr = self.reader_graph_loop(v.cdr())
         p._car = car
         p._cdr = cdr
         # FIXME: should change this to say if it's a proper list now ...
         return p
-    if isinstance(v, values.W_Placeholder):
-        return reader_graph_loop(v.value, d)
-    # XXX FIXME: doesn't handle stuff
-    return v
+
+    @objectmodel.always_inline
+    def reader_graph_loop_vector(self, v):
+        assert isinstance(v, values_vector.W_Vector)
+        len = v.length()
+        p = values_vector.W_Vector.fromelement(values.w_false, len)
+        self.state[v] = p
+        for i in range(len):
+            vi = v.ref(i)
+            p.set(i, self.reader_graph_loop(vi))
+        return p
+
+    @objectmodel.always_inline
+    def reader_graph_loop_struct(self, v):
+        assert isinstance(v, values_struct.W_Struct)
+
+        type = v.struct_type()
+        if not type.isprefab:
+            return v
+
+        size = v._get_size_list()
+        p = values_struct.W_Struct.make_n(size, type)
+        self.state[v] = p
+        for i in range(size):
+            val = self.reader_graph_loop(v._ref(i))
+            p._set_list(i, val)
+
+        return p
+
+    @objectmodel.always_inline
+    def reader_graph_loop_hash(self, v):
+        from pycket.hash.simple import W_EqualImmutableHashTable
+        assert isinstance(v, W_EqualImmutableHashTable)
+        index = 0
+        p = v.make_empty()
+        self.state[v] = p
+        while True:
+            try:
+                key, val = v.get_item(index)
+            except IndexError:
+                break
+            else:
+                key = self.reader_graph_loop(key)
+                val = self.reader_graph_loop(val)
+                p.assoc_inplace(key, val)
+            index += 1
+        return p
+
+    @jit.dont_look_inside
+    def reader_graph_loop(self, v):
+        if v.is_proxy():
+            # XXX Living dangrously
+            v = imp.get_base_object(v)
+        if v in self.state:
+            return self.state[v]
+        if isinstance(v, values.W_Cons):
+            return self.reader_graph_loop_cons(v)
+        if isinstance(v, values_vector.W_Vector):
+            return self.reader_graph_loop_vector(v)
+        if isinstance(v, values_struct.W_Struct):
+            return self.reader_graph_loop_struct(v)
+        if isinstance(v, W_HashTable):
+            return self.reader_graph_loop_hash(v)
+        if isinstance(v, values.W_Placeholder):
+            return self.reader_graph_loop(v.value)
+        # XXX FIXME: doesn't handle stuff
+        return v
 
 @expose("make-reader-graph", [values.W_Object])
 def make_reader_graph(v):
-    return reader_graph_loop(v, {})
+    builder = ReaderGraphBuilder()
+    return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
 def procedure_specialize(proc):
@@ -1377,10 +1445,10 @@ def cache_configuration(val, proc):
     """
     return values.w_false
 
-@expose("make-readtable")
-def make_readtable(args):
-    print "making readtable", args
-    return values.w_void
+@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
+def make_readtable(parent, char, sym, proc):
+    print "making readtable", [parent, char, sym, proc]
+    return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive")
 def read_recursive(args):

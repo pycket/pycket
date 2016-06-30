@@ -226,7 +226,7 @@ class __extend__(W_EqualImmutableHashTable):
         return self
 
     def make_empty(self):
-        return W_EqImmutableHashTable.EMPTY
+        return W_EqualImmutableHashTable.EMPTY
 
     def tostring(self):
         entries = [None] * len(self)

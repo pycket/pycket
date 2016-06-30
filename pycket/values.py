@@ -24,18 +24,6 @@ from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check
 
 UNROLLING_CUTOFF = 5
 
-def elidable_iff(pred):
-    def wrapper(func):
-        func = jit.unroll_safe(func)
-
-        def trampoline(*args):
-            if jit.we_are_jitted() and pred(*args):
-                return elidable_func(*args)
-            return func(*args)
-
-        return trampoline
-    return wrapper
-
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
     def __init__(self):
@@ -1410,6 +1398,14 @@ class W_EOF(W_Object):
         return "#<eof>"
 
 eof_object = W_EOF()
+
+class W_ReadTable(W_Object):
+    errorname = "readtable"
+    def __init__(self, parent, key, mode, action):
+        self.parent = parent
+        self.key = key
+        self.mode = mode
+        self.action = action
 
 class W_Port(W_Object):
     errorname = "port"
