@@ -193,14 +193,17 @@ def read_stream_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     port = check_one_val(_vals)
     rt = current_readtable_param.get(cont)
-    if rt == values.w_false:
+    if rt is values.w_false:
         rt = None
+    else:
+        assert isinstance(rt, values.W_ReadTable)
     return read_stream_rt(port, rt, env, cont)
 
 def read_stream_rt(port, rt, env, cont):
     from pycket.interpreter import check_one_val, return_value
     if rt is not None:
         c = port.peek()
+        c = c[0]
         if c == rt.key.value:
             port.read(1) # since we peeked
             args = [values.W_Character(c), port, values.w_false, values.w_false, values.w_false, values.w_false]
