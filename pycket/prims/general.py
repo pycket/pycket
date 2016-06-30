@@ -1420,10 +1420,10 @@ def cache_configuration(val, proc):
     """
     return values.w_false
 
-@expose("make-readtable")
-def make_readtable(args):
-    print "making readtable", args
-    return values.w_void
+@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
+def make_readtable(parent, char, sym, proc):
+    print "making readtable", [parent, char, sym, proc]
+    return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive")
 def read_recursive(args):

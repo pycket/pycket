@@ -1398,6 +1398,14 @@ class W_EOF(W_Object):
 
 eof_object = W_EOF()
 
+class W_ReadTable(W_Object):
+    errorname = "readtable"
+    def __init__(self, parent, key, mode, action):
+        self.parent = parent
+        self.key = key
+        self.mode = mode
+        self.action = action
+
 class W_Port(W_Object):
     errorname = "port"
     _attrs_ = ['closed']
