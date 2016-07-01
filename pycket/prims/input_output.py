@@ -200,13 +200,13 @@ def read_stream_cont(env, cont, _vals):
     return read_stream_rt(port, rt, env, cont)
 
 def read_stream_rt(port, rt, env, cont):
-    from pycket.interpreter import check_one_val, return_value
+    from pycket.interpreter import return_value
     if rt is not None:
         c = port.peek()
         c = c[0]
         if c == rt.key.value:
             port.read(1) # since we peeked
-            args = [values.W_Character(c), port, values.w_false, values.w_false, values.w_false, values.w_false]
+            args = [rt.key, port, values.w_false, values.w_false, values.w_false, values.w_false]
             return rt.action.call(args, env, cont)
     # ignore the possibility that the readtable is relevant in the future
     return return_value(read_stream(port), env, cont)
