@@ -1384,7 +1384,7 @@ class ReaderGraphBuilder(object):
         from pycket.hash.simple import W_EqualImmutableHashTable
         assert isinstance(v, W_EqualImmutableHashTable)
         index = 0
-        p = v.make_empty()
+        p = v.make_empty().make_shallow_copy()
         self.state[v] = p
         while True:
             try:
@@ -1447,7 +1447,6 @@ def cache_configuration(val, proc):
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
 def make_readtable(parent, char, sym, proc):
-    print "making readtable", [parent, char, sym, proc]
     return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive")
