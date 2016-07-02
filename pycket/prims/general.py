@@ -178,6 +178,10 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
+@expose("srcloc->string", [values.W_Object])
+def srcloc_to_string(obj):
+    return values.w_false
+
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
