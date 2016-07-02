@@ -519,6 +519,11 @@ class __extend__(values.W_Fixnum):
 
     def arith_shl_same(self, other):
         assert isinstance(other, values.W_Fixnum)
+        if other.value >= r_int.BITS:
+            if not self.value:
+                return values.W_Fixnum.ZERO
+            val = rbigint.fromint(self.value).lshift(other.value)
+            return values.W_Integer.frombigint(val)
         try:
             res = rarithmetic.ovfcheck(self.value << other.value)
         except OverflowError:

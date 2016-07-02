@@ -1377,6 +1377,7 @@ class ReaderGraphBuilder(object):
         return p
 
     def reader_graph_loop(self, v):
+        assert v is not None
         if v.is_proxy():
             # XXX Living dangrously
             v = imp.get_base_object(v)
@@ -1394,6 +1395,7 @@ class ReaderGraphBuilder(object):
         return v
 
 @expose("make-reader-graph", [values.W_Object])
+@jit.dont_look_inside
 def make_reader_graph(v):
     builder = ReaderGraphBuilder()
     return builder.reader_graph_loop(v)
