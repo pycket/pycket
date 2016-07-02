@@ -1380,13 +1380,20 @@ class ReaderGraphBuilder(object):
 
         return p
 
+    @objectmodel.always_inline
+    def reader_graph_loop_proxy(self, v):
+        assert v.is_proxy()
+        inner = self.reader_graph_loop(v.get_proxied())
+        p = v.replace_proxied(inner)
+        self.state[v] = p
+        return p
+
     def reader_graph_loop(self, v):
         assert v is not None
-        if v.is_proxy():
-            # XXX Living dangrously
-            v = imp.get_base_object(v)
         if v in self.state:
             return self.state[v]
+        if v.is_proxy():
+            return self.reader_graph_loop_proxy(v)
         if isinstance(v, values.W_Cons):
             return self.reader_graph_loop_cons(v)
         if isinstance(v, values_vector.W_Vector):

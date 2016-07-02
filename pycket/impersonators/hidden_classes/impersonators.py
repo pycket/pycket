@@ -127,6 +127,10 @@ class W_InterposeVector(values.W_MVector):
     def length(self):
         return get_base_object(self.base).length()
 
+    def replace_proxied(self, other):
+        storage = self._get_full_list()
+        return self.make(storage, self.inner, self.refh, self.seth, self.property_map)
+
     def post_set_cont(self, new, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
