@@ -53,6 +53,7 @@ class W_InterposeBox(values.W_Box):
     def post_set_box_cont(self, val, env, cont):
         raise NotImplementedError("abstract method")
 
+    @jit.unroll_safe
     def unbox(self, env, cont):
         while isinstance(self, W_InterposeBox):
             cont = self.post_unbox_cont(env, cont)

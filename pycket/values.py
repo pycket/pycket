@@ -1365,10 +1365,11 @@ class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
-    _immutable_fields_ = ["closure"]
+    _immutable_fields_ = ["closure", "arity"]
 
     def __init__(self, caselam, toplevel_env):
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        self.arity   = caselam._arity
 
     def enable_jitting(self):
         self.closure.enable_jitting()
@@ -1382,7 +1383,7 @@ class W_PromotableClosure(W_Procedure):
         return self.closure.call_with_extra_info(args, env, cont, calling_app)
 
     def get_arity(self):
-        return self.closure.get_arity()
+        return self.arity
 
     def tostring(self):
         return self.closure.tostring()
@@ -1401,6 +1402,9 @@ eof_object = W_EOF()
 
 class W_ReadTable(W_Object):
     errorname = "readtable"
+
+    _immutable_fields_ = ["parent", "key", "mode", "action"]
+
     def __init__(self, parent, key, mode, action):
         self.parent = parent
         self.key = key
