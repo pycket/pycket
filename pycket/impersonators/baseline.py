@@ -216,17 +216,12 @@ class W_InterposeProcedure(values.W_Procedure):
     _immutable_fields_ = ["inner", "check", "properties"]
 
     @jit.unroll_safe
-    def __init__(self, code, check, prop_keys, prop_vals):
+    def __init__(self, code, check, properties):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
-        self.properties = {}
-        if prop_keys is not None:
-            for i, k in enumerate(prop_keys):
-                assert isinstance(k, W_ImpPropertyDescriptor)
-                self.properties[k] = prop_vals[i]
+        self.properties = properties
 
     @staticmethod
     def has_self_arg():
