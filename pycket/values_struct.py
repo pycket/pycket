@@ -817,7 +817,7 @@ def ncr(n,r):
 
 @jit.unroll_safe
 def lookup_struct_class(constant_false):
-    if constant_false and constant_false[-1] < CONST_FALSE_SIZE:
+    if CONST_FALSE_SIZE and constant_false and constant_false[-1] < CONST_FALSE_SIZE:
         n = CONST_FALSE_SIZE
         pos = 0
         # offset of combinations with smaller amount of fields
@@ -868,12 +868,15 @@ def splice_array(array, index, insertion):
 def construct_struct_final(struct_type, field_values, env, cont):
     from pycket.interpreter import return_value
     assert len(field_values) == struct_type.total_field_cnt
-    constant_false = []
+    if CONST_FALSE_SIZE:
+        constant_false = []
+    else:
+        constant_false = None
     for i, value in enumerate(field_values):
         if not struct_type.is_immutable_field_index(i):
             value = values.W_Cell(value)
             field_values[i] = value
-        elif value is values.w_false:
+        elif CONST_FALSE_SIZE and value is values.w_false:
             constant_false.append(i)
     cls = lookup_struct_class(constant_false)
     if cls is not W_Struct:

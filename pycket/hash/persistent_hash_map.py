@@ -651,7 +651,7 @@ def make_persistent_hash_type(
         def singleton(key, val=None):
             return PersistentHashMap.EMPTY.assoc(key, val)
 
-        def make_copy(self):
+        def make_shallow_copy(self):
             return PersistentHashMap(self._cnt, self._root)
 
     PersistentHashMap.__name__ = name

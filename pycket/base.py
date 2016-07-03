@@ -97,6 +97,8 @@ class W_Object(W_ProtoObject):
         return {}
     def is_non_interposing_chaperone(self):
         return False
+    def replace_proxied(self, other):
+        raise ValueError("Not a proxy")
 
     def is_proper_list(self):
         return False

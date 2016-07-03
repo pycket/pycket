@@ -250,6 +250,10 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
         return (not has_accessor(map.handlers) and
                 has_property_descriptor(map.properties))
 
+    def replace_proxied(self, other):
+        storage = self._get_full_list()
+        return self.make(storage, other, self.map)
+
     def struct_type(self):
         return get_base_object(self.base).struct_type()
 

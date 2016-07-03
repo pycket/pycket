@@ -178,6 +178,10 @@ def syntax_numbers(stx):
     # XXX Obviously not correct
     return values.w_false
 
+@expose("srcloc->string", [values.W_Object])
+def srcloc_to_string(obj):
+    return values.w_false
+
 expose_val("null", values.w_null)
 expose_val("true", values.w_true)
 expose_val("false", values.w_false)
@@ -1384,7 +1388,7 @@ class ReaderGraphBuilder(object):
         from pycket.hash.simple import W_EqualImmutableHashTable
         assert isinstance(v, W_EqualImmutableHashTable)
         index = 0
-        p = v.make_empty()
+        p = v.make_empty().make_shallow_copy()
         self.state[v] = p
         while True:
             try:
@@ -1398,13 +1402,21 @@ class ReaderGraphBuilder(object):
             index += 1
         return p
 
+    @objectmodel.always_inline
+    def reader_graph_loop_proxy(self, v):
+        assert v.is_proxy()
+        inner = self.reader_graph_loop(v.get_proxied())
+        p = v.replace_proxied(inner)
+        self.state[v] = p
+        return p
+
     @jit.dont_look_inside
     def reader_graph_loop(self, v):
-        if v.is_proxy():
-            # XXX Living dangrously
-            v = imp.get_base_object(v)
+        assert v is not None
         if v in self.state:
             return self.state[v]
+        if v.is_proxy():
+            return self.reader_graph_loop_proxy(v)
         if isinstance(v, values.W_Cons):
             return self.reader_graph_loop_cons(v)
         if isinstance(v, values_vector.W_Vector):
@@ -1419,7 +1431,22 @@ class ReaderGraphBuilder(object):
         return v
 
 @expose("make-reader-graph", [values.W_Object])
+@jit.dont_look_inside
 def make_reader_graph(v):
+    from rpython.rlib.nonconst import NonConstant
+    if NonConstant(False):
+        # XXX JIT seems be generating questionable code when the argument of
+        # make-reader-graph is a virtual cons cell. The car and cdr fields get
+        # set by the generated code after the call, causing reader_graph_loop to
+        # crash. I suspect the problem has to do with the translators effect analysis.
+        # Example:
+        # p29 = new_with_vtable(descr=<SizeDescr 24>)
+        # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
+        # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
+        # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
+        if isinstance(v, values.W_WrappedCons):
+            print v._car.tostring()
+            print v._cdr.tostring()
     builder = ReaderGraphBuilder()
     return builder.reader_graph_loop(v)
 
@@ -1447,7 +1474,6 @@ def cache_configuration(val, proc):
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
 def make_readtable(parent, char, sym, proc):
-    print "making readtable", [parent, char, sym, proc]
     return values.W_ReadTable(parent, char, sym, proc)
 
 @expose("read/recursive")
