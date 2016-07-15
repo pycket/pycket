@@ -366,7 +366,7 @@ class ConstantVectorStrategy(VectorStrategy):
             else:
                 newstrategy = ObjectVectorStrategy.singleton
         elif hinttype is W_Flonum and valtype is W_Fixnum and val.value == 0:
-            newstrategy = FlonumFixnum0VectorStrategy.singleton
+            newstrategy = FlonumTaggedVectorStrategy.singleton
         else:
             newstrategy = ObjectVectorStrategy.singleton
         storage = newstrategy.create_storage_for_element(val, len)
@@ -481,7 +481,7 @@ class FlonumVectorStrategy(VectorStrategy):
 
     def dehomogenize(self, w_vector, hint):
         if type(hint) is W_Fixnum and hint.value == 0:
-            new_strategy = FlonumFixnum0VectorStrategy.singleton
+            new_strategy = FlonumTaggedVectorStrategy.singleton
             w_vector.set_strategy(new_strategy)
         else:
             VectorStrategy.dehomogenize(self, w_vector, hint)
@@ -489,7 +489,7 @@ class FlonumVectorStrategy(VectorStrategy):
 class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
-class FlonumFixnum0VectorStrategy(FlonumVectorStrategy):
+class FlonumTaggedVectorStrategy(FlonumVectorStrategy):
 
     def is_correct_type(self, w_vector, w_obj):
         if isinstance(w_obj, W_Fixnum):
@@ -509,9 +509,9 @@ class FlonumFixnum0VectorStrategy(FlonumVectorStrategy):
         return w_val.value
 
     def immutable_variant(self):
-        return FlonumFixnum0ImmutableVectorStrategy.singleton
+        return FlonumTaggedImmutableVectorStrategy.singleton
 
-class FlonumFixnum0ImmutableVectorStrategy(FlonumFixnum0VectorStrategy):
+class FlonumTaggedImmutableVectorStrategy(FlonumTaggedVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
 @specialize.argtype(0)
