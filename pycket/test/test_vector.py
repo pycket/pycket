@@ -71,7 +71,7 @@ def test_vec_strategies_stays_flonum():
     vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 5.5) vec)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
     vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 0) vec)")
-    assert isinstance(vec.strategy, FlonumVectorStrategy)
+    assert isinstance(vec.strategy, FlonumFixnum0VectorStrategy)
 
 def test_vec_strategies_dehomogenize():
     vec = run('(let ([vec (vector 1 2 3)]) (vector-set! vec 1 "Anna") vec)')
