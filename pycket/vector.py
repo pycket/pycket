@@ -356,15 +356,17 @@ class ConstantVectorStrategy(VectorStrategy):
         len = w_vector.length()
         hinttype = type(hint)
         valtype = type(val)
-        if len and hinttype is valtype:
+        if not len:
+            newstrategy = ObjectVectorStrategy.singleton
+        elif hinttype is valtype:
             if valtype is W_Fixnum:
                 newstrategy = FixnumVectorStrategy.singleton
             elif valtype is W_Flonum:
                 newstrategy = FlonumVectorStrategy.singleton
-            elif hinttype is W_Flonum and valtype is W_Fixnum and hint.value == 0:
-                newstrategy = FlonumFixnum0VectorStrategy.singleton
             else:
                 newstrategy = ObjectVectorStrategy.singleton
+        elif hinttype is W_Flonum and valtype is W_Fixnum and val.value == 0:
+            newstrategy = FlonumFixnum0VectorStrategy.singleton
         else:
             newstrategy = ObjectVectorStrategy.singleton
         storage = newstrategy.create_storage_for_element(val, len)
