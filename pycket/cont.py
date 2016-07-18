@@ -64,6 +64,10 @@ class BaseCont(object):
         from pycket.interpreter import return_void
         return return_void(env, cont)
 
+    def rewind(self, env, cont):
+        from pycket.interpreter import return_void
+        return return_void(env, cont)
+
     def clone(self):
         result = self._clone()
         if self.marks is not None:
