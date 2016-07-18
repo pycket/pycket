@@ -96,6 +96,7 @@ def find_merge_point(c1, c2):
         j -= 1
     return r1, r2, unwind, rewind
 
+@jit.unroll_safe
 def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
     from pycket.interpreter import return_multi_vals, return_void
 
