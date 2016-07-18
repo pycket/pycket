@@ -59,19 +59,24 @@ def convert_runtime_exception(exn, env, cont):
     return exn_fail.constructor.call([message, marks], env, cont)
 
 @jit.elidable
-def scan_continuation(curr, prompt_tag):
+def scan_continuation(curr, prompt_tag, look_for=None):
     """
     Segment a continuation based on a given continuation-prompt-tag.
     The head of the continuation, up to and including the desired continuation
     prompt is reversed (in place), and the tail is returned un-altered.
     """
+    handlers = False
     xs = []
     while isinstance(curr, Cont):
+        if curr is look_for:
+            return None, handlers
+        if isinstance(curr, DynamicWindValueCont):
+            handlers = True
         xs.append(curr)
         if isinstance(curr, Prompt) and curr.tag is prompt_tag:
             break
         curr = curr.prev
-    return xs
+    return xs, handlers
 
 @jit.elidable
 def find_merge_point(c1, c2):
@@ -96,6 +101,33 @@ def find_merge_point(c1, c2):
         j -= 1
     return r1, r2, unwind, rewind
 
+@jit.elidable
+def find_handlers(cont, target):
+    result = None
+    while cont is not target:
+        assert isinstance(cont, Cont)
+        if isinstance(cont, DynamicWindValueCont):
+            if not result:
+                result = []
+            result.append(cont)
+        cont = cont.prev
+    return result
+
+@jit.unroll_safe
+def install_continuation_fast_path(current_cont, args, has_handlers, env, cont):
+    from pycket.interpreter import return_multi_vals, return_void
+
+    if not has_handlers:
+        args = values.Values.make(args)
+        return return_multi_vals(args, env, cont)
+
+    unwind = find_handlers(current_cont, cont)
+    cont = return_args_cont(args, env, cont)
+    unwind = [x for x in reversed(unwind)]
+    cont = do_unwind_cont(unwind, env, cont)
+    return return_void(env, cont)
+
+
 @jit.unroll_safe
 def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
     from pycket.interpreter import return_multi_vals, return_void
@@ -110,8 +142,10 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
         base, unwind = current_cont, None
         stop         = None
     else:
-        head1 = scan_continuation(current_cont, prompt_tag)
-        head2 = scan_continuation(cont, prompt_tag)
+        head1, handlers = scan_continuation(current_cont, prompt_tag, look_for=cont)
+        if head1 is None:
+            return install_continuation_fast_path(current_cont, args, handlers, env, cont)
+        head2, _ = scan_continuation(cont, prompt_tag)
         base, stop, unwind, rewind = find_merge_point(head1, head2)
 
     # Append the continuations at the appropriate prompt
