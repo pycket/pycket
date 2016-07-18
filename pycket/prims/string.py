@@ -488,7 +488,7 @@ def make_bytes_compare(op):
                 continue
             return op(xi, yi)
         return op(lx, ly)
-    return bytes_comp
+    return bytes_compare
 
 for a in [("bytes<?"  , op.lt) ,
           ("bytes<=?" , op.le) ,
