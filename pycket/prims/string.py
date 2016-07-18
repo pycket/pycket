@@ -400,8 +400,8 @@ def unsafe_bytes_set_bang(s, n, v):
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
     l = values.from_list(w_list)
-    ll = [' '] * len(l)
-    for (i,x) in enumerate(l):
+    ll = ['\0'] * len(l)
+    for i, x in enumerate(l):
         if not isinstance(x, values.W_Fixnum):
             raise SchemeException("list->bytes: expected fixnum, got %s" % x)
         if x.value < 0 or x.value >= 256:
@@ -460,6 +460,7 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     return values.w_void
 
 def define_bytes_comp(name, op):
+    compare = make_bytes_compare(op)
     @expose(name)
     @jit.unroll_safe
     def comp(args):
@@ -471,16 +472,29 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not op(str(head.value), str(t.value)):
+            if not compare(head.value, t.value):
                 return values.w_false
             head = t
         return values.w_true
 
-for a in [("bytes<?", op.lt),
-          ("bytes<=?", op.le),
-          ("bytes=?", op.eq),
-          ("bytes>=?", op.ge),
-          ("bytes>?", op.gt),
+def make_bytes_compare(op):
+    def bytes_compare(x, y):
+        lx = len(x)
+        ly = len(y)
+        length = min(lx, ly)
+        for i in range(length):
+            xi, yi = x[i], y[i]
+            if xi == yi:
+                continue
+            return op(xi, yi)
+        return op(lx, ly)
+    return bytes_comp
+
+for a in [("bytes<?"  , op.lt) ,
+          ("bytes<=?" , op.le) ,
+          ("bytes=?"  , op.eq) ,
+          ("bytes>=?" , op.ge) ,
+          ("bytes>?"  , op.gt) ,
           ]:
     define_bytes_comp(*a)
 
