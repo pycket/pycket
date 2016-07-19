@@ -3,9 +3,9 @@ from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Charac
 from pycket.base import W_Object, SingletonMeta, UnhashableType
 from pycket import config
 
-from rpython.rlib import debug, jit
-from rpython.rlib import rerased
-from rpython.rlib.objectmodel import newlist_hint, import_from_mixin, specialize, we_are_translated
+from rpython.rlib import debug, jit, objectmodel, rerased
+from rpython.rlib.longlong2float import float2longlong, longlong2float
+from rpython.rlib.objectmodel import import_from_mixin, specialize, we_are_translated
 from rpython.rlib.rarithmetic import intmask
 
 
@@ -226,7 +226,7 @@ class VectorStrategy(object):
         if check:
             self.indexcheck(w_vector, i)
         if not self.is_correct_type(w_vector, w_val):
-            self.dehomogenize(w_vector, hint=type(w_val))
+            self.dehomogenize(w_vector, hint=w_val)
             # Now, try again. no need to use the safe version, we already
             # checked the index
             w_vector.unsafe_set(i, w_val)
@@ -254,7 +254,7 @@ class VectorStrategy(object):
     def create_storage_for_elements(self, elements):
         raise NotImplementedError("abstract base class")
 
-    def dehomogenize(self, w_vector, hint=None):
+    def dehomogenize(self, w_vector, hint):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
 
 class ImmutableVectorStrategyMixin(object):
@@ -267,7 +267,7 @@ class ImmutableVectorStrategyMixin(object):
     def _set(self, w_vector, i, w_val):
         assert 0, "unreachable"
 
-    def dehomogenize(self, w_vector, hint=None):
+    def dehomogenize(self, w_vector, hint):
         assert 0, "unreachable"
 
 class UnwrappedVectorStrategyMixin(object):
@@ -351,17 +351,22 @@ class ConstantVectorStrategy(VectorStrategy):
         val = self._storage(w_vector)[0]
         return [val] * w_vector.length()
 
-    def dehomogenize(self, w_vector, hint=None):
+    def dehomogenize(self, w_vector, hint):
         val = self._storage(w_vector)[0]
         len = w_vector.length()
+        hinttype = type(hint)
         valtype = type(val)
-        if len and hint is valtype:
+        if not len:
+            newstrategy = ObjectVectorStrategy.singleton
+        elif hinttype is valtype:
             if valtype is W_Fixnum:
                 newstrategy = FixnumVectorStrategy.singleton
             elif valtype is W_Flonum:
                 newstrategy = FlonumVectorStrategy.singleton
             else:
                 newstrategy = ObjectVectorStrategy.singleton
+        elif hinttype is W_Flonum and valtype is W_Fixnum and val.value == 0:
+            newstrategy = FlonumTaggedVectorStrategy.singleton
         else:
             newstrategy = ObjectVectorStrategy.singleton
         storage = newstrategy.create_storage_for_element(val, len)
@@ -390,7 +395,7 @@ class ObjectVectorStrategy(VectorStrategy):
     def create_storage_for_elements(self, elements_w):
         return self.erase(elements_w)
 
-    def dehomogenize(self, w_vector, hint=None):
+    def dehomogenize(self, w_vector, hint):
         assert 0 # should be unreachable because is_correct_type is always True
 
     def immutable_variant(self):
@@ -446,6 +451,13 @@ class CharacterVectorStrategy(VectorStrategy):
 class CharacterImmutableVectorStrategy(CharacterVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
+FIXNUM_ZERO_BITS = float2longlong(float('nan')) | 0b0001
+FIXNUM_ZERO_NAN  = longlong2float(FIXNUM_ZERO_BITS)
+
+@objectmodel.always_inline
+def is_fixnum_zero_nan(val):
+    return float2longlong(val) == FIXNUM_ZERO_BITS
+
 class FlonumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
@@ -467,7 +479,39 @@ class FlonumVectorStrategy(VectorStrategy):
     def immutable_variant(self):
         return FlonumImmutableVectorStrategy.singleton
 
+    def dehomogenize(self, w_vector, hint):
+        if type(hint) is W_Fixnum and hint.value == 0:
+            new_strategy = FlonumTaggedVectorStrategy.singleton
+            w_vector.set_strategy(new_strategy)
+        else:
+            VectorStrategy.dehomogenize(self, w_vector, hint)
+
 class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
+    import_from_mixin(ImmutableVectorStrategyMixin)
+
+class FlonumTaggedVectorStrategy(FlonumVectorStrategy):
+
+    def is_correct_type(self, w_vector, w_obj):
+        if isinstance(w_obj, W_Fixnum):
+            return w_obj.value == 0
+        return isinstance(w_obj, W_Flonum)
+
+    def wrap(self, val):
+        assert isinstance(val, float)
+        if is_fixnum_zero_nan(val):
+            return W_Fixnum.ZERO
+        return W_Flonum(val)
+
+    def unwrap(self, w_val):
+        if isinstance(w_val, W_Fixnum) and w_val.value == 0:
+            return FIXNUM_ZERO_NAN
+        assert isinstance(w_val, W_Flonum)
+        return w_val.value
+
+    def immutable_variant(self):
+        return FlonumTaggedImmutableVectorStrategy.singleton
+
+class FlonumTaggedImmutableVectorStrategy(FlonumTaggedVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
 @specialize.argtype(0)
