@@ -64,14 +64,19 @@ def scan_continuation(curr, prompt_tag, look_for=None):
     Segment a continuation based on a given continuation-prompt-tag.
     The head of the continuation, up to and including the desired continuation
     prompt is reversed (in place), and the tail is returned un-altered.
+
+    The hint value |look_for| is used to determine when the continuation being
+    installed is a prefix of the extant continuation.
+    In this case, installing the continuation is much simpler, as the expensive
+    merge operation needed to find common substructure is the two continuation is
+    not needed.
     """
     handlers = False
     xs = []
     while isinstance(curr, Cont):
         if curr is look_for:
             return None, handlers
-        if isinstance(curr, DynamicWindValueCont):
-            handlers = True
+        handlers |= isinstance(curr, DynamicWindValueCont)
         xs.append(curr)
         if isinstance(curr, Prompt) and curr.tag is prompt_tag:
             break
