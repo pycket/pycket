@@ -702,7 +702,7 @@ def virtual_length(lst, unroll_to=0):
     n = 0
     while isinstance(lst, values.W_Cons):
         if unroll_pred(lst, n, unroll_to):
-            return n + elidable_length(lst)
+            return elidable_length(lst) + n
         n += 1
         lst = lst.cdr()
     return n

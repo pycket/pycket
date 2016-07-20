@@ -327,7 +327,7 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
             old = w_port.tell()
             c = w_port.read(needed)
             w_port.seek(old)
-        else:
+        elif needed > 1:
             c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
@@ -561,7 +561,7 @@ def close_cont(port, env, cont, vals):
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
-    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
 def open_outfile(w_str, mode):
     s = extract_path(w_str)
