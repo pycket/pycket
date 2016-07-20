@@ -937,18 +937,13 @@ def append(lists):
     for i in range(len(lists) - 2, -1, -1):
         acc = append_two(lists[i], acc)
     return acc
-    # if not lists:
-        # return values.w_null
-    # lists, acc = lists[:-1], lists[-1]
-    # while lists:
-        # vals = values.from_list(lists.pop())
-        # acc  = values.to_improper(vals, acc)
-    # return acc
 
 def append_two(l1, l2):
+    if not l1.is_proper_list():
+        raise SchemeException("append: expected proper list")
+
     first = None
     last  = None
-
     while isinstance(l1, values.W_Cons):
         v = l1.clone()
         if first is None:
