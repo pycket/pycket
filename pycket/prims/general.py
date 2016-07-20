@@ -933,11 +933,35 @@ def ormap_cont(f, ls, env, cont, vals):
 def append(lists):
     if not lists:
         return values.w_null
-    lists, acc = lists[:-1], lists[-1]
-    while lists:
-        vals = values.from_list(lists.pop())
-        acc  = values.to_improper(vals, acc)
+    acc = lists[-1]
+    for i in range(len(lists) - 2, -1, -1):
+        acc = append_two(lists[i], acc)
     return acc
+    # if not lists:
+        # return values.w_null
+    # lists, acc = lists[:-1], lists[-1]
+    # while lists:
+        # vals = values.from_list(lists.pop())
+        # acc  = values.to_improper(vals, acc)
+    # return acc
+
+def append_two(l1, l2):
+    first = None
+    last  = None
+
+    while isinstance(l1, values.W_Cons):
+        v = l1.clone()
+        if first is None:
+            first = v
+        else:
+            last._unsafe_set_cdr(v)
+        last = v
+        l1 = l1.cdr()
+
+    if last is None:
+        return l2
+    last._unsafe_set_cdr(l2)
+    return first
 
 @expose("reverse", [values.W_List])
 def reverse(w_l):

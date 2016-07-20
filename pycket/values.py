@@ -9,7 +9,7 @@ from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import make_call_method
 from pycket.small_list        import inline_small_list
-from pycket.util              import memoize_constructor
+from pycket.util              import add_copy_method, memoize_constructor
 
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
@@ -257,22 +257,23 @@ class W_Cons(W_List):
     errorname = "pair"
 
     @staticmethod
-    def make(car, cdr):
+    @specialize.arg(2)
+    def make(car, cdr, force_proper=False):
         from pycket import config
         if not config.type_size_specialization:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_UnwrappedFixnumConsProper(car.value, cdr)
             return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_UnwrappedFlonumConsProper(car.value, cdr)
             return W_UnwrappedFlonumCons(car.value, cdr)
         else:
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
 
@@ -319,6 +320,13 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+    def _unsafe_set_cdr(self, val):
+        raise NotImplementedError("abstract base class")
+
+    def clone(self):
+        raise NotImplementedError("abstract base class")
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -331,10 +339,15 @@ class W_UnwrappedFixnumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
     def is_proper_list(self):
         return True
 
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -347,20 +360,31 @@ class W_UnwrappedFlonumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumConsProper(W_UnwrappedFlonumCons):
     def is_proper_list(self):
         return True
 
+@add_copy_method(copy_method="clone")
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
         self._car = a
         self._cdr = d
+
     def car(self):
         return self._car
+
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_WrappedConsProper(W_WrappedCons):
     def is_proper_list(self):
         return True
