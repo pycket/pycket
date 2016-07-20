@@ -633,6 +633,7 @@ W_Fixnum.ONE  = W_Fixnum.make(1)
 W_Fixnum.TWO  = W_Fixnum.make(2)
 
 class W_Flonum(W_Number):
+    _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "flonum"
 
@@ -668,6 +669,7 @@ W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
 
 class W_Bignum(W_Integer):
+    _immutable_ = True
     _immutable_fields_ = ["value"]
 
     def tostring(self):
@@ -698,6 +700,7 @@ class W_Bignum(W_Integer):
 
 @memoize_constructor
 class W_Complex(W_Number):
+    _immutable_ = True
     _immutable_fields_ = ["real", "imag"]
     def __init__(self, re, im):
         assert isinstance(re, W_Number)

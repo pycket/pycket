@@ -327,7 +327,8 @@ class SetBangCont(Cont):
 
     def plug_reduce(self, vals, env):
         w_val = check_one_val(vals)
-        self.ast.var._set(w_val, self.env)
+        ast = jit.promote(self.ast)
+        ast.var._set(w_val, self.env)
         return return_value(values.w_void, self.env, self.prev)
 
 class BeginCont(Cont):
