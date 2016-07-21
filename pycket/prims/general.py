@@ -845,6 +845,7 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
 @expose("for-each", simple=False, arity=Arity.geq(2))
+@jit.unroll_safe
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
@@ -859,6 +860,7 @@ def for_each(args, env, cont):
     return return_value(values.w_void, env, for_each_cont(f, ls, env, cont))
 
 @continuation
+@jit.unroll_safe
 def for_each_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value
