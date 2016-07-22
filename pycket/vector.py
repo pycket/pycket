@@ -105,7 +105,7 @@ class W_Vector(W_MVector):
 
     @staticmethod
     def fromelement(elem, times, immutable=False):
-        if times == 0:
+        if not config.strategies or times == 0:
             strategy = ObjectVectorStrategy.singleton
         else:
             strategy = ConstantVectorStrategy.singleton
