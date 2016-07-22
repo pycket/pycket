@@ -627,6 +627,11 @@ class W_Integer(W_Number):
 @memoize_constructor
 class W_Fixnum(W_Integer):
 
+    MIN_INTERNED   = -128
+    MAX_INTERNED   = 128
+    INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
+    cache = []
+
     _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
@@ -652,9 +657,18 @@ class W_Fixnum(W_Integer):
     def hash_equal(self, info=None):
         return self.value
 
+    @staticmethod
+    @always_inline
+    def make_or_interned(val):
+        from rpython.rlib.rarithmetic import int_between
+        if int_between(W_Fixnum.MIN_INTERNED, val, W_Fixnum.MAX_INTERNED):
+            return W_Fixnum.cache[val - W_Fixnum.MIN_INTERNED]
+        return W_Fixnum(val)
+
 W_Fixnum.ZERO = W_Fixnum.make(0)
 W_Fixnum.ONE  = W_Fixnum.make(1)
 W_Fixnum.TWO  = W_Fixnum.make(2)
+W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
 class W_Flonum(W_Number):
     _immutable_ = True

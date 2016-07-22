@@ -425,6 +425,10 @@ class FixnumVectorStrategy(VectorStrategy):
     def immutable_variant(self):
         return FixnumImmutableVectorStrategy.singleton
 
+    def ref_all(self, w_vector):
+        unwrapped = self._storage(w_vector)
+        return [W_Fixnum.make_or_interned(i) for i in unwrapped]
+
 class FixnumImmutableVectorStrategy(FixnumVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
