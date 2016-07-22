@@ -852,26 +852,34 @@ def for_each(args, env, cont):
         raise SchemeException("for-each: expected at least a procedure and a list")
     f = args[0]
     if not f.iscallable():
-        raise SchemeException("for-each: expected a procedure, but got %s"%f)
+        raise SchemeException("for-each: expected a procedure, but got %s" % f)
     ls = args[1:]
     for l in ls:
-        if not isinstance(l, values.W_List):
-            raise SchemeException("for-each: expected a list, but got %s"%l)
-    return return_value(values.w_void, env, for_each_cont(f, ls, env, cont))
+        if not l.is_proper_list():
+            raise SchemeException("for-each: expected a list, but got %s" % l)
+    return for_each_loop(f, ls, env, cont)
+
+@loop_label
+@jit.unroll_safe
+def for_each_loop(func, args, env, cont):
+    from pycket.interpreter import return_value
+    heads = [None] * len(args)
+    tails = [None] * len(args)
+    for i, arg in enumerate(args):
+        if arg is values.w_null:
+            for v in args:
+                if v is not values.w_null:
+                    raise SchemeException("for-each: all lists must have same size")
+            return return_value(values.w_void, env, cont)
+        assert isinstance(arg, values.W_Cons)
+        heads[i] = arg.car()
+        tails[i] = arg.cdr()
+    return func.call(heads, env,
+            for_each_cont(func, tails, env, cont))
 
 @continuation
-@jit.unroll_safe
-def for_each_cont(f, ls, env, cont, vals):
-    # XXX this is currently not properly jitted
-    from pycket.interpreter import return_value
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_void, env, cont)
-    cars = [l.car() for l in ls]
-    cdrs = [l.cdr() for l in ls]
-    return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
+def for_each_cont(func, tails, env, cont, _vals):
+    return for_each_loop(func, tails, env, cont)
 
 @expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
