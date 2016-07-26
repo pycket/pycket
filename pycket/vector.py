@@ -4,7 +4,14 @@ from pycket.base import W_Object, SingletonMeta, UnhashableType
 from pycket import config
 
 from rpython.rlib import debug, jit, objectmodel, rerased
-from rpython.rlib.longlong2float import float2longlong, longlong2float
+from rpython.rlib.longlong2float import (
+    can_encode_int32,
+    decode_int32_from_longlong_nan,
+    encode_int32_into_longlong_nan,
+    float2longlong,
+    is_int32_from_longlong_nan,
+    longlong2float
+)
 from rpython.rlib.objectmodel import import_from_mixin, specialize, we_are_translated
 from rpython.rlib.rarithmetic import intmask
 
@@ -365,7 +372,7 @@ class ConstantVectorStrategy(VectorStrategy):
                 newstrategy = FlonumVectorStrategy.singleton
             else:
                 newstrategy = ObjectVectorStrategy.singleton
-        elif hinttype is W_Flonum and valtype is W_Fixnum and val.value == 0:
+        elif hinttype is W_Flonum and valtype is W_Fixnum and can_encode_int32(val.value):
             newstrategy = FlonumTaggedVectorStrategy.singleton
         else:
             newstrategy = ObjectVectorStrategy.singleton
@@ -455,13 +462,6 @@ class CharacterVectorStrategy(VectorStrategy):
 class CharacterImmutableVectorStrategy(CharacterVectorStrategy):
     import_from_mixin(ImmutableVectorStrategyMixin)
 
-FIXNUM_ZERO_BITS = float2longlong(float('nan')) | 0b0001
-FIXNUM_ZERO_NAN  = longlong2float(FIXNUM_ZERO_BITS)
-
-@objectmodel.always_inline
-def is_fixnum_zero_nan(val):
-    return float2longlong(val) == FIXNUM_ZERO_BITS
-
 class FlonumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
@@ -484,7 +484,7 @@ class FlonumVectorStrategy(VectorStrategy):
         return FlonumImmutableVectorStrategy.singleton
 
     def dehomogenize(self, w_vector, hint):
-        if type(hint) is W_Fixnum and hint.value == 0:
+        if type(hint) is W_Fixnum and can_encode_int32(hint.value):
             new_strategy = FlonumTaggedVectorStrategy.singleton
             w_vector.set_strategy(new_strategy)
         else:
@@ -496,19 +496,22 @@ class FlonumImmutableVectorStrategy(FlonumVectorStrategy):
 class FlonumTaggedVectorStrategy(FlonumVectorStrategy):
 
     def is_correct_type(self, w_vector, w_obj):
-        if isinstance(w_obj, W_Fixnum):
-            return w_obj.value == 0
+        if isinstance(w_obj, W_Fixnum) and can_encode_int32(w_obj.value):
+            return True
         return isinstance(w_obj, W_Flonum)
 
     def wrap(self, val):
         assert isinstance(val, float)
-        if is_fixnum_zero_nan(val):
-            return W_Fixnum.ZERO
+        bits = float2longlong(val)
+        if is_int32_from_longlong_nan(bits):
+            bits = decode_int32_from_longlong_nan(bits)
+            return W_Fixnum(bits)
         return W_Flonum(val)
 
     def unwrap(self, w_val):
-        if isinstance(w_val, W_Fixnum) and w_val.value == 0:
-            return FIXNUM_ZERO_NAN
+        if isinstance(w_val, W_Fixnum):
+            bits = encode_int32_into_longlong_nan(w_val.value)
+            return longlong2float(bits)
         assert isinstance(w_val, W_Flonum)
         return w_val.value
 
