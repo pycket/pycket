@@ -6,6 +6,7 @@ from pycket.impersonators import *
 from pycket.vector import *
 from pycket.prims import *
 from pycket.test.testhelper import run_fix, run, run_mod, execute, check_equal
+import sys
 
 def test_vec():
     assert isinstance(run('(vector 1)'), W_Vector)
@@ -71,8 +72,25 @@ def test_vec_strategies_stays_flonum():
     vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 5.5) vec)")
     assert isinstance(vec.strategy, FlonumVectorStrategy)
     vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 0) vec)")
+
+    # Test that we can encode the full range of signed 32-bit values in the tagged
+    # flonum strategy
     assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 %d) vec)" % (2 ** 31 - 1))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let ([vec (vector 1.2 1.2 1.2)]) (vector-set! vec 1 %d) vec)" % (-(2 ** 31)))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+
+    # Test transitions from the constant vector strategy to the tagged flonum strategy
     vec = run("(let ([vec (make-vector 10 0)]) (vector-set! vec 1 1.1) vec)")
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+
+    # Test transitions from the constant vector strategy to the tagged flonum strategy
+    vec = run("(let ([vec (make-vector 10 0)]) (vector-set! vec 1 1.1) vec)")
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let ([vec (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (2 ** 31 - 1))
+    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
+    vec = run("(let ([vec (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (-(2 ** 31)))
     assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
 
 def test_vec_strategies_dehomogenize():
