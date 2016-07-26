@@ -84,10 +84,6 @@ def test_vec_strategies_stays_flonum():
     # Test transitions from the constant vector strategy to the tagged flonum strategy
     vec = run("(let ([vec (make-vector 10 0)]) (vector-set! vec 1 1.1) vec)")
     assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
-
-    # Test transitions from the constant vector strategy to the tagged flonum strategy
-    vec = run("(let ([vec (make-vector 10 0)]) (vector-set! vec 1 1.1) vec)")
-    assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
     vec = run("(let ([vec (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (2 ** 31 - 1))
     assert isinstance(vec.strategy, FlonumTaggedVectorStrategy)
     vec = run("(let ([vec (make-vector 10 %d)]) (vector-set! vec 1 1.1) vec)" % (-(2 ** 31)))
