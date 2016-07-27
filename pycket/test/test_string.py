@@ -383,6 +383,16 @@ def test_list_to_string(doctest):
     #f
     """
 
+def test_list_to_bytes(doctest):
+    u"""
+    > (list->bytes '(0 1 2 3 4))
+    (bytes 0 1 2 3 4)
+    > (list->bytes '())
+    (bytes)
+    > (list->bytes '(250 251 252 253 254 255))
+    (bytes 250 251 252 253 254 255)
+    """
+
 def test_string_to_list(doctest):
     u"""
     > (string->list "")
