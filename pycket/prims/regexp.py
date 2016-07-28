@@ -183,10 +183,17 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
     start = max(0, end - length)
 
     assert start >= 0 and end >= 0
-    matched = input.getslice(start, end)
-    bytestring = ['\0'] * (end - start)
-    for i in range(end - start):
-        bytestring[i] = chr(ord(matched.getitem(i)) % 256)
+
+    if isinstance(input, values_string.W_String):
+        bytestring = ['\0'] * (end - start)
+        matched = input.getslice(start, end)
+        for i in range(end - start):
+            bytestring[i] = chr(ord(matched.getitem(i)) % 256)
+    elif isinstance(input, values.W_Bytes):
+        bytestring = input.getslice(start, end)
+    else:
+        raise SchemeException("regexp-match-positions/end: unsupported input type")
+
     bytes = values.W_Bytes(bytestring)
     result = values.Values._make2(acc, bytes)
     return return_multi_vals(result, env, cont)

@@ -962,6 +962,10 @@ class W_Bytes(W_Object):
     def as_str(self):
         return "".join(self.value)
 
+    def getslice(self, start, end):
+        assert start >= 0 and end >= 0
+        bytes = self.value
+        return bytes[start:end]
 
 class W_MutableBytes(W_Bytes):
     errorname = "bytes"
