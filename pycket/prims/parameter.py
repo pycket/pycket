@@ -59,3 +59,24 @@ expose_val("parameterization-key", values.parameterization_key)
 expose_val("print-mpair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_false))
 
+READ_PARAMS = """
+read-square-bracket-as-paren
+read-curly-brace-as-paren
+read-square-bracket-with-tag
+read-curly-brace-with-tag
+read-accept-box
+read-accept-compiled
+read-accept-bar-quote
+read-accept-graph
+read-decimal-as-inexact
+read-accept-dot
+read-accept-infix-dot
+read-cdot
+read-accept-quasiquote
+read-accept-reader
+read-accept-lang
+"""
+
+for name in READ_PARAMS.split():
+    expose_val(name, values_parameter.W_Parameter(values.w_false))
+

@@ -9,7 +9,7 @@ from pycket.env               import ConsEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import make_call_method
 from pycket.small_list        import inline_small_list
-from pycket.util              import memoize_constructor
+from pycket.util              import add_copy_method, memoize_constructor
 
 from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic
@@ -23,18 +23,6 @@ from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
 UNROLLING_CUTOFF = 5
-
-def elidable_iff(pred):
-    def wrapper(func):
-        func = jit.unroll_safe(func)
-
-        def trampoline(*args):
-            if jit.we_are_jitted() and pred(*args):
-                return elidable_func(*args)
-            return func(*args)
-
-        return trampoline
-    return wrapper
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
@@ -269,22 +257,23 @@ class W_Cons(W_List):
     errorname = "pair"
 
     @staticmethod
-    def make(car, cdr):
+    @specialize.arg(2)
+    def make(car, cdr, force_proper=False):
         from pycket import config
         if not config.type_size_specialization:
             if cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
         elif isinstance(car, W_Fixnum):
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_UnwrappedFixnumConsProper(car.value, cdr)
             return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_UnwrappedFlonumConsProper(car.value, cdr)
             return W_UnwrappedFlonumCons(car.value, cdr)
         else:
-            if cdr.is_proper_list():
+            if force_proper or cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
             return W_WrappedCons(car, cdr)
 
@@ -331,6 +320,13 @@ class W_Cons(W_List):
             w_curr2 = w_curr2.cdr()
         return w_curr1.equal(w_curr2)
 
+    def _unsafe_set_cdr(self, val):
+        raise NotImplementedError("abstract base class")
+
+    def clone(self):
+        raise NotImplementedError("abstract base class")
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -343,10 +339,15 @@ class W_UnwrappedFixnumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
     def is_proper_list(self):
         return True
 
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
@@ -359,20 +360,31 @@ class W_UnwrappedFlonumCons(W_Cons):
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumConsProper(W_UnwrappedFlonumCons):
     def is_proper_list(self):
         return True
 
+@add_copy_method(copy_method="clone")
 class W_WrappedCons(W_Cons):
     _immutable_fields_ = ["_car", "_cdr"]
     def __init__(self, a, d):
         self._car = a
         self._cdr = d
+
     def car(self):
         return self._car
+
     def cdr(self):
         return self._cdr
 
+    def _unsafe_set_cdr(self, val):
+        self._cdr = val
+
+@add_copy_method(copy_method="clone")
 class W_WrappedConsProper(W_WrappedCons):
     def is_proper_list(self):
         return True
@@ -523,7 +535,8 @@ class W_Rational(W_Number):
         assert isinstance(den, rbigint)
         self._numerator = num
         self._denominator = den
-        assert den.gt(NULLRBIGINT)
+        if not we_are_translated():
+            assert den.gt(NULLRBIGINT)
 
     @staticmethod
     def make(num, den):
@@ -540,18 +553,24 @@ class W_Rational(W_Number):
         return W_Rational.frombigint(num, den)
 
     @staticmethod
-    def fromint(n, d=1):
+    def fromint(n, d=1, need_to_check=True):
         assert isinstance(n, int)
         assert isinstance(d, int)
-        return W_Rational.frombigint(rbigint.fromint(n), rbigint.fromint(d))
+        from fractions import gcd
+        g = gcd(n, d)
+        n = n // g
+        d = d // g
+        if need_to_check and d == 1:
+            return W_Fixnum(n)
+        return W_Rational(rbigint.fromint(n), rbigint.fromint(d))
 
     @staticmethod
-    def frombigint(n, d=rbigint.fromint(1)):
+    def frombigint(n, d=rbigint.fromint(1), need_to_check=True):
         from pycket.arithmetic import gcd
         g = gcd(n, d)
         n = n.floordiv(g)
         d = d.floordiv(g)
-        if d.eq(rbigint.fromint(1)):
+        if need_to_check and d.eq(rbigint.fromint(1)):
             return W_Bignum.frombigint(n)
         return W_Rational(n, d)
 
@@ -607,6 +626,13 @@ class W_Integer(W_Number):
 
 @memoize_constructor
 class W_Fixnum(W_Integer):
+
+    MIN_INTERNED   = -128
+    MAX_INTERNED   = 128
+    INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
+    cache = []
+
+    _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
@@ -631,11 +657,21 @@ class W_Fixnum(W_Integer):
     def hash_equal(self, info=None):
         return self.value
 
+    @staticmethod
+    @always_inline
+    def make_or_interned(val):
+        from rpython.rlib.rarithmetic import int_between
+        if int_between(W_Fixnum.MIN_INTERNED, val, W_Fixnum.MAX_INTERNED):
+            return W_Fixnum.cache[val - W_Fixnum.MIN_INTERNED]
+        return W_Fixnum(val)
+
 W_Fixnum.ZERO = W_Fixnum.make(0)
 W_Fixnum.ONE  = W_Fixnum.make(1)
 W_Fixnum.TWO  = W_Fixnum.make(2)
+W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
 class W_Flonum(W_Number):
+    _immutable_ = True
     _immutable_fields_ = ["value"]
     errorname = "flonum"
 
@@ -671,6 +707,7 @@ W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
 
 class W_Bignum(W_Integer):
+    _immutable_ = True
     _immutable_fields_ = ["value"]
 
     def tostring(self):
@@ -701,6 +738,7 @@ class W_Bignum(W_Integer):
 
 @memoize_constructor
 class W_Complex(W_Number):
+    _immutable_ = True
     _immutable_fields_ = ["real", "imag"]
     def __init__(self, re, im):
         assert isinstance(re, W_Number)
@@ -924,6 +962,10 @@ class W_Bytes(W_Object):
     def as_str(self):
         return "".join(self.value)
 
+    def getslice(self, start, end):
+        assert start >= 0 and end >= 0
+        bytes = self.value
+        return bytes[start:end]
 
 class W_MutableBytes(W_Bytes):
     errorname = "bytes"
@@ -1211,7 +1253,9 @@ class W_ComposableContinuation(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
+    _immutable_ = True
     _immutable_fields_ = ["caselam"]
+
     @jit.unroll_safe
     def __init__(self, caselam, env):
         self.caselam = caselam
@@ -1277,6 +1321,7 @@ class W_Closure(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
+    _immutable_ = True
     _immutable_fields_ = ['caselam']
 
     def __init__(self, caselam, prev):
@@ -1360,15 +1405,15 @@ class W_Closure1AsEnv(ConsEnv):
         prev = self.get_prev(env_structure)
         return prev.lookup(sym, env_structure.prev)
 
-
 class W_PromotableClosure(W_Procedure):
     """ A W_Closure that is promotable, ie that is cached in some place and
     unlikely to change. """
 
-    _immutable_fields_ = ["closure"]
+    _immutable_fields_ = ["closure", "arity"]
 
     def __init__(self, caselam, toplevel_env):
         self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        self.arity   = caselam._arity
 
     def enable_jitting(self):
         self.closure.enable_jitting()
@@ -1382,7 +1427,7 @@ class W_PromotableClosure(W_Procedure):
         return self.closure.call_with_extra_info(args, env, cont, calling_app)
 
     def get_arity(self):
-        return self.closure.get_arity()
+        return self.arity
 
     def tostring(self):
         return self.closure.tostring()
@@ -1398,6 +1443,17 @@ class W_EOF(W_Object):
         return "#<eof>"
 
 eof_object = W_EOF()
+
+class W_ReadTable(W_Object):
+    errorname = "readtable"
+
+    _immutable_fields_ = ["parent", "key", "mode", "action"]
+
+    def __init__(self, parent, key, mode, action):
+        self.parent = parent
+        self.key = key
+        self.mode = mode
+        self.action = action
 
 class W_Port(W_Object):
     errorname = "port"

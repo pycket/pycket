@@ -201,7 +201,13 @@ def chp_proc_do_set_cmk_cont(proc, key, val, calling_frame, env, cont, _vals):
 
 @specialize.arg(0)
 def make_interpose_procedure(cls, proc, check, keys, vals):
-    return cls(proc, check, keys, vals)
+    assert not keys and not vals or len(keys) == len(vals)
+    properties = {}
+    if keys is not None:
+        for i, k in enumerate(keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            properties[k] = vals[i]
+    return cls(proc, check, properties)
 
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)

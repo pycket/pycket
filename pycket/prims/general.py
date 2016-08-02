@@ -51,7 +51,7 @@ def make_pred_eq(name, val):
     typ = type(val)
     @expose(name, [values.W_Object], simple=True)
     def pred_eq(a):
-        return values.W_Bool.make(isinstance(a, typ) and a is val)
+        return values.W_Bool.make(a is val)
 
 for args in [
         ("output-port?", values.W_OutputPort),
@@ -176,6 +176,10 @@ def syntax_source_module(stx, src):
 @expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
 def syntax_numbers(stx):
     # XXX Obviously not correct
+    return values.w_false
+
+@expose("srcloc->string", [values.W_Object])
+def srcloc_to_string(obj):
     return values.w_false
 
 expose_val("null", values.w_null)
@@ -698,7 +702,7 @@ def virtual_length(lst, unroll_to=0):
     n = 0
     while isinstance(lst, values.W_Cons):
         if unroll_pred(lst, n, unroll_to):
-            return n + elidable_length(lst)
+            return elidable_length(lst) + n
         n += 1
         lst = lst.cdr()
     return n
@@ -841,31 +845,41 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
 @expose("for-each", simple=False, arity=Arity.geq(2))
+@jit.unroll_safe
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
         raise SchemeException("for-each: expected at least a procedure and a list")
     f = args[0]
     if not f.iscallable():
-        raise SchemeException("for-each: expected a procedure, but got %s"%f)
+        raise SchemeException("for-each: expected a procedure, but got %s" % f)
     ls = args[1:]
     for l in ls:
-        if not isinstance(l, values.W_List):
-            raise SchemeException("for-each: expected a list, but got %s"%l)
-    return return_value(values.w_void, env, for_each_cont(f, ls, env, cont))
+        if not l.is_proper_list():
+            raise SchemeException("for-each: expected a list, but got %s" % l)
+    return for_each_loop(f, ls, env, cont)
+
+@loop_label
+@jit.unroll_safe
+def for_each_loop(func, args, env, cont):
+    from pycket.interpreter import return_value
+    heads = [None] * len(args)
+    tails = [None] * len(args)
+    for i, arg in enumerate(args):
+        if arg is values.w_null:
+            for v in args:
+                if v is not values.w_null:
+                    raise SchemeException("for-each: all lists must have same size")
+            return return_value(values.w_void, env, cont)
+        assert isinstance(arg, values.W_Cons)
+        heads[i] = arg.car()
+        tails[i] = arg.cdr()
+    return func.call(heads, env,
+            for_each_cont(func, tails, env, cont))
 
 @continuation
-def for_each_cont(f, ls, env, cont, vals):
-    # XXX this is currently not properly jitted
-    from pycket.interpreter import return_value
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_void, env, cont)
-    cars = [l.car() for l in ls]
-    cdrs = [l.cdr() for l in ls]
-    return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
+def for_each_cont(func, tails, env, cont, _vals):
+    return for_each_loop(func, tails, env, cont)
 
 @expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
@@ -929,11 +943,30 @@ def ormap_cont(f, ls, env, cont, vals):
 def append(lists):
     if not lists:
         return values.w_null
-    lists, acc = lists[:-1], lists[-1]
-    while lists:
-        vals = values.from_list(lists.pop())
-        acc  = values.to_improper(vals, acc)
+    acc = lists[-1]
+    for i in range(len(lists) - 2, -1, -1):
+        acc = append_two(lists[i], acc)
     return acc
+
+def append_two(l1, l2):
+    if not l1.is_proper_list():
+        raise SchemeException("append: expected proper list")
+
+    first = None
+    last  = None
+    while isinstance(l1, values.W_Cons):
+        v = l1.clone()
+        if first is None:
+            first = v
+        else:
+            last._unsafe_set_cdr(v)
+        last = v
+        l1 = l1.cdr()
+
+    if last is None:
+        return l2
+    last._unsafe_set_cdr(l2)
+    return first
 
 @expose("reverse", [values.W_List])
 def reverse(w_l):
@@ -1334,26 +1367,92 @@ def vector_to_values(v, start, end, env, cont):
         vals = [None] * (l - s)
         return v.vector_ref(s, env, vec2val_cont(vals, v, 0, s, l, env, cont))
 
-def reader_graph_loop(v, d):
-    if v in d:
-        return d[v]
-    if isinstance(v, values.W_Cons):
+class ReaderGraphBuilder(object):
+
+    def __init__(self):
+        self.state = {}
+
+    def reader_graph_loop_cons(self, v):
+        assert isinstance(v, values.W_Cons)
         p = values.W_WrappedConsMaybe(values.w_unsafe_undefined, values.w_unsafe_undefined)
-        d[v] = p
-        car = reader_graph_loop(v.car(), d)
-        cdr = reader_graph_loop(v.cdr(), d)
+        self.state[v] = p
+        car = self.reader_graph_loop(v.car())
+        cdr = self.reader_graph_loop(v.cdr())
         p._car = car
         p._cdr = cdr
         # FIXME: should change this to say if it's a proper list now ...
         return p
-    if isinstance(v, values.W_Placeholder):
-        return reader_graph_loop(v.value, d)
-    # XXX FIXME: doesn't handle stuff
-    return v
+
+    def reader_graph_loop_vector(self, v):
+        assert isinstance(v, values_vector.W_Vector)
+        len = v.length()
+        p = values_vector.W_Vector.fromelement(values.w_false, len)
+        self.state[v] = p
+        for i in range(len):
+            vi = v.ref(i)
+            p.set(i, self.reader_graph_loop(vi))
+        return p
+
+    def reader_graph_loop_struct(self, v):
+        assert isinstance(v, values_struct.W_Struct)
+
+        type = v.struct_type()
+        if not type.isprefab:
+            return v
+
+        size = v._get_size_list()
+        p = values_struct.W_Struct.make_n(size, type)
+        self.state[v] = p
+        for i in range(size):
+            val = self.reader_graph_loop(v._ref(i))
+            p._set_list(i, val)
+
+        return p
+
+    @objectmodel.always_inline
+    def reader_graph_loop_proxy(self, v):
+        assert v.is_proxy()
+        inner = self.reader_graph_loop(v.get_proxied())
+        p = v.replace_proxied(inner)
+        self.state[v] = p
+        return p
+
+    def reader_graph_loop(self, v):
+        assert v is not None
+        if v in self.state:
+            return self.state[v]
+        if v.is_proxy():
+            return self.reader_graph_loop_proxy(v)
+        if isinstance(v, values.W_Cons):
+            return self.reader_graph_loop_cons(v)
+        if isinstance(v, values_vector.W_Vector):
+            return self.reader_graph_loop_vector(v)
+        if isinstance(v, values_struct.W_Struct):
+            return self.reader_graph_loop_struct(v)
+        if isinstance(v, values.W_Placeholder):
+            return self.reader_graph_loop(v.value)
+        # XXX FIXME: doesn't handle stuff
+        return v
 
 @expose("make-reader-graph", [values.W_Object])
+@jit.dont_look_inside
 def make_reader_graph(v):
-    return reader_graph_loop(v, {})
+    from rpython.rlib.nonconst import NonConstant
+    if NonConstant(False):
+        # XXX JIT seems be generating questionable code when the argument of
+        # make-reader-graph is a virtual cons cell. The car and cdr fields get
+        # set by the generated code after the call, causing reader_graph_loop to
+        # crash. I suspect the problem has to do with the translators effect analysis.
+        # Example:
+        # p29 = new_with_vtable(descr=<SizeDescr 24>)
+        # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
+        # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
+        # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
+        if isinstance(v, values.W_WrappedCons):
+            print v._car.tostring()
+            print v._cdr.tostring()
+    builder = ReaderGraphBuilder()
+    return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
 def procedure_specialize(proc):
@@ -1365,6 +1464,26 @@ def procedure_specialize(proc):
 @expose("processor-count", [])
 def processor_count():
     return values.W_Fixnum.ONE
+
+@expose("cache-configuration", [values.W_Fixnum, values.W_Object])
+def cache_configuration(val, proc):
+    """
+    This function seems to be responsible for setting up callbacks in the
+    Racket runtime. We have no such callbacks as of yet. The corresponding Racket
+    implementation can be found at:
+
+    https://github.com/racket/racket/blob/161a9edb57c38ab71686d9a6e3c7920c96713fed/racket/src/racket/src/thread.c#L744
+    """
+    return values.w_false
+
+@expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
+def make_readtable(parent, char, sym, proc):
+    print "making readtable", [parent, char, sym, proc]
+    return values.W_ReadTable(parent, char, sym, proc)
+
+@expose("read/recursive")
+def read_recursive(args):
+    return values.w_false
 
 def make_stub_predicates(*names):
     for name in names:

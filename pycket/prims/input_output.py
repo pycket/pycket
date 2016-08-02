@@ -192,8 +192,24 @@ def get_input_port(port, env, cont):
 def read_stream_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     port = check_one_val(_vals)
-    v = read_stream(port)
-    return return_value(v, env, cont)
+    rt = current_readtable_param.get(cont)
+    if rt is values.w_false:
+        rt = None
+    else:
+        assert isinstance(rt, values.W_ReadTable)
+    return read_stream_rt(port, rt, env, cont)
+
+def read_stream_rt(port, rt, env, cont):
+    from pycket.interpreter import return_value
+    if rt is not None:
+        c = port.peek()
+        c = c[0]
+        if c == rt.key.value:
+            port.read(1) # since we peeked
+            args = [rt.key, port, values.w_false, values.w_false, values.w_false, values.w_false]
+            return rt.action.call(args, env, cont)
+    # ignore the possibility that the readtable is relevant in the future
+    return return_value(read_stream(port), env, cont)
 
 def read_stream(stream):
     next_token = read_token(stream)
@@ -311,7 +327,7 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
             old = w_port.tell()
             c = w_port.read(needed)
             w_port.seek(old)
-        else:
+        elif needed > 1:
             c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
@@ -545,7 +561,7 @@ def close_cont(port, env, cont, vals):
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
-    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
 def open_outfile(w_str, mode):
     s = extract_path(w_str)
@@ -1067,6 +1083,8 @@ stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
 current_out_param = values_parameter.W_Parameter(stdout_port)
 current_error_param = values_parameter.W_Parameter(stderr_port)
 current_in_param = values_parameter.W_Parameter(stdin_port)
+current_readtable_param = values_parameter.W_Parameter(values.w_false)
+expose_val("current-readtable", current_readtable_param)
 
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)

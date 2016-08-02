@@ -193,7 +193,6 @@ def test_neg_pos():
     run("(positive? -1/2)", w_false)
     run("(positive? 1/2)", w_true)
 
-
 def test_even_odd():
     run("(even? -1)", w_false)
     run("(even?  0)", w_true)
@@ -549,6 +548,15 @@ def test_rational(doctest):
     2053851851851851851851851851851851851851852037037037037/38720187
     """
 
+def random_bigint(max_size):
+    from rpython.rlib.rbigint import rbigint
+    import random
+    size = random.randrange(1, max_size)
+    sign = random.choice([-1, 1])
+    digits = "".join([random.choice("0123456789") for _ in range(size)])
+    bignum = rbigint.fromstr(digits, base=10)
+    return bignum.int_mul(sign)
+
 def test_gcd():
     from pycket.arithmetic import gcd
     from rpython.rlib.rbigint import rbigint
@@ -557,22 +565,51 @@ def test_gcd():
 
     for a, b, r in [(5, 0, 5),
                     (2**1000, 0, 2**1000),
+                    (2**1000 + 1, 3, 1),
                     (4, 2, 2),
                     (3*3*5*7*11*2**10, 2**7*3*7*11*13, 2**7*3*7*11)]:
         assert gcd_long(a, b) == r
         assert gcd_long(b, a) == r
         if b:
-            assert gcd_long(a, -b) == -r
-            assert gcd_long(-a, -b) == -r
-            assert gcd_long(-a, b) == r
+            assert gcd_long(a, -b) == r
+            assert gcd_long(-a, -b) == (-r if a else r)
+            assert gcd_long(a, b) == r
         else:
-            assert gcd_long(-a, b) == -r
+            assert gcd_long(-a, b) == r
         if a:
-            assert gcd_long(b, -a) == -r
-            assert gcd_long(-b, -a) == -r
+            assert gcd_long(b, -a) == r
+            assert gcd_long(-b, -a) == (-r if b else r)
             assert gcd_long(-b, a) == r
         else:
-            assert gcd_long(-b, a) == -r
+            assert gcd_long(-b, a) == r
+
+def test_gcd_random():
+    from pycket.arithmetic import gcd
+    for _ in range(100):
+        a = random_bigint(100)
+        b = random_bigint(100)
+        c = random_bigint(100)
+
+        # Commutative
+        assert gcd(a, b) == gcd(b, a)
+        # Idempotent
+        assert gcd(a, a) == a
+        assert gcd(b, b) == b
+        # Associative
+        assert gcd(a, gcd(b, c)) == gcd(gcd(a, b), c)
+
+        a = a.abs()
+        b = b.abs()
+        if a.ge(b):
+            assert gcd(a, b) == gcd(a.sub(b), b)
+        else:
+            assert gcd(a, b) == gcd(a, b.sub(a))
+
+def test_count_trailing_zeros():
+    from rpython.rlib.rbigint import ONERBIGINT
+    from pycket.arithmetic    import count_trailing_zeros
+    for i in range(1025):
+        assert i == count_trailing_zeros(ONERBIGINT.lshift(i))
 
 def test_sub1(doctest):
     """
@@ -1084,4 +1121,29 @@ def test_sqrt(doctest):
 def test_sqrt2():
     val = W_Flonum(-0.0).arith_sqrt().value
     assert math.copysign(1, val) == -1
+
+def test_integer_length(doctest):
+    """
+    > (integer-length 8)
+    4
+    > (integer-length -8)
+    3
+    > (integer-length 0)
+    0
+    > (integer-length (expt 2 10))
+    11
+    > (integer-length (expt 2 20))
+    21
+    > (integer-length (expt 2 100))
+    101
+    > (integer-length (- (expt 2 10)))
+    10
+    > (integer-length (- (expt 2 20)))
+    20
+    > (integer-length (- (expt 2 100)))
+    100
+    > (integer-length 3713820117856140828992454656)
+    92
+    """
+
 
