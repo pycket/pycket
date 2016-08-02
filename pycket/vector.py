@@ -573,7 +573,7 @@ class Entry(ExtRegistryEntry):
 
     def specialize_call(self, hop):
         [v] = hop.inputargs(hop.args_r[0])
-        assert isinstance(hop.s_result, annmodel.SomeInteger)
+        assert isinstance(hop.s_result, annmodel.SomeBool)
         return _rtype_erased_int(hop, v)
 
 def _rtype_erased_int(hop, v):
