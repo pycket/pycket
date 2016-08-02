@@ -32,25 +32,25 @@ translate-no-type-size-specialization: pycket-c-no-type-size-specialization
 translate-no-jit: pycket-c-nojit
 
 pycket-c: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --translation-taggedpointers targetpycket.py
 
 pycket-c-no-hidden-classes: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-hidden-classes
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --translation-taggedpointers targetpycket.py --no-hidden-classes
 
 pycket-c-no-prune-env: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-prune-env
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --translation-taggedpointers targetpycket.py --no-prune-env
 
 pycket-c-no-two-state: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-two-state
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --translation-taggedpointers targetpycket.py --no-two-state
 
 pycket-c-no-callgraph: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-callgraph
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --translation-taggedpointers targetpycket.py --no-callgraph
 
 pycket-c-no-strategies: $(PYFILES)
 	$(RPYTHON) -Ojit targetpycket.py --no-strategies
 
 pycket-c-no-type-size-specialization: $(PYFILES)
-	$(RPYTHON) -Ojit targetpycket.py --no-type-size-specialization
+	$(RPYTHON) -Ojit --translation-taggedpointers targetpycket.py --no-type-size-specialization
 
 pycket-c-nojit: $(PYFILES)
 	$(RPYTHON) targetpycket.py

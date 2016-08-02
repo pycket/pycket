@@ -1,4 +1,10 @@
 
+from rpython.annotator import model as annmodel
+from rpython.rtyper.extregistry import ExtRegistryEntry
+from rpython.rtyper.llannotation import lltype_to_annotation
+from rpython.rtyper.lltypesystem import lltype, llmemory
+from rpython.rtyper.lltypesystem.lloperation import llop
+
 from pycket.values import W_MVector, W_VectorSuper, W_Fixnum, W_Flonum, W_Character, UNROLLING_CUTOFF, wrap
 from pycket.base import W_Object, SingletonMeta, UnhashableType
 from pycket import config
@@ -390,17 +396,25 @@ class ObjectVectorStrategy(VectorStrategy):
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
 
+    erase_obj, unerase_obj = rerased.new_static_erasing_pair("erase-object")
+
     def wrap(self, obj):
-        return obj
+        from pycket.values import W_Fixnum
+        if erased_int(obj):
+            return W_Fixnum(rerased.unerase_int(obj))
+        return self.unerase_obj(obj)
 
     def unwrap(self, w_obj):
-        return w_obj
+        from pycket.values import W_Fixnum
+        if isinstance(w_obj, W_Fixnum):
+            try:
+                return rerased.erase_int(w_obj.value)
+            except OverflowError:
+                pass
+        return self.erase_obj(w_obj)
 
     def is_correct_type(self, w_vector, w_obj):
         return True
-
-    def create_storage_for_elements(self, elements_w):
-        return self.erase(elements_w)
 
     def dehomogenize(self, w_vector, hint):
         assert 0 # should be unreachable because is_correct_type is always True
@@ -545,4 +559,28 @@ def wrap_vector(elems, immutable=False):
     else:
         storage  = strategy.erase(elems[:])
     return W_Vector(strategy, storage, len(elems))
+
+def erased_int(y):
+    assert isinstance(y, rerased.Erased)
+    return y._identity is rerased._identity_for_ints
+
+class Entry(ExtRegistryEntry):
+    _about_ = erased_int
+
+    def compute_result_annotation(self, s_obj):
+        assert rerased._some_erased().contains(s_obj)
+        return annmodel.SomeBool()
+
+    def specialize_call(self, hop):
+        [v] = hop.inputargs(hop.args_r[0])
+        assert isinstance(hop.s_result, annmodel.SomeInteger)
+        return _rtype_erased_int(hop, v)
+
+def _rtype_erased_int(hop, v):
+    hop.exception_cannot_occur()
+    return hop.gendirectcall(ll_erased_int, v)
+
+def ll_erased_int(gcref):
+    x = llop.cast_ptr_to_int(lltype.Signed, gcref)
+    return (x & 1) != 0
 
