@@ -58,7 +58,7 @@ def convert_runtime_exception(exn, env, cont):
     cont    = post_build_exception(env, cont)
     return exn_fail.constructor.call([message, marks], env, cont)
 
-@jit.elidable
+@jit.unroll_safe
 def scan_continuation(curr, prompt_tag, look_for=None):
     """
     Segment a continuation based on a given continuation-prompt-tag.
@@ -73,6 +73,25 @@ def scan_continuation(curr, prompt_tag, look_for=None):
     """
     handlers = False
     xs = []
+    while isinstance(curr, Cont):
+        if curr is look_for:
+            return None, handlers
+        handlers |= isinstance(curr, DynamicWindValueCont)
+        xs.append(curr)
+        if isinstance(curr, Prompt) and curr.tag is prompt_tag:
+            break
+        curr = curr.prev
+        if not jit.isvirtual(curr):
+            return _scan_continuation(curr, prompt_tag, look_for, xs, handlers)
+    return xs, handlers
+
+@jit.elidable
+def _scan_continuation(curr, prompt_tag, look_for, xs, handlers):
+    """
+    Variant of scan_continuation which is elidable.
+    scan_continuation switchs to using this function when all the virtual
+    continuation frames are exhausted.
+    """
     while isinstance(curr, Cont):
         if curr is look_for:
             return None, handlers
