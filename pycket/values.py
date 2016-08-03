@@ -1153,8 +1153,7 @@ def to_improper(l, curr):
         curr = W_Cons.make(l[i], curr)
     return curr
 
-@jit.look_inside_iff(
-    lambda v, curr: jit.loop_unrolling_heuristic(v, v.len, UNROLLING_CUTOFF))
+@jit.look_inside_iff(lambda v, curr: v.unrolling_heuristic())
 def vector_to_improper(v, curr):
     for i in range(v.len - 1, -1, -1):
         curr = W_Cons.make(v.ref(i), curr)
