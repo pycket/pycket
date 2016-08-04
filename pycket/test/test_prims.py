@@ -815,8 +815,9 @@ def test_dynamic_wind4():
             l))
     (define equal (equal? val '((1 . 5) (2 . 6) (3 . 5) (1 . 5) (2 . 6) (3 . 5))))
     """)
-    val = m.defs[values.W_Symbol.make("equal")]
-    assert val is values.w_true
+    val   = m.defs[values.W_Symbol.make("val")]
+    equal = m.defs[values.W_Symbol.make("equal")]
+    assert equal is values.w_true
 
 def test_bytes_conversions():
     m = run_mod(

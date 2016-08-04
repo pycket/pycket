@@ -13,8 +13,10 @@ from pycket.hash.persistent_hash_map import make_persistent_hash_type
 from rpython.rlib             import jit, debug, objectmodel
 from rpython.rlib.rarithmetic import r_uint
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
+import inspect
 import sys
 
 # imported for side effects
@@ -32,6 +34,193 @@ BUILTIN_MODULES = [
     "#%extfl",
     "#%futures",
     "#%network" ]
+
+
+class Context(object):
+
+    __metaclass__ = extendabletype
+    _attrs_ = []
+
+    def plug(self, ast):
+        raise NotImplementedError("absract base class")
+
+class __extend__(Context):
+
+    # Below are the set of defunctionalized continuations used in the
+    # paper "The Essence of Compiling with Continuations"
+    # https://dl.acm.org/citation.cfm?id=989393.989443&coll=DL&dl=GUIDE
+
+    def context(func):
+        argspec = inspect.getargspec(func)
+        assert argspec.varargs  is None
+        assert argspec.keywords is None
+        assert argspec.defaults is None
+        argnames = argspec.args[:-1]
+
+        class PrimContext(Context):
+            _attrs_ = _immutable_fields_ = ["args"]
+
+            def __init__(self, *args):
+                Context.__init__(self)
+                self.args = args
+
+            def plug_direct(self, ast):
+                args = self.args + (ast,)
+                return func(*args)
+
+            def plug(self, ast):
+                return the_ast, TrampolineContext(ast, self)
+
+            __getitem__ = plug
+
+        class TrampolineAST(AST):
+
+            _attrs_ = _immutable_fields_ = []
+
+            def normalize(self, ctxt):
+                assert type(ctxt) is TrampolineContext
+                ast, ctxt = ctxt.ast, ctxt.prev
+                return ctxt.plug_direct(ast)
+
+        class TrampolineContext(Context):
+
+            _attrs_ = _immutable_fields_ = ["ast", "prev"]
+
+            def __init__(self, ast, prev):
+                assert type(prev) is PrimContext
+                self.ast  = ast
+                self.prev = prev
+
+            def plug_direct(self, ast):
+                return self.prev.plug_direct(ast)
+
+            plug = plug_direct
+
+        the_ast = TrampolineAST()
+
+        @objectmodel.always_inline
+        def make_context(*args):
+            return PrimContext(*args)
+        make_context.__name__ = "%sContext" % func.__name__.replace("_", "")
+
+        return make_context
+
+    class Done(Exception):
+        def __init__(self, ast):
+            self.ast = ast
+
+    class AstList(AST):
+        _attrs_ = ["nodes"]
+        def __init__(self, nodes):
+            self.nodes = nodes
+
+    EmptyList = AstList([])
+
+    @staticmethod
+    @objectmodel.always_inline
+    def yields(ast):
+        raise Context.Done(ast)
+
+    @context
+    def Nil(ast):
+        Context.yields(ast)
+
+    Nil = Nil()
+
+    @staticmethod
+    @specialize.arg(2)
+    def normalize_term(expr, ctxt=Nil, expect=AST):
+        try:
+            while True:
+                expr, ctxt = expr.normalize(ctxt)
+        except Context.Done as e:
+            expr = e.ast
+        assert isinstance(expr, expect)
+        return expr
+
+    @staticmethod
+    def normalize_name(expr, ctxt, hint="g"):
+        ctxt = Context.Name(ctxt, hint)
+        return expr, ctxt
+
+    @staticmethod
+    def normalize_names(exprs, ctxt, i=0):
+        if i >= len(exprs):
+            return ctxt.plug(Context.EmptyList)
+        expr = exprs[i]
+        ctxt = Context.Names(exprs, i, ctxt)
+        return Context.normalize_name(expr, ctxt, hint="AppRand")
+
+    @staticmethod
+    @context
+    def Name(ctxt, hint, ast):
+        if ast.simple:
+            return ctxt.plug(ast)
+        sym  = Gensym.gensym(hint=hint)
+        var  = LexicalVar(sym)
+        body = Context.normalize_term(var, ctxt)
+        Context.yields(make_let_singlevar(sym, ast, [body]))
+
+    @staticmethod
+    @context
+    def Names(exprs, i, ctxt, ast):
+        ctxt = Context.Append(ast, ctxt)
+        return Context.normalize_names(exprs, ctxt, i+1)
+
+    @staticmethod
+    def Let(xs, Ms, body, ctxt):
+        return Context._Let(xs, Ms, body, 0, ctxt)
+
+    @staticmethod
+    @context
+    def _Let(xs, Ms, body, i, ctxt, ast):
+        assert len(xs) == len(Ms)
+        if i == len(Ms) - 1:
+            body = Context.normalize_term(body, ctxt)
+            # Body may have been wrapped in a begin for convenience
+            body = body.body if isinstance(body, Begin) else [body]
+            Context.yields(make_let([xs[i]], [ast], body))
+        X = xs[i]
+        i += 1
+        x_, M = xs[i], Ms[i]
+        ctxt  = Context._Let(xs, Ms, body, i, ctxt)
+        body  = Context.normalize_term(M, ctxt)
+        Context.yields(make_let([X], [ast], [body]))
+
+    @staticmethod
+    @context
+    def If(thn, els, ctxt, tst):
+        thn = Context.normalize_term(thn)
+        els = Context.normalize_term(els)
+        result = If(tst, thn, els)
+        return ctxt.plug(result)
+
+    @staticmethod
+    @context
+    def AppRator(args, ctxt, ast):
+        ctxt = Context.AppRand(ast, ctxt)
+        return Context.normalize_names(args, ctxt)
+
+    @staticmethod
+    @context
+    def AppRand(rator, ctxt, ast):
+        assert isinstance(ast, Context.AstList)
+        rands  = ast.nodes
+        result = App.make(rator, rands)
+        return ctxt.plug(result)
+
+    @staticmethod
+    @context
+    def Append(expr, ctxt, ast):
+        assert isinstance(ast, Context.AstList)
+        ast = Context.AstList([expr] + ast.nodes)
+        return ctxt.plug(ast)
+
+    @staticmethod
+    @context
+    def SetBang(var, ctxt, ast):
+        ast = SetBang(var, ast)
+        return ctxt.plug(ast)
 
 @objectmodel.always_inline
 def equal(a, b):
@@ -566,6 +755,12 @@ class Module(AST):
             assert self is not None
         return self
 
+    def normalize(self, ctxt):
+        # Return the current module, as it is not safe to duplicate module forms
+        for i, b in enumerate(self.body):
+            self.body[i] = Context.normalize_term(b)
+        return ctxt.plug(self)
+
     def _interpret_mod(self, env):
         self.env = env
         module_env = env.toplevel_env().module_env
@@ -795,13 +990,17 @@ class WithContinuationMark(AST):
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
+    def normalize(self, ctxt):
+        key    = Context.normalize_term(self.key)
+        value  = Context.normalize_term(self.value)
+        body   = Context.normalize_term(self.body)
+        result = WithContinuationMark(key, value, body)
+        return ctxt.plug(result)
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
 
     def __init__ (self, rator, rands, env_structure=None):
-        assert rator.simple
-        for r in rands:
-            assert r.simple
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
@@ -820,36 +1019,6 @@ class App(AST):
                     if w_prim.simple2 and len(rands) == 2:
                         return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
-
-    @staticmethod
-    def make_let_converted(rator, rands):
-        all_args = [rator] + rands
-        fresh_vars = []
-        fresh_rhss = []
-
-        name = "AppRator_"
-        for i, rand in enumerate(all_args):
-            if not rand.simple:
-                fresh_rand = Gensym.gensym(name)
-                fresh_rand_var = LexicalVar(fresh_rand)
-                if isinstance(rand, Let) and len(rand.body) == 1:
-                    # this is quadratic for now :-(
-                    if not fresh_vars:
-                        all_args[i] = fresh_rand_var
-                        return rand.replace_innermost_with_app(fresh_rand, all_args[0], all_args[1:])
-                    else:
-                        fresh_body = [App.make_let_converted(all_args[0], all_args[1:])]
-                        return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-                all_args[i] = fresh_rand_var
-                fresh_rhss.append(rand)
-                fresh_vars.append(fresh_rand)
-            name = "AppRand%s_"%i
-        # The body is an App operating on the freshly bound symbols
-        if fresh_vars:
-            fresh_body = [App.make(all_args[0], all_args[1:])]
-            return Let(SymList(fresh_vars[:]), [1] * len(fresh_vars), fresh_rhss[:], fresh_body)
-        else:
-            return App.make(rator, rands)
 
     def assign_convert(self, vars, env_structure):
         rator = self.rator.assign_convert(vars, env_structure)
@@ -884,6 +1053,10 @@ class App(AST):
             w_callable = w_callable.closure
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
+    def normalize(self, ctxt):
+        ctxt = Context.AppRator(self.rands, ctxt)
+        return Context.normalize_name(self.rator, ctxt, hint="AppRator")
+
     def _tostring(self):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
@@ -916,7 +1089,6 @@ class SimplePrimApp1(App):
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
-
 
 class SimplePrimApp2(App):
     _immutable_fields_ = ['w_prim', 'rand1', 'rand2']
@@ -1002,16 +1174,33 @@ class Begin0(AST):
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
 
+    def normalize(self, ctxt):
+        first  = Context.normalize_term(self.first)
+        body   = Context.normalize_term(self.body)
+        result = Begin0(first, body)
+        return ctxt.plug(result)
+
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
 class Begin(SequencedBodyAST):
+
     @staticmethod
     def make(body):
         if len(body) == 1:
             return body[0]
-        else:
-            return Begin(body)
+
+        # Convert (begin (let ([...]) letbody) rest ...) =>
+        #         (let ([...]) letbody ... rest ...)
+        b0 = body[0]
+        if isinstance(b0, Let):
+            rest    = body[1:]
+            letbody = b0.body
+            letargs = b0._rebuild_args()
+            letrhss = b0.rhss
+            return make_let(letargs, letrhss, letbody + rest)
+
+        return Begin(body)
 
     def assign_convert(self, vars, env_structure):
         return Begin.make([e.assign_convert(vars, env_structure) for e in self.body])
@@ -1028,6 +1217,11 @@ class Begin(SequencedBodyAST):
     @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
+
+    def normalize(self, ctxt):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Begin.make(body)
+        return ctxt.plug(result)
 
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
@@ -1083,7 +1277,6 @@ class Var(AST):
     def _tostring(self):
         return "%s" % self.sym.variable_name()
 
-
 class CellRef(Var):
     simple = True
 
@@ -1132,7 +1325,6 @@ class Gensym(object):
         counter = Gensym.get_counter(hint)
         count = counter.next_value()
         return values.W_Symbol(unicode(hint + str(count)))
-
 
 class LexicalVar(Var):
     def _lookup(self, env):
@@ -1292,27 +1484,19 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
+    def normalize(self, ctxt):
+        ctxt = Context.SetBang(self.var, ctxt)
+        return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
+
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
-    def __init__ (self, tst, thn, els):
-        assert tst.simple
+    def __init__(self, tst, thn, els):
         self.tst = tst
         self.thn = thn
         self.els = els
-
-    @staticmethod
-    def make_let_converted(tst, thn, els):
-        if tst.simple:
-            return If(tst, thn, els)
-        else:
-            fresh = Gensym.gensym("if_")
-            return Let(SymList([fresh]),
-                       [1],
-                       [tst],
-                       [If(LexicalVar(fresh), thn, els)])
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
@@ -1330,6 +1514,10 @@ class If(AST):
 
     def direct_children(self):
         return [self.tst, self.thn, self.els]
+
+    def normalize(self, ctxt):
+        ctxt = Context.If(self.thn, self.els, ctxt)
+        return Context.normalize_name(self.tst, ctxt, hint="if")
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1431,6 +1619,7 @@ class CaseLambda(AST):
         if len(self.lams) == 0:
             return "#<procedure>"
         lam = self.lams[0]
+        assert isinstance(lam, Lambda)
         info = lam.sourceinfo
         file, pos = info.sourcefile, info.position
         if file and pos >= 0:
@@ -1458,6 +1647,11 @@ class CaseLambda(AST):
             else:
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
+
+    def normalize(self, ctxt):
+        lams   = [Context.normalize_term(lam, expect=Lambda) for lam in self.lams]
+        result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
+        return ctxt.plug(result)
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
@@ -1588,6 +1782,14 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
+    def normalize(self, ctxt):
+        body = [Context.normalize_term(b) for b in self.body]
+        result = Lambda(self.formals, self.rest, self.args, self.frees, body,
+                        sourceinfo=self.sourceinfo,
+                        enclosing_env_structure=self.enclosing_env_structure,
+                        env_structure=self.env_structure)
+        return ctxt.plug(result)
+
     def _tostring(self):
         if self.rest and not self.formals:
             return "(lambda %s %s)" % (self.rest.tostring(), [b.tostring() for b in self.body])
@@ -1700,6 +1902,22 @@ class Letrec(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
+    def normalize(self, ctxt):
+        # XXX could we do something smarter here?
+        args = self._rebuild_args()
+        rhss = [Context.normalize_term(rhs) for rhs in self.rhss]
+        body = [Context.normalize_term(b)   for b   in self.body]
+        result = make_letrec(args, rhss, body)
+        return ctxt.plug(result)
+
+    def _rebuild_args(self):
+        start = 0
+        result = [None] * len(self.counts)
+        for i, c in enumerate(self.counts):
+            result[i] = [self.args.elems[start+j] for j in range(c)]
+            start += c
+        return result
+
     def _tostring(self):
         vars = []
         len = 0
@@ -1761,6 +1979,10 @@ def make_let_singlevar(sym, rhs, body):
 
 def _make_let_direct(varss, rhss, body):
     symlist, counts = _make_symlist_counts(varss)
+    if len(body) == 1:
+        b = body[0]
+        if isinstance(b, Begin):
+            body = b.body
     return Let(symlist, counts, rhss, body)
 
 def make_letrec(varss, rhss, body):
@@ -1790,16 +2012,6 @@ class Let(SequencedBodyAST):
         if remove_num_envs is None:
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
-
-    def replace_innermost_with_app(self, newsym, rator, rands):
-        assert len(self.body) == 1
-        body = self.body[0]
-        if isinstance(body, Let) and len(body.body) == 1:
-            new_body = body.replace_innermost_with_app(newsym, rator, rands)
-        else:
-            app_body = [App.make_let_converted(rator, rands)]
-            new_body = Let(SymList([newsym]), [1], [body], app_body)
-        return Let(self.args, self.counts, self.rhss, [new_body])
 
     @jit.unroll_safe
     def _prune_env(self, env, i):
@@ -1879,6 +2091,12 @@ class Let(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, body_env_structure) for b in self.body]
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
+
+    def normalize(self, ctxt):
+        args = self._rebuild_args()
+        body = Begin.make(self.body)
+        ctxt = Context.Let(args, self.rhss, body, ctxt)
+        return self.rhss[0], ctxt
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         if not config.prune_env:
@@ -2013,6 +2231,11 @@ class DefineValues(AST):
 
     def direct_children(self):
         return [self.rhs]
+
+    def normalize(self, ctxt):
+        rhs    = Context.normalize_term(self.rhs)
+        result = DefineValues(self.names, rhs, self.display_names)
+        return ctxt.plug(result)
 
     def _mutated_vars(self):
         return self.rhs.mutated_vars()

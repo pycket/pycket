@@ -236,11 +236,19 @@ def parse_ast(json_string):
     modtable = ModTable()
     return to_ast(json, modtable)
 
+def finalize_module(mod):
+    from pycket.interpreter import Context
+    mod = Context.normalize_term(mod)
+    mod = mod.assign_convert_module()
+    mod.clean_caches()
+    return mod
+
 def parse_module(json_string, bytecode_expand=False):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     reader = JsonLoader(bytecode_expand)
-    return reader.to_module(json).assign_convert_module()
+    module = reader.to_module(json)
+    return finalize_module(module)
 
 #### ========================== Implementation functions
 
@@ -421,7 +429,8 @@ class JsonLoader(object):
         fname = rpath.realpath(fname)
         data = expand_file_rpython(fname, self._lib_string())
         self.modtable.enter_module(fname)
-        module = self.to_module(pycket_json.loads(data)).assign_convert_module()
+        module = self.to_module(pycket_json.loads(data))
+        module = finalize_module(module)
         self.modtable.exit_module(fname, module)
         return module
 
@@ -430,7 +439,8 @@ class JsonLoader(object):
         modname = rpath.realpath(modname)
         data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
-        module = self.to_module(pycket_json.loads(data)).assign_convert_module()
+        module = self.to_module(pycket_json.loads(data))
+        module = finalize_module(module)
         self.modtable.exit_module(modname, module)
         return module
 
@@ -635,12 +645,12 @@ class JsonLoader(object):
             if "operator" in obj:
                 rator = self.to_ast(obj["operator"])
                 rands = [self.to_ast(x) for x in obj["operands"].value_array()]
-                return App.make_let_converted(rator, rands)
+                return App.make(rator, rands)
             if "test" in obj:
                 cond = self.to_ast(obj["test"])
                 then = self.to_ast(obj["then"])
                 els  = self.to_ast(obj["else"])
-                return If.make_let_converted(cond, then, els)
+                return If(cond, then, els)
             if "quote" in obj:
                 return Quote(to_value(obj["quote"]))
             if "quote-syntax" in obj:

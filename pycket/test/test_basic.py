@@ -630,8 +630,6 @@ def test_should_enter_downrecursion():
                (define fn-1 (n-1 f))
                (lambda (x) (f (fn-1 x))))]))
         (n->f 10)
-
-
     """
 
     ast = parse_module(expand_string(str))
@@ -647,7 +645,7 @@ def test_should_enter_downrecursion():
     assert append.body[0].els.body[0].should_enter
 
     assert f.body[0].should_enter
-    assert f.body[0].els.body[0].should_enter
+    assert f.body[0].els.body[0].body[0].should_enter
 
 def test_reader_graph(doctest):
     """
