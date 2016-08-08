@@ -1079,3 +1079,55 @@ def test_bytes_to_path_element(doctest):
     "spenser"
     """
 
+def test_split_path(doctest):
+    """
+    ! (define-values (base7 name7 must-be-dir7) (split-path "./"))
+    ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
+    ! (define-values (base2 name2 must-be-dir2) (split-path "./abc/def"))
+    ! (define-values (base3 name3 must-be-dir3) (split-path ".."))
+    ! (define-values (base4 name4 must-be-dir4) (split-path "."))
+    ! (define-values (base5 name5 must-be-dir5) (split-path "foo"))
+    ! (define-values (base6 name6 must-be-dir6) (split-path "bcd/"))
+    > base1
+    (string->path "abc/")
+    > name1
+    (string->path "def")
+    > must-be-dir1
+    #f
+    > base2
+    (string->path "./abc/")
+    > name2
+    (string->path "def")
+    > must-be-dir2
+    #f
+    > base3
+    'relative
+    > name3
+    'up
+    > must-be-dir3
+    #t
+    > base4
+    'relative
+    > name4
+    'same
+    > must-be-dir4
+    #t
+    > base5
+    'relative
+    > name5
+    (string->path "foo")
+    > must-be-dir5
+    #f
+    > base6
+    'relative
+    > name6
+    (string->path "bcd/")
+    > must-be-dir6
+    #t
+    > base7
+    'relative
+    > name7
+    'same
+    > must-be-dir7
+    #t
+    """

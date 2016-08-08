@@ -473,22 +473,38 @@ def _basename(path):
     components = path.split(os.path.sep)
     return components[-1]
 
-@expose("split-path", [values.W_Object], simple=False)
-def split_path(w_path, env, cont):
-    from pycket.interpreter import return_multi_vals
-    path = extract_path(w_path)
+def _split_path(path):
     dirname  = _dirname(path)
     basename = _basename(path)
     name = _explode_element(basename)
     if dirname == os.path.sep:
         base = values.w_false
         must_be_dir = values.w_false
-    elif name is UP or name is SAME:
+    elif dirname == '':
         base = RELATIVE
+        if name is UP or name is SAME:
+            must_be_dir = values.w_true
+        else:
+            must_be_dir = values.w_false
+    elif basename == '':
+        base = RELATIVE
+        second_name = _explode_element(dirname)
+        if second_name is UP or second_name is SAME:
+            name = second_name
+        else:
+            name = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_true
     else:
         base = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_false
+    return (base, name, must_be_dir)
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    
+    path = extract_path(w_path)
+    base, name, must_be_dir = _split_path(path)
     result = values.Values.make([base, name, must_be_dir])
     return return_multi_vals(result, env, cont)
 
@@ -552,6 +568,65 @@ def resolve_path(obj):
         raise SchemeException("resolve-path: expected path-string")
     str = extract_path(obj)
     return values.W_Path(os.path.normpath(str))
+
+@expose("path-string?", [values.W_Object])
+def path_stringp(v):
+    # FIXME: handle zeros in string
+    return values.W_Bool.make(
+        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
+
+@expose("complete-path?", [values.W_Object])
+def complete_path(v):
+    # FIXME: stub
+    return values.w_false
+
+@expose("path->string", [values.W_Path])
+def path2string(p):
+    return values_string.W_String.fromstr_utf8(p.path)
+
+@expose("path->bytes", [values.W_Path])
+def path2bytes(p):
+    return values.W_Bytes.from_string(p.path)
+
+@expose("cleanse-path", [values.W_Object])
+def cleanse_path(p):
+    if isinstance(p, values_string.W_String):
+        return values.W_Path(p.as_str_ascii())
+    if isinstance(p, values.W_Path):
+        return p
+    raise SchemeException("cleanse-path expects string or path")
+
+def _path_elementp(p):
+    """
+    see path.rkt
+    (define (path-element? path)
+      (and (path-for-some-system? path)
+           (let-values ([(base name d?) (split-path path)])
+             (and (eq? base 'relative)
+                  (path-for-some-system? name)))))
+    """
+    if path_for_some_system(p) is w_false:
+        return w_false
+    #for now
+    assert isinstance(p, W_Path)
+    path = extract_path(p)
+    base, name, must_be_dir = _split_path(path)
+    return base is RELATIVE and (path_for_some_system(name) is not w_false)
+
+@expose("path-element->string", [values.W_Object])
+def path_element2string(p):
+    if not _path_elementp(p):
+        raise SchemeException("path-element->string expects path")
+
+    path = extract_path(p)
+    return values_string.W_String.fromstr_utf8(p)
+
+@expose("path-element->bytes", [values.W_Object])
+def path_element2bytes(p):
+    if not _path_elementp(p):
+        raise SchemeException("path-element->string expects path")
+    path = extract_path(p)
+    return values.W_Bytes.from_string(p)
 
 @continuation
 def close_cont(port, env, cont, vals):
