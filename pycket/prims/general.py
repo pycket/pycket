@@ -10,7 +10,7 @@ from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
 from pycket import vector as values_vector
-from pycket.error import SchemeException
+from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -1059,11 +1059,11 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error", arity=Arity.geq(1))
-def error(args):
+def _error(args, is_user=False):
+    reason = ""
     if len(args) == 1:
         sym = args[0]
-        raise SchemeException("error: %s" % sym.tostring())
+        reason = "error: %s" % sym.tostring()
     else:
         first_arg = args[0]
         if isinstance(first_arg, values_string.W_String):
@@ -1073,15 +1073,28 @@ def error(args):
             v = args[1:]
             for item in v:
                 msg.append(" %s" % item.tostring())
-            raise SchemeException(msg.build())
+            reason = msg.build()
         else:
             src = first_arg
             form = args[1]
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values_string.W_String)
-            raise SchemeException("%s: %s" % (
-                src.tostring(), input_output.format(form, v, "error")))
+            reason = "%s: %s" % (
+                src.tostring(), input_output.format(form, v, "error"))
+    if is_user:
+        raise UserException(reason)
+    else:
+        raise SchemeException(reason)
+
+@expose("error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, False)
+
+@expose("raise-user-error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, True)
+
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):

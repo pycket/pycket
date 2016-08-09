@@ -50,13 +50,16 @@ def post_build_exception(env, cont, _vals):
 
 def convert_runtime_exception(exn, env, cont):
     from pycket               import values_string
-    from pycket.prims.general import exn_fail
+    from pycket.prims.general import exn_fail, exn_fail_user
     from pycket.values        import W_ContinuationMarkSet
     from pycket.prims.control import raise_exception
     message = values_string.W_String.fromstr_utf8(exn.msg)
     marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
-    return exn_fail.constructor.call([message, marks], env, cont)
+    if exn.is_user():
+        return exn_fail_user.constructor.call([message, marks], env, cont)
+    else:
+        return exn_fail.constructor.call([message, marks], env, cont)
 
 @jit.unroll_safe
 def scan_continuation(curr, prompt_tag, look_for=None):

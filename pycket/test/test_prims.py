@@ -10,7 +10,6 @@ import sys
 from pycket        import values
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
-from pycket.error import SchemeException
 
 skip = pytest.mark.skipif("True")
 
@@ -1130,4 +1129,9 @@ def test_split_path(doctest):
     'same
     > must-be-dir7
     #t
+    """
+
+def test_fail_user_simple(doctest):
+    """
+    E (raise-user-error "foo")
     """
