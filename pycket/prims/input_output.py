@@ -545,12 +545,16 @@ def path_to_path_complete_path(path, _base):
         return path
     return values.W_Path(base + '/' + p)
 
-@expose("path-for-some-system?", [values.W_Object])
-def path_for_some_system(path):
+
+def _path_for_some_systemp(path):
     # XXX Really only handles UNIX paths
     # https://github.com/racket/racket/blob/827fc4559879c73d46268fc72f95efe0009ff905/racket/src/racket/include/scheme.h#L493
     # This seems to be the closest implementation we can achieve.
-    return values.W_Bool.make(isinstance(path, values.W_Path))
+    return isinstance(path, values.W_Path)
+
+@expose("path-for-some-system?", [values.W_Object])
+def path_for_some_systemp(path):
+    return values.W_Bool.make(_path_for_some_systemp(path))
 
 @expose("relative-path?", [values.W_Object])
 def relative_path(obj):
@@ -605,13 +609,11 @@ def _path_elementp(p):
              (and (eq? base 'relative)
                   (path-for-some-system? name)))))
     """
-    if path_for_some_system(p) is w_false:
-        return w_false
-    #for now
-    assert isinstance(p, W_Path)
+    if not _path_for_some_systemp(p):
+        return False
     path = extract_path(p)
-    base, name, must_be_dir = _split_path(path)
-    return base is RELATIVE and (path_for_some_system(name) is not w_false)
+    base, name, _ = _split_path(path)
+    return base is RELATIVE and _path_for_some_systemp(name)
 
 @expose("path-element->string", [values.W_Object])
 def path_element2string(p):
@@ -619,14 +621,14 @@ def path_element2string(p):
         raise SchemeException("path-element->string expects path")
 
     path = extract_path(p)
-    return values_string.W_String.fromstr_utf8(p)
+    return values_string.W_String.fromstr_utf8(path)
 
 @expose("path-element->bytes", [values.W_Object])
 def path_element2bytes(p):
     if not _path_elementp(p):
         raise SchemeException("path-element->string expects path")
     path = extract_path(p)
-    return values.W_Bytes.from_string(p)
+    return values.W_Bytes.from_string(path)
 
 @continuation
 def close_cont(port, env, cont, vals):
