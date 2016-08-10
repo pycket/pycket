@@ -1190,6 +1190,16 @@ class Begin(SequencedBodyAST):
         if len(body) == 1:
             return body[0]
 
+        # Flatten nested begin expressions
+        flatened = []
+        for b in body:
+            if isinstance(b, Begin):
+                for _b in b.body:
+                    flatened.append(_b)
+            else:
+                flatened.append(b)
+        body = flatened[:]
+
         # Convert (begin (let ([...]) letbody) rest ...) =>
         #         (let ([...]) letbody ... rest ...)
         b0 = body[0]

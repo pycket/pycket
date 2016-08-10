@@ -9,15 +9,6 @@ SAFE = 0
 UNSAFE = 1
 SUBCLASS_UNSAFE = 2
 
-# XXX This is a little bit of compatibility code for dealing with some changes
-# to the RPython library. This code is only here to make swapping between
-# RPython versions easy.
-# This makes Spenser's life easy when benchmarking due to performance regressions
-# in the JIT.
-if not hasattr(jit, 'record_exact_class'):
-    known = getattr(jit, 'record_known_class')
-    setattr(jit, 'record_exact_class', known)
-
 class unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding
     argument will be assumed to have the precise corresponding type (no
@@ -37,7 +28,6 @@ class unsafe(object):
             jit.record_exact_class(w_arg, typ)
             return w_arg
         return unwrapper, typ.errorname
-
 
 class subclass_unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding

@@ -1144,7 +1144,8 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
-def to_list(l): return to_improper(l, w_null)
+def to_list(l):
+    return to_improper(l, w_null)
 
 @jit.look_inside_iff(
     lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))

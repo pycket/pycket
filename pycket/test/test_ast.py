@@ -7,7 +7,7 @@ from pycket.values import W_Symbol, W_Fixnum
 from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
-                                Lambda, Letrec, Let, Quote, App, If,
+                                Lambda, Letrec, Let, Quote, App, If, Begin,
                                 SimplePrimApp1, SimplePrimApp2,
                                 WithContinuationMark
                                 )
@@ -252,4 +252,14 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body, Let)
     assert isinstance(body.rhss[0], App)
     assert isinstance(body.body[0], App)
+
+
+def test_flatten_nested_begins():
+    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    assert isinstance(p, Begin)
+    assert len(p.body) == 8
+    for i, b in enumerate(p.body):
+        assert isinstance(b, Quote)
+        val = b.w_val
+        assert isinstance(val, W_Fixnum) and val.value == i
 
