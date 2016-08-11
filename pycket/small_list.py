@@ -88,6 +88,9 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
                 setattr(newcls, "_immutable_fields_", attrs)
                 newcls = add_clone_method(newcls)
 
+            if "_attrs_" in cls.__dict__:
+                setattr(newcls, "_attrs_", attrs)
+
             return newcls
 
         classes = map(make_class, range(sizemin, sizemax))
@@ -124,6 +127,9 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
         if immutable:
             setattr(cls_arbitrary, "_immutable_fields_", ["%s[*]" % (attrname,)])
             cls_arbitrary = add_clone_method(cls_arbitrary)
+
+        if "_attrs_" in cls.__dict__:
+            setattr(cls_arbitrary, "_attrs_", attrname)
 
         def make(elems, *args):
             if classes:

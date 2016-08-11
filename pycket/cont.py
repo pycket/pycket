@@ -150,6 +150,8 @@ class BaseCont(object):
 # Continuation used to signal that the computation is done.
 class NilCont(BaseCont):
 
+    _attrs_ = []
+
     def _clone(self):
         return NilCont()
 
@@ -174,7 +176,7 @@ def get_forward_mark(prev):
 
 class Cont(BaseCont):
 
-    _immutable_fields_ = ['env', 'prev']
+    _attrs_ = _immutable_fields_ = ['env', 'prev']
 
     def __init__(self, env, prev):
         BaseCont.__init__(self, marks=get_forward_mark(prev))
@@ -212,7 +214,7 @@ class Cont(BaseCont):
 
 class Prompt(Cont):
 
-    _immutable_fields_ = ['tag', 'handler']
+    _attrs_ = _immutable_fields_ = ['tag', 'handler']
 
     def __init__(self, tag, handler, env, prev):
         Cont.__init__(self, env, prev)
@@ -242,6 +244,8 @@ class Prompt(Cont):
 
 class Barrier(Cont):
 
+    _attrs_ = []
+
     def _clone(self):
         return Barrier(self.env, self.prev)
 
@@ -255,7 +259,7 @@ def _make_args_class(base, argnames):
     unroll_argnames = unroll.unrolling_iterable(enumerate(argnames))
 
     class Args(base):
-        _immutable_fields_ = argnames
+        _attrs_ = _immutable_fields_ = argnames
         def _init_args(self, *args):
             for i, name in unroll_argnames:
                 setattr(self, name, args[i])
@@ -330,7 +334,7 @@ def make_label(func, enter=False):
     assert not varkw and not defaults
     if varargs: # grrr, bad
         class Args(Cont):
-            _immutable_fields_ = ["args"]
+            _attrs_ = _immutable_fields_ = ["args"]
             def __init__(self, *args):
                 Cont.__init__(self, args[-2], args[-1])
                 self.args = args[:-2]

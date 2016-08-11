@@ -90,6 +90,7 @@ class StrategyVectorMixin(object):
 
 class W_Vector(W_MVector):
     _immutable_fields_ = ["len"]
+    _attrs_ = ["strategy", "storage", "len"]
     errorname = "vector"
 
     import_from_mixin(StrategyVectorMixin)
@@ -159,6 +160,7 @@ class W_Vector(W_MVector):
 
 class W_FlVector(W_VectorSuper):
     _immutable_fields_ = ["len"]
+    _attrs_ = ["storage", "len"]
     errorname = "flvector"
 
     import_from_mixin(StrategyVectorMixin)

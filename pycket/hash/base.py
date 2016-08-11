@@ -7,6 +7,7 @@ from rpython.rlib             import rerased
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
 
 class W_Missing(W_Object):
+    _attrs_ = []
     def __init__(self):
         pass
 

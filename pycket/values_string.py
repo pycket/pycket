@@ -150,6 +150,8 @@ class W_String(W_Object):
 
 class W_MutableString(W_String):
 
+    _attrs_ = ['storage', 'strategy']
+
     def __init__(self, strategy, storage):
         self.change_strategy(strategy, storage)
 
@@ -191,6 +193,7 @@ class W_ImmutableString(W_String):
     # abstract base class of immutable strings
     # there are concrete subclasses for every immutable strategy
 
+    _attrs_ = ['storage']
     _immutable_fields_ = ['storage']
 
     def __init__(self, strategy, storage):
