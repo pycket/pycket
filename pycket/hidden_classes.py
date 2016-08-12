@@ -73,9 +73,7 @@ def make_map_type(getter, keyclass):
 def make_caching_map_type(getter, keyclass):
 
     class Pair(object):
-
         _attrs_ = ['x', 'y']
-
         def __init__(self, x, y):
             self.x = x
             self.y = y
@@ -203,15 +201,31 @@ def make_caching_map_type(getter, keyclass):
 # They are unique based on their component maps.
 def make_composite_map_type(keyclass, shared_storage=False):
 
+    class Pair(object):
+        _attrs_ = ['x', 'y']
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+        def __eq__(self, other):
+            assert isinstance(other, Pair)
+            return self.x == other.x and self.y == other.y
+
+        def __hash__(self):
+            return hash((self.x, self.y))
+
     class CompositeMap(object):
         _immutable_fields_ = ['handlers', 'properties']
 
         @staticmethod
         @jit.elidable
-        def instantiate(*args):
-            if args not in CompositeMap.CACHE:
-                CompositeMap.CACHE[args] = CompositeMap(*args)
-            return CompositeMap.CACHE[args]
+        def instantiate(handlers, properties):
+            key = Pair(handlers, properties)
+            result = CompositeMap.CACHE.get(key)
+            if result is None:
+                result = CompositeMap(handlers, properties)
+                CompositeMap.CACHE.set(key, result)
+            return result
 
         def __init__(self, handlers, properties):
             self.handlers = handlers
@@ -230,6 +244,6 @@ def make_composite_map_type(keyclass, shared_storage=False):
             offset = self.handlers.storage_size() if shared_storage else 0
             return self.properties.lookup(key, storage, default=default, offset=offset)
 
-    CompositeMap.CACHE = {}
+    CompositeMap.CACHE = rweakref.RWeakValueDictionary(Pair, CompositeMap)
     return CompositeMap
 
