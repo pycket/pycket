@@ -111,7 +111,7 @@ class Pair(W_Object):
 
 NONE_PAIR = Pair(None, None)
 
-CompositeMap = make_composite_map_type(shared_storage=True)
+CompositeMap = make_composite_map_type(tuple, shared_storage=True)
 
 @jit.unroll_safe
 def impersonator_args(struct, overrides, handlers, prop_keys, prop_vals):
@@ -203,8 +203,10 @@ INFO_OVERRIDE_IDX = -2
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
 
-    EMPTY_HANDLER_MAP = make_caching_map_type("get_storage_index").EMPTY
-    EMPTY_PROPERTY_MAP = make_map_type("get_storage_index").EMPTY
+    EMPTY_HANDLER_MAP = make_caching_map_type("get_storage_index", int).EMPTY
+    # The keytype for this hidden class must be a superclass of
+    # W_StructPropertyAccessor and W_ImpPropertyDescriptor
+    EMPTY_PROPERTY_MAP = make_map_type("get_storage_index", W_Object).EMPTY
 
     _attrs_ = ['inner', 'base', 'map']
     _immutable_fields_ = ['inner', 'base', 'map']

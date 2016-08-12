@@ -1,10 +1,8 @@
 
-from rpython.rlib             import jit, unroll
+from rpython.rlib             import jit, unroll, rweakref
 from rpython.rlib.objectmodel import specialize
 
-def make_map_type(getter=None):
-
-    assert getter is not None, "must supply a getter name"
+def make_map_type(getter, keyclass):
 
     class Map(object):
         """ A basic implementation of a map which assigns Racket values to an index
@@ -19,7 +17,7 @@ def make_map_type(getter=None):
 
         def __init__(self):
             self.indexes    = {}
-            self.other_maps = {}
+            self.other_maps = rweakref.RWeakValueDictionary(keyclass, Map)
 
         def __iter__(self):
             return self.indexes.iteritems()
@@ -47,12 +45,12 @@ def make_map_type(getter=None):
 
         @jit.elidable_promote('all')
         def add_attribute(self, name):
-            newmap = self.other_maps.get(name, None)
+            newmap = self.other_maps.get(name)
             if newmap is None:
                 newmap = Map()
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = len(self.indexes)
-                self.other_maps[name] = newmap
+                self.other_maps.set(name, newmap)
             return newmap
 
         def set_storage(self, name, val, storage):
@@ -72,9 +70,22 @@ def make_map_type(getter=None):
     return Map
 
 # TODO Find a beter name for this
-def make_caching_map_type(getter=None):
+def make_caching_map_type(getter, keyclass):
 
-    assert getter is not None, "must supply a getter name"
+    class Pair(object):
+
+        _attrs_ = ['x', 'y']
+
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+        def __eq__(self, other):
+            assert isinstance(other, Pair)
+            return self.x == other.x and self.y == other.y
+
+        def __hash__(self):
+            return hash((self.x, self.y))
 
     class CachingMap(object):
         """ A map implementation which partitions its data into two groups, a collection
@@ -90,8 +101,8 @@ def make_caching_map_type(getter=None):
         def __init__(self):
             self.indexes = {}
             self.static_data = {}
-            self.dynamic_submaps = {}
-            self.static_submaps = {}
+            self.dynamic_submaps = rweakref.RWeakValueDictionary(keyclass, CachingMap)
+            self.static_submaps  = rweakref.RWeakValueDictionary(Pair, CachingMap)
 
         def iterkeys(self):
             for key in self.indexes.iterkeys():
@@ -136,26 +147,26 @@ def make_caching_map_type(getter=None):
         @jit.elidable_promote('all')
         def add_static_attribute(self, name, value):
             assert name not in self.indexes and name not in self.static_data
-            key = (name, value)
-            newmap = self.static_submaps.get(key, None)
+            key = Pair(name, value)
+            newmap = self.static_submaps.get(key)
             if newmap is None:
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.static_data[name] = value
-                self.static_submaps[key] = newmap
+                self.static_submaps.set(key, newmap)
             return newmap
 
         @jit.elidable_promote('all')
         def add_dynamic_attribute(self, name):
             assert name not in self.indexes and name not in self.static_data
-            newmap = self.dynamic_submaps.get(name, None)
+            newmap = self.dynamic_submaps.get(name)
             if newmap is None:
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.indexes[name] = len(self.indexes)
-                self.dynamic_submaps[name] = newmap
+                self.dynamic_submaps.set(name, newmap)
             return newmap
 
         @jit.elidable
@@ -190,11 +201,10 @@ def make_caching_map_type(getter=None):
 
 # These maps are simply unique products of various other map types.
 # They are unique based on their component maps.
-def make_composite_map_type(shared_storage=False):
+def make_composite_map_type(keyclass, shared_storage=False):
 
     class CompositeMap(object):
         _immutable_fields_ = ['handlers', 'properties']
-        CACHE = {}
 
         @staticmethod
         @jit.elidable
@@ -220,5 +230,6 @@ def make_composite_map_type(shared_storage=False):
             offset = self.handlers.storage_size() if shared_storage else 0
             return self.properties.lookup(key, storage, default=default, offset=offset)
 
+    CompositeMap.CACHE = {}
     return CompositeMap
 
