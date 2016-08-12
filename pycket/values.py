@@ -644,14 +644,14 @@ class W_Integer(W_Number):
 @memoize_constructor
 class W_Fixnum(W_Integer):
 
+    _immutable_ = True
+    _attrs_ = _immutable_fields_ = ["value"]
+    errorname = "fixnum"
+
     MIN_INTERNED   = -128
     MAX_INTERNED   = 128
     INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
     cache = []
-
-    _immutable_ = True
-    _attrs_ = _immutable_fields_ = ["value"]
-    errorname = "fixnum"
 
     def tostring(self):
         return str(self.value)
@@ -686,7 +686,6 @@ W_Fixnum.ZERO = W_Fixnum.make(0)
 W_Fixnum.ONE  = W_Fixnum.make(1)
 W_Fixnum.TWO  = W_Fixnum.make(2)
 W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
-
 
 class W_Flonum(W_Number):
     _immutable_ = True
