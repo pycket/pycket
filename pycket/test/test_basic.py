@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-from pycket.expand import expand, to_ast
+from pycket.expand import expand
 from pycket.interpreter import *
 from pycket.values import *
 from pycket import values_string
@@ -201,7 +201,9 @@ def test_lists():
 def test_box():
     run("(unbox (box #t))", w_true)
     run("(unbox (box-immutable #f))", w_false)
+    run("(unsafe-unbox (box #t))", w_true)
     run("(let ([b (box 5)]) (begin (set-box! b #f) (unbox b)))", w_false)
+    run("(let* ([b (box 5)] [r (box-cas! b 5 6)]) (and r (eqv? (unbox b) 6)))", w_true)
 
 def test_fib_ycombinator():
     Y = """
@@ -444,6 +446,8 @@ def test_with_continuation_mark3():
     m = run_mod(
     """
     #lang racket/base
+    (define a 1)
+    (set! a 2)
     (define result
         (let* ([extract
 	        (lambda (k) (continuation-mark-set->list
@@ -461,7 +465,7 @@ def test_with_continuation_mark3():
 	        				 (if in?
 	        				     (extract k)
 	        				     k)))))
-	        			  (+ 2 3)))])
+	        			  (+ a 3)))])
 	        		(if in?
 	        		    k
 	        		    (extract k)))))])
@@ -626,8 +630,6 @@ def test_should_enter_downrecursion():
                (define fn-1 (n-1 f))
                (lambda (x) (f (fn-1 x))))]))
         (n->f 10)
-
-
     """
 
     ast = parse_module(expand_string(str))
@@ -643,7 +645,7 @@ def test_should_enter_downrecursion():
     assert append.body[0].els.body[0].should_enter
 
     assert f.body[0].should_enter
-    assert f.body[0].els.body[0].should_enter
+    assert f.body[0].els.body[0].body[0].should_enter
 
 def test_reader_graph(doctest):
     """

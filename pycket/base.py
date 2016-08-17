@@ -3,6 +3,9 @@ from pycket.error          import SchemeException
 from rpython.tool.pairtype import extendabletype
 from rpython.rlib          import jit, objectmodel
 
+class UnhashableType(Exception):
+    pass
+
 class W_ProtoObject(object):
     """ abstract base class of both actual values (W_Objects) and multiple
     return values (Values)"""
@@ -64,8 +67,21 @@ class W_Object(W_ProtoObject):
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
 
-    def is_proper_list(self):
-        return False
+    # Interface for structs
+
+    def ref_with_extra_info(self, field, app, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    def struct_type(self):
+        return None
+
+    def get_prop(self, property, env, cont):
+        raise SchemeException("%s is not a struct" % self.tostring())
+
+    # Interface for proxies
 
     def is_impersonator(self):
         return self.is_chaperone()
@@ -75,9 +91,16 @@ class W_Object(W_ProtoObject):
         return self.is_chaperone() or self.is_impersonator()
     def get_proxied(self):
         return self
+    def get_base(self):
+        return self
     def get_properties(self):
         return {}
     def is_non_interposing_chaperone(self):
+        return False
+    def replace_proxied(self, other):
+        raise ValueError("Not a proxy")
+
+    def is_proper_list(self):
         return False
 
     def immutable(self):

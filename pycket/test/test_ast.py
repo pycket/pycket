@@ -1,13 +1,19 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pytest
 from pycket.expand import expand, expand_string
 from pycket.values import W_Symbol, W_Fixnum
-from pycket.expand import _to_ast, to_ast, parse_module
+from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
-                                Lambda, Letrec, Let, Quote, App, If,
-                                SimplePrimApp1, SimplePrimApp2
+                                Lambda, Letrec, Let, Quote, App, If, Begin,
+                                SimplePrimApp1, SimplePrimApp2,
+                                WithContinuationMark, SetBang,
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
+
+skip = pytest.mark.skipif("True")
 
 def make_symbols(d):
     v = variable_set()
@@ -47,12 +53,13 @@ def test_cache_lambda_if_no_frees():
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
 
+@skip
 def test_remove_let():
     p = expr_ast("(let ([g cons]) (g 5 5))")
-    assert isinstance(p, App)
+    assert isinstance(p, Let)
 
     p = expr_ast("(let ([a 1]) (if a + -))")
-    assert isinstance(p, If)
+    assert isinstance(p, Let)
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
@@ -97,12 +104,12 @@ def test_copy_to_env():
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")
     inner_let = p.body[0].body[0]
-    assert inner_let.remove_num_envs == [0, 0, 0]
+    assert inner_let.remove_num_envs == [0, 0, 0, 0]
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
-    inner_let = p.body[0].body[1]
-    assert inner_let.remove_num_envs == [0, 0, 0]
+    inner_let = p.body[0].body[0].body[1]
+    assert inner_let.remove_num_envs == [1, 1, 1]
 
 def test_reclambda():
     # simple case:
@@ -113,13 +120,15 @@ def test_reclambda():
 
     # immediate application
     p = expr_ast("(letrec ([a (lambda () a)]) (a))")
-    assert isinstance(p.rator, CaseLambda)
-    assert p.rator.recursive_sym is not None
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    assert p.rhss[0].recursive_sym is not None
 
     # immediate application
     p = expr_ast("(letrec ([a (lambda (b) (a b))]) (a 1))")
-    assert isinstance(p.rator, CaseLambda)
-    assert p.rator.recursive_sym is not None
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    assert p.rhss[0].recursive_sym is not None
 
     # immediate application, need a let because the variable appears not just
     # once (but not a letrec)
@@ -150,13 +159,14 @@ def test_cont_fusion():
         FusedLet0Let0Cont, FusedLet0BeginCont,
     )
     from pycket.config import get_testing_config
+    from pycket.cont   import NilCont
     args = SymList([])
     counts = [1]
     rhss = 1
     letast1 = Let(args, counts, [1], [2])
     letast2 = Let(args, counts, [1], [2])
     env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = object()
+    prev = NilCont()
     let2 = LetCont.make([], letast2, 0, env, prev)
     let1 = LetCont.make([], letast1, 0, env, let2)
     assert isinstance(let1, FusedLet0Let0Cont)
@@ -183,9 +193,13 @@ def test_bottom_up_let_conversion():
     lam = caselam.lams[0]
     f, g1, g2, h1, h2, a, b = lam.args.elems
     let = lam.body[0]
-    for fn in [g2, g1, h2, h1]:
-        assert let.rhss[0].rator.sym is fn
-        let = let.body[0]
+    assert let.rhss[0].rator.sym is g2
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is g1
+    assert let.rhss[1].rator.sym is h2
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is h1
+    let = let.body[0]
     assert let.rator.sym is f
 
     caselam = expr_ast("(lambda (f f2 x) %s x %s)" % ("(f (f2 " * 10, "))" * 10))
@@ -203,9 +217,11 @@ def test_bottom_up_let_conversion_bug_append():
     lam = caselam.lams[0]
     cons, car, cdr, a, b, append = lam.args.elems
     let = lam.body[0]
-    for fn in [car, cdr, append]:
-        assert let.rhss[0].rator.sym is fn
-        let = let.body[0]
+    assert let.rhss[0].rator.sym is car
+    assert let.rhss[1].rator.sym is cdr
+    let = let.body[0]
+    assert let.rhss[0].rator.sym is append
+    let = let.body[0]
     assert let.rator.sym is cons
 
 
@@ -220,3 +236,39 @@ def test_simple_prim_calls_are_simple_expressions():
     p = expr_ast("(car (cons 1 2))")
     assert isinstance(p, SimplePrimApp1)
 
+def test_nested_lets():
+    p = expr_ast("(let ([x (let ([y (equal? 1 2)]) y)]) (equal? #t x))")
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], App)
+    let_body = p.body[0]
+    assert isinstance(let_body, Let)
+    let_body = let_body.body[0]
+    assert isinstance(let_body, App)
+
+def test_nontrivial_with_continuation_mark():
+    p = expr_ast("(with-continuation-mark 'key 'val (equal? (equal? 1 2) 3))")
+    assert isinstance(p, WithContinuationMark)
+    body = p.body
+    assert isinstance(body, Let)
+    assert isinstance(body.rhss[0], App)
+    assert isinstance(body.body[0], App)
+
+def test_flatten_nested_begins():
+    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    assert isinstance(p, Begin)
+    assert len(p.body) == 8
+    for i, b in enumerate(p.body):
+        assert isinstance(b, Quote)
+        val = b.w_val
+        assert isinstance(val, W_Fixnum) and val.value == i
+
+def test_anf_setbang():
+    p = expr_ast("(let ([x 0]) (set! x (+ 1 (+ x 3))))")
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, SetBang)
+    assert p.rhs.simple

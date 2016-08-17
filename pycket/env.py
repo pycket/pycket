@@ -86,8 +86,10 @@ class ModuleEnv(object):
         from pycket.interpreter import Module
         # note that `name` and `module.name` are different!
         assert isinstance(module, Module)
-        #if name not in self.modules:
-        self.modules[name] = module
+        if name in self.modules:
+            assert module is self.modules[name]
+        else:
+            self.modules[name] = module
 
     @jit.elidable
     def _find_module(self, name):
@@ -132,6 +134,7 @@ class Version(object):
 
 
 class ToplevelEnv(Env):
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig']
     _immutable_fields_ = ["version?", "module_env"]
     def __init__(self, pycketconfig=None):
         from rpython.config.config import Config
@@ -176,7 +179,9 @@ class ToplevelEnv(Env):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class ConsEnv(Env):
+    _immutable_ = True
     _immutable_fields_ = ["_prev"]
+    _attrs_ = ["_prev"]
     def __init__ (self, prev):
         assert isinstance(prev, Env)
         self._prev = prev

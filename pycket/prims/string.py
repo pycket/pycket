@@ -81,6 +81,11 @@ def string_to_path(str):
 def string_to_unsymbol(v):
     return values.W_Symbol.make_unreadable(v.as_str_utf8())
 
+@expose("string->keyword", [W_String])
+def string_to_keyword(str):
+    repr = str.as_str_utf8()
+    return values.W_Keyword.make(repr)
+
 @expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
     return string.make_immutable()
@@ -89,11 +94,11 @@ def string_to_immutable_string(string):
 def string_to_symbol(v):
     return values.W_Symbol(v.as_unicode())
 
-@expose(["string->bytes/locale",
-         "string->bytes/utf-8"], [W_String,
-                                  default(values.W_Object, values.w_false),
-                                  default(values.W_Fixnum, values.W_Fixnum.ZERO),
-                                  default(values.W_Fixnum, None)])
+@expose(["string->bytes/locale", "string->bytes/utf-8"],
+        [W_String,
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)])
 def string_to_bytes_locale(str, errbyte, start, end):
     # assert errbyte is values.w_false
     # ignore for now
@@ -394,16 +399,23 @@ def unsafe_bytes_set_bang(s, n, v):
 
 @expose("list->bytes", [values.W_List])
 def list_to_bytes(w_list):
-    l = values.from_list(w_list)
-    ll = [' '] * len(l)
-    for (i,x) in enumerate(l):
-        if not isinstance(x, values.W_Fixnum):
-            raise SchemeException("list->bytes: expected fixnum, got %s" % x)
-        if x.value < 0 or x.value >= 256:
-            raise SchemeException(
-                "list->bytes: expected number between 0 and 255, got %s" % x)
-        ll[i] = chr(x.value)
-    return values.W_MutableBytes(ll)
+    if not w_list.is_proper_list():
+        raise SchemeException("list->bytes: expected proper list, got %s" % w_list.tostring())
+
+    ll = []
+    while isinstance(w_list, values.W_UnwrappedFixnumConsProper):
+        val = w_list._car
+        if not (0 <= val < 256):
+            break
+        ll.append(chr(val))
+        w_list = w_list.cdr()
+    else:
+        if w_list is values.w_null:
+            return values.W_MutableBytes(ll[:])
+
+    assert isinstance(w_list, values.W_Cons)
+    raise SchemeException("list->bytes: expected a number between 0 and 255, got %s"
+                          % w_list.car().tostring())
 
 @expose("subbytes",
         [values.W_Bytes, values.W_Fixnum, default(values.W_Fixnum, None)])
@@ -455,6 +467,7 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
     return values.w_void
 
 def define_bytes_comp(name, op):
+    compare = make_bytes_compare(name, op)
     @expose(name)
     @jit.unroll_safe
     def comp(args):
@@ -466,16 +479,30 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not op(str(head.value), str(t.value)):
+            if not compare(head.value, t.value):
                 return values.w_false
             head = t
         return values.w_true
 
-for a in [("bytes<?", op.lt),
-          ("bytes<=?", op.le),
-          ("bytes=?", op.eq),
-          ("bytes>=?", op.ge),
-          ("bytes>?", op.gt),
+def make_bytes_compare(name, op):
+    def bytes_compare(x, y):
+        lx = len(x)
+        ly = len(y)
+        length = min(lx, ly)
+        for i in range(length):
+            xi, yi = x[i], y[i]
+            if xi == yi:
+                continue
+            return op(xi, yi)
+        return op(lx, ly)
+    bytes_compare.__name__ = "bytes_compare(%s)" % name
+    return bytes_compare
+
+for a in [("bytes<?"  , op.lt) ,
+          ("bytes<=?" , op.le) ,
+          ("bytes=?"  , op.eq) ,
+          ("bytes>=?" , op.ge) ,
+          ("bytes>?"  , op.gt) ,
           ]:
     define_bytes_comp(*a)
 

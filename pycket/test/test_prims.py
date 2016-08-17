@@ -10,7 +10,6 @@ import sys
 from pycket        import values
 from pycket.values import w_true
 from pycket.test.testhelper import check_all, check_none, check_equal, run_flo, run_fix, run, run_mod, run_mod_expr
-from pycket.error import SchemeException
 
 skip = pytest.mark.skipif("True")
 
@@ -636,6 +635,19 @@ def test_port_read_peek(doctest):
     101
     > (read-byte bp)
     40
+    > (define usp (open-input-string "\u4F60\u597D,\u4E16\u754C"))
+    > (peek-byte usp)
+    228
+    > (peek-char usp)
+    #\u4F60
+    > (peek-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u4F60
+    > (read-char usp)
+    #\u597D
+    > (read-char usp)
+    #\,
     """
 
 def test_peek_bug(tmpdir):
@@ -739,6 +751,72 @@ def test_dynamic_wind(doctest):
     > (dynamic-wind (lambda () 1) (lambda () 2) (lambda () 3))
     2
     """
+
+def test_dynamic_wind2():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define acc 0)
+    (define v
+      (let/cc k
+        (dynamic-wind
+          (lambda () (set! acc (+ acc 1)))
+          (lambda () (set! acc (+ acc 1)) 42)
+          (lambda () (set! acc (+ acc 1))))))
+    """)
+    acc = m.defs[values.W_Symbol.make("acc")]
+    v   = m.defs[values.W_Symbol.make("v")]
+    assert isinstance(acc, values.W_Cell)
+    acc = acc.get_val()
+
+    assert isinstance(v, values.W_Fixnum) and v.value == 42
+    assert isinstance(acc, values.W_Fixnum) and acc.value == 3
+
+def test_dynamic_wind3():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+      (let/ec k0
+          (let/ec k1
+            (dynamic-wind
+             void
+             (lambda () (k0 'cancel))
+             (lambda () (k1 'cancel-canceled))))))
+    """)
+    val = m.defs[values.W_Symbol.make("val")]
+    assert val is values.W_Symbol.make("cancel-canceled")
+
+def test_dynamic_wind4():
+    m = run_mod(
+    """
+    #lang pycket
+    (require racket/control)
+    (define val
+        (let* ([x (make-parameter 0)]
+                 [l null]
+                 [add (lambda (a b)
+                        (set! l (append l (list (cons a b)))))])
+            (let ([k (parameterize ([x 5])
+                       (dynamic-wind
+                           (lambda () (add 1 (x)))
+                           (lambda () (parameterize ([x 6])
+                                        (let ([k+e (let/cc k (cons k void))])
+                                          (add 2 (x))
+                                          ((cdr k+e))
+                                          (car k+e))))
+                           (lambda () (add 3 (x)))))])
+              (parameterize ([x 7])
+                (let/cc esc
+                  (k (cons void esc)))))
+            l))
+    (define equal (equal? val '((1 . 5) (2 . 6) (3 . 5) (1 . 5) (2 . 6) (3 . 5))))
+    """)
+    val   = m.defs[values.W_Symbol.make("val")]
+    equal = m.defs[values.W_Symbol.make("equal")]
+    assert equal is values.w_true
 
 def test_bytes_conversions():
     m = run_mod(
@@ -975,7 +1053,6 @@ def test_ctype_basetype(doctest):
     #t
     """
 
-
 def test_procedure_result_arity(doctest):
     """
     ! (define-struct node (x y z))
@@ -985,4 +1062,76 @@ def test_procedure_result_arity(doctest):
     1
     > (procedure-result-arity node-x)
     1
+    """
+
+def test_string_to_keyword(doctest):
+    """
+    > (eq? (string->keyword "hello") (values '#:hello))
+    #t
+    > (eq? (string->keyword "muffin button") (values '#:|muffin button|))
+    #t
+    """
+
+def test_bytes_to_path_element(doctest):
+    """
+    > (path->string (bytes->path-element (string->bytes/locale "spenser")))
+    "spenser"
+    """
+
+def test_split_path(doctest):
+    """
+    ! (define-values (base7 name7 must-be-dir7) (split-path "./"))
+    ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
+    ! (define-values (base2 name2 must-be-dir2) (split-path "./abc/def"))
+    ! (define-values (base3 name3 must-be-dir3) (split-path ".."))
+    ! (define-values (base4 name4 must-be-dir4) (split-path "."))
+    ! (define-values (base5 name5 must-be-dir5) (split-path "foo"))
+    ! (define-values (base6 name6 must-be-dir6) (split-path "bcd/"))
+    > base1
+    (string->path "abc/")
+    > name1
+    (string->path "def")
+    > must-be-dir1
+    #f
+    > base2
+    (string->path "./abc/")
+    > name2
+    (string->path "def")
+    > must-be-dir2
+    #f
+    > base3
+    'relative
+    > name3
+    'up
+    > must-be-dir3
+    #t
+    > base4
+    'relative
+    > name4
+    'same
+    > must-be-dir4
+    #t
+    > base5
+    'relative
+    > name5
+    (string->path "foo")
+    > must-be-dir5
+    #f
+    > base6
+    'relative
+    > name6
+    (string->path "bcd/")
+    > must-be-dir6
+    #t
+    > base7
+    'relative
+    > name7
+    'same
+    > must-be-dir7
+    #t
+    """
+
+def test_fail_user_simple(doctest):
+    """
+    E (raise-user-error "foo")
     """

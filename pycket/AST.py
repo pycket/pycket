@@ -1,13 +1,14 @@
-from rpython.rlib import jit
+from rpython.rlib                    import jit, objectmodel
 
 class AST(object):
-    _attrs_ = ["should_enter", "mvars", "surrounding_lambda", "_stringrepr"]
+    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
-    mvars = None
+    _mvars = None
+    _fvars = None
     surrounding_lambda = None
 
     simple = False
@@ -57,9 +58,15 @@ class AST(object):
             child.collect_submodules(acc)
 
     def free_vars(self):
-        free_vars = {}
+        if self._fvars is None:
+            self._fvars = self._free_vars()
+        return self._fvars
+
+    def _free_vars(self):
+        from pycket.interpreter import SymbolSet
+        free_vars = SymbolSet.EMPTY
         for child in self.direct_children():
-            free_vars.update(child.free_vars())
+            free_vars = free_vars.union(child.free_vars())
         return free_vars
 
     def assign_convert(self, vars, env_structure):
@@ -74,10 +81,23 @@ class AST(object):
         raise NotImplementedError("abstract base class")
 
     def mutated_vars(self):
-        if self.mvars is not None:
-            return self.mvars
-        self.mvars = self._mutated_vars()
-        return self.mvars
+        if self._mvars is None:
+            self._mvars = self._mutated_vars()
+        return self._mvars
+
+    def _clean_cache(self):
+        self._mvars = None
+        self._fvars = None
+
+    def clean_caches(self):
+        nodes = [self]
+        while nodes:
+            node = nodes.pop()
+            node._clean_cache()
+            nodes.extend(node.direct_children())
+
+    def normalize(self, ctxt):
+        return ctxt.plug(self)
 
     def _mutated_vars(self):
         raise NotImplementedError("abstract base class")
@@ -93,4 +113,5 @@ class AST(object):
 
     def __str__(self):
         return self.tostring()
+
 

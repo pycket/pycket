@@ -15,6 +15,7 @@ class unsafe(object):
     subtypes!)."""
 
     def __init__(self, typ):
+        assert not typ.__subclasses__()
         self.typ = typ
 
     def make_unwrapper(self):
@@ -28,7 +29,6 @@ class unsafe(object):
             jit.record_exact_class(w_arg, typ)
             return w_arg
         return unwrapper, typ.errorname
-
 
 class subclass_unsafe(object):
     """ can be used in the argtypes part of an @expose call. The corresponding

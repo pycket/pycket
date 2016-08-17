@@ -11,6 +11,8 @@
          racket/syntax
          (for-syntax racket/base))
 
+(provide hash* global-config)
+
 (define keep-srcloc (make-parameter #t))
 (define current-phase (make-parameter 0))
 ;; FIXME: we really need a table for every phase, which means a table from phases to id tables
@@ -78,7 +80,7 @@
       (list (current-module) #t)))
 
 (define (full-path-string p)
-  (path->string (simplify-path p #f)))
+  (path->string (normalize-path (simplify-path p #t))))
 
 (define (desymbolize s)
   (cond
@@ -150,7 +152,8 @@
      (list (join-first (require-json #'path)
                        (map desym (syntax->list #'(subs ...)))))]
     ;; XXX May not be 100% correct
-    [((~datum lib) path) '()];;(require-json #'path)]
+    [((~datum lib) path) (list (resolve-module (resolve-module-path `(lib ,(syntax-e #'path)) #f)))]
+    [((~datum lib) _ ...) (error 'expand "`lib` multiple paths not supported")]
     [((~datum planet) _ ...)
      (error 'expand "`planet` require forms are not supported")]
     ))
@@ -165,7 +168,8 @@
                                    exec-file run-file sys-dir doc-dir orig-dir)])
         (values k (full-path-string (find-system-path k)))))
     (hash-set* sysconfig
-               'version (version))))
+               'version (version)
+               'bytecode-expand "false")))
 
 (require syntax/id-table)
 ;; FIXME: we really need a table for every phase, which means a table from phases to id tables
@@ -422,7 +426,7 @@
     [(i:identifier _)
      (match (identifier-binding #'i (current-phase))
        ['lexical (hash 'lexical  (id->sym v))]
-       [#f       
+       [#f
         (hash 'toplevel (symbol->string (syntax-e v)))]
        [(list (app index->path (list src self?)) src-id nom-src-mod nom-src-id
                    src-phase import-phase nominal-export-phase)
@@ -472,6 +476,8 @@
                                      (datum->syntax #'lex (hash-keys ht*)))
                  'hash-vals (to-json (datum->syntax #'lex (hash-values ht))
                                      (datum->syntax #'lex (hash-values ht*))))))]
+    [_ #:when (void? (syntax-e v))
+       (hash 'void #t)]
     ))
 
 (define (is-module? m)
@@ -479,7 +485,7 @@
        (hash-has-key? m 'module-name)))
 
 (define (convert mod mod/loc [config? #t])
-  (syntax-parse (list mod mod/loc) 
+  (syntax-parse (list mod mod/loc)
     #:literal-sets ((kernel-literals #:phase (current-phase)))
     [((module name:id lang:expr (#%plain-module-begin forms ...))
       (_ _ _                    (_ forms* ...)))

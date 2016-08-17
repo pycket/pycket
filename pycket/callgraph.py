@@ -3,7 +3,7 @@ from rpython.rlib import jit
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
 
-class Namer(object):
+class Namer(object): #pragma: no cover
 
     def __init__(self):
         self.names   = {}
@@ -66,9 +66,8 @@ class CallGraph(object):
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
             return False
-        todo = []
-        for key in reachable:
-            todo.append((key, Path(starting_from, None)))
+        init = Path(starting_from, None)
+        todo = [(key, init) for key in reachable]
         visited = {}
         while todo:
             current, path = todo.pop()
@@ -83,12 +82,13 @@ class CallGraph(object):
                 continue
             reachable = self.calls.get(current, None)
             if reachable:
+                path = Path(current, path)
                 for key in reachable:
-                    todo.append((key, Path(current, path)))
+                    todo.append((key, path))
             visited[current] = None
         return False
 
-    def write_dot_file(self, output):
+    def write_dot_file(self, output): #pragma: no cover
         counter = 0
         output.write("digraph callgraph {\n")
         names = Namer()

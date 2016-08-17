@@ -10,6 +10,8 @@ class EndOfInput(Exception):
 
 class Spec(object):
 
+    _attrs_ = []
+
     def __init__(self):
         raise NotImplementedError("abstract base class")
 
@@ -20,6 +22,9 @@ class Spec(object):
         raise NotImplementedError("abstract base class")
 
 class Value(Spec):
+
+    _immutable_ = True
+
     def __init__(self, value):
         self.value = value
 
@@ -32,6 +37,9 @@ class Value(Spec):
         return self.value.tostring()
 
 class Instance(Spec):
+
+    _immutable_ = True
+
     def __init__(self, cls):
         self.cls = cls
 

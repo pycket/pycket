@@ -8,7 +8,6 @@ notifications:
     channels:
     - chat.freenode.net#pycket
     use_notice: false
-    skip_join: true
 env:
   global:
   - PATH=./racket/bin:$PATH

@@ -15,6 +15,9 @@ from pycket              import values_struct
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure
+
+from sys import platform
+
 import os
 
 w_quote_symbol = values.W_Symbol.make("quote")
@@ -189,8 +192,24 @@ def get_input_port(port, env, cont):
 def read_stream_cont(env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     port = check_one_val(_vals)
-    v = read_stream(port)
-    return return_value(v, env, cont)
+    rt = current_readtable_param.get(cont)
+    if rt is values.w_false:
+        rt = None
+    else:
+        assert isinstance(rt, values.W_ReadTable)
+    return read_stream_rt(port, rt, env, cont)
+
+def read_stream_rt(port, rt, env, cont):
+    from pycket.interpreter import return_value
+    if rt is not None:
+        c = port.peek()
+        c = c[0]
+        if c == rt.key.value:
+            port.read(1) # since we peeked
+            args = [rt.key, port, values.w_false, values.w_false, values.w_false, values.w_false]
+            return rt.action.call(args, env, cont)
+    # ignore the possibility that the readtable is relevant in the future
+    return return_value(read_stream(port), env, cont)
 
 def read_stream(stream):
     next_token = read_token(stream)
@@ -307,20 +326,31 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     else:
         # hmpf, poking around in internals
         needed = runicode.utf8_code_length[i]
-        c += w_port.read(needed - 1)
+        if peek:
+            old = w_port.tell()
+            c = w_port.read(needed)
+            w_port.seek(old)
+        elif needed > 1:
+            c += w_port.read(needed - 1)
         c = c.decode("utf-8")
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
 @expose("read-char", [default(values.W_Object, None)], simple=False)
 def read_char(w_port, env, cont):
-    cont = do_read_one_cont(False, False, env, cont)
-    return get_input_port(w_port, env, cont)
+    try:
+        cont = do_read_one_cont(False, False, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")
 
 @expose("read-byte", [default(values.W_Object, None)], simple=False)
 def read_byte(w_port, env, cont):
-    cont = do_read_one_cont(True, False, env, cont)
-    return get_input_port(w_port, env, cont)
+    try:
+        cont = do_read_one_cont(True, False, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-byte: string is not a well-formed UTF-8 encoding")
 
 @continuation
 def do_peek_cont(as_bytes, skip, env, cont, _vals):
@@ -343,15 +373,21 @@ def do_peek(w_port, as_bytes, skip, env, cont):
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
-    cont = do_peek_cont(False, w_skip.value, env, cont)
-    return get_input_port(w_port, env, cont)
+    try:
+        cont = do_peek_cont(False, w_skip.value, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
 
 @expose("peek-byte", [default(values.W_Object, None),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_byte(w_port, w_skip, env, cont):
-    cont = do_peek_cont(True, w_skip.value, env, cont)
-    return get_input_port(w_port, env, cont)
+    try:
+        cont = do_peek_cont(True, w_skip.value, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
 
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
@@ -457,22 +493,38 @@ def _basename(path):
     components = path.split(os.path.sep)
     return components[-1]
 
-@expose("split-path", [values.W_Object], simple=False)
-def split_path(w_path, env, cont):
-    from pycket.interpreter import return_multi_vals
-    path = extract_path(w_path)
+def _split_path(path):
     dirname  = _dirname(path)
     basename = _basename(path)
     name = _explode_element(basename)
     if dirname == os.path.sep:
         base = values.w_false
         must_be_dir = values.w_false
-    elif name is UP or name is SAME:
+    elif dirname == '':
         base = RELATIVE
+        if name is UP or name is SAME:
+            must_be_dir = values.w_true
+        else:
+            must_be_dir = values.w_false
+    elif basename == '':
+        base = RELATIVE
+        second_name = _explode_element(dirname)
+        if second_name is UP or second_name is SAME:
+            name = second_name
+        else:
+            name = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_true
     else:
         base = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_false
+    return (base, name, must_be_dir)
+
+@expose("split-path", [values.W_Object], simple=False)
+def split_path(w_path, env, cont):
+    from pycket.interpreter import return_multi_vals
+    
+    path = extract_path(w_path)
+    base, name, must_be_dir = _split_path(path)
     result = values.Values.make([base, name, must_be_dir])
     return return_multi_vals(result, env, cont)
 
@@ -513,12 +565,16 @@ def path_to_path_complete_path(path, _base):
         return path
     return values.W_Path(base + '/' + p)
 
-@expose("path-for-some-system?", [values.W_Object])
-def path_for_some_system(path):
+
+def _path_for_some_systemp(path):
     # XXX Really only handles UNIX paths
     # https://github.com/racket/racket/blob/827fc4559879c73d46268fc72f95efe0009ff905/racket/src/racket/include/scheme.h#L493
     # This seems to be the closest implementation we can achieve.
-    return values.W_Bool.make(isinstance(path, values.W_Path))
+    return isinstance(path, values.W_Path)
+
+@expose("path-for-some-system?", [values.W_Object])
+def path_for_some_systemp(path):
+    return values.W_Bool.make(_path_for_some_systemp(path))
 
 @expose("relative-path?", [values.W_Object])
 def relative_path(obj):
@@ -537,6 +593,63 @@ def resolve_path(obj):
     str = extract_path(obj)
     return values.W_Path(os.path.normpath(str))
 
+@expose("path-string?", [values.W_Object])
+def path_stringp(v):
+    # FIXME: handle zeros in string
+    return values.W_Bool.make(
+        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
+
+@expose("complete-path?", [values.W_Object])
+def complete_path(v):
+    # FIXME: stub
+    return values.w_false
+
+@expose("path->string", [values.W_Path])
+def path2string(p):
+    return values_string.W_String.fromstr_utf8(p.path)
+
+@expose("path->bytes", [values.W_Path])
+def path2bytes(p):
+    return values.W_Bytes.from_string(p.path)
+
+@expose("cleanse-path", [values.W_Object])
+def cleanse_path(p):
+    if isinstance(p, values_string.W_String):
+        return values.W_Path(p.as_str_ascii())
+    if isinstance(p, values.W_Path):
+        return p
+    raise SchemeException("cleanse-path expects string or path")
+
+def _path_elementp(p):
+    """
+    see path.rkt
+    (define (path-element? path)
+      (and (path-for-some-system? path)
+           (let-values ([(base name d?) (split-path path)])
+             (and (eq? base 'relative)
+                  (path-for-some-system? name)))))
+    """
+    if not _path_for_some_systemp(p):
+        return False
+    path = extract_path(p)
+    base, name, _ = _split_path(path)
+    return base is RELATIVE and _path_for_some_systemp(name)
+
+@expose("path-element->string", [values.W_Object])
+def path_element2string(p):
+    if not _path_elementp(p):
+        raise SchemeException("path-element->string expects path")
+
+    path = extract_path(p)
+    return values_string.W_String.fromstr_utf8(path)
+
+@expose("path-element->bytes", [values.W_Object])
+def path_element2bytes(p):
+    if not _path_elementp(p):
+        raise SchemeException("path-element->string expects path")
+    path = extract_path(p)
+    return values.W_Bytes.from_string(path)
+
 @continuation
 def close_cont(port, env, cont, vals):
     from pycket.interpreter import return_multi_vals
@@ -545,7 +658,7 @@ def close_cont(port, env, cont, vals):
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
-    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode))
+    return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
 def open_outfile(w_str, mode):
     s = extract_path(w_str)
@@ -1037,6 +1150,18 @@ def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
 def do_has_custom_write(v):
     return values.w_false
 
+@expose("bytes->path-element", [values.W_Bytes, default(values.W_Symbol, None)])
+def bytes_to_path_element(bytes, path_type):
+    from pycket.prims.general import w_unix_sym, w_windows_sym
+    if path_type is None:
+        path_type = w_windows_sym if platform in ('win32', 'cygwin') else w_unix_sym
+    if path_type not in (w_unix_sym, w_windows_sym):
+        raise SchemeException("bytes->path-element: unknown system type %s" % path_type.tostring())
+    str = bytes.as_str()
+    if os.sep in str:
+        raise SchemeException("bytes->path-element: cannot be converted to a path element %s" % str)
+    return values.W_Path(str)
+
 def shutdown(env):
     # called before the interpreter exits
     stdout_port.flush()
@@ -1055,6 +1180,8 @@ stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
 current_out_param = values_parameter.W_Parameter(stdout_port)
 current_error_param = values_parameter.W_Parameter(stderr_port)
 current_in_param = values_parameter.W_Parameter(stdin_port)
+current_readtable_param = values_parameter.W_Parameter(values.w_false)
+expose_val("current-readtable", current_readtable_param)
 
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)

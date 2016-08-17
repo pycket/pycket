@@ -79,6 +79,8 @@ def test_regexp_match_positions_end(doctest):
     '((3 . 4))
     > (bytes-ref (cadr (call-with-values (λ () (regexp-match-positions/end #px"β" "λΖχβα")) list)) 0)
     178
+    > (call-with-values (λ () (regexp-match-positions/end #rx"a|b" #"dog")) list)
+    '(#f #f)
     """
 
 def test_regexp_match_p(doctest):

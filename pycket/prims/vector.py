@@ -48,12 +48,12 @@ def vector_length(v):
 def flvector_length(v):
     return values.W_Fixnum(v.length())
 
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False)
-def vector_ref(v, i, env, cont):
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
+def vector_ref(v, i, env, cont, calling_app):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
-    return v.vector_ref(idx, env, cont)
+    return v.vector_ref(idx, env, cont, app=calling_app)
 
 @expose("flvector-ref", [values_vector.W_FlVector, values.W_Fixnum], simple=False)
 def flvector_ref(v, i, env, cont):
@@ -62,36 +62,49 @@ def flvector_ref(v, i, env, cont):
         raise SchemeException("vector-ref: index out of bounds")
     return v.vector_ref(idx, env, cont)
 
-@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object], simple=False)
-def vector_set(v, i, new, env, cont):
+@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object],
+        simple=False, extra_info=True)
+def vector_set(v, i, new, env, cont, calling_app):
     if v.immutable():
         raise SchemeException("vector-set!: given immutable vector")
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
-    return v.vector_set(idx, new, env, cont)
+    return v.vector_set(idx, new, env, cont, app=calling_app)
 
-@expose("flvector-set!", [values_vector.W_FlVector, values.W_Fixnum, values.W_Flonum], simple=False)
-def flvector_set(v, i, new, env, cont):
+@expose("flvector-set!", [values_vector.W_FlVector, values.W_Fixnum, values.W_Flonum],
+        simple=False, extra_info=True)
+def flvector_set(v, i, new, env, cont, calling_app):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("flvector-set!: index out of bounds")
-    return v.vector_set(idx, new, env, cont)
+    return v.vector_set(idx, new, env, cont, app=calling_app)
 
 def copy_vector(v, env, cont):
     from pycket.interpreter import return_value
     if isinstance(v, values_vector.W_Vector):
         return return_value(v._make_copy(immutable=True), env, cont)
+
     len = v.length()
-    data = [None] * len
+    if not len:
+        vector = values_vector.W_Vector.fromelements([])
+        return return_value(vector, env, cont)
+
+    # Do a little peeking to provide a hint to the strategy
+    base = imp.get_base_object(v)
+    assert isinstance(base, values_vector.W_Vector)
+    data = values_vector.W_Vector.fromelement(base.ref(0), len)
+
     return copy_vector_loop(v, data, len, 0, env, cont)
 
 @loop_label
 def copy_vector_loop(v, data, len, idx, env, cont):
     from pycket.interpreter import return_value
     if idx >= len:
-        vector = values_vector.W_Vector.fromelements(data, immutable=True)
-        return return_value(vector, env, cont)
+        # Freeze vector and return
+        strategy = data.strategy
+        data.strategy = strategy.immutable_variant()
+        return return_value(data, env, cont)
     return v.vector_ref(idx, env,
             copy_vector_ref_cont(v, data, len, idx, env, cont))
 
@@ -99,7 +112,7 @@ def copy_vector_loop(v, data, len, idx, env, cont):
 def copy_vector_ref_cont(v, data, len, idx, env, cont, _vals):
     from pycket.interpreter import check_one_val
     val = check_one_val(_vals)
-    data[idx] = val
+    data.set(idx, val)
     return copy_vector_loop(v, data, len, idx + 1, env, cont)
 
 @expose("vector->immutable-vector", [values_vector.W_MVector], simple=False)
@@ -114,6 +127,8 @@ def vector2immutablevector(v, env, cont):
          default(values.W_Fixnum, None), default(values.W_Fixnum, None)],
         simple=False)
 def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
+    from pycket.interpreter import return_value
+
     if dest.immutable():
         raise SchemeException("vector-copy!: given an immutable destination")
     src_start  = _src_start.value if _src_start is not None else 0
@@ -123,6 +138,9 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     src_range  = src_end - src_start
     dest_range = dest.length() - dest_start
 
+    if src_range == 0:
+        return return_value(values.w_void, env, cont)
+
     if not (0 <= dest_start < dest.length()):
         raise SchemeException("vector-copy!: destination start out of bounds")
     if not (0 <= src_start <= src.length()) or not (0 <= src_start <= src.length()):
@@ -130,8 +148,7 @@ def vector_copy(dest, _dest_start, src, _src_start, _src_end, env, cont):
     if dest_range < src_range:
         raise SchemeException("vector-copy!: not enough room in target vector")
 
-    return vector_copy_loop(src, src_start, src_end,
-                dest, dest_start, 0, env, cont)
+    return vector_copy_loop(src, src_start, src_end, dest, dest_start, 0, env, cont)
 
 @loop_label
 def vector_copy_loop(src, src_start, src_end, dest, dest_start, i, env, cont):

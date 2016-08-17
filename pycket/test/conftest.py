@@ -7,6 +7,19 @@ import pycket.config # to configure early
 
 import pytest
 
+def pytest_addoption(parser):
+	parser.addoption('--bytecode', action='store', default="", help='Run pycket with bytecode expansion')
+
+def pytest_configure(config):
+    byte_flag = config.getvalue('bytecode')
+
+    if byte_flag == "":
+        print "We have regular pycket expansion"
+        config.byte_option = False
+    elif byte_flag == "go":
+        print "We have bytecode expansion"
+        config.byte_option = True
+
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
     name = 'prog.rkt'

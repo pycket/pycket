@@ -9,7 +9,7 @@ from pycket                   import values
 from pycket                   import values_struct
 from pycket.hash.base         import W_HashTable
 from rpython.rlib             import jit
-from rpython.rlib.objectmodel import import_from_mixin
+from rpython.rlib.objectmodel import import_from_mixin, specialize
 
 @jit.unroll_safe
 def get_base_object(x):
@@ -28,6 +28,11 @@ class ProxyMixin(object):
 
     def get_properties(self):
         return self.properties
+
+    def get_property(self, prop, default=None):
+        if self.properties is None:
+            return default
+        return self.properties.get(prop, default)
 
     def immutable(self):
         return get_base_object(self.inner).immutable()
@@ -67,8 +72,7 @@ def enter_above_depth(n):
 @jit.unroll_safe
 def lookup_property(obj, prop):
     while obj.is_proxy():
-        props = obj.get_properties()
-        val   = props.get(prop, None) if props is not None else None
+        val = obj.get_property(prop, None)
         if val is not None:
             return val
         obj = obj.get_proxied()
@@ -78,22 +82,23 @@ def lookup_property(obj, prop):
 def check_chaperone_results(args, env, cont, vals):
     # We are allowed to receive more values than arguments to compare them to.
     # Additional ones are ignored for this checking routine.
-    assert vals.num_values() >= len(args)
+    assert vals.num_values() >= args.num_values()
     return check_chaperone_results_loop(vals, args, 0, env, cont)
 
 @jit.unroll_safe
 def check_chaperone_results_loop(vals, args, idx, env, cont):
     from pycket.interpreter import return_multi_vals
     from pycket.prims.equal import equal_func_unroll_n, EqualInfo
-    while idx < len(args) and vals.get_value(idx) is None and args[idx] is None:
+    num_vals = args.num_values()
+    while idx < num_vals and vals.get_value(idx) is None and args.get_value(idx) is None:
         idx += 1
-    if idx >= len(args):
+    if idx >= num_vals:
         return return_multi_vals(vals, env, cont)
     info = EqualInfo.CHAPERONE_SINGLETON
     # XXX it would be best to store the parameter on the toplevel env and make
     # it changeable via a cmdline parameter to pycket-c
     unroll_n_times = 2 # XXX needs tuning
-    return equal_func_unroll_n(vals.get_value(idx), args[idx], info, env,
+    return equal_func_unroll_n(vals.get_value(idx), args.get_value(idx), info, env,
             catch_equal_cont(vals, args, idx, env, cont), unroll_n_times)
 
 @continuation
@@ -105,9 +110,19 @@ def catch_equal_cont(vals, args, idx, env, cont, _vals):
     return check_chaperone_results_loop(vals, args, idx + 1, env, cont)
 
 @continuation
+@jit.unroll_safe
 def chaperone_reference_cont(f, args, app, env, cont, _vals):
-    old = _vals.get_all_values()
-    return f.call_with_extra_info(args + old, env, check_chaperone_results(old, env, cont), app)
+    args_size = args.num_values()
+    vals_size = _vals.num_values()
+    all_args = [None] * (args_size + vals_size)
+    idx = 0
+    for i in range(args_size):
+        all_args[idx] = args.get_value(i)
+        idx += 1
+    for i in range(vals_size):
+        all_args[idx] = _vals.get_value(i)
+        idx += 1
+    return f.call_with_extra_info(all_args, env, check_chaperone_results(_vals, env, cont), app)
 
 @continuation
 def impersonate_reference_cont(f, args, app, env, cont, _vals):
@@ -118,55 +133,109 @@ def impersonate_reference_cont(f, args, app, env, cont, _vals):
 
 # Continuation used when calling an impersonator of a procedure.
 @continuation
-def imp_proc_cont(arg_count, proc, calling_app, env, cont, _vals):
+def imp_proc_cont(arg_count, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
-    if len(vals) == arg_count:
-        return proc.call_with_extra_info(vals, env, cont, calling_app)
     if len(vals) == arg_count + 1:
-        args, check = vals[1:], vals[0]
-        return proc.call_with_extra_info(args, env,
-                call_extra_cont(check, calling_app, env, cont), calling_app)
-    assert False
+        vals, check = vals[1:], vals[0]
+        cont = call_extra_cont(check, calling_app, env, cont)
+    else:
+        assert len(vals) == arg_count
+    if isinstance(prop, values.W_Cons):
+        # XXX Handle the case where |key| is a proxied continuation mark key
+        key, val = prop.car(), prop.cdr()
+        if isinstance(key, values.W_ContinuationMarkKey):
+            body = values.W_ThunkProcCMK(proc, vals)
+            return key.set_cmk(body, val, cont, env, cont)
+        cont.update_cm(key, val)
+    return proc.call_with_extra_info(vals, env, cont, calling_app)
 
 # Continuation used when calling an impersonator of a procedure.
 # Have to examine the results before checking
 @continuation
-def chp_proc_cont(orig, proc, calling_app, env, cont, _vals):
+def chp_proc_cont(orig, proc, prop, calling_app, env, cont, _vals):
     vals = _vals.get_all_values()
-    arg_count = len(orig)
-    if len(vals) == arg_count:
-        return proc.call_with_extra_info(vals, env, cont, calling_app)
-    if len(vals) == arg_count + 1:
-        args, check = values.Values.make(vals[1:]), vals[0]
-        return check_chaperone_results_loop(args, orig, 0, env,
-                call_extra_cont(proc, calling_app, env,
-                    call_extra_cont(check, calling_app, env, cont)))
-    assert False
+    arg_count = orig.num_values()
+    check_result = len(vals) == arg_count + 1
+
+    # Push the appropriate continuation frames for performing result checking.
+    # We need to keep track of the frame in which the wrapped procedure executes
+    # in to install the appropriate continuation marks if
+    # impersonator-prop:application-mark was attached to the chaperone.
+    if check_result:
+        check, vals   = vals[0], vals[1:]
+        calling_frame = chp_proc_post_proc_cont(check, calling_app, env, cont)
+        cont          = call_extra_cont(proc, calling_app, env, calling_frame)
+    else:
+        assert len(vals) == arg_count
+        calling_frame = cont
+        cont          = call_extra_cont(proc, calling_app, env, cont)
+
+    if isinstance(prop, values.W_Cons):
+        # XXX Handle the case where |key| is a proxied continuation mark key
+        key, val = prop.car(), prop.cdr()
+        if isinstance(key, values.W_ContinuationMarkKey):
+            cont = chp_proc_do_set_cmk_cont(proc, key, val, calling_frame, env, cont)
+        else:
+            calling_frame.update_cm(key, val)
+            cont.marks = calling_frame.marks
+
+    if check_result:
+        args = values.Values.make(vals)
+    else:
+        args = _vals
+
+    return check_chaperone_results_loop(args, orig, 0, env, cont)
+
+@continuation
+def chp_proc_post_proc_cont(check, calling_app, env, cont, _vals):
+    vals = _vals.get_all_values()
+    cont = check_chaperone_results(_vals, env, cont)
+    return check.call_with_extra_info(vals, env, cont, calling_app)
+
+@continuation
+def chp_proc_do_set_cmk_cont(proc, key, val, calling_frame, env, cont, _vals):
+    vals = _vals.get_all_values()
+    body = values.W_ThunkProcCMK(proc, vals)
+    return key.set_cmk(body, val, calling_frame, env, cont)
+
+
+@specialize.arg(0)
+def make_interpose_procedure(cls, proc, check, keys, vals):
+    assert not keys and not vals or len(keys) == len(vals)
+    properties = {}
+    if keys is not None:
+        for i, k in enumerate(keys):
+            assert isinstance(k, W_ImpPropertyDescriptor)
+            properties[k] = vals[i]
+    return cls(proc, check, properties)
 
 class W_InterposeProcedure(values.W_Procedure):
     import_from_mixin(ProxyMixin)
 
     errorname = "interpose-procedure"
-    _immutable_fields_ = ["inner", "check", "properties", "self_arg"]
+    _immutable_fields_ = ["inner", "check", "properties"]
 
     @jit.unroll_safe
-    def __init__(self, code, check, prop_keys, prop_vals, self_arg=False):
+    def __init__(self, code, check, prop_keys, prop_vals):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
         assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
-        self.self_arg = self_arg
         self.properties = {}
         if prop_keys is not None:
             for i, k in enumerate(prop_keys):
                 assert isinstance(k, W_ImpPropertyDescriptor)
                 self.properties[k] = prop_vals[i]
 
+    @staticmethod
+    def has_self_arg():
+        return False
+
     def get_arity(self):
         return self.inner.get_arity()
 
-    def post_call_cont(self, args, env, cont, calling_app):
+    def post_call_cont(self, args, prop, env, cont, calling_app):
         raise NotImplementedError("abstract method")
 
     def safe_proxy(self):
@@ -180,38 +249,57 @@ class W_InterposeProcedure(values.W_Procedure):
         return self.check is values.w_false
 
     def call_with_extra_info(self, args, env, cont, calling_app):
-        from pycket.values import W_ThunkProcCMK
         if self.check is values.w_false:
             return self.inner.call_with_extra_info(args, env, cont, calling_app)
         if not self.safe_proxy():
             return self.check.call_with_extra_info(args, env, cont, calling_app)
-        after = self.post_call_cont(args, env, cont, calling_app)
-        prop = self.properties.get(w_impersonator_prop_application_mark, None)
-        if isinstance(prop, values.W_Cons):
-            key, val = prop.car(), prop.cdr()
-            if isinstance(key, values.W_ContinuationMarkKey):
-                body = W_ThunkProcCMK(self.check, args)
-                return key.set_cmk(body, val, cont, env, after)
-            cont.update_cm(key, val)
-        if self.self_arg:
+        prop = self.get_property(w_impersonator_prop_application_mark)
+        after = self.post_call_cont(args, prop, env, cont, calling_app)
+        if self.has_self_arg():
             args = [self] + args
         return self.check.call_with_extra_info(args, env, after, calling_app)
+
+    # XXX Tricksy bits ahead. Since structs can act like procedures, a struct
+    # may be proxied by a procedure proxy, thus it supports struct type,
+    # ref, set, and struct property access.
+    def ref_with_extra_info(self, field, app, env, cont):
+        return self.inner.ref_with_extra_info(field, app, env, cont)
+
+    def set_with_extra_info(self, field, val, app, env, cont):
+        return self.inner.set_with_extra_info(field, val, app, env, cont)
+
+    def struct_type(self):
+        return self.inner.struct_type()
+
+    def get_prop(self, property, env, cont):
+        return self.inner.get_prop(property, env, cont)
 
 class W_ImpProcedure(W_InterposeProcedure):
     import_from_mixin(ImpersonatorMixin)
 
     errorname = "imp-procedure"
 
-    def post_call_cont(self, args, env, cont, calling_app):
-        return imp_proc_cont(len(args), self.inner, calling_app, env, cont)
+    def post_call_cont(self, args, prop, env, cont, calling_app):
+        return imp_proc_cont(len(args), self.inner, prop, calling_app, env, cont)
 
 class W_ChpProcedure(W_InterposeProcedure):
     import_from_mixin(ChaperoneMixin)
 
     errorname = "chp-procedure"
 
-    def post_call_cont(self, args, env, cont, calling_app):
-        return chp_proc_cont(args, self.inner, calling_app, env, cont)
+    def post_call_cont(self, args, prop, env, cont, calling_app):
+        orig = values.Values.make(args)
+        return chp_proc_cont(orig, self.inner, prop, calling_app, env, cont)
+
+class W_ImpProcedureStar(W_ImpProcedure):
+    @staticmethod
+    def has_self_arg():
+        return True
+
+class W_ChpProcedureStar(W_ChpProcedure):
+    @staticmethod
+    def has_self_arg():
+        return True
 
 class W_UnsafeImpProcedure(W_ImpProcedure):
     def safe_proxy(self):
@@ -263,10 +351,12 @@ class W_ChpBox(W_InterposeBox):
     import_from_mixin(ChaperoneMixin)
 
     def post_unbox_cont(self, env, cont):
-        return chaperone_reference_cont(self.unboxh, [self.inner], None, env, cont)
+        arg = values.Values.make1(self.inner)
+        return chaperone_reference_cont(self.unboxh, arg, None, env, cont)
 
     def post_set_box_cont(self, val, env, cont):
-        return check_chaperone_results([val], env,
+        val = values.Values.make1(val)
+        return check_chaperone_results(val, env,
                 imp_box_set_cont(self.inner, env, cont))
 
     def immutable(self):
@@ -289,9 +379,9 @@ class W_ImpBox(W_InterposeBox):
         return imp_box_set_cont(self.inner, env, cont)
 
 @continuation
-def imp_vec_set_cont(v, i, env, cont, vals):
+def imp_vec_set_cont(v, i, app, env, cont, vals):
     from pycket.interpreter import check_one_val
-    return v.vector_set(i.value, check_one_val(vals), env, cont)
+    return v.vector_set(i.value, check_one_val(vals), env, cont, app=app)
 
 class W_InterposeVector(values.W_MVector):
     import_from_mixin(ProxyMixin)
@@ -315,23 +405,28 @@ class W_InterposeVector(values.W_MVector):
     def length(self):
         return get_base_object(self.inner).length()
 
-    def post_set_cont(self, new, i, env, cont):
+    def post_set_cont(self, new, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
-    def post_ref_cont(self, i, env, cont):
+    def post_ref_cont(self, i, env, cont, app=None):
         raise NotImplementedError("abstract method")
 
-    @label
-    def vector_set(self, i, new, env, cont):
+    def vector_set(self, i, new, env, cont, app=None):
         idx = values.W_Fixnum(i)
-        after = self.post_set_cont(new, idx, env, cont)
+        after = self.post_set_cont(new, idx, env, cont, app=app)
         return self.seth.call([self.inner, idx, new], env, after)
 
-    @label
-    def vector_ref(self, i, env, cont):
+    @jit.unroll_safe
+    def vector_ref(self, i, env, cont, app=None):
         idx = values.W_Fixnum(i)
-        after = self.post_ref_cont(idx, env, cont)
-        return self.inner.vector_ref(i, env, after)
+        while isinstance(self, W_InterposeVector):
+            cont = self.post_ref_cont(idx, env, cont, app=app)
+            self = self.inner
+        return self.vector_ref(i, env, cont, app=app)
+
+@specialize.arg(0)
+def make_interpose_vector(cls, vector, refh, seth, prop_keys, prop_vals):
+    return cls(vector, refh, seth, prop_keys, prop_vals)
 
 # Vectors
 class W_ImpVector(W_InterposeVector):
@@ -339,23 +434,25 @@ class W_ImpVector(W_InterposeVector):
 
     errorname = "impersonate-vector"
 
-    def post_set_cont(self, new, i, env, cont):
-        return imp_vec_set_cont(self.inner, i, env, cont)
+    def post_set_cont(self, new, i, env, cont, app=None):
+        return imp_vec_set_cont(self.inner, i, app, env, cont)
 
-    def post_ref_cont(self, i, env, cont):
-        return impersonate_reference_cont(self.refh, [self.inner, i], None, env, cont)
+    def post_ref_cont(self, i, env, cont, app=None):
+        return impersonate_reference_cont(self.refh, [self.inner, i], app, env, cont)
 
 class W_ChpVector(W_InterposeVector):
     import_from_mixin(ChaperoneMixin)
 
     errorname = "chaperone-vector"
 
-    def post_set_cont(self, new, i, env, cont):
-        return check_chaperone_results([new], env,
-                imp_vec_set_cont(self.inner, i, env, cont))
+    def post_set_cont(self, new, i, env, cont, app=None):
+        arg = values.Values.make1(new)
+        return check_chaperone_results(arg, env,
+                imp_vec_set_cont(self.inner, i, app, env, cont))
 
-    def post_ref_cont(self, i, env, cont):
-        return chaperone_reference_cont(self.refh, [self.inner, i], None, env, cont)
+    def post_ref_cont(self, i, env, cont, app=None):
+        args = values.Values.make2(self.inner, i)
+        return chaperone_reference_cont(self.refh, args, app, env, cont)
 
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
@@ -372,6 +469,10 @@ def imp_struct_set_cont(orig_struct, setter, field, app, env, cont, _vals):
     if setter is values.w_false:
         return orig_struct.set_with_extra_info(field, val, app, env, cont)
     return setter.call_with_extra_info([orig_struct, val], env, cont, app)
+
+@specialize.arg(0)
+def make_struct_proxy(cls, inner, overrides, handlers, keys, vals):
+    return cls(inner, overrides, handlers, keys, vals)
 
 # Representation of a struct that allows interposition of operations
 # onto accessors/mutators
@@ -412,19 +513,23 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
 
         # Does not deal with properties as of yet
         # TODO: Avoid allocating the mutators and accessors when they are empty
+        st = inner.struct_type()
         for i, op in enumerate(overrides):
             base = get_base_object(op)
             if isinstance(base, values_struct.W_StructFieldAccessor):
                 op = values.w_false if type(op) is values_struct.W_StructFieldAccessor else op
-                jit.promote(base.field)
-                mask[base.field] = self
-                accessors[2 * base.field] = op
-                accessors[2 * base.field + 1] = handlers[i]
+                offset = st.get_offset(base.accessor.type)
+                index = jit.promote(base.field + offset)
+                mask[index] = self
+                accessors[2 * index] = op
+                accessors[2 * index + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructFieldMutator):
                 jit.promote(base.field)
+                offset = st.get_offset(base.mutator.type)
+                index = jit.promote(base.field + offset)
                 op = values.w_false if type(op) is values_struct.W_StructFieldMutator else op
-                mutators[2 * base.field] = op
-                mutators[2 * base.field + 1] = handlers[i]
+                mutators[2 * index] = op
+                mutators[2 * index + 1] = handlers[i]
             elif isinstance(base, values_struct.W_StructPropertyAccessor):
                 if struct_props is None:
                     struct_props = {}
@@ -522,10 +627,12 @@ class W_ChpStruct(W_InterposeStructBase):
     import_from_mixin(ChaperoneMixin)
 
     def post_ref_cont(self, interp, app, env, cont):
-        return chaperone_reference_cont(interp, [self], app, env, cont)
+        arg = values.Values.make1(self)
+        return chaperone_reference_cont(interp, arg, app, env, cont)
 
     def post_set_cont(self, op, field, val, app, env, cont):
-        return check_chaperone_results([val], env,
+        arg = values.Values.make1(val)
+        return check_chaperone_results(arg, env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
 class W_InterposeContinuationMarkKey(values.W_ContinuationMarkKey):
@@ -578,11 +685,13 @@ class W_ChpContinuationMarkKey(W_InterposeContinuationMarkKey):
     import_from_mixin(ChaperoneMixin)
 
     def post_get_cont(self, value, env, cont):
-        return check_chaperone_results([value], env,
+        arg = values.Values.make1(value)
+        return check_chaperone_results(arg, env,
                 imp_cmk_post_get_cont(self.inner, env, cont))
 
     def post_set_cont(self, body, value, env, cont):
-        return check_chaperone_results([value], env,
+        arg = values.Values.make1(value)
+        return check_chaperone_results(arg, env,
                 imp_cmk_post_set_cont(body, self.inner, env, cont))
 
 class W_ImpContinuationMarkKey(W_InterposeContinuationMarkKey):
@@ -663,7 +772,8 @@ def chp_hash_table_ref_cont(ht, old, env, cont, _vals):
     if _vals.num_values() != 2:
         raise SchemeException("hash-ref handler produced the wrong number of results")
     key, post = _vals.get_all_values()
-    after = check_chaperone_results([key], env,
+    val = values.Values.make1(key)
+    after = check_chaperone_results(val, env,
                 imp_hash_table_post_ref_cont(post, ht, old, env, cont))
     return ht.hash_ref(key, env, after)
 
