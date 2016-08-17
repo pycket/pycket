@@ -9,7 +9,7 @@ from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
                                 Lambda, Letrec, Let, Quote, App, If, Begin,
                                 SimplePrimApp1, SimplePrimApp2,
-                                WithContinuationMark
+                                WithContinuationMark, SetBang,
                                 )
 from pycket.test.testhelper import format_pycket_mod, run_mod
 
@@ -253,7 +253,6 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body.rhss[0], App)
     assert isinstance(body.body[0], App)
 
-
 def test_flatten_nested_begins():
     p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
     assert isinstance(p, Begin)
@@ -263,3 +262,13 @@ def test_flatten_nested_begins():
         val = b.w_val
         assert isinstance(val, W_Fixnum) and val.value == i
 
+def test_anf_setbang():
+    p = expr_ast("(let ([x 0]) (set! x (+ 1 (+ x 3))))")
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, Let)
+    p = p.body[0]
+    assert isinstance(p, SetBang)
+    assert p.rhs.simple

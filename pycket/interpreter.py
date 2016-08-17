@@ -502,24 +502,6 @@ class CellCont(Cont):
             vals_w.append(w_val)
         return return_multi_vals(values.Values.make(vals_w), self.env, self.prev)
 
-class SetBangCont(Cont):
-    _immutable_fields_ = ["ast"]
-    def __init__(self, ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.ast = ast
-
-    def _clone(self):
-        return SetBangCont(self.ast, self.env, self.prev)
-
-    def get_ast(self):
-        return self.ast
-
-    def plug_reduce(self, vals, env):
-        w_val = check_one_val(vals)
-        ast = jit.promote(self.ast)
-        ast.var._set(w_val, self.env)
-        return return_value(values.w_void, self.env, self.prev)
-
 class BeginCont(Cont):
     _immutable_fields_ = ["counting_ast"]
     return_safe = True
@@ -1468,12 +1450,15 @@ def to_modvar(m):
 
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
+    simple = True
     def __init__(self, var, rhs):
         self.var = var
         self.rhs = rhs
 
-    def interpret(self, env, cont):
-        return self.rhs, env, SetBangCont(self, env, cont)
+    def interpret_simple(self, env):
+        w_val = self.rhs.interpret_simple(env)
+        self.var._set(w_val, env)
+        return values.w_void
 
     def assign_convert(self, vars, env_structure):
         return SetBang(self.var.assign_convert(vars, env_structure),

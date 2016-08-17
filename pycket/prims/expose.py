@@ -15,6 +15,7 @@ class unsafe(object):
     subtypes!)."""
 
     def __init__(self, typ):
+        assert not typ.__subclasses__()
         self.typ = typ
 
     def make_unwrapper(self):
