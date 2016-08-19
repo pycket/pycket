@@ -622,6 +622,19 @@ def test_serializable(source):
 
 def test_inherited_auto_values(doctest):
     """
+    ! (struct test1 ([a #:auto] [b #:auto] [c #:auto]) #:auto-value 0 #:transparent)
+    ! (struct test2 test1 () #:transparent)
+    ! (struct test3 test2 () #:transparent)
+    > (test1? (test1))
+    #t
+    > (test2? (test2))
+    #t
+    > (test3? (test3))
+    #t
+    """
+
+def test_struct_ports(doctest):
+    """
     > (define-values (struct:struct-port make-struct-port struct-port? 
                     struct-port-ref struct-port-set!)
         (make-struct-type 'struct-port #f 2 0 0
