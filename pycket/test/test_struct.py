@@ -622,14 +622,27 @@ def test_serializable(source):
 
 def test_inherited_auto_values(doctest):
     """
-    ! (struct test1 ([a #:auto] [b #:auto] [c #:auto]) #:auto-value 0 #:transparent)
-    ! (struct test2 test1 () #:transparent)
-    ! (struct test3 test2 () #:transparent)
-    > (test1? (test1))
-    #t
-    > (test2? (test2))
-    #t
-    > (test3? (test3))
-    #t
+    > (define-values (struct:struct-port make-struct-port struct-port? 
+                    struct-port-ref struct-port-set!)
+        (make-struct-type 'struct-port #f 2 0 0
+                        (list (cons prop:input-port 0)
+                              (cons prop:output-port 1))
+                        #f
+                        #f
+                        (list 0 1)))
+    > (define asp (make-struct-port (open-input-string "akg cdef")
+                                   (open-output-string)))
+    > (read asp)
+    'akg
+    > (read-char asp)
+    '#\space
+    > (peek-char asp)
+    '#\c
+    > (close-input-port asp)
+    > (write-string "0123" asp)
+    4
+    > (write-char #\c asp)
+    > (write-byte 1 asp)
+    > (get-output-string (struct-port-ref asp 1))
+    "0123c\u0001"
     """
-

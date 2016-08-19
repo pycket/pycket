@@ -774,8 +774,14 @@ def _print(o, p, env, cont):
     return do_print(o.tostring(), p, env, cont)
 
 def do_print(str, port, env, cont):
-    if port is None:
-        port = current_out_param.get(cont)
+    cont = do_print_cont(str, env, cont)
+    return get_output_port(port, env, cont)
+
+@continuation
+def do_print_cont(str, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_OutputPort)
     port.write(str)
     return return_void(env, cont)
 
@@ -1096,7 +1102,7 @@ def get_port_from_property(port, env, cont, _vals):
     return return_value(port, env, cont)
 
 @expose("write-byte",
-        [values.W_Fixnum, default(values.W_OutputPort, None)], simple=False)
+        [values.W_Fixnum, default(values.W_Object, None)], simple=False)
 def write_byte(b, out, env, cont):
     s = b.value
     if s < 0 or s > 255:
@@ -1104,7 +1110,7 @@ def write_byte(b, out, env, cont):
     return do_print(chr(s), out, env, cont)
 
 @expose("write-char",
-        [values.W_Character, default(values.W_OutputPort, None)], simple=False)
+        [values.W_Character, default(values.W_Object, None)], simple=False)
 def write_char(w_char, w_port, env, cont):
     c = w_char.value
     from rpython.rlib.runicode import unicode_encode_utf_8
