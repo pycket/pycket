@@ -53,10 +53,6 @@ def make_map_type(getter, keyclass):
                 self.other_maps.set(name, newmap)
             return newmap
 
-        def set_storage(self, name, val, storage):
-            idx = self.get_index(name)
-            self.storage[idx] = val
-
         @jit.elidable
         def has_attribute(self, name):
             return name in self.indexes
@@ -174,25 +170,6 @@ def make_caching_map_type(getter, keyclass):
         @jit.elidable
         def is_static_attribute(self, name):
             return name in self.static_data
-
-        def is_leaf(self):
-            return not self.indexes and not self.static_data
-
-        @jit.elidable_promote('all')
-        def has_key(self, key):
-            return key in self.indexes or key in self.static_data
-
-        @jit.elidable_promote('all')
-        def has_same_shape(self, other):
-            if self is other:
-                return True
-            for key in self.iterkeys():
-                if not other.has_key(key):
-                    return False
-            for key in other.iterkeys():
-                if not self.has_key(key):
-                    return False
-            return True
 
     CachingMap.EMPTY = CachingMap()
     return CachingMap
