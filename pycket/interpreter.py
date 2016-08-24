@@ -77,10 +77,10 @@ class __extend__(Context):
 
             _attrs_ = _immutable_fields_ = []
 
-            def normalize(self, ctxt):
-                assert type(ctxt) is TrampolineContext
-                ast, ctxt = ctxt.ast, ctxt.prev
-                return ctxt.plug_direct(ast)
+            def normalize(self, context):
+                assert type(context) is TrampolineContext
+                ast, context = context.ast, context.prev
+                return context.plug_direct(ast)
 
         class TrampolineContext(Context):
 
@@ -129,98 +129,107 @@ class __extend__(Context):
 
     @staticmethod
     @specialize.arg(2)
-    def normalize_term(expr, ctxt=Nil, expect=AST):
+    def normalize_term(expr, context=Nil, expect=AST):
+        """
+        This will perform A-normalization on the given expression. The given
+        context is a value of type Context which contains the surrounding binding
+        context of the current expression. The context is needed to properly
+        re-build the expression inside out, as the given expression is traversed
+        from outside inward.
+        The transformation is trampolined in order to overcome Python's
+        improverished call stack.
+        """
         try:
             while True:
-                expr, ctxt = expr.normalize(ctxt)
+                expr, context = expr.normalize(context)
         except Context.Done as e:
             expr = e.ast
         assert isinstance(expr, expect)
         return expr
 
     @staticmethod
-    def normalize_name(expr, ctxt, hint="g"):
-        ctxt = Context.Name(ctxt, hint)
-        return expr, ctxt
+    def normalize_name(expr, context, hint="g"):
+        context = Context.Name(context, hint)
+        return expr, context
 
     @staticmethod
-    def normalize_names(exprs, ctxt, i=0):
+    def normalize_names(exprs, context, i=0):
         if i >= len(exprs):
-            return ctxt.plug(Context.EmptyList)
+            return context.plug(Context.EmptyList)
         expr = exprs[i]
-        ctxt = Context.Names(exprs, i, ctxt)
-        return Context.normalize_name(expr, ctxt, hint="AppRand")
+        context = Context.Names(exprs, i, context)
+        return Context.normalize_name(expr, context, hint="AppRand")
 
     @staticmethod
     @context
-    def Name(ctxt, hint, ast):
+    def Name(context, hint, ast):
         if ast.simple:
-            return ctxt.plug(ast)
+            return context.plug(ast)
         sym  = Gensym.gensym(hint=hint)
         var  = LexicalVar(sym)
-        body = Context.normalize_term(var, ctxt)
+        body = Context.normalize_term(var, context)
         Context.yields(make_let_singlevar(sym, ast, [body]))
 
     @staticmethod
     @context
-    def Names(exprs, i, ctxt, ast):
-        ctxt = Context.Append(ast, ctxt)
-        return Context.normalize_names(exprs, ctxt, i+1)
+    def Names(exprs, i, context, ast):
+        context = Context.Append(ast, context)
+        return Context.normalize_names(exprs, context, i+1)
 
     @staticmethod
-    def Let(xs, Ms, body, ctxt):
-        return Context._Let(xs, Ms, body, 0, ctxt)
+    def Let(xs, Ms, body, context):
+        return Context._Let(xs, Ms, body, 0, context)
 
     @staticmethod
     @context
-    def _Let(xs, Ms, body, i, ctxt, ast):
+    def _Let(xs, Ms, body, i, context, ast):
         assert len(xs) == len(Ms)
         if i == len(Ms) - 1:
-            body = Context.normalize_term(body, ctxt)
+            body = Context.normalize_term(body, context)
             # Body may have been wrapped in a begin for convenience
             body = body.body if isinstance(body, Begin) else [body]
             Context.yields(make_let([xs[i]], [ast], body))
         X = xs[i]
         i += 1
         x_, M = xs[i], Ms[i]
-        ctxt  = Context._Let(xs, Ms, body, i, ctxt)
-        body  = Context.normalize_term(M, ctxt)
+        context  = Context._Let(xs, Ms, body, i, context)
+        body  = Context.normalize_term(M, context)
         Context.yields(make_let([X], [ast], [body]))
 
     @staticmethod
     @context
-    def If(thn, els, ctxt, tst):
+    def If(thn, els, context, tst):
         thn = Context.normalize_term(thn)
         els = Context.normalize_term(els)
         result = If(tst, thn, els)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     @staticmethod
     @context
-    def AppRator(args, ctxt, ast):
-        ctxt = Context.AppRand(ast, ctxt)
-        return Context.normalize_names(args, ctxt)
+    def AppRator(args, context, ast):
+        context = Context.AppRand(ast, context)
+        return Context.normalize_names(args, context)
 
     @staticmethod
     @context
-    def AppRand(rator, ctxt, ast):
+    def AppRand(rator, context, ast):
         assert isinstance(ast, Context.AstList)
         rands  = ast.nodes
         result = App.make(rator, rands)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     @staticmethod
     @context
-    def Append(expr, ctxt, ast):
+    def Append(expr, context, ast):
         assert isinstance(ast, Context.AstList)
         ast = Context.AstList([expr] + ast.nodes)
-        return ctxt.plug(ast)
+        return context.plug(ast)
 
     @staticmethod
     @context
-    def SetBang(var, ctxt, ast):
+    def SetBang(var, context, ast):
         ast = SetBang(var, ast)
-        return ctxt.plug(ast)
+        return context.plug(ast)
 
 @objectmodel.always_inline
 def equal(a, b):
@@ -737,11 +746,11 @@ class Module(AST):
             assert self is not None
         return self
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         # Return the current module, as it is not safe to duplicate module forms
         for i, b in enumerate(self.body):
             self.body[i] = Context.normalize_term(b)
-        return ctxt.plug(self)
+        return context.plug(self)
 
     def _interpret_mod(self, env):
         self.env = env
@@ -972,12 +981,12 @@ class WithContinuationMark(AST):
     def interpret(self, env, cont):
         return self.key, env, WCMKeyCont(self, env, cont)
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         key    = Context.normalize_term(self.key)
         value  = Context.normalize_term(self.value)
         body   = Context.normalize_term(self.body)
         result = WithContinuationMark(key, value, body)
-        return ctxt.plug(result)
+        return context.plug(result)
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
@@ -1035,9 +1044,9 @@ class App(AST):
             w_callable = w_callable.closure
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
-    def normalize(self, ctxt):
-        ctxt = Context.AppRator(self.rands, ctxt)
-        return Context.normalize_name(self.rator, ctxt, hint="AppRator")
+    def normalize(self, context):
+        context = Context.AppRator(self.rands, context)
+        return Context.normalize_name(self.rator, context, hint="AppRator")
 
     def _tostring(self):
         elements = [self.rator] + self.rands
@@ -1156,11 +1165,11 @@ class Begin0(AST):
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         first  = Context.normalize_term(self.first)
         body   = Context.normalize_term(self.body)
         result = Begin0(first, body)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
@@ -1210,10 +1219,10 @@ class Begin(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
         result = Begin.make(body)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
@@ -1479,9 +1488,9 @@ class SetBang(AST):
     def direct_children(self):
         return [self.var, self.rhs]
 
-    def normalize(self, ctxt):
-        ctxt = Context.SetBang(self.var, ctxt)
-        return Context.normalize_name(self.rhs, ctxt, hint="SetBang")
+    def normalize(self, context):
+        context = Context.SetBang(self.var, context)
+        return Context.normalize_name(self.rhs, context, hint="SetBang")
 
     def _tostring(self):
         return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
@@ -1510,9 +1519,9 @@ class If(AST):
     def direct_children(self):
         return [self.tst, self.thn, self.els]
 
-    def normalize(self, ctxt):
-        ctxt = Context.If(self.thn, self.els, ctxt)
-        return Context.normalize_name(self.tst, ctxt, hint="if")
+    def normalize(self, context):
+        context = Context.If(self.thn, self.els, context)
+        return Context.normalize_name(self.tst, context, hint="if")
 
     def _mutated_vars(self):
         x = variable_set()
@@ -1643,10 +1652,10 @@ class CaseLambda(AST):
                 arities = arities + [n]
         self._arity = Arity(arities[:], rest)
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         lams   = [Context.normalize_term(lam, expect=Lambda) for lam in self.lams]
         result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
-        return ctxt.plug(result)
+        return context.plug(result)
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
@@ -1777,13 +1786,13 @@ class Lambda(SequencedBodyAST):
                 i += 1
         return vals
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         body = [Context.normalize_term(b) for b in self.body]
         result = Lambda(self.formals, self.rest, self.args, self.frees, body,
                         sourceinfo=self.sourceinfo,
                         enclosing_env_structure=self.enclosing_env_structure,
                         env_structure=self.env_structure)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     def _tostring(self):
         if self.rest and not self.formals:
@@ -1897,13 +1906,13 @@ class Letrec(SequencedBodyAST):
         new_body = [b.assign_convert(new_vars, sub_env_structure) for b in self.body]
         return Letrec(sub_env_structure, self.counts, new_rhss, new_body)
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         # XXX could we do something smarter here?
         args = self._rebuild_args()
         rhss = [Context.normalize_term(rhs) for rhs in self.rhss]
         body = [Context.normalize_term(b)   for b   in self.body]
         result = make_letrec(args, rhss, body)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     def _rebuild_args(self):
         start = 0
@@ -2087,11 +2096,11 @@ class Let(SequencedBodyAST):
         result = Let(sub_env_structure, self.counts, new_rhss, new_body, remove_num_envs)
         return result
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         args = self._rebuild_args()
         body = Begin.make(self.body)
-        ctxt = Context.Let(args, self.rhss, body, ctxt)
-        return self.rhss[0], ctxt
+        context = Context.Let(args, self.rhss, body, context)
+        return self.rhss[0], context
 
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
         if not config.prune_env:
@@ -2227,10 +2236,10 @@ class DefineValues(AST):
     def direct_children(self):
         return [self.rhs]
 
-    def normalize(self, ctxt):
+    def normalize(self, context):
         rhs    = Context.normalize_term(self.rhs)
         result = DefineValues(self.names, rhs, self.display_names)
-        return ctxt.plug(result)
+        return context.plug(result)
 
     def _mutated_vars(self):
         return self.rhs.mutated_vars()

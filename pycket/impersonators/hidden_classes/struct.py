@@ -58,12 +58,10 @@ def tag_handler_mutator(idx):
     return tag_index(idx, HANDLER_MUTATOR_TAG)
 
 def tag_override_accessor(idx):
-    assert idx >= 0
-    return (idx << TAG_BITS) | OVERRIDE_ACCESSOR_TAG
+    return tag_index(idx, OVERRIDE_ACCESSOR_TAG)
 
 def tag_override_mutator(idx):
-    assert idx >= 0
-    return (idx << TAG_BITS) | OVERRIDE_MUTATOR_TAG
+    return tag_index(idx, OVERRIDE_MUTATOR_TAG)
 
 def is_accessor(key):
     return key >= 0 and (key & 0b01) == 0
