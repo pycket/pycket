@@ -109,7 +109,7 @@ class Pair(W_Object):
 
 NONE_PAIR = Pair(None, None)
 
-CompositeMap = make_composite_map_type(tuple, shared_storage=True)
+CompositeMap = make_composite_map_type(tuple)
 
 @jit.unroll_safe
 def impersonator_args(struct, overrides, handlers, prop_keys, prop_vals):

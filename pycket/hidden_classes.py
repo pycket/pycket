@@ -176,7 +176,7 @@ def make_caching_map_type(getter, keyclass):
 
 # These maps are simply unique products of various other map types.
 # They are unique based on their component maps.
-def make_composite_map_type(keyclass, shared_storage=False):
+def make_composite_map_type(keyclass):
 
     class Pair(object):
         _attrs_ = ['x', 'y']
@@ -218,8 +218,7 @@ def make_composite_map_type(keyclass, shared_storage=False):
             """ We make the assumption that data for the handlers are laid out
             in the form [handler_0, handler_1, ..., property_0, property_1, ...]"""
             jit.promote(self)
-            offset = self.handlers.storage_size() if shared_storage else 0
-            return self.properties.lookup(key, storage, default=default, offset=offset)
+            return self.properties.lookup(key, storage, default=default, offset=0)
 
     CompositeMap.CACHE = rweakref.RWeakValueDictionary(Pair, CompositeMap)
     return CompositeMap
