@@ -22,7 +22,7 @@ from pycket.test.testhelper import parse_file
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.test.testhelper import run, run_fix, run_flo, run_top, execute, run_values
-from pycket.expand import JsonLoader, expand, expand_string, parse_module
+from pycket.expand import JsonLoader, expand, expand_string, parse_module, finalize_module
 from pycket import pycket_json
 
 
@@ -36,29 +36,29 @@ class TestLLtype(LLJitMixin):
 ;; Then compute and print the 10,000th prime number.
 
 
-  ;; ;; A stream is a cons of a value and a thunk that computes the next value when applied
-  (struct stream (first rest))
+;; ;; A stream is a cons of a value and a thunk that computes the next value when applied
+(struct stream (first rest))
 
-  ;;--------------------------------------------------------------------------------------------------
+;;--------------------------------------------------------------------------------------------------
 
-  (define (make-stream hd thunk)
-    (stream hd thunk))
+(define (make-stream hd thunk)
+  (stream hd thunk))
 
-  ;; Destruct a stream into its first value and the new stream produced by de-thunking the tail
-  (define (stream-unfold st)
-    (values (stream-first st) ((stream-rest st))))
+;; Destruct a stream into its first value and the new stream produced by de-thunking the tail
+(define (stream-unfold st)
+  (values (stream-first st) ((stream-rest st))))
 
-  ;; [stream-get st i] Get the [i]-th element from the stream [st]
-  (define (stream-get st i)
-    (define-values (hd tl) (stream-unfold st))
-    (cond [(= i 0) hd]
-          [else    (stream-get tl (sub1 i))]))
+;; [stream-get st i] Get the [i]-th element from the stream [st]
+(define (stream-get st i)
+  (define-values (hd tl) (stream-unfold st))
+  (cond [(= i 0) hd]
+        [else    (stream-get tl (sub1 i))]))
 
-  ;; [stream-take st n] Collect the first [n] elements of the stream [st].
-  (define (stream-take st n)
-    (cond [(= n 0) '()]
-          [else (define-values (hd tl) (stream-unfold st))
-                (cons hd (stream-take tl (sub1 n)))]))
+;; [stream-take st n] Collect the first [n] elements of the stream [st].
+(define (stream-take st n)
+  (cond [(= n 0) '()]
+        [else (define-values (hd tl) (stream-unfold st))
+              (cons hd (stream-take tl (sub1 n)))]))
 ;;--------------------------------------------------------------------------------------------------
 
 ;; `count-from n` Build a stream of integers starting from `n` and iteratively adding 1
@@ -87,7 +87,6 @@ class TestLLtype(LLJitMixin):
   (printf "The ~a-th prime number is: ~a\n" (add1 N-1) (stream-get primes N-1)))
 
 (time (main))
-
 """
 )
 
@@ -207,15 +206,14 @@ class TestLLtype(LLJitMixin):
 
     # needs to be fixed to use modules
     def run_string(self, str):
-        _json = pycket_json.loads(expand_string(str))
-        _env = ToplevelEnv()
+        _json = expand_string(str)
+        env = ToplevelEnv()
 
         def interp_w():
             loader = JsonLoader(False)
-            ast = loader.to_module((_json)).assign_convert_module()
-            env = (_env)
+            ast = parse_module(_json)
             env.globalconfig.load(ast)
-            env.commanline_arguments = []
+            env.commandline_arguments = []
             interpret_module(ast, env)
 
         interp_w() # check that it runs
