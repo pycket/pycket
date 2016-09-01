@@ -1501,6 +1501,11 @@ make_stub_predicates(
 @expose("__dummy-function__", [])
 def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
+    from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
     print ex
+
+    # Force the annotator to not type allow_surrogates=ConstantBool
+    str_decode_utf_8("hello" , 8 , "ignore" , allow_surrogates=False)
+    str_decode_utf_8("bye"   , 8 , "ignore" , allow_surrogates=True)
 

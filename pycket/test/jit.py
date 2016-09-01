@@ -330,7 +330,7 @@ class TestLLtype(LLJitMixin):
         self.run_string("""
         #lang pycket
         (let () (define (append a b)
-          (if (null? a) 
+          (if (null? a)
               b
               (cons (car a) (append (cdr a) b))))
          (append (list 1 2 3 5 6 6 7 7 8 3 4 5 3 5 4 3 5 3 5 3 3 5 4 3) (list 4 5 6)))
@@ -352,7 +352,7 @@ class TestLLtype(LLJitMixin):
         ast = to_ast(expand("""
         (let ()
         (define (append-anormal a b)
-          (if (null? a) 
+          (if (null? a)
               b
               (let* ([ca (car a)]
                      [cd (cdr a)]
@@ -483,7 +483,7 @@ class TestLLtype(LLJitMixin):
         ;(require (only-in '#%kernel map))
         (letrec
             ([inc      (lambda (x) (+ 1 x))]
-             [makelist (lambda (a) 
+             [makelist (lambda (a)
                          (if (zero? a)
                              '()
                              (cons (modulo a 20) (makelist (- a 1)))))]
@@ -498,4 +498,18 @@ class TestLLtype(LLJitMixin):
 
     def test_ctak(self):
         self.run_file("ctak.rkt", run_untranslated=False)
+
+    def test_tak(self):
+        self.run_string("""
+        #lang pycket
+
+        (define (tak x y z)
+          (if (not (< y x))
+              z
+              (tak (tak (- x 1) y z)
+                   (tak (- y 1) z x)
+                   (tak (- z 1) x y))))
+
+        (time (for ([i (in-range 1000)]) (tak 18 12 6)))
+        """)
 
