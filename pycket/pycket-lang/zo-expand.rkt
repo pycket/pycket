@@ -293,18 +293,19 @@ put the usual application-rands to the operands
          [rest-formal (if rest? (symbol->string (gensym 'lamrest)) 'hokarz)]
 
          ;; vector of stack positions that are captured when evaluating the lambda form to create a closure.
-         [captured-stack-positions (vector->list (lam-closure-map lam-form))] ;; vector
          [current-stack-length (length localref-stack)]
-         [captured-current-stack-items (map (λ (pos) (if (>= pos current-stack-length)
-                                                         (begin (when DEBUG (displayln current-stack-length))
-                                                                (with-handlers
-                                                                  ([exn:fail?
-                                                                    (lambda (e)
-                                                                      (error 'top-error
-                                                                             "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
-                                                                             TOPLEVELS pos captured-stack-positions localref-stack))])
-                                                                  (list-ref TOPLEVELS pos)))
-                                                         (list-ref localref-stack pos)))
+         [captured-stack-positions (remv current-stack-length (vector->list (lam-closure-map lam-form)))] ;; vector
+         [captured-current-stack-items (map (λ (pos)
+                                              (if (> pos current-stack-length)
+                                                  (begin (when DEBUG (displayln current-stack-length))
+                                                         (with-handlers
+                                                           ([exn:fail?
+                                                             (lambda (e)
+                                                               (error 'top-error
+                                                                      "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
+                                                                      TOPLEVELS pos captured-stack-positions localref-stack))])
+                                                           (list-ref TOPLEVELS pos)))
+                                                  (list-ref localref-stack pos)))
                                             captured-stack-positions)]
 
          [new-localref-stack-1 (if rest?
@@ -726,9 +727,10 @@ put the usual application-rands to the operands
       ;; first binds new vars by evaluating the (single) rhs
       (hash* 'let-bindings rhs-ready
              ;; then sets the let-void bindings with new vars ...
-             'let-body (list (hash* 'let-bindings (list)
-                                    ;; ... and continue with the body
-                                    'let-body (append set-nodes body-ast)))))))
+             'let-body (append set-nodes body-ast)
+             #;(list (hash* 'let-bindings (list)
+                            ;; ... and continue with the body
+                            'let-body (append set-nodes body-ast)))))))
 
 (define (handle-let-rec letrec-form localref-stack current-closure-refs)
   (let* ([procs (let-rec-procs letrec-form)] ;; (listof lam?)
@@ -1049,7 +1051,8 @@ put the usual application-rands to the operands
        ;; setting the stage
        (set! sub-dirs-str sub-dirs-str*)
        (set-globals! debug mod-name sub-dirs-str test)
-       (managed-compile-zo file.rkt)
+       (system (format "raco make --disable-inline \"~a\"" file.rkt))
+       #;(managed-compile-zo file.rkt)
        ;; setting the output port
        (when (not out)
          (set! out (open-output-file (string-append sub-dirs-str mod-name ".rkt.json")
