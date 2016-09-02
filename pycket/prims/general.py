@@ -1505,7 +1505,3 @@ def __dummy__():
     ex = ONERBIGINT.touint()
     print ex
 
-    # Force the annotator to not type allow_surrogates=ConstantBool
-    str_decode_utf_8("hello" , 8 , "ignore" , allow_surrogates=False)
-    str_decode_utf_8("bye"   , 8 , "ignore" , allow_surrogates=True)
-
