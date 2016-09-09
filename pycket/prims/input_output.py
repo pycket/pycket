@@ -485,17 +485,22 @@ def explode_path(w_path):
     parts = [_explode_element(p) for p in path.split(sep)]
     return values.to_list(parts)
 
+def _strip_path_seps(path):
+    i = len(path)
+    while i > 0 and path[i-1] == os.path.sep:
+        i -= 1
+    assert i >= 0
+    return path[:i]
+
 def _dirname(path):
-    while path and path[-1] == os.path.sep:
-        path = path[:-1]
+    path = _strip_path_seps(path)
     components = path.split(os.path.sep)[:-1]
     if components == ['']:
         return os.path.sep
     return os.path.sep.join(components)
 
 def _basename(path):
-    while path and path[-1] == os.path.sep:
-        path = path[:-1]
+    path = _strip_path_seps(path)
     components = path.split(os.path.sep)
     return components[-1]
 
