@@ -486,26 +486,44 @@ def explode_path(w_path):
     return values.to_list(parts)
 
 def _dirname(path):
-    components = path.split(os.path.sep)
-    return os.path.sep.join(components[:-1])
+    while path and path[-1] == os.path.sep:
+        path = path[:-1]
+    components = path.split(os.path.sep)[:-1]
+    if components == ['']:
+        return os.path.sep
+    return os.path.sep.join(components)
 
 def _basename(path):
+    while path and path[-1] == os.path.sep:
+        path = path[:-1]
     components = path.split(os.path.sep)
     return components[-1]
+
+def _must_be_dir(path):
+    if path and path[-1] == os.path.sep:
+        return values.w_true
+    else:
+        return values.w_false
 
 def _split_path(path):
     dirname  = _dirname(path)
     basename = _basename(path)
     name = _explode_element(basename)
     if dirname == os.path.sep:
+        base = values.W_Path(os.path.sep)
+        must_be_dir = _must_be_dir(path)
+    elif dirname == '' and basename == '':
         base = values.w_false
-        must_be_dir = values.w_false
+        must_be_dir = values.w_true
     elif dirname == '':
-        base = RELATIVE
+        if basename == '':
+            base = values.w_false
+        else:
+            base = RELATIVE
         if name is UP or name is SAME:
             must_be_dir = values.w_true
         else:
-            must_be_dir = values.w_false
+            must_be_dir = _must_be_dir(path)
     elif basename == '':
         base = RELATIVE
         second_name = _explode_element(dirname)
@@ -517,12 +535,11 @@ def _split_path(path):
     else:
         base = values.W_Path(dirname + os.path.sep)
         must_be_dir = values.w_false
-    return (base, name, must_be_dir)
+    return base, name, must_be_dir
 
 @expose("split-path", [values.W_Object], simple=False)
 def split_path(w_path, env, cont):
     from pycket.interpreter import return_multi_vals
-    
     path = extract_path(w_path)
     base, name, must_be_dir = _split_path(path)
     result = values.Values.make([base, name, must_be_dir])

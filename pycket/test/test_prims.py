@@ -1080,13 +1080,16 @@ def test_bytes_to_path_element(doctest):
 
 def test_split_path(doctest):
     """
-    ! (define-values (base7 name7 must-be-dir7) (split-path "./"))
     ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
     ! (define-values (base2 name2 must-be-dir2) (split-path "./abc/def"))
     ! (define-values (base3 name3 must-be-dir3) (split-path ".."))
     ! (define-values (base4 name4 must-be-dir4) (split-path "."))
     ! (define-values (base5 name5 must-be-dir5) (split-path "foo"))
     ! (define-values (base6 name6 must-be-dir6) (split-path "bcd/"))
+    ! (define-values (base7 name7 must-be-dir7) (split-path "./"))
+    ! (define-values (base8 name8 must-be-dir8) (split-path "/etc"))
+    ! (define-values (base9 name9 must-be-dir9) (split-path "/"))
+    ! (define-values (base10 name10 must-be-dir10) (split-path "/etc/"))
     > base1
     (string->path "abc/")
     > name1
@@ -1120,7 +1123,7 @@ def test_split_path(doctest):
     > base6
     'relative
     > name6
-    (string->path "bcd/")
+    (string->path "bcd")
     > must-be-dir6
     #t
     > base7
@@ -1128,6 +1131,24 @@ def test_split_path(doctest):
     > name7
     'same
     > must-be-dir7
+    #t
+    > base8
+    (string->path "/")
+    > name8
+    (string->path "etc")
+    > must-be-dir8
+    #f
+    > base9
+    #f
+    > name9
+    (string->path "/")
+    > must-be-dir9
+    #t
+    > base10
+    (string->path "/")
+    > name10
+    (string->path "etc")
+    > must-be-dir10
     #t
     """
 
