@@ -55,6 +55,8 @@ pycket-c-no-type-size-specialization: $(PYFILES)
 pycket-c-nojit: $(PYFILES)
 	$(RPYTHON) targetpycket.py
 
+debug: $(PYFILES)
+	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big --lldebug targetpycket.py
 
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
