@@ -467,7 +467,7 @@ def dir_list(w_str):
 UP = values.W_Symbol.make("up")
 SAME = values.W_Symbol.make("same")
 RELATIVE = values.W_Symbol.make("relative")
-SEP = values.W_Path(os.sep)
+ROOT = SEP = values.W_Path(os.sep)
 
 def _explode_element(s):
     if not s:
@@ -554,6 +554,8 @@ def split_path(w_path, env, cont):
 def build_path(args):
     # XXX Does not check that we are joining absolute paths
     # Sorry again Windows
+    if not args:
+        raise SchemeException("build-path: expected at least 1 argument")
     result = [None] * len(args)
     for i, s in enumerate(args):
         if s is UP:
@@ -564,8 +566,13 @@ def build_path(args):
             part = extract_path(s)
         if not part:
             raise SchemeException("build-path: path element is empty")
+        if part == os.path.sep:
+            part = ""
         result[i] = part
-    return values.W_Path("/".join(result))
+    path = os.path.sep.join(result)
+    if not path:
+        return ROOT
+    return values.W_Path(path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
 def simplify_path(path, use_filesystem):
@@ -583,9 +590,9 @@ def path_to_path_complete_path(path, _base):
     else:
         base = extract_path(_base)
     p = extract_path(path)
-    if p and p[0] == '/':
-        return path
-    return values.W_Path(base + '/' + p)
+    if p and p[0] == os.path.sep:
+        return values.W_Path(p)
+    return values.W_Path(base + os.path.sep + p)
 
 
 def _path_for_some_systemp(path):

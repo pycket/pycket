@@ -839,6 +839,10 @@ def test_build_path(doctest):
     "/usr/bin/../bash"
     > (path->string (build-path "/usr" "bin" 'same "bash"))
     "/usr/bin/./bash"
+    > (path->string (build-path "/"))
+    "/"
+    > (path->string (build-path "/" "etc"))
+    "/etc"
     """
 
 def test_path_to_complete_path():
