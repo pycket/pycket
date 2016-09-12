@@ -121,7 +121,10 @@ def parse_file(fname, *replacements, **kwargs):
 
     if kwargs.get("inplace", False):
         assert not replacements
-        reader = JsonLoader(bytecode_expand=False)
+        if not pytest.config.byte_option:
+            reader = JsonLoader(bytecode_expand=False)
+        else:
+            reader = JsonLoader(bytecode_expand=True)
         ast = reader.expand_to_ast(fname)
         return ast
 
