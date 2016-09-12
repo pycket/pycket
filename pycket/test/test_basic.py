@@ -124,6 +124,8 @@ def test_void():
 def test_mcons():
     run_fix ("(mcar (mcons 1 2))", 1)
     run_fix ("(mcdr (mcons 1 2))", 2)
+    run_fix ("(unsafe-mcar (mcons 1 2))", 1)
+    run_fix ("(unsafe-mcdr (mcons 1 2))", 2)
     with pytest.raises(SchemeException):
         run("(mcar 1)", None)
     with pytest.raises(SchemeException):

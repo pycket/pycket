@@ -1148,7 +1148,7 @@ def unsafe_cdr(p):
 
 @expose("unsafe-mcdr", [subclass_unsafe(values.W_MCons)])
 def unsafe_mcdr(p):
-    return p.car()
+    return p.cdr()
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
