@@ -1056,7 +1056,8 @@ put the usual application-rands to the operands
           [mod-name (let* ([fn-path (file-name-from-path p)]
                            [fn-str (if fn-path (path->string fn-path) (error 'zo-expand "check the filename ~a" file.rkt))])
                       (car (string-split fn-str ".")))]
-          [mod-extension (bytes->string/utf-8 (get-extension p))])
+          [mod-extension (let ([ext (bytes->string/utf-8 (get-extension p))])
+                           (if (string-contains? ext ".") (string-replace ext "." "") ext))])
      (begin
        ;; setting the stage
        (set! sub-dirs-str only-path-str)
