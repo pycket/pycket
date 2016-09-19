@@ -681,6 +681,7 @@ def test_listp(doctest):
     #f
     """
 
+
 def test_format(doctest):
     r"""
     > (format "a")
@@ -1160,3 +1161,100 @@ def test_fail_user_simple(doctest):
     """
     E (raise-user-error "foo")
     """
+
+def test_integer_bytes_to_integer(doctest):
+    r"""
+    > (integer-bytes->integer #"\0\0" #t)
+    0
+    > (integer-bytes->integer #"\377\377" #t)
+    -1
+    > (integer-bytes->integer #"\377\377" #f)
+    65535
+    > (integer-bytes->integer #"\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377" #t #t)
+    -1
+    > (integer-bytes->integer #"\377\377" #f #t)
+    65535
+    > (integer-bytes->integer #"\377\0" #t #t)
+    -256
+    > (integer-bytes->integer #"\377\1" #t #t)
+    -255
+    > (integer-bytes->integer #"\1\377" #t #t)
+    511
+    > (integer-bytes->integer #"\1\2" #f #f)
+    513
+    > (integer-bytes->integer #"\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377" #f #f)
+    65535
+    > (integer-bytes->integer #"\377\1" #t #f)
+    511
+    > (integer-bytes->integer #"\1\377" #t #f)
+    -255
+    > (integer-bytes->integer #"\1\2" #f #t)
+    258
+    > (integer-bytes->integer #"\0\0\0\0" #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f)
+    4294967295
+    > (integer-bytes->integer #"\0\0\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t #t)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f #t)
+    4294967295
+    > (integer-bytes->integer #"\377\0\0\0" #t #t)
+    -16777216
+    > (integer-bytes->integer #"\0\0\0\377" #t #t)
+    255
+    > (integer-bytes->integer #"\0\0\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377" #f #f)
+    4294967295
+    > (integer-bytes->integer #"\377\0\0\1" #t #f)
+    16777471
+    > (integer-bytes->integer #"\0\0\0\377" #t #f)
+    -16777216
+    > (integer-bytes->integer #"\1\0\0\377" #t #f)
+    -16777215
+    > (integer-bytes->integer #"matt" #t #t)
+    1835103348
+    > (integer-bytes->integer #"matt" #t #f)
+    1953784173
+    > (integer-bytes->integer #"\0\0\0\0\0\0\0\0" #t #t)
+    0
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #f #f)
+    18446744073709551615
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\0" #t #f)
+    4294967295
+    > (integer-bytes->integer #"\0\0\0\0\377\377\377\377" #t #f)
+    -4294967296
+    > (integer-bytes->integer #"\377\377\377\377\1\0\0\0" #t #f)
+    8589934591
+    > (integer-bytes->integer #"\1\0\0\0\377\377\377\377" #t #f)
+    -4294967295
+    > (integer-bytes->integer #"\0\0\0\0\0\0\0\0" #t #f)
+    0
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #t #f)
+    -1
+    > (integer-bytes->integer #"\377\377\377\377\377\377\377\377" #f #f)
+    18446744073709551615
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\0" #t #t)
+    -4294967296
+    > (integer-bytes->integer #"\0\0\0\0\377\377\377\377" #t #t)
+    4294967295
+    > (integer-bytes->integer #"\377\377\377\377\0\0\0\1" #t #t)
+    -4294967295
+    > (integer-bytes->integer #"\0\0\0\1\377\377\377\377" #t #t)
+    8589934591
+    """
+
