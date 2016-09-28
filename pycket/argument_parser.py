@@ -23,7 +23,7 @@ class Spec(object):
 
 class Value(Spec):
 
-    _immutable_ = True
+    _value_class_ = True
 
     def __init__(self, value):
         self.value = value
@@ -38,7 +38,7 @@ class Value(Spec):
 
 class Instance(Spec):
 
-    _immutable_ = True
+    _value_class_ = True
 
     def __init__(self, cls):
         self.cls = cls

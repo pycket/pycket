@@ -644,7 +644,7 @@ class W_Integer(W_Number):
 @memoize_constructor
 class W_Fixnum(W_Integer):
 
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
@@ -688,7 +688,7 @@ W_Fixnum.TWO  = W_Fixnum.make(2)
 W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
 class W_Flonum(W_Number):
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "flonum"
 
@@ -724,7 +724,7 @@ W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
 
 class W_Bignum(W_Integer):
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ["value"]
 
     def tostring(self):
@@ -755,7 +755,7 @@ class W_Bignum(W_Integer):
 
 @memoize_constructor
 class W_Complex(W_Number):
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ["real", "imag"]
     def __init__(self, re, im):
         assert isinstance(re, W_Number)
@@ -1284,7 +1284,7 @@ class W_ComposableContinuation(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ["caselam"]
 
     @jit.unroll_safe
@@ -1352,7 +1352,7 @@ class W_Closure(W_Procedure):
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
 class W_Closure1AsEnv(ConsEnv):
-    _immutable_ = True
+    _value_class_ = True
     _attrs_ = _immutable_fields_ = ['caselam']
 
     def __init__(self, caselam, prev):

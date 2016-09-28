@@ -34,7 +34,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
 
     def wrapper(cls):
 
-        _immutable_ = getattr(cls, "_immutable_", False)
+        _value_class_ = getattr(cls, "_value_class_", False)
 
         def make_class(size):
             attrs = ["_%s_%s" % (attrname, i) for i in range(size)]
@@ -80,8 +80,8 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
 
             newcls = type(cls)("%sSize%s" % (cls.__name__, size), (cls, ), methods)
 
-            if _immutable_:
-                setattr(newcls, "_immutable_", True)
+            if _value_class_:
+                setattr(newcls, "_value_class_", True)
                 newcls = add_clone_method(newcls)
 
             if immutable:
@@ -121,8 +121,8 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
 
         cls_arbitrary = type(cls)("%sArbitrary" % cls.__name__, (cls, ), methods)
 
-        if _immutable_:
-            setattr(cls_arbitrary, "_immutable_", True)
+        if _value_class_:
+            setattr(cls_arbitrary, "_value_class_", True)
             cls_arbitrary = add_clone_method(cls_arbitrary)
         if immutable:
             setattr(cls_arbitrary, "_immutable_fields_", ["%s[*]" % (attrname,)])
@@ -180,8 +180,8 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
             return result
 
         if unbox_num:
-            assert _immutable_ or immutable, "unboxing is only supported for immutable objects"
-            make, make1, make2 = _add_num_classes(cls, make, make0, make1, make2, immut=_immutable_)
+            assert _value_class_ or immutable, "unboxing is only supported for immutable objects"
+            make, make1, make2 = _add_num_classes(cls, make, make0, make1, make2, value_class=_value_class_)
         setattr(cls, factoryname, staticmethod(make))
         setattr(cls, factoryname + "0", staticmethod(make0))
         setattr(cls, factoryname + "1", staticmethod(make1))
@@ -190,7 +190,7 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
         return cls
     return wrapper
 
-def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=False):
+def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, value_class=False):
     # XXX quite brute force
     def make(vals, *args):
         from pycket.values import W_Fixnum
@@ -222,8 +222,8 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     class Size1Fixed(cls):
         _immutable_fields_ = ['vals_fixed_0']
 
-        if immut:
-            _immutable_ = True
+        if value_class:
+            _value_class_ = True
 
         def __init__(self, vals_fixed_0, *args):
             self.vals_fixed_0 = vals_fixed_0
@@ -248,8 +248,8 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     class Size1Flo(cls):
         _immutable_fields_ = ['vals_flo_0']
 
-        if immut:
-            _immutable_ = True
+        if value_class:
+            _value_class_ = True
 
         def __init__(self, vals_flo_0, *args):
             self.vals_flo_0 = vals_flo_0
@@ -274,8 +274,8 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     class Size2Fixed10(cls):
         _immutable_fields_ = ['vals_fixed_0', 'w_val1']
 
-        if immut:
-            _immutable_ = True
+        if value_class:
+            _value_class_ = True
 
         def __init__(self, vals_fixed_0, w_val1, *args):
             self.vals_fixed_0 = vals_fixed_0
@@ -304,8 +304,8 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     class Size2Fixed01(cls):
         _immutable_fields_ = ['w_val0', 'vals_fixed_1']
 
-        if immut:
-            _immutable_ = True
+        if value_class:
+            _value_class_ = True
 
         def __init__(self, w_val0, vals_fixed_1, *args):
             self.w_val0 = w_val0
@@ -334,8 +334,8 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     class Size2Fixed11(cls):
         _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1']
 
-        if immut:
-            _immutable_ = True
+        if value_class:
+            _value_class_ = True
 
         def __init__(self, vals_fixed_0, vals_fixed_1, *args):
             self.vals_fixed_0 = vals_fixed_0
