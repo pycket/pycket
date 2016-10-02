@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from pycket                   import config
+from pycket                   import small_list_alt
+from pycket.AST               import AST
 from pycket.arity             import Arity
 from pycket.base              import W_Object, W_ProtoObject, UnhashableType
 from pycket.cont              import continuation, label, NilCont
@@ -63,6 +65,46 @@ def wrap(*_pyval):
         if isinstance(car, W_Object):
             return W_Cons.make(car, cdr)
     assert False
+
+class ValueSpace(object):
+
+    root_type = AST
+
+    @staticmethod
+    @always_inline
+    def unwrap_p(x):
+        return x
+
+    @staticmethod
+    @always_inline
+    def unwrap_i(x):
+        assert isinstance(x, W_Fixnum)
+        return x.value
+
+    @staticmethod
+    @always_inline
+    def unwrap_f(x):
+        assert isinstance(x, W_Flonum)
+        return x.value
+
+    @staticmethod
+    @specialize.argtype(0)
+    def wrap(x):
+        if isinstance(x, int):
+            return W_Fixnum(x)
+        if isinstance(x, float):
+            return W_Flonum(x)
+        assert isinstance(x, W_Object)
+        return x
+
+    @staticmethod
+    def typeof(x):
+        if isinstance(x, W_Fixnum):
+            return 'i'
+        if isinstance(x, W_Flonum):
+            return 'f'
+        assert isinstance(x, W_Object)
+        return 'p'
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
@@ -1389,7 +1431,8 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+# @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@small_list_alt.small_list(sizemax=11, space=ValueSpace)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ['caselam']
@@ -1405,7 +1448,7 @@ class W_Closure1AsEnv(ConsEnv):
         if not vals:
             for s in caselam.lams[0].frees.elems:
                 assert s is recursive_sym
-        return W_Closure1AsEnv._make(vals, caselam, prev)
+        return W_Closure1AsEnv._make(caselam, vals, caselam, prev)
 
     def iscallable(self):
         return True

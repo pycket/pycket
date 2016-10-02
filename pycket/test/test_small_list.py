@@ -19,7 +19,7 @@ def random_data(type, n):
 
 def test_small_list():
 
-    @small_list(sizemax=10, immutable=True, space=FakeSpace)
+    @small_list(sizemax=10, space=FakeSpace)
     class X(object):
         def __init__(self, val):
             self.val = val

@@ -99,7 +99,7 @@ def make_typed_map(root_type, types):
             self.root_id = root_id
             self.indexes = {}
             self.other_maps = rweakref.RWeakValueDictionary(Pair, TypedMap)
-            for attr in types:
+            for attr in unroll_types:
                 setattr(self, attr, 0)
 
         def __iter__(self):
@@ -130,7 +130,7 @@ def make_typed_map(root_type, types):
         def get_index(self, name):
             return self.indexes[name]
 
-        @specialize.arg(1)
+        @specialize.arg_or_var(1)
         def num_fields(self, type):
             for attr in unroll_types:
                 if attr == type:
