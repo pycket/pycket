@@ -39,12 +39,13 @@ def _make_get_list(enum_attrs, suffix, space):
     return _get_list
 
 def _make_set_list(enum_attrs, suffix, space, nonull=False):
+    unwrap_attr = "unwrap_%s" % suffix
     def _set_list(self, i, val):
         for j, attr in enum_attrs:
+            v = getattr(space, unwrap_attr)(val)
             if j == i:
                 if nonull:
                     assert val is not None
-                v = space.unwrap(val)
                 setattr(self, attr, v)
                 return
         raise IndexError
@@ -61,6 +62,10 @@ class FakeSpace(object):
         """NOT RPYTHON"""
         return x
 
+    unwrap_p = unwrap
+    unwrap_i = unwrap
+    unwrap_f = unwrap
+
     @staticmethod
     def wrap(x):
         """NOT RPYTHON"""
@@ -69,7 +74,7 @@ class FakeSpace(object):
     # Assigns objects to one of three types 'p', 'i', and 'f'
     # for pointers, integers, and floats.
     @staticmethod
-    def typeOf(x):
+    def typeof(x):
         """NOT RPYTHON"""
         if isinstance(x, int):
             return 'i'
@@ -77,7 +82,7 @@ class FakeSpace(object):
             return 'f'
         return 'p'
 
-def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", space=FakeSpace):
+def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
     type_prefixes = ['p', 'i', 'f']
     unroll_type_prefixes = unrolling_iterable(type_prefixes)
@@ -106,8 +111,8 @@ def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", spa
                 _attrs_ = pointer_attrs + integer_attrs + float_attrs
                 _attrs_ += ['_map']
 
-                if immutable:
-                    _immutable_fields_ = _attrs_
+                _immutable_ = True
+                _immutable_fields_ = _attrs_
 
                 def __init__(self, map, elems, *args):
                     assert len(elems) == SIZE
@@ -131,6 +136,8 @@ def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", spa
                     assert False, "unknown type"
 
                 def _set_list_helper(self, type, index, val):
+                    if nonull:
+                        assert val is not None
                     if type == 'p':
                         self._set_list_p(index, val)
                     elif type == 'i':
@@ -139,7 +146,7 @@ def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", spa
                         assert type == 'f'
                         return self._set_list_f(index, val)
 
-                def _get_size_list(size):
+                def _get_size_list(self):
                     return SIZE
 
                 _get_list_p = _make_get_list(unroll_pointer, 'p', space)
@@ -150,20 +157,52 @@ def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", spa
                 _set_list_i = _make_set_list(unroll_integer, 'i', space, nonull=nonull)
                 _set_list_f = _make_set_list(unroll_float  , 'f', space, nonull=nonull)
 
+                def _get_root(self):
+                    return self._map.get_root_id()
+
             spec = "Specialized(r=%d,i=%d,f=%d)" % (pointers, integers, floats)
             NewClass.__name__ = cls.__name__ + spec
             return NewClass
 
+        class Unspecialized(cls):
+            _attrs_ = ['_map', attrprefix]
+            _immutable_ = True
+            _immutable_fields_ = ['_map', attrprefix + '[*]']
+
+            def __init__(self, map, elems, *args):
+                debug.make_sure_not_resized(elems)
+                self._map = map
+                setattr(self, attrprefix, elems)
+                cls.__init__(self, *args)
+
+            def _get_list(self, i):
+                data = getattr(self, attrprefix)
+                return data[i]
+
+            def _get_size_list(self):
+                data = getattr(self, attrprefix)
+                return len(data)
+
+            def _get_root(self):
+                return self._map.get_root_id()
+
+        Unspecialized.__name__ = cls.__name__ + "Unspecialized"
+
         def generate_make_function(i, classes):
+
+            @jit.elidable_promote('all')
+            def elidable_lookup(map):
+                spec = map.layout_spec()
+                return classes[spec]
+
             @jit.unroll_safe
             def make(root, elems, *args):
                 assert len(elems) == i
                 map = Map._new(root)
                 for idx, e in enumerate(elems):
-                    type = space.typeOf(e)
+                    type = space.typeof(e)
                     map = map.add_attribute(idx, type)
-                spec = map.layout_spec()
-                cls = classes[spec]
+                cls = elidable_lookup(map)
                 return cls(map, elems, *args)
             make.__name__ += "_" + str(i)
             return make
@@ -184,23 +223,18 @@ def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", spa
         unroll_size = unrolling_iterable(range(sizemax))
 
         @staticmethod
+        @jit.unroll_safe
         def make(root, elems, *args):
             l = len(elems)
             for i in unroll_size:
                 if i == l:
                     make = make_functions[i]
                     return make(root, elems, *args)
-            # TODO: Default case
-            return "make_default_case"
+            map = Map._new(root)
+            return Unspecialized(map, elems, *args)
 
         cls._make = make
         return cls
 
     return wrapper
-
-@small_list(immutable=True)
-class X(object):
-    pass
-
-# cls = small_list(immutable=True)(X)([(2, 'p'), (2, 'i'), (2, 'f')])
 
