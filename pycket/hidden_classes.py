@@ -67,6 +67,9 @@ def make_map_type(getter, keyclass):
 
 def make_typed_map(root_type, types):
 
+    for t in types:
+        assert isinstance(t, str) and len(t) == 1
+
     types = tuple(types)
     unroll_types = unroll.unrolling_iterable(types)
 
@@ -83,6 +86,8 @@ def make_typed_map(root_type, types):
 
         def __hash__(self):
             return hash((self.key, self._type))
+
+    UNKNOWN = ('?', -1)
 
     class TypedMap(object):
         """
@@ -119,7 +124,6 @@ def make_typed_map(root_type, types):
 
         @jit.elidable_promote('all')
         def layout_spec(self):
-            self = jit.promote(self)
             spec = ()
             for attr in unroll_types:
                 val = getattr(self, attr)
@@ -128,7 +132,7 @@ def make_typed_map(root_type, types):
 
         @jit.elidable_promote('all')
         def get_index(self, name):
-            return self.indexes[name]
+            return self.indexes.get(name, UNKNOWN)
 
         @specialize.arg_or_var(1)
         def num_fields(self, type):

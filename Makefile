@@ -32,7 +32,7 @@ translate-no-type-size-specialization: pycket-c-no-type-size-specialization
 translate-no-jit: pycket-c-nojit
 
 pycket-c: $(PYFILES)
-	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py
+	pypy $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py
 
 pycket-c-no-hidden-classes: $(PYFILES)
 	$(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-hidden-classes
