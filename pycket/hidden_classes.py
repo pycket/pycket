@@ -1,6 +1,6 @@
 
 from rpython.rlib             import jit, unroll, rweakref
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import always_inline, specialize
 
 def make_map_type(getter, keyclass):
 
@@ -122,7 +122,7 @@ def make_typed_map(root_type, types):
         def get_root_id(self):
             return jit.promote(self).root_id
 
-        @jit.elidable_promote('all')
+        @jit.elidable
         def layout_spec(self):
             spec = ()
             for attr in unroll_types:
@@ -161,6 +161,7 @@ def make_typed_map(root_type, types):
             return len(self.indexes)
 
         @staticmethod
+        @jit.elidable
         def _new(root_id):
             result = TypedMap.CACHE.get(root_id)
             if result is None:

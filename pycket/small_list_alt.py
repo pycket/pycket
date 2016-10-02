@@ -114,6 +114,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 _immutable_ = True
                 _immutable_fields_ = _attrs_
 
+                @jit.unroll_safe
                 def __init__(self, map, elems, *args):
                     assert len(elems) == SIZE
                     self._map = map
@@ -125,6 +126,13 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 def _get_list(self, i):
                     type, index = self._map.get_index(i)
                     return self._get_list_helper(type, index)
+
+                @jit.unroll_safe
+                def _get_full_list(self):
+                    values = [None] * SIZE
+                    for i in range(SIZE):
+                        values[i] = self._get_list(i)
+                    return values
 
                 def _get_list_helper(self, type, index):
                     if type == 'p':
@@ -162,6 +170,12 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
             spec = "Specialized(r=%d,i=%d,f=%d)" % (pointers, integers, floats)
             NewClass.__name__ = cls.__name__ + spec
+
+            @staticmethod
+            def make(map, elems, *args):
+                return NewClass(map, elems, *args)
+
+            NewClass._new = make
             return NewClass
 
         class Unspecialized(cls):
@@ -183,17 +197,27 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 data = getattr(self, attrprefix)
                 return len(data)
 
+            def _get_full_list(self):
+                return getattr(self, attrprefix)
+
             def _get_root(self):
                 return self._map.get_root_id()
+
+        def make_unspecialized(map, elems, *args):
+            return Unspecialized(map, elems, *args)
 
         Unspecialized.__name__ = cls.__name__ + "Unspecialized"
 
         def generate_make_function(i, classes):
 
-            @jit.elidable_promote('all')
+            @jit.elidable
             def elidable_lookup(map):
                 spec = map.layout_spec()
-                return classes[spec]
+                try:
+                    result = classes[spec]
+                except KeyError:
+                    result = make_unspecialized
+                return result
 
             @jit.unroll_safe
             def make(root, elems, *args):
@@ -214,7 +238,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             for layout in partition(i, type_prefixes):
                 newcls = make_class(layout)
                 key = tuple(l[1] for l in layout)
-                classes[key] = newcls
+                classes[key] = newcls._new
             make_function = generate_make_function(i, classes)
             make_functions.append(make_function)
             classes_by_size.append(classes)

@@ -7,7 +7,7 @@ PYPYPATH ?= pypy
 # Invocation of pytest, defaults to pypy's stuff
 # but may also be `py.test`
 PYTEST ?= $(PYPYPATH)/pytest.py
-RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython --batch
+RPYTHON ?= $(PYPYPATH)/rpython/bin/rpython
 
 
 TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state \
