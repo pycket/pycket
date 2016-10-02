@@ -6,15 +6,15 @@ from pycket.small_list_alt import small_list, FakeSpace, partition
 def random_data(type, n):
     ints = range(10)
     vals = []
-    if type == 'p':
-        for i in range(n):
+    for i in range(n):
+        if type == 'p':
             vals.append(object())
-    elif type == 'i':
-        for i in range(n):
+        elif type == 'i':
             vals.append(random.choice(ints))
-    elif type == 'f':
-        for i in range(n):
+        else:
+            assert type == 'f'
             vals.append(random.random())
+
     return vals
 
 def test_small_list():
@@ -26,8 +26,8 @@ def test_small_list():
 
     root = object()
 
-    for i in range(10):
-        for layout in partition(i, ['p', 'i', 'f']):
+    for N in range(10):
+        for layout in partition(N, ['p', 'i', 'f']):
             data = list(chain(*[random_data(*d) for d in layout]))
             random.shuffle(data)
             obj = X._make(root, data, 42)
@@ -37,3 +37,5 @@ def test_small_list():
             spec = obj._map.layout_spec()
             assert zip(['p', 'i', 'f'], spec) == layout
 
+            for i in range(N):
+                assert data[i] == obj._get_list(i)
