@@ -1395,6 +1395,9 @@ class W_Closure(W_Procedure):
         envs = [None] * num_lams
         return W_Closure._make(envs, caselam, env)
 
+    def get_caselam(self):
+        return self.caselam
+
     def get_arity(self):
         return self.caselam.get_arity()
 
@@ -1435,11 +1438,10 @@ class W_Closure(W_Procedure):
 @small_list_alt.small_list(sizemax=11, space=ValueSpace)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
-    _attrs_ = _immutable_fields_ = ['caselam']
+    _attrs_ = []
 
-    def __init__(self, caselam, prev):
-        ConsEnv.__init__(self, prev)
-        self.caselam = caselam
+    # def __init__(self, prev):
+        # ConsEnv.__init__(self, prev)
 
     @staticmethod
     @jit.unroll_safe
@@ -1448,30 +1450,40 @@ class W_Closure1AsEnv(ConsEnv):
         if not vals:
             for s in caselam.lams[0].frees.elems:
                 assert s is recursive_sym
-        return W_Closure1AsEnv._make(caselam, vals, caselam, prev)
+        return W_Closure1AsEnv._make(caselam, vals, prev)
 
     def iscallable(self):
         return True
 
     def enable_jitting(self):
-        self.caselam.enable_jitting()
+        caselam = self.get_caselam()
+        caselam.enable_jitting()
 
     def immutable(self):
         return True
 
     def tostring(self):
-        return self.caselam.tostring_as_closure()
+        caselam = self.get_caselam()
+        return caselam.tostring_as_closure()
+
+    def get_caselam(self):
+        from pycket.interpreter import CaseLambda
+        caselam = self._get_root()
+        assert isinstance(caselam, CaseLambda)
+        return caselam
 
     def get_arity(self):
-        return self.caselam.get_arity()
+        caselam = self.get_caselam()
+        return caselam.get_arity()
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
         if calling_app is not None:
             env_structure = calling_app.env_structure
-        jit.promote(self.caselam)
+        caselam = self.get_caselam()
+        jit.promote(caselam)
         jit.promote(env_structure)
-        lam = self.caselam.lams[0]
+        lam = caselam.lams[0]
         if not jit.we_are_jitted() and env.pycketconfig().callgraph:
             env.toplevel_env().callgraph.register_call(lam, calling_app, cont, env)
         actuals = lam.match_args(args)
@@ -1494,8 +1506,9 @@ class W_Closure1AsEnv(ConsEnv):
     @jit.unroll_safe
     def consenv_get_size(self):
         result = self._get_size_list()
-        for s in self.caselam.lams[0].frees.elems:
-            result += s is self.caselam.recursive_sym
+        caselam = self.get_caselam()
+        for s in caselam.lams[0].frees.elems:
+            result += s is caselam.recursive_sym
         return result
 
     @jit.unroll_safe
@@ -1503,7 +1516,8 @@ class W_Closure1AsEnv(ConsEnv):
         jit.promote(env_structure)
         if len(env_structure.elems) == self._get_size_list():
             return ConsEnv.lookup(self, sym, env_structure)
-        recursive_sym = jit.promote(self.caselam).recursive_sym
+        caselam = self.get_caselam()
+        recursive_sym = jit.promote(caselam).recursive_sym
         if sym is recursive_sym:
             return self
         i = 0
