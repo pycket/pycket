@@ -24,6 +24,46 @@ from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check
 
 UNROLLING_CUTOFF = 5
 
+@specialize.call_location()
+def wrap_list(pyval):
+    assert isinstance(pyval, list)
+    acc = w_null
+    for val in reversed(pyval):
+        acc = wrap(val, acc)
+    return acc
+
+@specialize.ll()
+def wrap(*_pyval):
+    # Smart constructor for converting Python values to Racket values
+    if len(_pyval) == 1:
+        pyval = _pyval[0]
+        if isinstance(pyval, bool):
+            return w_true if pyval else w_false
+        if isinstance(pyval, int):
+            return W_Fixnum(pyval)
+        if isinstance(pyval, float):
+            return W_Flonum(pyval)
+        if isinstance(pyval, W_Object):
+            return pyval
+    elif len(_pyval) == 2:
+        car = _pyval[0]
+        cdr = wrap(_pyval[1])
+        if isinstance(car, bool):
+            if cdr.is_proper_list():
+                return W_WrappedConsProper(wrap(car), cdr)
+            return W_WrappedCons(wrap(car), cdr)
+        if isinstance(car, int):
+            if cdr.is_proper_list():
+                return W_UnwrappedFixnumConsProper(car, cdr)
+            return W_UnwrappedFixnumCons(car, cdr)
+        if isinstance(car, float):
+            if cdr.is_proper_list():
+                return W_UnwrappedFlonumConsProper(car, cdr)
+            return W_UnwrappedFlonumCons(car, cdr)
+        if isinstance(car, W_Object):
+            return W_Cons.make(car, cdr)
+    assert False
+
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
     _attrs_ = []
@@ -62,7 +102,6 @@ class Values(W_ProtoObject):
             return "(values)"
         else: #fixme
             return "MULTIPLE VALUES"
-
 
 class W_Cell(W_Object): # not the same as Racket's box
     _attrs_ = ["w_value"]
@@ -1698,44 +1737,4 @@ class W_FileOutputPort(W_OutputPort):
     def tell(self):
         # XXX this means we can only deal with 4GiB files on 32bit systems
         return int(intmask(self.file.tell()))
-
-@specialize.call_location()
-def wrap_list(pyval):
-    assert isinstance(pyval, list)
-    acc = w_null
-    for val in reversed(pyval):
-        acc = wrap(val, acc)
-    return acc
-
-@specialize.ll()
-def wrap(*_pyval):
-    # Smart constructor for converting Python values to Racket values
-    if len(_pyval) == 1:
-        pyval = _pyval[0]
-        if isinstance(pyval, bool):
-            return w_true if pyval else w_false
-        if isinstance(pyval, int):
-            return W_Fixnum(pyval)
-        if isinstance(pyval, float):
-            return W_Flonum(pyval)
-        if isinstance(pyval, W_Object):
-            return pyval
-    elif len(_pyval) == 2:
-        car = _pyval[0]
-        cdr = wrap(_pyval[1])
-        if isinstance(car, bool):
-            if cdr.is_proper_list():
-                return W_WrappedConsProper(wrap(car), cdr)
-            return W_WrappedCons(wrap(car), cdr)
-        if isinstance(car, int):
-            if cdr.is_proper_list():
-                return W_UnwrappedFixnumConsProper(car, cdr)
-            return W_UnwrappedFixnumCons(car, cdr)
-        if isinstance(car, float):
-            if cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car, cdr)
-            return W_UnwrappedFlonumCons(car, cdr)
-        if isinstance(car, W_Object):
-            return W_Cons.make(car, cdr)
-    assert False
 

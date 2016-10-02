@@ -2,6 +2,7 @@
 import pytest
 
 from pycket.hidden_classes                    import make_map_type, make_caching_map_type
+from pycket.hidden_classes                    import make_typed_map
 from pycket.impersonators.hidden_classes.base import W_ImpPropertyDescriptor
 
 def test_map():
@@ -109,3 +110,26 @@ def test_caching_map_descriptors():
     assert map_.get_dynamic_index(a) == 1
     assert map_.get_dynamic_index(c) == 2
     assert map_.get_dynamic_index(d) == -1
+
+def test_typed_map():
+    Map = make_typed_map(object, ('p', 'i', 'f'))
+    map = Map._new("hello")
+    map = map.add_attribute(0, 'i')
+    map = map.add_attribute(1, 'p')
+    map = map.add_attribute(2, 'f')
+    map = map.add_attribute(3, 'i')
+    map = map.add_attribute(4, 'p')
+    map = map.add_attribute(5, 'f')
+
+    assert map.get_index(0) == ('i', 0)
+    assert map.get_index(1) == ('p', 0)
+    assert map.get_index(2) == ('f', 0)
+    assert map.get_index(3) == ('i', 1)
+    assert map.get_index(4) == ('p', 1)
+    assert map.get_index(5) == ('f', 1)
+    assert map.get_root_id() == "hello"
+
+    assert map.num_fields('i') == 2
+    assert map.num_fields('p') == 2
+    assert map.num_fields('f') == 2
+

@@ -65,11 +65,113 @@ def make_map_type(getter, keyclass):
 
     return Map
 
+def make_typed_map(root_type, types):
+
+    types = tuple(types)
+    unroll_types = unroll.unrolling_iterable(types)
+
+    class Pair(object):
+        __slots__ = _immutable_fields_ = ('key', '_type')
+
+        def __init__(self, key, _type):
+            self.key = key
+            self._type = _type
+
+        def __eq__(self, other):
+            assert isinstance(other, Pair)
+            return self.key == other.key and self._type == other._type
+
+        def __hash__(self):
+            return hash((self.key, self._type))
+
+    class TypedMap(object):
+        """
+        An implementation of a typed map, which associates to each attribute name
+        a type/integer pair. The idea here being that properties of the same type
+        may be stored unboxed in homogeneous arrays and the TypeMap tells us which
+        typed array to look in and at what index.
+        """
+
+        _attrs_ = ('root_id', 'indexes', 'other_maps') + types
+        _immutable_fields_ = _attrs_
+
+        def __init__(self, root_id):
+            self.root_id = root_id
+            self.indexes = {}
+            self.other_maps = rweakref.RWeakValueDictionary(Pair, TypedMap)
+            for attr in types:
+                setattr(self, attr, 0)
+
+        def __iter__(self):
+            return self.indexes.iteritems()
+
+        def iterkeys(self):
+            return self.indexes.iterkeys()
+
+        def itervalues(self):
+            return self.indexes.itervalues()
+
+        def iteritems(self):
+            return self.indexes.iteritems()
+
+        def get_root_id(self):
+            return jit.promote(self).root_id
+
+        @jit.elidable_promote('all')
+        def layout_spec(self):
+            self = jit.promote(self)
+            spec = ()
+            for attr in unroll_types:
+                val = getattr(self, attr)
+                spec += (val,)
+            return spec
+
+        @jit.elidable_promote('all')
+        def get_index(self, name):
+            return self.indexes[name]
+
+        @specialize.arg(1)
+        def num_fields(self, type):
+            for attr in unroll_types:
+                if attr == type:
+                    return getattr(self, attr)
+            assert False
+
+        @jit.elidable_promote('all')
+        def add_attribute(self, name, type):
+            pair = Pair(name, type)
+            newmap = self.other_maps.get(pair)
+            if newmap is None:
+                index = self.num_fields(type)
+                newmap = TypedMap(self.root_id)
+                newmap.indexes.update(self.indexes)
+                newmap.indexes[name] = (type, index)
+                for attr in unroll_types:
+                    val = getattr(self, attr) + int(attr == type)
+                    setattr(newmap, attr, val)
+                self.other_maps.set(pair, newmap)
+            return newmap
+
+        @jit.elidable
+        def storage_size(self):
+            return len(self.indexes)
+
+        @staticmethod
+        def _new(root_id):
+            result = TypedMap.CACHE.get(root_id)
+            if result is None:
+                result = TypedMap(root_id)
+                TypedMap.CACHE.set(root_id, result)
+            return result
+
+    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
+    return TypedMap
+
 # TODO Find a beter name for this
 def make_caching_map_type(getter, keyclass):
 
     class Pair(object):
-        _attrs_ = ['x', 'y']
+        _attrs_ = _immutable_fields_ = ['x', 'y']
         def __init__(self, x, y):
             self.x = x
             self.y = y
