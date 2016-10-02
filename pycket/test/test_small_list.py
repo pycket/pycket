@@ -26,7 +26,7 @@ def test_small_list():
 
     root = object()
 
-    for N in range(10):
+    for N in range(11):
         for layout in partition(N, ['p', 'i', 'f']):
             data = list(chain(*[random_data(*d) for d in layout]))
             random.shuffle(data)
@@ -37,5 +37,7 @@ def test_small_list():
             spec = obj._map.layout_spec()
             assert zip(['p', 'i', 'f'], spec) == layout
 
+            # _get_list
             for i in range(N):
                 assert data[i] == obj._get_list(i)
+
