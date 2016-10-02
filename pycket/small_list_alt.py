@@ -77,7 +77,7 @@ class FakeSpace(object):
             return 'f'
         return 'p'
 
-def small_list(max_size=10, immutable=False, nonull=False, attrprefix="list", space=FakeSpace):
+def small_list(sizemax=10, immutable=False, nonull=False, attrprefix="list", space=FakeSpace):
 
     type_prefixes = ['p', 'i', 'f']
     unroll_type_prefixes = unrolling_iterable(type_prefixes)
@@ -170,7 +170,7 @@ def small_list(max_size=10, immutable=False, nonull=False, attrprefix="list", sp
 
         classes_by_size = []
         make_functions = []
-        for i in range(max_size + 1):
+        for i in range(sizemax):
             classes = {}
             for layout in partition(i, type_prefixes):
                 newcls = make_class(layout)
@@ -181,7 +181,7 @@ def small_list(max_size=10, immutable=False, nonull=False, attrprefix="list", sp
             classes_by_size.append(classes)
         cls.classes_by_size = classes_by_size
 
-        unroll_size = unrolling_iterable(range(max_size))
+        unroll_size = unrolling_iterable(range(sizemax))
 
         @staticmethod
         def make(root, elems, *args):
