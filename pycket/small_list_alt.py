@@ -28,7 +28,7 @@ def attr_names(prefix, N, type):
     unroll = unrolling_iterable(enumerate(attrs))
     return attrs, unroll
 
-def _make_get_list(enum_attrs, suffix, wrap):
+def _make_get_list(enum_attrs, suffix, space):
     def _get_list(self, i):
         for j, attr in enum_attrs:
             if j == i:
