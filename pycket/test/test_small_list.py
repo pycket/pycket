@@ -26,7 +26,7 @@ def test_small_list():
 
     root = object()
 
-    for N in range(11):
+    for N in range(10):
         for layout in partition(N, ['p', 'i', 'f']):
             data = list(chain(*[random_data(*d) for d in layout]))
             random.shuffle(data)
@@ -40,4 +40,15 @@ def test_small_list():
             # _get_list
             for i in range(N):
                 assert data[i] == obj._get_list(i)
+
+            # _get_full_list
+            assert data == obj._get_full_list()
+
+    data = [object() for _ in range(11)]
+    obj = X._make(root, data, 42)
+
+    for i in range(len(data)):
+        assert data[i] == obj._get_list(i)
+
+    assert obj._get_full_list() == data
 
