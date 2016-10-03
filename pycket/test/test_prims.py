@@ -1258,3 +1258,8 @@ def test_integer_bytes_to_integer(doctest):
     8589934591
     """
 
+def test_logger_operations(doctest):
+    """
+    > (logger-name (make-logger 'example))
+    'example
+    """

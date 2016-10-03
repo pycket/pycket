@@ -46,6 +46,10 @@ def log_message(args):
     # TODO: Actual implementation
     return
 
+@expose("logger-name", [values.W_Logger])
+def logger_name(logger):
+    return logger.topic
+
 w_current_logger = values_parameter.W_Parameter(w_default_logger)
 expose_val("current-logger", w_current_logger)
 
