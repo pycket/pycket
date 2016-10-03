@@ -123,7 +123,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 def __init__(self, map, elems, *args):
                     # assert len(elems) == SIZE
                     self._map = map
-                    if SIZE >= 0:
+                    if SIZE:
                         for i in range(SIZE):
                             type, index = map.get_index(i)
                             self._set_list_helper(type, index, elems[i])
@@ -234,7 +234,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 # assert len(elems) == i
                 map = Map._new(root)
                 if elems is not None:
-                    assert len(elems) == i
+                    # assert len(elems) == i
                     for idx, e in enumerate(elems):
                         type = space.typeof(e)
                         map = map.add_attribute(idx, type)
@@ -261,10 +261,11 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
         @staticmethod
         @jit.unroll_safe
         def make(root, elems, *args):
-            l = len(elems)
-            if 0 <= l < len(make_functions):
-                make = make_functions[l]
-                return make(root, elems, *args)
+            l = len(elems) if elems is not None else 0
+            for i in unroll_size:
+                if i == l:
+                    make = make_functions[l]
+                    return make(root, elems, *args)
             map = Map._new(root)
             return Unspecialized(map, elems, *args)
 
