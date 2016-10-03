@@ -171,7 +171,7 @@ def ensure_json_ast(config, names):
     if 'byte-expand' in names:
 
         file_name = names['byte-expand']
-        assert file_name.endswith('.rkt')
+        assert file_name.endswith('.rkt') or file_name.endswith('.rktl')
 
         json_file = _json_name(file_name)
         json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)

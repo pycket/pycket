@@ -501,14 +501,37 @@ def integer_bytes_to_integer(bstr, signed):
     return values.W_Flonum(longlong2float.longlong2float(val))
 
 @expose("integer-bytes->integer",
-        [values.W_Bytes, default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_false)])
-def integer_bytes_to_integer(bstr, signed, big_endian):
-    # XXX Currently does not make use of the signed or big endian parameter
+        [values.W_Bytes,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Fixnum, None)])
+def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
     bytes = bstr.value
-    if len(bytes) not in (2, 4, 8):
+
+    start = w_start.value
+    if w_end is None:
+        end = len(bytes)
+    else:
+        end = w_end.value
+
+    if not (0 <= start < len(bytes)):
+        raise SchemeException(
+                "integer-bytes->integer: start position not in byte string")
+    if not (0 <= end <= len(bytes)):
+        raise SchemeException(
+                "integer-bytes->integer: end position not in byte string")
+    if end < start:
+        raise SchemeException(
+                "integer-bytes->integer: end position less than start position")
+
+    length = end - start
+    if length not in (2, 4, 8):
         raise SchemeException(
                 "integer-bytes->integer: byte string must have length 2, 4, or 8")
+
+    if start != 0 or end != len(bytes):
+        bytes = bytes[start:end]
 
     byteorder = "little" if big_endian is values.w_false else "big"
     is_signed = signed is not values.w_false

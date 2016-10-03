@@ -77,6 +77,10 @@ do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
+do_test_bytecode() {
+  py.test -n 3 --duration 20 --bytecode go pycket
+}
+
 do_coverage() {
   set +e
   # PyPy's pytest modifications clash with recent pytest-cov/coverage releases

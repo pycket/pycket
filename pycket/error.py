@@ -9,6 +9,9 @@ class SchemeException(Exception):
         self.context_ast = None
         self.context_module = None
 
+    def is_user(self):
+        return False
+
     def format_error(self): # pragma: no cover
         # only error printing
         result = self.msg
@@ -23,3 +26,6 @@ class SchemeException(Exception):
             result += "\n  in module: %s" % context.full_module_path()
         return result
 
+class UserException(SchemeException):
+    def is_user(self):
+        return True

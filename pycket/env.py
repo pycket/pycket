@@ -134,6 +134,7 @@ class Version(object):
 
 
 class ToplevelEnv(Env):
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig']
     _immutable_fields_ = ["version?", "module_env"]
     def __init__(self, pycketconfig=None):
         from rpython.config.config import Config
@@ -180,6 +181,7 @@ class ToplevelEnv(Env):
 class ConsEnv(Env):
     _immutable_ = True
     _immutable_fields_ = ["_prev"]
+    _attrs_ = ["_prev"]
     def __init__ (self, prev):
         assert isinstance(prev, Env)
         self._prev = prev

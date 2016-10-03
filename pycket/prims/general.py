@@ -10,7 +10,7 @@ from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
 from pycket import vector as values_vector
-from pycket.error import SchemeException
+from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -702,7 +702,7 @@ def virtual_length(lst, unroll_to=0):
     n = 0
     while isinstance(lst, values.W_Cons):
         if unroll_pred(lst, n, unroll_to):
-            return n + elidable_length(lst)
+            return elidable_length(lst) + n
         n += 1
         lst = lst.cdr()
     return n
@@ -845,31 +845,41 @@ def map_cons_cont(f, lists, val, env, cont, _vals):
     return return_value(values.W_Cons.make(val, rest), env, cont)
 
 @expose("for-each", simple=False, arity=Arity.geq(2))
+@jit.unroll_safe
 def for_each(args, env, cont):
     from pycket.interpreter import return_value
     if len(args) < 2:
         raise SchemeException("for-each: expected at least a procedure and a list")
     f = args[0]
     if not f.iscallable():
-        raise SchemeException("for-each: expected a procedure, but got %s"%f)
+        raise SchemeException("for-each: expected a procedure, but got %s" % f)
     ls = args[1:]
     for l in ls:
-        if not isinstance(l, values.W_List):
-            raise SchemeException("for-each: expected a list, but got %s"%l)
-    return return_value(values.w_void, env, for_each_cont(f, ls, env, cont))
+        if not l.is_proper_list():
+            raise SchemeException("for-each: expected a list, but got %s" % l)
+    return for_each_loop(f, ls, env, cont)
+
+@loop_label
+@jit.unroll_safe
+def for_each_loop(func, args, env, cont):
+    from pycket.interpreter import return_value
+    heads = [None] * len(args)
+    tails = [None] * len(args)
+    for i, arg in enumerate(args):
+        if arg is values.w_null:
+            for v in args:
+                if v is not values.w_null:
+                    raise SchemeException("for-each: all lists must have same size")
+            return return_value(values.w_void, env, cont)
+        assert isinstance(arg, values.W_Cons)
+        heads[i] = arg.car()
+        tails[i] = arg.cdr()
+    return func.call(heads, env,
+            for_each_cont(func, tails, env, cont))
 
 @continuation
-def for_each_cont(f, ls, env, cont, vals):
-    # XXX this is currently not properly jitted
-    from pycket.interpreter import return_value
-    l = ls[0]
-    if l is values.w_null:
-        for l in ls:
-            assert l is values.w_null
-        return return_value(values.w_void, env, cont)
-    cars = [l.car() for l in ls]
-    cdrs = [l.cdr() for l in ls]
-    return f.call(cars, env, for_each_cont(f, cdrs, env, cont))
+def for_each_cont(func, tails, env, cont, _vals):
+    return for_each_loop(func, tails, env, cont)
 
 @expose("andmap", simple=False, arity=Arity.geq(2))
 def andmap(args, env, cont):
@@ -933,11 +943,30 @@ def ormap_cont(f, ls, env, cont, vals):
 def append(lists):
     if not lists:
         return values.w_null
-    lists, acc = lists[:-1], lists[-1]
-    while lists:
-        vals = values.from_list(lists.pop())
-        acc  = values.to_improper(vals, acc)
+    acc = lists[-1]
+    for i in range(len(lists) - 2, -1, -1):
+        acc = append_two(lists[i], acc)
     return acc
+
+def append_two(l1, l2):
+    if not l1.is_proper_list():
+        raise SchemeException("append: expected proper list")
+
+    first = None
+    last  = None
+    while isinstance(l1, values.W_Cons):
+        v = l1.clone()
+        if first is None:
+            first = v
+        else:
+            last._unsafe_set_cdr(v)
+        last = v
+        l1 = l1.cdr()
+
+    if last is None:
+        return l2
+    last._unsafe_set_cdr(l2)
+    return first
 
 @expose("reverse", [values.W_List])
 def reverse(w_l):
@@ -1030,11 +1059,11 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error", arity=Arity.geq(1))
-def error(args):
+def _error(args, is_user=False):
+    reason = ""
     if len(args) == 1:
         sym = args[0]
-        raise SchemeException("error: %s" % sym.tostring())
+        reason = "error: %s" % sym.tostring()
     else:
         first_arg = args[0]
         if isinstance(first_arg, values_string.W_String):
@@ -1044,15 +1073,28 @@ def error(args):
             v = args[1:]
             for item in v:
                 msg.append(" %s" % item.tostring())
-            raise SchemeException(msg.build())
+            reason = msg.build()
         else:
             src = first_arg
             form = args[1]
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values_string.W_String)
-            raise SchemeException("%s: %s" % (
-                src.tostring(), input_output.format(form, v, "error")))
+            reason = "%s: %s" % (
+                src.tostring(), input_output.format(form, v, "error"))
+    if is_user:
+        raise UserException(reason)
+    else:
+        raise SchemeException(reason)
+
+@expose("error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, False)
+
+@expose("raise-user-error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, True)
+
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
@@ -1096,36 +1138,17 @@ def current_command_line_arguments(env, cont):
 def unsafe_car(p):
     return p.car()
 
+@expose("unsafe-mcar", [subclass_unsafe(values.W_MCons)])
+def unsafe_mcar(p):
+    return p.car()
+
 @expose("unsafe-cdr", [subclass_unsafe(values.W_Cons)])
 def unsafe_cdr(p):
     return p.cdr()
 
-@expose("path-string?", [values.W_Object])
-def path_stringp(v):
-    # FIXME: handle zeros in string
-    return values.W_Bool.make(
-        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
-
-@expose("complete-path?", [values.W_Object])
-def complete_path(v):
-    # FIXME: stub
-    return values.w_false
-
-@expose("path->string", [values.W_Path])
-def path2string(p):
-    return values_string.W_String.fromstr_utf8(p.path)
-
-@expose("path->bytes", [values.W_Path])
-def path2bytes(p):
-    return values.W_Bytes.from_string(p.path)
-
-@expose("cleanse-path", [values.W_Object])
-def cleanse_path(p):
-    if isinstance(p, values_string.W_String):
-        return values.W_Path(p.as_str_ascii())
-    if isinstance(p, values.W_Path):
-        return p
-    raise SchemeException("cleanse-path expects string or path")
+@expose("unsafe-mcdr", [subclass_unsafe(values.W_MCons)])
+def unsafe_mcdr(p):
+    return p.cdr()
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
@@ -1434,19 +1457,19 @@ class ReaderGraphBuilder(object):
 @jit.dont_look_inside
 def make_reader_graph(v):
     from rpython.rlib.nonconst import NonConstant
-    if NonConstant(False):
-        # XXX JIT seems be generating questionable code when the argument of
-        # make-reader-graph is a virtual cons cell. The car and cdr fields get
-        # set by the generated code after the call, causing reader_graph_loop to
-        # crash. I suspect the problem has to do with the translators effect analysis.
-        # Example:
-        # p29 = new_with_vtable(descr=<SizeDescr 24>)
-        # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
-        # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
-        # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
-        if isinstance(v, values.W_WrappedCons):
-            print v._car.tostring()
-            print v._cdr.tostring()
+    # if NonConstant(False):
+        # # XXX JIT seems be generating questionable code when the argument of
+        # # make-reader-graph is a virtual cons cell. The car and cdr fields get
+        # # set by the generated code after the call, causing reader_graph_loop to
+        # # crash. I suspect the problem has to do with the translators effect analysis.
+        # # Example:
+        # # p29 = new_with_vtable(descr=<SizeDescr 24>)
+        # # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
+        # # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
+        # # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
+        # if isinstance(v, values.W_WrappedCons):
+            # print v._car.tostring()
+            # print v._cdr.tostring()
     builder = ReaderGraphBuilder()
     return builder.reader_graph_loop(v)
 
@@ -1510,6 +1533,7 @@ make_stub_predicates(
 @expose("__dummy-function__", [])
 def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
+    from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
     print ex
 

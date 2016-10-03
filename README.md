@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/samth/pycket.png?branch=master)](https://travis-ci.org/samth/pycket)
-[![codecov.io](https://codecov.io/github/samth/pycket/coverage.svg?branch=master)](https://codecov.io/github/samth/pycket?branch=master)
+[![Build Status](https://travis-ci.org/pycket/pycket.png?branch=master)](https://travis-ci.org/pycket/pycket)
+[![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master)](https://codecov.io/github/pycket/pycket?branch=master)
 
 A Racket/Scheme implementation using RPython. It adds a JIT.
 
