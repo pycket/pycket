@@ -617,7 +617,8 @@ def absolute_path(obj):
 
 @expose("resolve-path", [values.W_Object])
 def resolve_path(obj):
-    if not isinstance(obj, values_string.W_String) and not isinstance(obj, values.W_Path):
+    if (not isinstance(obj, values_string.W_String) and
+        not isinstance(obj, values.W_Path)):
         raise SchemeException("resolve-path: expected path-string")
     str = extract_path(obj)
     return values.W_Path(os.path.normpath(str))
@@ -631,7 +632,7 @@ def path_stringp(v):
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
     # FIXME: stub
-    return values.w_false
+    return values.w_true
 
 @expose("path->string", [values.W_Path])
 def path2string(p):
