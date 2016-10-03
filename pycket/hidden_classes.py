@@ -103,7 +103,7 @@ def make_typed_map(root_type, types):
         def __init__(self, root_id):
             self.root_id = root_id
             self.indexes = {}
-            self.other_maps = rweakref.RWeakValueDictionary(Pair, TypedMap)
+            self.other_maps = {} # rweakref.RWeakValueDictionary(Pair, TypedMap)
             for attr in unroll_types:
                 setattr(self, attr, 0)
 
@@ -143,8 +143,8 @@ def make_typed_map(root_type, types):
 
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
-            pair = Pair(name, type)
-            newmap = self.other_maps.get(pair)
+            pair = (name, type)
+            newmap = self.other_maps.get(pair, None)
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id)
@@ -153,7 +153,8 @@ def make_typed_map(root_type, types):
                 for attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                self.other_maps.set(pair, newmap)
+                self.other_maps[pair] = newmap
+                # self.other_maps.set(pair, newmap)
             return newmap
 
         @jit.elidable
@@ -163,13 +164,14 @@ def make_typed_map(root_type, types):
         @staticmethod
         @jit.elidable
         def _new(root_id):
-            result = TypedMap.CACHE.get(root_id)
+            result = TypedMap.CACHE.get(root_id, None)
             if result is None:
                 result = TypedMap(root_id)
-                TypedMap.CACHE.set(root_id, result)
+                TypedMap.CACHE[root_id] = result
+                # TypedMap.CACHE.set(root_id, result)
             return result
 
-    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
+    TypedMap.CACHE = {} # rweakref.RWeakValueDictionary(root_type, TypedMap)
     return TypedMap
 
 # TODO Find a beter name for this
