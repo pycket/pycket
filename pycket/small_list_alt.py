@@ -7,6 +7,7 @@ from rpython.rlib.unroll   import unrolling_iterable
 add_clone_method = add_copy_method("_clone")
 
 def partition(N, partitions):
+    "NOT RPYTHON"
     assert partitions
     if len(partitions) == 1:
         curr, = partitions
@@ -26,6 +27,7 @@ for lst in xs:
     assert sum(l[1] for l in lst) == 10
 
 def attr_names(prefix, N, type):
+    """NOT RPYTHON"""
     attrs = ["%s_%s_%s" % (prefix, i, type) for i in range(N)]
     unroll = unrolling_iterable(enumerate(attrs))
     return attrs, unroll
@@ -119,14 +121,12 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
                 @jit.unroll_safe
                 def __init__(self, map, elems, *args):
-                    if SIZE == 0:
-                        assert not elems
-                    else:
-                        assert len(elems) == SIZE
+                    # assert len(elems) == SIZE
                     self._map = map
-                    for i in range(SIZE):
-                        type, index = map.get_index(i)
-                        self._set_list_helper(type, index, elems[i])
+                    if SIZE >= 0:
+                        for i in range(SIZE):
+                            type, index = map.get_index(i)
+                            self._set_list_helper(type, index, elems[i])
                     cls.__init__(self, *args)
 
                 def _get_list(self, i):
@@ -231,6 +231,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
             @jit.unroll_safe
             def make(root, elems, *args):
+                # assert len(elems) == i
                 map = Map._new(root)
                 if elems is not None:
                     assert len(elems) == i
@@ -260,11 +261,10 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
         @staticmethod
         @jit.unroll_safe
         def make(root, elems, *args):
-            l = 0 if elems is None else len(elems)
-            for i in unroll_size:
-                if i == l:
-                    make = make_functions[i]
-                    return make(root, elems, *args)
+            l = len(elems)
+            if 0 <= l < len(make_functions):
+                make = make_functions[l]
+                return make(root, elems, *args)
             map = Map._new(root)
             return Unspecialized(map, elems, *args)
 
