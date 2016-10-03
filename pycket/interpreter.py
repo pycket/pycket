@@ -1,4 +1,4 @@
-from pycket                   import config
+from pycket                   import config, small_list_alt
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
 from pycket.AST               import AST
@@ -326,22 +326,30 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 
-@inline_small_list(immutable=True, attrname="vals_w",
-                   unbox_num=True, factoryname="_make")
+# @inline_small_list(immutable=True, attrname="vals_w",
+                   # unbox_num=True, factoryname="_make")
+@small_list_alt.small_list(sizemax=11, nonull=True)
 class LetCont(Cont):
-    _immutable_fields_ = ["counting_ast"]
+    _attrs_ = []
+    _immutable_fields_ = []
+    # _immutable_ = True
 
     return_safe = True
 
-    def __init__(self, counting_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.counting_ast  = counting_ast
+    # def __init__(self, env, prev):
+        # Cont.__init__(self, env, prev)
+        # self.counting_ast = counting_ast
+
+    def get_counting_ast(self):
+        ast = self._get_root()
+        assert isinstance(ast, CombinedAstAndIndex)
+        return ast
 
     def get_ast(self):
-        return self.counting_ast.ast
+        return self.get_counting_ast().ast
 
     def get_next_executed_ast(self):
-        ast, rhsindex = self.counting_ast.unpack(Let)
+        ast, rhsindex = self.get_counting_ast().unpack(Let)
         if rhsindex == (len(ast.rhss) - 1):
             return ast.body[0]
         return ast.rhss[rhsindex + 1]
@@ -372,7 +380,8 @@ class LetCont(Cont):
 
         if not pruning_done:
             env = ast._prune_env(env, rhsindex + 1)
-        return LetCont._make(vals_w, counting_ast, env, prev)
+        return LetCont._make(counting_ast, vals_w, env, prev)
+        # return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
     def plug_reduce(self, vals, _env):
@@ -381,7 +390,7 @@ class LetCont(Cont):
         len_self = self._get_size_list()
         jit.promote(len_self)
         new_length = len_self + len_vals
-        ast, rhsindex = self.counting_ast.unpack(Let)
+        ast, rhsindex = self.get_counting_ast().unpack(Let)
         assert isinstance(ast, Let)
         if ast.counts[rhsindex] != len_vals:
             raise SchemeException("wrong number of values")

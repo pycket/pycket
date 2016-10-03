@@ -1,8 +1,10 @@
 
-from rpython.rlib.unroll import unrolling_iterable
-from rpython.rlib        import jit, debug, objectmodel
-
 from pycket.hidden_classes import make_typed_map
+from pycket.util           import add_copy_method
+from rpython.rlib          import jit, debug, objectmodel
+from rpython.rlib.unroll   import unrolling_iterable
+
+add_clone_method = add_copy_method("_clone")
 
 def partition(N, partitions):
     assert partitions
@@ -111,12 +113,16 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 _attrs_ = pointer_attrs + integer_attrs + float_attrs
                 _attrs_ += ['_map']
 
-                _immutable_ = True
+                if getattr(cls, '_immutable_', False):
+                    _immutable_ = True
                 _immutable_fields_ = _attrs_
 
                 @jit.unroll_safe
                 def __init__(self, map, elems, *args):
-                    assert len(elems) == SIZE
+                    if SIZE == 0:
+                        assert not elems
+                    else:
+                        assert len(elems) == SIZE
                     self._map = map
                     for i in range(SIZE):
                         type, index = map.get_index(i)
@@ -168,6 +174,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
                 def _get_root(self):
                     return self._map.get_root_id()
 
+            add_clone_method(NewClass)
             spec = "Specialized(r=%d,i=%d,f=%d)" % (pointers, integers, floats)
             NewClass.__name__ = cls.__name__ + spec
 
@@ -180,8 +187,10 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
         class Unspecialized(cls):
             _attrs_ = ['_map', attrprefix]
-            _immutable_ = True
             _immutable_fields_ = ['_map', attrprefix + '[*]']
+
+            if getattr(cls, '_immutable_', False):
+                _immutable_ = True
 
             def __init__(self, map, elems, *args):
                 debug.make_sure_not_resized(elems)
@@ -203,10 +212,11 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             def _get_root(self):
                 return self._map.get_root_id()
 
+        add_clone_method(Unspecialized)
+        Unspecialized.__name__ = cls.__name__ + "Unspecialized"
+
         def make_unspecialized(map, elems, *args):
             return Unspecialized(map, elems, *args)
-
-        Unspecialized.__name__ = cls.__name__ + "Unspecialized"
 
         def generate_make_function(i, classes):
 
@@ -221,11 +231,12 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
             @jit.unroll_safe
             def make(root, elems, *args):
-                assert len(elems) == i
                 map = Map._new(root)
-                for idx, e in enumerate(elems):
-                    type = space.typeof(e)
-                    map = map.add_attribute(idx, type)
+                if elems is not None:
+                    assert len(elems) == i
+                    for idx, e in enumerate(elems):
+                        type = space.typeof(e)
+                        map = map.add_attribute(idx, type)
                 cls = elidable_lookup(map)
                 return cls(map, elems, *args)
             make.__name__ += "_" + str(i)
@@ -249,7 +260,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
         @staticmethod
         @jit.unroll_safe
         def make(root, elems, *args):
-            l = len(elems)
+            l = 0 if elems is None else len(elems)
             for i in unroll_size:
                 if i == l:
                     make = make_functions[i]
