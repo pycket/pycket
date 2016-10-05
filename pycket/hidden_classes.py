@@ -1,6 +1,6 @@
 
 from rpython.rlib             import jit, unroll, rweakref
-from rpython.rlib.objectmodel import always_inline, specialize, we_are_translated
+from rpython.rlib.objectmodel import always_inline, specialize
 
 def make_map_type(getter, keyclass):
 
@@ -70,17 +70,9 @@ def make_typed_map(root_type, types):
 
     for t in types:
         assert isinstance(t, str) and len(t) == 1
-    assert len(types) <= 4
 
-    SHIFT = 2 
     types = tuple(types)
-    unroll_types = unroll.unrolling_iterable(enumerate(types))
-
-    def type_to_index(t):
-        for i, type in unroll_types:
-            if t == type:
-                return i
-        assert False
+    unroll_types = unroll.unrolling_iterable(types)
 
     UNKNOWN = ('?', -1)
 
@@ -98,8 +90,8 @@ def make_typed_map(root_type, types):
         def __init__(self, root_id):
             self.root_id = root_id
             self.indexes = {}
-            self.other_maps = rweakref.RWeakValueDictionary(int, TypedMap)
-            for i, attr in unroll_types:
+            self.other_maps = {} # rweakref.RWeakValueDictionary(Pair, TypedMap)
+            for attr in unroll_types:
                 setattr(self, attr, 0)
 
         def __iter__(self):
@@ -120,7 +112,7 @@ def make_typed_map(root_type, types):
         @jit.elidable
         def layout_spec(self):
             spec = ()
-            for i, attr in unroll_types:
+            for attr in unroll_types:
                 val = getattr(self, attr)
                 spec += (val,)
             return spec
@@ -131,27 +123,24 @@ def make_typed_map(root_type, types):
 
         @specialize.arg_or_var(1)
         def num_fields(self, type):
-            for i, attr in unroll_types:
+            for attr in unroll_types:
                 if attr == type:
                     return getattr(self, attr)
             assert False
 
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
-            if not we_are_translated:
-                assert type in types
-            key = (name << SHIFT) + type_to_index(type)
-            newmap = self.other_maps.get(key)
+            pair = (name, type)
+            newmap = self.other_maps.get(pair, None)
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = (type, index)
-                for i, attr in unroll_types:
+                for attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                # self.other_maps[key] = newmap
-                self.other_maps.set(key, newmap)
+                self.other_maps[pair] = newmap
             return newmap
 
         @jit.elidable
@@ -161,13 +150,14 @@ def make_typed_map(root_type, types):
         @staticmethod
         @jit.elidable
         def _new(root_id):
-            result = TypedMap.CACHE.get(root_id)
+            result = TypedMap.CACHE.get(root_id, None)
             if result is None:
                 result = TypedMap(root_id)
-                TypedMap.CACHE.set(root_id, result)
+                TypedMap.CACHE[root_id] = result
+                # TypedMap.CACHE.set(root_id, result)
             return result
 
-    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
+    TypedMap.CACHE = {} # rweakref.RWeakValueDictionary(root_type, TypedMap)
     return TypedMap
 
 # TODO Find a beter name for this
