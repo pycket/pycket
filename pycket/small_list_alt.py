@@ -21,11 +21,6 @@ def partition(N, partitions):
         for j in partition(remainder, rest):
             yield [(curr, i)] + j
 
-xs = list(partition(10, partitions=['p', 'i', 'f']))
-
-for lst in xs:
-    assert sum(l[1] for l in lst) == 10
-
 def attr_names(prefix, N, type):
     """NOT RPYTHON"""
     attrs = ["%s_%s_%s" % (prefix, i, type) for i in range(N)]
@@ -86,7 +81,7 @@ class FakeSpace(object):
             return 'f'
         return 'p'
 
-def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
+def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", space=FakeSpace):
 
     type_prefixes = ['p', 'i', 'f']
     unroll_type_prefixes = unrolling_iterable(type_prefixes)
@@ -103,13 +98,9 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
 
             SIZE = pointers + integers + floats
 
-            pointer_attrs = ["%s_%s_p" % (attrprefix, i) for i in range(pointers)]
-            integer_attrs = ["%s_%s_i" % (attrprefix, i) for i in range(integers)]
-            float_attrs   = ["%s_%s_f" % (attrprefix, i) for i in range(floats)]
-
-            unroll_pointer = unrolling_iterable(enumerate(pointer_attrs))
-            unroll_integer = unrolling_iterable(enumerate(integer_attrs))
-            unroll_float   = unrolling_iterable(enumerate(float_attrs))
+            pointer_attrs, unroll_pointer = attr_names(attrname, pointers, 'p')
+            integer_attrs, unroll_integer = attr_names(attrname, integers, 'i')
+            float_attrs  , unroll_float   = attr_names(attrname, floats  , 'f')
 
             class NewClass(cls):
                 _attrs_ = pointer_attrs + integer_attrs + float_attrs
@@ -186,8 +177,8 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             return NewClass
 
         class Unspecialized(cls):
-            _attrs_ = ['_map', attrprefix]
-            _immutable_fields_ = ['_map', attrprefix + '[*]']
+            _attrs_ = ['_map', attrname]
+            _immutable_fields_ = ['_map', attrname + '[*]']
 
             if getattr(cls, '_immutable_', False):
                 _immutable_ = True
@@ -195,19 +186,19 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             def __init__(self, map, elems, *args):
                 debug.make_sure_not_resized(elems)
                 self._map = map
-                setattr(self, attrprefix, elems)
+                setattr(self, attrname, elems)
                 cls.__init__(self, *args)
 
             def _get_list(self, i):
-                data = getattr(self, attrprefix)
+                data = getattr(self, attrname)
                 return data[i]
 
             def _get_size_list(self):
-                data = getattr(self, attrprefix)
+                data = getattr(self, attrname)
                 return len(data)
 
             def _get_full_list(self):
-                return getattr(self, attrprefix)
+                return getattr(self, attrname)
 
             def _get_root(self):
                 return self._map.get_root_id()
@@ -223,15 +214,10 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             @jit.elidable
             def elidable_lookup(map):
                 spec = map.layout_spec()
-                try:
-                    result = classes[spec]
-                except KeyError:
-                    result = make_unspecialized
-                return result
+                return classes.get(spec, make_unspecialized)
 
             @jit.unroll_safe
             def make(root, elems, *args):
-                # assert len(elems) == i
                 map = Map._new(root)
                 if elems is not None:
                     # assert len(elems) == i
@@ -269,7 +255,7 @@ def small_list(sizemax=10, nonull=False, attrprefix="list", space=FakeSpace):
             map = Map._new(root)
             return Unspecialized(map, elems, *args)
 
-        cls._make = make
+        setattr(cls, factoryname, make)
         return cls
 
     return wrapper
