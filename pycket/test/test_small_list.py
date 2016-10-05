@@ -17,6 +17,11 @@ def random_data(type, n):
 
     return vals
 
+def test_partition():
+    xs = list(partition(10, partitions=['p', 'i', 'f']))
+    for lst in xs:
+        assert sum(l[1] for l in lst) == 10
+
 def test_small_list():
 
     @small_list(sizemax=10, space=FakeSpace)
