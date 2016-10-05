@@ -73,7 +73,7 @@ class FakeSpace(object):
     # Assigns objects to one of three types 'p', 'i', and 'f'
     # for pointers, integers, and floats.
     @staticmethod
-    def typeof(x):
+    def typeOf(x):
         """NOT RPYTHON"""
         if isinstance(x, int):
             return 'i'
@@ -81,7 +81,18 @@ class FakeSpace(object):
             return 'f'
         return 'p'
 
-def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", space=FakeSpace):
+_REQUIRED_ATTRS = [
+    "root_type",
+    "unwrap_p",
+    "unwrap_i",
+    "unwrap_f",
+    "wrap",
+    "typeOf"]
+
+def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", space=None):
+    assert space is not None
+    for a in _REQUIRED_ATTRS:
+        assert hasattr(space, a)
 
     type_prefixes = ['p', 'i', 'f']
     unroll_type_prefixes = unrolling_iterable(type_prefixes)
@@ -112,12 +123,14 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
 
                 @jit.unroll_safe
                 def __init__(self, map, elems, *args):
-                    # assert len(elems) == SIZE
                     self._map = map
                     if SIZE:
+                        assert len(elems) == SIZE
                         for i in range(SIZE):
                             type, index = map.get_index(i)
                             self._set_list_helper(type, index, elems[i])
+                    else:
+                        assert elems is None or len(elems) == 0
                     cls.__init__(self, *args)
 
                 def _get_list(self, i):
@@ -220,9 +233,9 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
             def make(root, elems, *args):
                 map = Map._new(root)
                 if elems is not None:
-                    # assert len(elems) == i
+                    assert len(elems) == i
                     for idx, e in enumerate(elems):
-                        type = space.typeof(e)
+                        type = space.typeOf(e)
                         map = map.add_attribute(idx, type)
                 cls = elidable_lookup(map)
                 return cls(map, elems, *args)

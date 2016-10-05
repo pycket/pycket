@@ -326,9 +326,7 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 
-# @inline_small_list(immutable=True, attrname="vals_w",
-                   # unbox_num=True, factoryname="_make")
-@small_list_alt.small_list(sizemax=11, nonull=True)
+@small_list_alt.small_list(sizemax=11, nonull=True, space=values.ValueSpace)
 class LetCont(Cont):
     _attrs_ = []
     _immutable_fields_ = []

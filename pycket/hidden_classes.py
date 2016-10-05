@@ -1,6 +1,6 @@
 
 from rpython.rlib             import jit, unroll, rweakref
-from rpython.rlib.objectmodel import always_inline, specialize
+from rpython.rlib.objectmodel import always_inline, specialize, we_are_translated
 
 def make_map_type(getter, keyclass):
 
@@ -66,26 +66,21 @@ def make_map_type(getter, keyclass):
     return Map
 
 def make_typed_map(root_type, types):
+    import weakref
 
     for t in types:
         assert isinstance(t, str) and len(t) == 1
+    assert len(types) <= 4
 
+    SHIFT = 2 
     types = tuple(types)
-    unroll_types = unroll.unrolling_iterable(types)
+    unroll_types = unroll.unrolling_iterable(enumerate(types))
 
-    class Pair(object):
-        __slots__ = _immutable_fields_ = ('key', '_type')
-
-        def __init__(self, key, _type):
-            self.key = key
-            self._type = _type
-
-        def __eq__(self, other):
-            assert isinstance(other, Pair)
-            return self.key == other.key and self._type == other._type
-
-        def __hash__(self):
-            return hash((self.key, self._type))
+    def type_to_index(t):
+        for i, type in unroll_types:
+            if t == type:
+                return i
+        assert False
 
     UNKNOWN = ('?', -1)
 
@@ -103,8 +98,8 @@ def make_typed_map(root_type, types):
         def __init__(self, root_id):
             self.root_id = root_id
             self.indexes = {}
-            self.other_maps = {} # rweakref.RWeakValueDictionary(Pair, TypedMap)
-            for attr in unroll_types:
+            self.other_maps = rweakref.RWeakValueDictionary(int, TypedMap)
+            for i, attr in unroll_types:
                 setattr(self, attr, 0)
 
         def __iter__(self):
@@ -125,7 +120,7 @@ def make_typed_map(root_type, types):
         @jit.elidable
         def layout_spec(self):
             spec = ()
-            for attr in unroll_types:
+            for i, attr in unroll_types:
                 val = getattr(self, attr)
                 spec += (val,)
             return spec
@@ -136,25 +131,27 @@ def make_typed_map(root_type, types):
 
         @specialize.arg_or_var(1)
         def num_fields(self, type):
-            for attr in unroll_types:
+            for i, attr in unroll_types:
                 if attr == type:
                     return getattr(self, attr)
             assert False
 
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
-            pair = (name, type)
-            newmap = self.other_maps.get(pair, None)
+            if not we_are_translated:
+                assert type in types
+            key = (name << SHIFT) + type_to_index(type)
+            newmap = self.other_maps.get(key)
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = (type, index)
-                for attr in unroll_types:
+                for i, attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                self.other_maps[pair] = newmap
-                # self.other_maps.set(pair, newmap)
+                # self.other_maps[key] = newmap
+                self.other_maps.set(key, newmap)
             return newmap
 
         @jit.elidable
@@ -164,14 +161,13 @@ def make_typed_map(root_type, types):
         @staticmethod
         @jit.elidable
         def _new(root_id):
-            result = TypedMap.CACHE.get(root_id, None)
+            result = TypedMap.CACHE.get(root_id)
             if result is None:
                 result = TypedMap(root_id)
-                TypedMap.CACHE[root_id] = result
-                # TypedMap.CACHE.set(root_id, result)
+                TypedMap.CACHE.set(root_id, result)
             return result
 
-    TypedMap.CACHE = {} # rweakref.RWeakValueDictionary(root_type, TypedMap)
+    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
     return TypedMap
 
 # TODO Find a beter name for this

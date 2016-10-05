@@ -98,7 +98,7 @@ class ValueSpace(object):
         return x
 
     @staticmethod
-    def typeof(x):
+    def typeOf(x):
         if isinstance(x, W_Fixnum):
             return 'i'
         if isinstance(x, W_Flonum):
