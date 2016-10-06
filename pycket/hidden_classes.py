@@ -65,7 +65,7 @@ def make_map_type(getter, keyclass):
 
     return Map
 
-def make_typed_map(root_type, types):
+def make_typed_map(root_type, types, weakref=False):
     import weakref
 
     for t in types:
@@ -83,6 +83,20 @@ def make_typed_map(root_type, types):
                 return i
         assert False
 
+    @specialize.call_location()
+    def dict_ref(dict, key):
+        if weakref:
+            return dict.get(key)
+        else:
+            return dict.get(key, None)
+
+    @specialize.call_location()
+    def dict_set(dict, key, val):
+        if weakref:
+            dict.set(key, val)
+        else:
+            dict[key] = val
+
     UNKNOWN = ('?', -1)
 
     class TypedMap(object):
@@ -93,17 +107,25 @@ def make_typed_map(root_type, types):
         typed array to look in and at what index.
         """
 
-        _attrs_ = ('root_id', 'indexes', 'other_maps', 'parent') + types
+        _attrs_ = ('root_id', 'indexes', 'other_maps') + types
+
+        if weakref:
+            _attrs_ += ('parent',)
+
         _immutable_fields_ = _attrs_
 
         def __init__(self, root_id):
             self.root_id = root_id
             self.indexes = {}
-            self.other_maps = rweakref.RWeakValueDictionary(int, TypedMap)
 
             # The parent field is to keep all parent maps alive due to the use
             # of weak hash maps
-            self.parent = None
+            if weakref:
+                self.other_maps = rweakref.RWeakValueDictionary(int, TypedMap)
+                self.parent = None
+            else:
+                self.other_maps = {}
+
             for i, attr in unroll_types:
                 setattr(self, attr, 0)
 
@@ -145,17 +167,18 @@ def make_typed_map(root_type, types):
         def add_attribute(self, name, type):
             assert name >= 0
             key = (name << SHIFT) | type_to_index(type)
-            newmap = self.other_maps.get(key)
+            newmap = dict_ref(self.other_maps, key)
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = (type, index)
-                newmap.parent = self
+                if weakref:
+                    newmap.parent = self
                 for i, attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                self.other_maps.set(key, newmap)
+                dict_set(self.other_maps, key, newmap)
             return newmap
 
         @jit.elidable
@@ -165,13 +188,17 @@ def make_typed_map(root_type, types):
         @staticmethod
         @jit.elidable
         def _new(root_id):
-            result = TypedMap.CACHE.get(root_id)
+            result = dict_ref(TypedMap.CACHE, root_id)
             if result is None:
                 result = TypedMap(root_id)
-                TypedMap.CACHE.set(root_id, result)
+                dict_set(TypedMap.CACHE, root_id, result)
             return result
 
-    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
+    if weakref:
+        TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
+    else:
+        TypedMap.CACHE = {}
+
     return TypedMap
 
 # TODO Find a beter name for this
