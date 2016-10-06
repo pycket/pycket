@@ -66,7 +66,6 @@ def make_map_type(getter, keyclass):
     return Map
 
 def make_typed_map(root_type, types):
-    import weakref
 
     for t in types:
         assert isinstance(t, str) and len(t) == 1
@@ -93,18 +92,6 @@ def make_typed_map(root_type, types):
             self.other_maps = {} # rweakref.RWeakValueDictionary(Pair, TypedMap)
             for attr in unroll_types:
                 setattr(self, attr, 0)
-
-        def __iter__(self):
-            return self.indexes.iteritems()
-
-        def iterkeys(self):
-            return self.indexes.iterkeys()
-
-        def itervalues(self):
-            return self.indexes.itervalues()
-
-        def iteritems(self):
-            return self.indexes.iteritems()
 
         def get_root_id(self):
             return jit.promote(self).root_id
