@@ -1555,7 +1555,8 @@ class CaseLambda(AST):
         self.lams = lams
         self.any_frees = False
         for l in lams:
-            if l.frees.elems:
+            frees = l.frees.elems
+            if frees and frees != [recursive_sym]:
                 self.any_frees = True
                 break
         self._closurerepr = None
