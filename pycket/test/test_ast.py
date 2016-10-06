@@ -53,6 +53,18 @@ def test_cache_lambda_if_no_frees():
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
 
+def test_cache_recursive_lambda_if_no_frees():
+    from pycket.interpreter import interpret_one
+    from pycket.values import W_PromotableClosure
+    letrec = expr_ast("(letrec ([self (lambda (y) (set! y (self 2)))]) self)")
+    assert isinstance(letrec, Let) and isinstance(letrec.rhss[0], CaseLambda)
+
+    lamb = letrec.rhss[0]
+    assert lamb.recursive_sym is W_Symbol.make("self")
+
+    w_cl1 = interpret_one(lamb)
+    assert isinstance(w_cl1, W_PromotableClosure)
+
 @skip
 def test_remove_let():
     p = expr_ast("(let ([g cons]) (g 5 5))")
@@ -152,6 +164,7 @@ def test_asts_know_surrounding_lambda():
     inner_lam = inner_caselam.lams[0]
     assert inner_lam.body[0].surrounding_lambda is inner_lam
 
+@skip
 def test_cont_fusion():
     from pycket.env import SymList, ToplevelEnv
     from pycket.interpreter import (
