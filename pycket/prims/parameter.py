@@ -1,7 +1,7 @@
 
 from pycket                 import values
 from pycket                 import values_parameter
-from pycket.argument_parser import ArgParser, EndOfInput
+from pycket.argument_parser import ArgParser
 from pycket.arity           import Arity
 from pycket.base            import W_Object
 from pycket.error           import SchemeException
@@ -32,8 +32,8 @@ def scheme_extend_parameterization(args):
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
     while parser.has_more():
-        param  = parser.parameter()
-        key    = parser.object()
+        param  = parser.expect(values_parameter.W_BaseParameter)
+        key    = parser.expect(values.W_Object)
         config = config.extend([param], [key])
 
     return config
