@@ -1,19 +1,16 @@
 
-from pycket                    import values, values_parameter
-from pycket.arity              import Arity
-from pycket.parser_definitions import ArgParser, EndOfInput
-from pycket.prims.expose       import default, expose, expose_val
-from rpython.rlib              import jit
+from pycket                 import values, values_parameter
+from pycket.arity           import Arity
+from pycket.argument_parser import ArgParser, EndOfInput
+from pycket.prims.expose    import default, expose, expose_val
+from rpython.rlib           import jit
 
 DEBUG = values.W_Symbol.make("debug")
 
 w_default_logger = values.W_Logger(values.w_false, values.w_false, values.w_false, [])
 
 LOG_LEVEL = ['none', 'fatal', 'error', 'warning', 'info', 'debug']
-LOG_LEVEL = map(values.W_Symbol.make, LOG_LEVEL) + [values.w_false]
-
-class __extend_parser__(ArgParser):
-    log_level = LOG_LEVEL
+LOG_LEVEL = tuple(map(values.W_Symbol.make, LOG_LEVEL) + [values.w_false])
 
 @expose("make-logger", arity=Arity.geq(0))
 @jit.unroll_safe
@@ -25,14 +22,14 @@ def make_logger(args):
     propagate_level = DEBUG
 
     try:
-        topic           = parser.symbol_or_false()
-        parent          = parser.logger_or_false()
-        propagate_level = parser.log_level()
+        topic = parser.expect(values.W_Symbol, values.w_false)
+        parent = parser.expect(values.W_Logger, values.w_false)
+        propagate_level = parser.expect(*LOG_LEVEL)
     except EndOfInput:
         pass
 
     # Any remaining arguments are propagate topics
-    propagate_topic = parser._symbol_or_false()
+    propagate_topic = parser.expect_many(values.W_Symbol, values.w_false)
 
     return values.W_Logger(topic, parent, propagate_level, propagate_topic)
 
@@ -45,6 +42,10 @@ def log_level(logger, level, topic):
 def log_message(args):
     # TODO: Actual implementation
     return
+
+@expose("logger-name", [values.W_Logger])
+def logger_name(logger):
+    return logger.topic
 
 w_current_logger = values_parameter.W_Parameter(w_default_logger)
 expose_val("current-logger", w_current_logger)

@@ -5,7 +5,7 @@ from pycket                    import values, values_parameter, values_string
 from pycket.arity              import Arity
 from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, NilCont, Prompt
 from pycket.error              import SchemeException
-from pycket.parser_definitions import ArgParser, EndOfInput
+from pycket.argument_parser    import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
 from pycket.util               import add_copy_method
 from rpython.rlib              import jit
@@ -366,15 +366,15 @@ def call_with_continuation_prompt(args, env, cont):
     parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
     handler = values.w_false
-    fun     = parser.object()
+    fun     = parser.expect(values.W_Object)
 
     try:
-        tag     = parser.prompt_tag()
-        handler = parser.object()
+        tag     = parser.expect(values.W_ContinuationPromptTag)
+        handler = parser.expect(values.W_Object)
     except EndOfInput:
         pass
 
-    args = parser._object()
+    args = parser.expect_many(values.W_Object)
     if not fun.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable function")
     if handler is not values.w_false and not handler.iscallable():
