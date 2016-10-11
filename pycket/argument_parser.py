@@ -20,7 +20,7 @@ class ArgParser(object):
         self.index   = start_at
 
     def __nonzero__(self):
-        return 0 <= self.index < len(self.args)
+        return self.has_more()
 
     def has_more(self):
         return 0 <= self.index < len(self.args)
@@ -33,7 +33,7 @@ class ArgParser(object):
         self.index = index + 1
         return val
 
-    @specialize.call_location()
+    @specialize.arg(1)
     def expect(self, *args):
         val = self.next()
         if validate_arg(val, *args):
@@ -42,7 +42,8 @@ class ArgParser(object):
                 "%s: expected %s at argument %d got %s" %
                 (self.context, errorname(*args), self.index, val.tostring()))
 
-    @specialize.call_location()
+    @specialize.arg(1)
+    @jit.unroll_safe
     def expect_many(self, *args):
         length = len(self.args) - self.index
         results = [None] * length
@@ -104,3 +105,4 @@ class Entry(ExtRegistryEntry):
         from rpython.rtyper.lltypesystem import lltype
         hop.exception_cannot_occur()
         return hop.inputconst(lltype.Bool, hop.s_result.const)
+
