@@ -68,19 +68,6 @@ def make_map_type(getter, keyclass):
 # TODO Find a beter name for this
 def make_caching_map_type(getter, keyclass):
 
-    class Pair(object):
-        _attrs_ = ['x', 'y']
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
-
-        def __eq__(self, other):
-            assert isinstance(other, Pair)
-            return self.x == other.x and self.y == other.y
-
-        def __hash__(self):
-            return hash((self.x, self.y))
-
     class CachingMap(object):
         """ A map implementation which partitions its data into two groups, a collection
         of static data stored in the map itself, and a collection of indexes used to
@@ -89,14 +76,16 @@ def make_caching_map_type(getter, keyclass):
         This partitioning allows structures such as impersonators to share not just
         their layout but common data as well.
         """
-        _immutable_fields_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
-        _attrs_ = ['indexes', 'static_data', 'static_submaps', 'dynamic_submaps']
+        _attrs_ = _immutable_fields_ = [
+            'indexes', 'static_data', 'static_submaps',
+            'dynamic_submaps', 'parent']
 
         def __init__(self):
             self.indexes = {}
             self.static_data = {}
             self.dynamic_submaps = rweakref.RWeakValueDictionary(keyclass, CachingMap)
-            self.static_submaps  = rweakref.RWeakValueDictionary(Pair, CachingMap)
+            self.static_submaps  = {}
+            self.parent = None
 
         def iterkeys(self):
             for key in self.indexes.iterkeys():
@@ -141,14 +130,15 @@ def make_caching_map_type(getter, keyclass):
         @jit.elidable_promote('all')
         def add_static_attribute(self, name, value):
             assert name not in self.indexes and name not in self.static_data
-            key = Pair(name, value)
-            newmap = self.static_submaps.get(key)
+            key = (name, value)
+            newmap = self.static_submaps.get(key, None)
             if newmap is None:
                 newmap = CachingMap()
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.static_data[name] = value
-                self.static_submaps.set(key, newmap)
+                newmap.parent = self
+                self.static_submaps[key] = newmap
             return newmap
 
         @jit.elidable_promote('all')
