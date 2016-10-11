@@ -169,20 +169,7 @@ def make_caching_map_type(getter, keyclass):
 
 # These maps are simply unique products of various other map types.
 # They are unique based on their component maps.
-def make_composite_map_type(keyclass):
-
-    class Pair(object):
-        _attrs_ = ['x', 'y']
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
-
-        def __eq__(self, other):
-            assert isinstance(other, Pair)
-            return self.x == other.x and self.y == other.y
-
-        def __hash__(self):
-            return hash((self.x, self.y))
+def make_composite_map_type():
 
     class CompositeMap(object):
         _attrs_ = _immutable_fields_ = ['handlers', 'properties']
@@ -190,11 +177,11 @@ def make_composite_map_type(keyclass):
         @staticmethod
         @jit.elidable
         def instantiate(handlers, properties):
-            key = Pair(handlers, properties)
-            result = CompositeMap.CACHE.get(key)
+            key = (handlers, properties)
+            result = CompositeMap.CACHE.get(key, None)
             if result is None:
                 result = CompositeMap(handlers, properties)
-                CompositeMap.CACHE.set(key, result)
+                CompositeMap.CACHE[key] = result
             return result
 
         def __init__(self, handlers, properties):
@@ -213,6 +200,14 @@ def make_composite_map_type(keyclass):
             jit.promote(self)
             return self.properties.lookup(key, storage, default=default, offset=0)
 
-    CompositeMap.CACHE = rweakref.RWeakValueDictionary(Pair, CompositeMap)
+    # We would really like to use an RWeakValueDictionary here, but tuple keys are
+    # not supported, as far as I can tell, and neither are custom hash/equality
+    # functions, so we are stuck using a regular dictionary for now.
+    #
+    # A dictionary of (key1, key2) -> weakref<CompositeMap> may avoid holding onto
+    # some bits of memory for too long.
+    # Another option is to use two layers of dictionaries
+    # key1 -> (key2 -> CompositeMap)
+    CompositeMap.CACHE = {} # rweakref.RWeakValueDictionary(tuple, CompositeMap)
     return CompositeMap
 
