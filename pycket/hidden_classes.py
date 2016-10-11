@@ -12,12 +12,14 @@ def make_map_type(getter, keyclass):
         * other_maps: sub maps which are extensions the current map
         """
 
-        _immutable_fields_ = ['indexes', 'other_maps']
-        _attrs_ = ['indexes', 'other_maps']
+        _attrs_ = _immutable_fields_ = ['indexes', 'other_maps', 'parent']
 
         def __init__(self):
-            self.indexes    = {}
+            self.indexes = {}
             self.other_maps = rweakref.RWeakValueDictionary(keyclass, Map)
+            # NB: The parent pointer is needed to prevent the GC from collecting
+            # the chain of parent maps which produced this one.
+            self.parent = None
 
         def __iter__(self):
             return self.indexes.iteritems()
@@ -50,6 +52,7 @@ def make_map_type(getter, keyclass):
                 newmap = Map()
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = len(self.indexes)
+                newmap.parent = self
                 self.other_maps.set(name, newmap)
             return newmap
 
@@ -182,7 +185,7 @@ def make_composite_map_type(keyclass):
             return hash((self.x, self.y))
 
     class CompositeMap(object):
-        _immutable_fields_ = ['handlers', 'properties']
+        _attrs_ = _immutable_fields_ = ['handlers', 'properties']
 
         @staticmethod
         @jit.elidable
