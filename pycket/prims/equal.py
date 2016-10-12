@@ -110,10 +110,10 @@ def equal_func_loop(a, b, info, env, cont):
 def equal_func_impl(a, b, info, env, cont, n):
     from pycket.interpreter import return_value
 
-    for_chaperone = jit.promote(info.for_chaperone)
     if a.eqv(b):
         return return_value(values.w_true, env, cont)
 
+    for_chaperone = jit.promote(info).for_chaperone
     if (for_chaperone >= EqualInfo.CHAPERONE and b.is_non_interposing_chaperone()):
         return equal_func_unroll_n(a, b.get_proxied(), info, env, cont, n)
 
