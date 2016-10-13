@@ -226,7 +226,7 @@ def procedure_closure_contents_eq_n(a, b, n):
         return values.w_false
     if (isinstance(a, values.W_Closure1AsEnv) and
         isinstance(b, values.W_Closure1AsEnv)):
-        if a.get_caselam() is not b.get_caselam():
+        if a.caselam is not b.caselam:
             return values.w_false
         size = a._get_size_list()
         if size != b._get_size_list():
