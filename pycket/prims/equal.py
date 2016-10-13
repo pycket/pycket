@@ -224,24 +224,25 @@ def procedure_closure_contents_eq_n(a, b, n):
         return values.w_true
     if n == 0:
         return values.w_false
-    if isinstance(a, values.W_Closure1AsEnv):
-        if isinstance(b, values.W_Closure1AsEnv):
-            if a.caselam is not b.caselam:
-                return values.w_false
-            size = a._get_size_list()
-            if size != b._get_size_list():
-                return values.w_false
-            for i in range(size):
-                a_i = a._get_list(i)
-                b_i = b._get_list(i)
-                if a_i is b_i:
-                    continue
-                if isinstance(a_i, values.W_Closure1AsEnv) and isinstance(b_i, values.W_Closure1AsEnv):
-                    if values.w_false is procedure_closure_contents_eq_n(a_i, b_i, n-1):
-                        return values.w_false
-                elif not eqp_logic(a_i, b_i):
+    if (isinstance(a, values.W_Closure1AsEnv) and
+        isinstance(b, values.W_Closure1AsEnv)):
+        if a.get_caselam() is not b.get_caselam():
+            return values.w_false
+        size = a._get_size_list()
+        if size != b._get_size_list():
+            return values.w_false
+        for i in range(size):
+            a_i = a._get_list(i)
+            b_i = b._get_list(i)
+            if a_i is b_i:
+                continue
+            if (isinstance(a_i, values.W_Closure1AsEnv) and
+                isinstance(b_i, values.W_Closure1AsEnv)):
+                if values.w_false is procedure_closure_contents_eq_n(a_i, b_i, n-1):
                     return values.w_false
-            return values.w_true
+            elif not eqp_logic(a_i, b_i):
+                return values.w_false
+        return values.w_true
     return values.w_false
 
 @expose("procedure-closure-contents-eq?", [procedure] * 2)
