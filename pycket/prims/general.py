@@ -532,13 +532,13 @@ def procedure_arity_includes(proc, k, kw_ok):
         w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
         if w_prop_val is not None:
             return values.w_false
-    arity = proc.get_arity()
     if isinstance(k, values.W_Integer):
         try:
             k_val = k.toint()
         except OverflowError:
             pass
         else:
+            arity = proc.get_arity(promote=True)
             return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
@@ -656,12 +656,12 @@ def apply(args, env, cont, extra_call_info):
     try:
         fn_arity = fn.get_arity(promote=True)
         if fn_arity is Arity.unknown or fn_arity.at_least == -1:
-            unroll_to = 1
+            unroll_to = 3
         elif fn_arity.arity_list:
-            unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
+            unroll_to = fn_arity.arity_list[-1]
         else:
-            unroll_to = 1
-        rest = values.from_list(lst, unroll_to=unroll_to)
+            unroll_to = fn_arity.at_least + 7
+        rest = values.from_list(lst, unroll_to=unroll_to, force=True)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
