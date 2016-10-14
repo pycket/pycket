@@ -227,8 +227,8 @@ class W_InterposeProcedure(values.W_Procedure):
     def has_self_arg():
         return False
 
-    def get_arity(self):
-        return self.inner.get_arity()
+    def get_arity(self, promote=False):
+        return self.inner.get_arity(promote)
 
     def post_call_cont(self, args, prop, env, cont, calling_app):
         raise NotImplementedError("abstract method")
@@ -601,8 +601,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             cont = call_cont(self.struct_info_handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.inner).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.inner).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):

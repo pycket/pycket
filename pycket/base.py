@@ -55,7 +55,7 @@ class W_Object(W_ProtoObject):
         pass # need to override in callables that are based on an AST
 
     # an arity is a pair of a list of numbers and either -1 or a non-negative integer
-    def get_arity(self):
+    def get_arity(self, promote=False):
         if self.iscallable():
             return Arity.unknown
         else:

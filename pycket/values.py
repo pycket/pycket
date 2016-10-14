@@ -1162,7 +1162,9 @@ class W_Prim(W_Procedure):
         self.simple1 = simple1
         self.simple2 = simple2
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.arity
 
     def get_result_arity(self):
@@ -1251,7 +1253,7 @@ class W_Continuation(W_Procedure):
         self.cont = cont
         self.prompt_tag = prompt_tag
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         # FIXME: see if Racket ever does better than this
         return Arity.unknown
 
@@ -1271,7 +1273,7 @@ class W_ComposableContinuation(W_Procedure):
         self.cont = cont
         self.prompt_tag = prompt_tag
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.unknown
 
     def call(self, args, env, cont):
@@ -1314,7 +1316,7 @@ class W_Closure(W_Procedure):
         envs = [None] * num_lams
         return W_Closure._make(envs, caselam, env)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return self.caselam.get_arity()
 
     @jit.unroll_safe
@@ -1380,8 +1382,11 @@ class W_Closure1AsEnv(ConsEnv):
     def tostring(self):
         return self.caselam.tostring_as_closure()
 
-    def get_arity(self):
-        return self.caselam.get_arity()
+    def get_arity(self, promote=False):
+        caselam = self.caselam
+        if promote:
+            caselam = jit.promote(caselam)
+        return caselam.get_arity()
 
     def call_with_extra_info(self, args, env, cont, calling_app):
         env_structure = None
@@ -1457,7 +1462,9 @@ class W_PromotableClosure(W_Procedure):
         jit.promote(self)
         return self.closure.call_with_extra_info(args, env, cont, calling_app)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.arity
 
     def tostring(self):

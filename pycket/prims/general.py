@@ -654,7 +654,7 @@ def apply(args, env, cont, extra_call_info):
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     try:
-        fn_arity = fn.get_arity()
+        fn_arity = fn.get_arity(promote=True)
         if fn_arity is Arity.unknown or fn_arity.at_least == -1:
             unroll_to = 1
         elif fn_arity.arity_list:
