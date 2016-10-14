@@ -1243,7 +1243,9 @@ class W_Prim(W_Procedure):
         self.simple1 = simple1
         self.simple2 = simple2
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.arity
 
     def get_result_arity(self):
@@ -1282,12 +1284,16 @@ def to_mimproper(l, curr):
     return curr
 
 @always_inline
-def from_list_unroll_pred(lst, idx, unroll_to=0):
+@specialize.arg(3)
+def from_list_unroll_pred(lst, idx, unroll_to=0, force=False):
     if not jit.we_are_jitted():
         return False
     if unroll_to == -1:
         return False
-    return not jit.isvirtual(lst) and idx > unroll_to
+    if force:
+        return idx > unroll_to
+    else:
+        return not jit.isvirtual(lst) and idx > unroll_to
 
 @jit.elidable
 def from_list_elidable(w_curr):
@@ -1301,11 +1307,12 @@ def from_list_elidable(w_curr):
         raise SchemeException("Expected list, but got something else")
 
 @jit.unroll_safe
-def from_list(w_curr, unroll_to=0):
+@specialize.arg(2)
+def from_list(w_curr, unroll_to=0, force=False):
     result = []
     n = 0
     while isinstance(w_curr, W_Cons):
-        if from_list_unroll_pred(w_curr, n, unroll_to=unroll_to):
+        if from_list_unroll_pred(w_curr, n, unroll_to=unroll_to, force=force):
             return result + from_list_elidable(w_curr)
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
@@ -1332,7 +1339,7 @@ class W_Continuation(W_Procedure):
         self.cont = cont
         self.prompt_tag = prompt_tag
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         # FIXME: see if Racket ever does better than this
         return Arity.unknown
 
@@ -1352,7 +1359,7 @@ class W_ComposableContinuation(W_Procedure):
         self.cont = cont
         self.prompt_tag = prompt_tag
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.unknown
 
     def call(self, args, env, cont):
@@ -1398,7 +1405,10 @@ class W_Closure(W_Procedure):
     def get_caselam(self):
         return self.caselam
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        caselam = self.caselam
+        if promote:
+            caselam = jit.promote(caselam)
         return self.caselam.get_arity()
 
     @jit.unroll_safe
@@ -1440,9 +1450,6 @@ class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = []
 
-    # def __init__(self, prev):
-        # ConsEnv.__init__(self, prev)
-
     @staticmethod
     @jit.unroll_safe
     def make(vals, caselam, prev):
@@ -1472,7 +1479,8 @@ class W_Closure1AsEnv(ConsEnv):
         assert isinstance(caselam, CaseLambda)
         return caselam
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        # Always promotes due to small list specialization
         caselam = self.get_caselam()
         return caselam.get_arity()
 
@@ -1553,7 +1561,9 @@ class W_PromotableClosure(W_Procedure):
         jit.promote(self)
         return self.closure.call_with_extra_info(args, env, cont, calling_app)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.arity
 
     def tostring(self):

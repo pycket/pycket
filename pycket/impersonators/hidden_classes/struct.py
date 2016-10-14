@@ -109,7 +109,7 @@ class Pair(W_Object):
 
 NONE_PAIR = Pair(None, None)
 
-CompositeMap = make_composite_map_type(tuple)
+CompositeMap = make_composite_map_type()
 
 @jit.unroll_safe
 def impersonator_args(struct, overrides, handlers, prop_keys, prop_vals):
@@ -314,8 +314,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.base).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.base).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):
@@ -392,8 +392,8 @@ class W_InterposeStructStack(values_struct.W_RootStruct):
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.base).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.base).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):
