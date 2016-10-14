@@ -224,7 +224,7 @@ def string_upcase(v):
 def string_append(args):
     if not args:
         return W_String.fromascii("")
-    builder = StringBuilder()
+    builder = StringBuilder(len(args))
     unibuilder = None
     ascii_idx = 0
     try:
@@ -234,7 +234,7 @@ def string_append(args):
                 raise SchemeException("string-append: expected a string")
             builder.append(arg.as_str_ascii())
     except ValueError:
-        unibuilder = UnicodeBuilder()
+        unibuilder = UnicodeBuilder(len(args))
         unibuilder.append(unicode(builder.build()))
         builder = None
         for i in range(ascii_idx, len(args)):
