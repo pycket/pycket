@@ -108,7 +108,7 @@ class W_BaseParameter(W_Object):
     def get_key(self):
         raise NotImplementedError("abstract base class")
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return W_BaseParameter.ARITY
 
     def tostring(self):

@@ -15,6 +15,7 @@ class ArgParser(object):
     _immutable_fields_ = ['context', 'args']
 
     def __init__(self, context, args, start_at=0):
+        assert start_at >= 0
         self.context = context
         self.args    = args
         self.index   = start_at
@@ -62,10 +63,7 @@ def validate_arg(value, arg, *args):
     elif value is arg:
         return True
 
-    if args:
-        return validate_arg(value, *args)
-    else:
-        return False
+    return bool(args) and validate_arg(value, *args)
 
 @specialize.arg(0)
 def _errorname(arg, *args):

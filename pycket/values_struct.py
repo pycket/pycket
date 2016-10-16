@@ -566,7 +566,7 @@ class W_RootStruct(values.W_Object):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         raise NotImplementedError("abstract base class")
 
     def struct_type(self):
@@ -676,7 +676,7 @@ class W_Struct(W_RootStruct):
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         if self.iscallable():
             typ = self.struct_type()
             proc = typ.prop_procedure
@@ -941,7 +941,7 @@ class W_StructConstructor(values.W_Procedure):
             raise SchemeException("%s: wrong number of arguments" % self.tostring())
         return construct_struct_loop(type, type, args, env, cont)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return self.type.constructor_arity
 
     def tostring(self):
@@ -968,7 +968,7 @@ class W_StructPredicate(values.W_Procedure):
                 struct_type = struct_type.super
         return values.w_false
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     def tostring(self):
@@ -988,7 +988,7 @@ class W_StructFieldAccessor(values.W_Procedure):
     def get_absolute_index(self, type):
         return type.get_offset(self.accessor.type) + self.field
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object], simple=False,
@@ -1008,7 +1008,7 @@ class W_StructAccessor(values.W_Procedure):
     def __init__(self, type):
         self.type = type
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.TWO
 
     def access(self, struct, field, env, cont, app):
@@ -1039,7 +1039,7 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field
         self.field_name = field_name
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.TWO
 
     def get_absolute_index(self, type):
@@ -1060,7 +1060,7 @@ class W_StructMutator(values.W_Procedure):
     def __init__(self, type):
         self.type = type
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.THREE
 
     def mutate(self, struct, field, val, env, cont, app):
@@ -1129,7 +1129,7 @@ class W_StructPropertyPredicate(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object])
@@ -1149,7 +1149,7 @@ class W_StructPropertyAccessor(values.W_Procedure):
     def __init__(self, prop):
         self.property = prop
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object, default(values.W_Object, None)], simple=False)
