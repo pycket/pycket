@@ -1214,7 +1214,7 @@ def current_preserved_thread_cell_values(v):
         return values.W_ThreadCellValues()
 
     # Otherwise, we restore the values
-    for cell, val in v.assoc.items():
+    for cell, val in v.assoc.iteritems():
         assert cell.preserved
         cell.value = val
     return values.w_void
