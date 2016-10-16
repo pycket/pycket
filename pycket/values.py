@@ -12,7 +12,7 @@ from pycket.small_list        import inline_small_list
 from pycket.util              import add_copy_method, memoize_constructor
 
 from rpython.tool.pairtype    import extendabletype
-from rpython.rlib             import jit, runicode, rarithmetic
+from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
 from rpython.rlib.objectmodel import specialize
@@ -902,22 +902,34 @@ class W_Bool(W_Object):
 w_false = W_Bool()
 w_true = W_Bool()
 
+class ThreadCellTable(rweaklist.RWeakListMixin):
+    def __init__(self):
+        self.initialize()
+
+    def __iter__(self):
+        handles = self.get_all_handles()
+        for ref in handles:
+            val = ref()
+            if val is not None:
+                yield val
+
 class W_ThreadCellValues(W_Object):
     errorname = "thread-cell-values"
     _immutable_fields_ = ["assoc"]
     _attrs_ = ["assoc", "value"]
     def __init__(self):
         self.assoc = {}
-        for c in W_ThreadCell._table:
-            if c.preserved:
-                self.assoc[c] = c.value
+        for threadcell in W_ThreadCell._table:
+            if threadcell.preserved:
+                self.assoc[threadcell] = threadcell.value
 
 class W_ThreadCell(W_Object):
     errorname = "thread-cell"
     _immutable_fields_ = ["initial", "preserved"]
     _attrs_ = ["initial", "preserved", "value"]
     # All the thread cells in the system
-    _table = []
+    # TODO: Use a weak list to store the existing thread cells
+    _table = ThreadCellTable()
 
     def __init__(self, val, preserved):
         # TODO: This should eventually be a mapping from thread ids to values
@@ -925,7 +937,7 @@ class W_ThreadCell(W_Object):
         self.initial = val
         self.preserved = preserved
 
-        W_ThreadCell._table.append(self)
+        W_ThreadCell._table.add_handle(self)
 
     def set(self, val):
         self.value = val
