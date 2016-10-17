@@ -1034,8 +1034,6 @@ class W_Symbol(W_Object):
     errorname = "symbol"
     _attrs_ = ["value", "unreadable", "asciivalue", "unicodevalue", "utf8value"]
     _immutable_fields_ = _attrs_
-    all_symbols = {}
-    unreadable_symbols = {}
 
     def __init__(self, val, unreadable=False):
         assert isinstance(val, unicode)
@@ -1053,32 +1051,36 @@ class W_Symbol(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         #assert isinstance(string, str)
-        w_result = W_Symbol.all_symbols.get(string, None)
+        w_result = W_Symbol.all_symbols.get(string)
         if w_result is None:
             # assume that string is a utf-8 encoded unicode string
             value = string.decode("utf-8")
-            W_Symbol.all_symbols[string] = w_result = W_Symbol(value)
+            w_result = W_Symbol(value)
+            W_Symbol.all_symbols.set(string, w_result)
         return w_result
 
     @staticmethod
+    @jit.elidable
     def make_unreadable(string):
-        if string in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[string]
-        else:
-            # assume that string is a utf-8 encoded unicode string
+        w_result = W_Symbol.unreadable_symbols.get(string)
+        if w_result is None:
             value = string.decode("utf-8")
-            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(value, True)
-            return w_result
+            w_result = W_Symbol(value, True)
+            W_Symbol.unreadable_symbols.set(string, w_result)
+        return w_result
 
     def __repr__(self):
         return self.utf8value
 
+    @jit.elidable
     def is_interned(self):
         string = self.utf8value
-        if string in W_Symbol.all_symbols:
-            return W_Symbol.all_symbols[string] is self
-        if string in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[string] is self
+        symbol = W_Symbol.all_symbols.get(string)
+        if symbol is self:
+            return True
+        symbol = W_Symbol.unreadable_symbols.get(string)
+        if symbol is self:
+            return True
         return False
 
     def tostring(self):
@@ -1086,6 +1088,9 @@ class W_Symbol(W_Object):
 
     def variable_name(self):
         return self.utf8value
+
+W_Symbol.all_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
+W_Symbol.unreadable_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
 
 # XXX what are these for?
 break_enabled_key = W_Symbol(u"break-enabled-key")
