@@ -1032,8 +1032,8 @@ class W_ImmutableBytes(W_Bytes):
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    immutable_fields_ = ["value", "unreadable", "asciivalue", "utf8value"]
     _attrs_ = ["value", "unreadable", "asciivalue", "unicodevalue", "utf8value"]
+    _immutable_fields_ = _attrs_
     all_symbols = {}
     unreadable_symbols = {}
 
