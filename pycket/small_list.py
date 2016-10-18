@@ -200,6 +200,12 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
             return make1(vals[0], *args)
         if len(vals) == 2:
             return make2(vals[0], vals[1], *args)
+        if len(vals) == 3:
+            w_a, w_b, w_c = vals
+            if (isinstance(w_a, W_Fixnum) and
+                isinstance(w_b, W_Fixnum) and
+                isinstance(w_c, W_Fixnum)):
+                return Size3Fixed111(w_a.value, w_b.value, w_c.value, *args)
         return orig_make(vals, *args)
     def make1(w_a, *args):
         from pycket.values import W_Fixnum, W_Flonum
@@ -360,6 +366,40 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
             raise NotImplementedError()
     Size2Fixed11.__name__ = cls.__name__ + Size2Fixed11.__name__
     add_clone_method(Size2Fixed11)
+
+    class Size3Fixed111(cls):
+        _immutable_fields_ = ['vals_fixed_0', 'vals_fixed_1', 'vals_fixed_2']
+
+        if immut:
+            _immutable_ = True
+
+        def __init__(self, vals_fixed_0, vals_fixed_1, vals_fixed_2, *args):
+            self.vals_fixed_0 = vals_fixed_0
+            self.vals_fixed_1 = vals_fixed_1
+            self.vals_fixed_2 = vals_fixed_2
+            cls.__init__(self, *args)
+
+        def _get_size_list(self):
+            return 3
+
+        def _get_full_list(self):
+            return [self._get_list(0), self._get_list(1), self._get_list(2)]
+
+        def _get_list(self, i):
+            from pycket.values import W_Fixnum
+            if i == 0:
+                result = self.vals_fixed_0
+            elif i == 1:
+                result = self.vals_fixed_1
+            else:
+                assert i == 2
+                result = self.vals_fixed_2
+            return W_Fixnum(result)
+
+        def _set_list(self, i, val):
+            raise NotImplementedError()
+    Size3Fixed111.__name__ = cls.__name__ + Size3Fixed111.__name__
+    add_clone_method(Size3Fixed111)
 
     return make, make1, make2
 
