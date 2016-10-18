@@ -1214,7 +1214,7 @@ def current_preserved_thread_cell_values(v):
         return values.W_ThreadCellValues()
 
     # Otherwise, we restore the values
-    for cell, val in v.assoc.items():
+    for cell, val in v.assoc.iteritems():
         assert cell.preserved
         cell.value = val
     return values.w_void
@@ -1425,7 +1425,6 @@ class ReaderGraphBuilder(object):
             index += 1
         return p
 
-    @objectmodel.always_inline
     def reader_graph_loop_proxy(self, v):
         assert v.is_proxy()
         inner = self.reader_graph_loop(v.get_proxied())
@@ -1433,9 +1432,20 @@ class ReaderGraphBuilder(object):
         self.state[v] = p
         return p
 
-    @jit.dont_look_inside
+    def reader_graph_loop_equal_hash(self, v):
+        from pycket.hash.equal import W_EqualHashTable
+        assert isinstance(v, W_EqualHashTable)
+        empty = v.make_empty()
+        self.state[v] = empty
+        for key, val in v.hash_items():
+            key = self.reader_graph_loop(key)
+            val = self.reader_graph_loop(val)
+            empty._set(key, val)
+        return empty
+
     def reader_graph_loop(self, v):
         assert v is not None
+        from pycket.hash.equal import W_EqualHashTable
         if v in self.state:
             return self.state[v]
         if v.is_proxy():
@@ -1448,6 +1458,8 @@ class ReaderGraphBuilder(object):
             return self.reader_graph_loop_struct(v)
         if isinstance(v, W_HashTable):
             return self.reader_graph_loop_hash(v)
+        if isinstance(v, W_EqualHashTable):
+            return self.reader_graph_loop_equal_hash(v)
         if isinstance(v, values.W_Placeholder):
             return self.reader_graph_loop(v.value)
         # XXX FIXME: doesn't handle stuff
@@ -1457,20 +1469,20 @@ class ReaderGraphBuilder(object):
 @jit.dont_look_inside
 def make_reader_graph(v):
     from rpython.rlib.nonconst import NonConstant
-    # if NonConstant(False):
-        # # XXX JIT seems be generating questionable code when the argument of
-        # # make-reader-graph is a virtual cons cell. The car and cdr fields get
-        # # set by the generated code after the call, causing reader_graph_loop to
-        # # crash. I suspect the problem has to do with the translators effect analysis.
-        # # Example:
-        # # p29 = new_with_vtable(descr=<SizeDescr 24>)
-        # # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
-        # # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
-        # # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
-        # if isinstance(v, values.W_WrappedCons):
-            # print v._car.tostring()
-            # print v._cdr.tostring()
     builder = ReaderGraphBuilder()
+    if NonConstant(False):
+        # XXX JIT seems be generating questionable code when the argument of
+        # make-reader-graph is a virtual cons cell. The car and cdr fields get
+        # set by the generated code after the call, causing reader_graph_loop to
+        # crash. I suspect the problem has to do with the translators effect analysis.
+        # Example:
+        # p29 = new_with_vtable(descr=<SizeDescr 24>)
+        # p31 = call_r(ConstClass(make_reader_graph), p29, descr=<Callr 8 r EF=5>)
+        # setfield_gc(p29, p15, descr=<FieldP pycket.values.W_WrappedCons.inst__car 8 pure>)
+        # setfield_gc(p29, ConstPtr(ptr32), descr=<FieldP pycket.values.W_WrappedCons.inst__cdr 16 pure>)
+        if isinstance(v, values.W_WrappedCons):
+            print v._car.tostring()
+            print v._cdr.tostring()
     return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
