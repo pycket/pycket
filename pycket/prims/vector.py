@@ -26,15 +26,9 @@ def extflvector(obj):
 def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args, immutable=True)
 
-@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
+@expose(["make-vector", "make-fxvector"],
+        [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_vector(w_size, w_val):
-    size = w_size.value
-    if size < 0:
-        raise SchemeException("make-vector: expected a positive fixnum")
-    return values_vector.W_Vector.fromelement(w_val, size)
-
-@expose("make-fxvector", [values.W_Fixnum, default(values.W_Fixnum, values.W_Fixnum.ZERO)])
-def make_fxvector(w_size, w_val):
     size = w_size.value
     if size < 0:
         raise SchemeException("make-vector: expected a positive fixnum")

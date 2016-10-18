@@ -29,12 +29,6 @@ def test_make_vector():
     for i in range(vec.length()):
         assert vec.ref(i).value == 0
 
-def test_make_fxvector():
-    run_fix("(let ([v (make-fxvector 5 17)]) (vector-length v))", 5)
-    vec = run('(make-vector 5)')
-    for i in range(vec.length()):
-        assert vec.ref(i).value == 17
-
 def test_vec_strategies_empty():
     vec = run("(vector)")
     print "First size: %s" % vec.length()
