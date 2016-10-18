@@ -27,6 +27,7 @@ ParameterizationHashTable = make_persistent_hash_type(
 
 # This is a Scheme_Parameterization in Racket
 class RootParameterization(object):
+    _attrs_ = ["table"]
     def __init__(self):
         # This table maps ParamKey -> W_ThreadCell
         self.table = {}
@@ -35,6 +36,7 @@ class RootParameterization(object):
 # Except that Scheme_Config uses a functional hash table and this uses a list that we copy
 class W_Parameterization(W_Object):
     _immutable_fields_ = ["root", "map"]
+    _attrs_ = ["root", "map"]
     errorname = "parameterization"
     def __init__(self, root, map):
         self.root = root
@@ -106,7 +108,7 @@ class W_BaseParameter(W_Object):
     def get_key(self):
         raise NotImplementedError("abstract base class")
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return W_BaseParameter.ARITY
 
     def tostring(self):
@@ -114,6 +116,7 @@ class W_BaseParameter(W_Object):
 
 class W_Parameter(W_BaseParameter):
     _immutable_fields_ = ["key"]
+    _attrs_ = ["key"]
 
     def __init__(self, val, guard=None):
         W_BaseParameter.__init__(self, guard)
@@ -149,6 +152,7 @@ class W_Parameter(W_BaseParameter):
 
 class W_DerivedParameter(W_BaseParameter):
     _immutable_fields_ = ["parameter", "wrap"]
+    _attrs_ = ["parameter", "wrap"]
 
     def __init__(self, param, guard, wrap):
         W_BaseParameter.__init__(self, guard)

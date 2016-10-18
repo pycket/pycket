@@ -36,6 +36,7 @@ class PortBuffer(buffer.Buffer):
 
 class W_AnyRegexp(W_Object):
     _immutable_fields_ = ["source"]
+    _attrs_ = ["source", "code", "flags", "groupcount", "groupindex", "indexgroup", "group_offsets"]
     errorname = "regexp"
     def __init__(self, source):
         self.source = source

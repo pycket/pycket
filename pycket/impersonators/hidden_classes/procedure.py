@@ -38,8 +38,8 @@ class W_InterposeProcedure(values.W_Procedure):
         self.check = check
         self.init_proxy(code, map)
 
-    def get_arity(self):
-        return self.get_base().get_arity()
+    def get_arity(self, promote=False):
+        return self.get_base().get_arity(promote)
 
     def post_call_cont(self, args, prop, env, cont, calling_app):
         raise NotImplementedError("abstract method")

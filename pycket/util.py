@@ -24,7 +24,7 @@ def memoize_constructor(cls):
     setattr(cls, "make", staticmethod(memoize(cls)))
     return cls
 
-def strip(str):
+def strip_immutable_field_name(str):
     return str.replace("[*]", "")
 
 def add_copy_method(copy_method="copy"):
@@ -44,7 +44,7 @@ def add_copy_method(copy_method="copy"):
             if base is object:
                 continue
             fields = getattr(base, "_immutable_fields_", [])
-            field_names.extend(map(strip, fields))
+            field_names.extend(map(strip_immutable_field_name, fields))
 
         field_names = unrolling_iterable(field_names)
 

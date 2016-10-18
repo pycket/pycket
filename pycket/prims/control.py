@@ -5,7 +5,7 @@ from pycket                    import values, values_parameter, values_string
 from pycket.arity              import Arity
 from pycket.cont               import continuation, loop_label, call_cont, Barrier, Cont, NilCont, Prompt
 from pycket.error              import SchemeException
-from pycket.parser_definitions import ArgParser, EndOfInput
+from pycket.argument_parser    import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
 from pycket.util               import add_copy_method
 from rpython.rlib              import jit
@@ -50,15 +50,18 @@ def post_build_exception(env, cont, _vals):
 
 def convert_runtime_exception(exn, env, cont):
     from pycket               import values_string
-    from pycket.prims.general import exn_fail
+    from pycket.prims.general import exn_fail, exn_fail_user
     from pycket.values        import W_ContinuationMarkSet
     from pycket.prims.control import raise_exception
     message = values_string.W_String.fromstr_utf8(exn.msg)
     marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
-    return exn_fail.constructor.call([message, marks], env, cont)
+    if exn.is_user():
+        return exn_fail_user.constructor.call([message, marks], env, cont)
+    else:
+        return exn_fail.constructor.call([message, marks], env, cont)
 
-@jit.elidable
+@jit.unroll_safe
 def scan_continuation(curr, prompt_tag, look_for=None):
     """
     Segment a continuation based on a given continuation-prompt-tag.
@@ -73,6 +76,25 @@ def scan_continuation(curr, prompt_tag, look_for=None):
     """
     handlers = False
     xs = []
+    while isinstance(curr, Cont):
+        if curr is look_for:
+            return None, handlers
+        handlers |= isinstance(curr, DynamicWindValueCont)
+        xs.append(curr)
+        if isinstance(curr, Prompt) and curr.tag is prompt_tag:
+            break
+        curr = curr.prev
+        if not jit.isvirtual(curr):
+            return _scan_continuation(curr, prompt_tag, look_for, xs, handlers)
+    return xs, handlers
+
+@jit.elidable
+def _scan_continuation(curr, prompt_tag, look_for, xs, handlers):
+    """
+    Variant of scan_continuation which is elidable.
+    scan_continuation switchs to using this function when all the virtual
+    continuation frames are exhausted.
+    """
     while isinstance(curr, Cont):
         if curr is look_for:
             return None, handlers
@@ -344,15 +366,15 @@ def call_with_continuation_prompt(args, env, cont):
     parser  = ArgParser("call-with-continuation-prompt", args)
     tag     = values.w_default_continuation_prompt_tag
     handler = values.w_false
-    fun     = parser.object()
+    fun     = parser.expect(values.W_Object)
 
     try:
-        tag     = parser.prompt_tag()
-        handler = parser.object()
+        tag     = parser.expect(values.W_ContinuationPromptTag)
+        handler = parser.expect(values.W_Object)
     except EndOfInput:
         pass
 
-    args = parser._object()
+    args = parser.expect_many(values.W_Object)
     if not fun.iscallable():
         raise SchemeException("call-with-continuation-prompt: not given callable function")
     if handler is not values.w_false and not handler.iscallable():

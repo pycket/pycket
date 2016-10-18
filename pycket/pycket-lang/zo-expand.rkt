@@ -1,6 +1,6 @@
 #lang racket
 
-(require compiler/zo-parse setup/dirs racket/undefined
+(require compiler/zo-parse setup/dirs racket/undefined racket/path
          (only-in pycket/expand hash* global-config))
 
 (provide to-ast-wrapper to-ast-val
@@ -11,6 +11,7 @@
 (define pycket-dir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
 (define collects-dir (path->string (find-collects-dir)))
 (define module-name 'beSetBy-main)
+(define module-extension 'beSetBy-main)
 (define relative-current-dir 'rel-dir-beSetBy-main)
 (define TEST #f)
 
@@ -293,18 +294,19 @@ put the usual application-rands to the operands
          [rest-formal (if rest? (symbol->string (gensym 'lamrest)) 'hokarz)]
 
          ;; vector of stack positions that are captured when evaluating the lambda form to create a closure.
-         [captured-stack-positions (vector->list (lam-closure-map lam-form))] ;; vector
          [current-stack-length (length localref-stack)]
-         [captured-current-stack-items (map (λ (pos) (if (>= pos current-stack-length)
-                                                         (begin (when DEBUG (displayln current-stack-length))
-                                                                (with-handlers
-                                                                  ([exn:fail?
-                                                                    (lambda (e)
-                                                                      (error 'top-error
-                                                                             "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
-                                                                             TOPLEVELS pos captured-stack-positions localref-stack))])
-                                                                  (list-ref TOPLEVELS pos)))
-                                                         (list-ref localref-stack pos)))
+         [captured-stack-positions (remv current-stack-length (vector->list (lam-closure-map lam-form)))] ;; vector
+         [captured-current-stack-items (map (λ (pos)
+                                              (if (> pos current-stack-length)
+                                                  (begin (when DEBUG (displayln current-stack-length))
+                                                         (with-handlers
+                                                           ([exn:fail?
+                                                             (lambda (e)
+                                                               (error 'top-error
+                                                                      "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
+                                                                      TOPLEVELS pos captured-stack-positions localref-stack))])
+                                                           (list-ref TOPLEVELS pos)))
+                                                  (list-ref localref-stack pos)))
                                             captured-stack-positions)]
 
          [new-localref-stack-1 (if rest?
@@ -459,7 +461,7 @@ put the usual application-rands to the operands
           (module-path-index->path-string mod-idx)])
     (hash* 'source-name name
            'source-module (if (and TEST (string? module-path) ;; TODO : refactor
-                                   (string-contains? module-path (string-append "/" module-name ".rkt")))
+                                   (string-contains? module-path (string-append "/" module-name "." module-extension)))
                               (list ".")
                               (if (list? module-path) module-path (list module-path))))))
 
@@ -496,11 +498,11 @@ put the usual application-rands to the operands
                                                                (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
                                                 (string->number (cadr mod-split)))
                                               (hash* 'source-name name
-                                                     'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name ".rkt")))
+                                                     'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name "." module-extension)))
                                                                         (list ".") (list path-str))
                                                      'module original-mod)))
                                           (hash* 'source-name name
-                                                 'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name ".rkt")))
+                                                 'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name "." module-extension)))
                                                                     (list ".") (list path-str))))))]
                [source-mod (cond
                              [(or (symbol? topvar) (boolean? topvar)) path-str]
@@ -580,11 +582,11 @@ put the usual application-rands to the operands
 (define (handle-toplevel form localref-stack)
   (let* ([toplevel-id (list-ref TOPLEVELS (toplevel-pos form))]
          [toplevel-id-str (if (symbol? toplevel-id) (symbol->string toplevel-id) toplevel-id)]
-         [module-dir (string-append relative-current-dir module-name ".rkt")])
+         [module-dir (string-append relative-current-dir module-name "." module-extension)])
     (cond
       [(symbol? toplevel-id)
        (hash* 'source-name toplevel-id-str
-              'source-module (if (and TEST (string-contains? module-dir (string-append "/" module-name ".rkt")))
+              'source-module (if (and TEST (string-contains? module-dir (string-append "/" module-name "." module-extension)))
                                  (list ".") (list module-dir)))]
       [(module-variable? toplevel-id)
        (handle-module-variable toplevel-id localref-stack)]
@@ -726,9 +728,10 @@ put the usual application-rands to the operands
       ;; first binds new vars by evaluating the (single) rhs
       (hash* 'let-bindings rhs-ready
              ;; then sets the let-void bindings with new vars ...
-             'let-body (list (hash* 'let-bindings (list)
-                                    ;; ... and continue with the body
-                                    'let-body (append set-nodes body-ast)))))))
+             'let-body (append set-nodes body-ast)
+             #;(list (hash* 'let-bindings (list)
+                            ;; ... and continue with the body
+                            'let-body (append set-nodes body-ast)))))))
 
 (define (handle-let-rec letrec-form localref-stack current-closure-refs)
   (let* ([procs (let-rec-procs letrec-form)] ;; (listof lam?)
@@ -1001,10 +1004,11 @@ put the usual application-rands to the operands
 (define (to-ast body-forms)
   (map (lambda (form) (to-ast-single form '() '())) body-forms))
 
-(define (set-globals! debug mod-name rel-current-dir test)
+(define (set-globals! debug mod-name mod-ext rel-current-dir test)
   (begin
     (set! DEBUG debug)
     (set! module-name mod-name)
+    (set! module-extension mod-ext)
     (set! relative-current-dir rel-current-dir)
     (set! TEST test)))
 
@@ -1026,6 +1030,16 @@ put the usual application-rands to the operands
   (define out #f)
   (define test #f)
 
+  ;; this is because docs say "the filename-extension is deprecated, use path-get-extension",
+  ;; but I (v6.5) seem to have the former, not the latter
+  (define-syntax (get-extension stx)
+    (syntax-case stx ()
+      [(_ p)
+       (if (identifier-binding #'path-get-extension)
+           #'(path-get-extension p)
+           (if (identifier-binding #'filename-extension)
+               #'(filename-extension p)
+               (error 'use-correct-extension "couldn't find a good extension getter")))]))
 
   (command-line
    #:once-each
@@ -1037,29 +1051,29 @@ put the usual application-rands to the operands
    [("--stdout") "write output to standart out" (set! out (current-output-port))]
    
    #:args (file.rkt)
-   (let* ([subs (string-split file.rkt "/")]
-          [sub-dirs (take subs (max (sub1 (length subs)) 0))]
-          [is-absolute? (equal? (substring file.rkt 0 1) "/")]
-          [sub-dirs-str* (if (empty? sub-dirs)
-                             (path->string (current-directory))
-                             (string-append (if is-absolute? "/" "") (string-join sub-dirs "/") "/"))]
-          [mod-name.rkt (last subs)]
-          [mod-name (substring mod-name.rkt 0 (- (string-length mod-name.rkt) 4))])
+   (let* ([p (string->path file.rkt)]
+          [only-path-str (or (and (path-only p) (path->string (path-only p))) "")]
+          [mod-name (let* ([fn-path (file-name-from-path p)]
+                           [fn-str (if fn-path (path->string fn-path) (error 'zo-expand "check the filename ~a" file.rkt))])
+                      (car (string-split fn-str ".")))]
+          [mod-extension (let ([ext (bytes->string/utf-8 (get-extension p))])
+                           (if (string-contains? ext ".") (string-replace ext "." "") ext))])
      (begin
        ;; setting the stage
-       (set! sub-dirs-str sub-dirs-str*)
-       (set-globals! debug mod-name sub-dirs-str test)
-       (managed-compile-zo file.rkt)
+       (set! sub-dirs-str only-path-str)
+       (set-globals! debug mod-name mod-extension sub-dirs-str test)
+       (system (format "raco make \"~a\"" file.rkt))
+       #;(managed-compile-zo file.rkt)
        ;; setting the output port
        (when (not out)
-         (set! out (open-output-file (string-append sub-dirs-str mod-name ".rkt.json")
+         (set! out (open-output-file (format "~a~a.~a.json" sub-dirs-str mod-name mod-extension)
                                      #:exists 'replace))))))
 
-  (define dep-file (read (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.dep"))))
+  (define dep-file (read (open-input-file (format "~acompiled/~a_~a.dep" sub-dirs-str module-name module-extension))))
   
   (define version (car dep-file))
   
-  (define comp-top (zo-parse (open-input-file (string-append sub-dirs-str "compiled/" module-name "_rkt.zo"))))
+  (define comp-top (zo-parse (open-input-file (format "~acompiled/~a_~a.zo" sub-dirs-str module-name module-extension))))
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
 

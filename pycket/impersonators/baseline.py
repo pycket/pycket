@@ -216,24 +216,19 @@ class W_InterposeProcedure(values.W_Procedure):
     _immutable_fields_ = ["inner", "check", "properties"]
 
     @jit.unroll_safe
-    def __init__(self, code, check, prop_keys, prop_vals):
+    def __init__(self, code, check, props):
         assert code.iscallable()
         assert check is values.w_false or check.iscallable()
-        assert not prop_keys and not prop_vals or len(prop_keys) == len(prop_vals)
         self.inner = code
         self.check = check
-        self.properties = {}
-        if prop_keys is not None:
-            for i, k in enumerate(prop_keys):
-                assert isinstance(k, W_ImpPropertyDescriptor)
-                self.properties[k] = prop_vals[i]
+        self.properties = props
 
     @staticmethod
     def has_self_arg():
         return False
 
-    def get_arity(self):
-        return self.inner.get_arity()
+    def get_arity(self, promote=False):
+        return self.inner.get_arity(promote)
 
     def post_call_cont(self, args, prop, env, cont, calling_app):
         raise NotImplementedError("abstract method")
@@ -606,8 +601,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             cont = call_cont(self.struct_info_handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.inner).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.inner).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):

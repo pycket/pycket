@@ -10,7 +10,7 @@ from pycket import values_parameter
 from pycket import values_struct
 from pycket import values_regex
 from pycket import vector as values_vector
-from pycket.error import SchemeException
+from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.prims.expose import (unsafe, default, expose, expose_val,
@@ -532,13 +532,13 @@ def procedure_arity_includes(proc, k, kw_ok):
         w_prop_val = proc.struct_type().read_prop(values_struct.w_prop_incomplete_arity)
         if w_prop_val is not None:
             return values.w_false
-    arity = proc.get_arity()
     if isinstance(k, values.W_Integer):
         try:
             k_val = k.toint()
         except OverflowError:
             pass
         else:
+            arity = proc.get_arity(promote=True)
             return values.W_Bool.make(arity.arity_includes(k_val))
     return values.w_false
 
@@ -654,14 +654,14 @@ def apply(args, env, cont, extra_call_info):
         raise SchemeException("apply expected a procedure, got something else")
     lst = args[-1]
     try:
-        fn_arity = fn.get_arity()
+        fn_arity = fn.get_arity(promote=True)
         if fn_arity is Arity.unknown or fn_arity.at_least == -1:
-            unroll_to = 1
+            unroll_to = 3
         elif fn_arity.arity_list:
-            unroll_to = fn_arity.arity_list[-1] - (len(args) - 2)
+            unroll_to = fn_arity.arity_list[-1]
         else:
-            unroll_to = 1
-        rest = values.from_list(lst, unroll_to=unroll_to)
+            unroll_to = fn_arity.at_least + 7
+        rest = values.from_list(lst, unroll_to=unroll_to, force=True)
     except SchemeException:
         raise SchemeException(
             "apply expected a list as the last argument, got something else")
@@ -1059,11 +1059,11 @@ def list_tail(lst, pos):
 def curr_millis():
     return values.W_Flonum(time.clock()*1000)
 
-@expose("error", arity=Arity.geq(1))
-def error(args):
+def _error(args, is_user=False):
+    reason = ""
     if len(args) == 1:
         sym = args[0]
-        raise SchemeException("error: %s" % sym.tostring())
+        reason = "error: %s" % sym.tostring()
     else:
         first_arg = args[0]
         if isinstance(first_arg, values_string.W_String):
@@ -1073,15 +1073,28 @@ def error(args):
             v = args[1:]
             for item in v:
                 msg.append(" %s" % item.tostring())
-            raise SchemeException(msg.build())
+            reason = msg.build()
         else:
             src = first_arg
             form = args[1]
             v = args[2:]
             assert isinstance(src, values.W_Symbol)
             assert isinstance(form, values_string.W_String)
-            raise SchemeException("%s: %s" % (
-                src.tostring(), input_output.format(form, v, "error")))
+            reason = "%s: %s" % (
+                src.tostring(), input_output.format(form, v, "error"))
+    if is_user:
+        raise UserException(reason)
+    else:
+        raise SchemeException(reason)
+
+@expose("error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, False)
+
+@expose("raise-user-error", arity=Arity.geq(1))
+def error(args):
+    return _error(args, True)
+
 
 @expose("list->vector", [values.W_List])
 def list2vector(l):
@@ -1125,36 +1138,17 @@ def current_command_line_arguments(env, cont):
 def unsafe_car(p):
     return p.car()
 
+@expose("unsafe-mcar", [subclass_unsafe(values.W_MCons)])
+def unsafe_mcar(p):
+    return p.car()
+
 @expose("unsafe-cdr", [subclass_unsafe(values.W_Cons)])
 def unsafe_cdr(p):
     return p.cdr()
 
-@expose("path-string?", [values.W_Object])
-def path_stringp(v):
-    # FIXME: handle zeros in string
-    return values.W_Bool.make(
-        isinstance(v, values_string.W_String) or isinstance(v, values.W_Path))
-
-@expose("complete-path?", [values.W_Object])
-def complete_path(v):
-    # FIXME: stub
-    return values.w_false
-
-@expose("path->string", [values.W_Path])
-def path2string(p):
-    return values_string.W_String.fromstr_utf8(p.path)
-
-@expose("path->bytes", [values.W_Path])
-def path2bytes(p):
-    return values.W_Bytes.from_string(p.path)
-
-@expose("cleanse-path", [values.W_Object])
-def cleanse_path(p):
-    if isinstance(p, values_string.W_String):
-        return values.W_Path(p.as_str_ascii())
-    if isinstance(p, values.W_Path):
-        return p
-    raise SchemeException("cleanse-path expects string or path")
+@expose("unsafe-mcdr", [subclass_unsafe(values.W_MCons)])
+def unsafe_mcdr(p):
+    return p.cdr()
 
 @expose("port-next-location", [values.W_Object], simple=False)
 def port_next_loc(p, env, cont):
@@ -1220,7 +1214,7 @@ def current_preserved_thread_cell_values(v):
         return values.W_ThreadCellValues()
 
     # Otherwise, we restore the values
-    for cell, val in v.assoc.items():
+    for cell, val in v.assoc.iteritems():
         assert cell.preserved
         cell.value = val
     return values.w_void
@@ -1409,7 +1403,6 @@ class ReaderGraphBuilder(object):
 
         return p
 
-    @objectmodel.always_inline
     def reader_graph_loop_proxy(self, v):
         assert v.is_proxy()
         inner = self.reader_graph_loop(v.get_proxied())
@@ -1417,8 +1410,20 @@ class ReaderGraphBuilder(object):
         self.state[v] = p
         return p
 
+    def reader_graph_loop_equal_hash(self, v):
+        from pycket.hash.equal import W_EqualHashTable
+        assert isinstance(v, W_EqualHashTable)
+        empty = v.make_empty()
+        self.state[v] = empty
+        for key, val in v.hash_items():
+            key = self.reader_graph_loop(key)
+            val = self.reader_graph_loop(val)
+            empty._set(key, val)
+        return empty
+
     def reader_graph_loop(self, v):
         assert v is not None
+        from pycket.hash.equal import W_EqualHashTable
         if v in self.state:
             return self.state[v]
         if v.is_proxy():
@@ -1429,6 +1434,8 @@ class ReaderGraphBuilder(object):
             return self.reader_graph_loop_vector(v)
         if isinstance(v, values_struct.W_Struct):
             return self.reader_graph_loop_struct(v)
+        if isinstance(v, W_EqualHashTable):
+            return self.reader_graph_loop_equal_hash(v)
         if isinstance(v, values.W_Placeholder):
             return self.reader_graph_loop(v.value)
         # XXX FIXME: doesn't handle stuff
@@ -1438,6 +1445,7 @@ class ReaderGraphBuilder(object):
 @jit.dont_look_inside
 def make_reader_graph(v):
     from rpython.rlib.nonconst import NonConstant
+    builder = ReaderGraphBuilder()
     if NonConstant(False):
         # XXX JIT seems be generating questionable code when the argument of
         # make-reader-graph is a virtual cons cell. The car and cdr fields get
@@ -1451,7 +1459,6 @@ def make_reader_graph(v):
         if isinstance(v, values.W_WrappedCons):
             print v._car.tostring()
             print v._cdr.tostring()
-    builder = ReaderGraphBuilder()
     return builder.reader_graph_loop(v)
 
 @expose("procedure-specialize", [procedure])
@@ -1515,6 +1522,7 @@ make_stub_predicates(
 @expose("__dummy-function__", [])
 def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
+    from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
     print ex
 

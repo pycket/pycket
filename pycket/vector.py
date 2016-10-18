@@ -91,8 +91,12 @@ class StrategyVectorMixin(object):
         self.set_strategy(new_strategy)
         self.set_storage(new_strategy.create_storage_for_elements(old_list))
 
+    def unrolling_heuristic(self):
+        return self.get_strategy().unrolling_heuristic(self)
+
 class W_Vector(W_MVector):
     _immutable_fields_ = ["len"]
+    _attrs_ = ["strategy", "storage", "len"]
     errorname = "vector"
 
     import_from_mixin(StrategyVectorMixin)
@@ -162,6 +166,7 @@ class W_Vector(W_MVector):
 
 class W_FlVector(W_VectorSuper):
     _immutable_fields_ = ["len"]
+    _attrs_ = ["storage", "len"]
     errorname = "flvector"
 
     import_from_mixin(StrategyVectorMixin)
@@ -270,6 +275,7 @@ class VectorStrategy(object):
     def dehomogenize(self, w_vector, hint):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
 
+
 class ImmutableVectorStrategyMixin(object):
     def immutable(self):
         return True
@@ -331,6 +337,10 @@ class UnwrappedVectorStrategyMixin(object):
 
     def unwrap(self, w_obj):
         return w_obj
+
+    def unrolling_heuristic(self, w_vector):
+        storage = self._storage(w_vector)
+        return jit.loop_unrolling_heuristic(storage, w_vector.len, UNROLLING_CUTOFF)
 
 class ConstantVectorStrategy(VectorStrategy):
     # Strategy desribing a vector whose contents are all the same object.

@@ -58,12 +58,10 @@ def tag_handler_mutator(idx):
     return tag_index(idx, HANDLER_MUTATOR_TAG)
 
 def tag_override_accessor(idx):
-    assert idx >= 0
-    return (idx << TAG_BITS) | OVERRIDE_ACCESSOR_TAG
+    return tag_index(idx, OVERRIDE_ACCESSOR_TAG)
 
 def tag_override_mutator(idx):
-    assert idx >= 0
-    return (idx << TAG_BITS) | OVERRIDE_MUTATOR_TAG
+    return tag_index(idx, OVERRIDE_MUTATOR_TAG)
 
 def is_accessor(key):
     return key >= 0 and (key & 0b01) == 0
@@ -111,7 +109,7 @@ class Pair(W_Object):
 
 NONE_PAIR = Pair(None, None)
 
-CompositeMap = make_composite_map_type(shared_storage=True)
+CompositeMap = make_composite_map_type()
 
 @jit.unroll_safe
 def impersonator_args(struct, overrides, handlers, prop_keys, prop_vals):
@@ -203,8 +201,10 @@ INFO_OVERRIDE_IDX = -2
 # onto accessors/mutators
 class W_InterposeStructBase(values_struct.W_RootStruct):
 
-    EMPTY_HANDLER_MAP = make_caching_map_type("get_storage_index").EMPTY
-    EMPTY_PROPERTY_MAP = make_map_type("get_storage_index").EMPTY
+    EMPTY_HANDLER_MAP = make_caching_map_type("get_storage_index", int).EMPTY
+    # The keytype for this hidden class must be a superclass of
+    # W_StructPropertyAccessor and W_ImpPropertyDescriptor
+    EMPTY_PROPERTY_MAP = make_map_type("get_storage_index", W_Object).EMPTY
 
     _attrs_ = ['inner', 'base', 'map']
     _immutable_fields_ = ['inner', 'base', 'map']
@@ -314,8 +314,8 @@ class W_InterposeStructBase(values_struct.W_RootStruct):
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.base).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.base).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):
@@ -392,8 +392,8 @@ class W_InterposeStructStack(values_struct.W_RootStruct):
             cont = call_cont(handler, env, cont)
         return self.inner.get_struct_info(env, cont)
 
-    def get_arity(self):
-        return get_base_object(self.base).get_arity()
+    def get_arity(self, promote=False):
+        return get_base_object(self.base).get_arity(promote)
 
     # FIXME: This is incorrect
     def vals(self):

@@ -9,6 +9,7 @@ from pycket.cont import continuation, label
 from pycket.error import SchemeException
 from pycket.prims.expose import default, make_call_method
 from pycket.small_list import inline_small_list
+from pycket.util import strip_immutable_field_name
 from pycket.values_parameter import W_Parameter
 
 from rpython.rlib import jit
@@ -20,6 +21,7 @@ PREFAB = values.W_Symbol.make("prefab")
 class W_StructInspector(values.W_Object):
     errorname = "struct-inspector"
     _immutable_fields_ = ["super"]
+    _attrs_ = ["super"]
 
     @staticmethod
     def make(inspector, issibling=False):
@@ -56,7 +58,10 @@ class W_StructType(values.W_Object):
             "auto_v", "props", "inspector", "immutables[*]",
             "immutable_fields[*]", "guard", "auto_values[*]", "offsets[*]",
             "constructor", "predicate", "accessor", "mutator", "prop_procedure",
-            "constructor_arity", "procedure_source"]
+            "constructor_arity", "procedure_source", "isprefab", "isopaque"]
+
+    _attrs_ = map(strip_immutable_field_name, _immutable_fields_)
+
     unbound_prefab_types = {}
 
     @staticmethod
@@ -346,8 +351,8 @@ class W_StructType(values.W_Object):
         return "#<struct-type:%s>" % self.name.utf8value
 
 class W_PrefabKey(values.W_Object):
-    _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",
-                          "auto_v", "mutables", "super_key"]
+    _attrs_ = _immutable_fields_ = ["name", "init_field_cnt", "auto_field_cnt",
+                                    "auto_v", "mutables", "super_key"]
     all_keys = []
 
     @staticmethod
@@ -561,7 +566,7 @@ class W_RootStruct(values.W_Object):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         raise NotImplementedError("abstract base class")
 
     def struct_type(self):
@@ -602,7 +607,7 @@ class W_RootStruct(values.W_Object):
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
     errorname = "struct"
-    _immutable_fields_ = ["_type"]
+    _attrs_ = _immutable_fields_ = ["_type"]
 
     @staticmethod
     @jit.unroll_safe
@@ -671,7 +676,7 @@ class W_Struct(W_RootStruct):
         raise SchemeException("%s-accessor: expected %s? but got %s" %
             (property.name, property.name, self.tostring()))
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         if self.iscallable():
             typ = self.struct_type()
             proc = typ.prop_procedure
@@ -922,7 +927,7 @@ def receive_guard_values_cont(init_type, struct_type, field_values,
                                       auto_field_start, env, cont)
 
 class W_StructConstructor(values.W_Procedure):
-    _immutable_fields_ = ["type"]
+    _attrs_ = _immutable_fields_ = ["type"]
     import_from_mixin(SingleResultMixin)
 
     def __init__(self, type):
@@ -936,7 +941,7 @@ class W_StructConstructor(values.W_Procedure):
             raise SchemeException("%s: wrong number of arguments" % self.tostring())
         return construct_struct_loop(type, type, args, env, cont)
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return self.type.constructor_arity
 
     def tostring(self):
@@ -944,7 +949,7 @@ class W_StructConstructor(values.W_Procedure):
 
 class W_StructPredicate(values.W_Procedure):
     errorname = "struct-predicate"
-    _immutable_fields_ = ["type"]
+    _attrs_ = _immutable_fields_ = ["type"]
     import_from_mixin(SingleResultMixin)
 
     def __init__(self, type):
@@ -963,7 +968,7 @@ class W_StructPredicate(values.W_Procedure):
                 struct_type = struct_type.super
         return values.w_false
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     def tostring(self):
@@ -971,7 +976,7 @@ class W_StructPredicate(values.W_Procedure):
 
 class W_StructFieldAccessor(values.W_Procedure):
     errorname = "struct-field-accessor"
-    _immutable_fields_ = ["accessor", "field", "field_name"]
+    _attrs_ = _immutable_fields_ = ["accessor", "field", "field_name"]
     import_from_mixin(SingleResultMixin)
 
     def __init__(self, accessor, field, field_name):
@@ -983,7 +988,7 @@ class W_StructFieldAccessor(values.W_Procedure):
     def get_absolute_index(self, type):
         return type.get_offset(self.accessor.type) + self.field
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object], simple=False,
@@ -998,12 +1003,12 @@ class W_StructFieldAccessor(values.W_Procedure):
 
 class W_StructAccessor(values.W_Procedure):
     errorname = "struct-accessor"
-    _immutable_fields_ = ["type"]
+    _attrs_ = _immutable_fields_ = ["type"]
     import_from_mixin(SingleResultMixin)
     def __init__(self, type):
         self.type = type
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.TWO
 
     def access(self, struct, field, env, cont, app):
@@ -1026,7 +1031,7 @@ class W_StructAccessor(values.W_Procedure):
 
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
-    _immutable_fields_ = ["mutator", "field", "field_name"]
+    _attrs_ = _immutable_fields_ = ["mutator", "field", "field_name"]
     import_from_mixin(SingleResultMixin)
     def __init__ (self, mutator, field, field_name):
         assert isinstance(mutator, W_StructMutator)
@@ -1034,7 +1039,7 @@ class W_StructFieldMutator(values.W_Procedure):
         self.field = field
         self.field_name = field_name
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.TWO
 
     def get_absolute_index(self, type):
@@ -1050,12 +1055,12 @@ class W_StructFieldMutator(values.W_Procedure):
 
 class W_StructMutator(values.W_Procedure):
     errorname = "struct-mutator"
-    _immutable_fields_ = ["type"]
+    _attrs_ = _immutable_fields_ = ["type"]
     import_from_mixin(SingleResultMixin)
     def __init__(self, type):
         self.type = type
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.THREE
 
     def mutate(self, struct, field, val, env, cont, app):
@@ -1078,7 +1083,7 @@ class W_StructMutator(values.W_Procedure):
 
 class W_StructProperty(values.W_Object):
     errorname = "struct-type-property"
-    _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
+    _attrs_ = _immutable_fields_ = ["name", "guard", "supers", "can_imp"]
     def __init__(self, name, guard, supers=values.w_null, can_imp=False):
         self.name = name.utf8value
         self.guard = guard
@@ -1119,12 +1124,12 @@ del sym
 
 class W_StructPropertyPredicate(values.W_Procedure):
     errorname = "struct-property-predicate"
-    _immutable_fields_ = ["property"]
+    _attrs_ = _immutable_fields_ = ["property"]
     import_from_mixin(SingleResultMixin)
     def __init__(self, prop):
         self.property = prop
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object])
@@ -1139,12 +1144,12 @@ class W_StructPropertyPredicate(values.W_Procedure):
 
 class W_StructPropertyAccessor(values.W_Procedure):
     errorname = "struct-property-accessor"
-    _immutable_fields_ = ["property"]
+    _attrs_ = _immutable_fields_ = ["property"]
     import_from_mixin(SingleResultMixin)
     def __init__(self, prop):
         self.property = prop
 
-    def get_arity(self):
+    def get_arity(self, promote=False):
         return Arity.ONE
 
     @make_call_method([values.W_Object, default(values.W_Object, None)], simple=False)

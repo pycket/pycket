@@ -124,6 +124,8 @@ def test_void():
 def test_mcons():
     run_fix ("(mcar (mcons 1 2))", 1)
     run_fix ("(mcdr (mcons 1 2))", 2)
+    run_fix ("(unsafe-mcar (mcons 1 2))", 1)
+    run_fix ("(unsafe-mcdr (mcons 1 2))", 2)
     with pytest.raises(SchemeException):
         run("(mcar 1)", None)
     with pytest.raises(SchemeException):
@@ -630,8 +632,6 @@ def test_should_enter_downrecursion():
                (define fn-1 (n-1 f))
                (lambda (x) (f (fn-1 x))))]))
         (n->f 10)
-
-
     """
 
     ast = parse_module(expand_string(str))
@@ -647,7 +647,7 @@ def test_should_enter_downrecursion():
     assert append.body[0].els.body[0].should_enter
 
     assert f.body[0].should_enter
-    assert f.body[0].els.body[0].should_enter
+    assert f.body[0].els.body[0].body[0].should_enter
 
 def test_reader_graph(doctest):
     """
