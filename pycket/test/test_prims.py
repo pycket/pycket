@@ -1162,18 +1162,6 @@ def test_fail_user_simple(doctest):
     E (raise-user-error "foo")
     """
 
-# (test #"\0\0" integer->integer-bytes 0 2 #t)
-# (test #"\377\377" integer->integer-bytes -1 2 #t)
-# (test #"\377\377" integer->integer-bytes 65535 2 #f)
-# ;;
-# (test #"\0\0" integer->integer-bytes 0 2 #t #t)
-# (test #"\377\377" integer->integer-bytes -1 2 #t #t)
-# (test #"\377\377" integer->integer-bytes 65535 2 #f #t)
-# (test #"\377\0" integer->integer-bytes -256 2 #t #t)
-# (test #"\377\1" integer->integer-bytes -255 2 #t #t)
-# (test #"\1\377" integer->integer-bytes 511 2 #t #t)
-# (test #"\1\2" integer->integer-bytes 513 2 #f #f)
-
 def test_integer_to_integer_bytes(doctest):
     r"""
     > (integer->integer-bytes 0 2 #t)
@@ -1188,7 +1176,74 @@ def test_integer_to_integer_bytes(doctest):
     #"\377\377"
     > (integer->integer-bytes -256 2 #t #t)
     #"\377\0"
+    > (integer->integer-bytes -255 2 #t #t)
+    #"\377\1"
+    > (integer->integer-bytes 511 2 #t #t)
+    #"\1\377"
+    > (integer->integer-bytes 513 2 #f #f)
+    #"\1\2"
+    > (integer->integer-bytes 0 2 #t #f)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t #f)
+    #"\377\377"
+    > (integer->integer-bytes 65535 2 #f #f)
+    #"\377\377"
+    > (integer->integer-bytes 511 2 #t #f)
+    #"\377\1"
+    > (integer->integer-bytes -255 2 #t #f)
+    #"\1\377"
+    > (integer->integer-bytes 258 2 #f #t)
+    #"\1\2"
+    > (integer->integer-bytes 0 4 #t)
+    #"\0\0\0\0"
+    > (integer->integer-bytes -1 4 #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 4294967295 4 #f)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 0 4 #t #t)
+    #"\0\0\0\0"
+    > (integer->integer-bytes -1 4 #t #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes 4294967295 4 #f #t)
+    #"\377\377\377\377"
+    > (integer->integer-bytes -16777216 4 #t #t)
+    #"\377\0\0\0"
+    > (integer->integer-bytes 255 4 #t #t)
+    #"\0\0\0\377"
+    > (integer->integer-bytes 1835103348 4 #t #t)
+    #"matt"
+    > (integer->integer-bytes 1953784173 4 #t #f)
+    #"matt"
+    > (integer->integer-bytes 0 8 #t #t)
+    #"\0\0\0\0\0\0\0\0"
+    > (integer->integer-bytes -1 8 #t #f)
+    #"\377\377\377\377\377\377\377\377"
+    > (integer->integer-bytes 4294967295 8 #t #f)
+    #"\377\377\377\377\0\0\0\0"
+    > (integer->integer-bytes -4294967296 8 #t #f)
+    #"\0\0\0\0\377\377\377\377"
+    > (integer->integer-bytes 8589934591 8 #t #f)
+    #"\377\377\377\377\1\0\0\0"
+    > (integer->integer-bytes -4294967295 8 #t #f)
+    #"\1\0\0\0\377\377\377\377"
+    > (integer->integer-bytes 0 8 #t #f)
+    #"\0\0\0\0\0\0\0\0"
+    > (integer->integer-bytes -1 8 #t #f)
+    #"\377\377\377\377\377\377\377\377"
+    > (integer->integer-bytes -4294967296 8 #t #t)
+    #"\377\377\377\377\0\0\0\0"
+    > (integer->integer-bytes 4294967295 8 #t #t)
+    #"\0\0\0\0\377\377\377\377"
+    > (integer->integer-bytes -4294967295 8 #t #t)
+    #"\377\377\377\377\0\0\0\1"
+    > (integer->integer-bytes 8589934591 8 #t #t)
+    #"\0\0\0\1\377\377\377\377"
     """
+    # Tests for bigint
+    # > (integer->integer-bytes 18446744073709551615 8 #f #f)
+    # #"\377\377\377\377\377\377\377\377"
+    # > (integer->integer-bytes 18446744073709551615 8 #f #f)
+    # #"\377\377\377\377\377\377\377\377"
 
 def test_integer_bytes_to_integer(doctest):
     r"""

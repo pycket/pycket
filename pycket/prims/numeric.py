@@ -543,42 +543,6 @@ def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
         result = values.W_Bignum(big)
     return result
 
-@specialize.arg(0, 1)
-def copy_bytes(size, signed, intval, buffer, start):
-    from rpython.rtyper.lltypesystem import rffi
-    if size == 2:
-        if signed:
-            type = rffi.SHORT
-        else:
-            type = rffi.USHORT
-        unsigned = rffi.USHORT
-    elif size == 4:
-        if signed:
-            type = rffi.INT
-        else:
-            type = rffi.UINT
-        unsigned = rffi.UINT
-    elif size == 8:
-        if signed:
-            type = rffi.LONG
-        else:
-            type = rffi.ULONG
-        unsigned = rffi.ULONG
-    else:
-        assert False
-
-    # First cast to the appropriately sized type (incuding sign) then
-    # cast to the unsigned variant to preserve shiftint
-    # Have to cast back to r_uint since some small integer values dont
-    # support arithmetic.
-    intval = rffi.cast(type, intval)
-    intval = rffi.cast(unsigned, intval)
-    intval = r_uint(intval)
-    for i in range(size):
-        buffer[i+start] = chr((intval >> (i * 8)) & 0xFF)
-
-SIZES = unroll.unrolling_iterable([2, 4, 8])
-
 @expose("integer->integer-bytes",
         [values.W_Number,
          values.W_Fixnum,
@@ -619,13 +583,9 @@ def integer_to_integer_bytes(n, w_size, signed, big_endian, w_dest, w_start):
             "position plus size")
 
     is_signed = signed is not values.w_false
-
-    for i in SIZES:
-        if size == i:
-            if is_signed:
-                copy_bytes(i, True, intval, chars, start)
-            else:
-                copy_bytes(i, False, intval, chars, start)
+    for i in range(start, start+size):
+        chars[i] = chr(intval & 0xFF)
+        intval >>= 8
 
     if big_endian is values.w_false:
         return result

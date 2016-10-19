@@ -964,6 +964,7 @@ class W_Bytes(W_Object):
         make_sure_not_resized(self.value)
 
     def tostring(self):
+        # TODO: No printable byte values should be rendered as base 8
         return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
 
     def equal(self, other):
