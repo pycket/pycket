@@ -435,7 +435,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(rarithmetic.int_c_div(a.value, b.value))
+    return values.W_Fixnum(rarithmetic.int_c_div(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
@@ -444,7 +444,7 @@ def unsafe_fxquotient(w_a, w_b):
     res = a % b
     if w_a.value < 0:
         res = -res
-    return values.W_Fixnum.make(res)
+    return values.W_Fixnum(res)
 
 @expose("fx->fl", [values.W_Fixnum])
 def fxfl(a):
