@@ -1162,6 +1162,34 @@ def test_fail_user_simple(doctest):
     E (raise-user-error "foo")
     """
 
+# (test #"\0\0" integer->integer-bytes 0 2 #t)
+# (test #"\377\377" integer->integer-bytes -1 2 #t)
+# (test #"\377\377" integer->integer-bytes 65535 2 #f)
+# ;;
+# (test #"\0\0" integer->integer-bytes 0 2 #t #t)
+# (test #"\377\377" integer->integer-bytes -1 2 #t #t)
+# (test #"\377\377" integer->integer-bytes 65535 2 #f #t)
+# (test #"\377\0" integer->integer-bytes -256 2 #t #t)
+# (test #"\377\1" integer->integer-bytes -255 2 #t #t)
+# (test #"\1\377" integer->integer-bytes 511 2 #t #t)
+# (test #"\1\2" integer->integer-bytes 513 2 #f #f)
+
+def test_integer_to_integer_bytes(doctest):
+    r"""
+    > (integer->integer-bytes 0 2 #t)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t)
+    #"\377\377"
+    > (integer->integer-bytes 65535 2 #f)
+    #"\377\377"
+    > (integer->integer-bytes 0 2 #t #t)
+    #"\0\0"
+    > (integer->integer-bytes -1 2 #t #t)
+    #"\377\377"
+    > (integer->integer-bytes -256 2 #t #t)
+    #"\377\0"
+    """
+
 def test_integer_bytes_to_integer(doctest):
     r"""
     > (integer-bytes->integer #"\0\0" #t)
