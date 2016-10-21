@@ -153,6 +153,7 @@ def make_caching_map_type(getter, keyclass):
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.indexes[name] = len(self.indexes)
+                newmap.parent = self
                 self.dynamic_submaps.set(name, newmap)
             return newmap
 
