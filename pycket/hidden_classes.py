@@ -14,12 +14,12 @@ def make_map_type(getter, keyclass):
 
         _attrs_ = _immutable_fields_ = ['indexes', 'other_maps', 'parent']
 
-        def __init__(self):
+        def __init__(self, parent):
             self.indexes = {}
             self.other_maps = rweakref.RWeakValueDictionary(keyclass, Map)
             # NB: The parent pointer is needed to prevent the GC from collecting
             # the chain of parent maps which produced this one.
-            self.parent = None
+            self.parent = parent
 
         def __iter__(self):
             return self.indexes.iteritems()
@@ -49,7 +49,7 @@ def make_map_type(getter, keyclass):
         def add_attribute(self, name):
             newmap = self.other_maps.get(name)
             if newmap is None:
-                newmap = Map()
+                newmap = Map(self)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = len(self.indexes)
                 newmap.parent = self
@@ -64,7 +64,7 @@ def make_map_type(getter, keyclass):
         def storage_size(self):
             return len(self.indexes)
 
-    Map.EMPTY = Map()
+    Map.EMPTY = Map(None)
 
     return Map
 
@@ -83,12 +83,12 @@ def make_caching_map_type(getter, keyclass):
             'indexes', 'static_data', 'static_submaps',
             'dynamic_submaps', 'parent']
 
-        def __init__(self):
+        def __init__(self, parent):
             self.indexes = {}
             self.static_data = {}
             self.dynamic_submaps = rweakref.RWeakValueDictionary(keyclass, CachingMap)
             self.static_submaps  = {}
-            self.parent = None
+            self.parent = parent
 
         def iterkeys(self):
             for key in self.indexes.iterkeys():
@@ -136,11 +136,10 @@ def make_caching_map_type(getter, keyclass):
             key = (name, value)
             newmap = self.static_submaps.get(key, None)
             if newmap is None:
-                newmap = CachingMap()
+                newmap = CachingMap(self)
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.static_data[name] = value
-                newmap.parent = self
                 self.static_submaps[key] = newmap
             return newmap
 
@@ -149,11 +148,10 @@ def make_caching_map_type(getter, keyclass):
             assert name not in self.indexes and name not in self.static_data
             newmap = self.dynamic_submaps.get(name)
             if newmap is None:
-                newmap = CachingMap()
+                newmap = CachingMap(self)
                 newmap.indexes.update(self.indexes)
                 newmap.static_data.update(self.static_data)
                 newmap.indexes[name] = len(self.indexes)
-                newmap.parent = self
                 self.dynamic_submaps.set(name, newmap)
             return newmap
 
@@ -165,7 +163,7 @@ def make_caching_map_type(getter, keyclass):
         def is_static_attribute(self, name):
             return name in self.static_data
 
-    CachingMap.EMPTY = CachingMap()
+    CachingMap.EMPTY = CachingMap(None)
     return CachingMap
 
 # These maps are simply unique products of various other map types.

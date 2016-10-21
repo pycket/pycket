@@ -58,17 +58,27 @@ def test_map_descriptors():
     assert map_.get_index(d) == -1
 
 def test_caching_map():
+    import gc
     empty = make_caching_map_type("__getitem__", int).EMPTY
-    maps = []
-    map  = empty
+    map = empty
     for i in range(1, 4):
+        gc.collect()
         map = map.add_dynamic_attribute(i)
-        maps.append(map)
     assert map.get_dynamic_index(1) == 0
     assert map.get_dynamic_index(2) == 1
     assert map.get_dynamic_index(3) == 2
     assert map.get_dynamic_index(4) == -1
     assert map.storage_size() == 3
+
+    # Check to ensure we get the same hidden class
+    # by adding the same attributes.
+    # GC aggressively to ensure we are not messing
+    # up due to use of weak hash tables
+    map2 = empty
+    for i in range(1, 4):
+        gc.collect()
+        map2 = map2.add_dynamic_attribute(i)
+    assert map is map2
 
     assert empty.dynamic_submaps.get(1) is not None
     assert empty.dynamic_submaps.get(1).dynamic_submaps.get(2) is not None
@@ -81,23 +91,30 @@ def test_caching_map():
     assert map_.get_dynamic_index(3) == 2
 
 def test_caching_map_descriptors():
+    import gc
     empty = make_caching_map_type("__getitem__", W_ImpPropertyDescriptor).EMPTY
     a = W_ImpPropertyDescriptor("a")
     b = W_ImpPropertyDescriptor("b")
     c = W_ImpPropertyDescriptor("c")
     d = W_ImpPropertyDescriptor("d")
 
-    map  = empty
-    maps = []
+    map = empty
     for i in [a, b, c]:
+        gc.collect()
         map = map.add_dynamic_attribute(i)
-        maps.append(map)
 
     assert map.get_dynamic_index(a) == 0
     assert map.get_dynamic_index(b) == 1
     assert map.get_dynamic_index(c) == 2
     assert map.get_dynamic_index(d) == -1
     assert map.storage_size() == 3
+
+    map2 = empty
+    for i in [a, b, c]:
+        gc.collect()
+        map2 = map2.add_dynamic_attribute(i)
+    assert map is map2
+
 
     assert empty.dynamic_submaps.get(a) is not None
     assert empty.dynamic_submaps.get(a).dynamic_submaps.get(b) is not None
