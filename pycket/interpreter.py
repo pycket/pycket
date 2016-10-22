@@ -741,6 +741,8 @@ class Module(AST):
 
     @jit.unroll_safe
     def resolve_submodule_path(self, path):
+        if path is None:
+            return self
         for p in path:
             self = self.find_submodule(p)
             assert self is not None
@@ -785,8 +787,8 @@ class Require(AST):
     simple = True
 
     def __init__(self, fname, loader, path=None):
-        self.fname  = fname
-        self.path   = path if path is not None else []
+        self.fname = fname
+        self.path = path
         self.loader = loader
 
     def _mutated_vars(self):
@@ -1350,7 +1352,7 @@ class ModuleVar(Var):
         Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.path   = path if path is not None else []
+        self.path = path
         self.modenv = None
         self.w_value = None
 
