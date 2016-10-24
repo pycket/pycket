@@ -863,9 +863,11 @@ def for_each(args, env, cont):
 @jit.unroll_safe
 def for_each_loop(func, args, env, cont):
     from pycket.interpreter import return_value
-    heads = [None] * len(args)
-    tails = [None] * len(args)
-    for i, arg in enumerate(args):
+    nargs = jit.promote(len(args))
+    heads = [None] * nargs
+    tails = [None] * nargs
+    for i in range(nargs):
+        arg = args[i]
         if arg is values.w_null:
             for v in args:
                 if v is not values.w_null:

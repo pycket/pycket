@@ -1033,30 +1033,44 @@ class W_ImmutableBytes(W_Bytes):
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["value", "unreadable", "asciivalue", "unicodevalue", "utf8value"]
-    _immutable_fields_ = _attrs_
+    _attrs_ = ["unreadable", "_asciivalue", "_isascii", "_unicodevalue", "utf8value"]
+    _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
-        assert isinstance(val, unicode)
-        self.unicodevalue = val
+        if not we_are_translated():
+            assert isinstance(val, str)
+        self._unicodevalue = None
+        self._isascii = True
         self.unreadable = unreadable
-        try:
-            self.asciivalue = val.encode("ascii")
-        except UnicodeEncodeError:
-            self.asciivalue = None
-        self.utf8value = val.encode("utf-8")
+        self.utf8value = val
+
+    @jit.elidable
+    def asciivalue(self):
+        from pycket.values_string import _is_ascii
+        if not self._isascii:
+            return None
+        if not _is_ascii(self.utf8value):
+            self._isascii = False
+            return None
+        return self.utf8value
+
+    @jit.elidable
+    def unicodevalue(self):
+        if self._unicodevalue is None:
+            self._unicodevalue = self.utf8value.decode("utf-8")
+        return self._unicodevalue
 
     @staticmethod
     @jit.elidable
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
-        #assert isinstance(string, str)
+        # assert isinstance(string, str)
         w_result = W_Symbol.all_symbols.get(string)
         if w_result is None:
             # assume that string is a utf-8 encoded unicode string
-            value = string.decode("utf-8")
-            w_result = W_Symbol(value)
+            # value = string.decode("utf-8")
+            w_result = W_Symbol(string)
             W_Symbol.all_symbols.set(string, w_result)
         return w_result
 
@@ -1065,8 +1079,7 @@ class W_Symbol(W_Object):
     def make_unreadable(string):
         w_result = W_Symbol.unreadable_symbols.get(string)
         if w_result is None:
-            value = string.decode("utf-8")
-            w_result = W_Symbol(value, True)
+            w_result = W_Symbol(string, unreadable=True)
             W_Symbol.unreadable_symbols.set(string, w_result)
         return w_result
 
@@ -1094,9 +1107,9 @@ W_Symbol.all_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
 W_Symbol.unreadable_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
 
 # XXX what are these for?
-break_enabled_key = W_Symbol(u"break-enabled-key")
-exn_handler_key = W_Symbol(u"exnh")
-parameterization_key = W_Symbol(u"parameterization")
+break_enabled_key = W_Symbol("break-enabled-key")
+exn_handler_key = W_Symbol("exnh")
+parameterization_key = W_Symbol("parameterization")
 
 class W_Keyword(W_Object):
     errorname = "keyword"
@@ -1272,6 +1285,8 @@ class W_Continuation(W_Procedure):
 
     _attrs_ = _immutable_fields_ = ["cont", "prompt_tag"]
 
+    escape = False
+
     def __init__(self, cont, prompt_tag=None):
         self.cont = cont
         self.prompt_tag = prompt_tag
@@ -1282,10 +1297,15 @@ class W_Continuation(W_Procedure):
 
     def call(self, args, env, cont):
         from pycket.prims.control import install_continuation
-        return install_continuation(self.cont, self.prompt_tag, args, env, cont)
+        return install_continuation(self.cont, self.prompt_tag, args, env, cont,
+                                    escape=self.escape)
 
     def tostring(self):
         return "#<continuation>"
+
+class W_EscapeContinuation(W_Continuation):
+    _attrs_ = []
+    escape = True
 
 class W_ComposableContinuation(W_Procedure):
     errorname = "composable-continuation"

@@ -12,9 +12,10 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    if v.asciivalue is not None:
-        return W_String.fromascii(v.asciivalue)
-    return W_String.fromunicode(v.unicodevalue)
+    asciivalue = v.asciivalue()
+    if asciivalue is not None:
+        return W_String.fromascii(asciivalue)
+    return W_String.fromunicode(v.unicodevalue())
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
@@ -92,7 +93,7 @@ def string_to_immutable_string(string):
 
 @expose("string->uninterned-symbol", [W_String])
 def string_to_symbol(v):
-    return values.W_Symbol(v.as_unicode())
+    return values.W_Symbol(v.as_str_utf8())
 
 @expose(["string->bytes/locale", "string->bytes/utf-8"],
         [W_String,

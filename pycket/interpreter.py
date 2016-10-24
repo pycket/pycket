@@ -1327,7 +1327,7 @@ class Gensym(object):
     def gensym(hint="g"):
         counter = Gensym.get_counter(hint)
         count = counter.next_value()
-        return values.W_Symbol(unicode(hint + str(count)))
+        return values.W_Symbol(hint + str(count))
 
 class LexicalVar(Var):
     def _lookup(self, env):
