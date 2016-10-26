@@ -201,7 +201,7 @@ class __extend__(Context):
     def If(thn, els, context, tst):
         thn = Context.normalize_term(thn)
         els = Context.normalize_term(els)
-        result = If(tst, thn, els)
+        result = If.make(tst, thn, els)
         return context.plug(result)
 
     @staticmethod
@@ -1503,6 +1503,15 @@ class If(AST):
         self.tst = tst
         self.thn = thn
         self.els = els
+
+    @staticmethod
+    def make(tst, thn, els):
+        if isinstance(tst, Quote):
+            if tst.w_val is values.w_false:
+                return els
+            else:
+                return thn
+        return If(tst, thn, els)
 
     @objectmodel.always_inline
     def interpret(self, env, cont):

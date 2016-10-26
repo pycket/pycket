@@ -73,6 +73,12 @@ def test_remove_let():
     p = expr_ast("(let ([a 1]) (if a + -))")
     assert isinstance(p, Let)
 
+def test_remove_simple_if():
+    p = expr_ast("(if #t 'then 'else)")
+    assert isinstance(p, Quote) and p.w_val is W_Symbol.make("then")
+    p = expr_ast("(if #f 'then 'else)")
+    assert isinstance(p, Quote) and p.w_val is W_Symbol.make("else")
+
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
     assert isinstance(p, Let)
