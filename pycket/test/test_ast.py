@@ -287,6 +287,11 @@ def test_flatten_nested_begins():
         val = b.w_val
         assert isinstance(val, W_Fixnum) and val.value == i
 
+    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    assert isinstance(p, Quote)
+    val = p.w_val
+    assert isinstance(p, W_Fixnum) and p.value == 7
+
 def test_anf_setbang():
     p = expr_ast("(let ([x 0]) (set! x (+ 1 (+ x 3))))")
     assert isinstance(p, Let)

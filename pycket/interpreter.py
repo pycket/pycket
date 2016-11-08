@@ -1118,12 +1118,15 @@ class SimplePrimApp2(App):
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
+
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
     def __init__(self, body, counts_needed=-1):
+        from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+        make_sure_not_resized(self.body)
         if counts_needed < len(self.body) + 1:
             counts_needed = len(self.body) + 1
         self.counting_asts = [
@@ -1179,31 +1182,30 @@ class Begin0(AST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+@specialize.call_location()
+def remove_pure_ops(ops):
+    """ The specialize annotation is to allow handling of resizable and non-resizable
+        lists as arguments. """
+    return [op for i, op in enumerate(ops) if not op.ispure or i == len(ops) - 1]
+
 class Begin(SequencedBodyAST):
 
     @staticmethod
     def make(body):
-        if len(body) == 1:
-            return body[0]
+        body = remove_pure_ops(body)
 
-        cleaned = []
-        for i, b in enumerate(body):
-            if not b.ispure or i == len(body) - 1:
-                cleaned.append(b)
-
-        body = cleaned
         if len(body) == 1:
             return body[0]
 
         # Flatten nested begin expressions
-        flatened = []
+        flattened = []
         for b in body:
             if isinstance(b, Begin):
                 for inner in b.body:
-                    flatened.append(inner)
+                    flattened.append(inner)
             else:
-                flatened.append(b)
-        body = flatened[:]
+                flattened.append(b)
+        body = remove_pure_ops(flattened)
 
         # Convert (begin (let ([...]) letbody) rest ...) =>
         #         (let ([...]) letbody ... rest ...)
@@ -1969,6 +1971,7 @@ def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
 
+    body = remove_pure_ops(body)
     if len(body) != 1 or not isinstance(body[0], Let):
         return _make_let_direct(varss, rhss, body)
 
