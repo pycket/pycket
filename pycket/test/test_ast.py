@@ -3,7 +3,7 @@
 
 import pytest
 from pycket.expand import expand, expand_string
-from pycket.values import W_Symbol, W_Fixnum
+from pycket.values import W_Symbol, W_Fixnum, w_false, w_true
 from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
@@ -78,6 +78,10 @@ def test_remove_simple_if():
     assert isinstance(p, Quote) and p.w_val is W_Symbol.make("then")
     p = expr_ast("(if #f 'then 'else)")
     assert isinstance(p, Quote) and p.w_val is W_Symbol.make("else")
+
+def test_remove_simple_begin():
+    p = expr_ast("(begin #f #t)")
+    assert isinstance(p, Quote) and p.w_val is w_true
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
@@ -273,10 +277,12 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body.body[0], App)
 
 def test_flatten_nested_begins():
-    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    p = expr_ast("(let () (begin (begin (0) (1)) (begin (2) (3) (begin (4) (5) (6) (7)))))")
     assert isinstance(p, Begin)
     assert len(p.body) == 8
     for i, b in enumerate(p.body):
+        assert isinstance(b, App)
+        b = b.rator
         assert isinstance(b, Quote)
         val = b.w_val
         assert isinstance(val, W_Fixnum) and val.value == i

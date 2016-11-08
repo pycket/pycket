@@ -869,7 +869,10 @@ class Cell(AST):
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
+
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
@@ -1183,12 +1186,21 @@ class Begin(SequencedBodyAST):
         if len(body) == 1:
             return body[0]
 
+        cleaned = []
+        for i, b in enumerate(body):
+            if not b.ispure or i == len(body) - 1:
+                cleaned.append(b)
+
+        body = cleaned
+        if len(body) == 1:
+            return body[0]
+
         # Flatten nested begin expressions
         flatened = []
         for b in body:
             if isinstance(b, Begin):
-                for _b in b.body:
-                    flatened.append(_b)
+                for inner in b.body:
+                    flatened.append(inner)
             else:
                 flatened.append(b)
         body = flatened[:]
