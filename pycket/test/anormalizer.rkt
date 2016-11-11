@@ -34,3 +34,5 @@
 (define test3 '(let ([x (let ([y (f g)]) y)]) (+ x y)))
 (normalize-term test3)
 
+(define test4 '(+ (if0 p e1 e2) e2))
+(normalize-term test4)
