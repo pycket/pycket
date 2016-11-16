@@ -9,8 +9,9 @@ from pycket.arity                            import Arity
 from pycket.error                            import SchemeException
 from pycket.prims.expose                     import expose, default, unsafe
 
-from rpython.rlib                            import jit, longlong2float, rarithmetic
+from rpython.rlib                            import jit, longlong2float, rarithmetic, unroll
 from rpython.rlib.rarithmetic                import r_uint
+from rpython.rlib.objectmodel                import specialize
 from rpython.rlib.rbigint                    import rbigint
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype      import Signed
@@ -434,7 +435,7 @@ def unsafe_fxtimes(a, b):
 
 @expose("unsafe-fxquotient", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(a, b):
-    return values.W_Fixnum.make(rarithmetic.int_c_div(a.value, b.value))
+    return values.W_Fixnum(rarithmetic.int_c_div(a.value, b.value))
 
 @expose("unsafe-fxremainder", [unsafe(values.W_Fixnum)] * 2)
 def unsafe_fxquotient(w_a, w_b):
@@ -443,7 +444,7 @@ def unsafe_fxquotient(w_a, w_b):
     res = a % b
     if w_a.value < 0:
         res = -res
-    return values.W_Fixnum.make(res)
+    return values.W_Fixnum(res)
 
 @expose("fx->fl", [values.W_Fixnum])
 def fxfl(a):
@@ -543,8 +544,15 @@ def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
     return result
 
 @expose("integer->integer-bytes",
-        [values.W_Number, values.W_Fixnum, default(values.W_Object, values.w_false)])
-def integer_to_integer_bytes(n, _size, signed):
+        [values.W_Number,
+         values.W_Fixnum,
+         default(values.W_Object, values.w_false),
+         default(values.W_Object, values.w_false),
+         default(values.W_Bytes, None),
+         default(values.W_Fixnum, values.W_Fixnum.ZERO)])
+@jit.unroll_safe
+def integer_to_integer_bytes(n, w_size, signed, big_endian, w_dest, w_start):
+    from rpython.rtyper.lltypesystem import rffi
     if isinstance(n, values.W_Fixnum):
         intval = n.value
     elif isinstance(n, values.W_Bignum):
@@ -552,12 +560,44 @@ def integer_to_integer_bytes(n, _size, signed):
     else:
         raise SchemeException("integer->integer-bytes: expected exact integer")
 
-    size = _size.value
+    size = jit.promote(w_size.value)
     if size not in (2, 4, 8):
         raise SchemeException("integer->integer-bytes: size not 2, 4, or 8")
 
-    chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
-    return values.W_Bytes(chars)
+    size  = size
+    start = w_start.value
+    if w_dest is not None:
+        chars = w_dest.value
+        result = w_dest
+    else:
+        chars = ['\x00'] * size
+        result = values.W_Bytes(chars)
+
+    if start < 0:
+        raise SchemeException(
+            "integer->integer-bytes: start value less than zero")
+
+    if start + size > len(chars):
+        raise SchemeException(
+            "integer->integer-bytes: byte string length is less than starting "
+            "position plus size")
+
+    is_signed = signed is not values.w_false
+    for i in range(start, start+size):
+        chars[i] = chr(intval & 0xFF)
+        intval >>= 8
+
+    if big_endian is values.w_false:
+        return result
+
+    # Swap the bytes if for big endian
+    left = start
+    right = start + size - 1
+    while left < right:
+        chars[left], chars[right] = chars[right], chars[left]
+        left, right = left + 1, right - 1
+
+    return result
 
 @expose("integer-length", [values.W_Object])
 @jit.elidable

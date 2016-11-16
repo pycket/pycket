@@ -347,58 +347,6 @@ class W_ChpStruct(W_InterposeStructBase):
         return check_chaperone_results(val, env,
                 imp_struct_set_cont(self.inner, op, field, app, env, cont))
 
-class W_InterposeStructStack(values_struct.W_RootStruct):
-    import_from_mixin(ProxyMixin)
-
-    _immutable_fields_ = ['handlers[*]', 'handler_map']
-
-    def __init__(self, inner, handlers, handler_map):
-        self.handlers = handlers
-        self.handler_map = handler_map
-        self.init_proxy(inner, prop_keys, prop_vals)
-
-    def is_non_interposing_chaperone(self):
-        return (not has_accessor(self.handler_map) and
-                has_property_descriptor(self.property_map))
-
-    def post_ref_cont(self, interp, app, env, cont):
-        raise NotImplementedError("abstract method")
-
-    def post_set_cont(self, op, field, val, app, env, cont):
-        raise NotImplementedError("abstract method")
-
-    def ref_with_extra_info(self, field, app, env, cont):
-        pass
-
-    def set_with_extra_info(self, field, val, app, env, cont):
-        pass
-
-    # @guarded_loop(enter_above_depth(5), always_use_labels=False)
-    def get_prop(self, property, env, cont):
-        pair = self.get_property(property, NONE_PAIR)
-        # Struct properties can only be associated with Pairs which contain both
-        # the override and handler for the property
-        assert type(pair) is Pair
-        op, interp = pair
-        if op is None or interp is None:
-            return self.inner.get_prop(property, env, cont)
-        after = self.post_ref_cont(interp, None, env, cont)
-        return op.call([self.inner], env, after)
-
-    @guarded_loop(enter_above_depth(5), always_use_labels=False)
-    def get_struct_info(self, env, cont):
-        handler = self.handler_map.lookup(INFO_HANDLER_IDX, self.handlers)
-        if handler is not None:
-            cont = call_cont(handler, env, cont)
-        return self.inner.get_struct_info(env, cont)
-
-    def get_arity(self, promote=False):
-        return get_base_object(self.base).get_arity(promote)
-
-    # FIXME: This is incorrect
-    def vals(self):
-        return self.inner.vals()
-
 # Are we dealing with a struct accessor/mutator/propert accessor or a
 # chaperone/impersonator thereof.
 def valid_struct_proc(x):

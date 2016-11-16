@@ -26,7 +26,8 @@ def extflvector(obj):
 def vector_immutable(args):
     return values_vector.W_Vector.fromelements(args, immutable=True)
 
-@expose("make-vector", [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
+@expose(["make-vector", "make-fxvector"],
+        [values.W_Fixnum, default(values.W_Object, values.W_Fixnum.ZERO)])
 def make_vector(w_size, w_val):
     size = w_size.value
     if size < 0:
@@ -34,7 +35,7 @@ def make_vector(w_size, w_val):
     return values_vector.W_Vector.fromelement(w_val, size)
 
 @expose("make-flvector", [values.W_Fixnum, default(values.W_Flonum, values.W_Flonum.ZERO)])
-def make_vector(w_size, w_val):
+def make_flvector(w_size, w_val):
     size = w_size.value
     if size < 0:
         raise SchemeException("make-flvector: expected a positive fixnum")
@@ -93,7 +94,8 @@ def copy_vector(v, env, cont):
     # Do a little peeking to provide a hint to the strategy
     base = imp.get_base_object(v)
     assert isinstance(base, values_vector.W_Vector)
-    data = values_vector.W_Vector.fromelement(base.ref(0), len)
+    data = values_vector.W_Vector.fromelement(
+            base.ref(0), len, strategy=base.get_strategy())
 
     return copy_vector_loop(v, data, len, 0, env, cont)
 

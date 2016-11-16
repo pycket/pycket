@@ -123,6 +123,13 @@ class UnwrappedHashmapStrategyMixin(object):
         self.switch_to_object_strategy(w_dict)
         return w_dict.hash_set(w_key, w_val, env, cont)
 
+    def _set(self, w_dict, w_key, w_val):
+        if not self.is_correct_type(w_key):
+            raise KeyError
+        storage = self.unerase(w_dict.hstorage)
+        key = self.unwrap(w_key)
+        storage[key] = w_val
+
     def items(self, w_dict):
         return [(self.wrap(key), w_val) for key, w_val in self.unerase(w_dict.hstorage).iteritems()]
 
@@ -153,7 +160,6 @@ class UnwrappedHashmapStrategyMixin(object):
         w_dict.strategy = strategy
         w_dict.hstorage = storage
 
-
 class EmptyHashmapStrategy(HashmapStrategy):
     erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
@@ -164,6 +170,10 @@ class EmptyHashmapStrategy(HashmapStrategy):
     def set(self, w_dict, w_key, w_val, env, cont):
         self.switch_to_correct_strategy(w_dict, w_key)
         return w_dict.hash_set(w_key, w_val, env, cont)
+
+    def _set(self, w_dict, w_key, w_val):
+        self.switch_to_correct_strategy(w_dict, w_key)
+        return w_dict._set(w_key, w_val)
 
     def items(self, w_dict):
         return []
@@ -226,6 +236,8 @@ class ObjectHashmapStrategy(HashmapStrategy):
         bucket = self.get_bucket(w_dict, w_key, nonull=True)
         return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
 
+    def _set(self, w_dict, w_key, w_val):
+        raise NotImplementedError("Unsafe set not supported for ObjectHashmapStrategy")
 
     def items(self, w_dict):
         items = []
@@ -403,6 +415,9 @@ class W_EqualHashTable(W_HashTable):
 
     def hash_items(self):
         return self.strategy.items(self)
+
+    def _set(self, key, val):
+        return self.strategy._set(self, key, val)
 
     def hash_set(self, key, val, env, cont):
         return self.strategy.set(self, key, val, env, cont)

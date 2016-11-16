@@ -201,7 +201,7 @@ class __extend__(Context):
     def If(thn, els, context, tst):
         thn = Context.normalize_term(thn)
         els = Context.normalize_term(els)
-        result = If(tst, thn, els)
+        result = If.make(tst, thn, els)
         return context.plug(result)
 
     @staticmethod
@@ -748,6 +748,8 @@ class Module(AST):
 
     @jit.unroll_safe
     def resolve_submodule_path(self, path):
+        if path is None:
+            return self
         for p in path:
             self = self.find_submodule(p)
             assert self is not None
@@ -792,8 +794,8 @@ class Require(AST):
     simple = True
 
     def __init__(self, fname, loader, path=None):
-        self.fname  = fname
-        self.path   = path if path is not None else []
+        self.fname = fname
+        self.path = path
         self.loader = loader
 
     def _mutated_vars(self):
@@ -874,7 +876,10 @@ class Cell(AST):
 
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
+
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
@@ -1120,12 +1125,15 @@ class SimplePrimApp2(App):
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
+
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
     def __init__(self, body, counts_needed=-1):
+        from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
         assert len(body) > 0
         self.body = body
+        make_sure_not_resized(self.body)
         if counts_needed < len(self.body) + 1:
             counts_needed = len(self.body) + 1
         self.counting_asts = [
@@ -1181,22 +1189,30 @@ class Begin0(AST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+@specialize.call_location()
+def remove_pure_ops(ops):
+    """ The specialize annotation is to allow handling of resizable and non-resizable
+        lists as arguments. """
+    return [op for i, op in enumerate(ops) if not op.ispure or i == len(ops) - 1]
+
 class Begin(SequencedBodyAST):
 
     @staticmethod
     def make(body):
+        body = remove_pure_ops(body)
+
         if len(body) == 1:
             return body[0]
 
         # Flatten nested begin expressions
-        flatened = []
+        flattened = []
         for b in body:
             if isinstance(b, Begin):
-                for _b in b.body:
-                    flatened.append(_b)
+                for inner in b.body:
+                    flattened.append(inner)
             else:
-                flatened.append(b)
-        body = flatened[:]
+                flattened.append(b)
+        body = remove_pure_ops(flattened)
 
         # Convert (begin (let ([...]) letbody) rest ...) =>
         #         (let ([...]) letbody ... rest ...)
@@ -1332,7 +1348,7 @@ class Gensym(object):
     def gensym(hint="g"):
         counter = Gensym.get_counter(hint)
         count = counter.next_value()
-        return values.W_Symbol(unicode(hint + str(count)))
+        return values.W_Symbol(hint + str(count))
 
 class LexicalVar(Var):
     def _lookup(self, env):
@@ -1357,7 +1373,7 @@ class ModuleVar(Var):
         Var.__init__(self, sym)
         self.srcmod = srcmod
         self.srcsym = srcsym
-        self.path   = path if path is not None else []
+        self.path = path
         self.modenv = None
         self.w_value = None
 
@@ -1508,6 +1524,15 @@ class If(AST):
         self.tst = tst
         self.thn = thn
         self.els = els
+
+    @staticmethod
+    def make(tst, thn, els):
+        if isinstance(tst, Quote):
+            if tst.w_val is values.w_false:
+                return els
+            else:
+                return thn
+        return If(tst, thn, els)
 
     @objectmodel.always_inline
     def interpret(self, env, cont):
@@ -1953,6 +1978,7 @@ def make_let(varss, rhss, body):
     if not varss:
         return Begin.make(body)
 
+    body = remove_pure_ops(body)
     if len(body) != 1 or not isinstance(body[0], Let):
         return _make_let_direct(varss, rhss, body)
 

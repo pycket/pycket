@@ -14,7 +14,7 @@ from pycket.small_list        import inline_small_list
 from pycket.util              import add_copy_method, memoize_constructor
 
 from rpython.tool.pairtype    import extendabletype
-from rpython.rlib             import jit, runicode, rarithmetic
+from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
 from rpython.rlib.objectmodel import specialize
@@ -983,22 +983,34 @@ class W_Bool(W_Object):
 w_false = W_Bool()
 w_true = W_Bool()
 
+class ThreadCellTable(rweaklist.RWeakListMixin):
+    def __init__(self):
+        self.initialize()
+
+    def __iter__(self):
+        handles = self.get_all_handles()
+        for ref in handles:
+            val = ref()
+            if val is not None:
+                yield val
+
 class W_ThreadCellValues(W_Object):
     errorname = "thread-cell-values"
     _immutable_fields_ = ["assoc"]
     _attrs_ = ["assoc", "value"]
     def __init__(self):
         self.assoc = {}
-        for c in W_ThreadCell._table:
-            if c.preserved:
-                self.assoc[c] = c.value
+        for threadcell in W_ThreadCell._table:
+            if threadcell.preserved:
+                self.assoc[threadcell] = threadcell.value
 
 class W_ThreadCell(W_Object):
     errorname = "thread-cell"
     _immutable_fields_ = ["initial", "preserved"]
     _attrs_ = ["initial", "preserved", "value"]
     # All the thread cells in the system
-    _table = []
+    # TODO: Use a weak list to store the existing thread cells
+    _table = ThreadCellTable()
 
     def __init__(self, val, preserved):
         # TODO: This should eventually be a mapping from thread ids to values
@@ -1006,7 +1018,7 @@ class W_ThreadCell(W_Object):
         self.initial = val
         self.preserved = preserved
 
-        W_ThreadCell._table.append(self)
+        W_ThreadCell._table.add_handle(self)
 
     def set(self, val):
         self.value = val
@@ -1033,6 +1045,7 @@ class W_Bytes(W_Object):
         make_sure_not_resized(self.value)
 
     def tostring(self):
+        # TODO: No printable byte values should be rendered as base 8
         return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
 
     def equal(self, other):
@@ -1101,53 +1114,68 @@ class W_ImmutableBytes(W_Bytes):
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    immutable_fields_ = ["value", "unreadable", "asciivalue", "utf8value"]
-    _attrs_ = ["value", "unreadable", "asciivalue", "unicodevalue", "utf8value"]
-    all_symbols = {}
-    unreadable_symbols = {}
+    _attrs_ = ["unreadable", "_asciivalue", "_isascii", "_unicodevalue", "utf8value"]
+    _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
-        assert isinstance(val, unicode)
-        self.unicodevalue = val
+        if not we_are_translated():
+            assert isinstance(val, str)
+        self._unicodevalue = None
+        self._isascii = True
         self.unreadable = unreadable
-        try:
-            self.asciivalue = val.encode("ascii")
-        except UnicodeEncodeError:
-            self.asciivalue = None
-        self.utf8value = val.encode("utf-8")
+        self.utf8value = val
+
+    @jit.elidable
+    def asciivalue(self):
+        from pycket.values_string import _is_ascii
+        if not self._isascii:
+            return None
+        if not _is_ascii(self.utf8value):
+            self._isascii = False
+            return None
+        return self.utf8value
+
+    @jit.elidable
+    def unicodevalue(self):
+        if self._unicodevalue is None:
+            self._unicodevalue = self.utf8value.decode("utf-8")
+        return self._unicodevalue
 
     @staticmethod
     @jit.elidable
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
-        #assert isinstance(string, str)
-        w_result = W_Symbol.all_symbols.get(string, None)
+        # assert isinstance(string, str)
+        w_result = W_Symbol.all_symbols.get(string)
         if w_result is None:
             # assume that string is a utf-8 encoded unicode string
-            value = string.decode("utf-8")
-            W_Symbol.all_symbols[string] = w_result = W_Symbol(value)
+            # value = string.decode("utf-8")
+            w_result = W_Symbol(string)
+            W_Symbol.all_symbols.set(string, w_result)
         return w_result
 
     @staticmethod
+    @jit.elidable
     def make_unreadable(string):
-        if string in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[string]
-        else:
-            # assume that string is a utf-8 encoded unicode string
-            value = string.decode("utf-8")
-            W_Symbol.unreadable_symbols[string] = w_result = W_Symbol(value, True)
-            return w_result
+        w_result = W_Symbol.unreadable_symbols.get(string)
+        if w_result is None:
+            w_result = W_Symbol(string, unreadable=True)
+            W_Symbol.unreadable_symbols.set(string, w_result)
+        return w_result
 
     def __repr__(self):
         return self.utf8value
 
+    @jit.elidable
     def is_interned(self):
         string = self.utf8value
-        if string in W_Symbol.all_symbols:
-            return W_Symbol.all_symbols[string] is self
-        if string in W_Symbol.unreadable_symbols:
-            return W_Symbol.unreadable_symbols[string] is self
+        symbol = W_Symbol.all_symbols.get(string)
+        if symbol is self:
+            return True
+        symbol = W_Symbol.unreadable_symbols.get(string)
+        if symbol is self:
+            return True
         return False
 
     def tostring(self):
@@ -1156,10 +1184,13 @@ class W_Symbol(W_Object):
     def variable_name(self):
         return self.utf8value
 
+W_Symbol.all_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
+W_Symbol.unreadable_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
+
 # XXX what are these for?
-break_enabled_key = W_Symbol(u"break-enabled-key")
-exn_handler_key = W_Symbol(u"exnh")
-parameterization_key = W_Symbol(u"parameterization")
+break_enabled_key = W_Symbol("break-enabled-key")
+exn_handler_key = W_Symbol("exnh")
+parameterization_key = W_Symbol("parameterization")
 
 class W_Keyword(W_Object):
     errorname = "keyword"
@@ -1335,6 +1366,8 @@ class W_Continuation(W_Procedure):
 
     _attrs_ = _immutable_fields_ = ["cont", "prompt_tag"]
 
+    escape = False
+
     def __init__(self, cont, prompt_tag=None):
         self.cont = cont
         self.prompt_tag = prompt_tag
@@ -1345,10 +1378,15 @@ class W_Continuation(W_Procedure):
 
     def call(self, args, env, cont):
         from pycket.prims.control import install_continuation
-        return install_continuation(self.cont, self.prompt_tag, args, env, cont)
+        return install_continuation(self.cont, self.prompt_tag, args, env, cont,
+                                    escape=self.escape)
 
     def tostring(self):
         return "#<continuation>"
+
+class W_EscapeContinuation(W_Continuation):
+    _attrs_ = []
+    escape = True
 
 class W_ComposableContinuation(W_Procedure):
     errorname = "composable-continuation"

@@ -12,6 +12,7 @@ class AST(object):
     surrounding_lambda = None
 
     simple = False
+    ispure = False
 
     def defined_vars(self):
         return {}
