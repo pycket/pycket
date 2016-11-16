@@ -330,13 +330,8 @@ class LetrecCont(Cont):
 class LetCont(Cont):
     _attrs_ = []
     _immutable_fields_ = []
-    # _immutable_ = True
 
     return_safe = True
-
-    # def __init__(self, env, prev):
-        # Cont.__init__(self, env, prev)
-        # self.counting_ast = counting_ast
 
     def get_counting_ast(self):
         ast = self._get_root()
