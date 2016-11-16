@@ -86,11 +86,12 @@ def make_typed_map(root_type, types):
         typed array to look in and at what index.
         """
 
-        _attrs_ = ('root_id', 'indexes', 'other_maps') + types
+        _attrs_ = ('root_id', 'parent', 'indexes', 'other_maps') + types
         _immutable_fields_ = _attrs_
 
-        def __init__(self, root_id):
+        def __init__(self, root_id, parent):
             self.root_id = root_id
+            self.parent  = parent
             self.indexes = {}
             self.other_maps = {}
             for attr in unroll_types:
@@ -120,17 +121,17 @@ def make_typed_map(root_type, types):
 
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
-            pair = (name, type)
-            newmap = self.other_maps.get(pair, None)
+            key = (name, type)
+            newmap = self.other_maps.get(key, None)
             if newmap is None:
                 index = self.num_fields(type)
-                newmap = TypedMap(self.root_id)
+                newmap = TypedMap(self.root_id, self)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = (type, index)
                 for attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                self.other_maps[pair] = newmap
+                self.other_maps[key] = newmap
             return newmap
 
         @jit.elidable
@@ -140,14 +141,13 @@ def make_typed_map(root_type, types):
         @staticmethod
         @jit.elidable
         def _new(root_id):
-            result = TypedMap.CACHE.get(root_id, None)
+            result = TypedMap.CACHE.get(root_id)
             if result is None:
-                result = TypedMap(root_id)
-                TypedMap.CACHE[root_id] = result
-                # TypedMap.CACHE.set(root_id, result)
+                result = TypedMap(root_id, None)
+                TypedMap.CACHE.set(root_id, result)
             return result
 
-    TypedMap.CACHE = {} # rweakref.RWeakValueDictionary(root_type, TypedMap)
+    TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
     return TypedMap
 
 # TODO Find a beter name for this
