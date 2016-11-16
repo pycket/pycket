@@ -1,4 +1,5 @@
 
+from pycket.util              import memoize
 from rpython.rlib             import jit, unroll, rweakref
 from rpython.rlib.objectmodel import always_inline, specialize
 
@@ -68,7 +69,9 @@ def make_map_type(getter, keyclass):
 
     return Map
 
+@memoize
 def make_typed_map(root_type, types):
+    """NOT RPYTHON"""
 
     for t in types:
         assert isinstance(t, str) and len(t) == 1

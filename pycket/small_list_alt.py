@@ -94,7 +94,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
     for a in _REQUIRED_ATTRS:
         assert hasattr(space, a)
 
-    type_prefixes = ['p', 'i', 'f']
+    type_prefixes = ('p', 'i', 'f')
     unroll_type_prefixes = unrolling_iterable(type_prefixes)
 
     def wrapper(cls):

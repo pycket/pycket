@@ -3,20 +3,21 @@
 
 import inspect
 
+from functools           import wraps
 from rpython.rlib        import jit, objectmodel
 from rpython.rlib.unroll import unrolling_iterable
 
 def memoize(f):
     cache = {}
+    @wraps(f)
     def wrapper(*val):
         if objectmodel.we_are_translated():
             return f(*val)
-        lup = cache.get(val, None)
-        if lup is None:
-            lup = f(*val)
-            cache[val] = lup
-        return lup
-    wrapper.__name__ = "Memoized(%s)" % f.__name__
+        try:
+            result = cache[val]
+        except KeyError:
+            cache[val] = result = f(*val)
+        return result
     return wrapper
 
 # Add a `make` method to a given class which memoizes constructor invocations.
