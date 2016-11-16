@@ -3,6 +3,7 @@ from pycket.util              import memoize
 from rpython.rlib             import jit, unroll, rweakref
 from rpython.rlib.objectmodel import always_inline, specialize
 
+@memoize
 def make_map_type(getter, keyclass):
 
     class Map(object):
@@ -154,6 +155,7 @@ def make_typed_map(root_type, types):
     return TypedMap
 
 # TODO Find a beter name for this
+@memoize
 def make_caching_map_type(getter, keyclass):
 
     class CachingMap(object):
