@@ -71,7 +71,7 @@ def make_map_type(getter, keyclass):
     return Map
 
 @memoize
-def make_typed_map(root_type, types):
+def make_typed_map(root_type, types, cache_values=False):
     """NOT RPYTHON"""
 
     for t in types:
@@ -90,7 +90,10 @@ def make_typed_map(root_type, types):
         typed array to look in and at what index.
         """
 
-        _attrs_ = ('root_id', 'parent', 'indexes', 'other_maps') + types
+        _attrs_ = ('root_id', 'parent', 'indexes', 'other_maps')
+        if cache_values:
+            _attrs_ += ('static_data', 'static_submaps')
+        _attrs_ += types
         _immutable_fields_ = _attrs_
 
         def __init__(self, root_id, parent):
@@ -98,6 +101,9 @@ def make_typed_map(root_type, types):
             self.parent  = parent
             self.indexes = {}
             self.other_maps = {}
+            if cache_values:
+                self.static_data = {}
+                self.static_submaps = {}
             for attr in unroll_types:
                 setattr(self, attr, 0)
 
@@ -123,6 +129,11 @@ def make_typed_map(root_type, types):
                     return getattr(self, attr)
             assert False
 
+        def copy_dicts(self, other):
+            other.indexes.update(self.indexes)
+            if cache_values:
+                other.static_data.update(self.static_data)
+
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
             key = (name, type)
@@ -130,7 +141,7 @@ def make_typed_map(root_type, types):
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id, self)
-                newmap.indexes.update(self.indexes)
+                self.copy_dicts(newmap)
                 newmap.indexes[name] = (type, index)
                 for attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
@@ -138,9 +149,36 @@ def make_typed_map(root_type, types):
                 self.other_maps[key] = newmap
             return newmap
 
+        if cache_values:
+            @jit.elidable_promote('all')
+            def add_static_attribute(self, name, value):
+                key = (name, value)
+                newmap = self.static_submaps.get(key, None)
+                if newmap is None:
+                    newmap = TypedMap(self.root_id, self)
+                    self.copy_dicts(newmap)
+                    newmap.static_data[name] = value
+                    for attr in unroll_types:
+                        val = getattr(self, attr)
+                        setattr(newmap, attr, val)
+                    self.static_submaps[key] = newmap
+                return newmap
+
+            @jit.elidable_promote('all')
+            def has_static_attribute(self, name):
+                return name in self.static_data
+
+            @jit.elidable_promote('all')
+            def get_static_attribute(self, name, default):
+                return self.static_data.get(name, default)
+
         @jit.elidable
         def storage_size(self):
             return len(self.indexes)
+
+        @jit.elidable
+        def full_size(self):
+            return len(self.indexes) + len(self.static_data)
 
         @staticmethod
         @jit.elidable
@@ -151,6 +189,7 @@ def make_typed_map(root_type, types):
                 TypedMap.CACHE.set(root_id, result)
             return result
 
+    TypedMap.UNKNOWN = UNKNOWN
     TypedMap.CACHE = rweakref.RWeakValueDictionary(root_type, TypedMap)
     return TypedMap
 

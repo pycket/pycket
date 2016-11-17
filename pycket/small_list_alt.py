@@ -89,7 +89,8 @@ _REQUIRED_ATTRS = [
     "wrap",
     "typeOf"]
 
-def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", space=None):
+def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
+               space=None, cache_constants=True):
     assert space is not None
     for a in _REQUIRED_ATTRS:
         assert hasattr(space, a)
@@ -99,7 +100,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
 
     def wrapper(cls):
 
-        Map = make_typed_map(space.root_type, type_prefixes)
+        Map = make_typed_map(space.root_type, type_prefixes, cache_constants)
 
         def make_class(layout):
             _p, pointers = layout[0]
@@ -124,16 +125,17 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
                 @jit.unroll_safe
                 def __init__(self, map, elems, *args):
                     self._map = map
-                    if SIZE:
-                        assert len(elems) == SIZE
-                        for i in range(SIZE):
-                            type, index = map.get_index(i)
-                            self._set_list_helper(type, index, elems[i])
-                    else:
-                        assert elems is None or len(elems) == 0
+                    for i in range(SIZE):
+                        type, index = map.get_index(i)
+                        if index == -1:
+                            continue
+                        self._set_list_helper(type, index, elems[i])
                     cls.__init__(self, *args)
 
                 def _get_list(self, i):
+                    result = self._map.get_static_attribute(i, None)
+                    if result is not None:
+                        return result
                     type, index = self._map.get_index(i)
                     return self._get_list_helper(type, index)
 
@@ -165,7 +167,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
                         return self._set_list_f(index, val)
 
                 def _get_size_list(self):
-                    return SIZE
+                    return self._map.full_size()
 
                 _get_list_p = _make_get_list(unroll_pointer, 'p', space)
                 _get_list_i = _make_get_list(unroll_integer, 'i', space)
@@ -239,8 +241,11 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
             map = Map._new(root)
             if elems is not None:
                 for idx, e in enumerate(elems):
-                    type = space.typeOf(e)
-                    map = map.add_attribute(idx, type)
+                    if cache_constants and jit.we_are_jitted() and jit.isconstant(e):
+                        map = map.add_static_attribute(idx, e)
+                    else:
+                        type = space.typeOf(e)
+                        map = map.add_attribute(idx, type)
             cls = elidable_lookup(map)
             return cls(map, elems, *args)
 

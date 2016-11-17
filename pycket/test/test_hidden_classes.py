@@ -142,25 +142,44 @@ def test_caching_map_descriptors():
     assert map_.get_dynamic_index(c) == 2
     assert map_.get_dynamic_index(d) == -1
 
-def test_typed_map():
-    Map = make_typed_map(object, ('p', 'i', 'f'))
-    map = Map._new("hello")
-    map = map.add_attribute(0, 'i')
-    map = map.add_attribute(1, 'p')
-    map = map.add_attribute(2, 'f')
-    map = map.add_attribute(3, 'i')
-    map = map.add_attribute(4, 'p')
-    map = map.add_attribute(5, 'f')
+class TestTypedMap(object):
 
-    assert map.get_index(0) == ('i', 0)
-    assert map.get_index(1) == ('p', 0)
-    assert map.get_index(2) == ('f', 0)
-    assert map.get_index(3) == ('i', 1)
-    assert map.get_index(4) == ('p', 1)
-    assert map.get_index(5) == ('f', 1)
-    assert map.get_root_id() == "hello"
+    specialize = False
 
-    assert map.num_fields('i') == 2
-    assert map.num_fields('p') == 2
-    assert map.num_fields('f') == 2
+    def test_typed_map(self):
+        Map = make_typed_map(object, ('p', 'i', 'f'), self.specialize)
+        map = Map._new("hello")
+        map = map.add_attribute(0, 'i')
+        map = map.add_attribute(1, 'p')
+        map = map.add_attribute(2, 'f')
+        map = map.add_attribute(3, 'i')
+        map = map.add_attribute(4, 'p')
+        map = map.add_attribute(5, 'f')
+
+        if self.specialize:
+            map = map.add_static_attribute(6, False)
+        map = map.add_attribute(7, 'p')
+        map = map.add_attribute(8, 'i')
+        map = map.add_attribute(9, 'f')
+
+        assert map.get_index(0) == ('i', 0)
+        assert map.get_index(1) == ('p', 0)
+        assert map.get_index(2) == ('f', 0)
+        assert map.get_index(3) == ('i', 1)
+        assert map.get_index(4) == ('p', 1)
+        assert map.get_index(5) == ('f', 1)
+        assert map.get_index(7) == ('p', 2)
+        assert map.get_index(8) == ('i', 2)
+        assert map.get_index(9) == ('f', 2)
+        assert map.get_root_id() == "hello"
+
+        assert map.num_fields('i') == 3
+        assert map.num_fields('p') == 3
+        assert map.num_fields('f') == 3
+
+        if self.specialize:
+            assert map.get_static_attribute(6, None) is False
+
+class TestTypedMapSpecialize(TestTypedMap):
+    specialize = True
 
