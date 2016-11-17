@@ -222,53 +222,32 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
         def make_unspecialized(map, elems, *args):
             return Unspecialized(map, elems, *args)
 
-        def generate_make_function(i, classes):
-
-            @jit.elidable
-            def elidable_lookup(map):
-                spec = map.layout_spec()
-                return classes.get(spec, make_unspecialized)
-
-            @jit.unroll_safe
-            def make(root, elems, *args):
-                map = Map._new(root)
-                if elems is not None:
-                    assert len(elems) == i
-                    for idx, e in enumerate(elems):
-                        type = space.typeOf(e)
-                        map = map.add_attribute(idx, type)
-                cls = elidable_lookup(map)
-                return cls(map, elems, *args)
-            make.__name__ += "_" + str(i)
-            return make
-
-        classes_by_size = []
-        make_functions = []
+        classes = {}
         for i in range(sizemax):
-            classes = {}
             for layout in partition(i, type_prefixes):
                 newcls = make_class(layout)
                 key = tuple(l[1] for l in layout)
                 classes[key] = newcls._new
-            make_function = generate_make_function(i, classes)
-            make_functions.append(make_function)
-            classes_by_size.append(classes)
-        cls.classes_by_size = classes_by_size
 
-        unroll_size = unrolling_iterable(range(sizemax))
+        @jit.elidable
+        def elidable_lookup(map):
+            spec = map.layout_spec()
+            return classes.get(spec, make_unspecialized)
 
-        @staticmethod
         @jit.unroll_safe
         def make(root, elems, *args):
-            l = len(elems) if elems is not None else 0
-            for i in unroll_size:
-                if i == l:
-                    make = make_functions[l]
-                    return make(root, elems, *args)
             map = Map._new(root)
-            return Unspecialized(map, elems, *args)
+            if elems is not None:
+                for idx, e in enumerate(elems):
+                    type = space.typeOf(e)
+                    map = map.add_attribute(idx, type)
+            cls = elidable_lookup(map)
+            return cls(map, elems, *args)
 
-        setattr(cls, factoryname, make)
+        cls.classes = classes
+        unroll_size = unrolling_iterable(range(sizemax))
+
+        setattr(cls, factoryname, staticmethod(make))
         return cls
 
     return wrapper
