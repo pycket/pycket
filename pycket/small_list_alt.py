@@ -108,8 +108,6 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
             _f, floats   = layout[2]
             assert _p == 'p' and _i == 'i' and _f == 'f'
 
-            SIZE = pointers + integers + floats
-
             pointer_attrs, unroll_pointer = attr_names(attrname, pointers, 'p')
             integer_attrs, unroll_integer = attr_names(attrname, integers, 'i')
             float_attrs  , unroll_float   = attr_names(attrname, floats  , 'f')
@@ -124,12 +122,12 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
 
                 @jit.unroll_safe
                 def __init__(self, map, elems, *args):
+                    size = map.total_size()
                     self._map = map
-                    for i in range(SIZE):
+                    for i in range(size):
                         type, index = map.get_index(i)
-                        if index == -1:
-                            continue
-                        self._set_list_helper(type, index, elems[i])
+                        if index != -1:
+                            self._set_list_helper(type, index, elems[i])
                     cls.__init__(self, *args)
 
                 def _get_list(self, i):
@@ -141,8 +139,9 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
 
                 @jit.unroll_safe
                 def _get_full_list(self):
-                    values = [None] * SIZE
-                    for i in range(SIZE):
+                    size = self._map.total_size()
+                    values = [None] * size
+                    for i in range(size):
                         values[i] = self._get_list(i)
                     return values
 
@@ -167,7 +166,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
                         return self._set_list_f(index, val)
 
                 def _get_size_list(self):
-                    return self._map.full_size()
+                    return self._map.total_size()
 
                 _get_list_p = _make_get_list(unroll_pointer, 'p', space)
                 _get_list_i = _make_get_list(unroll_integer, 'i', space)

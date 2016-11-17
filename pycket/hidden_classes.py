@@ -176,8 +176,8 @@ def make_typed_map(root_type, types, cache_values=False):
         def storage_size(self):
             return len(self.indexes)
 
-        @jit.elidable
-        def full_size(self):
+        @jit.elidable_promote('all')
+        def total_size(self):
             return len(self.indexes) + len(self.static_data)
 
         @staticmethod
