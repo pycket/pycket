@@ -128,7 +128,6 @@ def make_typed_map(root_type, types):
         def get_index(self, name):
             return self.indexes.get(name, UNKNOWN)
 
-        @specialize.arg_or_var(1)
         def num_fields(self, type):
             for i, attr in unroll_types:
                 if attr == type:
