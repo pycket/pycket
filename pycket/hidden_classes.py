@@ -78,7 +78,19 @@ def make_typed_map(root_type, types):
         assert isinstance(t, str) and len(t) == 1
 
     types = tuple(types)
-    unroll_types = unroll.unrolling_iterable(types)
+    unroll_types = unroll.unrolling_iterable(enumerate(types))
+
+    SHIFT = 0
+    while (2 ** SHIFT) < len(types):
+        SHIFT += 1
+
+    def tag_type(value, type):
+        for i, t in  unroll_types:
+            if type == t:
+                break
+        else:
+            assert False, "unknown tag"
+        return (value << SHIFT) + i
 
     UNKNOWN = ('?', -1)
 
@@ -97,8 +109,8 @@ def make_typed_map(root_type, types):
             self.root_id = root_id
             self.parent  = parent
             self.indexes = {}
-            self.other_maps = {}
-            for attr in unroll_types:
+            self.other_maps = rweakref.RWeakValueDictionary(int, TypedMap)
+            for i, attr in unroll_types:
                 setattr(self, attr, 0)
 
         def get_root_id(self):
@@ -107,7 +119,7 @@ def make_typed_map(root_type, types):
         @jit.elidable
         def layout_spec(self):
             spec = ()
-            for attr in unroll_types:
+            for i, attr in unroll_types:
                 val = getattr(self, attr)
                 spec += (val,)
             return spec
@@ -118,24 +130,24 @@ def make_typed_map(root_type, types):
 
         @specialize.arg_or_var(1)
         def num_fields(self, type):
-            for attr in unroll_types:
+            for i, attr in unroll_types:
                 if attr == type:
                     return getattr(self, attr)
             assert False
 
         @jit.elidable_promote('all')
         def add_attribute(self, name, type):
-            key = (name, type)
-            newmap = self.other_maps.get(key, None)
+            key = tag_type(name, type)
+            newmap = self.other_maps.get(key)
             if newmap is None:
                 index = self.num_fields(type)
                 newmap = TypedMap(self.root_id, self)
                 newmap.indexes.update(self.indexes)
                 newmap.indexes[name] = (type, index)
-                for attr in unroll_types:
+                for i, attr in unroll_types:
                     val = getattr(self, attr) + int(attr == type)
                     setattr(newmap, attr, val)
-                self.other_maps[key] = newmap
+                self.other_maps.set(key, newmap)
             return newmap
 
         @jit.elidable
