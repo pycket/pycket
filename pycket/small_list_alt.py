@@ -23,7 +23,7 @@ def partition(N, partitions):
 
 def attr_names(prefix, N, type):
     """NOT RPYTHON"""
-    attrs = ["%s_%s_%s" % (prefix, i, type) for i in range(N)]
+    attrs = ["%s_%s%s" % (prefix, type, i) for i in range(N)]
     unroll = unrolling_iterable(enumerate(attrs))
     return attrs, unroll
 
@@ -179,7 +179,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make", s
                     return self._map.get_root_id()
 
             add_clone_method(NewClass)
-            spec = "Specialized(r=%d,i=%d,f=%d)" % (pointers, integers, floats)
+            spec = "Specialized[r=%d,i=%d,f=%d]" % (pointers, integers, floats)
             NewClass.__name__ = cls.__name__ + spec
 
             @staticmethod
