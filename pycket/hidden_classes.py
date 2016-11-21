@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from pycket.util              import memoize
 from rpython.rlib             import jit, unroll, rweakref
