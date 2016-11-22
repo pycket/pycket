@@ -51,32 +51,6 @@ class Box(object):
     def adjust_size(self, size):
         return size + int(self._val)
 
-def list_copy(from_lst, from_loc, to_list, to_loc, count):
-    from_loc = r_uint(from_loc)
-    to_loc = r_uint(to_loc)
-    count = r_uint(count)
-    i = r_uint(0)
-    for i in range(count):
-        to_list[to_loc+i] = from_lst[from_loc+i]
-    return to_list
-
-def clone_and_set(array, i, a):
-    clone = array[:]
-    clone[i] = a
-    return clone
-
-def clone_and_set2(array, i, a, j, b):
-    clone = array[:]
-    clone[i] = a
-    clone[j] = b
-    return clone
-
-def remove_pair(array, i):
-    new_array = [None] * (len(array) - 2)
-    list_copy(array, 0, new_array, 0, 2 * i)
-    list_copy(array, 2 * (i + 1), new_array, 2 * i, len(new_array) - (2 * i))
-    return new_array
-
 def make_persistent_hash_type(
         super   = object,
         base    = None,
@@ -680,5 +654,45 @@ def make_persistent_hash_type(
         added_leaf = Box()
         return BitmapIndexedNode_EMPTY.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
                                       .assoc_inode(shift, key2hash, key2, val2, added_leaf)
+
+    def list_copy(from_lst, from_loc, to_list, to_loc, count):
+        from_loc = r_uint(from_loc)
+        to_loc = r_uint(to_loc)
+        count = r_uint(count)
+        i = r_uint(0)
+        while i < count:
+            to_list[to_loc + i] = from_lst[from_loc+i]
+            i += 1
+        return to_list
+
+    def clone_and_set(array, i, a):
+        clone = [None] * len(array)
+
+        idx = r_uint(0)
+        while idx < len(array):
+            clone[idx] = array[idx]
+            idx += 1
+
+        clone[i] = a
+        return clone
+
+    def clone_and_set2(array, i, a, j, b):
+        clone = [None] * len(array)
+
+        idx = r_uint(0)
+        while idx < len(array):
+            clone[idx] = array[idx]
+            idx += 1
+
+        clone[i] = a
+        clone[j] = b
+        return clone
+
+    def remove_pair(array, i):
+        new_array = [None] * (len(array) - 2)
+        list_copy(array, 0, new_array, 0, 2 * i)
+        list_copy(array, 2 * (i + 1), new_array, 2 * i, len(new_array) - (2 * i))
+        return new_array
+
     return PersistentHashMap
 
