@@ -529,3 +529,18 @@ def test_without_many():
     acc = acc.without_many(range(256))
     assert len(acc) == 0
 
+def test_hash_iterate_functions(doctest):
+    """
+    ! (define eq-table (hasheq (cons 1 2) 3))
+    ! (define equal-table1 (hash (cons 1 2) 3))
+    ! (define equal-table2 (hash 'hello 'bye))
+    ! (define equal-table3 (hash "hello" "bye"))
+    > (hash-iterate-next eq-table (hash-iterate-first eq-table))
+    #f
+    > (hash-iterate-next equal-table1 (hash-iterate-first equal-table1))
+    #f
+    > (hash-iterate-next equal-table2 (hash-iterate-first equal-table2))
+    #f
+    > (hash-iterate-next equal-table3 (hash-iterate-first equal-table3))
+    #f
+    """
