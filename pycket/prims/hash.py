@@ -24,7 +24,7 @@ PREFIXES = ["unsafe-mutable", "unsafe-immutable"]
 def prefix_hash_names(base):
     result = [base]
     for pre in PREFIXES:
-        result.append("%s-%s" % (base, pre))
+        result.append("%s-%s" % (pre, base))
     return result
 
 @expose(prefix_hash_names("hash-iterate-first"), [W_HashTable])
