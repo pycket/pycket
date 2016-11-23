@@ -33,6 +33,8 @@ BUILTIN_MODULES = [
     "#%builtin",
     "#%extfl",
     "#%futures",
+    "#%core",
+    "#%linklet",
     "#%network" ]
 
 

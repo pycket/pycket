@@ -13,7 +13,8 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
-from pycket.prims.expose import (unsafe, default, expose, expose_val,
+from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
+from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe)
 
 
@@ -1528,3 +1529,15 @@ def __dummy__():
     ex = ONERBIGINT.touint()
     print ex
 
+
+@expose("primitive-table", [values.W_Object])
+def primitive_table(v):
+    return make_simple_immutable_table(W_EqImmutableHashTable,
+                                       prim_env.keys(),
+                                       prim_env.values())
+
+@expose("syntax-property-symbol-keys", [values.W_Syntax])
+def syntax_property_symbol_keys(v):
+    return values.w_null
+
+define_nyi("syntax-property")

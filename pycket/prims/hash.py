@@ -211,20 +211,20 @@ def hash_set(table, key, val, env, cont):
             hash_set_cont(key, val, env, cont))
 
 @continuation
-def hash_ref_cont(default, env, cont, _vals):
+def hash_ref_cont(default, k, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(_vals)
     if val is not w_missing:
         return return_value(val, env, cont)
     if default is None:
-        raise SchemeException("key not found")
+        raise SchemeException("key %s not found"%k.tostring())
     if default.iscallable():
         return default.call([], env, cont)
     return return_value(default, env, cont)
 
 @expose("hash-ref", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
-    return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
+    return ht.hash_ref(k, env, hash_ref_cont(default, k, env, cont))
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
