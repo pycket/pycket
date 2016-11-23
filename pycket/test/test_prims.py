@@ -1346,3 +1346,13 @@ def test_logger_operations(doctest):
     > (logger-name (make-logger 'example))
     'example
     """
+
+def test_hash_iterate_functions(doctest):
+    """
+    ! (define eq-table (hasheq (cons 1 2) 3))
+    ! (define equal-table (hash (cons 1 2) 3))
+    > (hash-iterate-first (hash-iterate-next equal-table))
+    #f
+    > (hash-iterate-first (hash-iterate-next eq-table))
+    #f
+    """

@@ -276,7 +276,7 @@ class ObjectHashmapStrategy(HashmapStrategy):
         def hash_iterate_next(self, w_dict, pos):
             from pycket.hash.persistent_hash_map import MASK_32
             storage = self.unerase(w_dict.hstorage)
-            i = pos.value
+            i = r_uint(pos.value)
             assert i >= 0
             index    = r_uint(i & MASK_32)
             subindex = r_uint((i >> 32) & MASK_32)
@@ -285,8 +285,11 @@ class ObjectHashmapStrategy(HashmapStrategy):
             subindex += 1
             if subindex == r_uint(len(bucket)):
                 subindex = r_uint(0)
-                next = next_valid_index(
-                        storage, intmask(index), valid=lambda x: bool(x[1]))
+                try:
+                    next = next_valid_index(
+                            storage, intmask(index), valid=lambda x: bool(x[1]))
+                except IndexError:
+                    return values.w_false
                 index = r_uint(next)
 
             next = intmask((subindex << r_uint(32)) | index)
