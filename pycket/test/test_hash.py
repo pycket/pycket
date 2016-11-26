@@ -5,6 +5,7 @@ from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapSt
 from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
+from rpython.jit.metainterp.test.support import LLJitMixin, noConst
 
 def test_hash_simple(doctest):
     """
@@ -257,18 +258,18 @@ def test_get_item():
         dct = {str(a): b, str(c): d}
         i = 0
         while 1:
-            print i
             try:
                 x, y = get_dict_item(dct, i)
-                print x, y
                 assert (x == str(a) and y == b) or (x == str(c) and y == d)
             except KeyError:
                 pass
             except IndexError:
                 break
             i += 1
-    tg("1", 2, "3", 4)
-    interpret(tg, [1, 2, 334, 4])
+        return i
+    assert tg("1", 2, "3", 4) == interpret(tg, ["1", 2, "3", 4])
+    assert tg(1, 2, 334, 4)   == interpret(tg, [1, 2, 334, 4])
+    assert tg(1, 2, 3, 4)     == interpret(tg, [1, 2, 3, 4])
 
 def test_ll_get_dict_item():
     """
