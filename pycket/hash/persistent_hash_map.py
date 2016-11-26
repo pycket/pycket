@@ -44,6 +44,10 @@ class Box(object):
         self._val = False
 
     @objectmodel.always_inline
+    def reset(self):
+        self._val = False
+
+    @objectmodel.always_inline
     def add_leaf(self):
         self._val = True
 
@@ -505,15 +509,22 @@ def make_persistent_hash_type(
                 return other
             if not other._cnt:
                 return self
+
+            # Iterate over the smaller of the two maps
+            if other._cnt < self._cnt:
+                self, other = other, self
+
             count = self._cnt
             root  = self._root
             assert root is not None
 
+            added_leaf = Box()
             for key, val in other.iteritems():
-                added_leaf = Box()
                 hash = hashfun(key) & MASK_32
                 root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
                 count = added_leaf.adjust_size(count)
+                added_leaf.reset()
+
             if root is self._root:
                 return self
             return PersistentHashMap(count, root)

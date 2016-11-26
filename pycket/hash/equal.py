@@ -219,10 +219,8 @@ class ObjectHashmapStrategy(HashmapStrategy):
         hash    = tagged_hash(w_key)
         storage = self.unerase(w_dict.hstorage)
         bucket  = storage.get(hash, None)
-
         if nonull and bucket is None:
             storage[hash] = bucket = []
-
         return bucket
 
     def get(self, w_dict, w_key, env, cont):
@@ -260,6 +258,10 @@ class ObjectHashmapStrategy(HashmapStrategy):
 
     else:
 
+        @staticmethod
+        def _valid_bucket(v):
+            return bool(v[1])
+
         def get_item(self, w_dict, i):
             from pycket.hash.persistent_hash_map import MASK_32
             storage = self.unerase(w_dict.hstorage)
@@ -286,8 +288,8 @@ class ObjectHashmapStrategy(HashmapStrategy):
             if subindex == r_uint(len(bucket)):
                 subindex = r_uint(0)
                 try:
-                    next = next_valid_index(
-                            storage, intmask(index), valid=lambda x: bool(x[1]))
+                    next = next_valid_index(storage, intmask(index),
+                                            valid=self._valid_bucket)
                 except IndexError:
                     return values.w_false
                 index = r_uint(next)
@@ -296,7 +298,7 @@ class ObjectHashmapStrategy(HashmapStrategy):
             return values.wrap(next)
 
         def hash_iterate_first(self, w_dict):
-            return next_valid_index(w_dict, 0, valid=lambda x: bool(x[1]))
+            return next_valid_index(w_dict, 0, valid=self._valid_bucket)
 
     def length(self, w_dict):
         storage = self.unerase(w_dict.hstorage)
