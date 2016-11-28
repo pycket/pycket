@@ -265,14 +265,14 @@ def var_eq(a, b):
         return a.sym is b.sym
     elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
         # two renamed variables can be the same
-        return (a.srcmod == b.srcmod and a.srcsym is b.srcsym)
+        return a.srcsym is b.srcsym
     return False
 
 def var_hash(a):
     if isinstance(a, LexicalVar):
         return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
-        return compute_hash( (a.srcsym, a.srcmod) )
+        return compute_hash(a.srcsym)
     assert False
 
 def variable_set():
@@ -793,9 +793,6 @@ class Require(AST):
         self.path = path
         self.loader = loader
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def assign_convert(self, vars, env_structure):
         return self
 
@@ -887,14 +884,11 @@ class Quote(AST):
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
-                isinstance(self.w_val, values.W_Number) or
-                isinstance(self.w_val, values_string.W_String) or
-                isinstance(self.w_val, values.W_Symbol)):
+            isinstance(self.w_val, values.W_Number) or
+            isinstance(self.w_val, values_string.W_String) or
+            isinstance(self.w_val, values.W_Symbol)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
 
@@ -1166,12 +1160,6 @@ class Begin0(AST):
     def direct_children(self):
         return [self.first, self.body]
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in [self.first, self.body]:
-            x.update(r.mutated_vars())
-        return x
-
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
 
@@ -1227,12 +1215,6 @@ class Begin(SequencedBodyAST):
     def direct_children(self):
         return self.body
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in self.body:
-            x.update(r.mutated_vars())
-        return x
-
     @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
@@ -1259,9 +1241,6 @@ class BeginForSyntax(AST):
     def interpret_simple(self, env):
         return values.w_void
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def assign_convert(self, vars, env_structure):
         new_body = [b.assign_convert(vars, env_structure) for b in self.body]
         return BeginForSyntax(new_body)
@@ -1286,9 +1265,6 @@ class Var(AST):
 
     def direct_children(self):
         return []
-
-    def _mutated_vars(self):
-        return variable_set()
 
     def _free_vars(self):
         return SymbolSet.singleton(self.sym)
@@ -1439,10 +1415,6 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env().toplevel_set(self.sym, w_val)
 
-# rewritten version for caching
-def to_modvar(m):
-    return ModuleVar(m.sym, None, m.srcsym)
-
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
     simple = True
@@ -1467,7 +1439,7 @@ class SetBang(AST):
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
         elif isinstance(var, ModuleVar):
-            x[to_modvar(var)] = None
+            x[var] = None
         # do nothing for top-level vars, they're all mutated
         return x
 
@@ -1517,12 +1489,6 @@ class If(AST):
     def normalize(self, context):
         context = Context.If(self.thn, self.els, context)
         return Context.normalize_name(self.tst, context, hint="if")
-
-    def _mutated_vars(self):
-        x = variable_set()
-        for b in [self.tst, self.els, self.thn]:
-            x.update(b.mutated_vars())
-        return x
 
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
