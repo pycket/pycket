@@ -178,14 +178,19 @@ def make_persistent_hash_type(
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
 
+        def entry(self, index):
+            """ Helper function to extract the ith key/value pair """
+            key = self._array[index * 2    ]
+            val = self._array[index * 2 + 1]
+            return key, val
+
         @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             bit = bitpos(hash_val, shift)
             idx = self.index(bit)
 
             if (self._bitmap & bit) != 0:
-                key_or_null = self._array[2 * idx]
-                val_or_node = self._array[2 * idx + 1]
+                key_or_null, val_or_node = self.entry(idx)
 
                 if key_or_null is None:
                     assert isinstance(val_or_node, INode)
@@ -204,7 +209,7 @@ def make_persistent_hash_type(
                     return BitmapIndexedNode(self._bitmap, new_array, self._size)
 
                 added_leaf.add_leaf()
-                subnode  = create_node(shift + 5, key_or_null, val_or_node, hash_val, key, val)
+                subnode = create_node(shift + 5, key_or_null, val_or_node, hash_val, key, val)
                 new_array = clone_and_set2(self._array, 2 * idx, None, 2 * idx + 1, subnode)
                 return BitmapIndexedNode(self._bitmap, new_array, self._size + 1)
             else:
@@ -212,7 +217,7 @@ def make_persistent_hash_type(
                 if n >= 16:
                     nodes = [None] * 32
                     jdx = mask(hash_val, shift)
-                    nodes[jdx] = BitmapIndexedNode_EMPTY.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
+                    nodes[jdx] = EmptyNode.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
                     j = 0
 
                     for i in range(32):
@@ -220,8 +225,8 @@ def make_persistent_hash_type(
                             if self._array[j] is None:
                                 nodes[i] = self._array[j + 1]
                             else:
-                                nodes[i] = BitmapIndexedNode_EMPTY.assoc_inode(shift + 5, hashfun(self._array[j]),
-                                                                   self._array[j], self._array[j + 1], added_leaf)
+                                nodes[i] = EmptyNode.assoc_inode(shift + 5, hashfun(self._array[j]),
+                                                                 self._array[j], self._array[j + 1], added_leaf)
                             j += 2
 
                     newsize = added_leaf.adjust_size(self._size)
@@ -241,8 +246,7 @@ def make_persistent_hash_type(
             if (self._bitmap & bit) == 0:
                 return not_found
             idx = self.index(bit)
-            key_or_null = self._array[2 * idx]
-            val_or_node = self._array[2 * idx + 1]
+            key_or_null, val_or_node = self.entry(idx)
             if key_or_null is None:
                 return val_or_node
             if equal(key, key_or_null):
@@ -256,8 +260,7 @@ def make_persistent_hash_type(
                 return self
 
             idx = self.index(bit)
-            key_or_none = self._array[2 * idx]
-            val_or_node = self._array[2 * idx + 1]
+            key_or_none, val_or_node = self.entry(idx)
 
             if key_or_none is None:
                 assert isinstance(val_or_node, INode)
@@ -281,7 +284,7 @@ def make_persistent_hash_type(
             return self
 
     BitmapIndexedNode.__name__ = "BitmapIndexedNode(%s)" % name
-    BitmapIndexedNode_EMPTY = BitmapIndexedNode(r_uint(0), [], 0)
+    EmptyNode = BitmapIndexedNode(r_uint(0), [], 0)
 
     class ArrayNode(INode):
 
@@ -318,7 +321,7 @@ def make_persistent_hash_type(
             idx = mask(hash_val, shift)
             node = self._array[idx]
             if node is None:
-                subnode = BitmapIndexedNode_EMPTY.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
+                subnode = EmptyNode.assoc_inode(shift + 5, hash_val, key, val, added_leaf)
                 cloned  = clone_and_set(self._array, idx, subnode)
                 newsize = added_leaf.adjust_size(self._size)
                 return ArrayNode(self._cnt + 1, cloned, newsize)
@@ -557,7 +560,7 @@ def make_persistent_hash_type(
             val = restrict_val_type(val)
             added_leaf = Box()
 
-            root = BitmapIndexedNode_EMPTY if self._root is None else self._root
+            root = EmptyNode if self._root is None else self._root
             hash = hashfun(key) & MASK_32
 
             new_root = root.assoc_inode(r_uint(0), hash, key, val, added_leaf)
@@ -663,8 +666,8 @@ def make_persistent_hash_type(
         if key1hash == key2hash:
             return HashCollisionNode(key1hash, [key1, val1, key2, val2], 2)
         added_leaf = Box()
-        return BitmapIndexedNode_EMPTY.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
-                                      .assoc_inode(shift, key2hash, key2, val2, added_leaf)
+        return EmptyNode.assoc_inode(shift, key1hash, key1, val1, added_leaf) \
+                        .assoc_inode(shift, key2hash, key2, val2, added_leaf)
 
     def list_copy(from_lst, from_loc, to_list, to_loc, count):
         from_loc = r_uint(from_loc)
@@ -672,29 +675,17 @@ def make_persistent_hash_type(
         count = r_uint(count)
         i = r_uint(0)
         while i < count:
-            to_list[to_loc + i] = from_lst[from_loc+i]
+            to_list[to_loc+i] = from_lst[from_loc+i]
             i += 1
         return to_list
 
     def clone_and_set(array, i, a):
-        clone = [None] * len(array)
-
-        idx = r_uint(0)
-        while idx < len(array):
-            clone[idx] = array[idx]
-            idx += 1
-
+        clone = array[:]
         clone[i] = a
         return clone
 
     def clone_and_set2(array, i, a, j, b):
-        clone = [None] * len(array)
-
-        idx = r_uint(0)
-        while idx < len(array):
-            clone[idx] = array[idx]
-            idx += 1
-
+        clone = array[:]
         clone[i] = a
         clone[j] = b
         return clone

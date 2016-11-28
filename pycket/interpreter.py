@@ -1421,12 +1421,6 @@ class ModuleVar(Var):
 
     def assign_convert(self, vars, env_structure):
         return self
-        # # we use None here for hashing because we don't have the module name in the
-        # # define-values when we need to look this up.
-        # if ModuleVar(self.sym, None, self.srcsym) in vars:
-        #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
-        # else:
-        #     return self
 
     def _set(self, w_val, env):
         if self.modenv is None:
@@ -1434,32 +1428,6 @@ class ModuleVar(Var):
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
-
-# class ModCellRef(Var):
-#     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
-
-#     def __init__(self, sym, srcmod, srcsym, env_structure=None):
-#         self.sym = sym
-#         self.srcmod = srcmod
-#         self.srcsym = srcsym
-#         self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
-#     def assign_convert(self, vars, env_structure):
-#         return ModCellRef(self.sym, self.srcmod, self.srcsym)
-#     def _tostring(self):
-#         return "ModCellRef(%s)" %variable_name(self.sym)
-#     def _set(self, w_val, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         w_res.set_val(w_val)
-#     def _lookup(self, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         return w_res.get_val()
-#     def to_modvar(self):
-#         # we use None here for hashing because we don't have the module name in the
-#         # define-values when we need to look this up.
-#         return ModuleVar(self.sym, None, self.srcsym)
-
 
 class ToplevelVar(Var):
     def _lookup(self, env):
