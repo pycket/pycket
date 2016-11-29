@@ -1067,6 +1067,10 @@ class SimplePrimApp1(App):
         self.rand1, = rands
         self.w_prim = w_prim
 
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
     def run(self, env):
         result = self.w_prim.simple1(self.rand1.interpret_simple(env))
         if result is None:
@@ -1095,6 +1099,10 @@ class SimplePrimApp2(App):
         assert len(rands) == 2
         self.rand1, self.rand2 = rands
         self.w_prim = w_prim
+
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
 
     def run(self, env):
         from pycket.prims.control import convert_runtime_exception

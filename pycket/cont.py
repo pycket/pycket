@@ -353,7 +353,6 @@ def make_label(func, enter=False):
             env = args[-2]
             cont = args[-1]
             Cont.__init__(self, env, cont)
-            args = args[:-2]
             self._init_args(*args)
         Args.__init__ = __init__
 
