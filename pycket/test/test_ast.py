@@ -82,6 +82,10 @@ def test_remove_simple_if():
 def test_remove_simple_begin():
     p = expr_ast("(begin #f #t)")
     assert isinstance(p, Quote) and p.w_val is w_true
+    p = expr_ast("(let ([a 1]) a a a)")
+    assert isinstance(p, Let) and len(p.body) == 1
+    p = expr_ast("(begin0 #t #f #f #f)")
+    assert isinstance(p, Quote) and p.w_val is w_true
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")

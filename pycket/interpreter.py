@@ -897,6 +897,8 @@ class Quote(AST):
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
@@ -1116,7 +1118,6 @@ class SimplePrimApp2(App):
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
 
-
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
     def __init__(self, body, counts_needed=-1):
@@ -1145,10 +1146,11 @@ class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
 
     @staticmethod
-    def make(fst, rst):
-        if rst:
-            return Begin0(fst, Begin.make(rst))
-        return fst
+    def make(first, rest):
+        rest = remove_pure_ops(rest, always_last=False)
+        if rest:
+            return Begin0(first, Begin.make(rest))
+        return first
 
     def __init__(self, fst, rst):
         assert isinstance(rst, AST)
@@ -1175,10 +1177,14 @@ class Begin0(AST):
         return self.first, env, Begin0Cont(self, env, cont)
 
 @specialize.call_location()
-def remove_pure_ops(ops):
+def remove_pure_ops(ops, always_last=True):
     """ The specialize annotation is to allow handling of resizable and non-resizable
         lists as arguments. """
-    return [op for i, op in enumerate(ops) if not op.ispure or i == len(ops) - 1]
+    if always_last:
+        last = len(ops) - 1
+        return [op for i, op in enumerate(ops) if not op.ispure or i == last]
+    else:
+        return [op for i, op in enumerate(ops) if not op.ispure]
 
 class Begin(SequencedBodyAST):
 
@@ -1253,6 +1259,7 @@ class BeginForSyntax(AST):
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
+    ispure = True
 
     def __init__ (self, sym, env_structure=None):
         assert isinstance(sym, values.W_Symbol)
@@ -1496,6 +1503,7 @@ class If(AST):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, sourceinfo=None):
+    body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
     args = SymList(args.elems, frees)
@@ -1511,6 +1519,7 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "_arity"]
     simple = True
+    ispure = True
 
     def __init__(self, lams, recursive_sym=None, arity=None):
         ## TODO: drop lams whose arity is redundant
@@ -1626,6 +1635,7 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure',
                           "sourceinfo"]
     simple = True
+    ispure = True
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo

@@ -608,7 +608,7 @@ def make_persistent_hash_type(
             root  = self._root
             count = self._cnt
             if root is None:
-                return self
+                return PersistentHashMap.EMPTY
             for key in keys:
                 if root is None:
                     return PersistentHashMap.EMPTY
@@ -642,8 +642,10 @@ def make_persistent_hash_type(
                 else:
                     assert False
 
+            if not objectmodel.we_are_translated():
+                assert not isinstance(val_or_node, INode)
+
             assert key_or_none is not None
-            assert not isinstance(val_or_node, INode)
             return restrict_types(key_or_none, val_or_node)
 
         @staticmethod
