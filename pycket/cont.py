@@ -300,7 +300,6 @@ def continuation(func):
         env = args[-2]
         cont = args[-1]
         Cont.__init__(self, env, cont)
-        args = args[:-2]
         self._init_args(*args)
     PrimCont.__init__ = __init__
 
@@ -346,6 +345,7 @@ def make_label(func, enter=False):
                 return "%s%s" % (self.__class__.__name__, len(self._get_args()))
 
     else:
+        assert func_argnames[-1] == "cont", "last argument to %s must be named 'cont', not %r" % (func.func_name, func_argnames[-1])
         assert func_argnames[-2] == "env", "next to last argument to %s must be named 'env', not %r" % (func.func_name, func_argnames[-2])
 
         Args = _make_args_class(Cont, func_argnames[:-2])
