@@ -14,8 +14,8 @@ class AST(object):
     simple = False
     ispure = False
 
-    def defined_vars(self):
-        return {}
+    def defined_vars(self, defs):
+        pass
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct

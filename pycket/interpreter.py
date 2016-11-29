@@ -647,7 +647,7 @@ class Module(AST):
 
         defs = {}
         for b in self.body:
-            defs.update(b.defined_vars())
+            b.defined_vars(defs)
         self.defs = defs
 
     def rebuild_body(self):
@@ -661,6 +661,8 @@ class Module(AST):
         acc.append(self)
 
     def full_module_path(self):
+        if self.parent is None:
+            return self.name
         path = []
         while self is not None:
             path.append(self.name)
@@ -2166,19 +2168,15 @@ class Let(SequencedBodyAST):
 
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
-    names = []
-    rhs = Quote(values.w_null)
 
     def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
         self.display_names = display_names
 
-    def defined_vars(self):
-        defs = {} # a dictionary, contains symbols
+    def defined_vars(self, defs):
         for n in self.names:
             defs[n] = None
-        return defs
 
     def interpret(self, env, cont):
         return self.rhs.interpret(env, cont)
