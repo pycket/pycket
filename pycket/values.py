@@ -1233,8 +1233,6 @@ def to_mimproper(l, curr):
         curr = W_MCons(l[i], curr)
     return curr
 
-@always_inline
-@specialize.arg(3)
 def from_list_unroll_pred(lst, idx, unroll_to=0, force=False):
     if not jit.we_are_jitted():
         return False
@@ -1411,7 +1409,7 @@ class W_Closure1AsEnv(ConsEnv):
     @jit.unroll_safe
     def make(vals, caselam, prev):
         recursive_sym = caselam.recursive_sym
-        if not vals:
+        if not we_are_translated() and not vals:
             for s in caselam.lams[0].frees.elems:
                 assert s is recursive_sym
         return W_Closure1AsEnv._make(vals, caselam, prev)
