@@ -27,6 +27,7 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "trace_limit", 1000000)
         jit.set_param(None, "threshold", 131)
         jit.set_param(None, "trace_eagerness", 50)
+        jit.set_param(None, "max_unroll_loops", 10)
 
         config, names, args, retval = parse_args(argv)
         if retval != 0 or config is None:
@@ -67,7 +68,7 @@ def target(driver, args): #pragma: no cover
         base_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
     else:
         base_name = 'pycket'
-    base_name += '-%(backend)s'
+    base_name += '-%(backend)s-specialized'
     if not config.translation.jit:
         base_name += '-%(backend)s-nojit'
 

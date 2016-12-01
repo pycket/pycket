@@ -23,7 +23,7 @@ def partition(N, partitions):
 
 def attr_names(prefix, N, type):
     """NOT RPYTHON"""
-    attrs = ["%s_%s_%s" % (prefix, i, type) for i in range(N)]
+    attrs = ["%s_%s%s" % (prefix, type, i) for i in range(N)]
     unroll = unrolling_iterable(enumerate(attrs))
     return attrs, unroll
 
@@ -180,7 +180,7 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
                     return self._map.get_root_id()
 
             add_clone_method(NewClass)
-            spec = "Specialized(r=%d,i=%d,f=%d)" % (pointers, integers, floats)
+            spec = "Specialized[r=%d,i=%d,f=%d]" % (pointers, integers, floats)
             NewClass.__name__ = cls.__name__ + spec
 
             @staticmethod
@@ -236,22 +236,20 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
             return classes.get(spec, make_unspecialized)
 
         @jit.unroll_safe
-        def make(root, elems, *args):
+        def _make(root, elems, *args):
             map = Map._new(root)
             if elems is not None:
                 for idx, e in enumerate(elems):
-                    if cache_constants and jit.we_are_jitted() and jit.isconstant(e):
-                        map = map.add_static_attribute(idx, e)
-                    else:
-                        type = space.typeOf(e)
-                        map = map.add_attribute(idx, type)
+                    type = space.typeOf(e)
+                    map = map.add_attribute(idx, type)
             cls = elidable_lookup(map)
             return cls(map, elems, *args)
+        _make.__name__ = factoryname
 
         cls.classes = classes
         unroll_size = unrolling_iterable(range(sizemax))
 
-        setattr(cls, factoryname, staticmethod(make))
+        setattr(cls, factoryname, staticmethod(_make))
         return cls
 
     return wrapper
