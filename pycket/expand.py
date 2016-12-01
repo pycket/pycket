@@ -457,7 +457,8 @@ class JsonLoader(object):
         rhss  = [None] * len(arr)
         for i, v in enumerate(arr):
             varr = v.value_array()
-            fmls = [values.W_Symbol.make(x.value_string()) for x in varr[0].value_array()]
+            names, defs = varr[0].value_array(), varr[1]
+            fmls = [values.W_Symbol.make(x.value_string()) for x in names]
             rhs = self.to_ast(varr[1])
             varss[i] = fmls
             rhss[i]  = rhs

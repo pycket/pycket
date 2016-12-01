@@ -14,8 +14,8 @@ class AST(object):
     simple = False
     ispure = False
 
-    def defined_vars(self):
-        return {}
+    def defined_vars(self, defs):
+        pass
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
@@ -86,6 +86,13 @@ class AST(object):
             self._mvars = self._mutated_vars()
         return self._mvars
 
+    def _mutated_vars(self):
+        from pycket.interpreter import variable_set
+        x = variable_set()
+        for b in self.direct_children():
+            x.update(b.mutated_vars())
+        return x
+
     def _clean_cache(self):
         self._mvars = None
         self._fvars = None
@@ -99,9 +106,6 @@ class AST(object):
 
     def normalize(self, ctxt):
         return ctxt.plug(self)
-
-    def _mutated_vars(self):
-        raise NotImplementedError("abstract base class")
 
     def tostring(self):
         _stringrepr = self._stringrepr

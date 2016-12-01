@@ -97,7 +97,7 @@ def ll_get_dict_item(RES, dict, i):
     else:
         raise KeyError
 
-@specialize.call_location()
+@specialize.arg(2)
 def next_valid_index(d, i, valid=bool):
     """
     Probes the hash table for the next valid index into the table. Raises
