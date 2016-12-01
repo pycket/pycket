@@ -33,6 +33,8 @@ BUILTIN_MODULES = [
     "#%builtin",
     "#%extfl",
     "#%futures",
+    "#%core",
+    "#%linklet",
     "#%network" ]
 
 
@@ -263,14 +265,14 @@ def var_eq(a, b):
         return a.sym is b.sym
     elif isinstance(a, ModuleVar) and isinstance(b, ModuleVar):
         # two renamed variables can be the same
-        return (a.srcmod == b.srcmod and a.srcsym is b.srcsym)
+        return a.srcsym is b.srcsym
     return False
 
 def var_hash(a):
     if isinstance(a, LexicalVar):
         return compute_hash(a.sym)
     elif isinstance(a, ModuleVar):
-        return compute_hash( (a.srcsym, a.srcmod) )
+        return compute_hash(a.srcsym)
     assert False
 
 def variable_set():
@@ -647,7 +649,7 @@ class Module(AST):
 
         defs = {}
         for b in self.body:
-            defs.update(b.defined_vars())
+            b.defined_vars(defs)
         self.defs = defs
 
     def rebuild_body(self):
@@ -661,6 +663,8 @@ class Module(AST):
         acc.append(self)
 
     def full_module_path(self):
+        if self.parent is None:
+            return self.name
         path = []
         while self is not None:
             path.append(self.name)
@@ -793,9 +797,6 @@ class Require(AST):
         self.path = path
         self.loader = loader
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def assign_convert(self, vars, env_structure):
         return self
 
@@ -887,20 +888,19 @@ class Quote(AST):
     def direct_children(self):
         return []
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
-                isinstance(self.w_val, values.W_Number) or
-                isinstance(self.w_val, values_string.W_String) or
-                isinstance(self.w_val, values.W_Symbol)):
+            isinstance(self.w_val, values.W_Number) or
+            isinstance(self.w_val, values_string.W_String) or
+            isinstance(self.w_val, values.W_Symbol)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
 
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
     simple = True
+    ispure = True
+
     def __init__ (self, w_val):
         self.w_val = w_val
 
@@ -1069,6 +1069,10 @@ class SimplePrimApp1(App):
         self.rand1, = rands
         self.w_prim = w_prim
 
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
     def run(self, env):
         result = self.w_prim.simple1(self.rand1.interpret_simple(env))
         if result is None:
@@ -1098,6 +1102,10 @@ class SimplePrimApp2(App):
         self.rand1, self.rand2 = rands
         self.w_prim = w_prim
 
+    def normalize(self, context):
+        context = Context.AppRand(self.rator, context)
+        return Context.normalize_names(self.rands, context)
+
     def run(self, env):
         from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
@@ -1119,7 +1127,6 @@ class SimplePrimApp2(App):
         except SchemeException, exn:
             return convert_runtime_exception(exn, env, cont)
         return return_multi_vals_direct(result, env, cont)
-
 
 class SequencedBodyAST(AST):
     _immutable_fields_ = ["body[*]", "counting_asts[*]"]
@@ -1149,10 +1156,11 @@ class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
 
     @staticmethod
-    def make(fst, rst):
-        if rst:
-            return Begin0(fst, Begin.make(rst))
-        return fst
+    def make(first, rest):
+        rest = remove_pure_ops(rest, always_last=False)
+        if rest:
+            return Begin0(first, Begin.make(rest))
+        return first
 
     def __init__(self, fst, rst):
         assert isinstance(rst, AST)
@@ -1165,12 +1173,6 @@ class Begin0(AST):
 
     def direct_children(self):
         return [self.first, self.body]
-
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in [self.first, self.body]:
-            x.update(r.mutated_vars())
-        return x
 
     def _tostring(self):
         return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
@@ -1185,10 +1187,14 @@ class Begin0(AST):
         return self.first, env, Begin0Cont(self, env, cont)
 
 @specialize.call_location()
-def remove_pure_ops(ops):
+def remove_pure_ops(ops, always_last=True):
     """ The specialize annotation is to allow handling of resizable and non-resizable
         lists as arguments. """
-    return [op for i, op in enumerate(ops) if not op.ispure or i == len(ops) - 1]
+    if always_last:
+        last = len(ops) - 1
+        return [op for i, op in enumerate(ops) if not op.ispure or i == last]
+    else:
+        return [op for i, op in enumerate(ops) if not op.ispure]
 
 class Begin(SequencedBodyAST):
 
@@ -1227,12 +1233,6 @@ class Begin(SequencedBodyAST):
     def direct_children(self):
         return self.body
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for r in self.body:
-            x.update(r.mutated_vars())
-        return x
-
     @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
@@ -1259,9 +1259,6 @@ class BeginForSyntax(AST):
     def interpret_simple(self, env):
         return values.w_void
 
-    def _mutated_vars(self):
-        return variable_set()
-
     def assign_convert(self, vars, env_structure):
         new_body = [b.assign_convert(vars, env_structure) for b in self.body]
         return BeginForSyntax(new_body)
@@ -1272,6 +1269,7 @@ class BeginForSyntax(AST):
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
+    ispure = True
 
     def __init__ (self, sym, env_structure=None):
         assert isinstance(sym, values.W_Symbol)
@@ -1286,9 +1284,6 @@ class Var(AST):
 
     def direct_children(self):
         return []
-
-    def _mutated_vars(self):
-        return variable_set()
 
     def _free_vars(self):
         return SymbolSet.singleton(self.sym)
@@ -1421,12 +1416,6 @@ class ModuleVar(Var):
 
     def assign_convert(self, vars, env_structure):
         return self
-        # # we use None here for hashing because we don't have the module name in the
-        # # define-values when we need to look this up.
-        # if ModuleVar(self.sym, None, self.srcsym) in vars:
-        #     return ModCellRef(self.sym, self.srcmod, self.srcsym)
-        # else:
-        #     return self
 
     def _set(self, w_val, env):
         if self.modenv is None:
@@ -1434,32 +1423,6 @@ class ModuleVar(Var):
         v = self._elidable_lookup()
         assert isinstance(v, values.W_Cell)
         v.set_val(w_val)
-
-# class ModCellRef(Var):
-#     _immutable_fields_ = ["sym", "srcmod", "srcsym", "modvar"]
-
-#     def __init__(self, sym, srcmod, srcsym, env_structure=None):
-#         self.sym = sym
-#         self.srcmod = srcmod
-#         self.srcsym = srcsym
-#         self.modvar = ModuleVar(self.sym, self.srcmod, self.srcsym)
-#     def assign_convert(self, vars, env_structure):
-#         return ModCellRef(self.sym, self.srcmod, self.srcsym)
-#     def _tostring(self):
-#         return "ModCellRef(%s)" %variable_name(self.sym)
-#     def _set(self, w_val, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         w_res.set_val(w_val)
-#     def _lookup(self, env):
-#         w_res = self.modvar._lookup(env)
-#         assert isinstance(w_res, values.W_Cell)
-#         return w_res.get_val()
-#     def to_modvar(self):
-#         # we use None here for hashing because we don't have the module name in the
-#         # define-values when we need to look this up.
-#         return ModuleVar(self.sym, None, self.srcsym)
-
 
 class ToplevelVar(Var):
     def _lookup(self, env):
@@ -1470,10 +1433,6 @@ class ToplevelVar(Var):
 
     def _set(self, w_val, env):
         env.toplevel_env().toplevel_set(self.sym, w_val)
-
-# rewritten version for caching
-def to_modvar(m):
-    return ModuleVar(m.sym, None, m.srcsym)
 
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
@@ -1499,7 +1458,7 @@ class SetBang(AST):
         # even though we don't change these to cell refs, we still
         # have to convert the definitions
         elif isinstance(var, ModuleVar):
-            x[to_modvar(var)] = None
+            x[var] = None
         # do nothing for top-level vars, they're all mutated
         return x
 
@@ -1550,16 +1509,11 @@ class If(AST):
         context = Context.If(self.thn, self.els, context)
         return Context.normalize_name(self.tst, context, hint="if")
 
-    def _mutated_vars(self):
-        x = variable_set()
-        for b in [self.tst, self.els, self.thn]:
-            x.update(b.mutated_vars())
-        return x
-
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, sourceinfo=None):
+    body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
     args = SymList(args.elems, frees)
@@ -1575,6 +1529,7 @@ def free_vars_lambda(body, args):
 class CaseLambda(AST):
     _immutable_fields_ = ["lams[*]", "any_frees", "recursive_sym", "w_closure_if_no_frees?", "_arity"]
     simple = True
+    ispure = True
 
     def __init__(self, lams, recursive_sym=None, arity=None):
         ## TODO: drop lams whose arity is redundant
@@ -1690,6 +1645,7 @@ class Lambda(SequencedBodyAST):
                           "frees", "enclosing_env_structure", 'env_structure',
                           "sourceinfo"]
     simple = True
+    ispure = True
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
@@ -2232,19 +2188,15 @@ class Let(SequencedBodyAST):
 
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
-    names = []
-    rhs = Quote(values.w_null)
 
     def __init__(self, ns, r, display_names):
         self.names = ns
         self.rhs = r
         self.display_names = display_names
 
-    def defined_vars(self):
-        defs = {} # a dictionary, contains symbols
+    def defined_vars(self, defs):
         for n in self.names:
             defs[n] = None
-        return defs
 
     def interpret(self, env, cont):
         return self.rhs.interpret(env, cont)

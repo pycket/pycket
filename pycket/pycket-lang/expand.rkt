@@ -437,7 +437,7 @@
                                      (cons (full-path-string (car src)) (cdr src))]
                                     [(path? src)
                                      (list (full-path-string src))]
-                                    [(eq? src '#%kernel) #f] ;; omit these
+                                    [(memq src '(#%core #%runtime #%kernel)) #f] ;; omit these
                                     [(list? src) (list-module-path src)]
                                     [src (symbol-module-path src)]
                                     [else 'null])
