@@ -131,9 +131,10 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
                     cls.__init__(self, *args)
 
                 def _get_list(self, i):
-                    result = self._map.get_static_attribute(i, None)
-                    if result is not None:
-                        return result
+                    if cache_constants:
+                        result = self._map.get_static_attribute(i, None)
+                        if result is not None:
+                            return result
                     type, index = self._map.get_index(i)
                     return self._get_list_helper(type, index)
 
@@ -240,8 +241,12 @@ def small_list(sizemax=10, nonull=False, attrname="list", factoryname="_make",
             map = Map._new(root)
             if elems is not None:
                 for idx, e in enumerate(elems):
-                    type = space.typeOf(e)
-                    map = map.add_attribute(idx, type)
+                    if cache_constants and root.is_constant_field(idx):
+                        value = root.get_constant_field(idx)
+                        map = map.add_static_attribute(idx, value)
+                    else:
+                        type = space.typeOf(e)
+                        map = map.add_attribute(idx, type)
             cls = elidable_lookup(map)
             return cls(map, elems, *args)
         _make.__name__ = factoryname

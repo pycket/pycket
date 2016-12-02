@@ -1481,7 +1481,7 @@ class W_Closure(W_Procedure):
         return self.call_with_extra_info(args, env, cont, None)
 
 # @inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
-@small_list_alt.small_list(sizemax=11, space=ValueSpace)
+@small_list_alt.small_list(sizemax=11, space=ValueSpace, cache_constants=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = []
@@ -1493,6 +1493,8 @@ class W_Closure1AsEnv(ConsEnv):
         if not we_are_translated() and not vals:
             for s in caselam.lams[0].frees.elems:
                 assert s is recursive_sym
+        for i, val in enumerate(vals):
+            caselam.profile_field(i, val)
         return W_Closure1AsEnv._make(caselam, vals, prev)
 
     def iscallable(self):

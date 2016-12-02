@@ -328,7 +328,7 @@ class LetrecCont(Cont):
                                self.env, self.prev))
 
 
-@small_list_alt.small_list(sizemax=11, nonull=True, space=values.ValueSpace)
+@small_list_alt.small_list(sizemax=11, nonull=True, space=values.ValueSpace, cache_constants=False)
 class LetCont(Cont):
     _attrs_ = []
     _immutable_fields_ = []
@@ -1547,6 +1547,15 @@ class CaseLambda(AST):
         self._arity = arity
         self.compute_arity()
 
+    def profile_field(self, i, value):
+        return self.lams[0].profile_field(i, value)
+
+    def is_constant_field(self, i):
+        return self.lams[0].is_constant_field(i)
+
+    def get_constant_field(self, i):
+        return self.lams[0].get_constant_field(i)
+
     @jit.unroll_safe
     def enable_jitting(self):
         for l in self.lams:
@@ -1640,10 +1649,42 @@ class CaseLambda(AST):
         result = CaseLambda(lams, recursive_sym=self.recursive_sym, arity=self._arity)
         return context.plug(result)
 
+class ValueProf(object):
+    from pycket.base import W_Object
+
+    _immutable_fields_ = ['value?', 'valid?']
+
+    class Dummy(W_Object):
+        def __init__(self):
+            pass
+
+    VALUE_UNKNOWN  = Dummy()
+    VALUE_CONFLICT = Dummy()
+
+    del Dummy
+    del W_Object
+
+    def __init__(self):
+        self.value = ValueProf.VALUE_UNKNOWN
+        # self.valid = False
+        # self.count = 0
+
+    def profile_value(self, value):
+        from pycket.prims.equal import eqp_logic
+        if self.value is ValueProf.VALUE_CONFLICT:
+            pass
+        elif self.value is ValueProf.VALUE_UNKNOWN:
+            self.value = value
+        elif not eqp_logic(self.value, value):
+            self.value = ValueProf.VALUE_CONFLICT
+
+    def current_value(self):
+        return self.value
+
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", 'env_structure',
-                          "sourceinfo"]
+                          "sourceinfo", "value_profiles[*]"]
     simple = True
     ispure = True
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
@@ -1657,6 +1698,22 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+        _, free_count = frees.depth_and_size()
+        self.value_profiles = [ValueProf() for i in range(free_count)]
+
+    def profile_field(self, i, value):
+        self.value_profiles[i].profile_value(value)
+
+    def is_constant_field(self, i):
+        value = self.value_profiles[i].value
+        if value is ValueProf.VALUE_UNKNOWN:
+            return False
+        if value is ValueProf.VALUE_CONFLICT:
+            return False
+        return True
+
+    def get_constant_field(self, i):
+        return self.value_profiles[i].value
 
     def enable_jitting(self):
         self.body[0].set_should_enter()

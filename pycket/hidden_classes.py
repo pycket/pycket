@@ -183,7 +183,9 @@ def make_typed_map(root_type, types, cache_values=False):
 
             @jit.elidable_promote('all')
             def get_static_attribute(self, name, default):
-                return self.static_data.get(name, default)
+                if name in self.static_data:
+                    return self.static_data[name]
+                return default
 
         @jit.elidable
         def storage_size(self):
@@ -191,7 +193,10 @@ def make_typed_map(root_type, types, cache_values=False):
 
         @jit.elidable_promote('all')
         def total_size(self):
-            return len(self.indexes) + len(self.static_data)
+            size = len(self.indexes)
+            if cache_values:
+                size += len(self.static_data)
+            return size
 
         @staticmethod
         @jit.elidable
