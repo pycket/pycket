@@ -26,6 +26,8 @@ else
 RUNINTERP = $(PYPY_EXECUTABLE)
 endif
 
+WITH_JIT = -Ojit --translation-jit_opencoder_model=big
+
 translate-jit-all: $(TRANSLATE_TARGETS)
 all: translate-jit-all translate-no-jit
 
@@ -40,31 +42,31 @@ translate-no-type-size-specialization: pycket-c-no-type-size-specialization
 translate-no-jit: pycket-c-nojit
 
 pycket-c: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py
 
 pycket-c-no-hidden-classes: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-hidden-classes
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-hidden-classes
 
 pycket-c-no-prune-env: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-prune-env
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-prune-env
 
 pycket-c-no-two-state: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-two-state
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-two-state
 
 pycket-c-no-callgraph: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big targetpycket.py --no-callgraph
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-callgraph
 
 pycket-c-no-strategies: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit targetpycket.py --no-strategies
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-strategies
 
 pycket-c-no-type-size-specialization: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit targetpycket.py --no-type-size-specialization
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) targetpycket.py --no-type-size-specialization
 
 pycket-c-nojit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) targetpycket.py
 
 debug: $(PYFILES)
-	$(RUNINTERP) $(RPYTHON) -Ojit --translation-jit_opencoder_model=big --lldebug targetpycket.py
+	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
 
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
