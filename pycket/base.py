@@ -65,7 +65,7 @@ class W_Object(W_ProtoObject):
         if self.iscallable():
             return None
         else:
-            raise SchemeException("%s does not have arity" % self.tostring())
+            raise SchemeException("%s does not have result arity" % self.tostring())
 
     # Interface for structs
 
