@@ -3,7 +3,24 @@
 #
 # _____ Define and setup target ___
 
-from rpython.rlib          import jit, objectmodel
+from rpython.rlib import jit, objectmodel
+
+POST_RUN_CALLBACKS = []
+
+def register_post_run_callback(callback):
+    """
+    Registers functions to be called after the user program terminates.
+    This is mostly useful for defining debugging/logging hooks to print out
+    runtime stats after the program is done.
+    """
+    POST_RUN_CALLBACKS.append(callback)
+    return callback
+
+@register_post_run_callback
+def save_callgraph(config, env):
+    if config.get('save-callgraph', False):
+        with open('callgraph.dot', 'w') as outfile:
+            env.callgraph.write_dot_file(outfile)
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, PermException
@@ -50,9 +67,8 @@ def make_entry_point(pycketconfig=None):
             val = interpret_module(ast, env)
         finally:
             from pycket.prims.input_output import shutdown
-            if config.get('save-callgraph', False):
-                with open('callgraph.dot', 'w') as outfile:
-                    env.callgraph.write_dot_file(outfile)
+            for callback in POST_RUN_CALLBACKS:
+                callback(config, env)
             shutdown(env)
         return 0
     return entry_point
