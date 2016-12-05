@@ -306,3 +306,4 @@ def test_anf_setbang():
     p = p.body[0]
     assert isinstance(p, SetBang)
     assert p.rhs.simple
+

@@ -237,9 +237,10 @@ def parse_ast(json_string):
     return to_ast(json, modtable)
 
 def finalize_module(mod):
-    from pycket.interpreter import Context
+    from pycket.interpreter    import Context
+    from pycket.assign_convert import assign_convert
     mod = Context.normalize_term(mod)
-    mod = mod.assign_convert_module()
+    mod = assign_convert(mod)
     mod.clean_caches()
     return mod
 

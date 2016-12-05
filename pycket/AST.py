@@ -1,6 +1,20 @@
-from rpython.rlib                    import jit, objectmodel
+from pycket.util  import snake_case
+from rpython.rlib import jit, objectmodel
+
+class Visitable(type):
+    def __new__(cls, name, bases, dct):
+        visit_method_name = "visit_" + snake_case(name)
+        @objectmodel.specialize.argtype(1)
+        def dispatch_visitor(self, visitor, *args):
+            return getattr(visitor, visit_method_name)(self, *args)
+        if dct.get('visitable', False):
+            dct['visit'] = dispatch_visitor
+        result = type.__new__(cls, name, bases, dct)
+        return result
 
 class AST(object):
+    __metaclass__ = Visitable
+
     _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
@@ -113,10 +127,13 @@ class AST(object):
             _stringrepr = self._stringrepr = self._tostring()
         return _stringrepr
 
+    def constant_prop(self, constants):
+        for child in self.direct_children():
+            child.constant_prop(constants)
+
     def _tostring(self):
         return "UNKNOWN AST: "
 
     def __str__(self):
         return self.tostring()
-
 
