@@ -28,6 +28,13 @@ from pycket.interpreter import (
 )
 
 class AssignConvertVisitor(ASTVisitor):
+    """
+    This visitor performs assignment conversion of the Pycket AST, which is
+    necessary in order to interpret the AST.
+
+    This pass also performs something akin to liveness analysis, trying to reduce
+    the sizes of environment frames by removing cells unreferenced by an expression.
+    """
 
     def visit_cell_ref(self, ast, vars, env_structure):
         assert isinstance(ast, CellRef)
