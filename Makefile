@@ -75,10 +75,10 @@ setup:
 	hg -R $(PYPYPATH) update
 
 test: $(PYFILES)
-	$(PYTEST) pycket
+	$(RUNINTERP) $(PYTEST) pycket
 
 test-bytecode: $(PYFILES)
-	$(PYTEST) --bytecode go pycket
+	$(RUNINTERP) $(PYTEST) --bytecode go pycket
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)
