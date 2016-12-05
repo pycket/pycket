@@ -2,28 +2,28 @@
 from pycket.ast_visitor import ASTVisitor
 from pycket.env         import SymList
 from pycket.interpreter import (
+    App,
+    Begin,
+    Begin0,
+    BeginForSyntax,
+    CaseLambda,
     Cell,
+    CellRef,
+    DefineValues,
+    If,
+    Lambda,
+    Let,
+    Letrec,
+    LexicalVar,
+    Module,
+    ModuleVar,
     Quote,
     QuoteSyntax,
+    Require,
+    SetBang,
+    ToplevelVar,
     VariableReference,
     WithContinuationMark,
-    App,
-    Begin0,
-    Begin,
-    BeginForSyntax,
-    CellRef,
-    LexicalVar,
-    ModuleVar,
-    ToplevelVar,
-    SetBang,
-    If,
-    CaseLambda,
-    Lambda,
-    Letrec,
-    Let,
-    DefineValues,
-    Module,
-    Require,
     variable_set,
 )
 
@@ -148,7 +148,8 @@ class AssignConvertVisitor(ASTVisitor):
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
 
-def assign_convert(ast):
-    visitor = AssignConvertVisitor()
+def assign_convert(ast, vistor=None):
+    if visitor is None:
+        visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)
 
