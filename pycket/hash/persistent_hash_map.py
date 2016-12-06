@@ -222,8 +222,10 @@ def make_persistent_hash_type(
                     for i in range(32):
                         if (self._bitmap >> i) & 1 != 0:
                             if self._array[j] is None:
+                                # Just copy the subnode
                                 nodes[i] = self._array[j + 1]
                             else:
+                                # Otherwise we have a key/value pair
                                 nodes[i] = EmptyNode.assoc_inode(shift + 5, hashfun(self._array[j]),
                                                                  self._array[j], self._array[j + 1], added_leaf)
                             j += 2
@@ -234,8 +236,8 @@ def make_persistent_hash_type(
                     new_array = [None] * (2 * (n + 1))
                     list_copy(self._array, 0, new_array, 0, 2 * idx)
                     new_array[2 * idx] = key
-                    added_leaf.add_leaf()
                     new_array[2 * idx + 1] = val
+                    added_leaf.add_leaf()
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
 
