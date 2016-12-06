@@ -247,7 +247,7 @@ SymbolSet = make_persistent_hash_type(
     super=values.W_ProtoObject,
     base=object,
     keytype=values.W_Symbol,
-    valtype=values.W_Symbol,
+    valtype=values.W_Object,
     name="SymbolSet",
     hashfun=hashfun,
     equal=equal)
@@ -678,6 +678,9 @@ class Module(AST):
         if v is None:
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
+
+    def _mutated_vars(self):
+        return self.mod_mutated_vars()
 
     # all the module-bound variables that are mutated
     def mod_mutated_vars(self):
@@ -1278,6 +1281,9 @@ class LexicalVar(Var):
     def _set(self, w_val, env):
         assert 0
 
+    def __repr__(self):
+        return "LexicalVar(%s)" % self.sym.variable_name()
+
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
     visitable = True
@@ -1359,6 +1365,7 @@ class SetBang(AST):
     simple = True
 
     def __init__(self, var, rhs):
+        assert isinstance(var, Var)
         self.var = var
         self.rhs = rhs
 
@@ -1551,7 +1558,7 @@ class Lambda(SequencedBodyAST):
     visitable = True
     simple = True
     ispure = True
-    def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
+    def __init__(self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
         self.formals = formals

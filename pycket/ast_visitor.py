@@ -20,8 +20,10 @@ from pycket.interpreter import (
     Require,
     SetBang,
     ToplevelVar,
+    Var,
     VariableReference,
     WithContinuationMark,
+    make_lambda,
     make_let,
     make_letrec,
 )
@@ -33,6 +35,9 @@ class ASTVisitor(object):
     of the AST, as the default implementations in this class pass along the
     relevant data.
     """
+
+    preserve_mutated_vars = False
+    preserve_free_vars = False
 
     def visit_cell(self, ast, *args):
         assert isinstance(ast, Cell)
@@ -99,6 +104,7 @@ class ASTVisitor(object):
         assert isinstance(ast, SetBang)
         var = ast.var.visit(self, *args)
         rhs = ast.rhs.visit(self, *args)
+        assert isinstance(var, Var)
         return SetBang(var, rhs)
 
     def visit_if(self, ast, *args):

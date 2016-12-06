@@ -21,9 +21,11 @@ from pycket.interpreter import (
     QuoteSyntax,
     Require,
     SetBang,
+    SymbolSet,
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
+    make_let,
     variable_set,
 )
 
@@ -155,8 +157,45 @@ class AssignConvertVisitor(ASTVisitor):
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
 
-def assign_convert(ast, vistor=None):
+def assign_convert(ast, visitor=None):
     if visitor is None:
         visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)
 
+class ConstantPropVisitor(ASTVisitor):
+    preserve_mutated_vars = True
+
+    def visit_let(self, ast, env):
+        assert isinstance(ast, Let)
+        rhss = [r.visit(self, env) for r in ast.rhss]
+        vars = ast._rebuild_args()
+        body_muts = variable_set()
+        for b in ast.body:
+            body_muts.update(b.mutated_vars())
+
+        new_vars = []
+        new_rhss = []
+        for i, rhs in enumerate(rhss):
+            var = vars[i]
+            if len(var) == 1:
+                sym, = var
+                if LexicalVar(sym) not in body_muts and isinstance(rhs, Quote):
+                    env = env.assoc(sym, rhs.w_val)
+                    continue
+            new_vars.append(var)
+            new_rhss.append(rhs)
+        body = [b.visit(self, env) for b in ast.body]
+        return make_let(new_vars[:], new_rhss[:], body)
+
+    def visit_lexical_var(self, ast, env):
+        assert isinstance(ast, LexicalVar)
+        val = env.val_at(ast.sym, None)
+        if val is None:
+            return ast
+        return Quote(val)
+
+def constant_prop(ast, env=None):
+    if env is None:
+        env = SymbolSet.EMPTY
+    visitor = ConstantPropVisitor()
+    return ast.visit(visitor, env)

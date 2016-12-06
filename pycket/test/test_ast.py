@@ -30,6 +30,10 @@ def test_symlist_depth():
     s = SymList([1, 2, 3, 4], SymList([], None))
     assert s.depth_and_size() == (2, 4)
 
+# def test_constant_prop():
+    # p = expr_ast("(let ([x 1]) (+ x 2))")
+    # import pdb; pdb.set_trace()
+
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")
     assert len(p.mutated_vars()) == 0

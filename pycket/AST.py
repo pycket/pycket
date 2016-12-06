@@ -6,7 +6,13 @@ class Visitable(type):
         visit_method_name = "visit_" + snake_case(name)
         @objectmodel.specialize.argtype(1)
         def dispatch_visitor(self, visitor, *args):
-            return getattr(visitor, visit_method_name)(self, *args)
+            method = getattr(visitor, visit_method_name)
+            result = method(self, *args)
+            if visitor.preserve_mutated_vars:
+                result._mvars = self._mvars
+            if visitor.preserve_free_vars:
+                result._fvars = self._fvars
+            return result
         if dct.get('visitable', False):
             dct['visit'] = dispatch_visitor
         result = type.__new__(cls, name, bases, dct)
@@ -103,6 +109,10 @@ class AST(object):
     def _mutated_vars(self):
         from pycket.interpreter import variable_set
         x = variable_set()
+        children = self.direct_children()
+        if not children:
+            return variable_set()
+
         for b in self.direct_children():
             x.update(b.mutated_vars())
         return x
