@@ -28,6 +28,7 @@ from pycket.interpreter import (
     make_let,
     variable_set,
 )
+from pycket.base import W_Object
 
 class AssignConvertVisitor(ASTVisitor):
     """
@@ -162,8 +163,34 @@ def assign_convert(ast, visitor=None):
         visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)
 
+class Const(W_Object):
+    _attrs_ = ['value']
+    def __init__(self, value):
+        self.value = value
+
+    def const_value(self):
+        """ Produces copies due to the mutable components of AST nodes. """
+        val = self.value
+        if isinstance(val, Quote):
+            return Quote(val.w_val)
+        if isinstance(val, ModuleVar):
+            return ModuleVar(val.sym, val.srcmod, val.srcsym, val.path)
+        return val
+
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
+
+    def __init__(self, mod_mutated_vars):
+        self.mod_mutated_vars = mod_mutated_vars
+
+    def constant_binding(self, muts, sym, rhs):
+        if LexicalVar(sym) in muts:
+            return False
+        if isinstance(rhs, Quote):
+            return True
+        if isinstance(rhs, ModuleVar) and rhs not in self.mod_mutated_vars:
+            return True
+        return False
 
     def visit_let(self, ast, env):
         assert isinstance(ast, Let)
@@ -179,8 +206,8 @@ class ConstantPropVisitor(ASTVisitor):
             var = vars[i]
             if len(var) == 1:
                 sym, = var
-                if LexicalVar(sym) not in body_muts and isinstance(rhs, Quote):
-                    env = env.assoc(sym, rhs.w_val)
+                if self.constant_binding(body_muts, sym, rhs):
+                    env = env.assoc(sym, Const(rhs))
                     continue
             new_vars.append(var)
             new_rhss.append(rhs)
@@ -192,10 +219,12 @@ class ConstantPropVisitor(ASTVisitor):
         val = env.val_at(ast.sym, None)
         if val is None:
             return ast
-        return Quote(val)
+        assert isinstance(val, Const)
+        return val.const_value()
 
 def constant_prop(ast, env=None):
+    assert isinstance(ast, Module)
     if env is None:
         env = SymbolSet.EMPTY
-    visitor = ConstantPropVisitor()
+    visitor = ConstantPropVisitor(ast.mod_mutated_vars())
     return ast.visit(visitor, env)
