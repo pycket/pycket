@@ -155,7 +155,7 @@ class AssignConvertVisitor(ASTVisitor):
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
 
-def assign_convert(ast, vistor=None):
+def assign_convert(ast, visitor=None):
     if visitor is None:
         visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)
