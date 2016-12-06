@@ -178,8 +178,9 @@ def make_persistent_hash_type(
         @objectmodel.always_inline
         def entry(self, index):
             """ Helper function to extract the ith key/value pair """
-            key = self._array[index * 2]
-            val = self._array[index * 2 + 1]
+            base = index * 2
+            key = self._array[base]
+            val = self._array[base + 1]
             return key, val
 
         @jit.dont_look_inside
@@ -396,11 +397,15 @@ def make_persistent_hash_type(
             self._hash = hash
             self._array = array
 
+        def entry_count(self):
+            return len(self._array) / 2
+
         @objectmodel.always_inline
         def entry(self, index):
             """ Helper function to extract the ith key/value pair """
-            key = self._array[index * 2]
-            val = self._array[index * 2 + 1]
+            base = index * 2
+            key = self._array[base]
+            val = self._array[base + 1]
             return key, val
 
         @objectmodel.always_inline
@@ -441,15 +446,15 @@ def make_persistent_hash_type(
         @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             if hash_val == self._hash:
-                count = len(self._array)
                 idx = self.find_index(key)
                 if idx != -1:
-                    if self._array[idx + 1] == val:
-                        return self;
+                    if self.valat(idx) == val:
+                        return self
 
-                    new_array = clone_and_set(self._array, r_uint(idx + 1), val)
+                    new_array = clone_and_set(self._array, r_uint(idx * 2 + 1), val)
                     return HashCollisionNode(hash_val, new_array, self._size)
 
+                count = len(self._array)
                 new_array = [None] * (count + 2)
                 list_copy(self._array, 0, new_array, 0, count)
                 new_array[count] = key
@@ -473,10 +478,8 @@ def make_persistent_hash_type(
             i = r_int(0)
             while i < len(self._array):
                 if equal(key, self._array[i]):
-                    return i
-
+                    return i / 2
                 i += 2
-
             return r_int(-1)
 
         @jit.dont_look_inside
@@ -484,11 +487,9 @@ def make_persistent_hash_type(
             idx = self.find_index(key)
             if idx == -1:
                 return self
-
             if len(self._array) == 1:
                 return None
-
-            new_array = remove_pair(self._array, r_uint(idx) / 2)
+            new_array = remove_pair(self._array, r_uint(idx))
             return HashCollisionNode(self._hash, new_array, self._size - 1)
 
     HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name
