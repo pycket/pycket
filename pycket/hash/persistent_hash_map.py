@@ -140,9 +140,8 @@ def make_persistent_hash_type(
         def _entries(self):
             "NOT RPYTHON"
             entries = []
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is not None or val_or_node is None:
                     entries.append((key_or_none, val_or_node))
             return entries
@@ -150,9 +149,8 @@ def make_persistent_hash_type(
         def _subnodes(self):
             "NOT RPYTHON"
             subnodes = []
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is None and val_or_node is not None:
                     assert isinstance(val_or_node, INode)
                     subnodes.append(val_or_node)
@@ -160,9 +158,8 @@ def make_persistent_hash_type(
 
         @objectmodel.always_inline
         def _get_item_node(self, index):
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is None and val_or_node is not None:
                     assert isinstance(val_or_node, INode)
                     size = val_or_node._size
@@ -178,9 +175,10 @@ def make_persistent_hash_type(
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
 
+        @objectmodel.always_inline
         def entry(self, index):
             """ Helper function to extract the ith key/value pair """
-            key = self._array[index * 2    ]
+            key = self._array[index * 2]
             val = self._array[index * 2 + 1]
             return key, val
 
@@ -398,15 +396,30 @@ def make_persistent_hash_type(
             self._hash = hash
             self._array = array
 
+        @objectmodel.always_inline
+        def entry(self, index):
+            """ Helper function to extract the ith key/value pair """
+            key = self._array[index * 2]
+            val = self._array[index * 2 + 1]
+            return key, val
+
+        @objectmodel.always_inline
+        def keyat(self, index):
+            return self._array[index * 2]
+
+        @objectmodel.always_inline
+        def valat(self, index):
+            return self._array[index * 2 + 1]
+
         def _entries(self):
             "NOT RPYTHON"
             entries = []
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
+            for x in range(len(self._array) / 2):
+                key_or_none= self.keyat(x)
+                if key_or_none is None:
                     continue
-                val = self._array[x + 1]
-                entries.append((key_or_nil, val))
+                val = self.valat(x)
+                entries.append((key_or_none, val))
             return entries
 
         def _subnodes(self):
@@ -415,13 +428,13 @@ def make_persistent_hash_type(
 
         @objectmodel.always_inline
         def _get_item_node(self, index):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
+            for x in range(len(self._array) / 2):
+                key_or_none = self.keyat(x)
+                if key_or_none is None:
                     continue
                 if index == 0:
-                    val_or_node = self._array[x + 1]
-                    return -1, key_or_nil, val_or_node
+                    val_or_node = self.valat(x)
+                    return -1, key_or_none, val_or_node
                 index -= 1
             assert False
 
