@@ -31,6 +31,13 @@ from pycket.interpreter import (
 )
 from pycket.base import W_Object
 
+def compute_body_muts(node):
+    assert isinstance(node, SequencedBodyAST)
+    muts = variable_set()
+    for b in node.body:
+        muts.update(b.mutated_vars())
+    return muts
+
 class AssignConvertVisitor(ASTVisitor):
     """
     This visitor performs assignment conversion of the Pycket AST, which is
@@ -46,14 +53,6 @@ class AssignConvertVisitor(ASTVisitor):
             del set[key]
         except KeyError:
             pass
-
-    @staticmethod
-    def body_muts(node):
-        assert isinstance(node, SequencedBodyAST)
-        muts = variable_set()
-        for b in node.body:
-            muts.update(b.mutated_vars())
-        return muts
 
     def visit_cell_ref(self, ast, vars, env_structure):
         assert isinstance(ast, CellRef)
@@ -79,7 +78,7 @@ class AssignConvertVisitor(ASTVisitor):
 
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
-        local_muts = self.body_muts(ast)
+        local_muts = compute_body_muts(ast)
         new_lets = []
         new_vars = vars.copy()
         for i in ast.args.elems:
@@ -101,7 +100,7 @@ class AssignConvertVisitor(ASTVisitor):
 
     def visit_letrec(self, ast, vars, env_structure):
         assert isinstance(ast, Letrec)
-        local_muts = self.body_muts(ast)
+        local_muts = compute_body_muts(ast)
         for b in ast.rhss:
             local_muts.update(b.mutated_vars())
         for v in ast.args.elems:
@@ -117,7 +116,7 @@ class AssignConvertVisitor(ASTVisitor):
     def visit_let(self, ast, vars, env_structure):
         assert isinstance(ast, Let)
         sub_env_structure = SymList(ast.args.elems, env_structure)
-        local_muts = self.body_muts(ast)
+        local_muts = compute_body_muts(ast)
         new_vars = vars.copy()
         new_vars.update(local_muts)
         ast, sub_env_structure, env_structures, remove_num_envs = ast._compute_remove_num_envs(

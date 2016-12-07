@@ -1851,7 +1851,7 @@ def _make_let_direct(varss, rhss, body):
 def make_letrec(varss, rhss, body):
     if not varss:
         return Begin.make(body)
-    if 1 == len(varss) and 1 == len(varss[0]):
+    if len(varss) == 1 and len(varss[0]) == 1:
         rhs = rhss[0]
         sym = varss[0][0]
         if isinstance(rhs, CaseLambda) and LexicalVar(sym) not in rhs.mutated_vars():
