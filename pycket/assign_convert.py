@@ -40,7 +40,7 @@ class AssignConvertVisitor(ASTVisitor):
     @staticmethod
     def remove_var(set, key):
         try:
-            del set[k]
+            del set[key]
         except KeyError:
             pass
 
