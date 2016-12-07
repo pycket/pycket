@@ -532,6 +532,17 @@ class JsonLoader(object):
                     ("source-module" not in rator or
                     rator["source-module"].value_string() == "#%kernel"))
 
+    def handle_if(self, cond, then, els):
+        cond = self.to_ast(cond)
+        if isinstance(cond, Quote):
+            if cond.w_val is values.w_false:
+                return self.to_ast(els)
+            else:
+                return self.to_ast(then)
+        then = self.to_ast(then)
+        els  = self.to_ast(els)
+        return If(cond, then, els)
+
     def to_ast(self, json):
         dbgprint("to_ast", json, lib=self._lib_string(), filename="")
         mksym = values.W_Symbol.make
@@ -649,10 +660,7 @@ class JsonLoader(object):
                 rands = [self.to_ast(x) for x in obj["operands"].value_array()]
                 return App.make(rator, rands)
             if "test" in obj:
-                cond = self.to_ast(obj["test"])
-                then = self.to_ast(obj["then"])
-                els  = self.to_ast(obj["else"])
-                return If.make(cond, then, els)
+                return self.handle_if(obj["test"], obj["then"], obj["else"])
             if "quote" in obj:
                 return Quote(to_value(obj["quote"]))
             if "quote-syntax" in obj:
