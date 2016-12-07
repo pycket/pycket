@@ -38,9 +38,9 @@ class AssignConvertVisitor(ASTVisitor):
     """
 
     @staticmethod
-    def remove(d, k):
+    def remove_var(set, key):
         try:
-            del d[k]
+            del set[k]
         except KeyError:
             pass
 
@@ -81,8 +81,7 @@ class AssignConvertVisitor(ASTVisitor):
         new_vars = vars.copy()
         for i in ast.args.elems:
             li = LexicalVar(i)
-            if li in new_vars:
-                self.remove(new_vars, li)
+            self.remove_var(new_vars, li)
             if li in local_muts:
                 new_lets.append(i)
         new_vars.update(local_muts)
