@@ -140,9 +140,8 @@ def make_persistent_hash_type(
         def _entries(self):
             "NOT RPYTHON"
             entries = []
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is not None or val_or_node is None:
                     entries.append((key_or_none, val_or_node))
             return entries
@@ -150,9 +149,8 @@ def make_persistent_hash_type(
         def _subnodes(self):
             "NOT RPYTHON"
             subnodes = []
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is None and val_or_node is not None:
                     assert isinstance(val_or_node, INode)
                     subnodes.append(val_or_node)
@@ -160,9 +158,8 @@ def make_persistent_hash_type(
 
         @objectmodel.always_inline
         def _get_item_node(self, index):
-            for x in range(0, len(self._array), 2):
-                key_or_none = self._array[x]
-                val_or_node = self._array[x + 1]
+            for x in range(len(self._array) / 2):
+                key_or_none, val_or_node = self.entry(x)
                 if key_or_none is None and val_or_node is not None:
                     assert isinstance(val_or_node, INode)
                     size = val_or_node._size
@@ -178,10 +175,12 @@ def make_persistent_hash_type(
         def index(self, bit):
             return bit_count(self._bitmap & (bit - 1))
 
+        @objectmodel.always_inline
         def entry(self, index):
             """ Helper function to extract the ith key/value pair """
-            key = self._array[index * 2    ]
-            val = self._array[index * 2 + 1]
+            base = index * 2
+            key = self._array[base]
+            val = self._array[base + 1]
             return key, val
 
         @jit.dont_look_inside
@@ -223,8 +222,10 @@ def make_persistent_hash_type(
                     for i in range(32):
                         if (self._bitmap >> i) & 1 != 0:
                             if self._array[j] is None:
+                                # Just copy the subnode
                                 nodes[i] = self._array[j + 1]
                             else:
+                                # Otherwise we have a key/value pair
                                 nodes[i] = EmptyNode.assoc_inode(shift + 5, hashfun(self._array[j]),
                                                                  self._array[j], self._array[j + 1], added_leaf)
                             j += 2
@@ -235,8 +236,8 @@ def make_persistent_hash_type(
                     new_array = [None] * (2 * (n + 1))
                     list_copy(self._array, 0, new_array, 0, 2 * idx)
                     new_array[2 * idx] = key
-                    added_leaf.add_leaf()
                     new_array[2 * idx + 1] = val
+                    added_leaf.add_leaf()
                     list_copy(self._array, 2 * idx, new_array, 2 * (idx + 1), 2 * (n - idx))
                     return BitmapIndexedNode(self._bitmap | bit, new_array, self._size + 1)
 
@@ -398,15 +399,34 @@ def make_persistent_hash_type(
             self._hash = hash
             self._array = array
 
+        def entry_count(self):
+            return len(self._array) / 2
+
+        @objectmodel.always_inline
+        def entry(self, index):
+            """ Helper function to extract the ith key/value pair """
+            base = index * 2
+            key = self._array[base]
+            val = self._array[base + 1]
+            return key, val
+
+        @objectmodel.always_inline
+        def keyat(self, index):
+            return self._array[index * 2]
+
+        @objectmodel.always_inline
+        def valat(self, index):
+            return self._array[index * 2 + 1]
+
         def _entries(self):
             "NOT RPYTHON"
             entries = []
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
+            for x in range(len(self._array) / 2):
+                key_or_none= self.keyat(x)
+                if key_or_none is None:
                     continue
-                val = self._array[x + 1]
-                entries.append((key_or_nil, val))
+                val = self.valat(x)
+                entries.append((key_or_none, val))
             return entries
 
         def _subnodes(self):
@@ -415,28 +435,28 @@ def make_persistent_hash_type(
 
         @objectmodel.always_inline
         def _get_item_node(self, index):
-            for x in range(0, len(self._array), 2):
-                key_or_nil = self._array[x]
-                if key_or_nil is None:
+            for x in range(len(self._array) / 2):
+                key_or_none = self.keyat(x)
+                if key_or_none is None:
                     continue
                 if index == 0:
-                    val_or_node = self._array[x + 1]
-                    return -1, key_or_nil, val_or_node
+                    val_or_node = self.valat(x)
+                    return -1, key_or_none, val_or_node
                 index -= 1
             assert False
 
         @jit.dont_look_inside
         def assoc_inode(self, shift, hash_val, key, val, added_leaf):
             if hash_val == self._hash:
-                count = len(self._array)
                 idx = self.find_index(key)
                 if idx != -1:
-                    if self._array[idx + 1] == val:
-                        return self;
+                    if self.valat(idx) == val:
+                        return self
 
-                    new_array = clone_and_set(self._array, r_uint(idx + 1), val)
+                    new_array = clone_and_set(self._array, r_uint(idx * 2 + 1), val)
                     return HashCollisionNode(hash_val, new_array, self._size)
 
+                count = len(self._array)
                 new_array = [None] * (count + 2)
                 list_copy(self._array, 0, new_array, 0, count)
                 new_array[count] = key
@@ -460,10 +480,8 @@ def make_persistent_hash_type(
             i = r_int(0)
             while i < len(self._array):
                 if equal(key, self._array[i]):
-                    return i
-
+                    return i / 2
                 i += 2
-
             return r_int(-1)
 
         @jit.dont_look_inside
@@ -471,11 +489,9 @@ def make_persistent_hash_type(
             idx = self.find_index(key)
             if idx == -1:
                 return self
-
             if len(self._array) == 1:
                 return None
-
-            new_array = remove_pair(self._array, r_uint(idx) / 2)
+            new_array = remove_pair(self._array, r_uint(idx))
             return HashCollisionNode(self._hash, new_array, self._size - 1)
 
     HashCollisionNode.__name__ = "HashCollisionNode(%s)" % name

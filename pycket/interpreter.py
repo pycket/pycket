@@ -1794,7 +1794,7 @@ def _make_symlist_counts(varss):
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl += vars
+        argsl.extend(vars)
     argsl = argsl[:] # copy to make fixed-size
     return SymList(argsl), counts
 
@@ -1837,6 +1837,7 @@ def make_let_singlevar(sym, rhs, body):
                 rhss  = [rhs] + b.rhss
                 body  = b.body
                 return make_let(varss, rhss, body)
+    body = remove_pure_ops(body)
     return Let(SymList([sym]), [1], [rhs], body)
 
 def _make_let_direct(varss, rhss, body):

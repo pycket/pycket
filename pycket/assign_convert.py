@@ -22,6 +22,7 @@ from pycket.interpreter import (
     Require,
     SetBang,
     SymbolSet,
+    SequencedBodyAST,
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
@@ -38,6 +39,21 @@ class AssignConvertVisitor(ASTVisitor):
     This pass also performs something akin to liveness analysis, trying to reduce
     the sizes of environment frames by removing cells unreferenced by an expression.
     """
+
+    @staticmethod
+    def remove_var(set, key):
+        try:
+            del set[key]
+        except KeyError:
+            pass
+
+    @staticmethod
+    def body_muts(node):
+        assert isinstance(node, SequencedBodyAST)
+        muts = variable_set()
+        for b in node.body:
+            muts.update(b.mutated_vars())
+        return muts
 
     def visit_cell_ref(self, ast, vars, env_structure):
         assert isinstance(ast, CellRef)
@@ -63,19 +79,15 @@ class AssignConvertVisitor(ASTVisitor):
 
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
-        local_muts = variable_set()
-        for b in ast.body:
-            local_muts.update(b.mutated_vars())
+        local_muts = self.body_muts(ast)
         new_lets = []
         new_vars = vars.copy()
         for i in ast.args.elems:
             li = LexicalVar(i)
-            if li in new_vars:
-                del new_vars[li]
+            self.remove_var(new_vars, li)
             if li in local_muts:
                 new_lets.append(i)
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
+        new_vars.update(local_muts)
         if new_lets:
             sub_env_structure = SymList(new_lets, ast.args)
         else:
@@ -89,17 +101,14 @@ class AssignConvertVisitor(ASTVisitor):
 
     def visit_letrec(self, ast, vars, env_structure):
         assert isinstance(ast, Letrec)
-        local_muts = variable_set()
-        for b in ast.body:
-            local_muts.update(b.mutated_vars())
+        local_muts = self.body_muts(ast)
         for b in ast.rhss:
             local_muts.update(b.mutated_vars())
         for v in ast.args.elems:
             lv = LexicalVar(v)
             local_muts[lv] = None
         new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
+        new_vars.update(local_muts)
         sub_env_structure = SymList(ast.args.elems, env_structure)
         new_rhss = [rhs.visit(self, new_vars, sub_env_structure) for rhs in ast.rhss]
         new_body = [b.visit(self, new_vars, sub_env_structure) for b in ast.body]
@@ -108,12 +117,9 @@ class AssignConvertVisitor(ASTVisitor):
     def visit_let(self, ast, vars, env_structure):
         assert isinstance(ast, Let)
         sub_env_structure = SymList(ast.args.elems, env_structure)
-        local_muts = variable_set()
-        for b in ast.body:
-            local_muts.update(b.mutated_vars())
+        local_muts = self.body_muts(ast)
         new_vars = vars.copy()
-        for k, v in local_muts.iteritems():
-            new_vars[k] = v
+        new_vars.update(local_muts)
         ast, sub_env_structure, env_structures, remove_num_envs = ast._compute_remove_num_envs(
             new_vars, sub_env_structure)
 
@@ -130,10 +136,9 @@ class AssignConvertVisitor(ASTVisitor):
             offset += count
 
         body_env_structure = env_structures[-1]
-
         new_body = [b.visit(self, new_vars, body_env_structure) for b in ast.body]
-        result = Let(sub_env_structure, ast.counts, new_rhss, new_body, remove_num_envs)
-        return result
+        return Let(sub_env_structure, ast.counts, new_rhss, new_body,
+                   remove_num_envs)
 
     def visit_define_values(self, ast, vars, env_structure):
         assert isinstance(ast, DefineValues)
