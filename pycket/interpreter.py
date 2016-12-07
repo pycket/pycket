@@ -1787,7 +1787,7 @@ def _make_symlist_counts(varss):
     argsl = []
     for vars in varss:
         counts.append(len(vars))
-        argsl += vars
+        argsl.extend(vars)
     argsl = argsl[:] # copy to make fixed-size
     return SymList(argsl), counts
 
