@@ -228,3 +228,4 @@ def constant_prop(ast, env=None):
         env = SymbolSet.EMPTY
     visitor = ConstantPropVisitor(ast.mod_mutated_vars())
     return ast.visit(visitor, env)
+

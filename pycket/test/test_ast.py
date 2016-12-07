@@ -21,8 +21,9 @@ def make_symbols(d):
         v[ModuleVar(W_Symbol.make(i), None, W_Symbol.make(i))] = j
     return v
 
-def expr_ast(s):
-    m = parse_module(expand_string(format_pycket_mod(s, extra="(define x 0)")))
+def expr_ast(s, const_prop=True):
+    m = expand_string(format_pycket_mod(s, extra="(define x 0)"))
+    m = parse_module(m, const_prop=const_prop)
     return m.body[-1]
 
 def test_symlist_depth():
@@ -84,20 +85,20 @@ def test_remove_simple_if():
     assert isinstance(p, Quote) and p.w_val is W_Symbol.make("else")
 
 def test_remove_simple_begin():
-    p = expr_ast("(begin #f #t)")
+    p = expr_ast("(begin #f #t)", const_prop=False)
     assert isinstance(p, Quote) and p.w_val is w_true
-    p = expr_ast("(let ([a 1]) a a a)")
+    p = expr_ast("(let ([a 1]) a a a)", const_prop=False)
     assert isinstance(p, Let) and len(p.body) == 1
-    p = expr_ast("(begin0 #t #f #f #f)")
+    p = expr_ast("(begin0 #t #f #f #f)", const_prop=False)
     assert isinstance(p, Quote) and p.w_val is w_true
 
 def test_let_remove_num_envs():
-    p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
+    p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))", const_prop=False)
     assert isinstance(p, Let)
     assert p.remove_num_envs == [0, 0]
     assert p.body[0].remove_num_envs == [0, 1]
 
-    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a d))))")
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a d))))", const_prop=False)
     assert p.body[0].body[0].remove_num_envs == [0, 1, 2]
 
 def test_let_remove_num_envs_edge_case():
@@ -125,19 +126,19 @@ def test_let_remove_num_envs_edge_case():
     assert type(m.defs[d]) is W_Fixnum and m.defs[d].value == 3
 
 def test_copy_to_env():
-    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))", const_prop=False)
     inner_let = p.body[0].body[0]
     assert inner_let.remove_num_envs == [0, 0, 1, 2]
     assert len(inner_let.args.elems) == 3
     assert str(inner_let.args.elems[-2]).startswith('b')
 
     # can't copy env, because of the mutation
-    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))", const_prop=False)
     inner_let = p.body[0].body[0]
     assert inner_let.remove_num_envs == [0, 0, 0, 0]
 
     # can't copy env, because of the mutation
-    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
+    p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))", const_prop=False)
     inner_let = p.body[0].body[0].body[1]
     assert inner_let.remove_num_envs == [1, 1, 1]
 

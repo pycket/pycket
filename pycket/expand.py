@@ -236,21 +236,22 @@ def parse_ast(json_string):
     modtable = ModTable()
     return to_ast(json, modtable)
 
-def finalize_module(mod):
+def finalize_module(mod, const_prop=True):
     from pycket.interpreter    import Context
     from pycket.assign_convert import assign_convert, constant_prop
-    mod = constant_prop(mod)
+    if const_prop:
+        mod = constant_prop(mod)
     mod = Context.normalize_term(mod)
     mod = assign_convert(mod)
     mod.clean_caches()
     return mod
 
-def parse_module(json_string, bytecode_expand=False):
+def parse_module(json_string, bytecode_expand=False, const_prop=True):
     json = pycket_json.loads(json_string)
     modtable = ModTable()
     reader = JsonLoader(bytecode_expand)
     module = reader.to_module(json)
-    return finalize_module(module)
+    return finalize_module(module, const_prop=const_prop)
 
 #### ========================== Implementation functions
 
