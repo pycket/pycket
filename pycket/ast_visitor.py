@@ -136,13 +136,20 @@ class ASTVisitor(object):
 
     def visit_if(self, ast, *args):
         assert isinstance(ast, If)
+        if self.visit_inplace:
+            tst = ast.tst.visit(self, *args)
+            thn = ast.thn.visit(self, *args)
+            els = ast.els.visit(self, *args)
+            return ast
         tst = ast.tst.visit(self, *args)
+        if isinstance(tst, Quote)
+            if tst.w_val is values.w_false:
+                return ast.els.visit(self, *args)
+            else:
+                return ast.thn.visit(self, *args)
         thn = ast.thn.visit(self, *args)
         els = ast.els.visit(self, *args)
-        if self.visit_inplace:
-            return ast
-        else:
-            return If.make(tst, thn, els)
+        return If.make(tst, thn, els)
 
     def visit_case_lambda(self, ast, *args):
         assert isinstance(ast, CaseLambda)
