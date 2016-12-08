@@ -27,6 +27,7 @@ from pycket.interpreter import (
     make_let,
     make_letrec,
 )
+from pycket import values
 
 class ASTVisitor(object):
     """
@@ -142,7 +143,7 @@ class ASTVisitor(object):
             els = ast.els.visit(self, *args)
             return ast
         tst = ast.tst.visit(self, *args)
-        if isinstance(tst, Quote)
+        if isinstance(tst, Quote):
             if tst.w_val is values.w_false:
                 return ast.els.visit(self, *args)
             else:
