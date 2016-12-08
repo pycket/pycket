@@ -1720,12 +1720,12 @@ class Letrec(SequencedBodyAST):
         assert isinstance(args, SymList)
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
         self.counts = counts
-        total_counts = []
+        total_counts = [0] * len(counts)
         total_count = 0
         for i, count in enumerate(counts):
-            total_counts.append(total_count)
+            total_counts[i] = total_count
             total_count += count
-        self.total_counts = total_counts[:] # copy to make fixed-size
+        self.total_counts = total_counts
         self.rhss = rhss
         self.args = args
 
