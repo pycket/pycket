@@ -222,8 +222,9 @@ class ConstantPropVisitor(ASTVisitor):
         for b in ast.body:
             body_muts.update(b.mutated_vars())
 
-        new_vars = []
-        new_rhss = []
+        max_len = len(rhss)
+        new_vars = newlist_hint(max_len)
+        new_rhss = newlist_hint(max_len)
         for i, rhs in enumerate(rhss):
             var = vars[i]
             if len(var) == 1:
