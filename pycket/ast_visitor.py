@@ -144,8 +144,8 @@ class ASTVisitor(object):
             return ast
         tst = ast.tst.visit(self, *args)
         if isinstance(tst, Quote):
-            result = ast.els if tst.w_val is values.w_false else ast.thn
-            return ast.visit(self, *args)
+            case = ast.els if tst.w_val is values.w_false else ast.thn
+            return case.visit(self, *args)
         thn = ast.thn.visit(self, *args)
         els = ast.els.visit(self, *args)
         return If(tst, thn, els)
