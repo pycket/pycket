@@ -150,7 +150,7 @@ class ASTVisitor(object):
                 return ast.thn.visit(self, *args)
         thn = ast.thn.visit(self, *args)
         els = ast.els.visit(self, *args)
-        return If.make(tst, thn, els)
+        return If(tst, thn, els)
 
     def visit_case_lambda(self, ast, *args):
         assert isinstance(ast, CaseLambda)
