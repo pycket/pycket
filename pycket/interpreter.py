@@ -954,18 +954,23 @@ class App(AST):
         self.env_structure = env_structure
 
     @staticmethod
-    def make(rator, rands, env_structure=None):
+    def get_prim_func(rator):
+        w_prim = None
         if isinstance(rator, ModuleVar) and rator.is_primitive():
             try:
                 w_prim = rator._lookup_primitive()
             except SchemeException:
                 pass
-            else:
-                if isinstance(w_prim, values.W_Prim):
-                    if w_prim.simple1 and len(rands) == 1:
-                        return SimplePrimApp1(rator, rands, env_structure, w_prim)
-                    if w_prim.simple2 and len(rands) == 2:
-                        return SimplePrimApp2(rator, rands, env_structure, w_prim)
+        return w_prim
+
+    @staticmethod
+    def make(rator, rands, env_structure=None):
+        w_prim = App.get_prim_func(rator)
+        if isinstance(w_prim, values.W_Prim):
+            if w_prim.simple1 and len(rands) == 1:
+                return SimplePrimApp1(rator, rands, env_structure, w_prim)
+            if w_prim.simple2 and len(rands) == 2:
+                return SimplePrimApp2(rator, rands, env_structure, w_prim)
         return App(rator, rands, env_structure)
 
     def direct_children(self):

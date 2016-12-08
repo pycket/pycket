@@ -217,7 +217,7 @@ def _make_result_handling_func(func_arg_unwrap, simple):
         return func_arg_unwrap
 
 # FIXME: Abstract away the common operations between this and expose
-def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
+def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None, foldable=False):
     def wrapper(func):
         from pycket import values
         names = [n] if isinstance(n, str) else n
@@ -232,8 +232,14 @@ def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
             assert isinstance(_arity, Arity)
         func_result_handling = _make_result_handling_func(func_arg_unwrap, simple)
         result_arity = Arity.oneof(1) if simple else None
+        if foldable:
+            assert simple
+            unwrapped = func_arg_unwrap
+        else:
+            unwrapped = None
         return values.W_Prim(name, make_remove_extra_info(func_result_handling),
-                             arity=_arity, result_arity=result_arity)
+                             arity=_arity, result_arity=result_arity,
+                             unwrapped=unwrapped)
     return wrapper
 
 def make_remove_extra_info(func):
@@ -243,7 +249,7 @@ def make_remove_extra_info(func):
     remove_extra_info.__name__ += func.__name__
     return remove_extra_info
 
-def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False):
+def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=False, foldable=False):
     """
     n:          names that the function should be exposed under
     argstypes:  if None, the list of args is passed directly to the function
@@ -282,9 +288,14 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         if not extra_info:
             func_result_handling = make_remove_extra_info(func_result_handling)
         result_arity = Arity.ONE if simple else None
+        if foldable:
+            assert simple
+            unwrapped = func_arg_unwrap
+        else:
+            unwrapped = None
         p = values.W_Prim(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          simple1=call1, simple2=call2)
+                          simple1=call1, simple2=call2, unwrapped=unwrapped)
         for nam in names:
             sym = values.W_Symbol.make(nam)
             if sym in prim_env:

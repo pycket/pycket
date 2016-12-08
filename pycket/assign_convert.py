@@ -29,7 +29,7 @@ from pycket.interpreter import (
     make_let,
     variable_set,
 )
-from pycket.base import W_Object
+from pycket.values import W_Object, W_Prim
 
 def compute_body_muts(node):
     assert isinstance(node, SequencedBodyAST)
@@ -195,6 +195,24 @@ class ConstantPropVisitor(ASTVisitor):
         if isinstance(rhs, ModuleVar) and rhs not in self.mod_mutated_vars:
             return True
         return False
+
+    def visit_app(self, ast, env):
+        rator = ast.rator.visit(self, env)
+        rands = [r.visit(self, env) for r in ast.rands]
+        w_prim = ast.get_prim_func(rator)
+        if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
+            return App.make(rator, rands)
+        func = w_prim.unwrapped
+        args = [None] * len(rands)
+        for i, rand in enumerate(rands):
+            if not isinstance(rand, Quote):
+                return App.make(rator, rands)
+            args[i] = rand.w_val
+        try:
+            return Quote(func(args))
+        except Exception:
+            # If anything goes wrong, just bail and deal with it at runtime
+            return App.make(rator, rands)
 
     def visit_let(self, ast, env):
         assert isinstance(ast, Let)

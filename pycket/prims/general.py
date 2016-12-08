@@ -50,7 +50,7 @@ def make_pred(name, cls):
 
 def make_pred_eq(name, val):
     typ = type(val)
-    @expose(name, [values.W_Object], simple=True)
+    @expose(name, [values.W_Object], simple=True, foldable=True)
     def pred_eq(a):
         return values.W_Bool.make(a is val)
 
@@ -127,7 +127,7 @@ for args in [
         ]:
     make_pred_eq(*args)
 
-@expose("byte?", [values.W_Object])
+@expose("byte?", [values.W_Object], foldable=True)
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
@@ -249,7 +249,7 @@ def do_checked_procedure_check_and_extract(type, v, proc, v1, v2, env, cont, cal
 def sys_lib_subpath(mode):
     return values.W_Path("x86_64-linux") # FIXME
 
-@expose("primitive-closure?", [values.W_Object])
+@expose("primitive-closure?", [values.W_Object], foldable=True)
 def prim_clos(v):
     return values.w_false
 
@@ -680,7 +680,7 @@ def make_semaphore(n):
 def sem_peek_evt(s):
     return values.W_SemaphorePeekEvt(s)
 
-@expose("not", [values.W_Object])
+@expose("not", [values.W_Object], foldable=True)
 def notp(a):
     return values.W_Bool.make(a is values.w_false)
 
@@ -757,7 +757,7 @@ def make_list_eater(name):
         else:
             assert False, "Bad list eater specification"
 
-    @expose(name, [values.W_Object])
+    @expose(name, [values.W_Object], foldable=True)
     def process_list(_lst):
         lst = _lst
         for letter in unrolled:
@@ -1187,7 +1187,7 @@ def string_to_symbol(v):
     return values.W_Bool.make(v.is_interned())
 
 
-@expose("immutable?", [values.W_Object])
+@expose("immutable?", [values.W_Object], foldable=True)
 def immutable(v):
     return values.W_Bool.make(v.immutable())
 
@@ -1315,7 +1315,7 @@ w_os_so_mode_sym = values.W_Symbol.make("so-mode")
 w_local_mode = values.W_Symbol.make("local")
 w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
-@expose("system-type", [default(values.W_Symbol, w_os_sym)])
+@expose("system-type", [default(values.W_Symbol, w_os_sym)], foldable=True)
 def system_type(w_what):
     if w_what is w_os_sym:
         return w_system_sym

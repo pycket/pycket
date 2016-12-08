@@ -21,7 +21,7 @@ from pycket import arithmetic
 
 def make_cmp(name, op, con):
 
-    @expose(name, simple=True, arity=Arity.geq(2))
+    @expose(name, simple=True, arity=Arity.geq(2), foldable=True)
     @jit.unroll_safe
     def do(args):
         if len(args) < 2:
@@ -51,16 +51,16 @@ for args in [
         ]:
     make_cmp(*args)
 
-@expose("integer?", [values.W_Object])
+@expose("integer?", [values.W_Object], foldable=True)
 def integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Number) and n.isinteger())
 
-@expose("exact-integer?", [values.W_Object])
+@expose("exact-integer?", [values.W_Object], foldable=True)
 def exact_integerp(n):
     return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
                               isinstance(n, values.W_Bignum))
 
-@expose("exact-nonnegative-integer?", [values.W_Object])
+@expose("exact-nonnegative-integer?", [values.W_Object], foldable=True)
 def exact_nonneg_integerp(n):
     from rpython.rlib.rbigint import rbigint
     if isinstance(n, values.W_Fixnum):
@@ -69,7 +69,7 @@ def exact_nonneg_integerp(n):
         return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
     return values.w_false
 
-@expose("exact-positive-integer?", [values.W_Object])
+@expose("exact-positive-integer?", [values.W_Object], foldable=True)
 def exact_nonneg_integerp(n):
     from rpython.rlib.rbigint import rbigint
     if isinstance(n, values.W_Fixnum):
@@ -84,29 +84,29 @@ def is_real(obj):
             isinstance(obj, values.W_Flonum) or
             isinstance(obj, values.W_Rational))
 
-@expose("real?", [values.W_Object])
+@expose("real?", [values.W_Object], foldable=True)
 def realp(n):
     return values.W_Bool.make(is_real(n))
 
-@expose("inexact-real?", [values.W_Object])
+@expose("inexact-real?", [values.W_Object], foldable=True)
 def inexact_real(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
-@expose("single-flonum?", [values.W_Object])
+@expose("single-flonum?", [values.W_Object], foldable=True)
 def single_flonum(n):
     return values.w_false
 
-@expose("double-flonum?", [values.W_Object])
+@expose("double-flonum?", [values.W_Object], foldable=True)
 def double_flonum(n):
     return values.W_Bool.make(isinstance(n, values.W_Flonum))
 
-@expose("real->double-flonum", [values.W_Number])
+@expose("real->double-flonum", [values.W_Number], foldable=True)
 def real_to_double_flonum(num):
     if is_real(num):
         return num.arith_exact_inexact()
     raise SchemeException("real->double-flonum: %s is not real" % num.tostring())
 
-@expose("rational?", [values.W_Object])
+@expose("rational?", [values.W_Object], foldable=True)
 def rationalp(n):
     if isinstance(n, values.W_Fixnum) or isinstance(n, values.W_Bignum):
         return values.w_true
@@ -127,11 +127,11 @@ def is_inexact(n):
         return is_inexact(n.real) or is_inexact(n.imag)
     return isinstance(n, values.W_Flonum)
 
-@expose("exact?", [values.W_Object])
+@expose("exact?", [values.W_Object], foldable=True)
 def exactp(n):
     return values.W_Bool.make(is_exact(n))
 
-@expose("inexact?", [values.W_Object])
+@expose("inexact?", [values.W_Object], foldable=True)
 def inexactp(n):
     return values.W_Bool.make(is_inexact(n))
 
@@ -140,7 +140,7 @@ def quotient_remainder(a, b):
     return values.Values._make2(a.arith_quotient(b), a.arith_mod(b)) #FIXME
 
 def make_binary_arith(name, methname):
-    @expose(name, [values.W_Number, values.W_Number], simple=True)
+    @expose(name, [values.W_Number, values.W_Number], simple=True, foldable=True)
     def do(a, b):
         return getattr(a, methname)(b)
     do.__name__ = methname
@@ -153,12 +153,12 @@ for args in [
         ]:
     make_binary_arith(*args)
 
-@expose("flexpt", [values.W_Flonum] * 2)
+@expose("flexpt", [values.W_Flonum] * 2, foldable=True)
 def flexpt(n, m):
     return n.arith_pow_same(m)
 
 def make_arith(name, neutral_element, methname, supports_zero_args):
-    @expose(name, simple=True)
+    @expose(name, simple=True, foldable=True)
     @jit.unroll_safe
     def do(args):
         # XXX so far (+ '()) returns '(). need better type checking here
@@ -196,13 +196,13 @@ def make_fixedtype_binary_arith(
         name, methname, intversion=True, floatversion=True):
     methname += "_same"
     if floatversion:
-        @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
+        @expose("fl" + name, [values.W_Flonum] * 2, simple=True, foldable=True)
         def do(a, b):
             return getattr(a, methname)(b)
         do.__name__ = "fl_" + methname
 
     if intversion:
-        @expose("fx" + name, [values.W_Fixnum] * 2, simple=True)
+        @expose("fx" + name, [values.W_Fixnum] * 2, simple=True, foldable=True)
         def do(a, b):
             return getattr(a, methname)(b)
         do.__name__ = "fx_" + methname
@@ -226,14 +226,14 @@ def make_fixedtype_cmps(name, methname):
     def do(a, b):
         return values.W_Bool.make(getattr(a, methname)(b))
     do.__name__ = "fl_" + methname
-    expose("fl" + name, [values.W_Flonum] * 2, simple=True)(do)
-    expose("unsafe-fl" + name, [unsafe(values.W_Flonum)] * 2, simple=True)(do)
+    expose("fl" + name, [values.W_Flonum] * 2, simple=True, foldable=True)(do)
+    expose("unsafe-fl" + name, [unsafe(values.W_Flonum)] * 2, simple=True, foldable=True)(do)
 
     def do(a, b):
         return values.W_Bool.make(getattr(a, methname)(b))
     do.__name__ = "fx_" + methname
     expose("fx" + name, [values.W_Fixnum] * 2, simple=True)(do)
-    expose("unsafe-fx" + name, [unsafe(values.W_Fixnum)] * 2, simple=True)(do)
+    expose("unsafe-fx" + name, [unsafe(values.W_Fixnum)] * 2, simple=True, foldable=True)(do)
 
 for args in [
     ("<",  "lt"),
@@ -248,7 +248,7 @@ for args in [
 def flsqrt(f):
     return f.arith_sqrt()
 
-@expose("add1", [values.W_Number])
+@expose("add1", [values.W_Number], foldable=True)
 def add1(v):
     return v.arith_add(values.W_Fixnum.ONE)
 
@@ -272,15 +272,15 @@ def make_unary_arith(name, methname, flversion=False, fxversion=False,
     def do(a):
         return getattr(a, methname)()
     do.__name__ = methname
-    expose(name, [unwrap_type], simple=True)(do)
+    expose(name, [unwrap_type], simple=True, foldable=True)(do)
     if flversion:
-        @expose("fl" + name, [values.W_Flonum], simple=True)
+        @expose("fl" + name, [values.W_Flonum], simple=True, foldable=True)
         def dofl(a):
             return getattr(a, methname)()
         dofl.__name__ = methname
 
     if fxversion:
-        @expose("fx" + name, [values.W_Fixnum], simple=True)
+        @expose("fx" + name, [values.W_Fixnum], simple=True, foldable=True)
         def dofx(a):
             return getattr(a, methname)()
         dofx.__name__ = methname
@@ -311,25 +311,25 @@ for args in [
         ]:
     make_unary_arith(*args)
 
-@expose("odd?", [values.W_Number])
+@expose("odd?", [values.W_Number], foldable=True)
 def oddp(n):
     if not n.isinteger():
         raise SchemeException("odd?: expected integer got %s" % n.tostring())
     return n.arith_oddp()
 
-@expose("even?", [values.W_Number])
+@expose("even?", [values.W_Number], foldable=True)
 def evenp(n):
     if not n.isinteger():
         raise SchemeException("even?: expected integer got %s" % n.tostring())
     return n.arith_evenp()
 
-@expose("negative?", [values.W_Number])
+@expose("negative?", [values.W_Number], foldable=True)
 def negative_predicate(n):
     if not is_real(n):
         raise SchemeException("negative?: expected real? in argument 0")
     return n.arith_negativep()
 
-@expose("positive?", [values.W_Number])
+@expose("positive?", [values.W_Number], foldable=True)
 def positive_predicate(n):
     if not is_real(n):
         raise SchemeException("positive?: expected real? in argument 0")
@@ -599,7 +599,7 @@ def integer_to_integer_bytes(n, w_size, signed, big_endian, w_dest, w_start):
 
     return result
 
-@expose("integer-length", [values.W_Object])
+@expose("integer-length", [values.W_Object], foldable=True)
 @jit.elidable
 def integer_length(obj):
 

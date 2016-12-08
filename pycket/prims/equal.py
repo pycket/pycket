@@ -214,7 +214,7 @@ def eqp_logic(a, b):
         return a.value == b.value
     return False
 
-@expose("eq?", [values.W_Object] * 2)
+@expose("eq?", [values.W_Object] * 2, foldable=True)
 def eqp(a, b):
     return values.W_Bool.make(eqp_logic(a, b))
 
@@ -249,7 +249,7 @@ def procedure_closure_contents_eq_n(a, b, n):
 def procedure_closure_contents_eq(a, b):
     return procedure_closure_contents_eq_n(a, b, 1)
 
-@expose("eqv?", [values.W_Object] * 2)
+@expose("eqv?", [values.W_Object] * 2, foldable=True)
 def eqvp(a, b):
     res = a.eqv(b)
     if not objectmodel.we_are_translated() and res:
