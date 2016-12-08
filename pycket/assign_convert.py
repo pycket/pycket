@@ -1,4 +1,6 @@
 
+from rpython.rlib.objectmodel import newlist_hint
+
 from pycket.ast_visitor import ASTVisitor
 from pycket.env         import SymList
 from pycket.interpreter import (
