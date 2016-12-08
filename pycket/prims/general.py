@@ -133,23 +133,23 @@ def byte_huh(val):
         return values.W_Bool.make(0 <= val.value <= 255)
     return values.w_false
 
-@expose("procedure?", [values.W_Object])
+@expose("procedure?", [values.W_Object], foldable=True)
 def procedurep(n):
     return values.W_Bool.make(n.iscallable())
 
-@expose("syntax-original?", [values.W_Syntax])
+@expose("syntax-original?", [values.W_Syntax], foldable=True)
 def syntax_original(v):
     return values.w_false
 
-@expose("syntax-tainted?", [values.W_Syntax])
+@expose("syntax-tainted?", [values.W_Syntax], foldable=True)
 def syntax_tainted(v):
     return values.w_false
 
-@expose("syntax->datum", [values.W_Syntax])
+@expose("syntax->datum", [values.W_Syntax], foldable=True)
 def syntax_to_datum(stx):
     return stx.val
 
-@expose("syntax-e", [values.W_Syntax])
+@expose("syntax-e", [values.W_Syntax], foldable=True)
 def syntax_e(stx):
     # XXX Obviously not correct
     print "NOT YET IMPLEMENTED: syntax-e"
@@ -164,7 +164,7 @@ def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
     assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
     return values.W_Syntax(v)
 
-@expose("syntax-source", [values.W_Syntax])
+@expose("syntax-source", [values.W_Syntax], foldable=True)
 def syntax_source(stx):
     # XXX Obviously not correct
     return values.w_false
