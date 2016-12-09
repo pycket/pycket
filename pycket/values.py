@@ -1103,8 +1103,9 @@ class W_Symbol(W_Object):
     def variable_name(self):
         return self.utf8value
 
-W_Symbol.all_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
-W_Symbol.unreadable_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
+# According to samth, its not safe to use a weak table for symbols
+W_Symbol.all_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
+W_Symbol.unreadable_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
 
 # XXX what are these for?
 break_enabled_key = W_Symbol("break-enabled-key")
