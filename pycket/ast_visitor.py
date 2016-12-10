@@ -1,4 +1,5 @@
 
+from rpython.rlib.objectmodel import specialize
 from pycket.interpreter import (
     App,
     Begin,
@@ -39,12 +40,17 @@ class ASTVisitor(object):
     If visit_inplace == True then the stubbed visitors will return the original
     AST node rather than constructing a new one.
     This is faster if we just want to traverse and annotate the AST.
+
+    Note that the specialization on the argtype of each self parameter is necessarry
+    to have more than one subclass of the same arity where a argument types of the
+    remaining arguments differ.
     """
 
     preserve_mutated_vars = False
     preserve_free_vars = False
     visit_inplace = False
 
+    @specialize.argtype(0)
     def visit_cell(self, ast, *args):
         assert isinstance(ast, Cell)
         if self.visit_inplace:
@@ -53,18 +59,22 @@ class ASTVisitor(object):
             expr = ast.expr.visit(self, *args)
             return Cell(expr, need_cell_flags=ast.need_cell_flags)
 
+    @specialize.argtype(0)
     def visit_quote(self, ast, *args):
         assert isinstance(ast, Quote)
         return ast
 
+    @specialize.argtype(0)
     def visit_quote_syntax(self, ast, *args):
         assert isinstance(ast, QuoteSyntax)
         return ast
 
+    @specialize.argtype(0)
     def visit_variable_reference(self, ast, *args):
         assert isinstance(ast, VariableReference)
         return ast
 
+    @specialize.argtype(0)
     def visit_with_continuation_mark(self, ast, *args):
         assert isinstance(ast, WithContinuationMark)
         key   = ast.key.visit(self, *args)
@@ -75,6 +85,7 @@ class ASTVisitor(object):
         else:
             return WithContinuationMark(key, value, body)
 
+    @specialize.argtype(0)
     def visit_app(self, ast, *args):
         assert isinstance(ast, App)
         rator = ast.rator.visit(self, *args)
@@ -86,6 +97,7 @@ class ASTVisitor(object):
             rands = [a.visit(self, *args) for a in ast.rands]
             return App.make(rator, rands, ast.env_structure)
 
+    @specialize.argtype(0)
     def visit_begin0(self, ast, *args):
         assert isinstance(ast, Begin0)
         first = ast.first.visit(self, *args)
@@ -95,6 +107,7 @@ class ASTVisitor(object):
         else:
             return Begin0.make(first, [body])
 
+    @specialize.argtype(0)
     def visit_begin(self, ast, *args):
         assert isinstance(ast, Begin)
         if self.visit_inplace:
@@ -105,26 +118,32 @@ class ASTVisitor(object):
             body = [b.visit(self, *args) for b in ast.body]
             return Begin.make(body)
 
+    @specialize.argtype(0)
     def visit_begin_for_syntax(self, ast, *args):
         assert isinstance(ast, BeginForSyntax)
         return ast
 
+    @specialize.argtype(0)
     def visit_cell_ref(self, ast, *args):
         assert isinstance(ast, CellRef)
         return ast
 
+    @specialize.argtype(0)
     def visit_lexical_var(self, ast, *args):
         assert isinstance(ast, LexicalVar)
         return ast
 
+    @specialize.argtype(0)
     def visit_module_var(self, ast, *args):
         assert isinstance(ast, ModuleVar)
         return ast
 
+    @specialize.argtype(0)
     def visit_toplevel_var(self, ast, *args):
         assert isinstance(ast, ToplevelVar)
         return ast
 
+    @specialize.argtype(0)
     def visit_set_bang(self, ast, *args):
         assert isinstance(ast, SetBang)
         var = ast.var.visit(self, *args)
@@ -135,6 +154,7 @@ class ASTVisitor(object):
         else:
             return SetBang(var, rhs)
 
+    @specialize.argtype(0)
     def visit_if(self, ast, *args):
         assert isinstance(ast, If)
         if self.visit_inplace:
@@ -150,6 +170,7 @@ class ASTVisitor(object):
         els = ast.els.visit(self, *args)
         return If(tst, thn, els)
 
+    @specialize.argtype(0)
     def visit_case_lambda(self, ast, *args):
         assert isinstance(ast, CaseLambda)
         if self.visit_inplace:
@@ -160,6 +181,7 @@ class ASTVisitor(object):
             lams = [lam.visit(self, *args) for lam in ast.lams]
             return CaseLambda(lams, recursive_sym=ast.recursive_sym, arity=ast._arity)
 
+    @specialize.argtype(0)
     def visit_lambda(self, ast, *args):
         assert isinstance(ast, Lambda)
         if self.visit_inplace:
@@ -170,6 +192,7 @@ class ASTVisitor(object):
             body = [b.visit(self, *args) for b in ast.body]
             return make_lambda(ast.formals, ast.rest, body, sourceinfo=ast.sourceinfo)
 
+    @specialize.argtype(0)
     def visit_letrec(self, ast, *args):
         assert isinstance(ast, Letrec)
         if self.visit_inplace:
@@ -184,6 +207,7 @@ class ASTVisitor(object):
             vars = ast._rebuild_args()
             return make_letrec(vars, rhss, body)
 
+    @specialize.argtype(0)
     def visit_let(self, ast, *args):
         assert isinstance(ast, Let)
         if self.visit_inplace:
@@ -198,6 +222,7 @@ class ASTVisitor(object):
             vars = ast._rebuild_args()
             return make_let(vars, rhss, body)
 
+    @specialize.argtype(0)
     def visit_define_values(self, ast, *args):
         assert isinstance(ast, DefineValues)
         rhs = ast.rhs.visit(self, *args)
@@ -206,6 +231,7 @@ class ASTVisitor(object):
         else:
             return DefineValues(ast.names, rhs, ast.display_names)
 
+    @specialize.argtype(0)
     def visit_module(self, ast, *args):
         """ Must not produce a new module AST """
         assert isinstance(ast, Module)
@@ -215,6 +241,7 @@ class ASTVisitor(object):
             ast.requires[i] = r.visit(self, *args)
         return ast
 
+    @specialize.argtype(0)
     def visit_require(self, ast, *args):
         assert isinstance(ast, Require)
         return ast

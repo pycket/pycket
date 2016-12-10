@@ -78,6 +78,9 @@ class AST(object):
         for child in self.direct_children():
             child.collect_submodules(acc)
 
+    def resultof(self):
+        return self
+
     def free_vars(self):
         if self._fvars is None:
             self._fvars = self._free_vars()

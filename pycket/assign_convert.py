@@ -29,9 +29,11 @@ from pycket.interpreter import (
     VariableReference,
     WithContinuationMark,
     make_let,
+    make_letrec,
     variable_set,
 )
-from pycket.values import W_Object, W_Prim
+from pycket        import values
+from pycket.values import W_Object, W_Prim, w_void
 
 def compute_body_muts(node):
     assert isinstance(node, SequencedBodyAST)
@@ -183,6 +185,22 @@ class Const(W_Object):
             return ModuleVar(val.sym, val.srcmod, val.srcsym, val.path)
         return val
 
+effect = 'e'
+value = 'v'
+
+def void():
+    return Quote(w_void)
+
+def resultof(expr):
+    next = expr.resultof()
+    while next is not expr:
+        expr, next = next, next.resultof()
+    if isinstance(expr, Quote):
+        return expr.w_val
+    if isinstance(expr, SetBang):
+        return values.w_void
+    return None
+
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
 
@@ -198,9 +216,27 @@ class ConstantPropVisitor(ASTVisitor):
             return True
         return False
 
-    def visit_app(self, ast, env):
-        rator = ast.rator.visit(self, env)
-        rands = [r.visit(self, env) for r in ast.rands]
+    def visit_set_bang(self, ast, env, context):
+        assert isinstance(ast, SetBang)
+        var = ast.var
+        rhs = ast.rhs.visit(self, env, 'v')
+        return SetBang(var, rhs)
+
+    def visit_if(self, ast, env, context):
+        assert isinstance(ast, If)
+        tst = ast.tst.visit(self, env, 'v')
+        result = resultof(tst)
+        if result is not None:
+            case = ast.els if result is values.w_false else ast.thn
+            return Begin.make([tst.visit(self, env, 'e'),
+                               case.visit(self, env, context)])
+        thn = ast.thn.visit(self, env, context)
+        els = ast.els.visit(self, env, context)
+        return If(tst, thn, els)
+
+    def visit_app(self, ast, env, context):
+        rator = ast.rator.visit(self, env, 'v')
+        rands = [r.visit(self, env, 'v') for r in ast.rands]
         w_prim = ast.get_prim_func(rator)
         if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
             return App.make(rator, rands)
@@ -210,47 +246,101 @@ class ConstantPropVisitor(ASTVisitor):
             if not isinstance(rand, Quote):
                 return App.make(rator, rands)
             args[i] = rand.w_val
+        if context == 'e':
+            return void()
         try:
             return Quote(func(args))
         except Exception:
             # If anything goes wrong, just bail and deal with it at runtime
             return App.make(rator, rands)
 
-    def visit_let(self, ast, env):
-        assert isinstance(ast, Let)
-        rhss = [r.visit(self, env) for r in ast.rhss]
-        vars = ast._rebuild_args()
-        body_muts = variable_set()
-        for b in ast.body:
-            body_muts.update(b.mutated_vars())
+    def visit_with_continuation_mark(self, ast, env, context):
+        assert isinstance(ast, WithContinuationMark)
+        key = ast.key.visit(self, env, 'v')
+        value = ast.value.visit(self, env, 'v')
+        body = ast.body.visit(self, env, context)
+        return WithContinuationMark(key, value, body)
 
-        max_len = len(rhss)
+    def _visit_body(self, ast, env, context):
+        assert isinstance(ast, SequencedBodyAST)
+        new_body = [None] * len(ast.body)
+        for i in range(len(ast.body) - 1):
+            new_body[i] = ast.body[i].visit(self, env, 'e')
+        new_body[-1] = ast.body[-1].visit(self, env, context)
+        return new_body
+
+    def visit_begin(self, ast, env, context):
+        assert isinstance(ast, Begin)
+        body = self._visit_body(ast, env, context)
+        return Begin.make(body)
+
+    def visit_begin0(self, ast, env, context):
+        assert isinstance(ast, Begin0)
+        first = ast.first.visit(self, env, context)
+        body = ast.body.visit(self, env, 'e')
+        return Begin0.make(first, [body])
+
+    def visit_let(self, ast, env, context):
+        assert isinstance(ast, Let)
+        rhss = [r.visit(self, env, 'v') for r in ast.rhss]
+        varss = ast._rebuild_args()
+        body_muts = compute_body_muts(ast)
+
+        body_env = env
+        max_len = len(ast.rhss)
         new_vars = newlist_hint(max_len)
         new_rhss = newlist_hint(max_len)
         for i, rhs in enumerate(rhss):
-            var = vars[i]
-            if len(var) == 1:
-                sym, = var
+            vars = varss[i]
+            if len(vars) == 1:
+                sym, = vars
                 if self.constant_binding(body_muts, sym, rhs):
-                    env = env.assoc(sym, Const(rhs))
+                    body_env = body_env.assoc(sym, Const(rhs))
                     continue
-            new_vars.append(var)
+
+            new_vars.append(vars)
             new_rhss.append(rhs)
-        body = [b.visit(self, env) for b in ast.body]
+        body = self._visit_body(ast, body_env, context)
         return make_let(new_vars[:], new_rhss[:], body)
 
-    def visit_lexical_var(self, ast, env):
+    def visit_letrec(self, ast, env, context):
+        assert isinstance(ast, Letrec)
+        args = ast._rebuild_args()
+        rhss = [r.visit(self, env, 'v') for r in ast.rhss]
+        body = self._visit_body(ast, env, context)
+        return make_letrec(args, rhss, body)
+
+    def visit_case_lambda(self, ast, env, context):
+        assert isinstance(ast, CaseLambda)
+        if context == 'e':
+            return void()
+        return ASTVisitor.visit_case_lambda(self, ast, env, 'v')
+
+    def visit_module_var(self, ast, env, context):
+        if context == 'e':
+            return void()
+        return ASTVisitor.visit_module_var(self, ast, env, context)
+
+    def visit_lexical_var(self, ast, env, context):
         assert isinstance(ast, LexicalVar)
+        if context == 'e':
+            return void()
         val = env.val_at(ast.sym, None)
         if val is None:
             return ast
         assert isinstance(val, Const)
         return val.const_value()
 
+    def visit_define_values(self, ast, env, context):
+        assert isinstance(ast, DefineValues)
+        assert context == 'v'
+        rhs = ast.rhs.visit(self, env, 'v')
+        return DefineValues(ast.names, ast.rhs, ast.display_names)
+
 def constant_prop(ast, env=None):
     assert isinstance(ast, Module)
     if env is None:
         env = SymbolSet.EMPTY
     visitor = ConstantPropVisitor(ast.mod_mutated_vars())
-    return ast.visit(visitor, env)
+    return ast.visit(visitor, env, 'v')
 

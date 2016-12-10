@@ -944,6 +944,9 @@ class WithContinuationMark(AST):
         result = WithContinuationMark(key, value, body)
         return context.plug(result)
 
+    def resultof(self):
+        return self.body
+
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
     visitable = True
@@ -1099,6 +1102,9 @@ class SequencedBodyAST(AST):
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], env, prev)
 
+    def resultof(self):
+        return self.body[-1]
+
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
     visitable = True
@@ -1129,6 +1135,9 @@ class Begin0(AST):
 
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
+
+    def resultof(self):
+        return self.first
 
 @specialize.call_location()
 def remove_pure_ops(ops, always_last=True):
