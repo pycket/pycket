@@ -1066,21 +1066,21 @@ class W_Symbol(W_Object):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
         # assert isinstance(string, str)
-        w_result = W_Symbol.all_symbols.get(string)
+        w_result = W_Symbol.all_symbols.get(string, None)
         if w_result is None:
             # assume that string is a utf-8 encoded unicode string
             # value = string.decode("utf-8")
             w_result = W_Symbol(string)
-            W_Symbol.all_symbols.set(string, w_result)
+            W_Symbol.all_symbols[string] = w_result
         return w_result
 
     @staticmethod
     @jit.elidable
     def make_unreadable(string):
-        w_result = W_Symbol.unreadable_symbols.get(string)
+        w_result = W_Symbol.unreadable_symbols.get(string, None)
         if w_result is None:
             w_result = W_Symbol(string, unreadable=True)
-            W_Symbol.unreadable_symbols.set(string, w_result)
+            W_Symbol.unreadable_symbols[string] = w_result
         return w_result
 
     def __repr__(self):
@@ -1089,10 +1089,10 @@ class W_Symbol(W_Object):
     @jit.elidable
     def is_interned(self):
         string = self.utf8value
-        symbol = W_Symbol.all_symbols.get(string)
+        symbol = W_Symbol.all_symbols.get(string, None)
         if symbol is self:
             return True
-        symbol = W_Symbol.unreadable_symbols.get(string)
+        symbol = W_Symbol.unreadable_symbols.get(string, None)
         if symbol is self:
             return True
         return False
@@ -1103,8 +1103,9 @@ class W_Symbol(W_Object):
     def variable_name(self):
         return self.utf8value
 
-W_Symbol.all_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
-W_Symbol.unreadable_symbols = weakref.RWeakValueDictionary(str, W_Symbol)
+# According to samth, its not safe to use a weak table for symbols
+W_Symbol.all_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
+W_Symbol.unreadable_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
 
 # XXX what are these for?
 break_enabled_key = W_Symbol("break-enabled-key")
