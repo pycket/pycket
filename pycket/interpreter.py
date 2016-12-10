@@ -1773,14 +1773,15 @@ class Letrec(SequencedBodyAST):
         return result
 
     def _tostring(self):
-        vars = []
-        len = 0
-        for i in self.counts:
-            vars.append(self.args.elems[len:len+i])
-        return "(letrec (%s) %s)" % (
-            [([v.variable_name() for v in vs],
-              self.rhss[i].tostring()) for i, vs in enumerate(vars)],
-            [b.tostring() for b in self.body])
+        varss = self._rebuild_args()
+        bindings = [None] * len(varss)
+        for i, vars in enumerate(varss):
+            lhs = "(%s)" % " ".join([v.variable_name() for v in vars])
+            rhs = self.rhss[i].tostring()
+            bindings[i] = "[%s %s]" % (lhs, rhs)
+        bindings = " ".join(bindings)
+        body = " ".join([b.tostring() for b in self.body])
+        return "(letrec (%s) %s)" % (bindings, body)
 
 def _make_symlist_counts(varss):
     counts = []
