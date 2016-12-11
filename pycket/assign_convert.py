@@ -42,6 +42,13 @@ def compute_body_muts(node):
         muts.update(b.mutated_vars())
     return muts
 
+def compute_body_frees(node):
+    assert isinstance(node, SequencedBodyAST)
+    frees = SymbolSet.EMPTY
+    for b in node.body:
+        frees = frees.union(b.free_vars())
+    return frees
+
 class AssignConvertVisitor(ASTVisitor):
     """
     This visitor performs assignment conversion of the Pycket AST, which is
@@ -201,6 +208,12 @@ def resultof(expr):
         return values.w_void
     return None
 
+VALUES_SYMBOL = values.W_Symbol.make("values")
+VALUES = ModuleVar(VALUES_SYMBOL, "#%kernel", VALUES_SYMBOL)
+
+def zero_values():
+    return App.make(VALUES, [])
+
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
 
@@ -286,15 +299,23 @@ class ConstantPropVisitor(ASTVisitor):
 
     def visit_let(self, ast, context):
         assert isinstance(ast, Let)
-        rhss = [r.visit(self, 'v') for r in ast.rhss]
         varss = ast._rebuild_args()
         body_muts = compute_body_muts(ast)
+        body_frees = compute_body_frees(ast)
 
         max_len = len(ast.rhss)
         new_vars = newlist_hint(max_len)
         new_rhss = newlist_hint(max_len)
-        for i, rhs in enumerate(rhss):
+        for i, rhs in enumerate(ast.rhss):
             vars = varss[i]
+            for var in vars:
+                if body_frees.haskey(var):
+                    rhs = rhs.visit(self, 'v')
+                    break
+            else:
+                rhs = Begin.make([rhs, zero_values()]) if vars else rhs
+                rhs = rhs.visit(self, 'e')
+                vars = []
             if len(vars) == 1:
                 sym, = vars
                 if self.constant_binding(body_muts, sym, rhs):
