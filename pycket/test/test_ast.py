@@ -126,7 +126,7 @@ def test_copy_to_env():
     inner_let = p.body[0].body[0]
     assert inner_let.remove_num_envs == [0, 0, 1, 2]
     assert len(inner_let.args.elems) == 3
-    assert str(inner_let.args.elems[-2]).startswith('b')
+    assert str(inner_let.args.elems[-3]).startswith('b')
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")

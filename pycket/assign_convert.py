@@ -22,11 +22,19 @@ from pycket.interpreter import (
     Require,
     SetBang,
     SequencedBodyAST,
+    SymbolSet,
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
     variable_set,
 )
+
+def compute_body_frees(node):
+    assert isinstance(node, SequencedBodyAST)
+    frees = SymbolSet.EMPTY
+    for b in node.body:
+        frees = frees.union(b.free_vars())
+    return frees
 
 class AssignConvertVisitor(ASTVisitor):
     """
