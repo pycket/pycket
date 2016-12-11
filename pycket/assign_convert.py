@@ -313,8 +313,9 @@ class ConstantPropVisitor(ASTVisitor):
                     rhs = rhs.visit(self, 'v')
                     break
             else:
-                rhs = Begin.make([rhs, zero_values()]) if vars else rhs
                 rhs = rhs.visit(self, 'e')
+                if vars:
+                    rhs = Begin.make([rhs, zero_values()])
                 vars = []
             if len(vars) == 1:
                 sym, = vars
