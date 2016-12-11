@@ -1975,7 +1975,8 @@ class Let(SequencedBodyAST):
 
         # find out whether a smaller environment is sufficient for the body
         free_vars_not_from_let = compute_body_frees(self)
-        free_vars_not_from_let = free_vars_not_from_let.without_many(self.args.elems)
+        free_vars_not_from_let = free_vars_not_from_let.without_many(
+                self.args.elems)
 
         # at most, we can remove all envs, apart from the one introduced by let
         curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
@@ -1985,8 +1986,7 @@ class Let(SequencedBodyAST):
             depth = sub_env_structure.depth_of_var(v)[1] - 1
             curr_remove = min(curr_remove, depth)
             max_needed = max(max_needed, depth)
-            if LexicalVar(v) in new_vars:
-                free_vars_not_mutated = False
+            free_vars_not_mutated &= LexicalVar(v) not in new_vars
 
         if curr_remove == 0:
             body_env_structure = sub_env_structure
@@ -1997,12 +1997,13 @@ class Let(SequencedBodyAST):
         if (free_vars_not_mutated and max_needed == curr_remove and
                 max_depth > max_needed):
             before_max_needed = sub_env_structure.drop_frames(max_needed + 2)
-            if before_max_needed and before_max_needed.depth_and_size()[1]:
+            if before_max_needed and before_max_needed.depth_and_size()[1] > 0:
                 counts, new_lhs_vars, new_rhss = self._copy_live_vars(
                         free_vars_not_from_let)
                 body_env_structure = SymList(new_lhs_vars)
                 sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
                 self = Let(body_env_structure, counts, new_rhss, self.body)
+                curr_remove = max_needed
                 return self._compute_remove_num_envs(new_vars, sub_env_structure)
 
         remove_num_envs = [curr_remove]
