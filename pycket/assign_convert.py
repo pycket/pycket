@@ -50,13 +50,6 @@ def compute_body_frees(node):
         frees = frees.union(b.free_vars())
     return frees
 
-def compute_body_frees(node):
-    assert isinstance(node, SequencedBodyAST)
-    frees = SymbolSet.EMPTY
-    for b in node.body:
-        frees = frees.union(b.free_vars())
-    return frees
-
 class AssignConvertVisitor(ASTVisitor):
     """
     This visitor performs assignment conversion of the Pycket AST, which is
