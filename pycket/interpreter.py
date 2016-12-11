@@ -1932,17 +1932,17 @@ class Let(SequencedBodyAST):
         # in the body. thus, make a copy of all local variables into
         # the current let, at the point where the variable is not longer
         # referenced in any of the right-hand-sides.
-        copied_vars = free_vars_not_from_let.keys()
+        vars_to_copy = free_vars_not_from_let
 
         # Find the last right hand side in which each variable to be
         # copied is referenced
         dead_after_sets = [[] for _ in self.rhss]
-        for var in copied_vars:
-            last = 0
-            for i, rhs in enumerate(self.rhss):
-                if rhs.free_vars().haskey(var):
-                    last = i
-            dead_after_sets[last].append(var)
+        rhss = self.rhss
+        for var in free_vars_not_from_let:
+            i = len(self.rhss) - 1
+            while i != 0 and not rhss[i].free_vars().haskey(var):
+                i -= 1
+            dead_after_sets[i].append(var)
 
         # Build the new args and rhss by interleaving the bindings with
         # the new copy operations
@@ -2003,14 +2003,12 @@ class Let(SequencedBodyAST):
                 body_env_structure = SymList(new_lhs_vars)
                 sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
                 self = Let(body_env_structure, counts, new_rhss, self.body)
-                curr_remove = max_needed
                 return self._compute_remove_num_envs(new_vars, sub_env_structure)
 
         remove_num_envs = [curr_remove]
         env_structures = [body_env_structure]
         for i in range(len(self.rhss) - 1, -1, -1):
-            rhs = self.rhss[i]
-            free_vars = rhs.free_vars()
+            free_vars = self.rhss[i].free_vars()
             for v in free_vars:
                 var_depth = sub_env_structure.prev.depth_of_var(v)[1]
                 curr_remove = min(curr_remove, var_depth)
