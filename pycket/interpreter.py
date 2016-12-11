@@ -1794,14 +1794,15 @@ class Letrec(SequencedBodyAST):
         return result
 
     def _tostring(self):
-        vars = []
-        len = 0
-        for i in self.counts:
-            vars.append(self.args.elems[len:len+i])
-        return "(letrec (%s) %s)" % (
-            [([v.variable_name() for v in vs],
-              self.rhss[i].tostring()) for i, vs in enumerate(vars)],
-            [b.tostring() for b in self.body])
+        varss = self._rebuild_args()
+        bindings = [None] * len(varss)
+        for i, vars in enumerate(varss):
+            lhs = "(%s)" % " ".join([v.variable_name() for v in vars])
+            rhs = self.rhss[i].tostring()
+            bindings[i] = "[%s %s]" % (lhs, rhs)
+        bindings = " ".join(bindings)
+        body = " ".join([b.tostring() for b in self.body])
+        return "(letrec (%s) %s)" % (bindings, body)
 
 def _make_symlist_counts(varss):
     counts = []
@@ -1947,17 +1948,57 @@ class Let(SequencedBodyAST):
         context = Context.Let(args, self.rhss, body, context)
         return self.rhss[0], context
 
+    def _copy_live_vars(self, free_vars_not_from_let):
+        # there is unneeded local env storage that we will never need
+        # in the body. thus, make a copy of all local variables into
+        # the current let, at the point where the variable is not longer
+        # referenced in any of the right-hand-sides.
+        vars_to_copy = free_vars_not_from_let
+
+        # Find the last right hand side in which each variable to be
+        # copied is referenced
+        dead_after_sets = [[] for _ in self.rhss]
+        rhss = self.rhss
+        for var in free_vars_not_from_let:
+            i = len(self.rhss) - 1
+            while i != 0 and not rhss[i].free_vars().haskey(var):
+                i -= 1
+            dead_after_sets[i].append(var)
+
+        # Build the new args and rhss by interleaving the bindings with
+        # the new copy operations
+        new_lhs_vars = []
+        new_rhss = []
+        counts = []
+        args = self._rebuild_args()
+        for i, rhs in enumerate(self.rhss):
+            new_lhs_vars.extend(dead_after_sets[i])
+            new_lhs_vars.extend(args[i])
+
+            new_rhss.extend([LexicalVar(v) for v in dead_after_sets[i]])
+            new_rhss.append(rhs)
+
+            counts.extend([1] * len(dead_after_sets[i]))
+            counts.append(self.counts[i])
+
+        new_lhs_vars = new_lhs_vars[:]
+        new_rhss = new_rhss[:]
+        counts = counts[:]
+        return counts, new_lhs_vars, new_rhss
+
     def _compute_remove_num_envs(self, new_vars, sub_env_structure):
+        from pycket.assign_convert import compute_body_frees
         if not config.prune_env:
             remove_num_envs = [0] * (len(self.rhss) + 1)
             env_structures = [sub_env_structure.prev] * len(self.rhss)
             env_structures.append(sub_env_structure)
             return self, sub_env_structure, env_structures, remove_num_envs
+
         # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = SymbolSet.EMPTY
-        for b in self.body:
-            free_vars_not_from_let = free_vars_not_from_let.union(b.free_vars())
-        free_vars_not_from_let = free_vars_not_from_let.without_many(self.args.elems)
+        free_vars_not_from_let = compute_body_frees(self)
+        free_vars_not_from_let = free_vars_not_from_let.without_many(
+                self.args.elems)
+
         # at most, we can remove all envs, apart from the one introduced by let
         curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
         max_needed = 0
@@ -1966,50 +2007,33 @@ class Let(SequencedBodyAST):
             depth = sub_env_structure.depth_of_var(v)[1] - 1
             curr_remove = min(curr_remove, depth)
             max_needed = max(max_needed, depth)
-            if LexicalVar(v) in new_vars:
-                free_vars_not_mutated = False
-        remove_num_envs = [curr_remove]
-        if not curr_remove:
+            free_vars_not_mutated &= LexicalVar(v) not in new_vars
+
+        if curr_remove == 0:
             body_env_structure = sub_env_structure
         else:
-            next_structure = sub_env_structure.prev
-            for i in range(curr_remove):
-                next_structure = next_structure.prev
+            next_structure = sub_env_structure.prev.drop_frames(curr_remove)
             body_env_structure = SymList(self.args.elems, next_structure)
+
         if (free_vars_not_mutated and max_needed == curr_remove and
                 max_depth > max_needed):
-            before_max_needed = sub_env_structure.prev.prev
-            for i in range(max_needed):
-                before_max_needed = before_max_needed.prev
-            body = self.body[0]
-            if before_max_needed and before_max_needed.depth_and_size()[1]:
-                # there is unneeded local env storage that we will never need
-                # in the body. thus, make a copy of all local variables into
-                # the current let, *before* the last rhs is evaluated
-                # we can reuse the var names
-                copied_vars = free_vars_not_from_let.keys()
-                new_rhss = self.rhss[:-1] + [LexicalVar(v) for v in copied_vars] + [self.rhss[-1]]
-
-                idx = self.counts[-1]
-                cutoff = len(body_env_structure.elems) - idx
-                assert cutoff >= 0
-                new_lhs_vars = body_env_structure.elems[:cutoff] + copied_vars + body_env_structure.elems[cutoff:]
-
-                counts = self.counts[:-1] + [1] * len(copied_vars) + [self.counts[-1]]
+            before_max_needed = sub_env_structure.drop_frames(max_needed + 2)
+            if before_max_needed and before_max_needed.depth_and_size()[1] > 0:
+                counts, new_lhs_vars, new_rhss = self._copy_live_vars(
+                        free_vars_not_from_let)
                 body_env_structure = SymList(new_lhs_vars)
                 sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
                 self = Let(body_env_structure, counts, new_rhss, self.body)
                 return self._compute_remove_num_envs(new_vars, sub_env_structure)
 
+        remove_num_envs = [curr_remove]
         env_structures = [body_env_structure]
         for i in range(len(self.rhss) - 1, -1, -1):
-            rhs = self.rhss[i]
-            free_vars = rhs.free_vars()
+            free_vars = self.rhss[i].free_vars()
             for v in free_vars:
-                curr_remove = min(curr_remove, sub_env_structure.prev.depth_of_var(v)[1])
-            next_structure = sub_env_structure.prev
-            for i in range(curr_remove):
-                next_structure = next_structure.prev
+                var_depth = sub_env_structure.prev.depth_of_var(v)[1]
+                curr_remove = min(curr_remove, var_depth)
+            next_structure = sub_env_structure.drop_frames(curr_remove + 1)
             env_structures.append(next_structure)
             remove_num_envs.append(curr_remove)
         env_structures.reverse()

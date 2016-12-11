@@ -25,6 +25,7 @@ from pycket.interpreter import (
     SetBang,
     SymbolSet,
     SequencedBodyAST,
+    SymbolSet,
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
@@ -41,6 +42,13 @@ def compute_body_muts(node):
     for b in node.body:
         muts.update(b.mutated_vars())
     return muts
+
+def compute_body_frees(node):
+    assert isinstance(node, SequencedBodyAST)
+    frees = SymbolSet.EMPTY
+    for b in node.body:
+        frees = frees.union(b.free_vars())
+    return frees
 
 def compute_body_frees(node):
     assert isinstance(node, SequencedBodyAST)
