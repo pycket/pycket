@@ -1927,44 +1927,6 @@ class Let(SequencedBodyAST):
         context = Context.Let(args, self.rhss, body, context)
         return self.rhss[0], context
 
-    def _copy_live_vars(self, free_vars_not_from_let):
-        # there is unneeded local env storage that we will never need
-        # in the body. thus, make a copy of all local variables into
-        # the current let, at the point where the variable is not longer
-        # referenced in any of the right-hand-sides.
-        vars_to_copy = free_vars_not_from_let
-
-        # Find the last right hand side in which each variable to be
-        # copied is referenced
-        dead_after_sets = [[] for _ in self.rhss]
-        rhss = self.rhss
-        for var in free_vars_not_from_let:
-            i = len(self.rhss) - 1
-            while i != 0 and not rhss[i].free_vars().haskey(var):
-                i -= 1
-            dead_after_sets[i].append(var)
-
-        # Build the new args and rhss by interleaving the bindings with
-        # the new copy operations
-        new_lhs_vars = []
-        new_rhss = []
-        counts = []
-        args = self._rebuild_args()
-        for i, rhs in enumerate(self.rhss):
-            new_lhs_vars.extend(dead_after_sets[i])
-            new_lhs_vars.extend(args[i])
-
-            new_rhss.extend([LexicalVar(v) for v in dead_after_sets[i]])
-            new_rhss.append(rhs)
-
-            counts.extend([1] * len(dead_after_sets[i]))
-            counts.append(self.counts[i])
-
-        new_lhs_vars = new_lhs_vars[:]
-        new_rhss = new_rhss[:]
-        counts = counts[:]
-        return counts, new_lhs_vars, new_rhss
-
     def _rebuild_args(self):
         start = 0
         result = [None] * len(self.counts)
