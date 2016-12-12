@@ -138,8 +138,20 @@ def test_copy_to_env():
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
-    inner_let = p.body[0].body[0].body[1]
-    assert inner_let.remove_num_envs == [1, 1, 1]
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1]
+
+def test_prune_sequenced_body():
+    p = expr_ast("""
+    (let ([c 7])
+      (let ([b (+ c 1)])
+        (let ([d (+ b 1)])
+          (equal? d 1)
+          (equal? b 1)
+          (equal? c 1))))
+    """)
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1, 2]
 
 def test_reclambda():
     # simple case:
