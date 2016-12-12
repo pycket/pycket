@@ -125,8 +125,8 @@ class AssignConvertVisitor(ASTVisitor):
         local_muts = self.body_muts(ast)
         new_vars = vars.copy()
         new_vars.update(local_muts)
-        ast, sub_env_structure, env_structures, remove_num_envs = ast._compute_remove_num_envs(
-            new_vars, sub_env_structure)
+        ast, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
+            ast, new_vars, sub_env_structure)
 
         new_rhss = [None] * len(ast.rhss)
         offset = 0
@@ -167,6 +167,101 @@ class AssignConvertVisitor(ASTVisitor):
         local_muts = ast.mod_mutated_vars()
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
+
+    def _compute_remove_num_envs(self, ast, new_vars, sub_env_structure):
+        from pycket import config
+        if not config.prune_env:
+            remove_num_envs = [0] * (len(ast.rhss) + 1)
+            env_structures = [sub_env_structure.prev] * len(ast.rhss)
+            env_structures.append(sub_env_structure)
+            return ast, sub_env_structure, env_structures, remove_num_envs
+
+        # find out whether a smaller environment is sufficient for the body
+        free_vars_not_from_let = compute_body_frees(ast)
+        free_vars_not_from_let = free_vars_not_from_let.without_many(
+                ast.args.elems)
+
+        # at most, we can remove all envs, apart from the one introduced by let
+        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
+        max_needed = 0
+        free_vars_not_mutated = True
+        for v in free_vars_not_from_let:
+            depth = sub_env_structure.depth_of_var(v)[1] - 1
+            curr_remove = min(curr_remove, depth)
+            max_needed = max(max_needed, depth)
+            free_vars_not_mutated &= LexicalVar(v) not in new_vars
+
+        if curr_remove == 0:
+            body_env_structure = sub_env_structure
+        else:
+            next_structure = sub_env_structure.prev.drop_frames(curr_remove)
+            body_env_structure = SymList(ast.args.elems, next_structure)
+
+        if (free_vars_not_mutated and max_needed == curr_remove and
+                max_depth > max_needed):
+            before_max_needed = sub_env_structure.drop_frames(max_needed + 2)
+            if before_max_needed and before_max_needed.depth_and_size()[1] > 0:
+                counts, new_lhs_vars, new_rhss = self._copy_live_vars(
+                        ast, free_vars_not_from_let)
+                body_env_structure = SymList(new_lhs_vars)
+                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
+                ast = Let(body_env_structure, counts, new_rhss, ast.body)
+                return self._compute_remove_num_envs(ast, new_vars, sub_env_structure)
+
+        remove_num_envs = [curr_remove]
+        env_structures = [body_env_structure]
+        for i in range(len(ast.rhss) - 1, -1, -1):
+            free_vars = ast.rhss[i].free_vars()
+            for v in free_vars:
+                var_depth = sub_env_structure.prev.depth_of_var(v)[1]
+                curr_remove = min(curr_remove, var_depth)
+            next_structure = sub_env_structure.drop_frames(curr_remove + 1)
+            env_structures.append(next_structure)
+            remove_num_envs.append(curr_remove)
+        env_structures.reverse()
+        remove_num_envs.reverse()
+        return ast, sub_env_structure, env_structures, remove_num_envs[:]
+
+    @staticmethod
+    def _copy_live_vars(ast, free_vars_not_from_let):
+        # there is unneeded local env storage that we will never need
+        # in the body. thus, make a copy of all local variables into
+        # the current let, at the point where the variable is not longer
+        # referenced in any of the right-hand-sides.
+        vars_to_copy = free_vars_not_from_let
+
+        # Find the last right hand side in which each variable to be
+        # copied is referenced
+        dead_after_sets = [[] for _ in ast.rhss]
+        rhss = ast.rhss
+        for var in free_vars_not_from_let:
+            i = len(ast.rhss) - 1
+            while i != 0 and not rhss[i].free_vars().haskey(var):
+                i -= 1
+            dead_after_sets[i].append(var)
+
+        # Build the new args and rhss by interleaving the bindings with
+        # the new copy operations
+        new_lhs_vars = []
+        new_rhss = []
+        counts = []
+        args = ast._rebuild_args()
+        for i, rhs in enumerate(ast.rhss):
+            new_lhs_vars.extend(dead_after_sets[i])
+            new_lhs_vars.extend(args[i])
+
+            new_rhss.extend([LexicalVar(v) for v in dead_after_sets[i]])
+            new_rhss.append(rhs)
+
+            counts.extend([1] * len(dead_after_sets[i]))
+            counts.append(ast.counts[i])
+
+        new_lhs_vars = new_lhs_vars[:]
+        new_rhss = new_rhss[:]
+        counts = counts[:]
+        return counts, new_lhs_vars, new_rhss
+
+
 
 def assign_convert(ast, visitor=None):
     if visitor is None:
