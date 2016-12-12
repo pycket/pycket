@@ -1067,8 +1067,14 @@ class SimplePrimApp2(App):
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]", "counting_asts[*]"]
+    _immutable_fields_ = ["body[*]", "counting_asts[*]",
+                          "_sequenced_env_structure",
+                          "_sequenced_remove_num_envs[*]"]
+
     visitable = False
+    _sequenced_env_structure = None
+    _sequenced_remove_num_envs = None
+
     def __init__(self, body, counts_needed=-1):
         from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
@@ -1081,15 +1087,47 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    @staticmethod
+    def _check_environment_consistency(env, env_structure):
+        if objectmodel.we_are_translated():
+            return
+        if env_structure is None:
+            assert isinstance(env, ToplevelEnv)
+        else:
+            env_structure.check_plausibility(env)
+
+    @jit.unroll_safe
+    def _prune_sequenced_envs(self, env, i=0):
+        env_structure = self._sequenced_env_structure
+        if env_structure is None:
+            return env
+        if i:
+            already_pruned = self._sequenced_remove_num_envs[i - 1]
+            for j in range(already_pruned):
+                env_structure = env_structure.prev
+        else:
+            already_pruned = 0
+        self._check_environment_consistency(env, env_structure)
+        diff = self._sequenced_remove_num_envs[i] - already_pruned
+        for i in range(self._sequenced_remove_num_envs[i] - already_pruned):
+            env = env.get_prev(env_structure)
+            env_structure = env_structure.prev
+        if diff:
+            print "pruned: ", diff
+        return env
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
+        if not i:
+            env = self._prune_sequenced_envs(env, 0)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
+            new_env = self._prune_sequenced_envs(env, i + 1)
             return self.body[i], env, BeginCont(
-                    self.counting_asts[i + 1], env, prev)
+                    self.counting_asts[i + 1], new_env, prev)
 
 class Begin0(AST):
     _immutable_fields_ = ["first", "body"]
@@ -1881,11 +1919,7 @@ class Let(SequencedBodyAST):
                 env_structure = env_structure.prev
         else:
             already_pruned = 0
-        if not objectmodel.we_are_translated():
-            if env_structure is None:
-                assert isinstance(env, ToplevelEnv)
-            else:
-                env_structure.check_plausibility(env)
+        self._check_environment_consistency(env, env_structure)
         for i in range(self.remove_num_envs[i] - already_pruned):
             env = env.get_prev(env_structure)
             env_structure = env_structure.prev

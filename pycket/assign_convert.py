@@ -141,9 +141,50 @@ class AssignConvertVisitor(ASTVisitor):
             offset += count
 
         body_env_structure = env_structures[-1]
-        new_body = [b.visit(self, new_vars, body_env_structure) for b in ast.body]
-        return Let(sub_env_structure, ast.counts, new_rhss, new_body,
-                   remove_num_envs)
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, vars, body_env_structure)
+
+        new_body = [None] * len(ast.body)
+        for i, b in enumerate(ast.body):
+            body_env = body_env_structures[i]
+            new_body[i] = b.visit(self, new_vars, body_env)
+
+        result = Let(sub_env_structure, ast.counts, new_rhss, new_body,
+                     remove_num_envs)
+        result._sequenced_env_structure = body_env_structure
+        result._sequenced_remove_num_envs = body_remove_num_envs
+        return result
+
+    def visit_begin(self, ast, vars, env_structure):
+        assert isinstance(ast, Begin)
+        body_structures, body_removes = self._visit_sequenced_body(
+                ast, vars, env_structure)
+        new_body = [None] * len(ast.body)
+        for i, b in enumerate(ast.body):
+            new_body[i] = b.visit(self, vars, body_structures[i])
+        result = Begin(new_body)
+        result._sequenced_env_structure = env_structure
+        result._sequenced_remove_num_envs = body_removes
+        return result
+
+    def _visit_sequenced_body(self, ast, vars, env_structure):
+        assert isinstance(ast, SequencedBodyAST)
+        if env_structure is None:
+            return [None] * len(ast.body), [0] * len(ast.body)
+        remove_num_envs = []
+        env_structures  = []
+        curr_remove = env_structure.depth_and_size()[0]
+        for i in range(len(ast.body) - 1, -1, -1):
+            free_vars = ast.body[i].free_vars()
+            for var in free_vars:
+                var_depth = env_structure.depth_of_var(var)[1]
+                curr_remove = min(curr_remove, var_depth)
+            next_structure = env_structure.drop_frames(curr_remove)
+            env_structures.append(next_structure)
+            remove_num_envs.append(curr_remove)
+        env_structures.reverse()
+        remove_num_envs.reverse()
+        return env_structures[:], remove_num_envs[:]
 
     def visit_define_values(self, ast, vars, env_structure):
         assert isinstance(ast, DefineValues)
