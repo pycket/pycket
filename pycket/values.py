@@ -1033,15 +1033,16 @@ class W_ImmutableBytes(W_Bytes):
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_asciivalue", "_isascii", "_unicodevalue", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_checked", "_unicodevalue", "utf8value"]
     _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
         if not we_are_translated():
             assert isinstance(val, str)
         self._unicodevalue = None
-        self._isascii = True
         self.unreadable = unreadable
+        self._checked = False
+        self._isascii = True
         self.utf8value = val
 
     @jit.elidable
@@ -1049,9 +1050,11 @@ class W_Symbol(W_Object):
         from pycket.values_string import _is_ascii
         if not self._isascii:
             return None
-        if not _is_ascii(self.utf8value):
-            self._isascii = False
-            return None
+        if not self._checked:
+            self._checked = True
+            if not _is_ascii(self.utf8value):
+                self._isascii = False
+                return None
         return self.utf8value
 
     @jit.elidable
@@ -1065,11 +1068,9 @@ class W_Symbol(W_Object):
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
-        # assert isinstance(string, str)
+        assert isinstance(string, str)
         w_result = W_Symbol.all_symbols.get(string, None)
         if w_result is None:
-            # assume that string is a utf-8 encoded unicode string
-            # value = string.decode("utf-8")
             w_result = W_Symbol(string)
             W_Symbol.all_symbols[string] = w_result
         return w_result
