@@ -1075,7 +1075,7 @@ class SequencedBodyAST(AST):
     _sequenced_env_structure = None
     _sequenced_remove_num_envs = None
 
-    def __init__(self, body, counts_needed=-1):
+    def __init__(self, body, counts_needed=-1, sequenced_env_structure=None, sequenced_remove_num_envs=None):
         from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
         assert len(body) > 0
@@ -1086,6 +1086,10 @@ class SequencedBodyAST(AST):
         self.counting_asts = [
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
+
+    def init_body_pruning(self, env_structure, remove_num_envs):
+        self._sequenced_env_structure = env_structure
+        self._sequenced_remove_num_envs = remove_num_envs
 
     @staticmethod
     def _check_environment_consistency(env, env_structure):
@@ -1108,12 +1112,9 @@ class SequencedBodyAST(AST):
         else:
             already_pruned = 0
         self._check_environment_consistency(env, env_structure)
-        diff = self._sequenced_remove_num_envs[i] - already_pruned
         for i in range(self._sequenced_remove_num_envs[i] - already_pruned):
             env = env.get_prev(env_structure)
             env_structure = env_structure.prev
-        if diff:
-            print "pruned: ", diff
         return env
 
     @objectmodel.always_inline
