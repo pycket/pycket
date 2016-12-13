@@ -97,12 +97,23 @@ class AssignConvertVisitor(ASTVisitor):
             sub_env_structure = SymList(new_lets, ast.args)
         else:
             sub_env_structure = ast.args
-        new_body = [b.visit(self, new_vars, sub_env_structure) for b in ast.body]
+
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, new_vars, sub_env_structure)
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
+
         if new_lets:
             cells = [Cell(LexicalVar(v, ast.args)) for v in new_lets]
             new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                      ast.sourceinfo, env_structure, sub_env_structure)
+            new_body[0].init_body_pruning(sub_env_structure, body_remove_num_envs)
+            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
+                            ast.sourceinfo, env_structure, sub_env_structure)
+        else:
+            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
+                            ast.sourceinfo, env_structure, sub_env_structure)
+            result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        return result
 
     def visit_letrec(self, ast, vars, env_structure):
         assert isinstance(ast, Letrec)
@@ -116,8 +127,15 @@ class AssignConvertVisitor(ASTVisitor):
         new_vars.update(local_muts)
         sub_env_structure = SymList(ast.args.elems, env_structure)
         new_rhss = [rhs.visit(self, new_vars, sub_env_structure) for rhs in ast.rhss]
-        new_body = [b.visit(self, new_vars, sub_env_structure) for b in ast.body]
-        return Letrec(sub_env_structure, ast.counts, new_rhss, new_body)
+
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, new_vars, sub_env_structure)
+
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
+        letrec = Letrec(sub_env_structure, ast.counts, new_rhss, new_body)
+        letrec.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        return letrec
 
     def visit_let(self, ast, vars, env_structure):
         assert isinstance(ast, Let)
@@ -144,15 +162,11 @@ class AssignConvertVisitor(ASTVisitor):
         body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
                 ast, vars, body_env_structure)
 
-        new_body = [None] * len(ast.body)
-        for i, b in enumerate(ast.body):
-            body_env = body_env_structures[i]
-            new_body[i] = b.visit(self, new_vars, body_env)
-
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
         result = Let(sub_env_structure, ast.counts, new_rhss, new_body,
                      remove_num_envs)
-        result._sequenced_env_structure = body_env_structure
-        result._sequenced_remove_num_envs = body_remove_num_envs
+        result.init_body_pruning(body_env_structure, body_remove_num_envs)
         return result
 
     def visit_begin(self, ast, vars, env_structure):
@@ -160,11 +174,10 @@ class AssignConvertVisitor(ASTVisitor):
         body_structures, body_removes = self._visit_sequenced_body(
                 ast, vars, env_structure)
         new_body = [None] * len(ast.body)
-        for i, b in enumerate(ast.body):
-            new_body[i] = b.visit(self, vars, body_structures[i])
+        new_body = [b.visit(self, vars, body_structures[i])
+                    for i, b in enumerate(ast.body)]
         result = Begin(new_body)
-        result._sequenced_env_structure = env_structure
-        result._sequenced_remove_num_envs = body_removes
+        result.init_body_pruning(env_structure, body_removes)
         return result
 
     def _visit_sequenced_body(self, ast, vars, env_structure):
@@ -301,8 +314,6 @@ class AssignConvertVisitor(ASTVisitor):
         new_rhss = new_rhss[:]
         counts = counts[:]
         return counts, new_lhs_vars, new_rhss
-
-
 
 def assign_convert(ast, visitor=None):
     if visitor is None:
