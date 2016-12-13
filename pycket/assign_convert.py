@@ -184,8 +184,8 @@ class AssignConvertVisitor(ASTVisitor):
         assert isinstance(ast, SequencedBodyAST)
         if env_structure is None:
             return [None] * len(ast.body), [0] * len(ast.body)
-        remove_num_envs = []
-        env_structures  = []
+        remove_num_envs = [0] * len(ast.body)
+        env_structures = [None] * len(ast.body)
         curr_remove = env_structure.depth_and_size()[0]
         for i in range(len(ast.body) - 1, -1, -1):
             free_vars = ast.body[i].free_vars()
@@ -193,11 +193,9 @@ class AssignConvertVisitor(ASTVisitor):
                 var_depth = env_structure.depth_of_var(var)[1]
                 curr_remove = min(curr_remove, var_depth)
             next_structure = env_structure.drop_frames(curr_remove)
-            env_structures.append(next_structure)
-            remove_num_envs.append(curr_remove)
-        env_structures.reverse()
-        remove_num_envs.reverse()
-        return env_structures[:], remove_num_envs[:]
+            env_structures[i] = next_structure
+            remove_num_envs[i] = curr_remove
+        return env_structures, remove_num_envs
 
     def visit_define_values(self, ast, vars, env_structure):
         assert isinstance(ast, DefineValues)
@@ -262,19 +260,17 @@ class AssignConvertVisitor(ASTVisitor):
                 ast = Let(body_env_structure, counts, new_rhss, ast.body)
                 return self._compute_remove_num_envs(ast, new_vars, sub_env_structure)
 
-        remove_num_envs = [curr_remove]
-        env_structures = [body_env_structure]
+        # The loops will modify all but the last element
+        remove_num_envs = [curr_remove] * (len(ast.rhss) + 1)
+        env_structures = [body_env_structure] * (len(ast.rhss) + 1)
         for i in range(len(ast.rhss) - 1, -1, -1):
             free_vars = ast.rhss[i].free_vars()
             for v in free_vars:
                 var_depth = sub_env_structure.prev.depth_of_var(v)[1]
                 curr_remove = min(curr_remove, var_depth)
-            next_structure = sub_env_structure.drop_frames(curr_remove + 1)
-            env_structures.append(next_structure)
-            remove_num_envs.append(curr_remove)
-        env_structures.reverse()
-        remove_num_envs.reverse()
-        return ast, sub_env_structure, env_structures, remove_num_envs[:]
+            env_structures[i] = sub_env_structure.drop_frames(curr_remove + 1)
+            remove_num_envs[i] = curr_remove
+        return ast, sub_env_structure, env_structures, remove_num_envs
 
     @staticmethod
     def _copy_live_vars(ast, free_vars_not_from_let):
