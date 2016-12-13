@@ -87,6 +87,9 @@ def test_remove_simple_begin():
     assert isinstance(p, Let) and len(p.body) == 1
     p = expr_ast("(begin0 #t #f #f #f)")
     assert isinstance(p, Quote) and p.w_val is w_true
+    p = expr_ast("(let ([a 1]) (equal? 1 2) (let ([b 2]) (equal? 1 2) (let ([c 3]) (equal? 1 2) (begin (equal? b c) (equal? a b)))))")
+    assert isinstance(p, Let)
+    assert p.body[-1].body[-1]._sequenced_remove_num_envs == [0, 0, 1]
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
@@ -135,8 +138,20 @@ def test_copy_to_env():
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
-    inner_let = p.body[0].body[0].body[1]
-    assert inner_let.remove_num_envs == [1, 1, 1]
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1]
+
+def test_prune_sequenced_body():
+    p = expr_ast("""
+    (let ([c 7])
+      (let ([b (+ c 1)])
+        (let ([d (+ b 1)])
+          (equal? d 1)
+          (equal? b 1)
+          (equal? c 1))))
+    """)
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1, 2]
 
 def test_reclambda():
     # simple case:
