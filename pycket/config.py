@@ -13,8 +13,6 @@ pycketoption_descr = OptionDescription(
     BoolOption("log_callgraph", "log the callgraph decisions",
                default=False, cmdline="--log-callgraph",
                requires=[("pycket.callgraph", True)]),
-    BoolOption("fuse_conts", "fuse the continuations",
-               default=False, cmdline="--fuse-conts"),
     BoolOption("with_branch", "build the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
     BoolOption("strategies", "strategies for data structures (vectors, cells, hashmaps, etc)",
@@ -51,8 +49,6 @@ def compute_executable_suffix(config):
         res.append("-no-type-size-specialization")
     if not config.hidden_classes:
         res.append("-no-hidden-classes")
-    if config.fuse_conts:
-        res.append("-fuse-conts")
     if config.log_callgraph:
         res.append("-log")
     if config.immutable_boolean_field_elision:

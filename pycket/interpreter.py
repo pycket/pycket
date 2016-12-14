@@ -349,30 +349,9 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
-        if not env.pycketconfig().fuse_conts:
-            fuse = False
+    def make(vals_w, ast, rhsindex, env, prev):
         counting_ast = ast.counting_asts[rhsindex]
-
-        # try to fuse the two Conts
-        if fuse and not vals_w:
-            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(Let)
-                # check whether envs are the same:
-                if prev_ast.args.prev is ast.args.prev and env is prev.env:
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
-            elif isinstance(prev, BeginCont):
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
-                # check whether envs are the same:
-                if env is prev.env: # XXX could use structure to check plausibility
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
-
-        if not pruning_done:
-            env = ast._prune_env(env, rhsindex + 1)
+        env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -445,47 +424,6 @@ class LetCont(Cont):
             env._set_list(i, vals.get_value(j))
             i += 1
         return env
-
-class FusedLet0Let0Cont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        ast2, index2 = ast2.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                LetCont.make(
-                    None, ast2, index2, self.env, self.prev, fuse=False,
-                    pruning_done=True),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
-
-class FusedLet0BeginCont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                BeginCont(ast2, self.env, self.prev),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
 
 class CellCont(Cont):
     _immutable_fields_ = ['ast']

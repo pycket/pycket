@@ -194,34 +194,6 @@ def test_asts_know_surrounding_lambda():
     inner_lam = inner_caselam.lams[0]
     assert inner_lam.body[0].surrounding_lambda is inner_lam
 
-@skip
-def test_cont_fusion():
-    from pycket.env import SymList, ToplevelEnv
-    from pycket.interpreter import (
-        LetCont, BeginCont,
-        FusedLet0Let0Cont, FusedLet0BeginCont,
-    )
-    from pycket.config import get_testing_config
-    from pycket.cont   import NilCont
-    args = SymList([])
-    counts = [1]
-    rhss = 1
-    letast1 = Let(args, counts, [1], [2])
-    letast2 = Let(args, counts, [1], [2])
-    env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = NilCont()
-    let2 = LetCont.make([], letast2, 0, env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0Let0Cont)
-    assert let1.prev is prev
-    assert let1.env is env
-
-    let2 = BeginCont(letast2.counting_asts[0], env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0BeginCont)
-    assert let1.prev is prev
-    assert let1.env is env
-
 def test_bottom_up_let_conversion():
     caselam = expr_ast("(lambda (f1 f2 f3 x) (f1 (f2 (f3 x))))")
     lam = caselam.lams[0]
@@ -253,7 +225,6 @@ def test_bottom_up_let_conversion():
         assert let.rhss[0].rator.sym is fn
         let = let.body[0]
     assert let.rator.sym is f
-
 
 def test_bottom_up_let_conversion_bug_append():
     caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")
