@@ -392,9 +392,8 @@ class LetCont(Cont):
                 # speculate moar!
                 if _env is self.env:
                     prev = _env
-                else:
-                    if not jit.we_are_jitted():
-                        ast.env_speculation_works = False
+                elif not jit.we_are_jitted():
+                    ast.env_speculation_works = False
             env = self._construct_env(len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:

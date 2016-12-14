@@ -199,16 +199,11 @@ class AssignConvertVisitor(ASTVisitor):
 
     def visit_define_values(self, ast, vars, env_structure):
         assert isinstance(ast, DefineValues)
-        need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in ast.names]
+        need_cell_flags = [ModuleVar(i, None, i) in vars for i in ast.names]
+        rhs = ast.rhs.visit(self, vars, env_structure)
         if True in need_cell_flags:
-            return DefineValues(ast.names,
-                                Cell(ast.rhs.visit(self, vars, env_structure),
-                                     need_cell_flags),
-                                ast.display_names)
-        else:
-            return DefineValues(ast.names,
-                                ast.rhs.visit(self, vars, env_structure),
-                                ast.display_names)
+            rhs = Cell(rhs, need_cell_flags)
+        return DefineValues(ast.names, rhs, ast.display_names)
 
     def visit_module(self, ast, vars, env_structure):
         """
