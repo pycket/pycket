@@ -181,8 +181,10 @@ class AssignConvertVisitor(ASTVisitor):
         return result
 
     def _visit_sequenced_body(self, ast, vars, env_structure):
+        from pycket import config
         assert isinstance(ast, SequencedBodyAST)
-        if env_structure is None:
+
+        if not config.prune_env or env_structure is None:
             return [None] * len(ast.body), [0] * len(ast.body)
         remove_num_envs = [0] * len(ast.body)
         env_structures = [None] * len(ast.body)
