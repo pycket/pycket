@@ -185,7 +185,7 @@ class AssignConvertVisitor(ASTVisitor):
         assert isinstance(ast, SequencedBodyAST)
 
         if not config.prune_env or env_structure is None:
-            return [None] * len(ast.body), [0] * len(ast.body)
+            return [env_structure] * len(ast.body), [0] * len(ast.body)
         remove_num_envs = [0] * len(ast.body)
         env_structures = [None] * len(ast.body)
         curr_remove = env_structure.depth_and_size()[0]
