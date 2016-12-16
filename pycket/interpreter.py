@@ -1402,6 +1402,13 @@ class If(AST):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, sourceinfo=None):
+    """
+    Create a λ-node after computing information about the free variables
+    in the body. The 'args' field stores both the function arguments as well
+    as the free variables in a SymList.
+    The 'args' SymList hold the expected environment structure for the body of
+    the λ-expression.
+    """
     body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
