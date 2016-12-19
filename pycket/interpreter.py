@@ -1589,26 +1589,26 @@ class Lambda(SequencedBodyAST):
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
-        if fmls_len != args_len and not self.rest:
+        if fmls_len != args_len and self.rest is None:
             return None
         if fmls_len > args_len:
             return None
-        need_cell_flags = self.args_need_cell_flags
         if self.rest is None:
-            if True not in need_cell_flags:
-                return args
+            for flag in self.args_need_cell_flags:
+                if flag:
+                    return args
             numargs = fmls_len
         else:
             numargs = fmls_len + 1
         actuals = [None] * numargs
         for i in range(fmls_len):
             val = args[i]
-            if need_cell_flags[i]:
+            if self.args_need_cell_flags[i]:
                 val = values.W_Cell(val)
             actuals[i] = val
         if self.rest is not None:
             rest = values.to_list(args, start=fmls_len)
-            if need_cell_flags[-1]:
+            if self.args_need_cell_flags[-1]:
                 rest = values.W_Cell(rest)
             actuals[-1] = rest
         return actuals
