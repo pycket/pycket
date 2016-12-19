@@ -1586,6 +1586,13 @@ class Lambda(SequencedBodyAST):
         return free_vars_lambda(self.body, self.args)
 
     @jit.unroll_safe
+    def _has_mutable_args(self):
+        for flag in self.args_need_cell_flags:
+            if flag:
+                return True
+        return False
+
+    @jit.unroll_safe
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
@@ -1594,9 +1601,8 @@ class Lambda(SequencedBodyAST):
         if fmls_len > args_len:
             return None
         if self.rest is None:
-            for flag in self.args_need_cell_flags:
-                if flag:
-                    return args
+            if not self._has_mutable_args():
+                return args
             numargs = fmls_len
         else:
             numargs = fmls_len + 1
