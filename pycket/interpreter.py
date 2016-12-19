@@ -1534,7 +1534,7 @@ class Lambda(SequencedBodyAST):
     visitable = True
     simple = True
     ispure = True
-    need_cell_flags = None
+    args_need_cell_flags = None
 
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1587,10 +1587,15 @@ class Lambda(SequencedBodyAST):
 
     @jit.unroll_safe
     def _has_mutable_args(self):
+        if self.args_need_cell_flags is None:
+            return False
         for flag in self.args_need_cell_flags:
             if flag:
                 return True
         return False
+
+    def _is_mutable_arg(self, i):
+        return self.args_need_cell_flags is not None and self.args_need_cell_flags[i]
 
     @jit.unroll_safe
     def match_args(self, args):
@@ -1609,14 +1614,15 @@ class Lambda(SequencedBodyAST):
         actuals = [None] * numargs
         for i in range(fmls_len):
             val = args[i]
-            if self.args_need_cell_flags[i]:
+            if self._is_mutable_arg(i):
                 val = values.W_Cell(val)
             actuals[i] = val
-        if self.rest is not None:
-            rest = values.to_list(args, start=fmls_len)
-            if self.args_need_cell_flags[-1]:
-                rest = values.W_Cell(rest)
-            actuals[-1] = rest
+        if self.rest is None:
+            return actuals
+        rest = values.to_list(args, start=fmls_len)
+        if self._is_mutable_arg(-1):
+            rest = values.W_Cell(rest)
+        actuals[-1] = rest
         return actuals
 
     def raise_nice_error(self, args):

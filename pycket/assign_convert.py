@@ -102,7 +102,8 @@ class AssignConvertVisitor(ASTVisitor):
         result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
                         ast.sourceinfo, env_structure, sub_env_structure)
         result.init_body_pruning(sub_env_structure, body_remove_num_envs)
-        result.args_need_cell_flags = need_cell_flags[:]
+        if True in need_cell_flags:
+            result.args_need_cell_flags = need_cell_flags[:]
         return result
 
     def visit_letrec(self, ast, vars, env_structure):

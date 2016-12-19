@@ -36,7 +36,7 @@ def test_mutvars():
     assert p.lams[0].args_need_cell_flags[0]
     p = expr_ast(("(lambda (y) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
-    assert not p.lams[0].args_need_cell_flags[0]
+    assert p.lams[0].args_need_cell_flags is None
     p = expr_ast(("(let ([y 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
     #    assert p.mutated_vars() == make_symbols({"x": None})
