@@ -85,34 +85,24 @@ class AssignConvertVisitor(ASTVisitor):
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
         local_muts = self.body_muts(ast)
-        new_lets = []
+        need_cell_flags = []
         new_vars = vars.copy()
         for i in ast.args.elems:
             li = LexicalVar(i)
             self.remove_var(new_vars, li)
-            if li in local_muts:
-                new_lets.append(i)
+            need_cell_flags.append(li in local_muts)
         new_vars.update(local_muts)
-        if new_lets:
-            sub_env_structure = SymList(new_lets, ast.args)
-        else:
-            sub_env_structure = ast.args
 
+        sub_env_structure = ast.args
         body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
                 ast, new_vars, sub_env_structure)
         new_body = [b.visit(self, new_vars, body_env_structures[i])
                     for i, b in enumerate(ast.body)]
 
-        if new_lets:
-            cells = [Cell(LexicalVar(v, ast.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-            new_body[0].init_body_pruning(sub_env_structure, body_remove_num_envs)
-            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                            ast.sourceinfo, env_structure, sub_env_structure)
-        else:
-            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                            ast.sourceinfo, env_structure, sub_env_structure)
-            result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
+                        ast.sourceinfo, env_structure, sub_env_structure)
+        result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result.args_need_cell_flags = need_cell_flags[:]
         return result
 
     def visit_letrec(self, ast, vars, env_structure):

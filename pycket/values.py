@@ -1211,17 +1211,17 @@ class W_Prim(W_Procedure):
         return "#<procedure:%s>" % self.name.variable_name()
 
 @always_inline
-def to_list(l, start_at=0):
-    return to_improper(l, w_null, start_at=start_at)
+def to_list(l, start=0):
+    return to_improper(l, w_null, start=start)
 
-def to_improper(l, curr, start_at=0):
-    return to_improper_impl(l, curr, start_at)
+def to_improper(l, curr, start=0):
+    return to_improper_impl(l, curr, start)
 
 @jit.look_inside_iff(
-    lambda l, curr, start_at: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
-def to_improper_impl(l, curr, start_at):
-    assert start_at >= 0
-    for i in range(len(l) - 1, start_at - 1, -1):
+    lambda l, curr, start: jit.loop_unrolling_heuristic(l, len(l) - start, UNROLLING_CUTOFF))
+def to_improper_impl(l, curr, start):
+    assert start >= 0
+    for i in range(len(l) - 1, start - 1, -1):
         curr = W_Cons.make(l[i], curr)
     return curr
 

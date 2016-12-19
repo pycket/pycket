@@ -1530,10 +1530,11 @@ class CaseLambda(AST):
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", "env_structure",
-                          "sourceinfo"]
+                          "sourceinfo", "args_need_cell_flags[*]"]
     visitable = True
     simple = True
     ispure = True
+    need_cell_flags = None
 
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1592,12 +1593,24 @@ class Lambda(SequencedBodyAST):
             return None
         if fmls_len > args_len:
             return None
-        if not self.rest:
-            return args
-        actuals = [None] * (fmls_len + 1)
+        need_cell_flags = self.args_need_cell_flags
+        if self.rest is None:
+            if True not in need_cell_flags:
+                return args
+            numargs = fmls_len
+        else:
+            numargs = fmls_len + 1
+        actuals = [None] * numargs
         for i in range(fmls_len):
-            actuals[i] = args[i]
-        actuals[-1] = values.to_list(args, start_at=fmls_len)
+            val = args[i]
+            if need_cell_flags[i]:
+                val = values.W_Cell(val)
+            actuals[i] = val
+        if self.rest is not None:
+            rest = values.to_list(args, start=fmls_len)
+            if need_cell_flags[-1]:
+                rest = values.W_Cell(rest)
+            actuals[-1] = rest
         return actuals
 
     def raise_nice_error(self, args):
