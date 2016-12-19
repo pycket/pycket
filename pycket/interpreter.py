@@ -11,8 +11,9 @@ from pycket.prims.expose      import prim_env, make_call_method
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
-from rpython.rlib.rarithmetic import r_uint
+from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.rlib.rarithmetic import r_uint
 from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
@@ -36,6 +37,29 @@ BUILTIN_MODULES = [
     "#%core",
     "#%linklet",
     "#%network" ]
+
+class BindingFormMixin(object):
+    _immutable_fields_ = ['_mutable_var_flags[*]']
+    _mutable_var_flags = None
+
+    def init_mutable_var_flags(self, flags):
+        if True in flags:
+            self._mutable_var_flags = flags[:]
+        else:
+            self._mutable_var_flags = None
+
+    @jit.unroll_safe
+    def binds_mutable_var(self):
+        if self._mutable_var_flags is None:
+            return False
+        for flag in self._mutable_var_flags:
+            if flag:
+                return True
+        return False
+
+    @objectmodel.always_inline
+    def is_mutable_var(self, i):
+        return self._mutable_var_flags is not None and self._mutable_var_flags[i]
 
 class Context(object):
 
@@ -1530,11 +1554,12 @@ class CaseLambda(AST):
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
                           "frees", "enclosing_env_structure", "env_structure",
-                          "sourceinfo", "args_need_cell_flags[*]"]
+                          "sourceinfo"]
     visitable = True
     simple = True
     ispure = True
-    args_need_cell_flags = None
+
+    import_from_mixin(BindingFormMixin)
 
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1547,6 +1572,10 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+
+    def init_arg_cell_flags(self, args_need_cell_flags):
+        if True in args_need_cell_flags:
+            self.args_need_cell_flags = args_need_cell_flags
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1606,7 +1635,7 @@ class Lambda(SequencedBodyAST):
         if fmls_len > args_len:
             return None
         if self.rest is None:
-            if not self._has_mutable_args():
+            if not self.binds_mutable_var():
                 return args
             numargs = fmls_len
         else:
@@ -1614,13 +1643,13 @@ class Lambda(SequencedBodyAST):
         actuals = [None] * numargs
         for i in range(fmls_len):
             val = args[i]
-            if self._is_mutable_arg(i):
+            if self.is_mutable_var(i):
                 val = values.W_Cell(val)
             actuals[i] = val
         if self.rest is None:
             return actuals
         rest = values.to_list(args, start=fmls_len)
-        if self._is_mutable_arg(-1):
+        if self.is_mutable_var(-1):
             rest = values.W_Cell(rest)
         actuals[-1] = rest
         return actuals

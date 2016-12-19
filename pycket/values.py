@@ -1499,7 +1499,8 @@ class W_PromotableClosure(W_Procedure):
     _attrs_ = _immutable_fields_ = ["closure", "arity"]
 
     def __init__(self, caselam, toplevel_env):
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        envs = [toplevel_env] * len(caselam.lams)
+        self.closure = W_Closure._make(envs, caselam, toplevel_env)
         self.arity   = caselam._arity
 
     def enable_jitting(self):

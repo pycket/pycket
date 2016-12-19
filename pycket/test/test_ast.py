@@ -33,16 +33,15 @@ def test_symlist_depth():
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")
     assert len(p.mutated_vars()) == 0
-    assert p.lams[0].args_need_cell_flags[0]
+    assert p.lams[0]._mutable_var_flags[0]
     p = expr_ast(("(lambda (y) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
-    assert p.lams[0].args_need_cell_flags is None
+    assert p.lams[0]._mutable_var_flags is None
     p = expr_ast(("(let ([y 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
     #    assert p.mutated_vars() == make_symbols({"x": None})
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
-
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
