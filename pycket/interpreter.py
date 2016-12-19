@@ -1529,11 +1529,12 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure',
+                          "frees", "enclosing_env_structure", "env_structure",
                           "sourceinfo"]
     visitable = True
     simple = True
     ispure = True
+
     def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
@@ -1583,6 +1584,7 @@ class Lambda(SequencedBodyAST):
     def _free_vars(self):
         return free_vars_lambda(self.body, self.args)
 
+    @jit.unroll_safe
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
@@ -1590,10 +1592,12 @@ class Lambda(SequencedBodyAST):
             return None
         if fmls_len > args_len:
             return None
-        if self.rest:
-            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
-        else:
-            actuals = args
+        if not self.rest:
+            return args
+        actuals = [None] * (fmls_len + 1)
+        for i in range(fmls_len):
+            actuals[i] = args[i]
+        actuals[-1] = values.to_list(args, start_at=fmls_len)
         return actuals
 
     def raise_nice_error(self, args):
