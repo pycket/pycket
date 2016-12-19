@@ -1335,9 +1335,9 @@ class W_Closure(W_Procedure):
     @jit.unroll_safe
     def __init__(self, caselam, env):
         self.caselam = caselam
-        for (i,lam) in enumerate(caselam.lams):
-            vals = lam.collect_frees(caselam.recursive_sym, env, self)
-            self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
+        for i, lam in enumerate(caselam.lams):
+            frame = lam.collect_frees_as_env(caselam.recursive_sym, env, self)
+            self._set_list(i, frame)
 
     def enable_jitting(self):
         self.caselam.enable_jitting()
@@ -1351,7 +1351,7 @@ class W_Closure(W_Procedure):
         from pycket.interpreter import CaseLambda
         assert isinstance(caselam, CaseLambda)
         num_lams = len(caselam.lams)
-        if num_lams == 1 and caselam.any_frees:
+        if num_lams == 1 and not caselam.lams[0].inherited_env and caselam.any_frees:
             env_size = len(caselam.lams[0].frees.elems)
             vals = caselam.lams[0].collect_frees_without_recursive(
                     caselam.recursive_sym, env)

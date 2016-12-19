@@ -29,6 +29,14 @@ from pycket.interpreter import (
     variable_set,
 )
 
+class InheritEnvironment(object):
+
+    _attrs_ = _immutable_fields_ = ['drop_frames', 'env_structure']
+
+    def __init__(self, drop_frames, env_structure):
+        self.drop_frames = drop_frames
+        self.env_structure = env_structure
+
 def compute_body_frees(node):
     assert isinstance(node, SequencedBodyAST)
     frees = SymbolSet.EMPTY
@@ -82,6 +90,26 @@ class AssignConvertVisitor(ASTVisitor):
         else:
             return ast
 
+    def _find_existing_frame(self, frees, env_structure):
+        if env_structure is None or not frees:
+            return None
+        valid = 0
+        min_depth = env_structure.depth_and_size()[0]
+        for free in frees:
+            depth = env_structure.depth_of_var(free)[1]
+            # XXX: This means we fail to match an existing frame whenever we
+            # have a recursive lambda. We should be able to improve this.
+            if depth == -1:
+                return None
+            min_depth = min(depth, min_depth)
+            valid += 1
+        smaller_env = env_structure.drop_frames(min_depth)
+        if smaller_env is None:
+            assert valid == 0
+        elif smaller_env.depth_and_size()[1] > valid:
+            return None
+        return InheritEnvironment(min_depth, smaller_env)
+
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
         local_muts = self.body_muts(ast)
@@ -93,15 +121,43 @@ class AssignConvertVisitor(ASTVisitor):
             if li in local_muts:
                 new_lets.append(i)
         new_vars.update(local_muts)
-        if new_lets:
-            sub_env_structure = SymList(new_lets, ast.args)
+
+        # First, try to inherit the environment from the current environment
+        frees = ast.frees.elems
+        if not new_lets:
+            inherited_environment = self._find_existing_frame(frees, env_structure)
+        else:
+            inherited_environment = None
+        if inherited_environment is not None:
+            inherited_structure = inherited_environment.env_structure
+            sub_env_structure = SymList(ast.args.elems, inherited_structure)
         else:
             sub_env_structure = ast.args
+
+        if new_lets:
+            sub_env_structure = SymList(new_lets, sub_env_structure)
 
         body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
                 ast, new_vars, sub_env_structure)
         new_body = [b.visit(self, new_vars, body_env_structures[i])
                     for i, b in enumerate(ast.body)]
+
+        # frees = ast.frees.elems
+        # if env_structure is not None:
+            # depths = [env_structure.depth_of_var(v)[1] for v in frees]
+            # min_depth = -1
+            # total = 0
+            # for d in depths:
+                # if d != -1:
+                    # total += 1
+                    # min_depth = min(d, min_depth)
+            # smaller_env = env_structure.drop_frames(min_depth)
+            # if smaller_env.depth_and_size()[1] == total:
+                # print ast.tostring()
+                # print "free-vars:    ", frees
+                # print "var-depth:    ", depths
+                # print "env-structure:", env_structure
+                # print
 
         if new_lets:
             cells = [Cell(LexicalVar(v, ast.args)) for v in new_lets]
@@ -113,6 +169,7 @@ class AssignConvertVisitor(ASTVisitor):
             result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
                             ast.sourceinfo, env_structure, sub_env_structure)
             result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result.inherited_env = inherited_environment
         return result
 
     def visit_letrec(self, ast, vars, env_structure):

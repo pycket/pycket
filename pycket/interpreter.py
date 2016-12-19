@@ -1529,12 +1529,14 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure',
-                          "sourceinfo"]
+                          "frees", "enclosing_env_structure", "env_structure",
+                          "sourceinfo", "inherited_env"]
     visitable = True
     simple = True
     ispure = True
-    def __init__ (self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
+    inherited_env = None
+
+    def __init__(self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
         self.formals = formals
@@ -1607,6 +1609,25 @@ class Lambda(SequencedBodyAST):
             raise SchemeException(
                 "wrong number of arguments to %s, expected at least %s but got %s" % (
                     self.tostring(), fmls_len,args_len))
+
+    @jit.unroll_safe
+    def collect_frees_as_env(self, recursive_sym, env, closure):
+        for s in self.frees.elems:
+            assert isinstance(s, values.W_Symbol)
+        inherited_env = self.inherited_env
+        if inherited_env is not None:
+            env_structure = self.enclosing_env_structure
+            for i in range(inherited_env.drop_frames):
+                env = env.get_prev(env_structure)
+                env_structure = env_structure.prev
+            if not objectmodel.we_are_translated():
+                if inherited_env.env_structure is None:
+                    assert isinstance(env, ToplevelEnv)
+                else:
+                    inherited_env.env_structure.check_plausibility(env)
+            return env
+        vals = self.collect_frees(recursive_sym, env, closure)
+        return ConsEnv.make(vals, env.toplevel_env())
 
     @jit.unroll_safe
     def collect_frees(self, recursive_sym, env, closure):
