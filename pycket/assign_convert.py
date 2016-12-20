@@ -113,62 +113,32 @@ class AssignConvertVisitor(ASTVisitor):
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
         local_muts = self.body_muts(ast)
-        new_lets = []
+        need_cell_flags = [False] * len(ast.args.elems)
         new_vars = vars.copy()
-        for i in ast.args.elems:
-            li = LexicalVar(i)
+        for i, var in enumerate(ast.args.elems):
+            li = LexicalVar(var)
             self.remove_var(new_vars, li)
-            if li in local_muts:
-                new_lets.append(i)
+            need_cell_flags[i] = li in local_muts
         new_vars.update(local_muts)
 
-        # First, try to inherit the environment from the current environment
+        # Try to inherit the environment from the current environment
         frees = ast.frees.elems
-        if not new_lets:
-            inherited_environment = self._find_existing_frame(frees, env_structure)
-        else:
-            inherited_environment = None
+        inherited_environment = self._find_existing_frame(frees, env_structure)
         if inherited_environment is not None:
             inherited_structure = inherited_environment.env_structure
             sub_env_structure = SymList(ast.args.elems, inherited_structure)
         else:
             sub_env_structure = ast.args
 
-        if new_lets:
-            sub_env_structure = SymList(new_lets, sub_env_structure)
-
         body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
                 ast, new_vars, sub_env_structure)
         new_body = [b.visit(self, new_vars, body_env_structures[i])
                     for i, b in enumerate(ast.body)]
 
-        # frees = ast.frees.elems
-        # if env_structure is not None:
-            # depths = [env_structure.depth_of_var(v)[1] for v in frees]
-            # min_depth = -1
-            # total = 0
-            # for d in depths:
-                # if d != -1:
-                    # total += 1
-                    # min_depth = min(d, min_depth)
-            # smaller_env = env_structure.drop_frames(min_depth)
-            # if smaller_env.depth_and_size()[1] == total:
-                # print ast.tostring()
-                # print "free-vars:    ", frees
-                # print "var-depth:    ", depths
-                # print "env-structure:", env_structure
-                # print
-
-        if new_lets:
-            cells = [Cell(LexicalVar(v, ast.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-            new_body[0].init_body_pruning(sub_env_structure, body_remove_num_envs)
-            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                            ast.sourceinfo, env_structure, sub_env_structure)
-        else:
-            result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                            ast.sourceinfo, env_structure, sub_env_structure)
-            result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
+                        ast.sourceinfo, env_structure, sub_env_structure)
+        result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result.init_mutable_var_flags(need_cell_flags)
         result.inherited_env = inherited_environment
         return result
 
@@ -206,13 +176,13 @@ class AssignConvertVisitor(ASTVisitor):
         new_rhss = [None] * len(ast.rhss)
         offset = 0
         variables = ast.args.elems
+        need_cell_flags = [False] * len(ast.args.elems)
         for i, rhs in enumerate(ast.rhss):
-            new_rhs = rhs.visit(self, vars, env_structures[i])
             count = ast.counts[i]
-            need_cell_flags = [LexicalVar(variables[offset+j]) in local_muts for j in range(count)]
-            if True in need_cell_flags:
-                new_rhs = Cell(new_rhs, need_cell_flags)
-            new_rhss[i] = new_rhs
+            for j in range(count):
+                var = variables[offset+j]
+                need_cell_flags[offset+j] = LexicalVar(var) in local_muts
+            new_rhss[i] = rhs.visit(self, vars, env_structures[i])
             offset += count
 
         body_env_structure = env_structures[-1]
@@ -224,6 +194,7 @@ class AssignConvertVisitor(ASTVisitor):
         result = Let(sub_env_structure, ast.counts, new_rhss, new_body,
                      remove_num_envs)
         result.init_body_pruning(body_env_structure, body_remove_num_envs)
+        result.init_mutable_var_flags(need_cell_flags)
         return result
 
     def visit_begin(self, ast, vars, env_structure):

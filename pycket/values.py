@@ -1210,13 +1210,18 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
-def to_list(l):
-    return to_improper(l, w_null)
+@always_inline
+def to_list(l, start=0):
+    return to_improper(l, w_null, start=start)
+
+def to_improper(l, curr, start=0):
+    return to_improper_impl(l, curr, start)
 
 @jit.look_inside_iff(
-    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
-def to_improper(l, curr):
-    for i in range(len(l) - 1, -1, -1):
+    lambda l, curr, start: jit.loop_unrolling_heuristic(l, len(l) - start, UNROLLING_CUTOFF))
+def to_improper_impl(l, curr, start):
+    assert start >= 0
+    for i in range(len(l) - 1, start - 1, -1):
         curr = W_Cons.make(l[i], curr)
     return curr
 
@@ -1494,7 +1499,8 @@ class W_PromotableClosure(W_Procedure):
     _attrs_ = _immutable_fields_ = ["closure", "arity"]
 
     def __init__(self, caselam, toplevel_env):
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        envs = [toplevel_env] * len(caselam.lams)
+        self.closure = W_Closure._make(envs, caselam, toplevel_env)
         self.arity   = caselam._arity
 
     def enable_jitting(self):

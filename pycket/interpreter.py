@@ -11,8 +11,9 @@ from pycket.prims.expose      import prim_env, make_call_method
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
-from rpython.rlib.rarithmetic import r_uint
+from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.rlib.rarithmetic import r_uint
 from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
@@ -36,6 +37,35 @@ BUILTIN_MODULES = [
     "#%core",
     "#%linklet",
     "#%network" ]
+
+class BindingFormMixin(object):
+    _immutable_fields_ = ['_mutable_var_flags[*]']
+    _mutable_var_flags = None
+
+    def init_mutable_var_flags(self, flags):
+        if True in flags:
+            self._mutable_var_flags = flags
+        else:
+            self._mutable_var_flags = None
+
+    @jit.unroll_safe
+    def binds_mutable_var(self):
+        if self._mutable_var_flags is None:
+            return False
+        for flag in self._mutable_var_flags:
+            if flag:
+                return True
+        return False
+
+    @objectmodel.always_inline
+    def is_mutable_var(self, i):
+        return self._mutable_var_flags is not None and self._mutable_var_flags[i]
+
+    @objectmodel.always_inline
+    def wrap_value(self, val, i):
+        if self.is_mutable_var(i):
+            val = values.W_Cell(val)
+        return val
 
 class Context(object):
 
@@ -373,7 +403,7 @@ class LetCont(Cont):
                     prev = _env
                 elif not jit.we_are_jitted():
                     ast.env_speculation_works = False
-            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
+            env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             # XXX remove copy
@@ -390,7 +420,8 @@ class LetCont(Cont):
                                  self.env, self.prev))
 
     @jit.unroll_safe
-    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+    def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
+        assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
             return ConsEnv.make0(prev)
@@ -400,6 +431,7 @@ class LetCont(Cont):
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
+            elem = ast.wrap_value(elem, 0)
             return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
@@ -414,14 +446,20 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
+            elem1 = ast.wrap_value(elem1, 0)
+            elem2 = ast.wrap_value(elem2, 1)
             return ConsEnv.make2(elem1, elem2, prev)
         env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
-            env._set_list(i, self._get_list(j))
+            val = self._get_list(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         for j in range(len_vals):
-            env._set_list(i, vals.get_value(j))
+            val = vals.get_value(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         return env
 
@@ -1535,6 +1573,7 @@ class Lambda(SequencedBodyAST):
     simple = True
     ispure = True
     inherited_env = None
+    import_from_mixin(BindingFormMixin)
 
     def __init__(self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
         SequencedBodyAST.__init__(self, body)
@@ -1547,6 +1586,10 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+
+    def init_arg_cell_flags(self, args_need_cell_flags):
+        if True in args_need_cell_flags:
+            self.args_need_cell_flags = args_need_cell_flags
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1585,17 +1628,39 @@ class Lambda(SequencedBodyAST):
     def _free_vars(self):
         return free_vars_lambda(self.body, self.args)
 
+    @jit.unroll_safe
+    def _has_mutable_args(self):
+        if self.args_need_cell_flags is None:
+            return False
+        for flag in self.args_need_cell_flags:
+            if flag:
+                return True
+        return False
+
+    def _is_mutable_arg(self, i):
+        return self.args_need_cell_flags is not None and self.args_need_cell_flags[i]
+
+    @jit.unroll_safe
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
-        if fmls_len != args_len and not self.rest:
+        if fmls_len != args_len and self.rest is None:
             return None
         if fmls_len > args_len:
             return None
-        if self.rest:
-            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        if self.rest is None:
+            if not self.binds_mutable_var():
+                return args
+            numargs = fmls_len
         else:
-            actuals = args
+            numargs = fmls_len + 1
+        actuals = [None] * numargs
+        for i in range(fmls_len):
+            actuals[i] = self.wrap_value(args[i], i)
+        if self.rest is None:
+            return actuals
+        rest = values.to_list(args, start=fmls_len)
+        actuals[-1] = self.wrap_value(rest, -1)
         return actuals
 
     def raise_nice_error(self, args):
@@ -1862,6 +1927,8 @@ def make_letrec(varss, rhss, body):
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
     visitable = True
+
+    import_from_mixin(BindingFormMixin)
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
