@@ -44,7 +44,7 @@ class BindingFormMixin(object):
 
     def init_mutable_var_flags(self, flags):
         if True in flags:
-            self._mutable_var_flags = flags[:]
+            self._mutable_var_flags = flags
         else:
             self._mutable_var_flags = None
 
@@ -397,7 +397,7 @@ class LetCont(Cont):
                     prev = _env
                 elif not jit.we_are_jitted():
                     ast.env_speculation_works = False
-            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
+            env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             # XXX remove copy
@@ -414,7 +414,7 @@ class LetCont(Cont):
                                  self.env, self.prev))
 
     @jit.unroll_safe
-    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+    def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
             return ConsEnv.make0(prev)
@@ -424,6 +424,8 @@ class LetCont(Cont):
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
+            if ast.is_mutable_var(0):
+                elem = values.W_Cell(elem)
             return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
@@ -438,14 +440,24 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
+            if ast.is_mutable_var(0):
+                elem1 = values.W_Cell(elem1)
+            if ast.is_mutable_var(1):
+                elem2 = values.W_Cell(elem2)
             return ConsEnv.make2(elem1, elem2, prev)
         env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
-            env._set_list(i, self._get_list(j))
+            val = self._get_list(j)
+            if ast.is_mutable_var(i):
+                val = values.W_Cell(val)
+            env._set_list(i, val)
             i += 1
         for j in range(len_vals):
-            env._set_list(i, vals.get_value(j))
+            val = vals.get_value(j)
+            if ast.is_mutable_var(i):
+                val = values.W_Cell(val)
+            env._set_list(i, val)
             i += 1
         return env
 
@@ -1899,6 +1911,8 @@ def make_letrec(varss, rhss, body):
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
     visitable = True
+
+    import_from_mixin(BindingFormMixin)
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
