@@ -694,6 +694,7 @@ def test_format(doctest):
     "abc1def2ghi"
     """
 
+@skip
 def test_procedure_closure_contents_eq(doctest):
     r"""
     ! (define (f x) (lambda () x))
