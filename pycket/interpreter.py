@@ -61,6 +61,12 @@ class BindingFormMixin(object):
     def is_mutable_var(self, i):
         return self._mutable_var_flags is not None and self._mutable_var_flags[i]
 
+    @objectmodel.always_inline
+    def wrap_value(self, val, i):
+        if self.is_mutable_var(i):
+            val = values.W_Cell(val)
+        return val
+
 class Context(object):
 
     __metaclass__ = extendabletype
@@ -415,6 +421,7 @@ class LetCont(Cont):
 
     @jit.unroll_safe
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
+        assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
             return ConsEnv.make0(prev)
@@ -424,8 +431,7 @@ class LetCont(Cont):
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
-            if ast.is_mutable_var(0):
-                elem = values.W_Cell(elem)
+            elem = ast.wrap_value(elem, 0)
             return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
@@ -440,23 +446,19 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
-            if ast.is_mutable_var(0):
-                elem1 = values.W_Cell(elem1)
-            if ast.is_mutable_var(1):
-                elem2 = values.W_Cell(elem2)
+            elem1 = ast.wrap_value(elem1, 0)
+            elem2 = ast.wrap_value(elem2, 1)
             return ConsEnv.make2(elem1, elem2, prev)
         env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
             val = self._get_list(j)
-            if ast.is_mutable_var(i):
-                val = values.W_Cell(val)
+            val = ast.wrap_value(val, i)
             env._set_list(i, val)
             i += 1
         for j in range(len_vals):
             val = vals.get_value(j)
-            if ast.is_mutable_var(i):
-                val = values.W_Cell(val)
+            val = ast.wrap_value(val, i)
             env._set_list(i, val)
             i += 1
         return env
@@ -1654,16 +1656,11 @@ class Lambda(SequencedBodyAST):
             numargs = fmls_len + 1
         actuals = [None] * numargs
         for i in range(fmls_len):
-            val = args[i]
-            if self.is_mutable_var(i):
-                val = values.W_Cell(val)
-            actuals[i] = val
+            actuals[i] = self.wrap_value(args[i], i)
         if self.rest is None:
             return actuals
         rest = values.to_list(args, start=fmls_len)
-        if self.is_mutable_var(-1):
-            rest = values.W_Cell(rest)
-        actuals[-1] = rest
+        actuals[-1] = self.wrap_value(rest, -1)
         return actuals
 
     def raise_nice_error(self, args):
