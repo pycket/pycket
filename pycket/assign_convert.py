@@ -303,7 +303,6 @@ class AssignConvertVisitor(ASTVisitor):
         # in the body. thus, make a copy of all local variables into
         # the current let, at the point where the variable is not longer
         # referenced in any of the right-hand-sides.
-        vars_to_copy = free_vars_not_from_let
 
         # Find the last right hand side in which each variable to be
         # copied is referenced
