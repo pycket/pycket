@@ -1818,7 +1818,7 @@ class Letrec(SequencedBodyAST):
         start = 0
         result = [None] * len(self.counts)
         for i, c in enumerate(self.counts):
-            result[i] = [self.args.elems[start+j] for j in range(c)]
+            result[i] = self.args.elems[start:start+c]
             start += c
         return result
 
@@ -1987,7 +1987,7 @@ class Let(SequencedBodyAST):
         start = 0
         result = [None] * len(self.counts)
         for i, c in enumerate(self.counts):
-            result[i] = [self.args.elems[start+j] for j in range(c)]
+            result[i] = self.args.elems[start:start+c]
             start += c
         return result
 
