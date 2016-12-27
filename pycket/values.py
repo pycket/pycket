@@ -648,8 +648,8 @@ class W_Fixnum(W_Integer):
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
-    MIN_INTERNED   = -128
-    MAX_INTERNED   = 128
+    MIN_INTERNED   = -5
+    MAX_INTERNED   = 256
     INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
     cache = []
 
@@ -1231,7 +1231,8 @@ def vector_to_improper(v, curr):
         curr = W_Cons.make(v.ref(i), curr)
     return curr
 
-def to_mlist(l): return to_mimproper(l, w_null)
+def to_mlist(l):
+    return to_mimproper(l, w_null)
 
 @jit.look_inside_iff(
     lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
