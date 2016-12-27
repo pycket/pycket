@@ -15,7 +15,7 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, try_inline
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -648,8 +648,8 @@ class W_Fixnum(W_Integer):
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
-    MIN_INTERNED   = -128
-    MAX_INTERNED   = 128
+    MIN_INTERNED   = -5
+    MAX_INTERNED   = 256
     INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
     cache = []
 
@@ -675,7 +675,7 @@ class W_Fixnum(W_Integer):
         return self.value
 
     @staticmethod
-    @always_inline
+    @try_inline
     def make_or_interned(val):
         from rpython.rlib.rarithmetic import int_between
         if int_between(W_Fixnum.MIN_INTERNED, val, W_Fixnum.MAX_INTERNED):
@@ -1231,7 +1231,8 @@ def vector_to_improper(v, curr):
         curr = W_Cons.make(v.ref(i), curr)
     return curr
 
-def to_mlist(l): return to_mimproper(l, w_null)
+def to_mlist(l):
+    return to_mimproper(l, w_null)
 
 @jit.look_inside_iff(
     lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
