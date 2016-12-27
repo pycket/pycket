@@ -11,8 +11,9 @@ from pycket.prims.expose      import prim_env, make_call_method
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
 from rpython.rlib             import jit, debug, objectmodel
-from rpython.rlib.rarithmetic import r_uint
+from rpython.rlib.objectmodel import import_from_mixin
 from rpython.rlib.objectmodel import r_dict, compute_hash, specialize
+from rpython.rlib.rarithmetic import r_uint
 from rpython.tool.pairtype    import extendabletype
 from small_list               import inline_small_list
 
@@ -36,6 +37,35 @@ BUILTIN_MODULES = [
     "#%core",
     "#%linklet",
     "#%network" ]
+
+class BindingFormMixin(object):
+    _immutable_fields_ = ['_mutable_var_flags[*]']
+    _mutable_var_flags = None
+
+    def init_mutable_var_flags(self, flags):
+        if True in flags:
+            self._mutable_var_flags = flags
+        else:
+            self._mutable_var_flags = None
+
+    @jit.unroll_safe
+    def binds_mutable_var(self):
+        if self._mutable_var_flags is None:
+            return False
+        for flag in self._mutable_var_flags:
+            if flag:
+                return True
+        return False
+
+    @objectmodel.always_inline
+    def is_mutable_var(self, i):
+        return self._mutable_var_flags is not None and self._mutable_var_flags[i]
+
+    @objectmodel.always_inline
+    def wrap_value(self, val, i):
+        if self.is_mutable_var(i):
+            val = values.W_Cell(val)
+        return val
 
 class Context(object):
 
@@ -349,30 +379,9 @@ class LetCont(Cont):
 
     @staticmethod
     @jit.unroll_safe
-    def make(vals_w, ast, rhsindex, env, prev, fuse=True, pruning_done=False):
-        if not env.pycketconfig().fuse_conts:
-            fuse = False
+    def make(vals_w, ast, rhsindex, env, prev):
         counting_ast = ast.counting_asts[rhsindex]
-
-        # try to fuse the two Conts
-        if fuse and not vals_w:
-            if isinstance(prev, LetCont) and prev._get_size_list() == 0:
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(Let)
-                # check whether envs are the same:
-                if prev_ast.args.prev is ast.args.prev and env is prev.env:
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0Let0Cont(combined_ast, env, prev.prev)
-            elif isinstance(prev, BeginCont):
-                prev_counting_ast = prev.counting_ast
-                prev_ast, _ = prev_counting_ast.unpack(SequencedBodyAST)
-                # check whether envs are the same:
-                if env is prev.env: # XXX could use structure to check plausibility
-                    combined_ast = counting_ast.combine(prev_counting_ast)
-                    return FusedLet0BeginCont(combined_ast, env, prev.prev)
-
-        if not pruning_done:
-            env = ast._prune_env(env, rhsindex + 1)
+        env = ast._prune_env(env, rhsindex + 1)
         return LetCont._make(vals_w, counting_ast, env, prev)
 
     @jit.unroll_safe
@@ -392,10 +401,9 @@ class LetCont(Cont):
                 # speculate moar!
                 if _env is self.env:
                     prev = _env
-                else:
-                    if not jit.we_are_jitted():
-                        ast.env_speculation_works = False
-            env = self._construct_env(len_self, vals, len_vals, new_length, prev)
+                elif not jit.we_are_jitted():
+                    ast.env_speculation_works = False
+            env = self._construct_env(ast, len_self, vals, len_vals, new_length, prev)
             return ast.make_begin_cont(env, self.prev)
         else:
             # XXX remove copy
@@ -412,7 +420,8 @@ class LetCont(Cont):
                                  self.env, self.prev))
 
     @jit.unroll_safe
-    def _construct_env(self, len_self, vals, len_vals, new_length, prev):
+    def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
+        assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
         if new_length == 0:
             return ConsEnv.make0(prev)
@@ -422,6 +431,7 @@ class LetCont(Cont):
             else:
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
+            elem = ast.wrap_value(elem, 0)
             return ConsEnv.make1(elem, prev)
         if new_length == 2:
             if len_self == 0:
@@ -436,57 +446,22 @@ class LetCont(Cont):
                 assert len_self == 2 and len_vals == 0
                 elem1 = self._get_list(0)
                 elem2 = self._get_list(1)
+            elem1 = ast.wrap_value(elem1, 0)
+            elem2 = ast.wrap_value(elem2, 1)
             return ConsEnv.make2(elem1, elem2, prev)
         env = ConsEnv.make_n(new_length, prev)
         i = 0
         for j in range(len_self):
-            env._set_list(i, self._get_list(j))
+            val = self._get_list(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         for j in range(len_vals):
-            env._set_list(i, vals.get_value(j))
+            val = vals.get_value(j)
+            val = ast.wrap_value(val, i)
+            env._set_list(i, val)
             i += 1
         return env
-
-class FusedLet0Let0Cont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        ast2, index2 = ast2.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                LetCont.make(
-                    None, ast2, index2, self.env, self.prev, fuse=False,
-                    pruning_done=True),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
-
-class FusedLet0BeginCont(Cont):
-    _immutable_fields_ = ["combined_ast"]
-    return_safe = True
-    def __init__(self, combined_ast, env, prev):
-        Cont.__init__(self, env, prev)
-        self.combined_ast = combined_ast
-
-    def get_ast(self):
-        return self.combined_ast.ast1.ast
-
-    def plug_reduce(self, vals, env):
-        ast1, ast2 = self.combined_ast.unpack()
-        ast1, index1 = ast1.unpack(Let)
-        actual_cont = LetCont.make(
-                None, ast1, index1, self.env,
-                BeginCont(ast2, self.env, self.prev),
-                fuse=False)
-        return actual_cont.plug_reduce(vals, env)
 
 class CellCont(Cont):
     _immutable_fields_ = ['ast']
@@ -1078,9 +1053,15 @@ class SimplePrimApp2(App):
         return return_multi_vals_direct(result, env, cont)
 
 class SequencedBodyAST(AST):
-    _immutable_fields_ = ["body[*]", "counting_asts[*]"]
+    _immutable_fields_ = ["body[*]", "counting_asts[*]",
+                          "_sequenced_env_structure",
+                          "_sequenced_remove_num_envs[*]"]
+
     visitable = False
-    def __init__(self, body, counts_needed=-1):
+    _sequenced_env_structure = None
+    _sequenced_remove_num_envs = None
+
+    def __init__(self, body, counts_needed=-1, sequenced_env_structure=None, sequenced_remove_num_envs=None):
         from rpython.rlib.debug import make_sure_not_resized
         assert isinstance(body, list)
         assert len(body) > 0
@@ -1092,15 +1073,48 @@ class SequencedBodyAST(AST):
             CombinedAstAndIndex(self, i)
                 for i in range(counts_needed)]
 
+    def init_body_pruning(self, env_structure, remove_num_envs):
+        self._sequenced_env_structure = env_structure
+        self._sequenced_remove_num_envs = remove_num_envs
+
+    @staticmethod
+    def _check_environment_consistency(env, env_structure):
+        if objectmodel.we_are_translated():
+            return
+        if env_structure is None:
+            assert isinstance(env, ToplevelEnv)
+        else:
+            env_structure.check_plausibility(env)
+
+    @jit.unroll_safe
+    def _prune_sequenced_envs(self, env, i=0):
+        env_structure = self._sequenced_env_structure
+        if env_structure is None:
+            return env
+        if i:
+            already_pruned = self._sequenced_remove_num_envs[i - 1]
+            for j in range(already_pruned):
+                env_structure = env_structure.prev
+        else:
+            already_pruned = 0
+        self._check_environment_consistency(env, env_structure)
+        for i in range(self._sequenced_remove_num_envs[i] - already_pruned):
+            env = env.get_prev(env_structure)
+            env_structure = env_structure.prev
+        return env
+
     @objectmodel.always_inline
     def make_begin_cont(self, env, prev, i=0):
         jit.promote(self)
         jit.promote(i)
+        if not i:
+            env = self._prune_sequenced_envs(env, 0)
         if i == len(self.body) - 1:
             return self.body[i], env, prev
         else:
+            new_env = self._prune_sequenced_envs(env, i + 1)
             return self.body[i], env, BeginCont(
-                    self.counting_asts[i + 1], env, prev)
+                    self.counting_asts[i + 1], new_env, prev)
 
     def resultof(self):
         return self.body[-1]
@@ -1447,6 +1461,13 @@ class If(AST):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
 
 def make_lambda(formals, rest, body, sourceinfo=None):
+    """
+    Create a λ-node after computing information about the free variables
+    in the body. The 'args' field stores both the function arguments as well
+    as the free variables in a SymList.
+    The 'args' SymList hold the expected environment structure for the body of
+    the λ-expression.
+    """
     body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
     frees = SymList(free_vars_lambda(body, args).keys())
@@ -1567,12 +1588,15 @@ class CaseLambda(AST):
 
 class Lambda(SequencedBodyAST):
     _immutable_fields_ = ["formals[*]", "rest", "args",
-                          "frees", "enclosing_env_structure", 'env_structure',
+                          "frees", "enclosing_env_structure", "env_structure",
                           "sourceinfo"]
     visitable = True
     simple = True
     ispure = True
+    import_from_mixin(BindingFormMixin)
+
     def __init__(self, formals, rest, args, frees, body, sourceinfo=None, enclosing_env_structure=None, env_structure=None):
+
         SequencedBodyAST.__init__(self, body)
         self.sourceinfo = sourceinfo
         self.formals = formals
@@ -1583,6 +1607,10 @@ class Lambda(SequencedBodyAST):
         self.env_structure = env_structure
         for b in self.body:
             b.set_surrounding_lambda(self)
+
+    def init_arg_cell_flags(self, args_need_cell_flags):
+        if True in args_need_cell_flags:
+            self.args_need_cell_flags = args_need_cell_flags
 
     def enable_jitting(self):
         self.body[0].set_should_enter()
@@ -1621,17 +1649,39 @@ class Lambda(SequencedBodyAST):
     def _free_vars(self):
         return free_vars_lambda(self.body, self.args)
 
+    @jit.unroll_safe
+    def _has_mutable_args(self):
+        if self.args_need_cell_flags is None:
+            return False
+        for flag in self.args_need_cell_flags:
+            if flag:
+                return True
+        return False
+
+    def _is_mutable_arg(self, i):
+        return self.args_need_cell_flags is not None and self.args_need_cell_flags[i]
+
+    @jit.unroll_safe
     def match_args(self, args):
         fmls_len = len(self.formals)
         args_len = len(args)
-        if fmls_len != args_len and not self.rest:
+        if fmls_len != args_len and self.rest is None:
             return None
         if fmls_len > args_len:
             return None
-        if self.rest:
-            actuals = args[0:fmls_len] + [values.to_list(args[fmls_len:])]
+        if self.rest is None:
+            if not self.binds_mutable_var():
+                return args
+            numargs = fmls_len
         else:
-            actuals = args
+            numargs = fmls_len + 1
+        actuals = [None] * numargs
+        for i in range(fmls_len):
+            actuals[i] = self.wrap_value(args[i], i)
+        if self.rest is None:
+            return actuals
+        rest = values.to_list(args, start=fmls_len)
+        actuals[-1] = self.wrap_value(rest, -1)
         return actuals
 
     def raise_nice_error(self, args):
@@ -1873,12 +1923,22 @@ def make_letrec(varss, rhss, body):
             reclambda = rhs.make_recursive_copy(sym)
             return make_let_singlevar(sym, reclambda, body)
 
+    # Convert letrec binding no values to a let since the interpreter optimizes
+    # them better
+    for vars in varss:
+        if vars:
+            break
+    else:
+        return make_let(varss, rhss, body)
+
     symlist, counts = _make_symlist_counts(varss)
     return Letrec(symlist, counts, rhss, body)
 
 class Let(SequencedBodyAST):
     _immutable_fields_ = ["rhss[*]", "args", "counts[*]", "env_speculation_works?", "remove_num_envs[*]"]
     visitable = True
+
+    import_from_mixin(BindingFormMixin)
 
     def __init__(self, args, counts, rhss, body, remove_num_envs=None):
         SequencedBodyAST.__init__(self, body, counts_needed=len(rhss))
@@ -1902,11 +1962,7 @@ class Let(SequencedBodyAST):
                 env_structure = env_structure.prev
         else:
             already_pruned = 0
-        if not objectmodel.we_are_translated():
-            if env_structure is None:
-                assert isinstance(env, ToplevelEnv)
-            else:
-                env_structure.check_plausibility(env)
+        self._check_environment_consistency(env, env_structure)
         for i in range(self.remove_num_envs[i] - already_pruned):
             env = env.get_prev(env_structure)
             env_structure = env_structure.prev
@@ -1947,98 +2003,6 @@ class Let(SequencedBodyAST):
         body = Begin.make(self.body)
         context = Context.Let(args, self.rhss, body, context)
         return self.rhss[0], context
-
-    def _copy_live_vars(self, free_vars_not_from_let):
-        # there is unneeded local env storage that we will never need
-        # in the body. thus, make a copy of all local variables into
-        # the current let, at the point where the variable is not longer
-        # referenced in any of the right-hand-sides.
-        vars_to_copy = free_vars_not_from_let
-
-        # Find the last right hand side in which each variable to be
-        # copied is referenced
-        dead_after_sets = [[] for _ in self.rhss]
-        rhss = self.rhss
-        for var in free_vars_not_from_let:
-            i = len(self.rhss) - 1
-            while i != 0 and not rhss[i].free_vars().haskey(var):
-                i -= 1
-            dead_after_sets[i].append(var)
-
-        # Build the new args and rhss by interleaving the bindings with
-        # the new copy operations
-        new_lhs_vars = []
-        new_rhss = []
-        counts = []
-        args = self._rebuild_args()
-        for i, rhs in enumerate(self.rhss):
-            new_lhs_vars.extend(dead_after_sets[i])
-            new_lhs_vars.extend(args[i])
-
-            new_rhss.extend([LexicalVar(v) for v in dead_after_sets[i]])
-            new_rhss.append(rhs)
-
-            counts.extend([1] * len(dead_after_sets[i]))
-            counts.append(self.counts[i])
-
-        new_lhs_vars = new_lhs_vars[:]
-        new_rhss = new_rhss[:]
-        counts = counts[:]
-        return counts, new_lhs_vars, new_rhss
-
-    def _compute_remove_num_envs(self, new_vars, sub_env_structure):
-        from pycket.assign_convert import compute_body_frees
-        if not config.prune_env:
-            remove_num_envs = [0] * (len(self.rhss) + 1)
-            env_structures = [sub_env_structure.prev] * len(self.rhss)
-            env_structures.append(sub_env_structure)
-            return self, sub_env_structure, env_structures, remove_num_envs
-
-        # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = compute_body_frees(self)
-        free_vars_not_from_let = free_vars_not_from_let.without_many(
-                self.args.elems)
-
-        # at most, we can remove all envs, apart from the one introduced by let
-        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
-        max_needed = 0
-        free_vars_not_mutated = True
-        for v in free_vars_not_from_let:
-            depth = sub_env_structure.depth_of_var(v)[1] - 1
-            curr_remove = min(curr_remove, depth)
-            max_needed = max(max_needed, depth)
-            free_vars_not_mutated &= LexicalVar(v) not in new_vars
-
-        if curr_remove == 0:
-            body_env_structure = sub_env_structure
-        else:
-            next_structure = sub_env_structure.prev.drop_frames(curr_remove)
-            body_env_structure = SymList(self.args.elems, next_structure)
-
-        if (free_vars_not_mutated and max_needed == curr_remove and
-                max_depth > max_needed):
-            before_max_needed = sub_env_structure.drop_frames(max_needed + 2)
-            if before_max_needed and before_max_needed.depth_and_size()[1] > 0:
-                counts, new_lhs_vars, new_rhss = self._copy_live_vars(
-                        free_vars_not_from_let)
-                body_env_structure = SymList(new_lhs_vars)
-                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
-                self = Let(body_env_structure, counts, new_rhss, self.body)
-                return self._compute_remove_num_envs(new_vars, sub_env_structure)
-
-        remove_num_envs = [curr_remove]
-        env_structures = [body_env_structure]
-        for i in range(len(self.rhss) - 1, -1, -1):
-            free_vars = self.rhss[i].free_vars()
-            for v in free_vars:
-                var_depth = sub_env_structure.prev.depth_of_var(v)[1]
-                curr_remove = min(curr_remove, var_depth)
-            next_structure = sub_env_structure.drop_frames(curr_remove + 1)
-            env_structures.append(next_structure)
-            remove_num_envs.append(curr_remove)
-        env_structures.reverse()
-        remove_num_envs.reverse()
-        return self, sub_env_structure, env_structures, remove_num_envs[:]
 
     def _rebuild_args(self):
         start = 0

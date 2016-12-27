@@ -15,7 +15,7 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, try_inline
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -648,8 +648,8 @@ class W_Fixnum(W_Integer):
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "fixnum"
 
-    MIN_INTERNED   = -128
-    MAX_INTERNED   = 128
+    MIN_INTERNED   = -5
+    MAX_INTERNED   = 256
     INTERNED_RANGE = (MIN_INTERNED, MAX_INTERNED)
     cache = []
 
@@ -675,7 +675,7 @@ class W_Fixnum(W_Integer):
         return self.value
 
     @staticmethod
-    @always_inline
+    @try_inline
     def make_or_interned(val):
         from rpython.rlib.rarithmetic import int_between
         if int_between(W_Fixnum.MIN_INTERNED, val, W_Fixnum.MAX_INTERNED):
@@ -1033,15 +1033,16 @@ class W_ImmutableBytes(W_Bytes):
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_asciivalue", "_isascii", "_unicodevalue", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_checked", "_unicodevalue", "utf8value"]
     _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
         if not we_are_translated():
             assert isinstance(val, str)
         self._unicodevalue = None
-        self._isascii = True
         self.unreadable = unreadable
+        self._checked = False
+        self._isascii = True
         self.utf8value = val
 
     @jit.elidable
@@ -1049,9 +1050,11 @@ class W_Symbol(W_Object):
         from pycket.values_string import _is_ascii
         if not self._isascii:
             return None
-        if not _is_ascii(self.utf8value):
-            self._isascii = False
-            return None
+        if not self._checked:
+            self._checked = True
+            if not _is_ascii(self.utf8value):
+                self._isascii = False
+                return None
         return self.utf8value
 
     @jit.elidable
@@ -1065,11 +1068,9 @@ class W_Symbol(W_Object):
     def make(string):
         # This assert statement makes the lowering phase of rpython break...
         # Maybe comment back in and check for bug.
-        # assert isinstance(string, str)
+        assert isinstance(string, str)
         w_result = W_Symbol.all_symbols.get(string, None)
         if w_result is None:
-            # assume that string is a utf-8 encoded unicode string
-            # value = string.decode("utf-8")
             w_result = W_Symbol(string)
             W_Symbol.all_symbols[string] = w_result
         return w_result
@@ -1210,13 +1211,18 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
-def to_list(l):
-    return to_improper(l, w_null)
+@always_inline
+def to_list(l, start=0):
+    return to_improper(l, w_null, start=start)
+
+def to_improper(l, curr, start=0):
+    return to_improper_impl(l, curr, start)
 
 @jit.look_inside_iff(
-    lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
-def to_improper(l, curr):
-    for i in range(len(l) - 1, -1, -1):
+    lambda l, curr, start: jit.loop_unrolling_heuristic(l, len(l) - start, UNROLLING_CUTOFF))
+def to_improper_impl(l, curr, start):
+    assert start >= 0
+    for i in range(len(l) - 1, start - 1, -1):
         curr = W_Cons.make(l[i], curr)
     return curr
 
@@ -1226,7 +1232,8 @@ def vector_to_improper(v, curr):
         curr = W_Cons.make(v.ref(i), curr)
     return curr
 
-def to_mlist(l): return to_mimproper(l, w_null)
+def to_mlist(l):
+    return to_mimproper(l, w_null)
 
 @jit.look_inside_iff(
     lambda l, curr: jit.loop_unrolling_heuristic(l, len(l), UNROLLING_CUTOFF))
@@ -1494,7 +1501,8 @@ class W_PromotableClosure(W_Procedure):
     _attrs_ = _immutable_fields_ = ["closure", "arity"]
 
     def __init__(self, caselam, toplevel_env):
-        self.closure = W_Closure._make([ConsEnv.make([], toplevel_env)] * len(caselam.lams), caselam, toplevel_env)
+        envs = [toplevel_env] * len(caselam.lams)
+        self.closure = W_Closure._make(envs, caselam, toplevel_env)
         self.arity   = caselam._arity
 
     def enable_jitting(self):

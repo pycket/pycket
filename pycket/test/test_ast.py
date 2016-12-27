@@ -38,15 +38,15 @@ def test_symlist_depth():
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")
     assert len(p.mutated_vars()) == 0
+    assert p.lams[0]._mutable_var_flags[0]
     p = expr_ast(("(lambda (y) (set! x 2))"))
-    print p
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
+    assert p.lams[0]._mutable_var_flags is None
     p = expr_ast(("(let ([y 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
     #    assert p.mutated_vars() == make_symbols({"x": None})
     p = expr_ast(("(let ([x 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({}))
-
 
 def test_cache_lambda_if_no_frees():
     from pycket.interpreter import ToplevelEnv
@@ -92,6 +92,9 @@ def test_remove_simple_begin():
     assert isinstance(p, Let) and len(p.body) == 1
     p = expr_ast("(begin0 #t #f #f #f)", const_prop=False)
     assert isinstance(p, Quote) and p.w_val is w_true
+    p = expr_ast("(let ([a 1]) (equal? 1 2) (let ([b 2]) (equal? 1 2) (let ([c 3]) (equal? 1 2) (begin (equal? b c) (equal? a b)))))", const_prop=False)
+    assert isinstance(p, Let)
+    assert p.body[-1].body[-1]._sequenced_remove_num_envs == [0, 0, 1]
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))", const_prop=False)
@@ -140,8 +143,20 @@ def test_copy_to_env():
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))", const_prop=False)
-    inner_let = p.body[0].body[0].body[1]
-    assert inner_let.remove_num_envs == [1, 1, 1]
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1]
+
+def test_prune_sequenced_body():
+    p = expr_ast("""
+    (let ([c 7])
+      (let ([b (+ c 1)])
+        (let ([d (+ b 1)])
+          (equal? d 1)
+          (equal? b 1)
+          (equal? c 1))))
+    """, const_prop=False)
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1, 2]
 
 def test_reclambda():
     # simple case:
@@ -184,34 +199,6 @@ def test_asts_know_surrounding_lambda():
     inner_lam = inner_caselam.lams[0]
     assert inner_lam.body[0].surrounding_lambda is inner_lam
 
-@skip
-def test_cont_fusion():
-    from pycket.env import SymList, ToplevelEnv
-    from pycket.interpreter import (
-        LetCont, BeginCont,
-        FusedLet0Let0Cont, FusedLet0BeginCont,
-    )
-    from pycket.config import get_testing_config
-    from pycket.cont   import NilCont
-    args = SymList([])
-    counts = [1]
-    rhss = 1
-    letast1 = Let(args, counts, [1], [2])
-    letast2 = Let(args, counts, [1], [2])
-    env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = NilCont()
-    let2 = LetCont.make([], letast2, 0, env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0Let0Cont)
-    assert let1.prev is prev
-    assert let1.env is env
-
-    let2 = BeginCont(letast2.counting_asts[0], env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0BeginCont)
-    assert let1.prev is prev
-    assert let1.env is env
-
 def test_bottom_up_let_conversion():
     caselam = expr_ast("(lambda (f1 f2 f3 x) (f1 (f2 (f3 x))))")
     lam = caselam.lams[0]
@@ -243,7 +230,6 @@ def test_bottom_up_let_conversion():
         assert let.rhss[0].rator.sym is fn
         let = let.body[0]
     assert let.rator.sym is f
-
 
 def test_bottom_up_let_conversion_bug_append():
     caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")

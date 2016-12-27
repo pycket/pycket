@@ -91,24 +91,25 @@ class AssignConvertVisitor(ASTVisitor):
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
         local_muts = compute_body_muts(ast)
-        new_lets = []
+        need_cell_flags = [False] * len(ast.args.elems)
         new_vars = vars.copy()
-        for i in ast.args.elems:
-            li = LexicalVar(i)
+        for i, var in enumerate(ast.args.elems):
+            li = LexicalVar(var)
             self.remove_var(new_vars, li)
-            if li in local_muts:
-                new_lets.append(i)
+            need_cell_flags[i] = li in local_muts
         new_vars.update(local_muts)
-        if new_lets:
-            sub_env_structure = SymList(new_lets, ast.args)
-        else:
-            sub_env_structure = ast.args
-        new_body = [b.visit(self, new_vars, sub_env_structure) for b in ast.body]
-        if new_lets:
-            cells = [Cell(LexicalVar(v, ast.args)) for v in new_lets]
-            new_body = [Let(sub_env_structure, [1] * len(new_lets), cells, new_body)]
-        return Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
-                      ast.sourceinfo, env_structure, sub_env_structure)
+
+        sub_env_structure = ast.args
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, new_vars, sub_env_structure)
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
+
+        result = Lambda(ast.formals, ast.rest, ast.args, ast.frees, new_body,
+                        ast.sourceinfo, env_structure, sub_env_structure)
+        result.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        result.init_mutable_var_flags(need_cell_flags)
+        return result
 
     def visit_letrec(self, ast, vars, env_structure):
         assert isinstance(ast, Letrec)
@@ -122,8 +123,15 @@ class AssignConvertVisitor(ASTVisitor):
         new_vars.update(local_muts)
         sub_env_structure = SymList(ast.args.elems, env_structure)
         new_rhss = [rhs.visit(self, new_vars, sub_env_structure) for rhs in ast.rhss]
-        new_body = [b.visit(self, new_vars, sub_env_structure) for b in ast.body]
-        return Letrec(sub_env_structure, ast.counts, new_rhss, new_body)
+
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, new_vars, sub_env_structure)
+
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
+        letrec = Letrec(sub_env_structure, ast.counts, new_rhss, new_body)
+        letrec.init_body_pruning(sub_env_structure, body_remove_num_envs)
+        return letrec
 
     def visit_let(self, ast, vars, env_structure):
         assert isinstance(ast, Let)
@@ -131,38 +139,70 @@ class AssignConvertVisitor(ASTVisitor):
         local_muts = compute_body_muts(ast)
         new_vars = vars.copy()
         new_vars.update(local_muts)
-        ast, sub_env_structure, env_structures, remove_num_envs = ast._compute_remove_num_envs(
-            new_vars, sub_env_structure)
+        ast, sub_env_structure, env_structures, remove_num_envs = self._compute_remove_num_envs(
+            ast, new_vars, sub_env_structure)
 
         new_rhss = [None] * len(ast.rhss)
         offset = 0
         variables = ast.args.elems
+        need_cell_flags = [False] * len(ast.args.elems)
         for i, rhs in enumerate(ast.rhss):
-            new_rhs = rhs.visit(self, vars, env_structures[i])
             count = ast.counts[i]
-            need_cell_flags = [LexicalVar(variables[offset+j]) in local_muts for j in range(count)]
-            if True in need_cell_flags:
-                new_rhs = Cell(new_rhs, need_cell_flags)
-            new_rhss[i] = new_rhs
+            for j in range(count):
+                var = variables[offset+j]
+                need_cell_flags[offset+j] = LexicalVar(var) in local_muts
+            new_rhss[i] = rhs.visit(self, vars, env_structures[i])
             offset += count
 
         body_env_structure = env_structures[-1]
-        new_body = [b.visit(self, new_vars, body_env_structure) for b in ast.body]
-        return Let(sub_env_structure, ast.counts, new_rhss, new_body,
-                   remove_num_envs)
+        body_env_structures, body_remove_num_envs = self._visit_sequenced_body(
+                ast, vars, body_env_structure)
+
+        new_body = [b.visit(self, new_vars, body_env_structures[i])
+                    for i, b in enumerate(ast.body)]
+        result = Let(sub_env_structure, ast.counts, new_rhss, new_body,
+                     remove_num_envs)
+        result.init_body_pruning(body_env_structure, body_remove_num_envs)
+        result.init_mutable_var_flags(need_cell_flags)
+        return result
+
+    def visit_begin(self, ast, vars, env_structure):
+        assert isinstance(ast, Begin)
+        body_structures, body_removes = self._visit_sequenced_body(
+                ast, vars, env_structure)
+        new_body = [None] * len(ast.body)
+        new_body = [b.visit(self, vars, body_structures[i])
+                    for i, b in enumerate(ast.body)]
+        result = Begin(new_body)
+        result.init_body_pruning(env_structure, body_removes)
+        return result
+
+    def _visit_sequenced_body(self, ast, vars, env_structure):
+        from pycket import config
+        assert isinstance(ast, SequencedBodyAST)
+
+        if not config.prune_env or env_structure is None:
+            return [env_structure] * len(ast.body), [0] * len(ast.body)
+        remove_num_envs = [0] * len(ast.body)
+        env_structures = [None] * len(ast.body)
+        curr_remove = env_structure.depth_and_size()[0]
+        for i in range(len(ast.body) - 1, -1, -1):
+            free_vars = ast.body[i].free_vars()
+            for var in free_vars:
+                var_depth = env_structure.depth_of_var(var)[1]
+                curr_remove = min(curr_remove, var_depth)
+            next_structure = env_structure.drop_frames(curr_remove)
+            env_structures[i] = next_structure
+            remove_num_envs[i] = curr_remove
+        return env_structures, remove_num_envs
 
     def visit_define_values(self, ast, vars, env_structure):
         assert isinstance(ast, DefineValues)
-        need_cell_flags = [(ModuleVar(i, None, i) in vars) for i in ast.names]
+        need_cell_flags = [ModuleVar(i, None, i) in vars for i in ast.names]
+        rhs = ast.rhs.visit(self, vars, env_structure)
         if True in need_cell_flags:
-            return DefineValues(ast.names,
-                                Cell(ast.rhs.visit(self, vars, env_structure),
-                                     need_cell_flags),
-                                ast.display_names)
-        else:
-            return DefineValues(ast.names,
-                                ast.rhs.visit(self, vars, env_structure),
-                                ast.display_names)
+            rhs = Cell(rhs, need_cell_flags)
+        return DefineValues(ast.names, rhs, ast.display_names)
 
     def visit_module(self, ast, vars, env_structure):
         """
@@ -173,6 +213,97 @@ class AssignConvertVisitor(ASTVisitor):
         local_muts = ast.mod_mutated_vars()
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
+
+    def _compute_remove_num_envs(self, ast, new_vars, sub_env_structure):
+        from pycket import config
+        if not config.prune_env:
+            remove_num_envs = [0] * (len(ast.rhss) + 1)
+            env_structures = [sub_env_structure.prev] * len(ast.rhss)
+            env_structures.append(sub_env_structure)
+            return ast, sub_env_structure, env_structures, remove_num_envs
+
+        # find out whether a smaller environment is sufficient for the body
+        free_vars_not_from_let = compute_body_frees(ast)
+        free_vars_not_from_let = free_vars_not_from_let.without_many(
+                ast.args.elems)
+
+        # at most, we can remove all envs, apart from the one introduced by let
+        curr_remove = max_depth = sub_env_structure.depth_and_size()[0] - 1
+        max_needed = 0
+        free_vars_not_mutated = True
+        for v in free_vars_not_from_let:
+            depth = sub_env_structure.depth_of_var(v)[1] - 1
+            curr_remove = min(curr_remove, depth)
+            max_needed = max(max_needed, depth)
+            free_vars_not_mutated &= LexicalVar(v) not in new_vars
+
+        if curr_remove == 0:
+            body_env_structure = sub_env_structure
+        else:
+            next_structure = sub_env_structure.prev.drop_frames(curr_remove)
+            body_env_structure = SymList(ast.args.elems, next_structure)
+
+        if (free_vars_not_mutated and max_needed == curr_remove and
+                max_depth > max_needed):
+            before_max_needed = sub_env_structure.drop_frames(max_needed + 2)
+            if before_max_needed and before_max_needed.depth_and_size()[1] > 0:
+                counts, new_lhs_vars, new_rhss = self._copy_live_vars(
+                        ast, free_vars_not_from_let)
+                body_env_structure = SymList(new_lhs_vars)
+                sub_env_structure = SymList(new_lhs_vars, sub_env_structure.prev)
+                ast = Let(body_env_structure, counts, new_rhss, ast.body)
+                return self._compute_remove_num_envs(ast, new_vars, sub_env_structure)
+
+        # The loops will modify all but the last element
+        remove_num_envs = [curr_remove] * (len(ast.rhss) + 1)
+        env_structures = [body_env_structure] * (len(ast.rhss) + 1)
+        for i in range(len(ast.rhss) - 1, -1, -1):
+            free_vars = ast.rhss[i].free_vars()
+            for v in free_vars:
+                var_depth = sub_env_structure.prev.depth_of_var(v)[1]
+                curr_remove = min(curr_remove, var_depth)
+            env_structures[i] = sub_env_structure.drop_frames(curr_remove + 1)
+            remove_num_envs[i] = curr_remove
+        return ast, sub_env_structure, env_structures, remove_num_envs
+
+    @staticmethod
+    def _copy_live_vars(ast, free_vars_not_from_let):
+        # there is unneeded local env storage that we will never need
+        # in the body. thus, make a copy of all local variables into
+        # the current let, at the point where the variable is not longer
+        # referenced in any of the right-hand-sides.
+        vars_to_copy = free_vars_not_from_let
+
+        # Find the last right hand side in which each variable to be
+        # copied is referenced
+        dead_after_sets = [[] for _ in ast.rhss]
+        rhss = ast.rhss
+        for var in free_vars_not_from_let:
+            i = len(ast.rhss) - 1
+            while i != 0 and not rhss[i].free_vars().haskey(var):
+                i -= 1
+            dead_after_sets[i].append(var)
+
+        # Build the new args and rhss by interleaving the bindings with
+        # the new copy operations
+        new_lhs_vars = []
+        new_rhss = []
+        counts = []
+        args = ast._rebuild_args()
+        for i, rhs in enumerate(ast.rhss):
+            new_lhs_vars.extend(dead_after_sets[i])
+            new_lhs_vars.extend(args[i])
+
+            new_rhss.extend([LexicalVar(v) for v in dead_after_sets[i]])
+            new_rhss.append(rhs)
+
+            counts.extend([1] * len(dead_after_sets[i]))
+            counts.append(ast.counts[i])
+
+        new_lhs_vars = new_lhs_vars[:]
+        new_rhss = new_rhss[:]
+        counts = counts[:]
+        return counts, new_lhs_vars, new_rhss
 
 def assign_convert(ast, visitor=None):
     if visitor is None:

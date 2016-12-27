@@ -7,8 +7,10 @@ from rpython.rlib.rstring     import (ParseStringError,
         ParseStringOverflowError, StringBuilder)
 from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
+from rpython.rlib.objectmodel import newlist_hint
 
 from pycket.cont         import continuation, loop_label, call_cont
+from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
@@ -20,56 +22,63 @@ from sys import platform
 
 import os
 
-w_quote_symbol = values.W_Symbol.make("quote")
-w_quasiquote_symbol = values.W_Symbol.make("quasiquote")
-w_unquote_symbol = values.W_Symbol.make("unquote")
-w_unquote_splicing_symbol = values.W_Symbol.make("unquote-splicing")
-
-w_quote_syntax_symbol = values.W_Symbol.make("quote-syntax")
-w_quasiquote_syntax_symbol = values.W_Symbol.make("quasisyntax")
-w_unquote_syntax_symbol = values.W_Symbol.make("unsyntax")
-w_unquote_syntax_splicing_symbol = values.W_Symbol.make("unsyntax-splicing")
-
-class Token(object): pass
-
-class ValueToken(Token):
-    def __init__(self, v):
-        assert isinstance(v, values.W_Object)
-        self.val = v
+class Token(W_ProtoObject):
+    _attrs_ = []
 
 class SpecialToken(Token):
-    def __init__(self, s, con):
-        self.str = s
+    _attrs_ = ['con']
+
+    def __init__(self, con):
         self.con = con
+
     def finish(self, val):
         return values.W_Cons.make(self.con, values.W_Cons.make(val, values.w_null))
 
-class NumberToken(ValueToken): pass
-class StringToken(ValueToken): pass
-class SymbolToken(ValueToken): pass
-class BooleanToken(ValueToken): pass
-class CharToken(ValueToken): pass
-class EOFToken(ValueToken): pass
-
-
 class DelimToken(Token):
+    _attrs_ = ['str']
+
     def __init__(self, s):
         self.str = s
 
-class LParenToken(DelimToken): pass
-class RParenToken(DelimToken): pass
-class DotToken(DelimToken): pass
+class LParenToken(DelimToken):
+    _attrs_ = []
+
+class RParenToken(DelimToken):
+    _attrs_ = []
+
+class DotToken(DelimToken):
+    _attrs_ = []
+
+# Some prebuilt tokens
+
+def make_special_tokens(*names):
+    for name in names:
+        symbol = values.W_Symbol.make(name)
+        token = SpecialToken(symbol)
+        idname = name.replace("-", "_")
+        globals()[idname + "_token"] = token
+
+make_special_tokens(
+    "quote",
+    "quasiquote",
+    "unquote",
+    "unquote-splicing",
+    "quote-syntax",
+    "quasisyntax",
+    "unsyntax",
+    "unsyntax-splicing")
+
+dot_token = DotToken('.')
 
 allowed_char = "!?.-_:=*$%<>+^@&~/"
 
 def idchar(c):
     c = c[0] # tell the annotator it's really a single char
-    if c.isalnum() or (c in allowed_char):
-        return True
-    return False
+    return c.isalnum() or c in allowed_char
 
 def read_number_or_id(f, init):
-    sofar = [init]
+    sofar = StringBuilder(64)
+    sofar.append(init)
     while True:
         c = f.peek()
         if c == "":
@@ -80,43 +89,50 @@ def read_number_or_id(f, init):
             sofar.append(v)
         else:
             break
-    got = "".join(sofar)
+    got = sofar.build()
     try:
-        return NumberToken(values.W_Fixnum.make(string_to_int(got)))
+        val = string_to_int(got)
+        return values.W_Fixnum.make_or_interned(val)
     except ParseStringOverflowError:
         val = rbigint.fromdecimalstr(got)
-        return NumberToken(values.W_Bignum(val))
+        return values.W_Bignum(val)
     except ParseStringError:
         try:
-            return NumberToken(values.W_Flonum.make(float(got)))
+            return values.W_Flonum(float(got))
         except:
-            return SymbolToken(values.W_Symbol.make(got))
+            return values.W_Symbol.make(got)
 
 # FIXME: replace with a string builder
 # FIXME: unicode
 def read_string(f):
-    buf = []
+    buf = StringBuilder(64)
+    isascii = True
     while True:
-        c = f.read(1)
+        c = f.read(1)[0]
         if c == '"':
-            return values_string.W_String.fromstr_utf8("".join(buf))
-        elif c == "\\":
-            n = f.read(1)
-            if n in ['"', "\\"]:
+            string = buf.build()
+            if isascii:
+                return values_string.W_String.fromascii(string)
+            return values_string.W_String.fromstr_utf8(string)
+        elif c == '\\':
+            n = f.read(1)[0]
+            if n == '"' or n == '\\':
                 c = n
-            elif n == "n":
-                c = "\n"
-            elif n == "t":
-                c = "\t"
+            elif n == 'n':
+                c = '\n'
+            elif n == 't':
+                c = '\t'
             else:
                 raise SchemeException("read: bad escape character in string: %s"%n)
+        else:
+            isascii &= ord(c) < 128
         buf.append(c)
 
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
         if not c:
-            return EOFToken(values.eof_object)
+            return values.eof_object
         if c == ";":
             f.readline()
             continue
@@ -128,41 +144,41 @@ def read_token(f):
             return RParenToken(c)
         if c == "\"":
             v = read_string(f)
-            return ValueToken(v)
+            return v
         if c == ".":
             p = f.peek()
             if p in [" ", "\n", "\t"]:
-                return DotToken(c)
+                return dot_token
             return read_number_or_id(f, c)
         if c == "'":
-            return SpecialToken(c, w_quote_symbol)
+            return quote_token
         if c ==  "`":
-            return SpecialToken(c, w_quasiquote_symbol)
+            return quasiquote_token
         if c == ",":
             p = f.peek()
             if p == "@":
                 p = f.read(1)
-                return SpecialToken(c + p, w_unquote_splicing_symbol)
+                return unquote_splicing_token
             else:
-                return SpecialToken(c, w_unquote_symbol)
+                return unquote_token
         if idchar(c):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
             if c2 == "'":
-                return SpecialToken(c + c2, w_quote_syntax_symbol)
+                return quote_syntax_token
             if c2 == "`":
-                return SpecialToken(c + c2, w_quasiquote_syntax_symbol)
+                return quasisyntax_token
             if c2 == ",":
                 p = f.peek()
                 if p == "@":
                     p = f.read(1)
-                    return SpecialToken(c + c2, w_unquote_syntax_splicing_symbol)
-                return SpecialToken(c + c2, w_unquote_syntax_symbol)
+                    return unsyntax_splicing_token
+                return unsyntax_token
             if c2 == "t":
-                return BooleanToken(values.w_true)
+                return values.w_true
             if c2 == "f":
-                return BooleanToken(values.w_false)
+                return values.w_false
             if c2 in ["(", "[", "{"]:
                 return LParenToken("#" + c2)
             if c2 == "\\":
@@ -170,7 +186,7 @@ def read_token(f):
                 if not s:
                     raise SchemeException("unexpected end of file")
                 c = ord(s[0]) # XXX deal with unicode
-                return CharToken(values.W_Character.make(unichr(c)))
+                return values.W_Character(unichr(c))
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
@@ -211,6 +227,7 @@ def read_stream_rt(port, rt, env, cont):
     # ignore the possibility that the readtable is relevant in the future
     return return_value(read_stream(port), env, cont)
 
+@jit.dont_look_inside
 def read_stream(stream):
     next_token = read_token(stream)
     if isinstance(next_token, SpecialToken):
@@ -218,28 +235,30 @@ def read_stream(stream):
         return next_token.finish(v)
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
-            raise SchemeException("read: unexpected %s"%next_token.str)
-        v = read_list(stream, values.w_null, next_token.str)
+            raise SchemeException("read: unexpected %s" % next_token.str)
+        v = read_list(stream, next_token.str)
         return v
     else:
-        return next_token.val
-
-# assumes a proper list
-def reverse(w_l, acc=values.w_null):
-    while isinstance(w_l, values.W_Cons):
-        val, w_l = w_l.car(), w_l.cdr()
-        acc = values.W_Cons.make(val, acc)
-    return acc
+        assert isinstance(next_token, values.W_Object)
+        return next_token
 
 def check_matches(s1, s2):
-    if s1 == "(":
-        assert s2 == ")"
-    if s1 == "[":
-        assert s2 == "]"
-    if s1 == "{":
-        assert s2 == "}"
+    assert (s1 == "(" and s2 == ")" or
+            s1 == "[" and s2 == "]" or
+            s1 == "{" and s2 == "}")
 
-def read_list(stream, so_far, end):
+def to_improper(l, curr, start=0):
+    """
+    This is the same code as values.to_improper but is needed to type check properly
+    as values.to_improper only works for immutable lists.
+    """
+    assert start >= 0
+    for i in range(len(l) - 1, start - 1, -1):
+        curr = values.W_Cons.make(l[i], curr)
+    return curr
+
+def read_list(stream, end):
+    so_far = newlist_hint(8)
     while True:
         next_token = read_token(stream)
         if isinstance(next_token, DotToken):
@@ -247,28 +266,23 @@ def read_list(stream, so_far, end):
             close = read_token(stream)
             if isinstance(close, RParenToken):
                 check_matches(end, close.str)
-                return reverse(so_far, acc=last)
+                return to_improper(so_far, last)
             else:
                 raise SchemeException("read: illegal use of `.`")
         elif isinstance(next_token, RParenToken):
             check_matches(end, next_token.str)
-            return reverse(so_far)
+            return to_improper(so_far, values.w_null)
         elif isinstance(next_token, LParenToken):
-            v = read_list(stream, values.w_null, next_token.str)
+            v = read_list(stream, next_token.str)
         elif isinstance(next_token, SpecialToken):
             arg = read_stream(stream)
             v = next_token.finish(arg)
         else:
-            assert isinstance(next_token, ValueToken)
-            v = next_token.val
-        so_far = values.W_Cons.make(v, so_far)
+            assert isinstance(next_token, values.W_Object)
+            v = next_token
+        so_far.append(v)
 
-
-linefeed_sym        = values.W_Symbol.make("linefeed")
-return_sym          = values.W_Symbol.make("return")
-return_linefeed_sym = values.W_Symbol.make("return-linefeed")
-any_sym             = values.W_Symbol.make("any")
-any_one_sym         = values.W_Symbol.make("any-one")
+linefeed_sym = values.W_Symbol.make("linefeed")
 
 @continuation
 def do_read_line(mode, as_bytes, env, cont, _vals):
@@ -815,7 +829,9 @@ def do_print_cont(str, env, cont, _vals):
     port.write(str)
     return return_void(env, cont)
 
-@jit.unroll_safe
+# XXX: Might need to be careful with this heuristic due to mutable strings, but
+# mutable strings are unlikely to be constant, as they are not interned.
+@jit.look_inside_iff(lambda form, vals, name: jit.isconstant(form))
 def format(form, vals, name):
     fmt = form.as_str_utf8() # XXX for now
     i = 0
@@ -823,30 +839,28 @@ def format(form, vals, name):
     result = []
     len_fmt = len(fmt)
     while True:
-        i0 = i
+        start = i
         while i < len_fmt:
             if fmt[i] == '~':
                 break
             i += 1
         else:
             # not left via break, so we're done
-            result.append(fmt[i0:len_fmt])
+            result.append(fmt[start:len_fmt])
             break
-        result.append(fmt[i0:i])
+        result.append(fmt[start:i])
         if i+1 == len_fmt:
             raise SchemeException(name + ": bad format string")
         s = fmt[i+1]
         if (s == 'a' or # turns into switch
-                s == 'A' or
-                s == 's' or
-                s == 'S' or
-                s == 'v' or
-                s == 'V' or
-                s == 'e' or
-                s == 'E' or
-                s == '.'):
-            # print a value
-            # FIXME: different format chars
+            s == 'A' or
+            s == 's' or
+            s == 'S' or
+            s == 'v' or
+            s == 'V' or
+            s == 'e' or
+            s == 'E' or
+            s == '.'):
             if j >= len(vals):
                 raise SchemeException(name + ": not enough arguments for format string")
             result.append(vals[j].tostring())

@@ -738,7 +738,7 @@ def assq(a, b):
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
-    return values.W_Cons.make(a,b)
+    return values.W_Cons.make(a, b)
 
 def make_list_eater(name):
     """
