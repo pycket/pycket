@@ -829,7 +829,9 @@ def do_print_cont(str, env, cont, _vals):
     port.write(str)
     return return_void(env, cont)
 
-@jit.unroll_safe
+# XXX: Might need to be careful with this heuristic due to mutable strings, but
+# mutable strings are unlikely to be constant, as they are not interned.
+@jit.look_inside_iff(lambda form, vals, name: jit.isconstant(form))
 def format(form, vals, name):
     fmt = form.as_str_utf8() # XXX for now
     i = 0
@@ -837,30 +839,28 @@ def format(form, vals, name):
     result = []
     len_fmt = len(fmt)
     while True:
-        i0 = i
+        start = i
         while i < len_fmt:
             if fmt[i] == '~':
                 break
             i += 1
         else:
             # not left via break, so we're done
-            result.append(fmt[i0:len_fmt])
+            result.append(fmt[start:len_fmt])
             break
-        result.append(fmt[i0:i])
+        result.append(fmt[start:i])
         if i+1 == len_fmt:
             raise SchemeException(name + ": bad format string")
         s = fmt[i+1]
         if (s == 'a' or # turns into switch
-                s == 'A' or
-                s == 's' or
-                s == 'S' or
-                s == 'v' or
-                s == 'V' or
-                s == 'e' or
-                s == 'E' or
-                s == '.'):
-            # print a value
-            # FIXME: different format chars
+            s == 'A' or
+            s == 's' or
+            s == 'S' or
+            s == 'v' or
+            s == 'V' or
+            s == 'e' or
+            s == 'E' or
+            s == '.'):
             if j >= len(vals):
                 raise SchemeException(name + ": not enough arguments for format string")
             result.append(vals[j].tostring())

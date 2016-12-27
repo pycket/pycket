@@ -15,7 +15,7 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, try_inline
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -675,7 +675,7 @@ class W_Fixnum(W_Integer):
         return self.value
 
     @staticmethod
-    @always_inline
+    @try_inline
     def make_or_interned(val):
         from rpython.rlib.rarithmetic import int_between
         if int_between(W_Fixnum.MIN_INTERNED, val, W_Fixnum.MAX_INTERNED):
