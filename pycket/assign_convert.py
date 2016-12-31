@@ -1,5 +1,5 @@
 
-from rpython.rlib.objectmodel import newlist_hint
+from rpython.rlib.objectmodel import newlist_hint, specialize
 
 from pycket.ast_visitor import ASTVisitor
 from pycket.env         import SymList
@@ -36,17 +36,27 @@ from pycket.interpreter import (
 from pycket        import values
 from pycket.values import W_Object, W_Prim, w_void
 
+@specialize.argtype(0)
 def compute_body_muts(node):
-    assert isinstance(node, SequencedBodyAST)
+    if isinstance(node, SequencedBodyAST):
+        body = node.body
+    else:
+        assert isinstance(node, list)
+        body = node
     muts = variable_set()
-    for b in node.body:
+    for b in body:
         muts.update(b.mutated_vars())
     return muts
 
+@specialize.argtype(0)
 def compute_body_frees(node):
-    assert isinstance(node, SequencedBodyAST)
+    if isinstance(node, SequencedBodyAST):
+        body = node.body
+    else:
+        assert isinstance(node, list)
+        body = node
     frees = SymbolSet.EMPTY
-    for b in node.body:
+    for b in body:
         frees = frees.union(b.free_vars())
     return frees
 
@@ -410,17 +420,17 @@ class ConstantPropVisitor(ASTVisitor):
         body = ast.body.visit(self, context)
         return WithContinuationMark(key, value, body)
 
-    def _visit_body(self, ast, context):
-        assert isinstance(ast, SequencedBodyAST)
-        new_body = [None] * len(ast.body)
-        for i in range(len(ast.body) - 1):
-            new_body[i] = ast.body[i].visit(self, 'e')
-        new_body[-1] = ast.body[-1].visit(self, context)
+    def _visit_body(self, body, context):
+        assert isinstance(body, list)
+        new_body = [None] * len(body)
+        for i in range(len(body) - 1):
+            new_body[i] = body[i].visit(self, 'e')
+        new_body[-1] = body[-1].visit(self, context)
         return new_body
 
     def visit_begin(self, ast, context):
         assert isinstance(ast, Begin)
-        body = self._visit_body(ast, context)
+        body = self._visit_body(ast.body, context)
         return Begin.make(body)
 
     def visit_begin0(self, ast, context):
@@ -429,17 +439,17 @@ class ConstantPropVisitor(ASTVisitor):
         body = ast.body.visit(self, 'e')
         return Begin0.make(first, [body])
 
-    def visit_let(self, ast, context):
-        assert isinstance(ast, Let)
-        varss = ast._rebuild_args()
-        body_muts = compute_body_muts(ast)
-        body_frees = compute_body_frees(ast)
+    def _visit_let(self, varss, rhss, body, context):
+        body_muts = compute_body_muts(body)
+        body_frees = compute_body_frees(body)
 
-        max_len = len(ast.rhss)
+        max_len = len(rhss)
         new_vars = newlist_hint(max_len)
         new_rhss = newlist_hint(max_len)
-        for i, rhs in enumerate(ast.rhss):
+        for i, rhs in enumerate(rhss):
             vars = varss[i]
+            # If none of the bound variables are referenced, evaluate the
+            # rhs for effect, rather than for value
             for var in vars:
                 if body_frees.haskey(var):
                     rhs = rhs.visit(self, 'v')
@@ -457,14 +467,19 @@ class ConstantPropVisitor(ASTVisitor):
 
             new_vars.append(vars)
             new_rhss.append(rhs)
-        body = self._visit_body(ast, context)
+        body = self._visit_body(body, context)
         return make_let(new_vars[:], new_rhss[:], body)
+
+    def visit_let(self, ast, context):
+        assert isinstance(ast, Let)
+        varss = ast._rebuild_args()
+        return self._visit_let(varss, ast.rhss, ast.body, context)
 
     def visit_letrec(self, ast, context):
         assert isinstance(ast, Letrec)
         args = ast._rebuild_args()
         rhss = [r.visit(self, 'v') for r in ast.rhss]
-        body = self._visit_body(ast, context)
+        body = self._visit_body(ast.body, context)
         return make_letrec(args, rhss, body)
 
     def visit_case_lambda(self, ast, context):
