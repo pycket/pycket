@@ -140,10 +140,6 @@ class AST(object):
             _stringrepr = self._stringrepr = self._tostring()
         return _stringrepr
 
-    def constant_prop(self, constants):
-        for child in self.direct_children():
-            child.constant_prop(constants)
-
     def _tostring(self):
         return "UNKNOWN AST: "
 
