@@ -371,6 +371,11 @@ def expects(context):
 VALUES_SYMBOL = values.W_Symbol.make("values")
 VALUES = ModuleVar(VALUES_SYMBOL, "#%kernel", VALUES_SYMBOL)
 
+def is_builtin_values(modvar):
+    if not isinstance(modvar, ModuleVar):
+        return False
+    return modvar.is_primitive() and var_eq(modvar, VALUES)
+
 def zero_values():
     return App.make(VALUES, [])
 
@@ -428,14 +433,13 @@ class ConstantPropVisitor(ASTVisitor):
 
     def visit_app(self, ast, context):
         rator = ast.rator.visit(self, '1')
-        rands = [r.visit(self, '1') for r in ast.rands]
-
         # If the context expects one value and this is an invocation of values,
         # then just return the first argument
-        if (expects(context) == 1 and isinstance(rator, ModuleVar) and
-            len(rands) == 1 and var_eq(rator, VALUES)):
-            print "killed values:", ast.tostring()
-            return rands[0]
+        if (expects(context) == 1 and len(ast.rands) == 1 and
+            is_builtin_values(rator)):
+            return ast.rands[0].visit(self, context)
+
+        rands = [r.visit(self, '1') for r in ast.rands]
 
         w_prim = ast.get_prim_func(rator)
         if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
@@ -517,12 +521,26 @@ class ConstantPropVisitor(ASTVisitor):
         varss = ast._rebuild_args()
         return self._visit_let(varss, ast.rhss, ast.body, context)
 
+    def partition_bindings(self, args, rhss):
+        simple  = ([], [])
+        complex = ([], [])
+        for i, r in enumerate(rhss):
+            sa, sr = simple if isinstance(r, Quote) else complex
+            sa.append(args[i])
+            sr.append(r)
+        return simple, complex
+
     def visit_letrec(self, ast, context):
         assert isinstance(ast, Letrec)
         args = ast._rebuild_args()
         rhss = [None] * len(ast.rhss)
         for i, r in enumerate(ast.rhss):
             rhss[i] = r.visit(self, binding_context(args[i]))
+        (sa, sr), (ca, cr) = self.partition_bindings(args, rhss)
+        if sr:
+            body = [make_letrec(ca[:], cr[:], ast.body)]
+            return self._visit_let(sa[:], sr[:], body, context)
+
         body = self._visit_body(ast.body, context)
         return make_letrec(args, rhss, body)
 
