@@ -2,6 +2,7 @@
 from rpython.rlib.objectmodel import newlist_hint, specialize
 
 from pycket.ast_visitor import ASTVisitor
+from pycket.error       import SchemeException
 from pycket.env         import SymList
 from pycket.interpreter import (
     App,
@@ -22,15 +23,16 @@ from pycket.interpreter import (
     Quote,
     QuoteSyntax,
     Require,
+    SequencedBodyAST,
     SetBang,
     SymbolSet,
-    SequencedBodyAST,
     SymbolSet,
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
     make_let,
     make_letrec,
+    var_eq,
     variable_set,
 )
 from pycket        import values
@@ -334,8 +336,14 @@ class Const(W_Object):
             return ModuleVar(val.sym, val.srcmod, val.srcsym, val.path)
         return val
 
+# Expressions can be evaluated in value, predicate, or expression contexts.
+# As a special case, we special case the context expecting exactly one value.
+# The general values context 'v' expects an unknown number of results, making it
+# the least precise context.
 effect = 'e'
 value = 'v'
+value1 = '1'
+pred = 'p'
 
 def void():
     return Quote(w_void)
@@ -350,11 +358,29 @@ def resultof(expr):
         return values.w_void
     return None
 
+def binding_context(args):
+    if len(args) == 1:
+        return '1'
+    return 'v'
+
+def expects(context):
+    if context in ('e', 'p', '1'):
+        return 1
+    return -1
+
 VALUES_SYMBOL = values.W_Symbol.make("values")
 VALUES = ModuleVar(VALUES_SYMBOL, "#%kernel", VALUES_SYMBOL)
 
 def zero_values():
     return App.make(VALUES, [])
+
+def incontext(value, context):
+    if context == 'e':
+        return void()
+    if context == 'p':
+        return Quote(values.W_Bool.make(value is not values.w_false))
+    assert context in ('v', '1')
+    return Quote(value)
 
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
@@ -376,15 +402,22 @@ class ConstantPropVisitor(ASTVisitor):
             return True
         return False
 
+    def visit_quote(self, ast, context):
+        if context in ('v', '1'):
+            return ast
+        if context == 'p' and isinstance(ast.w_val, values.W_Bool):
+            return ast
+        return incontext(ast.w_val, context)
+
     def visit_set_bang(self, ast, context):
         assert isinstance(ast, SetBang)
         var = ast.var
-        rhs = ast.rhs.visit(self, 'v')
+        rhs = ast.rhs.visit(self, '1')
         return SetBang(var, rhs)
 
     def visit_if(self, ast, context):
         assert isinstance(ast, If)
-        tst = ast.tst.visit(self, 'v')
+        tst = ast.tst.visit(self, 'p')
         result = resultof(tst)
         if result is not None:
             case = ast.els if result is values.w_false else ast.thn
@@ -394,8 +427,16 @@ class ConstantPropVisitor(ASTVisitor):
         return If(tst, thn, els)
 
     def visit_app(self, ast, context):
-        rator = ast.rator.visit(self, 'v')
-        rands = [r.visit(self, 'v') for r in ast.rands]
+        rator = ast.rator.visit(self, '1')
+        rands = [r.visit(self, '1') for r in ast.rands]
+
+        # If the context expects one value and this is an invocation of values,
+        # then just return the first argument
+        if (expects(context) == 1 and isinstance(rator, ModuleVar) and
+            len(rands) == 1 and var_eq(rator, VALUES)):
+            print "killed values:", ast.tostring()
+            return rands[0]
+
         w_prim = ast.get_prim_func(rator)
         if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
             return App.make(rator, rands)
@@ -408,15 +449,16 @@ class ConstantPropVisitor(ASTVisitor):
         if context == 'e':
             return void()
         try:
-            return Quote(func(args))
-        except Exception:
+            value = func(args)
+            return incontext(value, context)
+        except SchemeException:
             # If anything goes wrong, just bail and deal with it at runtime
             return App.make(rator, rands)
 
     def visit_with_continuation_mark(self, ast, context):
         assert isinstance(ast, WithContinuationMark)
-        key = ast.key.visit(self, 'v')
-        value = ast.value.visit(self, 'v')
+        key = ast.key.visit(self, '1')
+        value = ast.value.visit(self, '1')
         body = ast.body.visit(self, context)
         return WithContinuationMark(key, value, body)
 
@@ -452,7 +494,7 @@ class ConstantPropVisitor(ASTVisitor):
             # rhs for effect, rather than for value
             for var in vars:
                 if body_frees.haskey(var):
-                    rhs = rhs.visit(self, 'v')
+                    rhs = rhs.visit(self, binding_context(vars))
                     break
             else:
                 rhs = rhs.visit(self, 'e')
@@ -478,7 +520,9 @@ class ConstantPropVisitor(ASTVisitor):
     def visit_letrec(self, ast, context):
         assert isinstance(ast, Letrec)
         args = ast._rebuild_args()
-        rhss = [r.visit(self, 'v') for r in ast.rhss]
+        rhss = [None] * len(ast.rhss)
+        for i, r in enumerate(ast.rhss):
+            rhss[i] = r.visit(self, binding_context(args[i]))
         body = self._visit_body(ast.body, context)
         return make_letrec(args, rhss, body)
 
@@ -506,7 +550,7 @@ class ConstantPropVisitor(ASTVisitor):
     def visit_define_values(self, ast, context):
         assert isinstance(ast, DefineValues)
         assert context == 'v'
-        rhs = ast.rhs.visit(self, 'v')
+        rhs = ast.rhs.visit(self, binding_context(ast.names))
         return DefineValues(ast.names, ast.rhs, ast.display_names)
 
 def constant_prop(ast, env=None):

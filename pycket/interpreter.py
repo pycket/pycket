@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
@@ -933,13 +936,12 @@ class App(AST):
 
     @staticmethod
     def get_prim_func(rator):
-        w_prim = None
-        if isinstance(rator, ModuleVar) and rator.is_primitive():
-            try:
-                w_prim = rator._lookup_primitive()
-            except SchemeException:
-                pass
-        return w_prim
+        if not isinstance(rator, ModuleVar) or not rator.is_primitive():
+            return None
+        try:
+            return rator._lookup_primitive()
+        except SchemeException:
+            return None
 
     @staticmethod
     def make(rator, rands, env_structure=None):

@@ -96,6 +96,13 @@ def test_remove_simple_begin():
     assert isinstance(p, Let)
     assert p.body[-1].body[-1]._sequenced_remove_num_envs == [0, 0, 1]
 
+def test_remove_simple_values():
+    p = expr_ast("(letrec ([rec (values (lambda (x) (rec x)))]) (rec 10))")
+    assert isinstance(p, Let)
+    assert isinstance(p.rhss[0], CaseLambda)
+    p = expr_ast("(+ (values 1) (values 2) (values 3))")
+    assert isinstance(p, Quote) and p.w_val.value == 6
+
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))", const_prop=False)
     assert isinstance(p, Let)
