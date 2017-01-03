@@ -340,10 +340,10 @@ class Const(W_Object):
 # As a special case, we special case the context expecting exactly one value.
 # All contexts except for 'multi' expect one value, which is leveraged to optimize
 # value statements. The 'multi' context is otherwise equivelent to a value context.
-effectC = 'e'
-multiC = 'm'
-valueC = 'v'
-predC = 'p'
+effect = 'e'
+multi = '?'
+value = 'v'
+pred = 'p'
 
 def void():
     return Quote(w_void)
