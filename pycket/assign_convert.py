@@ -420,8 +420,6 @@ class ConstantPropVisitor(ASTVisitor):
     def visit_quote(self, ast, context):
         if context in (multi, value):
             return ast
-        if context ==  pred and isinstance(ast.w_val, values.W_Bool):
-            return ast
         return incontext(ast.w_val, context)
 
     def visit_set_bang(self, ast, context):
@@ -496,14 +494,16 @@ class ConstantPropVisitor(ASTVisitor):
         body = ast.body.visit(self, effect)
         return Begin0.make(first, [body])
 
-    def try_cache_values(self, vars, rhs, body_muts):
+    def try_cache_values(self, vars, rhs, body_muts, body_frees):
         vals = valueof(rhs)
         if len(vars) != len(vals):
             return vars, rhs
-        new_vars = []
-        new_vals = []
+        new_vars = newlist_hint(len(vars))
+        new_vals = newlist_hint(len(vars))
         for i, val in enumerate(vals):
             sym = vars[i]
+            if not body_frees.haskey(sym):
+                print "unreferenced:", sym
             if self.constant_binding(body_muts, sym, val):
                 self.constant_bindings[sym] = Const(val)
             else:
@@ -535,7 +535,7 @@ class ConstantPropVisitor(ASTVisitor):
                 if vars:
                     rhs = Begin.make([rhs, zero_values()])
                 vars = []
-            vars, rhs = self.try_cache_values(vars, rhs, body_muts)
+            vars, rhs = self.try_cache_values(vars, rhs, body_muts, body_frees)
             if vars:
                 new_vars.append(vars)
                 new_rhss.append(rhs)
@@ -572,8 +572,8 @@ class ConstantPropVisitor(ASTVisitor):
 
     def visit_case_lambda(self, ast, context):
         assert isinstance(ast, CaseLambda)
-        if context == effect:
-            return void()
+        if context in (pred, effect):
+            return Quote(values.w_true)
         return ASTVisitor.visit_case_lambda(self, ast, multi)
 
     def visit_module_var(self, ast, context):
