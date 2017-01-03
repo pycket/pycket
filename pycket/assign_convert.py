@@ -338,12 +338,12 @@ class Const(W_Object):
 
 # Expressions can be evaluated in value, predicate, or expression contexts.
 # As a special case, we special case the context expecting exactly one value.
-# The general values context 'v' expects an unknown number of results, making it
-# the least precise context.
-effect = 'e'
-value = 'v'
-value1 = '1'
-pred = 'p'
+# All contexts except for 'multi' expect one value, which is leveraged to optimize
+# value statements. The 'multi' context is otherwise equivelent to a value context.
+effectC = 'e'
+multiC = 'm'
+valueC = 'v'
+predC = 'p'
 
 def void():
     return Quote(w_void)
@@ -360,11 +360,11 @@ def resultof(expr):
 
 def binding_context(args):
     if len(args) == 1:
-        return '1'
-    return 'v'
+        return value
+    return multi
 
 def expects(context):
-    if context in ('e', 'p', '1'):
+    if context != multi:
         return 1
     return -1
 
@@ -379,13 +379,13 @@ def is_builtin_values(modvar):
 def zero_values():
     return App.make(VALUES, [])
 
-def incontext(value, context):
-    if context == 'e':
+def incontext(val, context):
+    if context == effect:
         return void()
-    if context == 'p':
-        return Quote(values.W_Bool.make(value is not values.w_false))
-    assert context in ('v', '1')
-    return Quote(value)
+    if context == pred:
+        return Quote(values.W_Bool.make(val is not values.w_false))
+    assert context in (multi, value)
+    return Quote(val)
 
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
@@ -408,38 +408,38 @@ class ConstantPropVisitor(ASTVisitor):
         return False
 
     def visit_quote(self, ast, context):
-        if context in ('v', '1'):
+        if context in (multi, value):
             return ast
-        if context == 'p' and isinstance(ast.w_val, values.W_Bool):
+        if context ==  pred and isinstance(ast.w_val, values.W_Bool):
             return ast
         return incontext(ast.w_val, context)
 
     def visit_set_bang(self, ast, context):
         assert isinstance(ast, SetBang)
         var = ast.var
-        rhs = ast.rhs.visit(self, '1')
+        rhs = ast.rhs.visit(self, value)
         return SetBang(var, rhs)
 
     def visit_if(self, ast, context):
         assert isinstance(ast, If)
-        tst = ast.tst.visit(self, 'p')
+        tst = ast.tst.visit(self, pred)
         result = resultof(tst)
         if result is not None:
             case = ast.els if result is values.w_false else ast.thn
-            return Begin.make([tst.visit(self, 'e'), case.visit(self, context)])
+            return Begin.make([tst.visit(self, effect), case.visit(self, context)])
         thn = ast.thn.visit(self, context)
         els = ast.els.visit(self, context)
         return If(tst, thn, els)
 
     def visit_app(self, ast, context):
-        rator = ast.rator.visit(self, '1')
+        rator = ast.rator.visit(self, value)
         # If the context expects one value and this is an invocation of values,
         # then just return the first argument
         if (expects(context) == 1 and len(ast.rands) == 1 and
             is_builtin_values(rator)):
             return ast.rands[0].visit(self, context)
 
-        rands = [r.visit(self, '1') for r in ast.rands]
+        rands = [r.visit(self, value) for r in ast.rands]
 
         w_prim = ast.get_prim_func(rator)
         if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
@@ -450,27 +450,28 @@ class ConstantPropVisitor(ASTVisitor):
             if not isinstance(rand, Quote):
                 return App.make(rator, rands)
             args[i] = rand.w_val
-        if context == 'e':
+        if context == effect:
             return void()
         try:
-            value = func(args)
-            return incontext(value, context)
+            result = func(args)
         except SchemeException:
             # If anything goes wrong, just bail and deal with it at runtime
             return App.make(rator, rands)
+        else:
+            return incontext(result, context)
 
     def visit_with_continuation_mark(self, ast, context):
         assert isinstance(ast, WithContinuationMark)
-        key = ast.key.visit(self, '1')
-        value = ast.value.visit(self, '1')
+        key = ast.key.visit(self, value)
+        val = ast.value.visit(self, value)
         body = ast.body.visit(self, context)
-        return WithContinuationMark(key, value, body)
+        return WithContinuationMark(key, val, body)
 
     def _visit_body(self, body, context):
         assert isinstance(body, list)
         new_body = [None] * len(body)
         for i in range(len(body) - 1):
-            new_body[i] = body[i].visit(self, 'e')
+            new_body[i] = body[i].visit(self, effect)
         new_body[-1] = body[-1].visit(self, context)
         return new_body
 
@@ -482,7 +483,7 @@ class ConstantPropVisitor(ASTVisitor):
     def visit_begin0(self, ast, context):
         assert isinstance(ast, Begin0)
         first = ast.first.visit(self, context)
-        body = ast.body.visit(self, 'e')
+        body = ast.body.visit(self, effect)
         return Begin0.make(first, [body])
 
     def _visit_let(self, varss, rhss, body, context):
@@ -501,7 +502,7 @@ class ConstantPropVisitor(ASTVisitor):
                     rhs = rhs.visit(self, binding_context(vars))
                     break
             else:
-                rhs = rhs.visit(self, 'e')
+                rhs = rhs.visit(self, effect)
                 if vars:
                     rhs = Begin.make([rhs, zero_values()])
                 vars = []
@@ -546,18 +547,18 @@ class ConstantPropVisitor(ASTVisitor):
 
     def visit_case_lambda(self, ast, context):
         assert isinstance(ast, CaseLambda)
-        if context == 'e':
+        if context == effect:
             return void()
-        return ASTVisitor.visit_case_lambda(self, ast, 'v')
+        return ASTVisitor.visit_case_lambda(self, ast, multi)
 
     def visit_module_var(self, ast, context):
-        if context == 'e':
+        if context == effect:
             return void()
         return ASTVisitor.visit_module_var(self, ast, context)
 
     def visit_lexical_var(self, ast, context):
         assert isinstance(ast, LexicalVar)
-        if context == 'e':
+        if context == effect:
             return void()
         val = self.constant_bindings.get(ast.sym, None)
         if val is None:
@@ -567,7 +568,7 @@ class ConstantPropVisitor(ASTVisitor):
 
     def visit_define_values(self, ast, context):
         assert isinstance(ast, DefineValues)
-        assert context == 'v'
+        assert context == multi
         rhs = ast.rhs.visit(self, binding_context(ast.names))
         return DefineValues(ast.names, ast.rhs, ast.display_names)
 
@@ -576,5 +577,5 @@ def constant_prop(ast, env=None):
     if env is None:
         env = SymbolSet.EMPTY
     visitor = ConstantPropVisitor(ast.mod_mutated_vars())
-    return ast.visit(visitor, 'v')
+    return ast.visit(visitor, multi)
 
