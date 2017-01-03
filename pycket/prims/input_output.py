@@ -895,7 +895,6 @@ def eprintf(args, env, cont):
     return do_print(format(fmt, args[1:], "eprintf"), current_error_param.get(cont), env, cont)
 
 @expose("format")
-@jit.look_inside_iff(lambda args: jit.isconstant(args[0]))
 def do_format(args):
     if len(args) == 0:
         raise SchemeException("format: expects format string")
