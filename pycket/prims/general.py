@@ -983,7 +983,7 @@ def reverse(w_l):
 
     return acc
 
-@expose("void", arity=Arity.geq(0))
+@expose("void", arity=Arity.geq(0), foldable=True)
 def do_void(args):
     return values.w_void
 
