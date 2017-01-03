@@ -1022,7 +1022,7 @@ def make_hasheq_placeholder(vals):
 def make_hasheqv_placeholder(vals):
     return values.W_HashTablePlaceholder([], [])
 
-@expose("list?", [values.W_Object])
+@expose("list?", [values.W_Object], foldable=True)
 def listp(v):
     return values.W_Bool.make(v.is_proper_list())
 
@@ -1041,7 +1041,7 @@ def list_ref_impl(lst, pos):
             raise SchemeException("list-ref: index out of range")
     return lst.car()
 
-@expose("list-ref", [values.W_Cons, values.W_Fixnum])
+@expose("list-ref", [values.W_Cons, values.W_Fixnum], foldable=True)
 def list_ref(lst, pos):
     return list_ref_impl(lst, pos.value)
 

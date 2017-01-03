@@ -451,6 +451,8 @@ class ConstantPropVisitor(ASTVisitor):
         rands = [r.visit(self, value) for r in ast.rands]
 
         w_prim = ast.get_prim_func(rator)
+        if isinstance(w_prim, W_Prim) and rands and all(isinstance(r, Quote) for r in rands):
+            print w_prim.tostring(), [r.tostring() for r in rands]
         if not isinstance(w_prim, W_Prim) or w_prim.unwrapped is None:
             return App.make(rator, rands)
         func = w_prim.unwrapped

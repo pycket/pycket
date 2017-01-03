@@ -525,25 +525,25 @@ def bytes_to_path(b):
 # Character
 
 
-@expose("char->integer", [values.W_Character])
+@expose("char->integer", [values.W_Character], foldable=True)
 def char_to_integer(c):
     return values.W_Fixnum(ord(c.value))
 
-@expose("integer->char", [values.W_Fixnum])
+@expose("integer->char", [values.W_Fixnum], foldable=True)
 def integer_to_char(v):
     return values.W_Character(unichr(v.value))
 
-@expose("char-downcase", [values.W_Character])
+@expose("char-downcase", [values.W_Character], foldable=True)
 def char_downcase(v):
     return values.W_Character(unichr(unicodedb.tolower(ord(v.value))))
 
-@expose("char-upcase", [values.W_Character])
+@expose("char-upcase", [values.W_Character], foldable=True)
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
 
 
 def define_char_comp(name, op):
-    @expose(name)
+    @expose(name, foldable=True)
     @jit.unroll_safe
     def comp(args):
         if len(args) < 2:
@@ -580,17 +580,17 @@ for a in [("char<?", op.lt),
           ]:
     define_char_comp(*a)
 
-@expose("char-alphabetic?", [values.W_Character])
+@expose("char-alphabetic?", [values.W_Character], foldable=True)
 def char_alphabetic_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isalpha(c) else values.w_false
 
-@expose("char-whitespace?", [values.W_Character])
+@expose("char-whitespace?", [values.W_Character], foldable=True)
 def char_whitespace_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isspace(c) else values.w_false
 
-@expose("char-numeric?", [values.W_Character])
+@expose("char-numeric?", [values.W_Character], foldable=True)
 def char_numeric_huh(w_char):
     c = ord(w_char.value)
     return values.w_true if unicodedb.isnumeric(c) else values.w_false
