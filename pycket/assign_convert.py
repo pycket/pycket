@@ -379,6 +379,11 @@ def is_builtin_values(modvar):
 def zero_values():
     return App.make(VALUES, [])
 
+def is_zero_vals(ast):
+    if not isinstance(ast, App):
+        return False
+    return len(ast.rands) == 0 and is_builtin_values(ast.rator)
+
 def incontext(val, context):
     if context == effect:
         return void()
@@ -386,6 +391,11 @@ def incontext(val, context):
         return Quote(values.W_Bool.make(val is not values.w_false))
     assert context in (multi, value)
     return Quote(val)
+
+def valueof(ast):
+    if isinstance(ast, App) and is_builtin_values(ast.rator):
+        return ast.rands
+    return [ast]
 
 class ConstantPropVisitor(ASTVisitor):
     preserve_mutated_vars = True
@@ -486,6 +496,25 @@ class ConstantPropVisitor(ASTVisitor):
         body = ast.body.visit(self, effect)
         return Begin0.make(first, [body])
 
+    def try_cache_values(self, vars, rhs, body_muts):
+        vals = valueof(rhs)
+        if len(vars) != len(vals):
+            return vars, rhs
+        new_vars = []
+        new_vals = []
+        for i, val in enumerate(vals):
+            sym = vars[i]
+            if self.constant_binding(body_muts, sym, val):
+                self.constant_bindings[sym] = Const(val)
+            else:
+                new_vars.append(sym)
+                new_vals.append(val)
+        if len(new_vals) == 1:
+            new_ast = new_vals[0]
+        else:
+            new_ast = App.make(VALUES, new_vals[:])
+        return new_vars[:], new_ast
+
     def _visit_let(self, varss, rhss, body, context):
         body_muts = compute_body_muts(body)
         body_frees = compute_body_frees(body)
@@ -506,14 +535,10 @@ class ConstantPropVisitor(ASTVisitor):
                 if vars:
                     rhs = Begin.make([rhs, zero_values()])
                 vars = []
-            if len(vars) == 1:
-                sym, = vars
-                if self.constant_binding(body_muts, sym, rhs):
-                    self.constant_bindings[sym] = Const(rhs)
-                    continue
-
-            new_vars.append(vars)
-            new_rhss.append(rhs)
+            vars, rhs = self.try_cache_values(vars, rhs, body_muts)
+            if vars:
+                new_vars.append(vars)
+                new_rhss.append(rhs)
         body = self._visit_body(body, context)
         return make_let(new_vars[:], new_rhss[:], body)
 
