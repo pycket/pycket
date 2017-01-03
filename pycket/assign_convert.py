@@ -408,9 +408,10 @@ class ConstantPropVisitor(ASTVisitor):
         # by the expander.
         self.constant_bindings = {}
 
-    def constant_binding(self, muts, sym, rhs):
+    def constant_binding(self, muts, frees, sym, rhs):
         if LexicalVar(sym) in muts:
-            return False
+            if not isinstance(rhs, Quote) or frees.haskey(sym):
+                return False
         if isinstance(rhs, Quote):
             return True
         if isinstance(rhs, ModuleVar) and rhs not in self.mod_mutated_vars:
@@ -502,9 +503,7 @@ class ConstantPropVisitor(ASTVisitor):
         new_vals = newlist_hint(len(vars))
         for i, val in enumerate(vals):
             sym = vars[i]
-            if not body_frees.haskey(sym):
-                print "unreferenced:", sym
-            if self.constant_binding(body_muts, sym, val):
+            if self.constant_binding(body_muts, body_frees, sym, val):
                 self.constant_bindings[sym] = Const(val)
             else:
                 new_vars.append(sym)
