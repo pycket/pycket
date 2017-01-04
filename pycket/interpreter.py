@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from pycket                   import config
 from pycket                   import values, values_string, values_parameter
 from pycket                   import vector
