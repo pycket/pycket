@@ -942,6 +942,8 @@ class W_StructConstructor(values.W_Procedure):
         return construct_struct_loop(type, type, args, env, cont)
 
     def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.type.constructor_arity
 
     def tostring(self):
