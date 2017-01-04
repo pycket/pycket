@@ -4,13 +4,29 @@
 # conftest - configuring pytest, especially funcargs
 #
 import pycket.config # to configure early
+import random
 
 import pytest
+from rpython.rlib.objectmodel import specialize, we_are_translated
+
+def replace(func):
+    @specialize.call_location()
+    def flip(*args):
+        if we_are_translated():
+            return func(*args)
+        return bool(random.getrandbits(1))
+    return flip
 
 def pytest_addoption(parser):
-	parser.addoption('--bytecode', action='store', default="", help='Run pycket with bytecode expansion')
+    parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
+    parser.addoption('--patch-jit', action='store_true', default=False, help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
 
 def pytest_configure(config):
+    if config.getvalue('patch-jit'):
+        from rpython.rlib import jit
+        jit.isconstant = replace(jit.isconstant)
+        jit.isvirtual = replace(jit.isvirtual)
+
     byte_flag = config.getvalue('bytecode')
 
     if byte_flag == "":
