@@ -399,7 +399,6 @@ def valueof(ast):
     return [ast]
 
 class ConstantPropVisitor(ASTVisitor):
-    preserve_mutated_vars = True
 
     def __init__(self, mod_mutated_vars):
         self.mod_mutated_vars = mod_mutated_vars
@@ -535,6 +534,8 @@ class ConstantPropVisitor(ASTVisitor):
                 if vars:
                     rhs = Begin.make([rhs, zero_values()])
                 vars = []
+            if not vars and not valueof(rhs):
+                continue
             if len(vars) == 1:
                 sym, = vars
                 if self.constant_binding(body_muts, body_frees, sym, rhs):

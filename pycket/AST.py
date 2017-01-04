@@ -8,10 +8,6 @@ class Visitable(type):
         def dispatch_visitor(self, visitor, *args):
             method = getattr(visitor, visit_method_name)
             result = method(self, *args)
-            if visitor.preserve_mutated_vars:
-                result._mvars = self._mvars
-            if visitor.preserve_free_vars:
-                result._fvars = self._fvars
             return result
         if dct.get('visitable', False):
             dct['visit'] = dispatch_visitor

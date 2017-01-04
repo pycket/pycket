@@ -46,8 +46,6 @@ class ASTVisitor(object):
     remaining arguments differ.
     """
 
-    preserve_mutated_vars = False
-    preserve_free_vars = False
     visit_inplace = False
 
     @specialize.argtype(0)
