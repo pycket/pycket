@@ -30,6 +30,7 @@ from pycket.interpreter import (
     ToplevelVar,
     VariableReference,
     WithContinuationMark,
+    make_lambda,
     make_let,
     make_letrec,
     var_eq,
@@ -575,6 +576,11 @@ class ConstantPropVisitor(ASTVisitor):
             return Quote(values.w_true)
         return ASTVisitor.visit_case_lambda(self, ast, multi)
 
+    def visit_lambda(self, ast, context):
+        assert isinstance(ast, Lambda)
+        body = self._visit_body(ast.body, context)
+        return make_lambda(ast.formals, ast.rest, body, sourceinfo=ast.sourceinfo)
+
     def visit_module_var(self, ast, context):
         if context == effect:
             return void()
@@ -589,12 +595,6 @@ class ConstantPropVisitor(ASTVisitor):
             return ast
         assert isinstance(val, Const)
         return val.const_value()
-
-    def visit_define_values(self, ast, context):
-        assert isinstance(ast, DefineValues)
-        assert context == multi
-        rhs = ast.rhs.visit(self, binding_context(ast.names))
-        return DefineValues(ast.names, ast.rhs, ast.display_names)
 
 def constant_prop(ast, env=None):
     assert isinstance(ast, Module)
