@@ -81,7 +81,7 @@ test: $(PYFILES)
 	$(RUNINTERP) $(PYTEST) pycket
 
 test-random: $(PYFILES)
-	$(RUNINTERP) $(PYTEST) --patch-jit pycket
+	$(RUNINTERP) $(PYTEST) --random pycket
 
 test-bytecode: $(PYFILES)
 	$(RUNINTERP) $(PYTEST) --bytecode go pycket

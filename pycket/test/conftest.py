@@ -11,21 +11,24 @@ from rpython.rlib.objectmodel import specialize, we_are_translated
 
 def replace(func):
     @specialize.call_location()
-    def flip(*args):
+    def replacement(*args):
         if we_are_translated():
             return func(*args)
         return bool(random.getrandbits(1))
-    return flip
+    replacement.__name__ = func.__name__ + "_replaced"
+    return replacement
 
 def pytest_addoption(parser):
     parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
-    parser.addoption('--patch-jit', action='store_true', default=False, help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
+    parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
 
 def pytest_configure(config):
-    if config.getvalue('patch-jit'):
+    if config.getvalue('random'):
         from rpython.rlib import jit
         jit.isconstant = replace(jit.isconstant)
         jit.isvirtual = replace(jit.isvirtual)
+        # XXX: Being able to patch we_are_jitted would be nice as well,
+        # but too much code depends on it behaving deterministically
 
     byte_flag = config.getvalue('bytecode')
 
