@@ -600,6 +600,12 @@ class ConstantPropVisitor(ASTVisitor):
         assert isinstance(val, Const)
         return val.const_value()
 
+    def visit_define_values(self, ast, context):
+        assert isinstance(ast, DefineValues)
+        assert context == multi
+        rhs = ast.rhs.visit(self, binding_context(ast.names))
+        return DefineValues(ast.names, rhs, ast.display_names)
+
 def constant_prop(ast, env=None):
     assert isinstance(ast, Module)
     if env is None:
