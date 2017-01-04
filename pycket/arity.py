@@ -5,7 +5,7 @@ from pycket.util  import memoize
 from rpython.rlib import jit
 
 class Arity(object):
-    _immutable_fields_ = ['arity_list[*]', 'at_least']
+    _attrs_ = _immutable_fields_ = ['arity_list[*]', 'at_least']
 
     def __init__(self, arity_list, at_least):
         self.arity_list = arity_list
