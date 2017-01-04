@@ -542,7 +542,7 @@ class W_RootStruct(values.W_Object):
 
     def checked_call(self, proc, args, env, cont, app):
         args_len = len(args)
-        arity = proc.get_arity()
+        arity = proc.get_arity(promote=True)
         if not arity.arity_includes(args_len):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
@@ -683,10 +683,10 @@ class W_Struct(W_RootStruct):
             if isinstance(proc, values.W_Fixnum):
                 offset = typ.get_offset(typ.procedure_source)
                 proc = self._ref(proc.value + offset)
-                return proc.get_arity()
+                return proc.get_arity(promote)
             else:
                 # -1 for the self argument
-                arity = proc.get_arity()
+                arity = proc.get_arity(promote)
                 return arity.shift_arity(-1)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
