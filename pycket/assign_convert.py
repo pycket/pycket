@@ -535,10 +535,14 @@ class ConstantPropVisitor(ASTVisitor):
                 if vars:
                     rhs = Begin.make([rhs, zero_values()])
                 vars = []
-            vars, rhs = self.try_cache_values(vars, rhs, body_muts, body_frees)
-            if vars:
-                new_vars.append(vars)
-                new_rhss.append(rhs)
+            if len(vars) == 1:
+                sym, = vars
+                if self.constant_binding(body_muts, body_frees, sym, rhs):
+                    self.constant_bindings[sym] = Const(rhs)
+                    continue
+
+            new_vars.append(vars)
+            new_rhss.append(rhs)
         body = self._visit_body(body, context)
         return make_let(new_vars[:], new_rhss[:], body)
 
