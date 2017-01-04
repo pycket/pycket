@@ -186,9 +186,10 @@ for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
 def make_string(k, char):
     if char is None:
         char = u'\0'
+        c = 0
     else:
         char = char.value
-    c = ord(char)
+        c = ord(char)
     if k.value < 0:
         raise SchemeException("make-string: around negative")
     if c < 128:
@@ -220,9 +221,21 @@ def string_downcase(v):
 def string_upcase(v):
     return v.upper()
 
+@jit.unroll_safe
+def string_append_fastpath(args):
+    try:
+        joined = "".join([a.as_str_ascii() for a in args])
+        result = W_String.fromascii(joined)
+    except ValueError:
+        joined = u"".join([a.as_unicode() for a in args])
+        result = W_String.fromunicode(joined)
+    return result
+
 @expose("string-append")
 @jit.unroll_safe
 def string_append(args):
+    if jit.isconstant(len(args)):
+        return string_append_fastpath(args)
     if not args:
         return W_String.fromascii("")
     builder = StringBuilder(len(args))

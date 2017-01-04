@@ -7,13 +7,21 @@ from rpython.rlib.objectmodel import compute_hash, we_are_translated
 from rpython.rlib.unicodedata import unicodedb_6_2_0 as unicodedb
 from rpython.rlib.rstring     import StringBuilder, UnicodeBuilder
 
-@jit.elidable
+@jit.unroll_safe
 def _is_ascii(s):
+    if not jit.loop_unrolling_heuristic(s, len(s)):
+        return _is_ascii_elidable(s)
     for c in s:
         if ord(c) >= 128:
             return False
     return True
 
+@jit.elidable
+def _is_ascii_elidable(s):
+    for c in s:
+        if ord(c) >= 128:
+            return False
+    return True
 
 class W_String(W_Object):
     errorname = "string"
