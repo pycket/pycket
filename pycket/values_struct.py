@@ -602,7 +602,10 @@ class W_RootStruct(values.W_Object):
         raise NotImplementedError("abstract base class")
 
     def hash_equal(self, info=None):
-        raise UnhashableType
+        struct_type = self.struct_type()
+        if struct_type.read_prop(w_prop_equal_hash):
+            raise UnhashableType
+        return values.W_Object.hash_equal(self, info)
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
