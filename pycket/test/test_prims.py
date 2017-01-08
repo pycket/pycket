@@ -1347,11 +1347,3 @@ def test_logger_operations(doctest):
     'example
     """
 
-def test_procedure_extract_target(doctest):
-    """
-    ! (require racket/private/kw)
-    ! (struct wrapper (proc) #:property prop:procedure 0)
-    ! (define proc (wrapper +))
-    > (procedure-extract-target proc)
-    +
-    """

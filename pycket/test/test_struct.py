@@ -635,7 +635,7 @@ def test_inherited_auto_values(doctest):
 
 def test_struct_ports(doctest):
     """
-    > (define-values (struct:struct-port make-struct-port struct-port? 
+    > (define-values (struct:struct-port make-struct-port struct-port?
                     struct-port-ref struct-port-set!)
         (make-struct-type 'struct-port #f 2 0 0
                         (list (cons prop:input-port 0)
@@ -658,4 +658,13 @@ def test_struct_ports(doctest):
     > (write-byte 1 asp)
     > (get-output-string (struct-port-ref asp 1))
     "0123c\u0001"
+    """
+
+def test_procedure_extract_target(doctest):
+    """
+    ! (require racket/private/kw)
+    ! (struct wrapper (proc) #:property prop:procedure 0)
+    ! (define proc (wrapper +))
+    > (procedure-extract-target proc)
+    +
     """
