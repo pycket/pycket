@@ -558,13 +558,14 @@ def do_is_procedure_struct_type(struct_type):
 @expose("procedure-extract-target", [procedure], simple=False)
 def do_procedure_extract_target(proc, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(proc, values_struct.W_RootStruct):
-        prop_procedure = proc.struct_type().prop_procedure
-        procedure_source = proc.struct_type().procedure_source
-        if isinstance(prop_procedure, values.W_Fixnum):
-            return proc.struct_type().accessor.access(
-                procedure_source, prop_procedure.value, env, cont, None)
-    return return_value(values.w_false, env, cont)
+    if not isinstance(proc, values_struct.W_RootStruct):
+        return return_values(values.w_false, env, cont)
+    struct_type = proc.struct_type()
+    prop_procedure = struct_type.prop_procedure
+    if isinstance(prop_procedure, values.W_Fixnum):
+        idx = prop_procedure.value
+        return struct_type.accessor.access(proc, idx, env, cont)
+    return return_values(values.w_false, env, cont)
 
 @expose("variable-reference-constant?",
         [values.W_VariableReference], simple=False)

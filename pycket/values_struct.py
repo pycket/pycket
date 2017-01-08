@@ -1013,7 +1013,7 @@ class W_StructAccessor(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.TWO
 
-    def access(self, struct, field, env, cont, app):
+    def access(self, struct, field, env, cont, app=None):
         self = jit.promote(self)
         st = jit.promote(struct.struct_type())
         if st is None:
@@ -1029,7 +1029,7 @@ class W_StructAccessor(values.W_Procedure):
         return self.access(struct, field.value, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-ref>" % self.type.name
+        return "#<procedure:%s-ref>" % self.type.name.utf8value
 
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
@@ -1065,7 +1065,7 @@ class W_StructMutator(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.THREE
 
-    def mutate(self, struct, field, val, env, cont, app):
+    def mutate(self, struct, field, val, env, cont, app=None):
         self = jit.promote(self)
         st = jit.promote(struct.struct_type())
         if st is None:
