@@ -1512,7 +1512,9 @@ class CaseLambda(AST):
     def _free_vars(self):
         # call _free_vars() to avoid populating the free vars cache
         result = AST._free_vars(self)
-        return result.without(self.recursive_sym)
+        if self.recursive_sym is not None:
+            result = result.without(self.recursive_sym)
+        return result
 
     def direct_children(self):
         # the copy is needed for weird annotator reasons that I don't understand :-(
@@ -1523,7 +1525,7 @@ class CaseLambda(AST):
             return self.lams[0].tostring()
         return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
 
-    @jit.elidable
+    @jit.elidable_promote('all')
     def tostring_as_closure(self):
         _closurerepr = self._closurerepr
         if _closurerepr is None:
