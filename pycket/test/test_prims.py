@@ -169,7 +169,8 @@ def test_shorthands(doctest):
     '(4 3 2 1)
     > (cddddr '(4 3 2 1))
     '()
-"""
+    """
+
 ###############################################################################
 def test_random():
     for i in range(100):
@@ -178,10 +179,8 @@ def test_random():
         x = run_fix("(random %s)" % (5 + i))
         assert 0 <= x < i + 5
 
-
 def test_random_seed():
     run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
-
 
 #############################################################################
 def test_byte_huh(doctest):
@@ -1346,3 +1345,4 @@ def test_logger_operations(doctest):
     > (logger-name (make-logger 'example))
     'example
     """
+
