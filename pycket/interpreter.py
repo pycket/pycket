@@ -529,7 +529,8 @@ class Begin0Cont(Cont):
         return self.ast
 
     def plug_reduce(self, vals, env):
-        return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
+        ast = jit.promote(self.ast)
+        return ast.body, self.env, Begin0FinishCont(ast, vals, self.env, self.prev)
 
 class Begin0FinishCont(Cont):
     _immutable_fields_ = ["ast", "vals"]
