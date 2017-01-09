@@ -593,6 +593,10 @@ def simplify_path(path, use_filesystem):
     path_str = extract_path(path)
     return values.W_Path(path_str)
 
+@expose("path<?", [values.W_Path, values.W_Path])
+def path_less_than(p1, p2):
+    return values.W_Bool.make(p1.path < p2.path)
+
 @expose("use-user-specific-search-paths", [])
 def use_user_specific_search_paths():
     return values.w_false

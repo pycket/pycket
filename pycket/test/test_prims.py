@@ -1347,3 +1347,18 @@ def test_logger_operations(doctest):
     'example
     """
 
+def test_path_less_than(doctest):
+    """
+    > (path<? (string->path "a") (string->path "b"))
+    #t
+    > (path<? (string->path "") (string->path ""))
+    #f
+    > (path<? (string->path "a") (string->path ""))
+    #f
+    > (path<? (string->path "") (string->path "a"))
+    #t
+    > (path<? (string->path "/home/spenser") (string->path "/home"))
+    #f
+    > (path<? (string->path "/home") (string->path "/home/spenser"))
+    #t
+    """
