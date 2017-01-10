@@ -3,6 +3,13 @@ from rpython.rlib import jit
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
 
+NOT_RECURSIVE = 0b00
+LOOP_HEADER = 0b01
+LOOP_PARTICIPANT = 0b11
+
+def join_states(s1, s2):
+    return s1 | s2
+
 class Namer(object): #pragma: no cover
 
     def __init__(self):
@@ -39,25 +46,28 @@ class CallGraph(object):
             lam_in_subdct = lam in subdct
         cont_ast = cont.get_next_executed_ast()
         config = env.pycketconfig()
-        is_recursive = False
+        is_recursive = NOT_RECURSIVE
         if not lam_in_subdct:
             subdct[lam] = None
-            if self.is_recursive(calling_lam, lam):
-                is_recursive = True
+            is_recursive = self.is_recursive(calling_lam, lam)
+            if is_recursive == LOOP_HEADER:
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.
         same_lambda = cont_ast and cont_ast.surrounding_lambda is calling_lam
         if same_lambda:
             # did not call is_recursive yet
-            if lam_in_subdct and self.is_recursive(calling_lam, lam):
-                if self.is_recursive(calling_lam, lam):
+            if lam_in_subdct:
+                is_recursive = self.is_recursive(calling_lam, lam)
+                if is_recursive != NOT_RECURSIVE:
                     cont_ast.set_should_enter()
 
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
-        if lam in self.recursive:
-            return True
+        status = self.recursive.get(lam, NOT_RECURSIVE)
+        if status == LOOP_HEADER:
+            return LOOP_HEADER
+
         if starting_from is None:
             starting_from = lam
         reachable = self.calls.get(starting_from, None)
@@ -69,13 +79,15 @@ class CallGraph(object):
         while todo:
             current, path = todo.pop()
             if current is lam:
-                self.recursive[lam] = None
                 # all the lambdas in the path are recursive too
                 while path:
-                    self.recursive[path.node] = None
+                    status = self.recursive.get(path.node, NOT_RECURSIVE)
+                    self.recursive[path.node] = join_states(status, LOOP_PARTICIPANT)
                     path = path.prev
-                return True
-            if current in visited:
+                self.recursive[lam] = LOOP_HEADER
+                return LOOP_HEADER
+            status = self.recursive.get(current, NOT_RECURSIVE)
+            if current in visited or status == LOOP_HEADER:
                 continue
             reachable = self.calls.get(current, None)
             if reachable:
