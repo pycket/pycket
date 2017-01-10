@@ -46,8 +46,6 @@ def compute_executable_suffix(config):
         res.append("-no-type-size-specialization")
     if not config.hidden_classes:
         res.append("-no-hidden-classes")
-    if config.log_callgraph:
-        res.append("-log")
     if config.immutable_boolean_field_elision:
         res.append("-ibfe")
     return "".join(res)
