@@ -67,12 +67,11 @@ class CallGraph(object):
         status = self.recursive.get(lam, NOT_RECURSIVE)
         if status == LOOP_HEADER:
             return LOOP_HEADER
-
         if starting_from is None:
             starting_from = lam
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
-            return False
+            return NOT_RECURSIVE
         init = Path(starting_from, None)
         todo = [(key, init) for key in reachable]
         visited = {}
@@ -80,22 +79,21 @@ class CallGraph(object):
             current, path = todo.pop()
             if current is lam:
                 # all the lambdas in the path are recursive too
-                while path:
-                    status = self.recursive.get(path.node, NOT_RECURSIVE)
-                    self.recursive[path.node] = join_states(status, LOOP_PARTICIPANT)
-                    path = path.prev
+                for node in path:
+                    status = self.recursive.get(node, NOT_RECURSIVE)
+                    self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
                 self.recursive[lam] = LOOP_HEADER
                 return LOOP_HEADER
             status = self.recursive.get(current, NOT_RECURSIVE)
-            if current in visited or status == LOOP_HEADER:
+            if status == LOOP_HEADER or current in visited:
                 continue
             reachable = self.calls.get(current, None)
-            if reachable:
+            if reachable is not None:
                 path = Path(current, path)
                 for key in reachable:
                     todo.append((key, path))
             visited[current] = None
-        return False
+        return NOT_RECURSIVE
 
     def write_dot_file(self, output): #pragma: no cover
         counter = 0
@@ -106,6 +104,12 @@ class CallGraph(object):
                 name = names.nameof(node)
                 output.write(name)
                 output.write(" [fillcolor=red,style=filled];\n")
+            else:
+                status = self.recursive.get(node, NOT_RECURSIVE)
+                if status == LOOP_PARTICIPANT:
+                    name = names.nameof(node)
+                    output.write(name)
+                    output.write(" [fillcolor=green,style=filled];\n")
         for src, subdct in self.calls.iteritems():
             for dst in subdct:
                 srcname = names.nameof(src)
@@ -120,9 +124,16 @@ class CallGraph(object):
 
 class Path(object):
 
+    __slots__ = ('node', 'prev')
+
     def __init__(self, node, prev):
         self.node = node
         self.prev = prev
+
+    def __iter__(self):
+        while self is not None:
+            yield self.node
+            self = self.prev
 
     def __repr__(self):
         return "%s -> %s" % (self.node, self.prev)
