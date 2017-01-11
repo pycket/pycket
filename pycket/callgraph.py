@@ -3,9 +3,23 @@ from rpython.rlib import jit, objectmodel
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
 
-NOT_RECURSIVE = 0b00
-LOOP_HEADER = 0b01
-LOOP_PARTICIPANT = 0b11
+# The callgraph classifies nodes into three possible categories
+#   1. NOT_LOOP: nodes which do not occur in a loop at all
+#   2. LOOP_PARTICIPANT: nodes which occur in a loop but are not loop headers
+#   3. LOOP_HEADER: nodes occuring at the beginning of a loop, where we want
+#                   tracing to start
+# LOOP_PARTICIPANTs are used to find continuations which may be allocated in a loop
+# by nodes other than the loop header.
+# Ideally, for a given cyclic path through the callgraph, we should only need to
+# mark a single node as a loop header which dominates all other nodes a loop.
+#
+# Further, we want to mark as few nodes as possible, as fewer loop headers reduces
+# the work performed by the JIT. This also reduces potential collisions in the
+# trace cache.
+
+NOT_LOOP         = 0b00
+LOOP_PARTICIPANT = 0b01
+LOOP_HEADER      = 0b11
 
 @objectmodel.always_inline
 def join_states(s1, s2):
@@ -47,11 +61,11 @@ class CallGraph(object):
             lam_in_subdct = lam in subdct
         cont_ast = cont.get_next_executed_ast()
         config = env.pycketconfig()
-        is_recursive = NOT_RECURSIVE
+        status = NOT_LOOP
         if not lam_in_subdct:
             subdct[lam] = None
-            is_recursive = self.is_recursive(calling_lam, lam)
-            if is_recursive == LOOP_HEADER:
+            status = self.is_recursive(calling_lam, lam)
+            if status == LOOP_HEADER:
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.
@@ -59,20 +73,20 @@ class CallGraph(object):
         if same_lambda:
             # did not call is_recursive yet
             if lam_in_subdct:
-                is_recursive = self.is_recursive(calling_lam, lam)
-                if is_recursive != NOT_RECURSIVE:
+                status = self.is_recursive(calling_lam, lam)
+                if status != NOT_LOOP:
                     cont_ast.set_should_enter()
 
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
-        status = self.recursive.get(lam, NOT_RECURSIVE)
+        status = self.recursive.get(lam, NOT_LOOP)
         if status == LOOP_HEADER:
             return LOOP_HEADER
         if starting_from is None:
             starting_from = lam
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
-            return NOT_RECURSIVE
+            return NOT_LOOP
         init = Path(starting_from, None)
         todo = [(key, init) for key in reachable]
         visited = {}
@@ -81,11 +95,11 @@ class CallGraph(object):
             if current is lam:
                 # all the lambdas in the path are recursive too
                 for node in path:
-                    status = self.recursive.get(node, NOT_RECURSIVE)
+                    status = self.recursive.get(node, NOT_LOOP)
                     self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
                 self.recursive[lam] = LOOP_HEADER
                 return LOOP_HEADER
-            status = self.recursive.get(current, NOT_RECURSIVE)
+            status = self.recursive.get(current, NOT_LOOP)
             if status == LOOP_HEADER or current in visited:
                 continue
             reachable = self.calls.get(current, None)
@@ -94,7 +108,7 @@ class CallGraph(object):
                 for key in reachable:
                     todo.append((key, path))
             visited[current] = None
-        return NOT_RECURSIVE
+        return NOT_LOOP
 
     def write_dot_file(self, output): #pragma: no cover
         counter = 0
@@ -106,7 +120,7 @@ class CallGraph(object):
                 output.write(name)
                 output.write(" [fillcolor=red,style=filled];\n")
             else:
-                status = self.recursive.get(node, NOT_RECURSIVE)
+                status = self.recursive.get(node, NOT_LOOP)
                 if status == LOOP_PARTICIPANT:
                     name = names.nameof(node)
                     output.write(name)
