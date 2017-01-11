@@ -1,4 +1,4 @@
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 # TODO: Find heavily executed lambdas that do not participate in a loop in the
 # callgraph.
@@ -7,6 +7,7 @@ NOT_RECURSIVE = 0b00
 LOOP_HEADER = 0b01
 LOOP_PARTICIPANT = 0b11
 
+@objectmodel.always_inline
 def join_states(s1, s2):
     return s1 | s2
 
