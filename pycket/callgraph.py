@@ -46,12 +46,10 @@ class CallGraph(object):
         self.recursive = {}
 
     def register_call(self, lam, calling_app, cont, env):
-        if jit.we_are_jitted():
-            return
-        if not calling_app:
+        if jit.we_are_jitted() or calling_app is None:
             return
         calling_lam = calling_app.surrounding_lambda
-        if not calling_lam:
+        if calling_lam is None:
             return
         subdct = self.calls.get(calling_lam, None)
         if subdct is None:
@@ -77,6 +75,11 @@ class CallGraph(object):
                 if status != NOT_LOOP:
                     cont_ast.set_should_enter()
 
+    def add_participants(self, path):
+        for node in path:
+            status = self.recursive.get(node, NOT_LOOP)
+            self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
+
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
         status = self.recursive.get(lam, NOT_LOOP)
@@ -94,13 +97,14 @@ class CallGraph(object):
             current, path = todo.pop()
             if current is lam:
                 # all the lambdas in the path are recursive too
-                for node in path:
-                    status = self.recursive.get(node, NOT_LOOP)
-                    self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
+                self.add_participants(path)
                 self.recursive[lam] = LOOP_HEADER
                 return LOOP_HEADER
             status = self.recursive.get(current, NOT_LOOP)
-            if status == LOOP_HEADER or current in visited:
+            if status == LOOP_HEADER:
+                self.add_participants(path)
+                continue
+            if current in visited:
                 continue
             reachable = self.calls.get(current, None)
             if reachable is not None:
