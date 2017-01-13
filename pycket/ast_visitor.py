@@ -99,11 +99,11 @@ class ASTVisitor(object):
     def visit_begin0(self, ast, *args):
         assert isinstance(ast, Begin0)
         first = ast.first.visit(self, *args)
-        body  = ast.body.visit(self, *args)
+        body  = [b.visit(self, *args) for b in ast.body]
         if self.visit_inplace:
             return ast
         else:
-            return Begin0.make(first, [body])
+            return Begin0.make(first, body)
 
     @specialize.argtype(0)
     def visit_begin(self, ast, *args):

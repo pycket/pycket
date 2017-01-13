@@ -492,8 +492,8 @@ class ConstantPropVisitor(ASTVisitor):
     def visit_begin0(self, ast, context):
         assert isinstance(ast, Begin0)
         first = ast.first.visit(self, context)
-        body = ast.body.visit(self, effect)
-        return Begin0.make(first, [body])
+        body = [b.visit(self, effect) for b in ast.body]
+        return Begin0.make(first, body)
 
     def try_cache_values(self, vars, rhs, body_muts, body_frees):
         vals = valueof(rhs)

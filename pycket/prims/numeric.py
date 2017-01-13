@@ -11,7 +11,7 @@ from pycket.prims.expose                     import expose, default, unsafe
 
 from rpython.rlib                            import jit, longlong2float, rarithmetic, unroll
 from rpython.rlib.rarithmetic                import r_uint
-from rpython.rlib.objectmodel                import specialize
+from rpython.rlib.objectmodel                import always_inline, specialize
 from rpython.rlib.rbigint                    import rbigint
 from rpython.rtyper.lltypesystem.lloperation import llop
 from rpython.rtyper.lltypesystem.lltype      import Signed
@@ -57,32 +57,29 @@ def integerp(n):
 
 @expose("exact-integer?", [values.W_Object], foldable=True)
 def exact_integerp(n):
-    return values.W_Bool.make(isinstance(n, values.W_Fixnum) or
-                              isinstance(n, values.W_Bignum))
+    return values.W_Bool.make(isinstance(n, values.W_Integer))
 
 @expose("exact-nonnegative-integer?", [values.W_Object], foldable=True)
 def exact_nonneg_integerp(n):
-    from rpython.rlib.rbigint import rbigint
+    from rpython.rlib.rbigint import NULLRBIGINT
     if isinstance(n, values.W_Fixnum):
         return values.W_Bool.make(n.value >= 0)
     if isinstance(n, values.W_Bignum):
-        return values.W_Bool.make(n.value.ge(rbigint.fromint(0)))
+        return values.W_Bool.make(n.value.ge(NULLRBIGINT))
     return values.w_false
 
 @expose("exact-positive-integer?", [values.W_Object], foldable=True)
 def exact_nonneg_integerp(n):
-    from rpython.rlib.rbigint import rbigint
+    from rpython.rlib.rbigint import NULLRBIGINT
     if isinstance(n, values.W_Fixnum):
         return values.W_Bool.make(n.value > 0)
     if isinstance(n, values.W_Bignum):
-        return values.W_Bool.make(n.value.gt(rbigint.fromint(0)))
+        return values.W_Bool.make(n.value.gt(NULLRBIGINT))
     return values.w_false
 
+@always_inline
 def is_real(obj):
-    return (isinstance(obj, values.W_Fixnum) or
-            isinstance(obj, values.W_Bignum) or
-            isinstance(obj, values.W_Flonum) or
-            isinstance(obj, values.W_Rational))
+    return isinstance(obj, values.W_Real)
 
 @expose("real?", [values.W_Object], foldable=True)
 def realp(n):

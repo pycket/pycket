@@ -949,13 +949,13 @@ def append(lists):
         return values.w_null
     acc = lists[-1]
     for i in range(len(lists) - 2, -1, -1):
-        acc = append_two(lists[i], acc)
+        curr = lists[i]
+        if not curr.is_proper_list():
+            raise SchemeException("append: expected proper list")
+        acc = append_two(curr, acc)
     return acc
 
 def append_two(l1, l2):
-    if not l1.is_proper_list():
-        raise SchemeException("append: expected proper list")
-
     first = None
     last  = None
     while isinstance(l1, values.W_Cons):
