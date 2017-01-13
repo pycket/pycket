@@ -10,9 +10,6 @@ pycketoption_descr = OptionDescription(
                default=True, cmdline="--two-state"),
     BoolOption("callgraph", "enable dynamic callgraph reconstruction",
                default=True, cmdline="--callgraph"),
-    BoolOption("log_callgraph", "log the callgraph decisions",
-               default=False, cmdline="--log-callgraph",
-               requires=[("pycket.callgraph", True)]),
     BoolOption("with_branch", "build the git branch name into the executable name",
                default=False, cmdline="--with-branch"),
     BoolOption("strategies", "strategies for data structures (vectors, cells, hashmaps, etc)",
@@ -49,8 +46,6 @@ def compute_executable_suffix(config):
         res.append("-no-type-size-specialization")
     if not config.hidden_classes:
         res.append("-no-hidden-classes")
-    if config.log_callgraph:
-        res.append("-log")
     if config.immutable_boolean_field_elision:
         res.append("-ibfe")
     return "".join(res)

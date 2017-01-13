@@ -511,6 +511,36 @@ class BeginCont(Cont):
         ast, i = self.counting_ast.unpack(SequencedBodyAST)
         return ast.make_begin_cont(self.env, self.prev, i)
 
+@inline_small_list(immutable=True, attrname="vals_w",
+                   unbox_num=True, factoryname="_make")
+class Begin0BodyCont(Cont):
+    _immutable_fields_ = ["counting_ast"]
+    return_safe = True
+
+    def __init__(self, ast, env, prev):
+        Cont.__init__(self, env, prev)
+        self.counting_ast = ast
+
+    @staticmethod
+    def make(vals, ast, index, env, prev):
+        counting_ast = ast.counting_asts[index]
+        return Begin0BodyCont._make(vals, counting_ast, env, prev)
+
+    def get_ast(self):
+        return self.counting_ast.ast
+
+    def get_next_executed_ast(self):
+        ast, i = self.counting_ast.unpack(Begin0)
+        return ast.body[i]
+
+    def plug_reduce(self, vals, env):
+        ast, index = self.counting_ast.unpack(Begin0)
+        vals = self._get_full_list()
+        if index == len(ast.body) - 1:
+            return return_multi_vals(values.Values.make(vals), env, self.prev)
+        return (ast.body[index + 1], self.env,
+                Begin0BodyCont.make(vals, ast, index + 1, self.env, self.prev))
+
 # FIXME: it would be nice to not need two continuation types here
 class Begin0Cont(Cont):
     _immutable_fields_ = ["ast"]
@@ -529,20 +559,9 @@ class Begin0Cont(Cont):
         return self.ast
 
     def plug_reduce(self, vals, env):
-        return self.ast.body, self.env, Begin0FinishCont(self.ast, vals, self.env, self.prev)
-
-class Begin0FinishCont(Cont):
-    _immutable_fields_ = ["ast", "vals"]
-    def __init__(self, ast, vals, env, prev):
-        Cont.__init__(self, env, prev)
-        self.ast = ast
-        self.vals = vals
-
-    def _clone(self):
-        return Begin0FinishCont(self.ast, self.vals, self.env, self.prev)
-
-    def plug_reduce(self, vals, env):
-        return return_multi_vals(self.vals, self.env, self.prev)
+        ast = jit.promote(self.ast)
+        vals_w = vals.get_all_values()
+        return ast.body[0], self.env, Begin0BodyCont.make(vals_w, ast, 0, self.env, self.prev)
 
 class WCMKeyCont(Cont):
     _immutable_fields_ = ["ast"]
@@ -1108,31 +1127,32 @@ class SequencedBodyAST(AST):
             return self.body[i], env, BeginCont(
                     self.counting_asts[i + 1], new_env, prev)
 
-class Begin0(AST):
-    _immutable_fields_ = ["first", "body"]
+class Begin0(SequencedBodyAST):
+    _immutable_fields_ = ["first"]
     visitable = True
 
     @staticmethod
     def make(first, rest):
         rest = remove_pure_ops(rest, always_last=False)
         if rest:
-            return Begin0(first, Begin.make(rest))
+            return Begin0(first, rest)
         return first
 
     def __init__(self, fst, rst):
-        assert isinstance(rst, AST)
+        assert isinstance(rst, list)
+        SequencedBodyAST.__init__(self, rst)
         self.first = fst
-        self.body = rst
 
     def direct_children(self):
-        return [self.first, self.body]
+        return [self.first] + self.body
 
     def _tostring(self):
-        return "(begin0 %s %s)" % (self.first.tostring(), self.body.tostring())
+        body = [self.first.tostring()] + [b.tostring() for b in self.body]
+        return "(begin0 %s)" % " ".join(body)
 
     def normalize(self, context):
-        first  = Context.normalize_term(self.first)
-        body   = Context.normalize_term(self.body)
+        first = Context.normalize_term(self.first)
+        body  = [Context.normalize_term(b) for b in self.body]
         result = Begin0(first, body)
         return context.plug(result)
 

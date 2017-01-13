@@ -67,8 +67,8 @@ class ASTVisitor(object):
     def visit_begin0(self, ast, *args):
         assert isinstance(ast, Begin0)
         first = ast.first.visit(self, *args)
-        body  = ast.body.visit(self, *args)
-        return Begin0.make(first, [body])
+        body  = [b.visit(self, *args) for b in ast.body]
+        return Begin0.make(first, body)
 
     def visit_begin(self, ast, *args):
         assert isinstance(ast, Begin)

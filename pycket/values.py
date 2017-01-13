@@ -543,7 +543,11 @@ class W_Number(W_Object):
     def hash_eqv(self):
         return self.hash_equal(info=None)
 
-class W_Rational(W_Number):
+class W_Real(W_Number):
+    errorname = "real"
+    _attrs_ = []
+
+class W_Rational(W_Real):
     _attrs_ = _immutable_fields_ = ["_numerator", "_denominator"]
     errorname = "rational"
     def __init__(self, num, den):
@@ -614,8 +618,7 @@ class W_Rational(W_Number):
         hash2 = self._denominator.hash()
         return rarithmetic.intmask(hash1 + 1000003 * hash2)
 
-
-class W_Integer(W_Number):
+class W_Integer(W_Real):
     errorname = "integer"
     _attrs_ = []
 
@@ -639,7 +642,6 @@ class W_Integer(W_Number):
         except OverflowError:
             return W_Bignum(rbigint.fromfloat(value))
         return W_Fixnum(val)
-
 
 @memoize_constructor
 class W_Fixnum(W_Integer):
@@ -687,7 +689,7 @@ W_Fixnum.ONE  = W_Fixnum.make(1)
 W_Fixnum.TWO  = W_Fixnum.make(2)
 W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
-class W_Flonum(W_Number):
+class W_Flonum(W_Real):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ["value"]
     errorname = "flonum"
@@ -758,8 +760,8 @@ class W_Complex(W_Number):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ["real", "imag"]
     def __init__(self, re, im):
-        assert isinstance(re, W_Number)
-        assert isinstance(im, W_Number)
+        assert isinstance(re, W_Real)
+        assert isinstance(im, W_Real)
         self.real = re
         self.imag = im
 
