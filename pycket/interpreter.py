@@ -632,6 +632,7 @@ class Module(AST):
                 new_body.append(b)
                 continue
             for r in requires:
+                assert isinstance(r, Require)
                 if (r.fname == b.fname and r.loader is b.loader and
                     r.path == b.path):
                     break
