@@ -616,6 +616,12 @@ class WCMValCont(Cont):
 
         return self.ast.body, self.env, cont
 
+class ModuleInfo(object):
+    def __init__(self, current_module):
+        self.current_module = current_module
+        self.submodules = []
+        self.requires   = []
+
 class Module(AST):
     _immutable_fields_ = ["name", "body[*]", "requires[*]", "parent", "submodules[*]", "interpreted?", "lang"]
     visitable = True
@@ -626,17 +632,15 @@ class Module(AST):
         self.lang = lang
         self.name = name
 
-        self.body     = [b for b in body if not isinstance(b, Require)]
-        self.requires = [b for b in body if isinstance(b, Require)]
-
-        # Collect submodules and set their parents
-        submodules = []
-        for b in self.body:
-            b.collect_submodules(submodules)
-        self.submodules = submodules[:]
-        for s in self.submodules:
-            assert isinstance(s, Module)
-            s.set_parent_module(self)
+        info = ModuleInfo(self)
+        todo = body[:]
+        while todo:
+            curr = todo.pop()
+            rest = curr.collect_module_info(info)
+            todo.extend(rest)
+        self.submodules = info.submodules[:]
+        self.requires   = info.requires[:]
+        self.body       = [b for b in body if not isinstance(b, Require)]
 
         self.env = None
         self.interpreted = False
@@ -654,8 +658,10 @@ class Module(AST):
         assert isinstance(parent, Module)
         self.parent = parent
 
-    def collect_submodules(self, acc):
-        acc.append(self)
+    def collect_module_info(self, info):
+        info.submodules.append(self)
+        self.set_parent_module(info.current_module)
+        return []
 
     def full_module_path(self):
         if self.parent is None:
@@ -794,6 +800,17 @@ class Require(AST):
         top.module_env.add_module(self.fname, module.root_module())
         module.interpret_mod(top)
         return values.w_void
+
+    def collect_module_info(self, info):
+        for r in info.requires:
+            assert isinstance(r, Require)
+            if (self.fname == r.fname and
+                self.path == r.path and
+                self.loader is r.loader):
+                break
+        else:
+            info.requires.append(self)
+        return []
 
     def _tostring(self):
         return "(require %s)" % self.fname
