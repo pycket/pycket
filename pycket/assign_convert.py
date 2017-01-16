@@ -419,6 +419,7 @@ class ConstantPropVisitor(ASTVisitor):
         return False
 
     def visit_quote(self, ast, context):
+        assert isinstance(ast, Quote)
         if context in (value, multi):
             return ast
         return incontext(ast.w_val, context)
