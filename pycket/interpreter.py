@@ -626,8 +626,19 @@ class Module(AST):
         self.lang = lang
         self.name = name
 
-        self.body     = [b for b in body if not isinstance(b, Require)]
-        self.requires = [b for b in body if isinstance(b, Require)]
+        new_body, requires = [], []
+        for b in body:
+            if not isinstance(b, Require):
+                new_body.append(b)
+                continue
+            for r in requires:
+                if (r.fname == b.fname and r.loader is b.loader and
+                    r.path == b.path):
+                    break
+            else:
+                requires.append(b)
+        self.body = new_body[:]
+        self.requires = requires[:]
 
         # Collect submodules and set their parents
         submodules = []
