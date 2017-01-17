@@ -254,9 +254,8 @@ class OwnJSONDecoder(JSONDecoder):
                 self.pos = i
                 return JsonString(content_utf8)
             elif ch == '\\':
-                content_so_far = self.getslice(start, i-1)
                 self.pos = i-1
-                return self.decode_string_escaped(start, content_so_far)
+                return self.decode_string_escaped(start)
             elif ch < '\x20':
                 self._raise("Invalid control character at char %d", self.pos-1)
 
