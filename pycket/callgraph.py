@@ -57,8 +57,6 @@ class CallGraph(object):
             lam_in_subdct = False
         else:
             lam_in_subdct = lam in subdct
-        cont_ast = cont.get_next_executed_ast()
-        config = env.pycketconfig()
         status = NOT_LOOP
         if not lam_in_subdct:
             subdct[lam] = None
@@ -67,6 +65,7 @@ class CallGraph(object):
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.
+        cont_ast = cont.get_next_executed_ast()
         same_lambda = cont_ast and cont_ast.surrounding_lambda is calling_lam
         if same_lambda:
             # did not call is_recursive yet
@@ -92,8 +91,8 @@ class CallGraph(object):
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
             return NOT_LOOP
-        init = Path(starting_from, None)
-        todo = [(key, init) for key in reachable]
+        path = Path(starting_from, None)
+        todo = [(key, path) for key in reachable]
         visited = {}
         while todo:
             current, path = todo.pop()
