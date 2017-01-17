@@ -70,9 +70,9 @@ class CallGraph(object):
         if same_lambda:
             # did not call is_recursive yet
             if lam_in_subdct:
-                status = self.is_recursive(calling_lam, lam)
-                if status != NOT_LOOP:
-                    cont_ast.set_should_enter()
+                status = self.status(calling_lam)
+            if status != NOT_LOOP:
+                cont_ast.set_should_enter()
 
     def add_participants(self, path):
         for node in path:
