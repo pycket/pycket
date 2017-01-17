@@ -80,7 +80,7 @@ class CallGraph(object):
             status = self.recursive.get(node, NOT_LOOP)
             self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
 
-    def status(node):
+    def status(self, node):
         return self.recursive.get(node, NOT_LOOP)
 
     def is_recursive(self, lam, starting_from=None):
@@ -104,7 +104,7 @@ class CallGraph(object):
                 return LOOP_HEADER
             if current in visited:
                 continue
-            if self.status(node) == LOOP_HEADER:
+            if self.status(current) == LOOP_HEADER:
                 self.add_participants(path)
                 continue
             reachable = self.calls.get(current, None)
