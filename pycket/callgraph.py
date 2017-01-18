@@ -72,13 +72,14 @@ class CallGraph(object):
             # did not call is_recursive yet
             if lam_in_subdct:
                 status = self.is_recursive(calling_lam, lam)
-                if status != NOT_LOOP:
-                    cont_ast.set_should_enter()
+            if status != NOT_LOOP:
+                cont_ast.set_should_enter()
 
     def add_participants(self, path):
         for node in path:
             status = self.recursive.get(node, NOT_LOOP)
-            self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
+            if status == NOT_LOOP:
+                self.recursive[node] = LOOP_PARTICIPANT
 
     def status(self, node):
         return self.recursive.get(node, NOT_LOOP)
@@ -87,33 +88,32 @@ class CallGraph(object):
         # quatratic in theory, hopefully not very bad in practice
         if self.status(lam) == LOOP_HEADER:
             return LOOP_HEADER
-        if starting_from is None:
-            starting_from = lam
+        # if starting_from is None:
+        starting_from = lam
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
             return NOT_LOOP
         path = Path(starting_from, None)
         todo = [(key, path) for key in reachable]
         visited = {}
+        status = NOT_LOOP
         while todo:
             current, path = todo.pop()
             if current is lam:
                 # all the lambdas in the path are recursive too
                 self.add_participants(path)
                 self.recursive[lam] = LOOP_HEADER
-                return LOOP_HEADER
-            if current in visited:
-                continue
-            if self.status(current) == LOOP_HEADER:
+                status = LOOP_HEADER
+            elif self.status(current) == LOOP_HEADER:
                 self.add_participants(path)
-                continue
-            reachable = self.calls.get(current, None)
-            if reachable is not None:
-                path = Path(current, path)
-                for key in reachable:
-                    todo.append((key, path))
-            visited[current] = None
-        return NOT_LOOP
+            elif current not in visited:
+                reachable = self.calls.get(current, None)
+                if reachable is not None:
+                    path = Path(current, path)
+                    for key in reachable:
+                        todo.append((key, path))
+                visited[current] = None
+        return status
 
     def write_dot_file(self, output): #pragma: no cover
         counter = 0
