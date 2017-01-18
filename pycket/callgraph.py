@@ -45,8 +45,9 @@ class CallGraph(object):
         self.calls     = {}
         self.recursive = {}
 
+    @jit.not_in_trace
     def register_call(self, lam, calling_app, cont, env):
-        if jit.we_are_jitted() or calling_app is None:
+        if calling_app is None:
             return
         calling_lam = calling_app.surrounding_lambda
         if calling_lam is None:
