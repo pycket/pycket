@@ -11,6 +11,18 @@ from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, sp
 
 import sys
 
+def elidable_iff(pred):
+    def wrapper(func):
+        @jit.elidable
+        def elidable(*args):
+            return func(*args)
+        def inner(*args):
+            if jit.we_are_jitted() and pred(*args):
+                return elidable(*args)
+            return func(*args)
+        return inner
+    return wrapper
+
 @loop_label
 def equal_hash_ref_loop(data, idx, key, env, cont):
     from pycket.interpreter import return_value
@@ -109,10 +121,20 @@ class UnwrappedHashmapStrategyMixin(object):
     # erase, unerase, is_correct_type, wrap, unwrap
     # create_storage needs to be overwritten if an r_dict is needed
 
+    @staticmethod
+    @elidable_iff(
+        lambda w_dict: jit.isconstant(w_dict) and w_dict.is_immutable)
+    def get_hstorage(w_dict):
+        return w_dict.hstorage
+
+    def get_storage(self, w_dict):
+        return self.unerase(self.get_hstorage(w_dict))
+
     def get(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
         if self.is_correct_type(w_key):
-            w_res = self.unerase(w_dict.hstorage).get(self.unwrap(w_key), w_missing)
+            storage = self.get_storage(w_dict)
+            w_res = storage.get(self.unwrap(w_key), w_missing)
             return return_value(w_res, env, cont)
         # XXX should not dehomogenize always
         self.switch_to_object_strategy(w_dict)
@@ -121,7 +143,8 @@ class UnwrappedHashmapStrategyMixin(object):
     def set(self, w_dict, w_key, w_val, env, cont):
         from pycket.interpreter import return_value
         if self.is_correct_type(w_key):
-            self.unerase(w_dict.hstorage)[self.unwrap(w_key)] = w_val
+            storage = self.get_storage(w_dict)
+            storage[self.unwrap(w_key)] = w_val
             return return_value(values.w_void, env, cont)
         self.switch_to_object_strategy(w_dict)
         return w_dict.hash_set(w_key, w_val, env, cont)
@@ -218,9 +241,11 @@ def tagged_hash(w_object):
 class ObjectHashmapStrategy(HashmapStrategy):
     erase, unerase = rerased.new_static_erasing_pair("object-hashmap-strategry")
 
+    import_from_mixin(UnwrappedHashmapStrategyMixin)
+
     def get_bucket(self, w_dict, w_key, nonull=False):
         hash    = tagged_hash(w_key)
-        storage = self.unerase(w_dict.hstorage)
+        storage = self.get_storage(w_dict)
         bucket  = storage.get(hash, None)
         if nonull and bucket is None:
             storage[hash] = bucket = []
