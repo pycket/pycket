@@ -5,7 +5,7 @@ from pycket.base              import SingletonMeta, UnhashableType
 from pycket.hash.base         import W_HashTable, get_dict_item, next_valid_index, w_missing
 from pycket.error             import SchemeException
 from pycket.cont              import continuation, loop_label
-from rpython.rlib             import rerased
+from rpython.rlib             import rerased, jit
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.objectmodel import compute_hash, import_from_mixin, r_dict, specialize
 
@@ -81,6 +81,9 @@ class HashmapStrategy(object):
     def create_storage(self, keys, vals):
         raise NotImplementedError("abstract base class")
 
+@jit.look_inside_iff(lambda keys:
+        jit.loop_unrolling_heuristic(
+                keys, len(keys), values.UNROLLING_CUTOFF))
 def _find_strategy_class(keys):
     if not config.strategies:
         return ObjectHashmapStrategy.singleton
