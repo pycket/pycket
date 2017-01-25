@@ -1059,9 +1059,14 @@ def list_tail(lst, pos):
         else:
             return values.w_null
 
+@expose("current-seconds", [])
+def current_seconds():
+    tick = int(time.clock())
+    return values.W_Fixnum(tick)
+
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock()*1000)
+    return values.W_Flonum(time.clock() * 1000.0)
 
 def _error(args, is_user=False):
     reason = ""

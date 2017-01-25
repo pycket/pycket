@@ -113,18 +113,20 @@ def string_to_bytes_locale(str, errbyte, start, end):
          default(values.W_Object, values.w_false),
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
+def bytes_to_string_latin(w_bytes, err, start, end):
     # XXX Not a valid implementation
-    return W_String.fromascii("")
+    str = w_bytes.as_str().decode("latin-1")
+    return W_String.fromunicode(str)
 
 @expose("string->bytes/latin-1",
-        [values.W_Bytes,
+        [W_String,
          default(values.W_Object, values.w_false),
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
+def string_to_bytes_latin(w_str, err, start, end):
     # XXX Not a valid implementation
-    return values.W_Bytes.from_string("")
+    bytes = w_str.as_unicode().encode("latin-1")
+    return values.W_Bytes.from_string(bytes)
 
 @expose("string->list", [W_String])
 def string_to_list(s):
