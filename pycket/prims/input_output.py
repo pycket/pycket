@@ -612,6 +612,13 @@ def path_to_path_complete_path(path, _base):
         return values.W_Path(p)
     return values.W_Path(base + os.path.sep + p)
 
+@expose("path-convention-type", [values.W_Path])
+def path_convention_type(path):
+    from pycket.prims.general import detect_platform, w_macosx_sym, w_unix_sym
+    platform = detect_platform()
+    if platform is w_macosx_sym:
+        platform = w_unix_sym
+    return platform
 
 def _path_for_some_systemp(path):
     # XXX Really only handles UNIX paths

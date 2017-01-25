@@ -44,7 +44,7 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "trace_limit", 1000000)
         jit.set_param(None, "threshold", 131)
         jit.set_param(None, "trace_eagerness", 50)
-        jit.set_param(None, "max_unroll_loops", 10)
+        jit.set_param(None, "max_unroll_loops", 15)
 
         config, names, args, retval = parse_args(argv)
         if retval != 0 or config is None:

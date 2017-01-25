@@ -157,13 +157,15 @@ def expose_prefab_key2struct_type(w_key, field_count):
 def do_prefab_key(v):
     return values_struct.W_PrefabKey.is_prefab_key(v)
 
+w_can_impersonate = values.W_Symbol.make("can-impersonate")
+
 @expose("make-struct-type-property", [values.W_Symbol,
                                       default(values.W_Object, values.w_false),
                                       default(values.W_List, values.w_null),
                                       default(values.W_Object, values.w_false)])
 def mk_stp(sym, guard, supers, _can_imp):
     can_imp = False
-    if guard is values.W_Symbol.make("can-impersonate"):
+    if guard is w_can_impersonate:
         guard = values.w_false
         can_imp = True
     if _can_imp is not values.w_false:

@@ -70,6 +70,7 @@ pycket-c-nojit: $(PYFILES)
 
 debug: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
+	cp pycket-c pycket-c-debug
 
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
