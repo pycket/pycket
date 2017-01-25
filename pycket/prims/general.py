@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import sys
 import time
 from pycket import impersonators as imp
 from pycket import values, values_string
@@ -1068,6 +1069,11 @@ def current_seconds():
 def curr_millis():
     return values.W_Flonum(time.clock() * 1000.0)
 
+@expose("seconds->date", [values.W_Fixnum])
+def seconds_to_date(s):
+    # TODO: Proper implementation
+    return values.w_false
+
 def _error(args, is_user=False):
     reason = ""
     if len(args) == 1:
@@ -1304,11 +1310,12 @@ w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
 w_macosx_sym = values.W_Symbol.make("macosx")
 
+_platform = sys.platform
+
 def detect_platform():
-    from sys import platform
-    if platform == "darwin":
+    if _platform == "darwin":
         return w_macosx_sym
-    elif platform in ['win32', 'cygwin']:
+    elif _platform in ['win32', 'cygwin']:
         return w_windows_sym
     else:
         return w_unix_sym
