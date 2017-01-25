@@ -1362,3 +1362,18 @@ def test_path_less_than(doctest):
     > (path<? (string->path "/home") (string->path "/home/spenser"))
     #t
     """
+
+def test_string_to_bytes_latin1(doctest):
+    u"""
+    ! (define b (bytes->string/latin-1 (bytes 254 211 209 165)))
+    > (string->bytes/latin-1 b)
+    #"\376\323\321\245"
+    > (bytes->string/latin-1 (string->bytes/latin-1 b))
+    "þÓÑ¥"
+    """
+
+def test_current_seconds(doctest):
+    """
+    > (exact-integer? (current-seconds))
+    #t
+    """

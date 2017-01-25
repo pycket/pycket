@@ -45,8 +45,9 @@ class CallGraph(object):
         self.calls     = {}
         self.recursive = {}
 
+    @jit.not_in_trace
     def register_call(self, lam, calling_app, cont, env):
-        if jit.we_are_jitted() or calling_app is None:
+        if calling_app is None:
             return
         calling_lam = calling_app.surrounding_lambda
         if calling_lam is None:
@@ -57,8 +58,6 @@ class CallGraph(object):
             lam_in_subdct = False
         else:
             lam_in_subdct = lam in subdct
-        cont_ast = cont.get_next_executed_ast()
-        config = env.pycketconfig()
         status = NOT_LOOP
         if not lam_in_subdct:
             subdct[lam] = None
@@ -67,6 +66,7 @@ class CallGraph(object):
                 calling_lam.enable_jitting()
         # It is possible to have multiple consuming continuations for a given
         # function body. This will attempt to mark them all.
+        cont_ast = cont.get_next_executed_ast()
         same_lambda = cont_ast and cont_ast.surrounding_lambda is calling_lam
         if same_lambda:
             # did not call is_recursive yet
@@ -80,18 +80,20 @@ class CallGraph(object):
             status = self.recursive.get(node, NOT_LOOP)
             self.recursive[node] = join_states(status, LOOP_PARTICIPANT)
 
+    def status(self, node):
+        return self.recursive.get(node, NOT_LOOP)
+
     def is_recursive(self, lam, starting_from=None):
         # quatratic in theory, hopefully not very bad in practice
-        status = self.recursive.get(lam, NOT_LOOP)
-        if status == LOOP_HEADER:
+        if self.status(lam) == LOOP_HEADER:
             return LOOP_HEADER
         if starting_from is None:
             starting_from = lam
         reachable = self.calls.get(starting_from, None)
         if reachable is None:
             return NOT_LOOP
-        init = Path(starting_from, None)
-        todo = [(key, init) for key in reachable]
+        path = Path(starting_from, None)
+        todo = [(key, path) for key in reachable]
         visited = {}
         while todo:
             current, path = todo.pop()
@@ -100,11 +102,10 @@ class CallGraph(object):
                 self.add_participants(path)
                 self.recursive[lam] = LOOP_HEADER
                 return LOOP_HEADER
-            status = self.recursive.get(current, NOT_LOOP)
-            if status == LOOP_HEADER:
-                self.add_participants(path)
-                continue
             if current in visited:
+                continue
+            if self.status(current) == LOOP_HEADER:
+                self.add_participants(path)
                 continue
             reachable = self.calls.get(current, None)
             if reachable is not None:
