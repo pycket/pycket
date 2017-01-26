@@ -1379,10 +1379,11 @@ def test_current_seconds(doctest):
 
 def test_true_object(doctest):
     """
-    > (true-object #t)
+    ! (require '#%kernel)
+    > (true-object? #t)
     #t
-    > (true-object #f)
+    > (true-object? #f)
     #f
-    > (true-object 3)
+    > (true-object? 3)
     #f
     """
