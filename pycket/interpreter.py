@@ -289,7 +289,8 @@ def is_builtin_module(mod):
     return mod in BUILTIN_MODULES
 
 class Done(Exception):
-    _attrs_ = _immutable_fields_ = ["values"]
+    _attrs_ = ["values"]
+    _immutable_ = True
     def __init__(self, vals):
         self.values = vals
 

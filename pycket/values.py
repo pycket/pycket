@@ -27,6 +27,7 @@ UNROLLING_CUTOFF = 5
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
 class Values(W_ProtoObject):
     _attrs_ = []
+    _immutable_ = True
     def __init__(self):
         pass
 
