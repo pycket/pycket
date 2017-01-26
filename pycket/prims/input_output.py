@@ -261,7 +261,7 @@ def read_list(stream, end):
     so_far = newlist_hint(8)
     while True:
         next_token = read_token(stream)
-        if isinstance(next_token, DotToken):
+        if next_token is dot_token:
             last = read_stream(stream)
             close = read_token(stream)
             if isinstance(close, RParenToken):
