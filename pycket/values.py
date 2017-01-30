@@ -954,6 +954,9 @@ class W_Bytes(W_Object):
     _immutable_fields_ = ['value']
     _attrs_ = ['value']
 
+    def __init__(self, bs):
+        raise NotImplementedError("abstract base class")
+
     @staticmethod
     def from_string(str, immutable=True):
         if immutable:
@@ -961,10 +964,12 @@ class W_Bytes(W_Object):
         else:
             return W_MutableBytes(list(str))
 
-    def __init__(self, bs):
-        assert bs is not None
-        self.value = check_list_of_chars(bs)
-        make_sure_not_resized(self.value)
+    @staticmethod
+    def from_charlist(chars, immutable=True):
+        if immutable:
+            return W_ImmutableBytes(chars)
+        else:
+            return W_MutableBytes(chars)
 
     def tostring(self):
         # TODO: No printable byte values should be rendered as base 8
@@ -1014,6 +1019,11 @@ class W_MutableBytes(W_Bytes):
     errorname = "bytes"
     _attrs_ = []
 
+    def __init__(self, bs):
+        assert bs is not None
+        self.value = check_list_of_chars(bs)
+        make_sure_not_resized(self.value)
+
     def immutable(self):
         return False
 
@@ -1026,6 +1036,11 @@ class W_MutableBytes(W_Bytes):
 class W_ImmutableBytes(W_Bytes):
     errorname = "bytes"
     _attrs_ = []
+
+    def __init__(self, bs):
+        assert bs is not None
+        self.value = check_list_of_chars(bs)
+        make_sure_not_resized(self.value)
 
     def immutable(self):
         return True

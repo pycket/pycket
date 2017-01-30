@@ -106,7 +106,7 @@ def string_to_bytes_locale(str, errbyte, start, end):
     assert start.value == 0
     assert end is None
     # FIXME: This ignores the locale
-    return values.W_Bytes(str.as_charlist_utf8())
+    return values.W_Bytes.from_charlist(str.as_charlist_utf8())
 
 @expose("bytes->string/latin-1",
         [values.W_Bytes,

@@ -112,6 +112,7 @@ def _find_strategy_class(keys):
         return SymbolHashmapStrategy.singleton
     if single_class is values_string.W_String:
         return StringHashmapStrategy.singleton
+    # TODO: This is not correct, there are two species of bytes
     if single_class is values.W_Bytes:
         return ByteHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
