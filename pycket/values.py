@@ -948,7 +948,6 @@ class W_ThreadCell(W_Object):
     def get(self):
         return self.value
 
-@memoize_constructor
 class W_Bytes(W_Object):
     errorname = "bytes"
     _immutable_fields_ = ['value']
