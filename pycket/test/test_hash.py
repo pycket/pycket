@@ -1,7 +1,7 @@
 import operator as op
 from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
-from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
+from pycket.hash.equal               import MutableByteHashmapStrategy, StringHashmapStrategy
 from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
@@ -345,14 +345,14 @@ def test_whitebox_bytes(source):
     r"""
     (let ([ht (make-hash)] [st (bytes 65 66)])
         (bytes-set! st 0 67)
-        (hash-set! ht #"a" '(red round))
-        (hash-set! ht #"b" '(yellow long))
+        (hash-set! ht (bytes 1 2 3) '(red round))
+        (hash-set! ht (bytes 4 5 6) '(yellow long))
         (hash-set! ht st 77)
-        (hash-ref ht #"c" "not there")
+        (hash-ref ht (bytes 7 8 9) "not there")
         ht)
     """
     result = run_mod_expr(source)
-    assert result.strategy is ByteHashmapStrategy.singleton
+    assert result.strategy is MutableByteHashmapStrategy.singleton
 
 def test_hash_for(doctest):
     """

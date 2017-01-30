@@ -15,7 +15,7 @@ from rpython.tool.pairtype    import extendabletype
 from rpython.rlib             import jit, runicode, rarithmetic, rweaklist
 from rpython.rlib.rstring     import StringBuilder
 from rpython.rlib.objectmodel import always_inline, r_dict, compute_hash, we_are_translated
-from rpython.rlib.objectmodel import specialize, try_inline
+from rpython.rlib.objectmodel import specialize, try_inline, import_from_mixin
 from rpython.rlib.rarithmetic import r_longlong, intmask
 
 import rpython.rlib.rweakref as weakref
@@ -948,12 +948,72 @@ class W_ThreadCell(W_Object):
     def get(self):
         return self.value
 
+class BytesMixin(object):
+
+    def tostring(self):
+        # TODO: No printable byte values should be rendered as base 8
+        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
+
+    def as_bytes_list(self):
+        return self.value
+
+    def equal(self, other):
+        if not isinstance(other, W_Bytes):
+            return False
+        b1 = self.as_bytes_list()
+        b2 = other.as_bytes_list()
+        return b1 == b2
+
+    def hash_equal(self, info=None):
+        from rpython.rlib.rarithmetic import intmask
+        # like CPython's string hash
+        s = self.value
+        length = len(s)
+        if length == 0:
+            return -1
+        x = ord(s[0]) << 7
+        i = 0
+        while i < length:
+            x = intmask((1000003*x) ^ ord(s[i]))
+            i += 1
+        x ^= length
+        return intmask(x)
+
+    def ref(self, n):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
+        return W_Fixnum(ord(self.value[n]))
+
+    def ref_char(self, n):
+        l = len(self.value)
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
+        return self.value[n]
+
+    def as_str(self):
+        return "".join(self.value)
+
+    def getslice(self, start, end):
+        assert start >= 0 and end >= 0
+        bytes = self.value
+        return bytes[start:end]
+
+    def length(self):
+        return len(self.value)
+
 class W_Bytes(W_Object):
     errorname = "bytes"
-    _immutable_fields_ = ['value']
-    _attrs_ = ['value']
+    _immutable_fields_ = []
+    _attrs_ = []
 
     def __init__(self, bs):
+        raise NotImplementedError("abstract base class")
+
+    def as_bytes_list(self):
+        raise NotImplementedError("abstract base class")
+
+    def length(self):
         raise NotImplementedError("abstract base class")
 
     @staticmethod
@@ -971,52 +1031,41 @@ class W_Bytes(W_Object):
             return W_MutableBytes(chars)
 
     def tostring(self):
-        # TODO: No printable byte values should be rendered as base 8
-        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
+        raise NotImplementedError("abstract base class")
 
     def equal(self, other):
-        if not isinstance(other, W_Bytes):
-            return False
-        return len(self.value) == len(other.value) and str(self.value) == str(other.value)
+        raise NotImplementedError("abstract base class")
 
     def hash_equal(self, info=None):
-        from rpython.rlib.rarithmetic import intmask
-        # like CPython's string hash
-        s = self.value
-        length = len(s)
-        if length == 0:
-            return -1
-        x = ord(s[0]) << 7
-        i = 0
-        while i < length:
-            x = intmask((1000003*x) ^ ord(s[i]))
-            i += 1
-        x ^= length
-        return intmask(x)
+        raise NotImplementedError("abstract base class")
 
     def immutable(self):
         raise NotImplementedError("abstract base class")
 
     def ref(self, n):
-        l = len(self.value)
-        if n < 0 or n >= l:
-            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
-        return W_Fixnum(ord(self.value[n]))
+        raise NotImplementedError("abstract base class")
+
+    def ref_char(self, n):
+        raise NotImplementedError("abstract base class")
 
     def set(self, n, v):
         raise NotImplementedError("abstract base class")
 
+    def set_char(self, n, v):
+        raise NotImplementedError("abstract base class")
+
     def as_str(self):
-        return "".join(self.value)
+        raise NotImplementedError("abstract base class")
 
     def getslice(self, start, end):
-        assert start >= 0 and end >= 0
-        bytes = self.value
-        return bytes[start:end]
+        raise NotImplementedError("abstract base class")
 
 class W_MutableBytes(W_Bytes):
     errorname = "bytes"
-    _attrs_ = []
+    _attrs_ = ['value']
+    _immutable_fields_ = ['value']
+
+    import_from_mixin(BytesMixin)
 
     def __init__(self, bs):
         assert bs is not None
@@ -1032,9 +1081,17 @@ class W_MutableBytes(W_Bytes):
             raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
         self.value[n] = chr(v)
 
+    def set_char(self, n, v):
+        l = len(self.value)
+        assert n >= 0 and n < len(self.value)
+        self.value[n] = v
+
 class W_ImmutableBytes(W_Bytes):
     errorname = "bytes"
-    _attrs_ = []
+    _attrs_ = ['value']
+    _immutable_fields_ = ['value[*]']
+
+    import_from_mixin(BytesMixin)
 
     def __init__(self, bs):
         assert bs is not None
@@ -1047,6 +1104,8 @@ class W_ImmutableBytes(W_Bytes):
     def set(self, n, v):
         raise SchemeException("bytes-set!: can't mutate immutable bytes")
 
+    def set_char(self, n, v):
+        assert False
 
 class W_Symbol(W_Object):
     errorname = "symbol"
