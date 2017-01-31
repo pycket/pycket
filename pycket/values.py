@@ -22,6 +22,11 @@ import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
+
+from rpython.rlib import rmmap, rarithmetic, objectmodel
+from rpython.rlib.buffer import Buffer
+from rpython.rlib.rmmap import RValueError, RTypeError, RMMapError
+
 UNROLLING_CUTOFF = 5
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
@@ -1107,6 +1112,82 @@ class W_ImmutableBytes(W_Bytes):
     def set_char(self, n, v):
         assert False
 
+class W_MMapBytes(W_Bytes):
+    errorname = "bytes"
+    _attrs_ = ['value']
+    _immutable_fields_ = ['value']
+
+    import_from_mixin(BytesMixin)
+
+    def __init__(self, bs):
+        assert bs is not None
+        self.value = bs
+
+    def immutable(self):
+        return False
+
+    def set(self, n, v):
+        if n < 0 or n >= self.value.size:
+            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
+        self.value.data[n] = chr(v)
+
+    def set_char(self, n, v):
+        assert n >= 0 and n < self.value.size
+        self.value.data[n] = v
+
+    def tostring(self):
+        # TODO: No printable byte values should be rendered as base 8
+        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value.data])
+
+    def as_bytes_list(self):
+        return self.value.data[:]
+
+    def equal(self, other):
+        if not isinstance(other, W_Bytes):
+            return False
+        b1 = self.as_bytes_list()
+        b2 = other.as_bytes_list()
+        return b1 == b2
+
+    def hash_equal(self, info=None):
+        from rpython.rlib.rarithmetic import intmask
+        # like CPython's string hash
+        s = self.value.data
+        length = self.value.size
+        if length == 0:
+            return -1
+        x = ord(s[0]) << 7
+        i = 0
+        while i < length:
+            x = intmask((1000003*x) ^ ord(s[i]))
+            i += 1
+        x ^= length
+        return intmask(x)
+
+    def ref(self, n):
+        l = self.value.data
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
+        return W_Fixnum(ord(self.value.data[n]))
+
+    def ref_char(self, n):
+        l = self.value.size
+        if n < 0 or n >= l:
+            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
+        return self.value.data[n]
+
+    def as_str(self):
+        return "".join(self.value.data)
+
+    def getslice(self, start, end):
+        assert start >= 0 and end >= 0
+        bytes = self.value.data
+        return bytes[start:end]
+
+    def length(self):
+        return self.value.size
+
+        
 class W_Symbol(W_Object):
     errorname = "symbol"
     _attrs_ = ["unreadable", "_isascii", "_checked", "_unicodevalue", "utf8value"]
