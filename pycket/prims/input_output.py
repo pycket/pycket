@@ -261,7 +261,7 @@ def read_list(stream, end):
     so_far = newlist_hint(8)
     while True:
         next_token = read_token(stream)
-        if isinstance(next_token, DotToken):
+        if next_token is dot_token:
             last = read_stream(stream)
             close = read_token(stream)
             if isinstance(close, RParenToken):
@@ -810,7 +810,7 @@ def file_position(args):
 @expose("display", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def display(datum, out, env, cont):
     if isinstance(datum, values.W_Bytes):
-        bytes = datum.value
+        bytes = datum.as_bytes_list()
         port = current_out_param.get(cont) if out is None else out
         write_bytes_avail(bytes, port , 0, len(bytes))
         return return_void(env, cont)
@@ -1066,28 +1066,30 @@ def read_bytes_avail_bang(w_bstr, w_port, w_start, w_end, env, cont):
     if w_port is None:
         w_port = current_in_param.get(cont)
     start = w_start.value
-    stop = len(w_bstr.value) if w_end is None else w_end.value
+    bytes = w_bstr.as_bytes_list()
+    stop = len(bytes) if w_end is None else w_end.value
     if stop == start:
         return return_value(values.W_Fixnum.ZERO, env, cont)
 
 
     # FIXME: assert something on indices
-    assert start >= 0 and stop <= len(w_bstr.value)
+    assert start >= 0 and stop <= len(bytes)
     n = stop - start
 
     res = w_port.read(n)
     reslen = len(res)
 
     # shortcut without allocation when complete replace
-    if start == 0 and stop == len(w_bstr.value) and reslen == n:
-        w_bstr.value = list(res)
-        return return_value(values.W_Fixnum(reslen), env, cont)
+    if isinstance(w_bstr, values.W_MutableBytes):
+        if start == 0 and stop == len(bytes) and reslen == n:
+            w_bstr.value = list(res)
+            return return_value(values.W_Fixnum(reslen), env, cont)
 
     if reslen == 0:
         return return_value(values.eof_object, env, cont)
 
     for i in range(0, reslen):
-        w_bstr.value[start + i] = res[i]
+        bytes[start + i] = res[i]
     return return_value(values.W_Fixnum(reslen), env, cont)
 
 # FIXME: implementation
@@ -1199,7 +1201,7 @@ def wrap_write_bytes_avail(w_bstr, w_port, w_start, w_end, env, cont):
     # FIXME: custom ports
     if w_port is None:
         w_port = current_out_param.get(cont)
-    bytes = w_bstr.value
+    bytes = w_bstr.as_bytes_list()
     start = 0 if w_start is None else w_start.value
     stop = len(bytes) if w_end is None else w_end.value
     n = write_bytes_avail(bytes, w_port, start, stop)

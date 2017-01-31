@@ -112,8 +112,10 @@ def _find_strategy_class(keys):
         return SymbolHashmapStrategy.singleton
     if single_class is values_string.W_String:
         return StringHashmapStrategy.singleton
-    if single_class is values.W_Bytes:
-        return ByteHashmapStrategy.singleton
+    if single_class is values.W_ImmutableBytes:
+        return ImmutableByteHashmapStrategy.singleton
+    if single_class is values.W_MutableBytes:
+        return MutableByteHashmapStrategy.singleton
     return ObjectHashmapStrategy.singleton
 
 class UnwrappedHashmapStrategyMixin(object):
@@ -222,8 +224,10 @@ class EmptyHashmapStrategy(HashmapStrategy):
             strategy = SymbolHashmapStrategy.singleton
         elif isinstance(w_key, values_string.W_String):
             strategy = StringHashmapStrategy.singleton
-        elif isinstance(w_key, values.W_Bytes):
-            strategy = ByteHashmapStrategy.singleton
+        elif isinstance(w_key, values.W_ImmutableBytes):
+            strategy = ImmutableByteHashmapStrategy.singleton
+        elif isinstance(w_key, values.W_MutableBytes):
+            strategy = MutableByteHashmapStrategy.singleton
         else:
             strategy = ObjectHashmapStrategy.singleton
         storage = strategy.create_storage([], [])
@@ -389,7 +393,6 @@ def cmp_strings(w_a, w_b):
     assert isinstance(w_b, values_string.W_String)
     return w_a.equal(w_b)
 
-
 class StringHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
@@ -407,33 +410,59 @@ class StringHashmapStrategy(HashmapStrategy):
     def _create_empty_dict(self):
         return r_dict(cmp_strings, hash_strings)
 
-
-def hash_bytes(w_b):
-    assert isinstance(w_b, values.W_Bytes)
+def hash_mutable_bytes(w_b):
+    assert isinstance(w_b, values.W_MutableBytes)
     return w_b.hash_equal()
 
-def cmp_bytes(w_a, w_b):
-    assert isinstance(w_a, values.W_Bytes)
-    assert isinstance(w_b, values.W_Bytes)
+def hash_immutable_bytes(w_b):
+    assert isinstance(w_b, values.W_ImmutableBytes)
+    return w_b.hash_equal()
+
+def cmp_mutable_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_MutableBytes)
+    assert isinstance(w_b, values.W_MutableBytes)
     return w_a.value == w_b.value
 
-class ByteHashmapStrategy(HashmapStrategy):
+def cmp_immutable_bytes(w_a, w_b):
+    assert isinstance(w_a, values.W_ImmutableBytes)
+    assert isinstance(w_b, values.W_ImmutableBytes)
+    return w_a.value == w_b.value
+
+class MutableByteHashmapStrategy(HashmapStrategy):
     import_from_mixin(UnwrappedHashmapStrategyMixin)
 
     erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategry")
 
     def is_correct_type(self, w_obj):
-        return isinstance(w_obj, values.W_Bytes)
+        return isinstance(w_obj, values.W_MutableBytes)
 
     def wrap(self, val):
         return val
 
     def unwrap(self, w_val):
-        assert isinstance(w_val, values.W_Bytes)
+        assert isinstance(w_val, values.W_MutableBytes)
         return w_val
 
     def _create_empty_dict(self):
-        return r_dict(cmp_bytes, hash_bytes)
+        return r_dict(cmp_mutable_bytes, hash_mutable_bytes)
+
+class ImmutableByteHashmapStrategy(HashmapStrategy):
+     import_from_mixin(UnwrappedHashmapStrategyMixin)
+
+     erase, unerase = rerased.new_static_erasing_pair("byte-hashmap-strategry")
+
+     def is_correct_type(self, w_obj):
+        return isinstance(w_obj, values.W_ImmutableBytes)
+
+     def wrap(self, val):
+         return val
+
+     def unwrap(self, w_val):
+        assert isinstance(w_val, values.W_ImmutableBytes)
+        return w_val
+
+     def _create_empty_dict(self):
+        return r_dict(cmp_immutable_bytes, hash_immutable_bytes)
 
 class W_EqualHashTable(W_HashTable):
     _attrs_ = ['strategy', 'hstorage', 'is_immutable']

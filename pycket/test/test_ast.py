@@ -59,6 +59,18 @@ def test_cache_lambda_if_no_frees():
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
 
+def test_env_structure_apps():
+    p = expr_ast("(let ([a 1] [b 2]) (+ a b))")
+    a = W_Symbol.make("a")
+    b = W_Symbol.make("b")
+    assert isinstance(p, Let)
+    env_structure = p.body[0].env_structure
+    assert env_structure is not None
+    i, d = env_structure.depth_of_var(a)
+    assert i == 0 and d == 0
+    i, d = env_structure.depth_of_var(b)
+    assert i == 1 and d == 0
+
 def test_cache_recursive_lambda_if_no_frees():
     from pycket.interpreter import interpret_one
     from pycket.values import W_PromotableClosure

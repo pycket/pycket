@@ -481,13 +481,13 @@ def real_floating_point_bytes(n, _size, big_endian):
         intval = rarithmetic.byteswap(intval)
 
     chars  = [chr((intval >> (i * 8)) % 256) for i in range(size)]
-    return values.W_Bytes(chars)
+    return values.W_Bytes.from_charlist(chars)
 
 @expose("floating-point-bytes->real",
         [values.W_Bytes, default(values.W_Object, values.w_false)])
 def integer_bytes_to_integer(bstr, signed):
     # XXX Currently does not make use of the signed parameter
-    bytes = bstr.value
+    bytes = bstr.as_bytes_list()
     if len(bytes) not in (4, 8):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")
@@ -505,7 +505,7 @@ def integer_bytes_to_integer(bstr, signed):
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
 def integer_bytes_to_integer(bstr, signed, big_endian, w_start, w_end):
-    bytes = bstr.value
+    bytes = bstr.as_bytes_list()
 
     start = w_start.value
     if w_end is None:
@@ -564,11 +564,11 @@ def integer_to_integer_bytes(n, w_size, signed, big_endian, w_dest, w_start):
     size  = size
     start = w_start.value
     if w_dest is not None:
-        chars = w_dest.value
+        chars = w_dest.as_bytes_list()
         result = w_dest
     else:
         chars = ['\x00'] * size
-        result = values.W_Bytes(chars)
+        result = values.W_Bytes.from_charlist(chars, immutable=False)
 
     if start < 0:
         raise SchemeException(

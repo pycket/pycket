@@ -1376,3 +1376,14 @@ def test_current_seconds(doctest):
     > (exact-integer? (current-seconds))
     #t
     """
+
+def test_true_object(doctest):
+    """
+    ! (require '#%kernel)
+    > (true-object? #t)
+    #t
+    > (true-object? #f)
+    #f
+    > (true-object? 3)
+    #f
+    """

@@ -134,6 +134,12 @@ def byte_huh(val):
         return values.W_Bool.make(0 <= val.value <= 255)
     return values.w_false
 
+@expose("true-object?", [values.W_Object])
+def true_object_huh(val):
+    if val is values.w_true:
+        return values.w_true
+    return values.w_false
+
 @expose("procedure?", [values.W_Object], foldable=True)
 def procedurep(n):
     return values.W_Bool.make(n.iscallable())

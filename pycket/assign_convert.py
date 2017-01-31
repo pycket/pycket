@@ -101,6 +101,12 @@ class AssignConvertVisitor(ASTVisitor):
         else:
             return ast
 
+    def visit_app(self, ast, vars, env_structure):
+        assert isinstance(ast, App)
+        rator = ast.rator.visit(self, vars, env_structure)
+        rands = [r.visit(self, vars, env_structure) for r in ast.rands]
+        return App.make(rator, rands, env_structure)
+
     def visit_lambda(self, ast, vars, env_structure):
         assert isinstance(ast, Lambda)
         local_muts = compute_body_muts(ast)

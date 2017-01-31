@@ -106,7 +106,7 @@ def string_to_bytes_locale(str, errbyte, start, end):
     assert start.value == 0
     assert end is None
     # FIXME: This ignores the locale
-    return values.W_Bytes(str.as_charlist_utf8())
+    return values.W_Bytes.from_charlist(str.as_charlist_utf8())
 
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
@@ -373,13 +373,14 @@ def bytes_append(args):
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        total_len += len(a.value)
+        total_len += a.length()
 
     result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        for byte in a.value:
+        for i in range(a.length()):
+            byte = a.ref_char(i)
             result[cnt] = byte
             cnt += 1
 
@@ -388,7 +389,7 @@ def bytes_append(args):
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("bytes-ref", [values.W_Bytes, values.W_Fixnum])
 def bytes_ref(s, n):
@@ -400,7 +401,7 @@ def bytes_set_bang(s, n, v):
 
 @expose("unsafe-bytes-length", [subclass_unsafe(values.W_Bytes)])
 def unsafe_bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("unsafe-bytes-ref", [subclass_unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
 def unsafe_bytes_ref(s, n):
@@ -442,22 +443,23 @@ def subbytes(w_bytes, w_start, w_end):
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (bytes-length str)
     """
-    bytes = w_bytes.value
     start = w_start.value
-    if start > len(bytes) or start < 0:
+    length = w_bytes.length()
+    if start > length or start < 0:
         raise SchemeException("subbytes: end index out of bounds")
     if w_end is not None:
         end = w_end.value
-        if end > len(bytes) or end < 0:
+        if end > length or end < 0:
             raise SchemeException("subbytes: end index out of bounds")
     else:
-        end = len(bytes)
+        end = length
     if end < start:
         raise SchemeException(
             "subbytes: ending index is smaller than starting index")
-    return values.W_MutableBytes(bytes[start:end])
+    slice = w_bytes.getslice(start, end)
+    return values.W_Bytes.from_charlist(slice, immutable=False)
 
-@expose(["bytes-copy!"],
+@expose("bytes-copy!",
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
           default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
@@ -469,16 +471,17 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
         raise SchemeException("bytes-copy!: given immutable bytes")
 
     dest_start = w_dest_start.value
-    dest_len = len(w_dest.value)
+    dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
     src_start =  w_src_start.value
-    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+    src_end = w_src.length() if w_src_end is None else w_src_end.value
 
     assert (src_end-src_start) <= dest_max
 
     for i in range(0, src_end - src_start):
-        w_dest.value[dest_start + i] = w_src.value[src_start + i]
+        val = w_src.ref_char(src_start + i)
+        w_dest.set_char(dest_start + i, val)
 
     return values.w_void
 
@@ -495,7 +498,9 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not compare(head.value, t.value):
+            bs1 = head.as_bytes_list()
+            bs2 = t.as_bytes_list()
+            if not compare(bs1, bs2):
                 return values.w_false
             head = t
         return values.w_true
