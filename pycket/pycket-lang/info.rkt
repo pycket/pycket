@@ -1,6 +1,6 @@
 #lang info
 
 (define collection "pycket")
-(define deps '("zo-lib"
+(define deps '("zo-lib" "mmap"
                "base" "compatibility-lib" "r5rs-lib"))
 (define version "0.0")
