@@ -1128,7 +1128,7 @@ class W_MMapBytes(W_Bytes):
 
     def set(self, n, v):
         if n < 0 or n >= self.value.size:
-            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, l))
+            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, self.value.size))
         self.value.data[n] = chr(v)
 
     def set_char(self, n, v):
