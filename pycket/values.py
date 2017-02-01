@@ -1136,11 +1136,12 @@ class W_MMapBytes(W_Bytes):
         self.value.data[n] = v
 
     def tostring(self):
+        assert False
         # TODO: No printable byte values should be rendered as base 8
-        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value.data])
+        #return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value.data])
 
     def as_bytes_list(self):
-        return self.value.data[:]
+        raise SchemeException("nyi")
 
     def equal(self, other):
         if not isinstance(other, W_Bytes):
@@ -1165,7 +1166,7 @@ class W_MMapBytes(W_Bytes):
         return intmask(x)
 
     def ref(self, n):
-        l = self.value.data
+        l = self.value.size
         if n < 0 or n >= l:
             raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
         return W_Fixnum(ord(self.value.data[n]))
@@ -1177,12 +1178,13 @@ class W_MMapBytes(W_Bytes):
         return self.value.data[n]
 
     def as_str(self):
-        return "".join(self.value.data)
+        raise SchemeException("nyi")
 
     def getslice(self, start, end):
         assert start >= 0 and end >= 0
         bytes = self.value.data
-        return bytes[start:end]
+        assert False
+        #return bytes[start:end]
 
     def length(self):
         return self.value.size
