@@ -2,7 +2,7 @@ language: python
 cache: apt
 sudo: false
 python:
-- pypy-5.6.0
+- "pypy-5.3.1"
 notifications:
   irc:
     channels:
