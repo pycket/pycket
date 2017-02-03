@@ -2,7 +2,7 @@
 
 #lang racket/base
 
-(require "tcp.rkt")
+(require pycket/extra-prims/tcp)
 (provide
   bytes-vector?
   bytes-vector-size
