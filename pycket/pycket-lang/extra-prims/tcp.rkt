@@ -2,7 +2,7 @@
 
 #lang racket/base
 
-(require (prefix-in lib: racket/tcp))
+(require (prefix-in lib: racket/tcp) ffi/unsafe)
 (provide
   tcp-listener?
   tcp-listen
@@ -16,6 +16,40 @@
   tcp-recv
   tcp-close
   tcp-recv-chunk)
+
+
+;; The following code is from:
+;; http://macrologist.blogspot.co.uk/2012/03/avoid-flushing-your-wire-protocols.html
+
+(define IPPROTO_TCP 6)
+(define TCP_NODELAY 1)
+
+(define setsockopt_tcp_nodelay
+  (get-ffi-obj "setsockopt" #f
+    (_fun (socket enabled?) ::
+          (socket : _int)
+          (_int = IPPROTO_TCP)
+          (_int = TCP_NODELAY)
+          (enabled-ptr : (_ptr i _int)
+                       = (if enabled? 1 0))
+          (_int = (compiler-sizeof 'int))
+          -> (result : _int)
+          -> (if (zero? result)
+                 (void)
+                 (error 'set-tcp-nodelay! "failed")))))
+
+(define scheme_get_port_socket
+  (get-ffi-obj "scheme_get_port_socket" #f
+    (_fun (port) ::
+          (port : _racket)
+          (socket : (_ptr o _intptr))
+          -> (result : _int)
+          -> (and (positive? result) socket))))
+
+; set-tcp-nodelay! : tcp-port boolean -> void
+(define (set-tcp-nodelay! port enabled?)
+  (let ([socket (scheme_get_port_socket port)])
+    (setsockopt_tcp_nodelay socket enabled?)))
 
 
 ;; Returns `#t` or `#f`.
@@ -56,16 +90,14 @@
   socket-or-#f)
 
 ;; Switch on the Nagle algorithm; returns nothing.
-;; XXX: Can't actually be implemented on top of Racket's TCP lib.
-;; XXX: This implementation does nothing.
+;; We only modify the inport's socket, since they should
+;; be the same socket
 (define (tcp-setsockopt-NODELAY-0! socket)
-  (void))
+  (set-tcp-nodelay! (inport socket) #f))
 
 ;; Switch off the Nagle algorithm; returns nothing.
-;; XXX: Can't actually be implemented on top of Racket's TCP lib.
-;; XXX: Do nothing; Racket is patched to have Nagle switched off permanently.
 (define (tcp-setsockopt-NODELAY-1! socket)
-  (void))
+  (set-tcp-nodelay! (inport socket) #t))
 
 ;; Blocks until some bytes from byte string `bstr` can be sent and flushed;
 ;; returns the number of bytes sent (1 <= length `bstr` unless `bstr` empty).
