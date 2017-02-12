@@ -10,11 +10,14 @@
 (define DEBUG-STACK #f)
 (define pycket-dir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
 (define collects-dir (path->string (find-collects-dir)))
+(define file-name 'beSetBy-main)
 (define module-name 'beSetBy-main)
 (define module-extension 'beSetBy-main)
 (define relative-current-dir 'rel-dir-beSetBy-main)
 (define TEST #f)
 
+(define initial-toplevels 'beSetBy-main)
+(define LIFTEDS '())
 (define TOPLEVELS '())
 (define TOPSYNTAX '())
 
@@ -198,7 +201,10 @@
 (define (handle-primval operation)
   (let* ([id (primval-id operation)]
          [operator-name (get-primval-name id)])
-    (hash* 'source-name operator-name)))
+    (if (string-contains? operator-name "unsafe") ;; cheat
+        (hash* 'source-name operator-name
+               'source-module '("#%unsafe"))
+        (hash* 'source-name operator-name))))
 
 
 #|
@@ -239,7 +245,11 @@ put the usual application-rands to the operands
          ;; so we try to infer it from the name field (which is there for debugging purposes)
          [source (if (null? name) '()
                      (if (vector? name)
-                         (hash* '%p (path->string (vector-ref name 1)))                         
+                         (let* ([fpath (vector-ref name 1)] ;; get the name, and put it in the relative-dir
+                                ;; b/c lam-name depends on where raco make is run (as opposed to where pycket is run)
+                                [fname (file-name-from-path fpath)])
+                           (hash* '%p (path->string (if (eq? relative-current-dir "") fname
+                                                        (build-path (string->path relative-current-dir) fname)))))
                          (if (not (symbol? name)) (error 'handle-lambda "we have a non symbol/vector name in a lam form")
                              (let* ([collects-dir (path->string (find-collects-dir))]
                                     [name-str (symbol->string name)]
@@ -253,15 +263,7 @@ put the usual application-rands to the operands
                                              (string-append collects-dir "/syntax/parse/private/parse.rkt")]
                                             [else
                                              (begin (when DEBUG (displayln (format "writing lam name : ~a" name)))
-                                                    (symbol->string name))])]
-                                    
-                                    #;[lamname (if (and (not (string-contains? (symbol->string name) ".../more-scheme.rkt"))
-                                                     (not (string-contains? (symbol->string name) "kw.rkt")))
-                                                 (begin (when DEBUG (displayln (format "writing lam name : ~a" name)))
-                                                        (symbol->string name))#;(error 'handle-lambda (format "lam name has an unusual form : ~a" name))
-                                                 (if (string-contains? (symbol->string name) "kw.rkt")
-                                                     "kw.rkt" "more-scheme.rkt"))]
-                                    )
+                                                    (symbol->string name))])])
                                (hash* '%p path)))))]
          [position 321] ;; TODO: span&pos info are inside the lam-name
          [span 123]
@@ -293,30 +295,104 @@ put the usual application-rands to the operands
          ;; rest arg symbol
          [rest-formal (if rest? (symbol->string (gensym 'lamrest)) 'hokarz)]
 
-         ;; vector of stack positions that are captured when evaluating the lambda form to create a closure.
-         [current-stack-length (length localref-stack)]
-         [captured-stack-positions (remv current-stack-length (vector->list (lam-closure-map lam-form)))] ;; vector
-         [captured-current-stack-items (map (λ (pos)
-                                              (if (> pos current-stack-length)
-                                                  (begin (when DEBUG (displayln current-stack-length))
-                                                         (with-handlers
-                                                           ([exn:fail?
-                                                             (lambda (e)
-                                                               (error 'top-error
-                                                                      "toplevels : ~a, position : ~a, for capture : ~a, stack: ~a"
-                                                                      TOPLEVELS pos captured-stack-positions localref-stack))])
-                                                           (list-ref TOPLEVELS pos)))
-                                                  (list-ref localref-stack pos)))
-                                            captured-stack-positions)]
-
          [new-localref-stack-1 (if rest?
                                    (append symbols-for-formals (list rest-formal) localref-stack)
                                    (append symbols-for-formals localref-stack))]
-         
-         [toplevelmap (lam-toplevel-map lam-form)] ;; either #f or a set
-         [toplevel-map-size (if (not toplevelmap) 0 (set-count toplevelmap))]
 
-         [new-localref-stack (append captured-current-stack-items new-localref-stack-1)]
+         ;; capture-prefix : a vector of stack positions that are captured when
+         ;;                  evaluating the lambda form to create a closure.
+         [capture-prefix (vector->list (lam-closure-map lam-form))] ;; vector->list
+         
+         ;; top-map : indicates which top-level and lifted variables are
+         ;;           actually used by the closure
+         ;;           and whether any syntax objects are used (<- it's not clear how it does this).
+         [top-map (let ([top-map* (lam-toplevel-map lam-form)])
+                    (if (not top-map*)
+                        (if (empty? capture-prefix)
+                            '()
+                            #f)
+                        (set->list top-map*)))] ;; list
+         ;; A #f value indicates either that no prefix is captured or
+         ;; all variables and syntax objects in the prefix should be considered used.
+                  
+         ;; In the prefix:
+         ;; -- Variables are numbered consecutively by position starting from 0
+         ;; -- the number equal to the number of non-lifted variables corresponds to syntax objects
+         ;; -- Lifted variables are numbered immediately afterward
+
+         ;; ----- non-lifteds ---- syntax-objects ---- lifteds ----
+         
+         ;; Let's regenerate the conditions when the prefix was captured (reverse engineer the then stack)
+         
+         [make-symbol (lambda (v)
+                        (cond
+                          [(symbol? v) v]
+                          [(module-variable? v) (module-variable-sym v)]
+                          [(string? v) (string->symbol v)]
+                          [else (error 'lambda:make-symbol "add this case where v in TOPLEVELS is : ~a" v)]))]
+
+         [toplevels-symbol (map make-symbol initial-toplevels)]
+         [num-real-toplevels (length toplevels-symbol)]
+         
+         [lifted-variables LIFTEDS] ;; andmap symbol?
+
+         [toplevel-and-lifteds (map make-symbol TOPLEVELS)]
+
+         
+         [non-lifteds (filter (lambda (s)
+                                (let* ([s (make-symbol s)]
+                                       [s-sym (symbol->string s)])
+                                  (or (string-contains? s-sym "lam.val")
+                                      (string-contains? s-sym "letone")
+                                      (string-contains? s-sym "let-void")
+                                      (string-contains? s-sym "-letrec")
+                                      (string-contains? s-sym "app-empty-slot")
+                                      (member s toplevels-symbol))))
+                              localref-stack)]
+
+         [num-of-non-lifteds (length non-lifteds)]
+
+         [stack-captured-items non-lifteds]
+
+         ;; Future problem -> we don't know how many syntax objects we have in the prefix!!
+         
+         [top-map-toplevels (and top-map
+                                 (map (lambda (top) (list-ref toplevels-symbol top))
+                                      (sort (filter (lambda (top) (< top num-real-toplevels)) top-map) <)))]
+         ;; ASSUMPTION : toplevels stay in the prefix sorted by their positions
+         ;; reason : "test/control.rktl" - function has a toplevel-map like (set 44 43 14) was only capturing 14 with closure-map #(0)
+         [top-map-lifteds (and top-map
+                               (map (lambda (top) (with-handlers
+                                               ([exn:fail? (lambda (e)
+                                                             (error 'hede "capture prefix : ~a \n --- non-lifteds : ~a\n --- top-map : ~a\n --- toplevels : ~a\n" capture-prefix non-lifteds top-map toplevels-symbol))])
+                                               (list-ref toplevel-and-lifteds top)))
+                                    (sort (filter (lambda (top) (>= top num-real-toplevels)) top-map) <)))]
+
+         [toplevel-captured-items (if (not top-map)
+                                      toplevel-and-lifteds
+                                      (append top-map-toplevels top-map-lifteds))] ;; <- this order is important
+
+         ;; actual-prefix when the closure was captured
+         [actual-prefix (let ([actual-prefix* (append stack-captured-items #;syntax-objects??? toplevel-captured-items)])
+                          (begin
+                            ;; just a sanity check
+                            (when (not (>= (length actual-prefix*)
+                                           (length capture-prefix)))
+                              (error 'lambda:capture "capture-prefix : ~a ---- actual-prefix : ~a ---- #-of-non-lifteds : ~a"
+                                     capture-prefix actual-prefix* num-of-non-lifteds))
+                            (when DEBUG
+                              (displayln (format "****** CAPTURE : prefix : ~a \n---- actual-prefix : ~a \n---- top-map : ~a \n---- #-of-non-lifteds : ~a"
+                                                 capture-prefix actual-prefix* top-map num-of-non-lifteds)))
+                            actual-prefix*))]
+
+         [captured-items (map (lambda (pos) (with-handlers
+                                         ([exn:fail? (lambda (e)
+                                                       (error 'capture "capture-prefix : ~a ---- actual-prefix : ~a ---- #-of-non-lifteds : ~a"
+                                                              capture-prefix actual-prefix num-of-non-lifteds))])
+                                         (list-ref actual-prefix pos))) capture-prefix)]
+
+         
+         [new-localref-stack (append captured-items new-localref-stack-1)]
 
          [lamBda
           (let ([args (map (λ (sym) (hash* 'lexical (if (box? sym) (unbox sym) sym))) symbols-for-formals)])
@@ -444,6 +520,9 @@ put the usual application-rands to the operands
                     ;; resolving manually using the base-path
                     (if (self-mod? base-path)
                         (string-append relative-current-dir module-path)
+                        #;(if TEST
+                            module-path
+                            (string-append relative-current-dir module-path))
                         (let ([base-path-str (if (resolved-module-path? base-path)
                                                  (path->string (resolved-module-path-name base-path))
                                                  (module-path-index->path-string base-path))])
@@ -738,8 +817,8 @@ put the usual application-rands to the operands
          [proc-names (map (lambda (proc)
                             (let ([name (lam-name proc)])
                               (if (symbol? name)
-                                  (symbol->string name)
-                                  (symbol->string (vector-ref name 0)))))
+                                  (format "~a-letrec" (symbol->string (gensym name)))
+                                  (format "~a-letrec" (symbol->string (gensym (vector-ref name 0)))))))
                           procs)]
          [slot-count (length procs)]
          [slot-positions (range slot-count)]
@@ -749,8 +828,10 @@ put the usual application-rands to the operands
             ;; sanity check : validity of the pre-installed slots
             (if (andmap (λ (p) (string-contains? (list-ref localref-stack p) "let-void")) slot-positions)
                 'ok
-                (error 'handle-let-rec (format "posiitons : ~a ---- to be modified slots don't look good : ~a" slot-positions localref-stack)))
-            (append reversed-proc-names (drop localref-stack slot-count)))]
+                (error 'handle-let-rec (format "positions : ~a ---- to be modified slots don't look good : ~a" slot-positions localref-stack)))
+            (append reversed-proc-names #;localref-stack
+                    (drop localref-stack slot-count)
+                    ))]
 
          [proc-bodies (map (λ (proc) (to-ast-single proc new-localref-stack current-closure-refs)) procs)]
          [body (let-rec-body letrec-form)])
@@ -1010,17 +1091,189 @@ put the usual application-rands to the operands
     (set! module-name mod-name)
     (set! module-extension mod-ext)
     (set! relative-current-dir rel-current-dir)
-    (set! TEST test)))
+    (set! TEST test)
+    (set! file-name mod-name)))
 
-(define (set-toplevels! toplevels topsyntaxes)
+(define (set-toplevels! real-toplevels toplevels topsyntaxes)
+  (set! initial-toplevels real-toplevels)
   (set! TOPLEVELS toplevels)
   (set! TOPSYNTAX topsyntaxes))
 
-(define (to-ast-wrapper body-forms toplevels topstxs debug mod-name relative-dir)
+(define (to-ast-wrapper code toplevels topstxs debug mod-name relative-dir)
   (begin
-    (set-globals! debug mod-name relative-dir false)
-    (set-toplevels! toplevels topstxs)
-    (to-ast body-forms)))
+    (set-globals! debug mod-name "rkt" relative-dir false)
+    #;(set-toplevels! toplevels topstxs)
+    ((expand-mod false) code)#;(to-ast body-forms)))
+
+;; code-body : listof def-values
+(define (prepare-toplevels code-body toplevels)
+  (let* ([defvals (filter def-values? code-body)]
+         [new-toplevels (collect-toplevels defvals toplevels)]) ;; <-- ((pos-num top-sym) ...)
+    (if (null? new-toplevels)
+        toplevels ;; don't bother
+        (let*
+            ([toplen (length toplevels)]
+             ;; aligning new toplevels like ((30 x) (32 a) (35 b)) ==> ((30 x) (31 dummy) (32 a) (33 dummy) (34 dummy) (35 b))
+             ;; we know that there's no reference in the code to the missing toplevels, but the position matters (for list-ref)
+             ;; TODO : revisit : use a hashmap for toplevels
+             [aligned-new-toplevels (foldr (λ (x rest)
+                                             (if (or (null? rest)
+                                                     (= 1 (- (caar rest) (car x))))
+                                                 (cons x rest)
+                                                 (let ([diff (- (caar rest) (car x) 1)])
+                                                   (cons x (append (build-list diff (λ (n) (list (+ n x 1) 'dummytop))) rest))))) null new-toplevels)]
+
+             [padded-new-toplevels (let* ([diff (- (caar aligned-new-toplevels) toplen)]
+                                          [pad (build-list diff (λ (n) (list (+ n toplen) 'dummytop)))])
+                                     (append pad aligned-new-toplevels))])
+          
+          ;; at this point, we know everything's in place,
+          ;; so we can safely append prepared new-toplevels to the current global toplevels
+          (let ([top-syms (map cadr padded-new-toplevels)])
+            (append toplevels top-syms))))))
+
+;; collect-toplevels : (listof def-values) -> (listof pos-num top-var-sym)
+(define (collect-toplevels code-body toplevels)
+  (sort
+   (filter
+    (compose not null?)
+    (map (λ (defval)
+           (let* ([def-ids (def-values-ids defval)]
+                  [def-rhs (def-values-rhs defval)]
+                  [poss (map toplevel-pos def-ids)]
+                  [toplen (length toplevels)]) ; <- this is the real prefix-toplevels from comp-top
+             (if (= (length poss) 1)
+                 (if (< (car poss) toplen)
+                     '()
+                     (let* ([sym (let ([name (cond [(lam? def-rhs) (lam-name def-rhs)]
+                                                   [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
+                                                   [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
+                                   (if (symbol? name) (gensym name) (gensym (vector-ref name 0))))]
+                            [new-sym (string->symbol (string-append (symbol->string sym) "-lifted"))])
+                       (begin
+                         (set! LIFTEDS (cons new-sym LIFTEDS))
+                         (list (car poss) new-sym))))
+                 ;; we have multiple toplevels at the defval
+                 (if (ormap (λ (pos) (>= pos toplen)) poss)
+                     (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " poss defval)
+                     ;; then all the top-posses are < toplen, thus we ignore
+                     '()))))
+         code-body))
+   (λ (l1 l2) (< (car l1) (car l2)))))
+
+(define (expand-mod submodule?)
+  (lambda (code)  ;; code is a mod
+    
+
+    ;; 1) Dive in to the requires to gather info
+    
+    ;; requires
+    (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
+    (define phase0 (assv 0 top-reqs))
+    (define phase0-reqs (cdr phase0))
+
+    (define module-name (let ([module-name (mod-name code)])
+                          (cond
+                            [(symbol? module-name) (symbol->string module-name)]
+                            [(list? module-name) (symbol->string (last module-name))]
+                            [else (error 'expand-mod "module-name cannot be determined : ~a" module-name)])))
+    
+    (define language (let ([lang* (module-path-index->path-string (car phase0-reqs))])
+                       (cond
+                         [(or (and (string? lang*)
+                                   (string-contains? lang* "pycket/pycket-lang/main.rkt")) ;; cheat
+                              (equal? lang* '("#%kernel"))) '("#%kernel")]
+                         [(string? lang*) (list lang*)]
+                         [else false])))
+    ;(error 'expand-mod "language cannot be determined from this : ~a in module : ~a" lang* module-name)])))
+
+    ;; 2) Now let's look at what we have in the required modules
+    (define reqs (cdr phase0-reqs))
+
+    (define top-level-req-forms
+      (if (empty? reqs) reqs
+          (list (hash* 'require 
+             (map (λ (req-mod)
+                    (let ([mod-path (module-path-index->path-string req-mod)])
+                      (if (list? mod-path) mod-path (list mod-path)))) reqs)))))
+
+
+    ;; 3) Go with the provides (pycket doesn't care about it for now - mostly)
+    
+    ;; (define phase0-provides (assv 0 (mod-provides code)))
+    ;; (define regular-provides (cadr phase0-provides))
+    ;; (define syntax-phase-provides (caddr phase0-provides))
+    
+    (define top-provides* (cadr (assv 0 (mod-provides code))))
+    (define top-provide-names (map (λ (prov) (list (provided-name prov)
+                                                 (provided-src-name prov))) top-provides*))
+    (define (handle-provides provs out)
+      (cond
+        ((null? provs) out)
+        (else (let*
+                  ([pr (car provs)]
+                   [out-name (car pr)]
+                   [orig-name (cadr pr)])
+                (handle-provides
+                 (cdr provs)
+                 (cons
+                  (if (eqv? out-name orig-name)
+                      ;; no rename-out
+                      (hash* 'source-name (symbol->string orig-name)
+                             'source-module (list
+                                             (string-append relative-current-dir file-name ".rkt")
+                                             module-name))
+                      ;; rename-out
+                      (list (hash* 'toplevel "rename")
+                            (hash* 'source-name (symbol->string orig-name)
+                                   'source-module
+                                   (list (string-append relative-current-dir file-name ".rkt")))
+                            (hash* 'toplevel (symbol->string out-name)))) out))))))
+    
+    #;(define all-provides '() #;(append regular-provides syntax-phase-provides))
+    ;; removed handle-provides (since we don't care about the provides now)
+    #;(define top-provides '() #;(if (not (empty? all-provides))
+                                     (list (cons (hash* 'source-name "#%provide")
+                                                 (handle-provides all-provides '())))
+                                     '()))
+
+    (define top-provides #;(handle-provides top-provide-names '())
+      (let ([prepared (handle-provides top-provide-names '())])
+        (if (empty? prepared) prepared 
+            (list (cons (hash* 'source-name "#%provide")
+                        prepared)))))
+
+    (define top-reqs-provs (append top-level-req-forms top-provides))
+    
+    ;; 4) Then let's build our:
+    (define pre-submods (map (expand-mod true) (mod-pre-submodules code))) ;; module-declared submods
+    (define post-submods (map (expand-mod true) (mod-post-submodules code))) ;; module*-declared submods
+
+    
+    ;; 5) Set! the toplevel reference bucket
+    (define toplevels (prefix-toplevels (mod-prefix code)))
+    (define complete-toplevels (prepare-toplevels (mod-body code) toplevels))
+    (define topsyntaxes (prefix-stxs (mod-prefix code)))
+
+    ;; setting the global toplevels for the expansion of the body
+    (set-toplevels! toplevels complete-toplevels topsyntaxes)    
+    
+    ;; 6) Now we can build the body
+    (define body-forms (to-ast (mod-body code)))
+    
+    ;; 7) Stitch everything together
+    (define whole-body (append top-reqs-provs pre-submods post-submods body-forms))
+
+    (let* ([final-hash (hash* 'module-name module-name
+                              'body-forms whole-body)]
+           [final-hash (if language
+                           (hash-set final-hash 'language language)
+                           final-hash)]
+           [final-hash (if (not submodule?)
+                           (hash-set final-hash 'config (hash-set global-config 'bytecode-expand "true"))
+                           final-hash)])
+      final-hash)))
+
 
 (module+ main
   (require racket/cmdline json compiler/cm)
@@ -1030,8 +1283,6 @@ put the usual application-rands to the operands
   (define out #f)
   (define test #f)
 
-  ;; this is because docs say "the filename-extension is deprecated, use path-get-extension",
-  ;; but I (v6.5) seem to have the former, not the latter
   (define-syntax (get-extension stx)
     (syntax-case stx ()
       [(_ p)
@@ -1077,128 +1328,8 @@ put the usual application-rands to the operands
 
   (define code (compilation-top-code comp-top)) ;; code is a mod
 
-  (define regular-provides (cadr (assv 0 (mod-provides code))))
-  (define syntax-phase-provides (caddr (assv 0 (mod-provides code))))
 
-  (define all-provides '() #;(append regular-provides syntax-phase-provides))
-  ;; removed handle-provides (since we don't care about the provides now)
-  (define top-provides '() #;(if (not (empty? all-provides))
-                           (list (cons (hash* 'source-name "#%provide")
-                                       (handle-provides all-provides '())))
-                           '()))
-  
-  (define top-reqs (mod-requires code)) ;; assoc list ((phase mods) ..)
-  (define phase0 (assv 0 top-reqs))
-  (define phase0-reqs (cdr phase0))
-  
-  (define lang (module-path-index->path-string (car phase0-reqs)))
-
-  (define lang-pycket?
-    (let ([lang* (if (string? lang) lang
-                     (if (and (list? lang) (null? (cdr lang))) ;; (quoted mpi) like '("#%kernel")
-                         (car lang)
-                         (error 'lang-pycket? "unusual lang form : ~a" lang)))])
-      (or (string-contains? lang* "#%kernel") (string-contains? lang* "kernel.rkt") (string-contains? lang* "pycket-lang"))))
-    
-  (define runtime-config ;; TODO : revisit : submodule handling should handle this
-    (if lang-pycket?
-        'dont-care ;; if lang-pycket?, then the runtime-config will never be added to the body forms
-        (let* ([pre-submods (mod-pre-submodules code)]
-               [runtime-prefix (mod-prefix (car pre-submods))]
-               [runtime-mod (car (filter module-variable? (prefix-toplevels runtime-prefix)))]
-               ;; assert (module-variable? runtimeMod) and (eqv? module-variable-sym 'configure)
-               [resolved-mod-path (resolved-module-path-name
-                                 (module-path-index-resolve (module-variable-modidx runtime-mod)))]
-               [runtime-config (if (or (list? resolved-mod-path)
-                                       (symbol? resolved-mod-path))
-                                   (error 'runtimeConfigModule "don't know how to handle a submodule here")
-                                   (path->string resolved-mod-path))])
-          (hash* 'language (list "#%kernel")
-                 'module-name (symbol->string (mod-srcname (car pre-submods)))
-                 'body-forms (list
-                              (hash* 'require (list (list runtime-config)))
-                              (hash* 'operator (hash* 'source-module (if test (list ".") (list runtime-config))
-                                                      'source-name (symbol->string
-                                                                    (module-variable-sym runtime-mod)))
-                                     'operands (list (hash 'quote #f))))))))
-
-  (define reqs (cdr phase0-reqs))
-
-  ;; TODO: proper submod handling
-  
-  (define top-level-req-forms     
-    (map (λ (req-mod)
-           (let ([mod-path (module-path-index->path-string req-mod)])
-             (hash* 'require (list (if (list? mod-path) mod-path (list mod-path)))))) reqs))
-
-  ;; code-body : listof def-values
-  (define (prepare-toplevels code-body)
-    (let* ([defvals (filter def-values? code-body)]
-           [new-toplevels (collect-toplevels defvals)]) ;; <-- ((pos-num top-sym) ...)
-      (if (null? new-toplevels)
-          toplevels ;; don't bother
-          (let*
-              ([toplen (length toplevels)]
-               ;; aligning new toplevels like ((30 x) (32 a) (35 b)) ==> ((30 x) (31 dummy) (32 a) (33 dummy) (34 dummy) (35 b))
-               ;; we know that there's no reference in the code to the missing toplevels, but the position matters (for list-ref)
-               ;; TODO : revisit : use a hashmap for toplevels
-               [aligned-new-toplevels (foldr (λ (x rest)
-                                               (if (or (null? rest)
-                                                       (= 1 (- (caar rest) (car x))))
-                                                   (cons x rest)
-                                                   (let ([diff (- (caar rest) (car x) 1)])
-                                                     (cons x (append (build-list diff (λ (n) (list (+ n x 1) 'dummytop))) rest))))) null new-toplevels)]
-
-               [padded-new-toplevels (let* ([diff (- (caar aligned-new-toplevels) toplen)]
-                                            [pad (build-list diff (λ (n) (list (+ n toplen) 'dummytop)))])
-                                       (append pad aligned-new-toplevels))])
-                                       
-            ;; at this point, we know everything's in place,
-            ;; so we can safely append prepared new-toplevels to the current global toplevels
-            (let ([top-syms (map cadr padded-new-toplevels)])
-              (append toplevels top-syms))))))
-  
-  ;; collect-toplevels : (listof def-values) -> (listof pos-num top-var-sym)
-  (define (collect-toplevels code-body)
-    (sort
-     (filter
-      (compose not null?)
-      (map (λ (defval)
-             (let* ([def-ids (def-values-ids defval)]
-                    [def-rhs (def-values-rhs defval)]
-                    [poss (map toplevel-pos def-ids)]
-                    [toplen (length toplevels)]) ; <- this is the real prefix-toplevels from comp-top
-               (if (= (length poss) 1)
-                   (if (< (car poss) toplen)
-                       '()
-                       (let ([sym (let ([name (cond [(lam? def-rhs) (lam-name def-rhs)]
-                                                    [(inline-variant? def-rhs) (lam-name (inline-variant-direct def-rhs))]
-                                                    [else (error 'collect-toplevels "couldn't get the name from ~a" defval)])])
-                                    (if (symbol? name) name (gensym (vector-ref name 0))))])
-                         (list (car poss) (gensym sym))))
-                   ;; we have multiple toplevels at the defval
-                   (if (ormap (λ (pos) (>= pos toplen)) poss)
-                       (error 'prepare-toplevels "one of the ids have >toplevel pos : ~a in defval : " poss defval)
-                       ;; then all the top-posses are < toplen, thus we ignore
-                       '()))))
-           code-body))
-     (λ (l1 l2) (< (car l1) (car l2)))))
-
-  ;; toplevels : #f | global-bucket | module-variable
-  (define toplevels (prefix-toplevels (mod-prefix code)))
-  (define complete-toplevels (prepare-toplevels (mod-body code)))
-
-  (define topsyntaxes (prefix-stxs (mod-prefix code))) ;; (listof stx?)
-  
-  (set-toplevels! complete-toplevels topsyntaxes)
-
-  (define final-json-hash (compile-json (hash-set global-config 'bytecode-expand "true")
-                                        (if lang-pycket? "#%kernel" lang)
-                                        (string-append sub-dirs-str module-name)
-                                        runtime-config
-                                        (append top-level-req-forms top-provides)
-                                        (to-ast (mod-body code))
-                                        lang-pycket?))
+  (define final-json-hash ((expand-mod false) code))
   
   (begin
     (write-json final-json-hash out)
