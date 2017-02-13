@@ -526,16 +526,27 @@ put the usual application-rands to the operands
   (if (self-mod? mod-idx)
       (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
-        (if (list? module-path) ;; it may be resolved
+        (if (list? module-path) ;; it may be resolved ;; TODO : refactor/cleanup
             (let* ([resolved
-                    (with-handlers ([exn:fail? (λ (e)
-                                                 (if (or (not (eq? 'submod (car module-path)))
-                                                         (not (string? (cadr module-path)))
-                                                         (not (self-mod? base-path)))
-                                                     (error 'module-path-index->path-string "check mod-idx : ~a" mod-idx)
-                                                     (cons (string-append relative-current-dir (cadr module-path))
-                                                           (map resolved-to-string (cddr module-path)))))])
-                      (module-path-index-resolve mod-idx))]
+                    (if
+                     (and (eq? 'submod (car module-path))
+                          (string? (cadr module-path))
+                          (self-mod? base-path)
+                          (or (string=? "." (cadr module-path))
+                              (string=? ".." (cadr module-path)))) ;; regular submod
+                     (cons (cadr module-path) (map resolved-to-string (cddr module-path)))
+                     (with-handlers
+                       ([exn:fail?
+                         (λ (e)
+                           (cond
+                             [(or (not (eq? 'submod (car module-path)))
+                                  (not (string? (cadr module-path)))
+                                  (not (self-mod? base-path)))
+                              (error 'module-path-index->path-string "check mod-idx : ~a" mod-idx)]
+                             [else
+                              (let ([relative-module (string-append relative-current-dir (cadr module-path))])
+                                (cons relative-module (map resolved-to-string (cddr module-path))))]))])
+                       (module-path-index-resolve mod-idx)))]
                    [resolved-name (if (resolved-module-path? resolved) (resolved-module-path-name resolved) resolved)])
               (resolved-to-string resolved-name))
             (if (symbol? module-path) ;; then it is resolved
