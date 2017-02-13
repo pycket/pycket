@@ -53,7 +53,7 @@
 (define primitives (hash-values primitive-table))
 
 (define (value? form)
-  (ormap (λ (f) (f form)) (list list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes? extflonum?)))
+  (ormap (λ (f) (f form)) (list path? list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes? extflonum?)))
 
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
@@ -187,6 +187,9 @@
 
 (define (handle-list list-form)
   (map to-ast-val list-form))
+
+(define (handle-path path-form)
+  (hash* 'path (path->string path-form)))
 
 (define (handle-box box-form)
   (hash* 'box (to-ast-val (unbox box-form))))
@@ -949,6 +952,8 @@ put the usual application-rands to the operands
   (cond
     ((list? val-form) 
      (handle-list val-form))
+    ((path? val-form)
+     (handle-path val-form))
     ((box? val-form)
      (handle-box val-form))
     ((pair? val-form)
