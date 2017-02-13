@@ -698,6 +698,8 @@ def test_procedure_closure_contents_eq(doctest):
     ! (define (f x) (lambda () x))
     ! (define a "abc")
     ! (define (g x) (lambda () (g x)))
+    ! (set! f (lambda (x) (lambda () x)))
+    ! (set! g (lambda (x) (lambda () (g x))))
     > (procedure-closure-contents-eq? (f a) (f a))
     #t
     > (procedure-closure-contents-eq? (f a) (f "abc"))
