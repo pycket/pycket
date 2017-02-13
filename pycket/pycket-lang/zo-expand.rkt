@@ -1,13 +1,13 @@
 #lang racket
 
-(require compiler/zo-parse setup/dirs racket/undefined racket/path
+(require compiler/zo-parse setup/dirs racket/undefined racket/path racket/extflonum
          (only-in pycket/expand hash* global-config))
 
 (provide to-ast-wrapper to-ast-val
          primitive-table)
 
-(define DEBUG #f)
-(define DEBUG-STACK #f)
+(define DEBUG #t)
+(define DEBUG-STACK #t)
 (define pycket-dir (path->string (current-directory))) ;; MUST BE RUN UNDER PYCKET DIR
 (define collects-dir (path->string (find-collects-dir)))
 (define file-name 'beSetBy-main)
@@ -43,7 +43,7 @@
                     (zo-parse 
                      (open-input-bytes
                       (with-output-to-bytes
-                          (λ () (write (cdr b)))))))])
+                        (λ () (write (cdr b)))))))])
         (let ([n (match v
                    [(struct compilation-top (_ _ prefix (struct primval (n)))) n]
                    [else #f])])
@@ -53,7 +53,7 @@
 (define primitives (hash-values primitive-table))
 
 (define (value? form)
-  (ormap (λ (f) (f form)) (list list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes?)))
+  (ormap (λ (f) (f form)) (list list? box? pair? hash? vector? number? string? symbol? char? keyword? regexp? byte-regexp? bytes? extflonum?)))
 
 (define (compile-json config language topmod body1 top-reqs-provs body-forms pycket?)
   (let ([whole-body (append top-reqs-provs body-forms)])
@@ -104,6 +104,8 @@
 
 (define (handle-number-inner racket-num)
   (cond
+    [(extflonum? racket-num)
+     (hash* 'real (extfl->inexact racket-num))]
     [(exact? racket-num)
      (cond
        [(integer? racket-num)
@@ -197,7 +199,7 @@
 
 (define (get-primval-name id)
   (symbol->string (hash-ref primitive-table id)))
-  
+
 (define (handle-primval operation)
   (let* ([id (primval-id operation)]
          [operator-name (get-primval-name id)])
@@ -237,7 +239,7 @@ put the usual application-rands to the operands
                      'operands operands-evaluated)))
         (hash* 'operator rator-evaluated
                'operands operands-evaluated))))
-                 
+
 
 (define (handle-lambda lam-form localref-stack current-closure-refs)
   (let* ([name (lam-name lam-form)]
@@ -314,7 +316,7 @@ put the usual application-rands to the operands
                         (set->list top-map*)))] ;; list
          ;; A #f value indicates either that no prefix is captured or
          ;; all variables and syntax objects in the prefix should be considered used.
-                  
+         
          ;; In the prefix:
          ;; -- Variables are numbered consecutively by position starting from 0
          ;; -- the number equal to the number of non-lifted variables corresponds to syntax objects
@@ -323,13 +325,14 @@ put the usual application-rands to the operands
          ;; ----- non-lifteds ---- syntax-objects ---- lifteds ----
          
          ;; Let's regenerate the conditions when the prefix was captured (reverse engineer the then stack)
-         
+
+         ;; make-symbol : any -> symbol/boolean
          [make-symbol (lambda (v)
                         (cond
-                          [(symbol? v) v]
+                          [(or (boolean? v) (symbol? v)) v]
                           [(module-variable? v) (module-variable-sym v)]
                           [(string? v) (string->symbol v)]
-                          [else (error 'lambda:make-symbol "add this case where v in TOPLEVELS is : ~a" v)]))]
+                          [else (error 'lambda:make-symbol "add a case for ~a in TOPLEVELS" v)]))]
 
          [toplevels-symbol (map make-symbol initial-toplevels)]
          [num-real-toplevels (length toplevels-symbol)]
@@ -341,13 +344,13 @@ put the usual application-rands to the operands
          
          [non-lifteds (filter (lambda (s)
                                 (let* ([s (make-symbol s)]
-                                       [s-sym (symbol->string s)])
-                                  (or (string-contains? s-sym "lam.val")
+                                       [s-sym (if (boolean? s) s (symbol->string s))])
+                                  (or (member s toplevels-symbol)
+                                      (string-contains? s-sym "lam.val")
                                       (string-contains? s-sym "letone")
                                       (string-contains? s-sym "let-void")
                                       (string-contains? s-sym "-letrec")
-                                      (string-contains? s-sym "app-empty-slot")
-                                      (member s toplevels-symbol))))
+                                      (string-contains? s-sym "app-empty-slot"))))
                               localref-stack)]
 
          [num-of-non-lifteds (length non-lifteds)]
@@ -362,11 +365,16 @@ put the usual application-rands to the operands
          ;; ASSUMPTION : toplevels stay in the prefix sorted by their positions
          ;; reason : "test/control.rktl" - function has a toplevel-map like (set 44 43 14) was only capturing 14 with closure-map #(0)
          [top-map-lifteds (and top-map
-                               (map (lambda (top) (with-handlers
-                                               ([exn:fail? (lambda (e)
-                                                             (error 'hede "capture prefix : ~a \n --- non-lifteds : ~a\n --- top-map : ~a\n --- toplevels : ~a\n" capture-prefix non-lifteds top-map toplevels-symbol))])
-                                               (list-ref toplevel-and-lifteds top)))
-                                    (sort (filter (lambda (top) (>= top num-real-toplevels)) top-map) <)))]
+                               (map (lambda (top)
+                                      (with-handlers
+                                        ([exn:fail?
+                                          (lambda (e)
+                                            (error 'lambda:top-map-lifteds
+                                                   "capture prefix : ~a \n --- non-lifteds : ~a\n --- top-map : ~a\n --- toplevels : ~a\n --- topsyntaxes : ~a\n ~a\n --- lifteds : ~a"
+                                                   capture-prefix non-lifteds top-map toplevels-symbol (length TOPSYNTAX) e LIFTEDS))])
+                                        (list-ref toplevel-and-lifteds top)))
+                                    (filter (lambda (top) (>= top num-real-toplevels)) (take (sort top-map <) (min (length top-map)
+                                                                                                              (length capture-prefix))))))]
 
          [toplevel-captured-items (if (not top-map)
                                       toplevel-and-lifteds
@@ -495,21 +503,38 @@ put the usual application-rands to the operands
                          slot-payload)))])))
 
 (define (self-mod? mpi)
-    (let-values ([(mod-path base-path) (module-path-index-split mpi)])
-      (and (not mod-path) (not base-path))))
+  (let-values ([(mod-path base-path) (module-path-index-split mpi)])
+    (and (not mod-path) (not base-path))))
 
 (define (module-path-index->path-string mod-idx)
+
   (define (put-relative req-mod)
-      (if (string-contains? req-mod ".rkt")
-          (string-append relative-current-dir req-mod) req-mod))
+    (if (string-contains? req-mod ".rkt")
+        (string-append relative-current-dir req-mod) req-mod))
+
+  (define (resolved-to-string name)
+    (cond
+      [(path? name) (path->string name)]
+      [(symbol? name) (symbol->string name)]
+      [(list? name) (map resolved-to-string name)]
+      [(string? name) name]
+      [else (error 'module-path-index->path-string "we have ~a as the resolved name in mod-idx : ~a" name mod-idx)]))
+  
   (if (self-mod? mod-idx)
       (string-append relative-current-dir module-name ".rkt")
       (let-values ([(module-path base-path) (module-path-index-split mod-idx)])
         (if (list? module-path) ;; it may be resolved
-            (with-handlers ([exn:fail? (λ (e) (map (λ (s*)
-                                                     (let ([s (if (symbol? s*) (symbol->string s*) s*)])
-                                                       (put-relative s))) (cdr module-path)))])
-              (path->string (resolved-module-path-name (module-path-index-resolve mod-idx))))
+            (let* ([resolved
+                    (with-handlers ([exn:fail? (λ (e)
+                                                 (if (or (not (eq? 'submod (car module-path)))
+                                                         (not (string? (cadr module-path)))
+                                                         (not (self-mod? base-path)))
+                                                     (error 'module-path-index->path-string "check mod-idx : ~a" mod-idx)
+                                                     (cons (string-append relative-current-dir (cadr module-path))
+                                                           (map resolved-to-string (cddr module-path)))))])
+                      (module-path-index-resolve mod-idx))]
+                   [resolved-name (if (resolved-module-path? resolved) (resolved-module-path-name resolved) resolved)])
+              (resolved-to-string resolved-name))
             (if (symbol? module-path) ;; then it is resolved
                 (let ([path (resolved-module-path-name (module-path-index-resolve mod-idx))])
                   (if (symbol? path)
@@ -521,8 +546,8 @@ put the usual application-rands to the operands
                     (if (self-mod? base-path)
                         (string-append relative-current-dir module-path)
                         #;(if TEST
-                            module-path
-                            (string-append relative-current-dir module-path))
+                              module-path
+                              (string-append relative-current-dir module-path))
                         (let ([base-path-str (if (resolved-module-path? base-path)
                                                  (path->string (resolved-module-path-name base-path))
                                                  (module-path-index->path-string base-path))])
@@ -548,58 +573,56 @@ put the usual application-rands to the operands
   (let ([top (varref-toplevel varref-form)]
         [dummy (varref-dummy varref-form)]
         [current-mod-path (string-append relative-current-dir module-name ".rkt")])
-    ;(if (boolean? top) ;; varref-toplevel is a boolean
-    ;    (error 'handle-varref (format "we got a bool at varref : ~a" varref-form))
-        (let* ([topvar (if (boolean? top) top (list-ref TOPLEVELS (toplevel-pos top)))]
-               [name (cond
-                       [(boolean? topvar)
-                        topvar #;(if topvar
-                            (error 'handle-varref (format "we got a TRUE bool from TOPLEVELS : ~a - varref : ~a" topvar varref-form))
-                            false)]
-                       [(symbol? topvar) (symbol->string topvar)]
-                       [(module-variable? topvar) (symbol->string (module-variable-sym topvar))])]
-               [path-str (if (or (symbol? topvar) (boolean? topvar))
-                             current-mod-path
-                             ;; it's a module-variable
-                             (module-path-index->path-string (module-variable-modidx topvar)))]
-               ;; TODO : refactor
-               [is-lifted? false]
-               [name-ref-hash (if (boolean? topvar) topvar
-                                  (if (memv (string->symbol name) primitives) ;; it's a primitive
-                                      (hash* 'source-name name)
-                                      (if (string-contains? name ".")
-                                          (let* ([mod-split (string-split name ".")]
-                                                 [original-mod (car mod-split)])
-                                            (begin
-                                              (set! is-lifted? true)
-                                              ;; sanity check : second part of the "." should be all numbers
-                                              (with-handlers ([exn:fail?
-                                                               (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
-                                                (string->number (cadr mod-split)))
-                                              (hash* 'source-name name
-                                                     'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name "." module-extension)))
-                                                                        (list ".") (list path-str))
-                                                     'module original-mod)))
+    (let* ([topvar (if (boolean? top) top (list-ref TOPLEVELS (toplevel-pos top)))]
+           [name (cond
+                   [(boolean? topvar)
+                    topvar #;(if topvar
+                                 (error 'handle-varref (format "we got a TRUE bool from TOPLEVELS : ~a - varref : ~a" topvar varref-form))
+                                 false)]
+                   [(symbol? topvar) (symbol->string topvar)]
+                   [(module-variable? topvar) (symbol->string (module-variable-sym topvar))])]
+           [path-str (if (or (symbol? topvar) (boolean? topvar))
+                         current-mod-path
+                         ;; it's a module-variable
+                         (module-path-index->path-string (module-variable-modidx topvar)))]
+           ;; TODO : refactor
+           [is-lifted? false]
+           [name-ref-hash (if (boolean? topvar) topvar
+                              (if (memv (string->symbol name) primitives) ;; it's a primitive
+                                  (hash* 'source-name name)
+                                  (if (string-contains? name ".")
+                                      (let* ([mod-split (string-split name ".")]
+                                             [original-mod (car mod-split)])
+                                        (begin
+                                          (set! is-lifted? true)
+                                          ;; sanity check : second part of the "." should be all numbers
+                                          (with-handlers ([exn:fail?
+                                                           (λ (e) (error 'handle-varref (format "unusual topvar name : ~a" name)))])
+                                            (string->number (cadr mod-split)))
                                           (hash* 'source-name name
                                                  'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name "." module-extension)))
-                                                                    (list ".") (list path-str))))))]
-               [source-mod (cond
-                             [(or (symbol? topvar) (boolean? topvar)) path-str]
-                             [(memv (string->symbol name) primitives) current-mod-path]
-                             [(module-variable? topvar)
-                              (if is-lifted? ;; assumption : all lifted var-refs are from kw.rkt
-                                  (string-append collects-dir "/racket/private/kw.rkt")
-                                  current-mod-path)])]
-               [final-hash 
-                (hash* 'source (hash* '%p source-mod)
-                       'module (hash* '%mpi (hash* '%p source-mod))
-                       'variable-reference name-ref-hash
-                       'position 12
-                       'span 11
-                       'original true)])
-          (if (boolean? topvar) ;; (hash* 'var false) produces '#hash() 
-              (hash-set final-hash 'variable-reference name) ;; adding it with hash-set works
-              final-hash))))
+                                                                    (list ".") (list path-str))
+                                                 'module original-mod)))
+                                      (hash* 'source-name name
+                                             'source-module (if (and TEST (string-contains? path-str (string-append "/" module-name "." module-extension)))
+                                                                (list ".") (list path-str))))))]
+           [source-mod (cond
+                         [(or (symbol? topvar) (boolean? topvar)) path-str]
+                         [(memv (string->symbol name) primitives) current-mod-path]
+                         [(module-variable? topvar)
+                          (if is-lifted? ;; assumption : all lifted var-refs are from kw.rkt
+                              (string-append collects-dir "/racket/private/kw.rkt")
+                              current-mod-path)])]
+           [final-hash 
+            (hash* 'source (hash* '%p source-mod)
+                   'module (hash* '%mpi (hash* '%p source-mod))
+                   'variable-reference name-ref-hash
+                   'position 12
+                   'span 11
+                   'original true)])
+      (if (boolean? topvar) ;; (hash* 'var false) produces '#hash() 
+          (hash-set final-hash 'variable-reference name) ;; adding it with hash-set works
+          final-hash))))
 
 (define (handle-let-one letform localref-stack current-closure-refs)
   (begin
@@ -682,13 +705,14 @@ put the usual application-rands to the operands
          [source-path (if (not src-loc)
                           (string-append relative-current-dir module-name ".rkt")
                           (let ([s-path (srcloc-source src-loc)])
-                            (if (string? s-path) s-path (path->string s-path))))])
-    (hash* 'quote-syntax (to-ast-val datum)
-           'source (hash* '%p source-path)
-           'module (hash* '%mpi (hash* '%p source-path))
-           'position position
-           'span span)))
-  
+                            (if (string? s-path) s-path (path->string s-path))))]
+         [q-syntax (to-ast-val datum)]
+         [topsyntax-node (hash* 'source (hash* '%p source-path)
+                                'module (hash* '%mpi (hash* '%p source-path))
+                                'position position
+                                'span span)])
+    (hash-set topsyntax-node 'quote-syntax q-syntax)))
+
 (define (handle-seq seq-expr localref-stack current-closure-refs)
   (let* ([seqs (seq-forms seq-expr)]
          [last-seq (list (last seqs))]
@@ -709,7 +733,7 @@ put the usual application-rands to the operands
          [rest-exprs (cdr seqs)])
     (hash* 'begin0 (to-ast-single first-expr localref-stack current-closure-refs)
            'begin0-rest (map (λ (expr) (to-ast-single expr localref-stack current-closure-refs)) rest-exprs))))
-         
+
 
 (define (handle-wcm body-form localref-stack current-closure-refs)
   (let ([wcm-key (with-cont-mark-key body-form)]
@@ -743,7 +767,7 @@ put the usual application-rands to the operands
          [boxed-slot (string-append (car post-pos) "-box")])
     (begin
       #;(when DEBUG
-        (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
+          (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
       #;(to-ast-single (boxenv-body body-form) (append pre-pos (list boxed-slot) (cdr post-pos)) current-closure-refs)
       (to-ast-single (boxenv-body body-form) localref-stack current-closure-refs))))
 
@@ -798,7 +822,7 @@ put the usual application-rands to the operands
                            (list (hash* 'source-name "set!")
                                  (hash* 'lexical let-void-slot)
                                  (hash* 'lexical inst-val-binding))) mod-region binding-list)]
-                  
+         
          [rhs-ready (list (list binding-list
                                 (to-ast-single rhs localref-stack current-closure-refs)))])
     ;; producing json for pycket
@@ -867,16 +891,16 @@ put the usual application-rands to the operands
 
                              ;; TODO : refactor/cleanup
                              [symbols-for-formals (map (λ (x)
-                                     (begin
-                                       (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
-                                                  DEBUG)
-                                         (displayln (format "warning : argument to CASE-LAM-name : ~a is : ~a" name x)))
-                                       (let ([sym 
-                                              (symbol->string
-                                               (gensym
-                                                (string->symbol (string-append "case-lam." (symbol->string x) "."))))])
-                                         (if (eq? x 'ref) sym sym))))
-                                   arg-types)]
+                                                         (begin
+                                                           (when (and (or (eq? x 'flonum) (eq? x 'fixnum) (eq? x 'extflonum))
+                                                                      DEBUG)
+                                                             (displayln (format "warning : argument to CASE-LAM-name : ~a is : ~a" name x)))
+                                                           (let ([sym 
+                                                                  (symbol->string
+                                                                   (gensym
+                                                                    (string->symbol (string-append "case-lam." (symbol->string x) "."))))])
+                                                             (if (eq? x 'ref) sym sym))))
+                                                       arg-types)]
 
                              ;[symbols-for-formals (map (λ (x) (symbol->string (gensym 'caselam-cl-arg))) (range num-args))]
                              
@@ -933,7 +957,8 @@ put the usual application-rands to the operands
      (handle-hash val-form))
     ((vector? val-form)
      (handle-vector val-form))
-    ((number? val-form)
+    ((or (number? val-form)
+         (extflonum? val-form))
      (handle-number val-form))
     ((string? val-form)
      (handle-string val-form))
@@ -1193,9 +1218,9 @@ put the usual application-rands to the operands
     (define top-level-req-forms
       (if (empty? reqs) reqs
           (list (hash* 'require 
-             (map (λ (req-mod)
-                    (let ([mod-path (module-path-index->path-string req-mod)])
-                      (if (list? mod-path) mod-path (list mod-path)))) reqs)))))
+                       (map (λ (req-mod)
+                              (let ([mod-path (module-path-index->path-string req-mod)])
+                                (if (list? mod-path) mod-path (list mod-path)))) reqs)))))
 
 
     ;; 3) Go with the provides (pycket doesn't care about it for now - mostly)
@@ -1204,9 +1229,9 @@ put the usual application-rands to the operands
     ;; (define regular-provides (cadr phase0-provides))
     ;; (define syntax-phase-provides (caddr phase0-provides))
     
-    (define top-provides* (cadr (assv 0 (mod-provides code))))
+    (define top-provides* (apply append (cdr (assv 0 (mod-provides code)))))
     (define top-provide-names (map (λ (prov) (list (provided-name prov)
-                                                 (provided-src-name prov))) top-provides*))
+                                                   (provided-src-name prov))) top-provides*))
     (define (handle-provides provs out)
       (cond
         ((null? provs) out)
