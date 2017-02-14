@@ -269,6 +269,7 @@ case "$COMMAND" in
     ;;
   test)
     export PYTHONPATH=$PYTHONPATH:../pypy:pycket
+    cp ../pypy/pytest.ini . 2>&1 >/dev/null || true
     if [ -z "$1" ]; then
         echo "Please tell what to test, see .travis.yml"
         _help
