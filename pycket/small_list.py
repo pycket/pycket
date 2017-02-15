@@ -53,10 +53,10 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
                     res[i] = getattr(self, attr)
                 return res
             def _set_list(self, i, val):
+                if nonull:
+                    assert val is not None
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
-                        if nonull:
-                            assert val is not None
                         setattr(self, attr, val)
                         return
                 raise IndexError
