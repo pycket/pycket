@@ -540,6 +540,13 @@ def string_to_bytes_locale(bytes, errbyte, start, end):
 def bytes_to_path(b):
     return values.W_Path(b.as_str())
 
+@expose("bytes->immutable-bytes", [values.W_Bytes])
+def bytes_to_immutable_bytes(b):
+    if b.immutable():
+        return b
+    storage = b.as_bytes_list()
+    return values.W_Bytes.from_charlist(storage, immutable=True)
+
 ################################################################################
 
 # Character

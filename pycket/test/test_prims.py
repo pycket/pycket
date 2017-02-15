@@ -1082,6 +1082,14 @@ def test_bytes_to_path_element(doctest):
     "spenser"
     """
 
+def test_bytes_to_immutable_bytes(doctest):
+    """
+    > (immutable? (bytes->immutable-bytes (bytes 1 2 3)))
+    #t
+    > (equal? (bytes->immutable-bytes (bytes 1 2 3)) (bytes 1 2 3))
+    #t
+    """
+
 def test_split_path(doctest):
     """
     ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))

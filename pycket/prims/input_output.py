@@ -519,10 +519,7 @@ def _basename(path):
     return components[-1]
 
 def _must_be_dir(path):
-    if path and path[-1] == os.path.sep:
-        return values.w_true
-    else:
-        return values.w_false
+    return values.W_Bool.make(path and path[-1] == os.path.sep)
 
 def _split_path(path):
     dirname  = _dirname(path)
