@@ -547,6 +547,14 @@ def bytes_to_immutable_bytes(b):
     storage = b.as_bytes_list()
     return values.W_Bytes.from_charlist(storage, immutable=True)
 
+@expose("bytes->list", [values.W_Bytes])
+def bytes_to_list(bs):
+    acc = values.w_null
+    for i in range(bs.length()-1, -1, -1):
+        byte = ord(bs.ref_char(i))
+        acc = values.wrap(byte, acc)
+    return acc
+
 ################################################################################
 
 # Character
@@ -567,6 +575,16 @@ def char_downcase(v):
 @expose("char-upcase", [values.W_Character])
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
+
+@expose("char-foldcase", [values.W_Character])
+def char_foldcase(w_char):
+    char = ord(w_char.value)
+    folded = unicodedb.casefold_lookup(char)
+    if folded is None:
+        lower = unicodedb.tolower(char)
+        return values.W_Character(unichr(lower))
+    # XXX: What to do if the case folded character consists of more than one code point?
+    return values.W_Character(unichr(folded[0]))
 
 
 def define_char_comp(name, op):

@@ -1092,6 +1092,12 @@ def test_bytes_to_immutable_bytes(doctest):
     #t
     """
 
+def test_bytes_to_list(doctest):
+    """
+    > (bytes->list #"Apple")
+    '(65  112 112 108 101)
+    """
+
 def test_split_path(doctest):
     """
     ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
@@ -1396,4 +1402,16 @@ def test_true_object(doctest):
     #f
     > (true-object? 3)
     #f
+    """
+
+def test_char_foldcase(doctest):
+    ur"""
+    > (char-foldcase #\A)
+    #\a
+    > (char-foldcase #\Σ)
+    #\σ
+    > (char-foldcase #\ς)
+    #\σ
+    > (char-foldcase #\space)
+    #\space
     """
