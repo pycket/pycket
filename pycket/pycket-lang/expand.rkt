@@ -97,19 +97,16 @@
   (map path-string xs))
 
 (define (resolve-module mod-name)
-  (cond
-    [(and (path-string? mod-name) (absolute-path? mod-name))
-     (list mod-name)]
-    [(memv mod-name '("." "..")) (list mod-name)]
-    [else
-      (with-handlers
-        ([exn:fail:filesystem:missing-module?
-           (lambda (e)
-             (make-path-strings
-               (append (current-module) (list (desymbolize mod-name)))))])
-        (list
-          (full-path-string
-            (resolve-module-path mod-name #f))))]))
+  (if (memv mod-name (list "." ".."))
+    (list mod-name)
+    (with-handlers
+      ([exn:fail:filesystem:missing-module?
+         (lambda (e)
+           (make-path-strings
+             (append (current-module) (list (desymbolize mod-name)))))])
+      (list
+        (full-path-string
+          (resolve-module-path mod-name #f))))))
 
 (define (join-first x xs)
   (if (null? x) '()
