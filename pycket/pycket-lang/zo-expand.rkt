@@ -350,6 +350,7 @@ put the usual application-rands to the operands
                                        [s-sym (if (boolean? s) s (symbol->string s))])
                                   (or (member s toplevels-symbol)
                                       (string-contains? s-sym "lam.val")
+                                      (string-contains? s-sym "lam.ref")
                                       (string-contains? s-sym "letone")
                                       (string-contains? s-sym "let-void")
                                       (string-contains? s-sym "-letrec")
