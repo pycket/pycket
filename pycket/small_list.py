@@ -7,6 +7,9 @@ from rpython.rlib        import jit, debug, objectmodel
 
 add_clone_method = add_copy_method("_clone")
 
+def _not_null(s_arg, bookkeeper):
+    return not s_arg.can_be_None
+
 def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, nonull=False,
                       attrname="list", factoryname="make", listgettername="_get_full_list",
                       listsizename="_get_size_list", gettername="_get_list",
@@ -45,11 +48,17 @@ def inline_small_list(sizemax=11, sizemin=0, immutable=False, unbox_num=False, n
             def _get_list(self, i):
                 for j, attr in unrolling_enumerate_attrs:
                     if j == i:
-                        return getattr(self, attr)
+                        result = getattr(self, attr)
+                        if nonull:
+                            debug.check_annotation(result, _not_null)
+                        return result
                 raise IndexError
             def _get_full_list(self):
                 res = [None] * size
                 for i, attr in unrolling_enumerate_attrs:
+                    elem = getattr(self, attr)
+                    if nonull:
+                        debug.check_annotation(elem, _not_null)
                     res[i] = getattr(self, attr)
                 return res
             def _set_list(self, i, val):
