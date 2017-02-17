@@ -1481,7 +1481,7 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ['caselam']

@@ -286,7 +286,7 @@ SymbolSet = make_persistent_hash_type(
     equal=equal)
 
 def is_builtin_module(mod):
-    return mod in BUILTIN_MODULES
+    return (mod in BUILTIN_MODULES) or (0 <= mod.find("pycket-lang/extra-prims"))
 
 class Done(Exception):
     _attrs_ = ["values"]
@@ -1388,16 +1388,16 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return is_builtin_module(self.srcmod)
+        return self.srcmod is not None and is_builtin_module(self.srcmod)
 
     @jit.elidable
     def _elidable_lookup(self):
         assert self.modenv
         modenv = self.modenv
-        if self.is_primitive():
-            return self._lookup_primitive()
-        elif self.srcmod is None:
+        if self.srcmod is None:
             mod = modenv.current_module
+        elif self.is_primitive():
+            return self._lookup_primitive()
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:

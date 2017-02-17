@@ -1560,3 +1560,4 @@ def syntax_property_symbol_keys(v):
     return values.w_null
 
 define_nyi("syntax-property")
+
