@@ -31,6 +31,8 @@ def test_bubble_unsafe2():
 def test_microkanren():
     run_file("microkanren.rkt")
 
+@pytest.mark.skipif(pytest.config.getvalue('bytecode') == "go",
+                    reason="has awful lot of bytecode, takes translator more than 10 mins to produce the ast.")
 def test_earley():
     run_file("earley.rkt", ("(test 14)", "(test 3)"))
 
