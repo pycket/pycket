@@ -60,6 +60,8 @@ def test_equal2(doctest):
 
 def test_append_single(doctest):
     """
+    > (append #f)
+    #f
     > (append (list 1 2) (list 3 4))
     '(1 2 3 4)
     """
@@ -1414,4 +1416,13 @@ def test_char_foldcase(doctest):
     #\σ
     > (char-foldcase #\space)
     #\space
+    """
+
+def test_procedure_specialize(doctest):
+    """
+    ! (define f (let ([g 5]) (lambda (x) (+ g x))))
+    > (f 1)
+    6
+    > ((procedure-specialize f) 1)
+    6
     """
