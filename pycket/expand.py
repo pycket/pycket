@@ -496,7 +496,7 @@ class JsonLoader(object):
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
         fname, subs = path[0], path[1:]
-        if fname in [".", ".."]:
+        if fname in (".", ".."):
             # fname field is not used in this case, so we just give an idea of which
             # module we are in
             return Require(self.modtable.current_mod(), None, path=path)

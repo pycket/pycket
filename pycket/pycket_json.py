@@ -108,6 +108,7 @@ class JsonString(JsonPrimitive):
     is_string = True
 
     def __init__(self, value):
+        assert value is not None
         self.value = value
 
     def tostring(self):

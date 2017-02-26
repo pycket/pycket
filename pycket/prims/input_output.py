@@ -324,6 +324,11 @@ def do_read_one_cont(as_bytes, peek, env, cont, _vals):
     w_port = check_one_val(_vals)
     return do_read_one(w_port, as_bytes, peek, env, cont)
 
+def utf8_code_length(i):
+    if i < 0x80:
+        return 1
+    return ord(runicode._utf8_code_length[i - 0x80])
+
 def do_read_one(w_port, as_bytes, peek, env, cont):
     from pycket.interpreter import return_value
     if peek:
@@ -339,7 +344,7 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         return return_value(values.W_Fixnum(i), env, cont)
     else:
         # hmpf, poking around in internals
-        needed = runicode.utf8_code_length[i]
+        needed = utf8_code_length(i)
         if peek:
             old = w_port.tell()
             c = w_port.read(needed)
