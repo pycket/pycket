@@ -62,7 +62,7 @@ def convert_runtime_exception(exn, env, cont):
         return exn_fail.constructor.call([message, marks], env, cont)
 
 @jit.unroll_safe
-def scan_continuation(curr, prompt_tag, look_for=None):
+def scan_continuation(curr, prompt_tag, look_for=None, escape=False):
     """
     Segment a continuation based on a given continuation-prompt-tag.
     The head of the continuation, up to and including the desired continuation
@@ -84,7 +84,7 @@ def scan_continuation(curr, prompt_tag, look_for=None):
         if isinstance(curr, Prompt) and curr.tag is prompt_tag:
             break
         curr = curr.prev
-        if not jit.isvirtual(curr):
+        if not escape and not jit.isvirtual(curr):
             return _scan_continuation(curr, prompt_tag, look_for, xs, handlers)
     return xs, handlers
 
@@ -156,7 +156,7 @@ def install_continuation_fast_path(current_cont, args, has_handlers, env, cont):
 
 
 @jit.unroll_safe
-def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False):
+def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False, escape=False):
     from pycket.interpreter import return_multi_vals, return_void
 
     # Find the common merge point for two continuations
@@ -169,7 +169,8 @@ def install_continuation(cont, prompt_tag, args, env, current_cont, extend=False
         base, unwind = current_cont, None
         stop         = None
     else:
-        head1, handlers = scan_continuation(current_cont, prompt_tag, look_for=cont)
+        head1, handlers = scan_continuation(
+                current_cont, prompt_tag, look_for=cont, escape=escape)
         if head1 is None:
             return install_continuation_fast_path(current_cont, args, handlers, env, cont)
         head2, _ = scan_continuation(cont, prompt_tag)
@@ -304,7 +305,8 @@ def call_with_escape_continuation_cont(env, cont, _vals):
 def call_with_escape_continuation(proc, prompt_tag, env, cont, extra_call_info):
     assert prompt_tag is None, "NYI"
     cont = call_with_escape_continuation_cont(env, cont)
-    return proc.call_with_extra_info([values.W_Continuation(cont)], env, cont, extra_call_info)
+    return proc.call_with_extra_info([values.W_EscapeContinuation(cont)],
+                                     env, cont, extra_call_info)
 
 @expose("call-with-composable-continuation",
         [procedure, default(values.W_ContinuationPromptTag, values.w_default_continuation_prompt_tag)],

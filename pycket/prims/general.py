@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import sys
 import time
 from pycket import impersonators as imp
 from pycket import values, values_string
@@ -13,7 +14,8 @@ from pycket import vector as values_vector
 from pycket.error import SchemeException, UserException
 from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
-from pycket.prims.expose import (unsafe, default, expose, expose_val,
+from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
+from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe)
 
 
@@ -130,6 +132,12 @@ for args in [
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
+    return values.w_false
+
+@expose("true-object?", [values.W_Object])
+def true_object_huh(val):
+    if val is values.w_true:
+        return values.w_true
     return values.w_false
 
 @expose("procedure?", [values.W_Object])
@@ -557,12 +565,13 @@ def do_is_procedure_struct_type(struct_type):
 @expose("procedure-extract-target", [procedure], simple=False)
 def do_procedure_extract_target(proc, env, cont):
     from pycket.interpreter import return_value
-    if isinstance(proc, values_struct.W_RootStruct):
-        prop_procedure = proc.struct_type().prop_procedure
-        procedure_source = proc.struct_type().procedure_source
-        if isinstance(prop_procedure, values.W_Fixnum):
-            return proc.struct_type().accessor.access(
-                procedure_source, prop_procedure.value, env, cont, None)
+    if not isinstance(proc, values_struct.W_RootStruct):
+        return return_value(values.w_false, env, cont)
+    struct_type = proc.struct_type()
+    prop_procedure = struct_type.prop_procedure
+    if isinstance(prop_procedure, values.W_Fixnum):
+        idx = prop_procedure.value
+        return struct_type.accessor.access(proc, idx, env, cont)
     return return_value(values.w_false, env, cont)
 
 @expose("variable-reference-constant?",
@@ -737,7 +746,7 @@ def assq(a, b):
 
 @expose("cons", [values.W_Object, values.W_Object])
 def do_cons(a, b):
-    return values.W_Cons.make(a,b)
+    return values.W_Cons.make(a, b)
 
 def make_list_eater(name):
     """
@@ -863,9 +872,11 @@ def for_each(args, env, cont):
 @jit.unroll_safe
 def for_each_loop(func, args, env, cont):
     from pycket.interpreter import return_value
-    heads = [None] * len(args)
-    tails = [None] * len(args)
-    for i, arg in enumerate(args):
+    nargs = jit.promote(len(args))
+    heads = [None] * nargs
+    tails = [None] * nargs
+    for i in range(nargs):
+        arg = args[i]
         if arg is values.w_null:
             for v in args:
                 if v is not values.w_null:
@@ -945,13 +956,13 @@ def append(lists):
         return values.w_null
     acc = lists[-1]
     for i in range(len(lists) - 2, -1, -1):
-        acc = append_two(lists[i], acc)
+        curr = lists[i]
+        if not curr.is_proper_list():
+            raise SchemeException("append: expected proper list")
+        acc = append_two(curr, acc)
     return acc
 
 def append_two(l1, l2):
-    if not l1.is_proper_list():
-        raise SchemeException("append: expected proper list")
-
     first = None
     last  = None
     while isinstance(l1, values.W_Cons):
@@ -1055,9 +1066,19 @@ def list_tail(lst, pos):
         else:
             return values.w_null
 
+@expose("current-seconds", [])
+def current_seconds():
+    tick = int(time.clock())
+    return values.W_Fixnum(tick)
+
 @expose("current-inexact-milliseconds", [])
 def curr_millis():
-    return values.W_Flonum(time.clock()*1000)
+    return values.W_Flonum(time.clock() * 1000.0)
+
+@expose("seconds->date", [values.W_Fixnum])
+def seconds_to_date(s):
+    # TODO: Proper implementation
+    return values.w_false
 
 def _error(args, is_user=False):
     reason = ""
@@ -1295,11 +1316,12 @@ w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
 w_macosx_sym = values.W_Symbol.make("macosx")
 
+_platform = sys.platform
+
 def detect_platform():
-    from sys import platform
-    if platform == "darwin":
+    if _platform == "darwin":
         return w_macosx_sym
-    elif platform in ['win32', 'cygwin']:
+    elif _platform in ['win32', 'cygwin']:
         return w_windows_sym
     else:
         return w_unix_sym
@@ -1487,9 +1509,15 @@ def make_reader_graph(v):
 
 @expose("procedure-specialize", [procedure])
 def procedure_specialize(proc):
+    from pycket.ast_visitor import copy_ast
     # XXX This is the identity function simply for compatibility.
     # Another option is to wrap closures in a W_PromotableClosure, which might
     # get us a similar effect from the RPython JIT.
+    if not isinstance(proc, values.W_Closure1AsEnv):
+        return proc
+    code = copy_ast(proc.caselam)
+    vals = proc._get_full_list()
+    new_closure = values.W_Closure1AsEnv.make(vals, code, proc._prev)
     return proc
 
 @expose("processor-count", [])
@@ -1548,4 +1576,17 @@ def __dummy__():
     from rpython.rlib.runicode import str_decode_utf_8
     ex = ONERBIGINT.touint()
     print ex
+
+
+@expose("primitive-table", [values.W_Object])
+def primitive_table(v):
+    return make_simple_immutable_table(W_EqImmutableHashTable,
+                                       prim_env.keys(),
+                                       prim_env.values())
+
+@expose("syntax-property-symbol-keys", [values.W_Syntax])
+def syntax_property_symbol_keys(v):
+    return values.w_null
+
+define_nyi("syntax-property")
 

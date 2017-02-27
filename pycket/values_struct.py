@@ -542,7 +542,7 @@ class W_RootStruct(values.W_Object):
 
     def checked_call(self, proc, args, env, cont, app):
         args_len = len(args)
-        arity = proc.get_arity()
+        arity = proc.get_arity(promote=True)
         if not arity.arity_includes(args_len):
             w_prop_val = self.struct_type().read_prop(w_prop_arity_string)
             if w_prop_val:
@@ -602,7 +602,10 @@ class W_RootStruct(values.W_Object):
         raise NotImplementedError("abstract base class")
 
     def hash_equal(self, info=None):
-        raise UnhashableType
+        struct_type = self.struct_type()
+        if struct_type.read_prop(w_prop_equal_hash):
+            raise UnhashableType
+        return values.W_Object.hash_equal(self, info)
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
@@ -683,10 +686,10 @@ class W_Struct(W_RootStruct):
             if isinstance(proc, values.W_Fixnum):
                 offset = typ.get_offset(typ.procedure_source)
                 proc = self._ref(proc.value + offset)
-                return proc.get_arity()
+                return proc.get_arity(promote)
             else:
                 # -1 for the self argument
-                arity = proc.get_arity()
+                arity = proc.get_arity(promote)
                 return arity.shift_arity(-1)
         else:
             raise SchemeException("%s does not have arity" % self.tostring())
@@ -942,6 +945,8 @@ class W_StructConstructor(values.W_Procedure):
         return construct_struct_loop(type, type, args, env, cont)
 
     def get_arity(self, promote=False):
+        if promote:
+            self = jit.promote(self)
         return self.type.constructor_arity
 
     def tostring(self):
@@ -1011,7 +1016,7 @@ class W_StructAccessor(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.TWO
 
-    def access(self, struct, field, env, cont, app):
+    def access(self, struct, field, env, cont, app=None):
         self = jit.promote(self)
         st = jit.promote(struct.struct_type())
         if st is None:
@@ -1027,7 +1032,7 @@ class W_StructAccessor(values.W_Procedure):
         return self.access(struct, field.value, env, cont, app)
 
     def tostring(self):
-        return "#<procedure:%s-ref>" % self.type.name
+        return "#<procedure:%s-ref>" % self.type.name.utf8value
 
 class W_StructFieldMutator(values.W_Procedure):
     errorname = "struct-field-mutator"
@@ -1063,7 +1068,7 @@ class W_StructMutator(values.W_Procedure):
     def get_arity(self, promote=False):
         return Arity.THREE
 
-    def mutate(self, struct, field, val, env, cont, app):
+    def mutate(self, struct, field, val, env, cont, app=None):
         self = jit.promote(self)
         st = jit.promote(struct.struct_type())
         if st is None:

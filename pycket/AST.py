@@ -1,6 +1,20 @@
-from rpython.rlib                    import jit, objectmodel
+from pycket.util  import snake_case
+from rpython.rlib import jit, objectmodel
+
+class Visitable(type):
+    def __new__(cls, name, bases, dct):
+        visit_method_name = "visit_" + snake_case(name)
+        @objectmodel.specialize.argtype(1)
+        def dispatch_visitor(self, visitor, *args):
+            return getattr(visitor, visit_method_name)(self, *args)
+        if dct.get('visitable', False):
+            dct['visit'] = dispatch_visitor
+        result = type.__new__(cls, name, bases, dct)
+        return result
 
 class AST(object):
+    __metaclass__ = Visitable
+
     _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
@@ -12,9 +26,10 @@ class AST(object):
     surrounding_lambda = None
 
     simple = False
+    ispure = False
 
-    def defined_vars(self):
-        return {}
+    def defined_vars(self, defs):
+        pass
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
@@ -53,9 +68,8 @@ class AST(object):
     def direct_children(self):
         return []
 
-    def collect_submodules(self, acc):
-        for child in self.direct_children():
-            child.collect_submodules(acc)
+    def collect_module_info(self, info):
+        return self.direct_children()
 
     def free_vars(self):
         if self._fvars is None:
@@ -85,6 +99,13 @@ class AST(object):
             self._mvars = self._mutated_vars()
         return self._mvars
 
+    def _mutated_vars(self):
+        from pycket.interpreter import variable_set
+        x = variable_set()
+        for b in self.direct_children():
+            x.update(b.mutated_vars())
+        return x
+
     def _clean_cache(self):
         self._mvars = None
         self._fvars = None
@@ -99,19 +120,19 @@ class AST(object):
     def normalize(self, ctxt):
         return ctxt.plug(self)
 
-    def _mutated_vars(self):
-        raise NotImplementedError("abstract base class")
-
     def tostring(self):
         _stringrepr = self._stringrepr
         if _stringrepr is None:
             _stringrepr = self._stringrepr = self._tostring()
         return _stringrepr
 
+    def constant_prop(self, constants):
+        for child in self.direct_children():
+            child.constant_prop(constants)
+
     def _tostring(self):
         return "UNKNOWN AST: "
 
     def __str__(self):
         return self.tostring()
-
 

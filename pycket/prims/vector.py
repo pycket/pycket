@@ -94,7 +94,8 @@ def copy_vector(v, env, cont):
     # Do a little peeking to provide a hint to the strategy
     base = imp.get_base_object(v)
     assert isinstance(base, values_vector.W_Vector)
-    data = values_vector.W_Vector.fromelement(base.ref(0), len)
+    data = values_vector.W_Vector.fromelement(
+            base.ref(0), len, strategy=base.get_strategy())
 
     return copy_vector_loop(v, data, len, 0, env, cont)
 

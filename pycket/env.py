@@ -8,6 +8,7 @@ from pycket.config            import get_testing_config
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
+
     def __init__(self, elems, prev=None):
         assert isinstance(elems, list)
         self.elems = elems
@@ -43,13 +44,13 @@ class SymList(object):
         return target
 
     def depth_and_size(self):
-        res = 0
+        depth = 0
         size = 0
         while self is not None:
             size += len(self.elems)
             self = self.prev
-            res += 1
-        return res, size
+            depth += 1
+        return depth, size
 
     def depth_of_var(self, var):
         depth = 0
@@ -67,6 +68,11 @@ class SymList(object):
             if e is var:
                 return True
         return False
+
+    def drop_frames(self, n):
+        for i in range(n):
+            self = self.prev
+        return self
 
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
@@ -127,7 +133,6 @@ class Env(W_Object):
 
     def pycketconfig(self):
         return self.toplevel_env()._pycketconfig.pycket
-
 
 class Version(object):
     pass

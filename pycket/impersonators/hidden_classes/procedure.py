@@ -89,7 +89,6 @@ class W_InterposeProcedure(values.W_Procedure):
     def get_prop(self, property, env, cont):
         return self.inner.get_prop(property, env, cont)
 
-
 @inline_small_list(immutable=True, unbox_num=True)
 class W_ImpProcedure(W_InterposeProcedure):
     import_from_mixin(ImpersonatorMixin)

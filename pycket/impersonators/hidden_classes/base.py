@@ -17,13 +17,14 @@ def lookup_property(obj, prop):
     return None
 
 class Counter(object):
-    __attrs__ = ['value']
+    _attrs_ = ['value']
     def __init__(self):
         self.value = 0
     def inc(self):
         self.value += 1
 
 def add_impersonator_counts(cls):
+    from pycket.entry_point import register_post_run_callback
     cls.impersonators = Counter()
     cls.chaperones    = Counter()
     old_init = cls.__init__
@@ -36,6 +37,15 @@ def add_impersonator_counts(cls):
             cls.chaperones.inc()
         else:
             assert False
+
+    name = cls.__name__
+
+    @register_post_run_callback
+    def callback(config, env):
+        impersonators = cls.impersonators.value
+        chaperones    = cls.chaperones.value
+        print "%s(impersonators=%d, chaperones=%d)" % (name, impersonators, chaperones)
+    register_post_run_callback(callback)
 
     counting_init.__name__ = old_init.__name__
     cls.__init__ = counting_init
@@ -164,8 +174,9 @@ class ProxyMixin(object):
         self.property_map = make_property_map(prop_keys, ProxyMixin.EMPTY_MAP)
         self.property_storage = prop_vals[:] if prop_vals is not None else None # Ensure not resized
 
-        if self.property_map is not ProxyMixin.EMPTY_MAP:
-            assert self.property_map.storage_size() == len(prop_vals)
+        if not we_are_translated():
+            if self.property_map is not ProxyMixin.EMPTY_MAP:
+                assert self.property_map.storage_size() == len(prop_vals)
 
     def get_property_index(self, index):
         return self.property_storage[index]

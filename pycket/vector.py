@@ -115,10 +115,10 @@ class W_Vector(W_MVector):
         return W_Vector(strategy, storage, len(elems))
 
     @staticmethod
-    def fromelement(elem, times, immutable=False):
+    def fromelement(elem, times, immutable=False, strategy=None):
         if not config.strategies or times == 0:
             strategy = ObjectVectorStrategy.singleton
-        else:
+        elif strategy is None:
             strategy = ConstantVectorStrategy.singleton
         if immutable:
             strategy = strategy.immutable_variant()
@@ -268,7 +268,6 @@ class VectorStrategy(object):
 
     def dehomogenize(self, w_vector, hint):
         w_vector.change_strategy(ObjectVectorStrategy.singleton)
-
 
 class ImmutableVectorStrategyMixin(object):
     def immutable(self):

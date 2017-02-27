@@ -108,6 +108,7 @@ class JsonString(JsonPrimitive):
     is_string = True
 
     def __init__(self, value):
+        assert value is not None
         self.value = value
 
     def tostring(self):
@@ -180,6 +181,21 @@ class FakeSpace(object):
 
     def newlist(self, items):
         return JsonArray([])
+
+    def newint(self, intval):
+        return JsonInt(intval)
+
+    def newfloat(self, floatval):
+        return JsonFloat(floatval)
+
+    def newunicode(self, unicodeval):
+        return JsonString(unicodeval.encode('utf-8'))
+
+    def newtext(self, text):
+        return JsonString(text)
+
+    def newbytes(self, bytes):
+        return JsonString(bytes)
 
     def call_method(self, obj, name, arg):
         assert name == 'append'
@@ -254,9 +270,8 @@ class OwnJSONDecoder(JSONDecoder):
                 self.pos = i
                 return JsonString(content_utf8)
             elif ch == '\\':
-                content_so_far = self.getslice(start, i-1)
                 self.pos = i-1
-                return self.decode_string_escaped(start, content_so_far)
+                return self.decode_string_escaped(start)
             elif ch < '\x20':
                 self._raise("Invalid control character at char %d", self.pos-1)
 

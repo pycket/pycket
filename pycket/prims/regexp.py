@@ -194,7 +194,7 @@ def rmpe(pat, input, inp_start, inp_end, output_port, prefix, count, env, cont):
     else:
         raise SchemeException("regexp-match-positions/end: unsupported input type")
 
-    bytes = values.W_Bytes(bytestring)
+    bytes = values.W_Bytes.from_charlist(bytestring, immutable=False)
     result = values.Values._make2(acc, bytes)
     return return_multi_vals(result, env, cont)
 

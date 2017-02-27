@@ -17,23 +17,28 @@ from rpython.rlib        import jit, objectmodel
 _KEY = 0
 _VALUE = 1
 _KEY_AND_VALUE = 2
+_PAIR = 3
 
-@expose("hash-iterate-first", [W_HashTable])
+PREFIXES = ["unsafe-mutable", "unsafe-immutable"]
+
+def prefix_hash_names(base):
+    result = [base]
+    for pre in PREFIXES:
+        result.append("%s-%s" % (pre, base))
+    return result
+
+@expose(prefix_hash_names("hash-iterate-first"), [W_HashTable])
 def hash_iterate_first(ht):
     if ht.length() == 0:
         return values.w_false
     return values.W_Fixnum.ZERO
 
-@expose("hash-iterate-next", [W_HashTable, values.W_Fixnum])
+@expose(prefix_hash_names("hash-iterate-next"), [W_HashTable, values.W_Fixnum])
 def hash_iterate_next(ht, pos):
-    try:
-        next = ht.hash_iterate_next(pos.value)
-    except IndexError:
-        return values.w_false
-    return values.wrap(next)
+    return ht.hash_iterate_next(pos)
 
 @objectmodel.specialize.arg(4)
-def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
+def hash_iter_ref(ht, n, env, cont, returns):
     from pycket.interpreter import return_value, return_multi_vals
     try:
         w_key, w_val = ht.get_item(n)
@@ -44,22 +49,34 @@ def hash_iter_ref(ht, n, env, cont, returns=_KEY_AND_VALUE):
         if returns == _KEY_AND_VALUE:
             vals = values.Values._make2(w_key, w_val)
             return return_multi_vals(vals, env, cont)
+        if returns == _PAIR:
+            vals = values.W_Cons.make(w_key, w_val)
+            return return_value(vals, env, cont)
+        assert False, "unknown return code"
     except KeyError:
         raise SchemeException("hash-iterate-key: invalid position")
     except IndexError:
         raise SchemeException("hash-iterate-key: invalid position")
 
-@expose("hash-iterate-key",  [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-key"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_key(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY)
 
-@expose("hash-iterate-value",  [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-value"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_value(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_VALUE)
 
-@expose("hash-iterate-key+value", [W_HashTable, values.W_Fixnum], simple=False)
+@expose(prefix_hash_names("hash-iterate-key+value"),
+        [W_HashTable, values.W_Fixnum], simple=False)
 def hash_iterate_key_value(ht, pos, env, cont):
     return hash_iter_ref(ht, pos.value, env, cont, returns=_KEY_AND_VALUE)
+
+@expose(prefix_hash_names("hash-iterate-pair"),
+        [W_HashTable, values.W_Fixnum], simple=False)
+def hash_iterate_pair(ht, pos, env, cont):
+    return hash_iter_ref(ht, pos.value, env, cont, returns=_PAIR)
 
 @expose("hash-for-each", [W_HashTable, procedure], simple=False)
 def hash_for_each(ht, f, env, cont):
@@ -217,20 +234,20 @@ def hash_set(table, key, val, env, cont):
             hash_set_cont(key, val, env, cont))
 
 @continuation
-def hash_ref_cont(default, env, cont, _vals):
+def hash_ref_cont(default, k, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(_vals)
     if val is not w_missing:
         return return_value(val, env, cont)
     if default is None:
-        raise SchemeException("key not found")
+        raise SchemeException("key %s not found"%k.tostring())
     if default.iscallable():
         return default.call([], env, cont)
     return return_value(default, env, cont)
 
 @expose("hash-ref", [W_HashTable, values.W_Object, default(values.W_Object, None)], simple=False)
 def hash_ref(ht, k, default, env, cont):
-    return ht.hash_ref(k, env, hash_ref_cont(default, env, cont))
+    return ht.hash_ref(k, env, hash_ref_cont(default, k, env, cont))
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
@@ -272,8 +289,10 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
 def hash_copy(src, env, cont):
     from pycket.interpreter import return_value
     if isinstance(src, W_ImmutableHashTable):
-        return return_value(src.make_copy(), env, cont)
+        return return_value(src, env, cont)
     new = src.make_empty()
+    if src.length() == 0:
+        return return_value(new, env, cont)
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
 
 expose("hash-copy", [W_HashTable], simple=False)(hash_copy)

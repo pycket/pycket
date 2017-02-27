@@ -3,7 +3,7 @@
 
 import pytest
 from pycket.expand import expand, expand_string
-from pycket.values import W_Symbol, W_Fixnum
+from pycket.values import W_Symbol, W_Fixnum, w_false, w_true
 from pycket.expand import parse_module
 from pycket.interpreter import (LexicalVar, ModuleVar, Done, CaseLambda,
                                 variable_set, variables_equal,
@@ -33,9 +33,10 @@ def test_symlist_depth():
 def test_mutvars():
     p = expr_ast("(lambda (x) (set! x 2))")
     assert len(p.mutated_vars()) == 0
+    assert p.lams[0]._mutable_var_flags[0]
     p = expr_ast(("(lambda (y) (set! x 2))"))
-    print p
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
+    assert p.lams[0]._mutable_var_flags is None
     p = expr_ast(("(let ([y 1]) (set! x 2))"))
     assert variables_equal(p.mutated_vars(), make_symbols({"x": None}))
     #    assert p.mutated_vars() == make_symbols({"x": None})
@@ -52,6 +53,18 @@ def test_cache_lambda_if_no_frees():
     w_cl2 = lamb.interpret_simple(toplevel)
     assert w_cl1 is w_cl2
     assert w_cl1.closure._get_list(0).toplevel_env() is toplevel
+
+def test_env_structure_apps():
+    p = expr_ast("(let ([a 1] [b 2]) (+ a b))")
+    a = W_Symbol.make("a")
+    b = W_Symbol.make("b")
+    assert isinstance(p, Let)
+    env_structure = p.body[0].env_structure
+    assert env_structure is not None
+    i, d = env_structure.depth_of_var(a)
+    assert i == 0 and d == 0
+    i, d = env_structure.depth_of_var(b)
+    assert i == 1 and d == 0
 
 def test_cache_recursive_lambda_if_no_frees():
     from pycket.interpreter import interpret_one
@@ -72,6 +85,23 @@ def test_remove_let():
 
     p = expr_ast("(let ([a 1]) (if a + -))")
     assert isinstance(p, Let)
+
+def test_remove_simple_if():
+    p = expr_ast("(if #t 'then 'else)")
+    assert isinstance(p, Quote) and p.w_val is W_Symbol.make("then")
+    p = expr_ast("(if #f 'then 'else)")
+    assert isinstance(p, Quote) and p.w_val is W_Symbol.make("else")
+
+def test_remove_simple_begin():
+    p = expr_ast("(begin #f #t)")
+    assert isinstance(p, Quote) and p.w_val is w_true
+    p = expr_ast("(let ([a 1]) a a a)")
+    assert isinstance(p, Let) and len(p.body) == 1
+    p = expr_ast("(begin0 #t #f #f #f)")
+    assert isinstance(p, Quote) and p.w_val is w_true
+    p = expr_ast("(let ([a 1]) (equal? 1 2) (let ([b 2]) (equal? 1 2) (let ([c 3]) (equal? 1 2) (begin (equal? b c) (equal? a b)))))")
+    assert isinstance(p, Let)
+    assert p.body[-1].body[-1]._sequenced_remove_num_envs == [0, 0, 1]
 
 def test_let_remove_num_envs():
     p = expr_ast("(let ([b 1]) (let ([a (+ b 1)]) (sub1 a)))")
@@ -111,7 +141,7 @@ def test_copy_to_env():
     inner_let = p.body[0].body[0]
     assert inner_let.remove_num_envs == [0, 0, 1, 2]
     assert len(inner_let.args.elems) == 3
-    assert str(inner_let.args.elems[-2]).startswith('b')
+    assert str(inner_let.args.elems[-3]).startswith('b')
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (b + 1)] [d (- c 5)]) (set! b (+ b 1)) (+ a b))))")
@@ -120,8 +150,20 @@ def test_copy_to_env():
 
     # can't copy env, because of the mutation
     p = expr_ast("(let ([c 7]) (let ([b (+ c 1)]) (set! b (+ b 1)) (let ([a (b + 1)] [d (- c 5)]) (+ a b))))")
-    inner_let = p.body[0].body[0].body[1]
-    assert inner_let.remove_num_envs == [1, 1, 1]
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1]
+
+def test_prune_sequenced_body():
+    p = expr_ast("""
+    (let ([c 7])
+      (let ([b (+ c 1)])
+        (let ([d (+ b 1)])
+          (equal? d 1)
+          (equal? b 1)
+          (equal? c 1))))
+    """)
+    inner_let = p.body[0].body[0]
+    assert inner_let._sequenced_remove_num_envs == [0, 1, 2]
 
 def test_reclambda():
     # simple case:
@@ -164,34 +206,6 @@ def test_asts_know_surrounding_lambda():
     inner_lam = inner_caselam.lams[0]
     assert inner_lam.body[0].surrounding_lambda is inner_lam
 
-@skip
-def test_cont_fusion():
-    from pycket.env import SymList, ToplevelEnv
-    from pycket.interpreter import (
-        LetCont, BeginCont,
-        FusedLet0Let0Cont, FusedLet0BeginCont,
-    )
-    from pycket.config import get_testing_config
-    from pycket.cont   import NilCont
-    args = SymList([])
-    counts = [1]
-    rhss = 1
-    letast1 = Let(args, counts, [1], [2])
-    letast2 = Let(args, counts, [1], [2])
-    env = ToplevelEnv(get_testing_config(**{"pycket.fuse_conts": True}))
-    prev = NilCont()
-    let2 = LetCont.make([], letast2, 0, env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0Let0Cont)
-    assert let1.prev is prev
-    assert let1.env is env
-
-    let2 = BeginCont(letast2.counting_asts[0], env, prev)
-    let1 = LetCont.make([], letast1, 0, env, let2)
-    assert isinstance(let1, FusedLet0BeginCont)
-    assert let1.prev is prev
-    assert let1.env is env
-
 def test_bottom_up_let_conversion():
     caselam = expr_ast("(lambda (f1 f2 f3 x) (f1 (f2 (f3 x))))")
     lam = caselam.lams[0]
@@ -223,7 +237,6 @@ def test_bottom_up_let_conversion():
         assert let.rhss[0].rator.sym is fn
         let = let.body[0]
     assert let.rator.sym is f
-
 
 def test_bottom_up_let_conversion_bug_append():
     caselam = expr_ast("(lambda (cons car cdr a b append) (cons (car a) (append (cdr a) b)))")
@@ -267,13 +280,20 @@ def test_nontrivial_with_continuation_mark():
     assert isinstance(body.body[0], App)
 
 def test_flatten_nested_begins():
-    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    p = expr_ast("(let () (begin (begin (0) (1)) (begin (2) (3) (begin (4) (5) (6) (7)))))")
     assert isinstance(p, Begin)
     assert len(p.body) == 8
     for i, b in enumerate(p.body):
+        assert isinstance(b, App)
+        b = b.rator
         assert isinstance(b, Quote)
         val = b.w_val
         assert isinstance(val, W_Fixnum) and val.value == i
+
+    p = expr_ast("(let () (begin (begin 0 1) (begin 2 3 (begin 4 5 6 7))))")
+    assert isinstance(p, Quote)
+    val = p.w_val
+    assert isinstance(val, W_Fixnum) and val.value == 7
 
 def test_anf_setbang():
     p = expr_ast("(let ([x 0]) (set! x (+ 1 (+ x 3))))")
@@ -285,3 +305,4 @@ def test_anf_setbang():
     p = p.body[0]
     assert isinstance(p, SetBang)
     assert p.rhs.simple
+

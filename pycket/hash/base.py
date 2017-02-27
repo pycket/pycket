@@ -51,9 +51,10 @@ class W_HashTable(W_Object):
         raise NotImplementedError("abstract method")
 
     def hash_iterate_next(self, i):
-        if i >= self.length() - 1:
-            raise IndexError
-        return i + 1
+        index = i.value
+        if index >= self.length() - 1:
+            return values.w_false
+        return values.wrap(index + 1)
 
     def hash_iterate_first(self):
         if self.length() == 0:
@@ -97,7 +98,7 @@ def ll_get_dict_item(RES, dict, i):
     else:
         raise KeyError
 
-@specialize.call_location()
+@specialize.arg(2)
 def next_valid_index(d, i, valid=bool):
     """
     Probes the hash table for the next valid index into the table. Raises

@@ -551,8 +551,9 @@ def test_tostring_of_list():
     assert l.tostring() == "(0 1 . 5)"
 
 def test_callgraph_reconstruction():
-    from pycket.expand import expand_string, parse_module
-    from pycket        import config
+    from pycket.expand    import expand_string, parse_module
+    from pycket           import config
+    from pycket.callgraph import LOOP_PARTICIPANT, LOOP_HEADER
     str = """
         #lang pycket
         (define (f x) (g (+ x 1)))
@@ -588,8 +589,9 @@ def test_callgraph_reconstruction():
     h = m.defs[W_Symbol.make("h")].closure.caselam.lams[0]
 
     assert env.callgraph.calls == {f: {g: None}, g: {h: None, f: None}}
-    assert env.callgraph.recursive == {f: None, g: None}
-    assert g.body[0].should_enter
+    assert (env.callgraph.recursive == {f: LOOP_HEADER, g: LOOP_PARTICIPANT} or
+            env.callgraph.recursive == {f: LOOP_PARTICIPANT, g: LOOP_HEADER})
+    assert g.body[0].should_enter or f.body[0].should_enter
 
 def test_callgraph_reconstruction_through_primitives():
     from pycket.expand import expand_string, parse_module

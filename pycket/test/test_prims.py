@@ -60,6 +60,8 @@ def test_equal2(doctest):
 
 def test_append_single(doctest):
     """
+    > (append #f)
+    #f
     > (append (list 1 2) (list 3 4))
     '(1 2 3 4)
     """
@@ -169,7 +171,8 @@ def test_shorthands(doctest):
     '(4 3 2 1)
     > (cddddr '(4 3 2 1))
     '()
-"""
+    """
+
 ###############################################################################
 def test_random():
     for i in range(100):
@@ -178,10 +181,8 @@ def test_random():
         x = run_fix("(random %s)" % (5 + i))
         assert 0 <= x < i + 5
 
-
 def test_random_seed():
     run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
-
 
 #############################################################################
 def test_byte_huh(doctest):
@@ -378,7 +379,7 @@ def test_system_type_os(source):
     """(cons (system-type) (system-type 'os))"""
     result = run_mod_expr(source, wrap=True)
     assert result.car() == result.cdr()
-    sym = result.car().asciivalue
+    sym = result.car().asciivalue()
     # Sadly, this can never cover all cases.
     if sys.platform == "darwin":
         assert sym == "macosx"
@@ -390,7 +391,7 @@ def test_system_type_os(source):
 def test_system_path_convention_type(source):
     """(system-path-convention-type)"""
     result = run_mod_expr(source, wrap=True)
-    sym = result.asciivalue
+    sym = result.asciivalue()
     if sys.platform in ['win32', 'cygwin']:
         assert sym == "windows"
     else:
@@ -699,6 +700,8 @@ def test_procedure_closure_contents_eq(doctest):
     ! (define (f x) (lambda () x))
     ! (define a "abc")
     ! (define (g x) (lambda () (g x)))
+    ! (set! f (lambda (x) (lambda () x)))
+    ! (set! g (lambda (x) (lambda () (g x))))
     > (procedure-closure-contents-eq? (f a) (f a))
     #t
     > (procedure-closure-contents-eq? (f a) (f "abc"))
@@ -1083,6 +1086,20 @@ def test_bytes_to_path_element(doctest):
     "spenser"
     """
 
+def test_bytes_to_immutable_bytes(doctest):
+    """
+    > (immutable? (bytes->immutable-bytes (bytes 1 2 3)))
+    #t
+    > (equal? (bytes->immutable-bytes (bytes 1 2 3)) (bytes 1 2 3))
+    #t
+    """
+
+def test_bytes_to_list(doctest):
+    """
+    > (bytes->list #"Apple")
+    '(65  112 112 108 101)
+    """
+
 def test_split_path(doctest):
     """
     ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
@@ -1345,4 +1362,67 @@ def test_logger_operations(doctest):
     """
     > (logger-name (make-logger 'example))
     'example
+    """
+
+def test_path_less_than(doctest):
+    """
+    > (path<? (string->path "a") (string->path "b"))
+    #t
+    > (path<? (string->path "") (string->path ""))
+    #f
+    > (path<? (string->path "a") (string->path ""))
+    #f
+    > (path<? (string->path "") (string->path "a"))
+    #t
+    > (path<? (string->path "/home/spenser") (string->path "/home"))
+    #f
+    > (path<? (string->path "/home") (string->path "/home/spenser"))
+    #t
+    """
+
+def test_string_to_bytes_latin1(doctest):
+    u"""
+    ! (define b (bytes->string/latin-1 (bytes 254 211 209 165)))
+    > (string->bytes/latin-1 b)
+    #"\376\323\321\245"
+    > (bytes->string/latin-1 (string->bytes/latin-1 b))
+    "þÓÑ¥"
+    """
+
+def test_current_seconds(doctest):
+    """
+    > (exact-integer? (current-seconds))
+    #t
+    """
+
+def test_true_object(doctest):
+    """
+    ! (require '#%kernel)
+    > (true-object? #t)
+    #t
+    > (true-object? #f)
+    #f
+    > (true-object? 3)
+    #f
+    """
+
+def test_char_foldcase(doctest):
+    ur"""
+    > (char-foldcase #\A)
+    #\a
+    > (char-foldcase #\Σ)
+    #\σ
+    > (char-foldcase #\ς)
+    #\σ
+    > (char-foldcase #\space)
+    #\space
+    """
+
+def test_procedure_specialize(doctest):
+    """
+    ! (define f (let ([g 5]) (lambda (x) (+ g x))))
+    > (f 1)
+    6
+    > ((procedure-specialize f) 1)
+    6
     """

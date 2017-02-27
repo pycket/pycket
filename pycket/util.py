@@ -2,9 +2,24 @@
 # -*- coding: utf-8 -*-
 
 import inspect
+import string
 
 from rpython.rlib        import jit, objectmodel
 from rpython.rlib.unroll import unrolling_iterable
+
+def snake_case(str):
+    if not str:
+        return str
+    first = str[0]
+    last = str[-1]
+    body = str[1:-1]
+    new = []
+    for b in body:
+        if b in string.uppercase:
+            new.append("_" + b.lower())
+        else:
+            new.append(b)
+    return first.lower() + "".join(new) + last.lower()
 
 def memoize(f):
     cache = {}

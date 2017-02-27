@@ -1,10 +1,11 @@
 import operator as op
 from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
-from pycket.hash.equal               import ByteHashmapStrategy, StringHashmapStrategy
+from pycket.hash.equal               import MutableByteHashmapStrategy, StringHashmapStrategy
 from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
 from pycket.test.testhelper          import run_mod_expr, run_mod
 from rpython.rlib.rarithmetic        import r_uint
+from rpython.jit.metainterp.test.support import LLJitMixin, noConst
 
 def test_hash_simple(doctest):
     """
@@ -257,18 +258,18 @@ def test_get_item():
         dct = {str(a): b, str(c): d}
         i = 0
         while 1:
-            print i
             try:
                 x, y = get_dict_item(dct, i)
-                print x, y
                 assert (x == str(a) and y == b) or (x == str(c) and y == d)
             except KeyError:
                 pass
             except IndexError:
                 break
             i += 1
-    tg("1", 2, "3", 4)
-    interpret(tg, [1, 2, 334, 4])
+        return i
+    assert tg("1", 2, "3", 4) == interpret(tg, ["1", 2, "3", 4])
+    assert tg(1, 2, 334, 4)   == interpret(tg, [1, 2, 334, 4])
+    assert tg(1, 2, 3, 4)     == interpret(tg, [1, 2, 3, 4])
 
 def test_ll_get_dict_item():
     """
@@ -344,14 +345,14 @@ def test_whitebox_bytes(source):
     r"""
     (let ([ht (make-hash)] [st (bytes 65 66)])
         (bytes-set! st 0 67)
-        (hash-set! ht #"a" '(red round))
-        (hash-set! ht #"b" '(yellow long))
+        (hash-set! ht (bytes 1 2 3) '(red round))
+        (hash-set! ht (bytes 4 5 6) '(yellow long))
         (hash-set! ht st 77)
-        (hash-ref ht #"c" "not there")
+        (hash-ref ht (bytes 7 8 9) "not there")
         ht)
     """
     result = run_mod_expr(source)
-    assert result.strategy is ByteHashmapStrategy.singleton
+    assert result.strategy is MutableByteHashmapStrategy.singleton
 
 def test_hash_for(doctest):
     """
@@ -529,3 +530,18 @@ def test_without_many():
     acc = acc.without_many(range(256))
     assert len(acc) == 0
 
+def test_hash_iterate_functions(doctest):
+    """
+    ! (define eq-table (hasheq (cons 1 2) 3))
+    ! (define equal-table1 (hash (cons 1 2) 3))
+    ! (define equal-table2 (hash 'hello 'bye))
+    ! (define equal-table3 (hash "hello" "bye"))
+    > (hash-iterate-next eq-table (hash-iterate-first eq-table))
+    #f
+    > (hash-iterate-next equal-table1 (hash-iterate-first equal-table1))
+    #f
+    > (hash-iterate-next equal-table2 (hash-iterate-first equal-table2))
+    #f
+    > (hash-iterate-next equal-table3 (hash-iterate-first equal-table3))
+    #f
+    """

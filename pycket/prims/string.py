@@ -12,9 +12,10 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
-    if v.asciivalue is not None:
-        return W_String.fromascii(v.asciivalue)
-    return W_String.fromunicode(v.unicodevalue)
+    asciivalue = v.asciivalue()
+    if asciivalue is not None:
+        return W_String.fromascii(asciivalue)
+    return W_String.fromunicode(v.unicodevalue())
 
 @expose("string->symbol", [W_String])
 def string_to_symbol(v):
@@ -92,7 +93,7 @@ def string_to_immutable_string(string):
 
 @expose("string->uninterned-symbol", [W_String])
 def string_to_symbol(v):
-    return values.W_Symbol(v.as_unicode())
+    return values.W_Symbol(v.as_str_utf8())
 
 @expose(["string->bytes/locale", "string->bytes/utf-8"],
         [W_String,
@@ -105,25 +106,27 @@ def string_to_bytes_locale(str, errbyte, start, end):
     assert start.value == 0
     assert end is None
     # FIXME: This ignores the locale
-    return values.W_Bytes(str.as_charlist_utf8())
+    return values.W_Bytes.from_charlist(str.as_charlist_utf8())
 
 @expose("bytes->string/latin-1",
         [values.W_Bytes,
          default(values.W_Object, values.w_false),
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
+def bytes_to_string_latin(w_bytes, err, start, end):
     # XXX Not a valid implementation
-    return W_String.fromascii("")
+    str = w_bytes.as_str().decode("latin-1")
+    return W_String.fromunicode(str)
 
 @expose("string->bytes/latin-1",
-        [values.W_Bytes,
+        [W_String,
          default(values.W_Object, values.w_false),
          default(values.W_Fixnum, values.W_Fixnum.ZERO),
          default(values.W_Fixnum, None)])
-def bytes_to_string_latin(str, err, start, end):
+def string_to_bytes_latin(w_str, err, start, end):
     # XXX Not a valid implementation
-    return values.W_Bytes.from_string("")
+    bytes = w_str.as_unicode().encode("latin-1")
+    return values.W_Bytes.from_string(bytes)
 
 @expose("string->list", [W_String])
 def string_to_list(s):
@@ -185,9 +188,10 @@ for a in [("string<?", lambda w_self, w_other: w_self.cmp(w_other) < 0),
 def make_string(k, char):
     if char is None:
         char = u'\0'
+        c = 0
     else:
         char = char.value
-    c = ord(char)
+        c = ord(char)
     if k.value < 0:
         raise SchemeException("make-string: around negative")
     if c < 128:
@@ -219,9 +223,21 @@ def string_downcase(v):
 def string_upcase(v):
     return v.upper()
 
+@jit.unroll_safe
+def string_append_fastpath(args):
+    try:
+        joined = "".join([a.as_str_ascii() for a in args])
+        result = W_String.fromascii(joined)
+    except ValueError:
+        joined = u"".join([a.as_unicode() for a in args])
+        result = W_String.fromunicode(joined)
+    return result
+
 @expose("string-append")
 @jit.unroll_safe
 def string_append(args):
+    if jit.isconstant(len(args)):
+        return string_append_fastpath(args)
     if not args:
         return W_String.fromascii("")
     builder = StringBuilder(len(args))
@@ -357,13 +373,14 @@ def bytes_append(args):
         if not isinstance(a, values.W_Bytes):
             raise SchemeException(
                 "bytes-append: expected a byte string, but got %s" % a)
-        total_len += len(a.value)
+        total_len += a.length()
 
     result = ['\0'] * total_len # is this the fastest way to do things?
     cnt = 0
     for a in args:
         assert isinstance(a, values.W_Bytes)
-        for byte in a.value:
+        for i in range(a.length()):
+            byte = a.ref_char(i)
             result[cnt] = byte
             cnt += 1
 
@@ -372,7 +389,7 @@ def bytes_append(args):
 
 @expose("bytes-length", [values.W_Bytes])
 def bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("bytes-ref", [values.W_Bytes, values.W_Fixnum])
 def bytes_ref(s, n):
@@ -384,7 +401,7 @@ def bytes_set_bang(s, n, v):
 
 @expose("unsafe-bytes-length", [subclass_unsafe(values.W_Bytes)])
 def unsafe_bytes_length(s1):
-    return values.W_Fixnum(len(s1.value))
+    return values.W_Fixnum(s1.length())
 
 @expose("unsafe-bytes-ref", [subclass_unsafe(values.W_Bytes), unsafe(values.W_Fixnum)])
 def unsafe_bytes_ref(s, n):
@@ -426,22 +443,23 @@ def subbytes(w_bytes, w_start, w_end):
         start : exact-nonnegative-integer?
         end : exact-nonnegative-integer? = (bytes-length str)
     """
-    bytes = w_bytes.value
     start = w_start.value
-    if start > len(bytes) or start < 0:
+    length = w_bytes.length()
+    if start > length or start < 0:
         raise SchemeException("subbytes: end index out of bounds")
     if w_end is not None:
         end = w_end.value
-        if end > len(bytes) or end < 0:
+        if end > length or end < 0:
             raise SchemeException("subbytes: end index out of bounds")
     else:
-        end = len(bytes)
+        end = length
     if end < start:
         raise SchemeException(
             "subbytes: ending index is smaller than starting index")
-    return values.W_MutableBytes(bytes[start:end])
+    slice = w_bytes.getslice(start, end)
+    return values.W_Bytes.from_charlist(slice, immutable=False)
 
-@expose(["bytes-copy!"],
+@expose("bytes-copy!",
          [values.W_Bytes, values.W_Fixnum, values.W_Bytes,
           default(values.W_Fixnum, values.W_Fixnum.ZERO),
           default(values.W_Fixnum, None)])
@@ -453,16 +471,17 @@ def bytes_copy_bang(w_dest, w_dest_start, w_src, w_src_start, w_src_end):
         raise SchemeException("bytes-copy!: given immutable bytes")
 
     dest_start = w_dest_start.value
-    dest_len = len(w_dest.value)
+    dest_len = w_dest.length()
     dest_max = (dest_len - dest_start)
 
     src_start =  w_src_start.value
-    src_end = len(w_src.value) if w_src_end is None else w_src_end.value
+    src_end = w_src.length() if w_src_end is None else w_src_end.value
 
     assert (src_end-src_start) <= dest_max
 
     for i in range(0, src_end - src_start):
-        w_dest.value[dest_start + i] = w_src.value[src_start + i]
+        val = w_src.ref_char(src_start + i)
+        w_dest.set_char(dest_start + i, val)
 
     return values.w_void
 
@@ -479,7 +498,9 @@ def define_bytes_comp(name, op):
         for t in tail:
             if not isinstance(t, values.W_Bytes):
                 raise SchemeException(name + ": not given a bytes")
-            if not compare(head.value, t.value):
+            bs1 = head.as_bytes_list()
+            bs2 = t.as_bytes_list()
+            if not compare(bs1, bs2):
                 return values.w_false
             head = t
         return values.w_true
@@ -519,6 +540,21 @@ def string_to_bytes_locale(bytes, errbyte, start, end):
 def bytes_to_path(b):
     return values.W_Path(b.as_str())
 
+@expose("bytes->immutable-bytes", [values.W_Bytes])
+def bytes_to_immutable_bytes(b):
+    if b.immutable():
+        return b
+    storage = b.as_bytes_list()
+    return values.W_Bytes.from_charlist(storage, immutable=True)
+
+@expose("bytes->list", [values.W_Bytes])
+def bytes_to_list(bs):
+    acc = values.w_null
+    for i in range(bs.length()-1, -1, -1):
+        byte = ord(bs.ref_char(i))
+        acc = values.wrap(byte, acc)
+    return acc
+
 ################################################################################
 
 # Character
@@ -539,6 +575,16 @@ def char_downcase(v):
 @expose("char-upcase", [values.W_Character])
 def char_upcase(v):
     return values.W_Character(unichr(unicodedb.toupper(ord(v.value))))
+
+@expose("char-foldcase", [values.W_Character])
+def char_foldcase(w_char):
+    char = ord(w_char.value)
+    folded = unicodedb.casefold_lookup(char)
+    if folded is None:
+        lower = unicodedb.tolower(char)
+        return values.W_Character(unichr(lower))
+    # XXX: What to do if the case folded character consists of more than one code point?
+    return values.W_Character(unichr(folded[0]))
 
 
 def define_char_comp(name, op):
