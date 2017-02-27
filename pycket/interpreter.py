@@ -1107,6 +1107,11 @@ class SequencedBodyAST(AST):
         self._sequenced_env_structure = env_structure
         self._sequenced_remove_num_envs = remove_num_envs
 
+    def copy_body_pruning(self, other):
+        assert isinstance(other, SequencedBodyAST)
+        self._sequenced_env_structure   = other._sequenced_env_structure
+        self._sequenced_remove_num_envs = other._sequenced_remove_num_envs
+
     @staticmethod
     def _check_environment_consistency(env, env_structure):
         if objectmodel.we_are_translated():
