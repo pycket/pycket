@@ -565,6 +565,8 @@ class JsonLoader(object):
             ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([self.to_ast(arr[i]) for i in range(1, len(arr))])
+            if ast_elem == "#%expression":
+                return self.to_ast(arr[1])
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None
