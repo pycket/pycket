@@ -1,6 +1,6 @@
 language: python
 cache: apt
-sudo: false
+sudo: required
 python:
 - "pypy-5.3.1"
 notifications:
