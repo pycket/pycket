@@ -108,6 +108,7 @@ class JsonString(JsonPrimitive):
     is_string = True
 
     def __init__(self, value):
+        assert value is not None
         self.value = value
 
     def tostring(self):
@@ -180,6 +181,21 @@ class FakeSpace(object):
 
     def newlist(self, items):
         return JsonArray([])
+
+    def newint(self, intval):
+        return JsonInt(intval)
+
+    def newfloat(self, floatval):
+        return JsonFloat(floatval)
+
+    def newunicode(self, unicodeval):
+        return JsonString(unicodeval.encode('utf-8'))
+
+    def newtext(self, text):
+        return JsonString(text)
+
+    def newbytes(self, bytes):
+        return JsonString(bytes)
 
     def call_method(self, obj, name, arg):
         assert name == 'append'

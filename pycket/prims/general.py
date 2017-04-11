@@ -1490,9 +1490,15 @@ def make_reader_graph(v):
 
 @expose("procedure-specialize", [procedure])
 def procedure_specialize(proc):
+    from pycket.ast_visitor import copy_ast
     # XXX This is the identity function simply for compatibility.
     # Another option is to wrap closures in a W_PromotableClosure, which might
     # get us a similar effect from the RPython JIT.
+    if not isinstance(proc, values.W_Closure1AsEnv):
+        return proc
+    code = copy_ast(proc.caselam)
+    vals = proc._get_full_list()
+    new_closure = values.W_Closure1AsEnv.make(vals, code, proc._prev)
     return proc
 
 @expose("processor-count", [])

@@ -496,7 +496,7 @@ class JsonLoader(object):
     def _parse_require(self, path):
         dbgprint("parse_require", path, self._lib_string(), path)
         fname, subs = path[0], path[1:]
-        if fname in [".", ".."]:
+        if fname in (".", ".."):
             # fname field is not used in this case, so we just give an idea of which
             # module we are in
             return Require(self.modtable.current_mod(), None, path=path)
@@ -567,6 +567,8 @@ class JsonLoader(object):
             ast_elem = rator["source-name"].value_string()
             if ast_elem == "begin":
                 return Begin([self.to_ast(arr[i]) for i in range(1, len(arr))])
+            if ast_elem == "#%expression":
+                return self.to_ast(arr[1])
             if ast_elem == "set!":
                 target = arr[1].value_object()
                 var = None

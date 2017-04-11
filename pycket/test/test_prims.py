@@ -60,6 +60,8 @@ def test_equal2(doctest):
 
 def test_append_single(doctest):
     """
+    > (append #f)
+    #f
     > (append (list 1 2) (list 3 4))
     '(1 2 3 4)
     """
@@ -698,6 +700,8 @@ def test_procedure_closure_contents_eq(doctest):
     ! (define (f x) (lambda () x))
     ! (define a "abc")
     ! (define (g x) (lambda () (g x)))
+    ! (set! f (lambda (x) (lambda () x)))
+    ! (set! g (lambda (x) (lambda () (g x))))
     > (procedure-closure-contents-eq? (f a) (f a))
     #t
     > (procedure-closure-contents-eq? (f a) (f "abc"))
@@ -1082,6 +1086,20 @@ def test_bytes_to_path_element(doctest):
     "spenser"
     """
 
+def test_bytes_to_immutable_bytes(doctest):
+    """
+    > (immutable? (bytes->immutable-bytes (bytes 1 2 3)))
+    #t
+    > (equal? (bytes->immutable-bytes (bytes 1 2 3)) (bytes 1 2 3))
+    #t
+    """
+
+def test_bytes_to_list(doctest):
+    """
+    > (bytes->list #"Apple")
+    '(65  112 112 108 101)
+    """
+
 def test_split_path(doctest):
     """
     ! (define-values (base1 name1 must-be-dir1) (split-path "abc/def"))
@@ -1386,4 +1404,25 @@ def test_true_object(doctest):
     #f
     > (true-object? 3)
     #f
+    """
+
+def test_char_foldcase(doctest):
+    ur"""
+    > (char-foldcase #\A)
+    #\a
+    > (char-foldcase #\Σ)
+    #\σ
+    > (char-foldcase #\ς)
+    #\σ
+    > (char-foldcase #\space)
+    #\space
+    """
+
+def test_procedure_specialize(doctest):
+    """
+    ! (define f (let ([g 5]) (lambda (x) (+ g x))))
+    > (f 1)
+    6
+    > ((procedure-specialize f) 1)
+    6
     """
