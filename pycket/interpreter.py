@@ -1107,6 +1107,11 @@ class SequencedBodyAST(AST):
         self._sequenced_env_structure = env_structure
         self._sequenced_remove_num_envs = remove_num_envs
 
+    def copy_body_pruning(self, other):
+        assert isinstance(other, SequencedBodyAST)
+        self._sequenced_env_structure   = other._sequenced_env_structure
+        self._sequenced_remove_num_envs = other._sequenced_remove_num_envs
+
     @staticmethod
     def _check_environment_consistency(env, env_structure):
         if objectmodel.we_are_translated():
@@ -1369,16 +1374,16 @@ class ModuleVar(Var):
 
     @jit.elidable
     def is_primitive(self):
-        return is_builtin_module(self.srcmod)
+        return self.srcmod is not None and is_builtin_module(self.srcmod)
 
     @jit.elidable
     def _elidable_lookup(self):
         assert self.modenv
         modenv = self.modenv
-        if self.is_primitive():
-            return self._lookup_primitive()
-        elif self.srcmod is None:
+        if self.srcmod is None:
             mod = modenv.current_module
+        elif self.is_primitive():
+            return self._lookup_primitive()
         else:
             mod = modenv._find_module(self.srcmod)
             if mod is None:

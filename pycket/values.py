@@ -1190,30 +1190,36 @@ class W_MMapBytes(W_Bytes):
         return self.value.size
 
         
+DEFINITELY_NO, MAYBE, DEFINITELY_YES = (-1, 0, 1)
+
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_isascii", "_checked", "_unicodevalue", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value"]
     _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
-        if not we_are_translated():
-            assert isinstance(val, str)
+        assert isinstance(val, str)
         self._unicodevalue = None
-        self.unreadable = unreadable
-        self._checked = False
-        self._isascii = True
         self.utf8value = val
+        self.unreadable = unreadable
+        self._isascii = MAYBE
 
-    @jit.elidable
-    def asciivalue(self):
+    @staticmethod
+    def _cache_is_ascii(self):
         from pycket.values_string import _is_ascii
-        if not self._isascii:
+        if not we_are_translated():
+            assert self._isascii == MAYBE
+        if _is_ascii(self.utf8value):
+            self._isascii = DEFINITELY_YES
+        else:
+            self._isascii = DEFINITELY_NO
+        return self._isascii
+
+    def asciivalue(self):
+        isascii = jit.conditional_call_elidable(
+            self._isascii, W_Symbol._cache_is_ascii, self)
+        if isascii == DEFINITELY_NO:
             return None
-        if not self._checked:
-            self._checked = True
-            if not _is_ascii(self.utf8value):
-                self._isascii = False
-                return None
         return self.utf8value
 
     @jit.elidable
@@ -1264,8 +1270,8 @@ class W_Symbol(W_Object):
         return self.utf8value
 
 # According to samth, its not safe to use a weak table for symbols
-W_Symbol.all_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
-W_Symbol.unreadable_symbols = {} # weakref.RWeakValueDictionary(str, W_Symbol)
+W_Symbol.all_symbols = {}
+W_Symbol.unreadable_symbols = {}
 
 # XXX what are these for?
 break_enabled_key = W_Symbol("break-enabled-key")
@@ -1563,7 +1569,7 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True)
+@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ['caselam']
