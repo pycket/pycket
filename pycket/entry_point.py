@@ -23,7 +23,7 @@ def save_callgraph(config, env):
             env.callgraph.write_dot_file(outfile)
 
 def make_entry_point(pycketconfig=None):
-    from pycket.expand import JsonLoader, PermException
+    from pycket.expand import JsonLoader, ModuleMap, PermException
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
@@ -53,7 +53,14 @@ def make_entry_point(pycketconfig=None):
         module_name, json_ast = ensure_json_ast(config, names)
 
         entry_flag = 'byte-expand' in names
-        reader = JsonLoader(bytecode_expand=entry_flag)
+        multi_mod_flag = 'multiple-modules' in names
+
+        multi_mod_map = ModuleMap(json_ast) if multi_mod_flag else None
+
+        reader = JsonLoader(bytecode_expand=entry_flag,
+                            multiple_modules=multi_mod_flag,
+                            module_mapper=multi_mod_map)
+        
         if json_ast is None:
             ast = reader.expand_to_ast(module_name)
         else:

@@ -20,7 +20,6 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable
 
-
 class ExpandException(SchemeException):
     pass
 
@@ -48,6 +47,7 @@ def readfile_rpython(fname):
 _FN = "-l pycket/expand --"
 _BE = "-l pycket/zo-expand --"
 
+module_map = {}
 
 current_racket_proc = None
 
@@ -146,8 +146,10 @@ def expand_file_to_json(rkt_file, json_file, byte_flag=False):
 
     return _expand_file_to_json(rkt_file, json_file, byte_flag)
 
-def _expand_file_to_json(rkt_file, json_file, byte_flag=False):
+def _expand_file_to_json(rkt_file, json_file, byte_flag=False, multi_flag=False):
     lib = _BE if byte_flag else _FN
+
+    assert not (byte_flag and multi_flag)
 
     dbgprint("_expand_file_to_json", "", lib=lib, filename=rkt_file)
 
@@ -164,13 +166,17 @@ def _expand_file_to_json(rkt_file, json_file, byte_flag=False):
     except OSError:
         pass
 
-    cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
-
-    if byte_flag:
-        print "Transforming %s bytecode to %s" % (rkt_file, json_file)
-        #cmd = "racket %s --output \"%s\" \"%s\"" % (lib, json_file, rkt_file)
+    if multi_flag:
+        print "Complete expansion for %s into %s" % (rkt_file, json_file)
+        cmd = "racket %s --complete-expansion --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
     else:
-        print "Expanding %s to %s" % (rkt_file, json_file)
+        if byte_flag:
+            print "Transforming %s bytecode to %s" % (rkt_file, json_file)
+        else:
+            print "Expanding %s to %s" % (rkt_file, json_file)
+            
+        cmd = "racket %s --output \"%s\" \"%s\" 2>&1" % (lib, json_file, rkt_file)
+        
 
     # print cmd
     pipe = create_popen_file(cmd, "r")
@@ -419,13 +425,31 @@ def parse_path(p):
         srcmod = rpath.realpath(srcmod)
     return srcmod, path
 
+class ModuleMap(object):
+
+    def __init__(self, json_file_name):
+        assert json_file_name is not None and json_file_name != ""
+        data = readfile_rpython(rpath.realpath(os.path.abspath(json_file_name)))
+        self.source_json = json_file_name
+        self.mod_map = pycket_json.loads(data)
+        ## TODO: validate the json
+
+    def get_mod(self, mod_path):
+        if not mod_path in self.mod_map.value_object():
+            raise ValueError('Requested module - %s - is not in - %s.' %
+                             (mod_path, self.source_json))
+
+        return pycket_json.JsonObject(getkey(self.mod_map.value_object(), mod_path, type='o'))
+
 class JsonLoader(object):
 
-    _immutable_fields_ = ["modtable", "bytecode_expand"]
+    _immutable_fields_ = ["modtable", "bytecode_expand", "multiple_modules"]
 
-    def __init__(self, bytecode_expand=False):
+    def __init__(self, bytecode_expand=False, multiple_modules=False, module_mapper=None):
         self.modtable = ModTable()
         self.bytecode_expand = bytecode_expand
+        self.multi_mod_flag = multiple_modules
+        self.multi_mod_mapper = module_mapper
 
     def _lib_string(self):
         return _BE if self.bytecode_expand else _FN
@@ -444,19 +468,29 @@ class JsonLoader(object):
     def load_json_ast_rpython(self, modname, fname):
         assert modname is not None
         modname = rpath.realpath(modname)
-        data = readfile_rpython(fname)
         self.modtable.enter_module(modname)
-        module = self.to_module(pycket_json.loads(data))
+
+        if self.multi_mod_flag:
+            mod_ast = self.multi_mod_mapper.get_mod(modname)
+            module = self.to_module(mod_ast)
+        else:
+            data = readfile_rpython(fname)
+            module = self.to_module(pycket_json.loads(data))
+
         module = finalize_module(module)
         self.modtable.exit_module(modname, module)
         return module
 
     def expand_file_cached(self, rkt_file):
         dbgprint("expand_file_cached", "", lib=self._lib_string(), filename=rkt_file)
-        try:
-            json_file = ensure_json_ast_run(rkt_file, self.bytecode_expand)
-        except PermException:
-            return self.expand_to_ast(rkt_file)
+        # bypass if we already have module_map from the multi-ast-json
+        if not self.multi_mod_flag:
+            try:
+                json_file = ensure_json_ast_run(rkt_file, self.bytecode_expand)
+            except PermException:
+                return self.expand_to_ast(rkt_file)
+        else:
+            json_file = _json_name(rkt_file)
         return self.load_json_ast_rpython(rkt_file, json_file)
 
     def to_bindings(self, arr):
@@ -556,7 +590,7 @@ class JsonLoader(object):
         branch = els if cond.w_val is values.w_false else then
         return self.to_ast(branch)
 
-    def to_ast(self, json):
+    def to_ast(self, json, get_req_mods_from_module_map=False):
         dbgprint("to_ast", json, lib=self._lib_string(), filename="")
         mksym = values.W_Symbol.make
 

@@ -149,6 +149,14 @@ class TestOptions(object):
         assert names1['byte-expand'] == f_name
         assert args1 == []
 
+    def test_m(self):
+        f_name = 'multiple-modules.json'
+        argv1 = ['arg0', "-c", f_name]
+        config1, names1, args1, retval1 = parse_args(argv1)
+        assert retval1 == 0
+        assert names1['multiple-modules'] == f_name
+        assert args1 == []
+
 class TestCommandline(object):
     """These are quire similar to TestOptions but targeted at the higher level
     entry_point interface. At that point, we only have the program exit code.

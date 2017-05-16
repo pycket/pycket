@@ -39,6 +39,7 @@ def print_help(argv):
   -p <package> : Like -e '(require (planet "<package>")'
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
   -b (-R) <file> : run pycket with bytecode expansion, optional -R flag enables recursive bytecode expansion
+  -c <file> : run pycket with complete expansion, expanding every dependent module and put everything into one single json. <file> can also be a json pre-generated with -c option, in this case pycket doesn't need to expand anything at all.
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
@@ -117,6 +118,20 @@ def parse_args(argv):
             if stop:
                 i += 1
                 break
+        elif argv[i] == "-c":
+            arg = argv[i][1]
+
+            if to < i + 1:
+                print "missing argument after -%s" % arg
+                retval = 5
+                break
+
+            i += 1
+
+            names['multiple-modules'] = "%s" % (argv[i])
+
+            retval = 0
+            
         elif argv[i] == "-b":
             arg = argv[i][1]
 
@@ -168,7 +183,21 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if 'byte-expand' in names:
+    if 'multiple-modules' in names:
+        file_name = names['multiple-modules']
+        assert file_name.endswith('.json') or file_name.endswith('.rkt') or file_name.endswith('.rktl')
+        json_file = file_name
+        
+        if file_name.endswith('.rkt') or file_name.endswith('.rktl'):
+            json_file = _json_name(file_name)
+            _expand_file_to_json(file_name, json_file, byte_flag=False, multi_flag=True)
+        else:
+            # strip the json
+            to = len(file_name) - 5
+            assert to > 0
+            file_name = file_name[:to]
+        
+    elif 'byte-expand' in names:
 
         file_name = names['byte-expand']
         assert file_name.endswith('.rkt') or file_name.endswith('.rktl')
