@@ -492,9 +492,9 @@ def integer_bytes_to_integer(bstr, signed):
         raise SchemeException(
                 "floating-point-bytes->real: byte string must have length 2, 4, or 8")
 
-    val = 0
+    val = rarithmetic.r_int64(0)
     for i, v in enumerate(bytes):
-        val += ord(v) << (i * 8)
+        val += rarithmetic.r_int64(ord(v)) << (i * 8)
 
     return values.W_Flonum(longlong2float.longlong2float(val))
 
