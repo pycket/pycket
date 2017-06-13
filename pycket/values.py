@@ -22,11 +22,6 @@ import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
-
-from rpython.rlib import rmmap, rarithmetic, objectmodel
-from rpython.rlib.buffer import Buffer
-from rpython.rlib.rmmap import RValueError, RTypeError, RMMapError
-
 UNROLLING_CUTOFF = 5
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
@@ -1112,89 +1107,9 @@ class W_ImmutableBytes(W_Bytes):
     def set_char(self, n, v):
         assert False
 
-class W_MMapBytes(W_Bytes):
-    errorname = "bytes"
-    _attrs_ = ['value']
-    _immutable_fields_ = ['value']
-
-    import_from_mixin(BytesMixin)
-
-    def __init__(self, bs):
-        assert bs is not None
-        self.value = bs
-
-    def immutable(self):
-        return False
-
-    def set(self, n, v):
-        if n < 0 or n >= self.value.size:
-            raise SchemeException("bytes-set!: index %s out of bounds for length %s"% (n, self.value.size))
-        self.value.data[n] = chr(v)
-
-    def set_char(self, n, v):
-        assert n >= 0 and n < self.value.size
-        self.value.data[n] = v
-
-    def tostring(self):
-        assert False
-        # TODO: No printable byte values should be rendered as base 8
-        #return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value.data])
-
-    def as_bytes_list(self):
-        raise SchemeException("nyi")
-
-    def equal(self, other):
-        if not isinstance(other, W_Bytes):
-            return False
-        b1 = self.as_bytes_list()
-        b2 = other.as_bytes_list()
-        return b1 == b2
-
-    def hash_equal(self, info=None):
-        from rpython.rlib.rarithmetic import intmask
-        # like CPython's string hash
-        s = self.value.data
-        length = self.value.size
-        if length == 0:
-            return -1
-        x = ord(s[0]) << 7
-        i = 0
-        while i < length:
-            x = intmask((1000003*x) ^ ord(s[i]))
-            i += 1
-        x ^= length
-        return intmask(x)
-
-    def ref(self, n):
-        l = self.value.size
-        if n < 0 or n >= l:
-            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
-        return W_Fixnum(ord(self.value.data[n]))
-
-    def ref_char(self, n):
-        l = self.value.size
-        if n < 0 or n >= l:
-            raise SchemeException("bytes-ref: index %s out of bounds for length %s"% (n, l))
-        return self.value.data[n]
-
-    def as_str(self):
-        raise SchemeException("nyi")
-
-    def getslice(self, start, end):
-        assert start >= 0 and end >= 0
-        bytes = self.value.data
-        assert False
-        #return bytes[start:end]
-
-    def length(self):
-        return self.value.size
-
-        
-DEFINITELY_NO, MAYBE, DEFINITELY_YES = (-1, 0, 1)
-
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_checked", "_unicodevalue", "utf8value"]
     _immutable_fields_ = ["unreadable", "utf8value"]
 
     def __init__(self, val, unreadable=False):
@@ -1569,7 +1484,56 @@ class W_Closure(W_Procedure):
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
 
-@inline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
+@RPython traceback:
+  File "pycket_entry_point.c", line 47, in entry_point
+  File "pycket_entry_point.c", line 1042, in actual_entry
+  File "pycket_expand.c", line 97, in JsonLoader_load_json_ast_rpython
+  File "pycket_pycket_json.c", line 193, in loads
+  File "pypy_module__pypyjson.c", line 295, in JSONDecoder_decode_any
+  File "pycket_pycket_json.c", line 2288, in _raise__No_JSON_object_could_be_decoded__unexpec
+Fatal RPython error: ValueError
+cmds.sh: line 106:  7356 Aborted                 (core dumped) pycket-c src/recursive.rkt 12
+RPython traceback:
+  File "pycket_entry_point.c", line 47, in entry_point
+  File "pycket_entry_point.c", line 1042, in actual_entry
+  File "pycket_expand.c", line 97, in JsonLoader_load_json_ast_rpython
+  File "pycket_pycket_json.c", line 193, in loads
+  File "pypy_module__pypyjson.c", line 295, in JSONDecoder_decode_any
+  File "pycket_pycket_json.c", line 2288, in _raise__No_JSON_object_could_be_decoded__unexpec
+Fatal RPython error: ValueError
+cmds.sh: line 107:  7358 Aborted                 (core dumped) pycket-c src/recursive.rkt 12
+RPython traceback:
+  File "pycket_entry_point.c", line 47, in entry_point
+  File "pycket_entry_point.c", line 1042, in actual_entry
+  File "pycket_expand.c", line 97, in JsonLoader_load_json_ast_rpython
+  File "pycket_pycket_json.c", line 193, in loads
+  File "pypy_module__pypyjson.c", line 295, in JSONDecoder_decode_any
+  File "pycket_pycket_json.c", line 2288, in _raise__No_JSON_object_could_be_decoded__unexpec
+Fatal RPython error: ValueError
+cmds.sh: line 108:  7360 Aborted                 (core dumped) pycket-c src/recursive.rkt 12
+RPython traceback:
+  File "pycket_entry_point.c", line 47, in entry_point
+  File "pycket_entry_point.c", line 1381, in actual_entry
+  File "pycket_interpreter.c", line 80, in interpret_module
+  File "pycket_interpreter.c", line 1161, in Module__interpret_mod
+  File "pycket_interpreter.c", line 17470, in interpret_one
+  File "rpython_jit_metainterp.c", line 8496, in handle_jitexception_1
+  File "pycket_interpreter.c", line 58311, in portal_1
+  File "pycket_prims_7.c", line 37342, in with_input_from_file
+  File "rpython_rlib.c", line 15809, in open_file_as_stream__str
+  File "rpython_rlib.c", line 525, in open__str
+Fatal RPython error: OSError
+cmds.sh: line 109:  7362 Aborted                 (core dumped) pycket-c src/spellcheck.rkt ulysses
+RPython traceback:
+  File "pycket_entry_point.c", line 47, in entry_point
+  File "pycket_entry_point.c", line 1381, in actual_entry
+  File "pycket_interpreter.c", line 80, in interpret_module
+  File "pycket_interpreter.c", line 1161, in Module__interpret_mod
+  File "pycket_interpreter.c", line 17470, in interpret_one
+  File "rpython_jit_metainterp.c", line 8496, in handle_jitexception_1
+  File "pycket_interpreter.c", line 58311, in portal_1
+  File "pycket_prims_7.c", line 37342, in with_input_from_file
+  File "rpython_rlib.c", line 15809, in open_file_as_stream__strinline_small_list(immutable=True, attrname="vals", factoryname="_make", unbox_num=True, nonull=True)
 class W_Closure1AsEnv(ConsEnv):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ['caselam']

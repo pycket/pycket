@@ -216,7 +216,7 @@ fetch_pypy() {
 }
 
 prepare_racket() {
-  raco pkg install --auto -t dir pycket/pycket-lang/
+  raco pkg install -t dir pycket/pycket-lang/
 }
 
 expand_rkt() {

@@ -44,11 +44,6 @@ from pycket.prims import tcp
 
 from rpython.rlib import jit
 
-
-from rpython.rlib import rmmap as rmmap
-from rpython.rlib.rmmap import RTypeError, RValueError, alloc, free
-
-
 def make_pred(name, cls):
     @expose(name, [values.W_Object], simple=True)
     def predicate_(a):
@@ -1572,10 +1567,3 @@ def syntax_property_symbol_keys(v):
     return values.w_null
 
 define_nyi("syntax-property")
-
-@expose("mmap", [values_string.W_String, values.W_Fixnum])
-def mmap(w_str,l):
-    s = input_output.extract_path(w_str)
-    f = open(s,"r+")
-    m = rmmap.mmap(f.fileno(), l.value) # 3 == 1 | 2
-    return values.W_MMapBytes(m)
