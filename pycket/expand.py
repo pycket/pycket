@@ -713,8 +713,12 @@ class JsonLoader(object):
                 srcsym = mksym(srcname)
                 modsym = mksym(modname) if modname else srcsym
                 if "source-linklet" in obj:
-                    instance_number = obj["source-linklet"].value_object()["quote"].value_object()["number"].value_object()["integer"].value_string()
-                    instance_number = string_to_int(instance_number)
+                    source = obj["source-linklet"].value_object()["quote"].value_object()
+                    if "toplevel" in source and source["toplevel"].value_string() == "self":
+                        instance_number = -1
+                    else:
+                        instance_number = source_["number"].value_object()["integer"].value_string()
+                        instance_number = string_to_int(instance_number)
                     return LinkletVar(mksym(srcname),instance_number)
                 elif "source-module" in obj:
                     if obj["source-module"].is_array:

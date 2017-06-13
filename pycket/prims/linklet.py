@@ -65,12 +65,10 @@ class LinkletInstance(W_Object):
 
     def lookup(self, id_str, import_num):
         """ Gets the requested value from the appropriate instance. """
-        if import_num == 0:
+        if import_num < 0:
             return self.export_val(id_str)
         else:
-            k = import_num-1
-            assert k >= 0
-            return self.imported_instances[k].lookup(id_str, 0)
+            return self.imported_instances[import_num].lookup(id_str, -1)
 
     def set_defs(self, defs):
         self.defs = defs
