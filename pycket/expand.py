@@ -20,6 +20,8 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable
 
+
+
 class ExpandException(SchemeException):
     pass
 
@@ -440,7 +442,7 @@ class ModuleMap(object):
                              (mod_path, self.source_json))
 
         return pycket_json.JsonObject(getkey(self.mod_map.value_object(), mod_path, type='o'))
-
+    
 class JsonLoader(object):
 
     _immutable_fields_ = ["modtable", "bytecode_expand", "multiple_modules"]
@@ -710,7 +712,11 @@ class JsonLoader(object):
                 modname = obj["module"].value_string() if "module" in obj else None
                 srcsym = mksym(srcname)
                 modsym = mksym(modname) if modname else srcsym
-                if "source-module" in obj:
+                if "source-linklet" in obj:
+                    instance_number = obj["source-linklet"].value_object()["quote"].value_object()["number"].value_object()["integer"].value_string()
+                    instance_number = string_to_int(instance_number)
+                    return LinkletVar(mksym(srcname),instance_number)
+                elif "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()
                         srcmod, path = parse_path(path_arr)

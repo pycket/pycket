@@ -428,6 +428,7 @@ class LetCont(Cont):
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
         assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
+        l_inst = self.env.get_current_linklet_instance()
         if new_length == 0:
             return ConsEnv.make0(prev)
         if new_length == 1:
@@ -437,7 +438,7 @@ class LetCont(Cont):
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
             elem = ast.wrap_value(elem, 0)
-            return ConsEnv.make1(elem, prev)
+            return ConsEnv.make1(elem, prev, l_inst)
         if new_length == 2:
             if len_self == 0:
                 assert len_vals == 2
@@ -453,8 +454,8 @@ class LetCont(Cont):
                 elem2 = self._get_list(1)
             elem1 = ast.wrap_value(elem1, 0)
             elem2 = ast.wrap_value(elem2, 1)
-            return ConsEnv.make2(elem1, elem2, prev)
-        env = ConsEnv.make_n(new_length, prev)
+            return ConsEnv.make2(elem1, elem2, prev, l_inst)
+        env = ConsEnv.make_n(new_length, prev, l_inst)
         i = 0
         for j in range(len_self):
             val = self._get_list(j)
@@ -1329,6 +1330,21 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
+class LinkletVar(Var):
+    visitable = True
+
+    def __init__(self, sym, srcinstance_num):
+        self.sym = sym
+        self.srcinstance_number = srcinstance_num
+
+    def _free_vars(self):
+        return SymbolSet.EMPTY
+
+    def _lookup(self, env):
+        instance = env.get_current_linklet_instance()
+
+        return instance.lookup(self.sym, self.srcinstance_number)
+    
 class LexicalVar(Var):
     visitable = True
     def _lookup(self, env):

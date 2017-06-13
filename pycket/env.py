@@ -139,9 +139,9 @@ class Version(object):
 
 
 class ToplevelEnv(Env):
-    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig']
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance']
     _immutable_fields_ = ["version?", "module_env"]
-    def __init__(self, pycketconfig=None):
+    def __init__(self, pycketconfig=None, current_linklet_instance=None):
         from rpython.config.config import Config
         self.bindings = {}
         self.version = Version()
@@ -154,6 +154,10 @@ class ToplevelEnv(Env):
             pycketconfig = get_testing_config()
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
+        self.current_linklet_instance = current_linklet_instance
+
+    def get_current_linklet_instance(self):
+        return self.current_linklet_instance
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
@@ -186,18 +190,22 @@ class ToplevelEnv(Env):
 class ConsEnv(Env):
     _immutable_ = True
     _immutable_fields_ = ["_prev"]
-    _attrs_ = ["_prev"]
-    def __init__ (self, prev):
+    _attrs_ = ["_prev", "current_linklet_instance"]
+    def __init__ (self, prev, current_linklet_instance=None):
         assert isinstance(prev, Env)
         self._prev = prev
+        self.current_linklet_instance = current_linklet_instance
+
+    def get_current_linklet_instance(self):
+        return self.current_linklet_instance
 
     def consenv_get_size(self):
         return self._get_size_list()
 
     @staticmethod
-    def make(vals, prev):
+    def make(vals, prev, curr_linkl_inst=None):
         if vals:
-            return ConsEnv._make(vals, prev)
+            return ConsEnv._make(vals, prev, curr_linkl_inst)
         return prev
 
     @staticmethod
@@ -205,17 +213,17 @@ class ConsEnv(Env):
         return prev
 
     @staticmethod
-    def make1(w_val, prev):
-        return ConsEnv._make1(w_val, prev)
+    def make1(w_val, prev, curr_linkl_inst=None):
+        return ConsEnv._make1(w_val, prev, curr_linkl_inst)
 
     @staticmethod
-    def make2(w_val1, w_val2, prev):
-        return ConsEnv._make2(w_val1, w_val2, prev)
+    def make2(w_val1, w_val2, prev, curr_linkl_inst=None):
+        return ConsEnv._make2(w_val1, w_val2, prev, curr_linkl_inst)
 
     @staticmethod
-    def make_n(n_vals, prev):
+    def make_n(n_vals, prev, curr_linkl_inst=None):
         if n_vals:
-            return ConsEnv._make_n(n_vals, prev)
+            return ConsEnv._make_n(n_vals, prev, curr_linkl_inst)
         return prev
 
     @jit.unroll_safe

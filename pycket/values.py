@@ -1292,6 +1292,17 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
+class W_LinkletPrim(W_Object):
+
+    def __init__(self, code):
+        self.lambda_value = code
+
+    def call(self, args, env, cont):
+        return self.lambda_value.call(args, env, cont)
+
+    def call_with_extra_info(self, args, env, cont, extra_call_info):
+        return self.lambda_value.call_with_extra_info(args, env, cont, extra_call_info)
+
 @always_inline
 def to_list(l, start=0):
     return to_improper(l, w_null, start=start)
@@ -1418,7 +1429,8 @@ class W_ComposableContinuation(W_Procedure):
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
     _immutable_ = True
-    _attrs_ = _immutable_fields_ = ["caselam"]
+    _immutable_fields_ = ["caselam"]
+    _attrs_ = ["caselam", "current_linklet_instance"]
 
     @jit.unroll_safe
     def __init__(self, caselam, env):
@@ -1426,6 +1438,7 @@ class W_Closure(W_Procedure):
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
+        self.current_linklet_instance = env.get_current_linklet_instance()
 
     def enable_jitting(self):
         self.caselam.enable_jitting()
@@ -1479,8 +1492,9 @@ class W_Closure(W_Procedure):
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
+        curr_linkl_inst = self.current_linklet_instance
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
+            ConsEnv.make(actuals, prev, curr_linkl_inst),
             cont)
 
     def call(self, args, env, cont):
@@ -1536,6 +1550,7 @@ class W_Closure1AsEnv(ConsEnv):
             lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
+        
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 self, env_structure, env)
         return lam.make_begin_cont(

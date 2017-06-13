@@ -15,6 +15,7 @@ from pycket.interpreter import (
     LexicalVar,
     Module,
     ModuleVar,
+    LinkletVar,
     Quote,
     QuoteSyntax,
     Require,
@@ -104,6 +105,12 @@ class ASTVisitor(object):
     def visit_module_var(self, ast, *args):
         assert isinstance(ast, ModuleVar)
         return ast
+
+    @specialize.argtype(0)
+    def visit_linklet_var(self, ast, *args):
+        assert isinstance(ast, LinkletVar)
+        return ast
+
 
     @specialize.argtype(0)
     def visit_toplevel_var(self, ast, *args):

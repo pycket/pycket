@@ -24,6 +24,7 @@ def save_callgraph(config, env):
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
+    from pycket.prims.linklet import Linklet
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
@@ -60,7 +61,7 @@ def make_entry_point(pycketconfig=None):
         reader = JsonLoader(bytecode_expand=entry_flag,
                             multiple_modules=multi_mod_flag,
                             module_mapper=multi_mod_map)
-        
+
         if json_ast is None:
             ast = reader.expand_to_ast(module_name)
         else:
@@ -70,6 +71,19 @@ def make_entry_point(pycketconfig=None):
         env.globalconfig.load(ast)
         env.commandline_arguments = args_w
         env.module_env.add_module(module_name, ast)
+
+        l1_linkl = Linklet.load_linklet("l1", reader)
+        l1_instance = l1_linkl.instantiate(env, [])
+
+        l2_linkl = Linklet.load_linklet("l2", reader)
+        l2_instance = l2_linkl.instantiate(env, [l1_instance])
+
+        l3_linkl = Linklet.load_linklet("l3", reader)
+        l3_instance = l3_linkl.instantiate(env, [l1_instance, l2_instance])
+
+        l3_instance.provide_all_exports_to_prim_env()
+        env.current_linklet_instance = l3_instance
+        
         try:
             val = interpret_module(ast, env)
         finally:
