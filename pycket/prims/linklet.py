@@ -137,7 +137,7 @@ class Linklet(object):
         json_python_dict = json.value_object()
         assert "linklet" in json_python_dict
         linklet_dict = getkey(json_python_dict, "linklet", type='o')
-        assert "exports" in linklet_dict and "body" in linklet_dict and "importss" in linklet_dict
+        assert "exports" in linklet_dict and "body" in linklet_dict # and "importss" in linklet_dict
 
         # list of JsonObject
         exports_list = getkey(linklet_dict, "exports", type='a')
@@ -147,9 +147,10 @@ class Linklet(object):
         imports_list = getkey(linklet_dict, "importss", type='a')
 
         importss = []
-        for imports in imports_list:
-            arr = imports.value_array()
-            importss.append([mksym(sym.value_object()['quote']) for sym in arr])
+        if "importss" in linklet_dict:
+            for imports in imports_list:
+                arr = imports.value_array()
+                importss.append([mksym(sym.value_object()['quote']) for sym in arr])
 
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
