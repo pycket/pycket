@@ -73,6 +73,21 @@ class LinkletInstance(W_Object):
     def set_defs(self, defs):
         self.defs = defs
 
+    def add_def(self, name, val):
+        if name in self.defs:
+            raise SchemeException("Duplicate definition : %s" % name)
+
+        self.defs[name] = val
+        
+    def append_defs(self, new_defs):
+
+        # check if we already have any of the new defs
+        for name, val in new_defs.iteritems:
+            if name in self.defs:
+                raise SchemeException("Duplicate definition : %s" % name)
+
+        self.defs.update(new_defs)
+
 class Linklet(object):
     """
     def instantiate(self, env, imported_instances):
@@ -107,7 +122,6 @@ class Linklet(object):
         inst = LinkletInstance(self.name, imported_instances, self.exports, {})
         env.current_linklet_instance = inst
 
-        defs = {}
         for form in self.forms:
             if isinstance(form, DefineValues):
                 expression = form.rhs
@@ -118,14 +132,14 @@ class Linklet(object):
                         name = form.names[index]
                         value = values[index]
 
-                        defs[name] = value
+                        inst.add_def(name, value)
                 else:
                     raise SchemeException("wrong number of values for define-values")
+
             else: # any expression
                 values = interpret_one(form, env)
                 continue
 
-        inst.set_defs(defs)
         return inst
 
     @staticmethod # json_file_name -> Linklet
