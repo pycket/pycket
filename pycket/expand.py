@@ -616,6 +616,14 @@ class JsonLoader(object):
                             srcmod, path = parse_path(path_arr)
                         else:
                             srcmod = path = None
+                    elif "source-linklet" in target:
+                        source = target["source-linklet"].value_object()["quote"].value_object()
+                        if "toplevel" in source and source["toplevel"].value_string() == "self":
+                            instance_number = -1
+                        else:
+                            instance_number = source["number"].value_object()["integer"].value_string()
+                            instance_number = string_to_int(instance_number)
+                        return LinkletVar(srcname, instance_number)
                     else:
                         srcmod = "#%kernel"
                         path   = None
