@@ -717,7 +717,7 @@ class JsonLoader(object):
                     if "toplevel" in source and source["toplevel"].value_string() == "self":
                         instance_number = -1
                     else:
-                        instance_number = source_["number"].value_object()["integer"].value_string()
+                        instance_number = source["number"].value_object()["integer"].value_string()
                         instance_number = string_to_int(instance_number)
                     return LinkletVar(mksym(srcname),instance_number)
                 elif "source-module" in obj:
