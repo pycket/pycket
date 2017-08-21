@@ -194,7 +194,10 @@ class ConsEnv(Env):
     def __init__ (self, prev, current_linklet_instance=None):
         assert isinstance(prev, Env)
         self._prev = prev
-        self.current_linklet_instance = current_linklet_instance
+        if not current_linklet_instance:
+            self.current_linklet_instance = prev.get_current_linklet_instance()
+        else:
+            self.current_linklet_instance = current_linklet_instance
 
     def get_current_linklet_instance(self):
         return self.current_linklet_instance
