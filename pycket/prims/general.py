@@ -205,6 +205,8 @@ for name in ["prop:evt",
     expose_val(name, values_struct.W_StructProperty(
         values.W_Symbol.make(name), values.w_false))
 
+expose_val("prop:authentic", values_struct.w_prop_authentic)
+    
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
@@ -814,7 +816,7 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-@expose("map", simple=False, arity=Arity.geq(2))
+#@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
     if not args:
