@@ -12,10 +12,39 @@ class Linklet(object)
 from pycket.expand import readfile_rpython, getkey, mksym
 from pycket.interpreter import DefineValues, interpret_one, Context
 from pycket.assign_convert import assign_convert
-from pycket.values import W_LinkletPrim, W_Procedure, W_Object
+from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool
 from pycket.error import SchemeException
 from pycket import pycket_json
-from pycket.prims.expose import prim_env
+from pycket.prims.expose import prim_env, expose, expose_val
+
+@expose("make-instance")
+def make_instance(args):#name, data, *vars_vals):
+    name = args[0]
+    data = args[1]
+    vars_vals = args[2:]
+    # check if the vars and vals match
+    if ((len(vars_vals) % 2) != 0):
+        raise SchemeException("Variable names and values do not match : %s" % vars_vals)
+
+    if vars_vals == []:
+        vars_vals = {}
+    
+    return LinkletInstance(name, [], [], vars_vals)
+
+@expose("instance-set-variable-value!")
+def instance_set_variable_value(args):
+    if len(args) != 4:
+        raise SchemeException("Expected 4 arguments, given %s - %s" % (len(args), args))
+
+    instance = args[0]
+    name = args[1]
+    val = args[2]
+    mode = args[3]
+    if not isinstance(mode, W_Bool):
+        raise NotImplementedError("Handle mode : %s" % mode)
+
+    instance.set_bang_def(name, val)
+    
 
 class LinkletInstance(W_Object):
     """
@@ -56,7 +85,6 @@ class LinkletInstance(W_Object):
         """ Puts all exported values to prim_env. """
         for name, value in self.defs.iteritems():
             if name in self.export_ids:
-
                 # W_Closure/W_PromotableClosure
                 if isinstance(value, W_Procedure):
                     prim_env[name] = W_LinkletPrim(value)
@@ -73,6 +101,9 @@ class LinkletInstance(W_Object):
     def set_defs(self, defs):
         self.defs = defs
 
+    def set_bang_def(self, name, val):
+        self.defs[name] = val
+        
     def add_def(self, name, val):
         if name in self.defs:
             raise SchemeException("Duplicate definition : %s" % name)
