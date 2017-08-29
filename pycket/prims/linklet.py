@@ -12,13 +12,13 @@ class Linklet(object)
 from pycket.expand import readfile_rpython, getkey, mksym
 from pycket.interpreter import DefineValues, interpret_one, Context
 from pycket.assign_convert import assign_convert
-from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool
+from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool, W_Symbol
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, expose_val
 
 @expose("make-instance")
-def make_instance(args):#name, data, *vars_vals):
+def make_instance(args): # name, data, *vars_vals
     name = args[0]
     data = args[1]
     vars_vals = args[2:]
@@ -26,10 +26,18 @@ def make_instance(args):#name, data, *vars_vals):
     if ((len(vars_vals) % 2) != 0):
         raise SchemeException("Variable names and values do not match : %s" % vars_vals)
 
-    if vars_vals == []:
-        vars_vals = {}
+    if isinstance(name, W_Symbol):
+        name_str = name.utf8value # which is a str
+    else:
+        name_str = name.tostring()
     
-    return LinkletInstance(name, [], [], vars_vals)
+    vars_vals_dict = {}
+    for i in range(0, len(vars_vals), 2):
+        n = vars_vals[i]
+        v = vars_vals[i+1]
+        vars_vals_dict[n] = v
+    
+    return LinkletInstance(name_str, [], [], vars_vals_dict)
 
 @expose("instance-set-variable-value!")
 def instance_set_variable_value(args):
