@@ -616,6 +616,10 @@ class JsonLoader(object):
                             srcmod, path = parse_path(path_arr)
                         else:
                             srcmod = path = None
+
+                        modname = mksym(target["module"].value_string()) if "module" in target else srcname
+                        var = ModuleVar(modname, srcmod, srcname, path)
+
                     elif "source-linklet" in target:
                         source = target["source-linklet"].value_object()["quote"].value_object()
                         if "toplevel" in source and source["toplevel"].value_string() == "self":
@@ -623,13 +627,15 @@ class JsonLoader(object):
                         else:
                             instance_number = source["number"].value_object()["integer"].value_string()
                             instance_number = string_to_int(instance_number)
-                        return LinkletVar(srcname, instance_number)
+                        var = LinkletVar(srcname, instance_number)
                     else:
                         srcmod = "#%kernel"
                         path   = None
 
-                    modname = mksym(target["module"].value_string()) if "module" in target else srcname
-                    var = ModuleVar(modname, srcmod, srcname, path)
+                        modname = mksym(target["module"].value_string()) if "module" in target else srcname
+                        var = ModuleVar(modname, srcmod, srcname, path)
+
+
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 else:
