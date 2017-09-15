@@ -116,7 +116,8 @@ class W_Object(W_ProtoObject):
         return objectmodel.compute_hash(self) # default implementation
 
     def hash_eqv(self):
-        return self.hash_equal()
+        # default to hash_eq
+        return objectmodel.compute_hash(self)
 
     def tostring(self):
         return str(self)
