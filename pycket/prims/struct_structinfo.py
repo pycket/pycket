@@ -9,6 +9,8 @@ from pycket.prims.expose import unsafe, default, expose, expose_val
 
 expose_val("current-inspector", values_struct.current_inspector_param)
 
+expose_val("current-code-inspector", values_struct.current_inspector_param)
+
 @expose("make-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
 def do_make_instpector(inspector, env, cont):
     from pycket.interpreter import return_value

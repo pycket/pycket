@@ -1722,12 +1722,13 @@ class W_InputPort(W_Port):
 class W_StringInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["str"]
-    _attrs_ = ['closed', 'str', 'ptr']
+    _attrs_ = ['closed', 'str', 'ptr', 'read_handler']
 
     def __init__(self, str):
         self.closed = False
         self.str = str
         self.ptr = 0
+        self.read_handler = None
 
     def readline(self):
         from rpython.rlib.rstring import find

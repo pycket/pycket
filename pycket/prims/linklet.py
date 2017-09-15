@@ -48,8 +48,6 @@ def instance_set_variable_value(args):
     name = args[1]
     val = args[2]
     mode = args[3]
-    if not isinstance(mode, W_Bool):
-        raise NotImplementedError("Handle mode : %s" % mode)
 
     instance.set_bang_def(name, val)
     
@@ -94,7 +92,7 @@ class LinkletInstance(W_Object):
         for name, value in self.defs.iteritems():
             if name in self.export_ids:
                 # W_Closure/W_PromotableClosure
-                if isinstance(value, W_Procedure):
+                if isinstance(value, W_Object):
                     prim_env[name] = W_LinkletPrim(value)
                 else:
                     pass # ??

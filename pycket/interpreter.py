@@ -1340,6 +1340,12 @@ class LinkletVar(Var):
     def _free_vars(self):
         return SymbolSet.EMPTY
 
+    def _set(self, w_val, env):
+        instance = env.get_current_linklet_instance()
+
+        instance.set_bang_def(self.sym, w_val)
+
+
     def _lookup(self, env):
         instance = env.get_current_linklet_instance()
 
