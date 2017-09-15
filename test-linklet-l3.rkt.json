@@ -1,1 +1,11 @@
-{"module-name":"test-linklet-l3","body-forms":[{"operands":[{"operands":[{"quote":{"string":"\n(add15 21) ::: ~a\n\n"}},{"operands":[{"quote":{"number":{"integer":"21"}}}],"operator":{"source-name":"add15"}}],"operator":{"source-name":"format"}}],"operator":{"source-name":"print"}}],"config":{"exec-file":"/home/caner/pycket/racket","temp-dir":"/var/tmp","config-dir":"/home/caner/etc","version":"6.9.1.5","run-file":"/home/caner/pycket/racket","orig-dir":"/home/caner/pycket","sys-dir":"/","pref-file":"/home/caner/.racket/racket-prefs.rktd","bytecode-expand":"false","home-dir":"/home/caner","doc-dir":"/home/caner","pref-dir":"/home/caner/.racket","init-dir":"/home/caner","init-file":"/home/caner/.racketrc","collects-dir":"/home/caner/collects","addon-dir":"/home/caner/.racket"},"language":["#%kernel"]}
+{"module-name":"test-linklet-l3","body-forms":
+
+ [
+     {"operands":[{"operands": [{"operands":[{"operands":[{"quote":{"string":"(+ 1 #hash())"}}],"operator":{"source-name":"open-input-string"}}],"operator":{"source-name":"read"}}], "operator": {"source-name":"expand"}}], "operator":{"source-name":"print"}}
+     
+  
+  ]
+
+
+
+ ,"config":{"exec-file":"/home/caner/pycket/racket","temp-dir":"/var/tmp","config-dir":"/home/caner/etc","version":"6.9.1.5","run-file":"/home/caner/pycket/racket","orig-dir":"/home/caner/pycket","sys-dir":"/","pref-file":"/home/caner/.racket/racket-prefs.rktd","bytecode-expand":"false","home-dir":"/home/caner","doc-dir":"/home/caner","pref-dir":"/home/caner/.racket","init-dir":"/home/caner","init-file":"/home/caner/.racketrc","collects-dir":"/home/caner/collects","addon-dir":"/home/caner/.racket"},"language":["#%kernel"]}
