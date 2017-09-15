@@ -190,7 +190,7 @@ def read_token(f):
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
-@expose("read", [default(values.W_Object, None)], simple=False)
+#@expose("read", [default(values.W_Object, None)], simple=False)
 def read(port, env, cont):
     from pycket.interpreter import return_value
     cont = read_stream_cont(env, cont)
@@ -355,6 +355,17 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
+@expose("read-char-or-special", [values.W_InputPort, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
+def read_char_or_special(in_port, special_wrap, source_name, env, cont):
+    # FIXME: ignoring special values and custom ports for now
+
+    #return read_char(in_port, env, cont)
+    try:
+        cont = do_read_one_cont(False, False, env, cont)
+        return get_input_port(in_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")    
+    
 @expose("read-char", [default(values.W_Object, None)], simple=False)
 def read_char(w_port, env, cont):
     try:
@@ -388,6 +399,19 @@ def do_peek(w_port, as_bytes, skip, env, cont):
         w_port.seek(old)
         return ret
 
+@expose("peek-char-or-special", [default(values.W_Object, None),
+                                 default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                                 default(values.W_Object, values.w_false),
+                                 default(values.W_Object, values.w_false)],
+        simple=False)
+def peek_char_or_special(w_port, w_skip, special_wrap, source_name, env, cont):
+    # FIXME: exactly same with peek-char
+    try:
+        cont = do_peek_cont(False, w_skip.value, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
+    
 @expose("peek-char", [default(values.W_Object, None),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)

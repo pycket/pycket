@@ -21,8 +21,11 @@ def symbol_to_string(v):
 def string_to_symbol(v):
     return values.W_Symbol.make(v.as_str_utf8())
 
-@expose("string->number", [W_String])
-def str2num(w_s):
+@expose("string->number", [W_String,
+                           default(values.W_Integer, values.W_Fixnum(10)),
+                           default(values.W_Symbol, values.W_Symbol.make("number-or-false")),
+                           default(values.W_Symbol, values.W_Symbol.make("decimal-as-exact"))])
+def str2num(w_s, radix, convert_mode, decimal_mode):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 

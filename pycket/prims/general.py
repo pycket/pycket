@@ -515,6 +515,30 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, cont)
 
+def default_read_handler(*args):
+    from pycket.input_output import read
+    return read
+
+@expose("port-read-handler", [values.W_InputPort, default(values.W_Procedure, None)])
+def do_port_read_handler(ip, proc):
+
+    def_r_handler = values.W_Prim("default-read-handler", default_read_handler)
+    if proc == None:
+        #get
+        if ip.read_handler:
+            return ip.read_handler
+        else:
+            return def_r_handler
+    else:
+        #set
+        if proc is def_r_handler:
+            ip.read_handler = def_r_handler
+        else:
+            ## check proc arities
+            ip.read_handler = proc
+            
+        return proc
+
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
 def do_is_procedure_arity(n):
