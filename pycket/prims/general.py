@@ -16,7 +16,7 @@ from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
-                                 procedure, define_nyi, subclass_unsafe)
+                                 procedure, define_nyi, subclass_unsafe, make_procedure)
 
 
 from rpython.rlib         import jit, objectmodel, unroll
@@ -515,6 +515,7 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, cont)
 
+@make_procedure("default-read-handler")
 def default_read_handler(*args):
     from pycket.input_output import read
     return read
@@ -522,7 +523,7 @@ def default_read_handler(*args):
 @expose("port-read-handler", [values.W_InputPort, default(values.W_Procedure, None)])
 def do_port_read_handler(ip, proc):
 
-    def_r_handler = values.W_Prim("default-read-handler", default_read_handler)
+    def_r_handler = default_read_handler
     if proc == None:
         #get
         if ip.read_handler:
