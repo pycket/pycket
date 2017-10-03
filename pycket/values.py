@@ -1714,6 +1714,10 @@ class W_InputPort(W_Port):
         raise NotImplementedError("abstract class")
     def readline(self):
         raise NotImplementedError("abstract class")
+    def get_read_handler(self):
+        raise NotImplementedError("abstract class")
+    def set_read_handler(self, handler):
+        raise NotImplementedError("abstract class")
     def tostring(self):
         return "#<input-port>"
     def _length_up_to_end(self):
@@ -1730,6 +1734,12 @@ class W_StringInputPort(W_InputPort):
         self.ptr = 0
         self.read_handler = None
 
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
+        
     def readline(self):
         from rpython.rlib.rstring import find
         start = self.ptr
@@ -1783,11 +1793,12 @@ class W_StringInputPort(W_InputPort):
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file']
+    _attrs_ = ['closed', 'file', 'read_handler']
 
     def __init__(self, f):
         self.closed = False
         self.file = f
+        self.read_handler = None
 
     def close(self):
         self.closed = True
@@ -1797,6 +1808,12 @@ class W_FileInputPort(W_InputPort):
     def read(self, n):
         return self.file.read(n)
 
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
+    
     def readline(self):
         return self.file.readline()
 

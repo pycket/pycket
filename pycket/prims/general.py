@@ -128,6 +128,10 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+@expose("datum-intern-literal", [values.W_Object])
+def datum_intern_literal(v):
+    return v
+    
 @expose("byte?", [values.W_Object])
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
@@ -160,6 +164,7 @@ def syntax_to_datum(stx):
 def syntax_e(stx):
     # XXX Obviously not correct
     print "NOT YET IMPLEMENTED: syntax-e"
+    raise SchemeException("This is not the syntax-e you're looking for. Why don't you use the one in the linklet?")
     return stx.val
 
 # FIXME: not implemented
@@ -515,30 +520,31 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, cont)
 
-@make_procedure("default-read-handler")
-def default_read_handler(*args):
-    from pycket.input_output import read
-    return read
+@make_procedure("default-read-handler",[values.W_InputPort, default(values.W_Object, None)], simple=False)
+def default_read_handler(ip, src, env, cont):
+    # default to the "read" and "read-syntax" defined in the expander linklet
+    if src is None:
+        return prim_env[values.W_Symbol.make("read")].call([ip], env, cont)
+    else:
+        return prim_env[values.W_Symbol.make("read-syntax")].call([ip, src], env, cont)
 
 @expose("port-read-handler", [values.W_InputPort, default(values.W_Procedure, None)])
 def do_port_read_handler(ip, proc):
 
-    def_r_handler = default_read_handler
-    if proc == None:
+    if proc is None:
         #get
-        if ip.read_handler:
-            return ip.read_handler
+        if ip.get_read_handler():
+            return ip.get_read_handler()
         else:
-            return def_r_handler
+            return default_read_handler
     else:
         #set
-        if proc is def_r_handler:
-            ip.read_handler = def_r_handler
+        if proc is default_read_handler:
+            ip.set_read_handler(default_read_handler)
         else:
-            ## check proc arities
-            ip.read_handler = proc
+            ip.set_read_handler(proc)
             
-        return proc
+        return values.w_void
 
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
