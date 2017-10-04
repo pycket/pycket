@@ -2,7 +2,8 @@
 
 class LinkletInstance(W_Object)
 class Linklet(object)
-
+class LinkletBundle(W_Object)
+class LinkletDirectory(W_Object)
  """
 
 #! /usr/bin/env python
@@ -15,124 +16,24 @@ from pycket.assign_convert import assign_convert
 from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool, W_Symbol, to_list, w_true, w_false
 from pycket.error import SchemeException
 from pycket import pycket_json
-from pycket.prims.expose import prim_env, expose, expose_val
-
-"""
- OK (define-values (1/primitive-table) (hash-ref linklet-primitive-table 'primitive-table #f))
- (define-values (1/primitive->compiled-position) (hash-ref linklet-primitive-table 'primitive->compiled-position #f))
- (define-values (1/compiled-position->primitive) (hash-ref linklet-primitive-table 'compiled-position->primitive #f))
- (define-values (1/linklet?) (hash-ref linklet-primitive-table 'linklet? #f))
- (define-values (1/compile-linklet) (hash-ref linklet-primitive-table 'compile-linklet #f))
- (define-values (1/recompile-linklet) (hash-ref linklet-primitive-table 'recompile-linklet #f))
- (define-values (1/eval-linklet) (hash-ref linklet-primitive-table 'eval-linklet #f))
- (define-values (1/read-compiled-linklet) (hash-ref linklet-primitive-table 'read-compiled-linklet #f))
- (define-values (1/instantiate-linklet) (hash-ref linklet-primitive-table 'instantiate-linklet #f))
- (define-values (1/linklet-import-variables) (hash-ref linklet-primitive-table 'linklet-import-variables #f))
- (define-values (1/linklet-export-variables) (hash-ref linklet-primitive-table 'linklet-export-variables #f))
- (define-values (1/instance?) (hash-ref linklet-primitive-table 'instance? #f))
- OK (define-values (1/make-instance) (hash-ref linklet-primitive-table 'make-instance #f))
- (define-values (1/instance-name) (hash-ref linklet-primitive-table 'instance-name #f))
- (define-values (1/instance-data) (hash-ref linklet-primitive-table 'instance-data #f))
- OK (define-values (1/instance-variable-names) (hash-ref linklet-primitive-table 'instance-variable-names #f))
- (define-values (1/instance-variable-value) (hash-ref linklet-primitive-table 'instance-variable-value #f))
- OK (define-values (1/instance-set-variable-value!) (hash-ref linklet-primitive-table 'instance-set-variable-value! #f))
- (define-values (1/instance-unset-variable!) (hash-ref linklet-primitive-table 'instance-unset-variable! #f))
- (define-values (1/linklet-directory?) (hash-ref linklet-primitive-table 'linklet-directory? #f))
- (define-values (1/hash->linklet-directory) (hash-ref linklet-primitive-table 'hash->linklet-directory #f))
- (define-values (1/linklet-directory->hash) (hash-ref linklet-primitive-table 'linklet-directory->hash #f))
- (define-values (1/linklet-bundle?) (hash-ref linklet-primitive-table 'linklet-bundle? #f))
- (define-values (1/hash->linklet-bundle) (hash-ref linklet-primitive-table 'hash->linklet-bundle #f))
- (define-values (1/linklet-bundle->hash) (hash-ref linklet-primitive-table 'linklet-bundle->hash #f))
- (define-values (1/variable-reference?) (hash-ref linklet-primitive-table 'variable-reference? #f))
- (define-values (1/variable-reference->instance) (hash-ref linklet-primitive-table 'variable-reference->instance #f))
- (define-values (1/variable-reference-constant?) (hash-ref linklet-primitive-table 'variable-reference-constant? #f))
-"""
-
-@expose("instance-variable-names")
-def instance_variable_names(args):
-    inst = args[0]
-    if not isinstance(inst, LinkletInstance):
-        raise SchemeException("Not a linklet instance! %s" % inst)
-
-    names = []
-    for name in inst.defs.keys():
-        
-        if isinstance(name, str):
-            n = W_Symbol.make(name)
-        elif isinstance(name, W_Symbol):
-            n = name
-        else:
-            raise SchemeException("name not a symbol : %s" % name)
-
-        names.append(n)
-
-    return to_list(names)
-
-@expose("linklet-directory?", [W_Object])
-def linklet_directory_huh(d):
-    if isinstance(d, LinkletDirectory):
-        return w_true
-    else:
-        return w_false
-
-@expose("linklet-bundle?", [W_Object])
-def linklet_bundle_huh(b):
-    if isinstance(b, LinkletBundle):
-        return w_true
-    else:
-        return w_false
-
-@expose("make-instance")
-def make_instance(args): # name, data, *vars_vals
-    name = args[0]
-    data = args[1]
-    vars_vals = args[2:]
-    # check if the vars and vals match
-    if ((len(vars_vals) % 2) != 0):
-        raise SchemeException("Variable names and values do not match : %s" % vars_vals)
-
-    if isinstance(name, W_Symbol):
-        name_str = name.utf8value # which is a str
-    else:
-        name_str = name.tostring()
-    
-    vars_vals_dict = {}
-    for i in range(0, len(vars_vals), 2):
-        n = vars_vals[i]
-        v = vars_vals[i+1]
-        vars_vals_dict[n] = v
-    
-    return LinkletInstance(name_str, [], [], vars_vals_dict)
-
-@expose("instance-set-variable-value!")
-def instance_set_variable_value(args):
-    if len(args) != 4:
-        raise SchemeException("Expected 4 arguments, given %s - %s" % (len(args), args))
-
-    instance = args[0]
-    name = args[1]
-    val = args[2]
-    mode = args[3]
-
-    instance.set_bang_def(name, val)
-
-class LinkletBundle(W_Object):
-
-    def __init__():
-        self.linklets = []
-
-class LinkletDirectory(W_Object):
-
-    def __init__():
-        self.bundles = []
+from pycket.prims.expose import prim_env, expose, expose_val, default
 
 class LinkletInstance(W_Object):
     """
+    def tostring(self):
+
     def export_val(self, id_str):
     def is_defined(self, id_str):
     def is_exported(self, id_str):
+
     def provide_all_exports_to_prim_env(self):
     def lookup(self, id_str, import_num):
+
+    def set_defs(self, defs):
+    def set_bang_def(self, name, val):
+    def add_def(self, name, val):
+    def append_defs(self, new_defs):
+
     """
 
     def __init__(self, name, imported_instances, export_ids, defs):
@@ -202,6 +103,16 @@ class LinkletInstance(W_Object):
 
         self.defs.update(new_defs)
 
+class LinkletBundle(W_Object):
+
+    def __init__():
+        self.linklets = []
+
+class LinkletDirectory(W_Object):
+
+    def __init__():
+        self.bundles = []
+        
 class Linklet(object):
     """
     def instantiate(self, env, imported_instances):
@@ -293,3 +204,104 @@ class Linklet(object):
             all_forms.append(form)
 
         return Linklet(json_file_name, importss, exports, all_forms)
+
+
+    
+"""
+ OK (define-values (1/primitive-table) (hash-ref linklet-primitive-table 'primitive-table #f))
+ (define-values (1/primitive->compiled-position) (hash-ref linklet-primitive-table 'primitive->compiled-position #f))
+ (define-values (1/compiled-position->primitive) (hash-ref linklet-primitive-table 'compiled-position->primitive #f))
+ (define-values (1/linklet?) (hash-ref linklet-primitive-table 'linklet? #f))
+ (define-values (1/compile-linklet) (hash-ref linklet-primitive-table 'compile-linklet #f))
+ (define-values (1/recompile-linklet) (hash-ref linklet-primitive-table 'recompile-linklet #f))
+ (define-values (1/eval-linklet) (hash-ref linklet-primitive-table 'eval-linklet #f))
+ (define-values (1/read-compiled-linklet) (hash-ref linklet-primitive-table 'read-compiled-linklet #f))
+ (define-values (1/instantiate-linklet) (hash-ref linklet-primitive-table 'instantiate-linklet #f))
+ (define-values (1/linklet-import-variables) (hash-ref linklet-primitive-table 'linklet-import-variables #f))
+ (define-values (1/linklet-export-variables) (hash-ref linklet-primitive-table 'linklet-export-variables #f))
+ (define-values (1/instance?) (hash-ref linklet-primitive-table 'instance? #f))
+ OK (define-values (1/make-instance) (hash-ref linklet-primitive-table 'make-instance #f))
+ (define-values (1/instance-name) (hash-ref linklet-primitive-table 'instance-name #f))
+ (define-values (1/instance-data) (hash-ref linklet-primitive-table 'instance-data #f))
+ OK (define-values (1/instance-variable-names) (hash-ref linklet-primitive-table 'instance-variable-names #f))
+ (define-values (1/instance-variable-value) (hash-ref linklet-primitive-table 'instance-variable-value #f))
+ OK (define-values (1/instance-set-variable-value!) (hash-ref linklet-primitive-table 'instance-set-variable-value! #f))
+ (define-values (1/instance-unset-variable!) (hash-ref linklet-primitive-table 'instance-unset-variable! #f))
+ (define-values (1/linklet-directory?) (hash-ref linklet-primitive-table 'linklet-directory? #f))
+ (define-values (1/hash->linklet-directory) (hash-ref linklet-primitive-table 'hash->linklet-directory #f))
+ (define-values (1/linklet-directory->hash) (hash-ref linklet-primitive-table 'linklet-directory->hash #f))
+ (define-values (1/linklet-bundle?) (hash-ref linklet-primitive-table 'linklet-bundle? #f))
+ (define-values (1/hash->linklet-bundle) (hash-ref linklet-primitive-table 'hash->linklet-bundle #f))
+ (define-values (1/linklet-bundle->hash) (hash-ref linklet-primitive-table 'linklet-bundle->hash #f))
+ (define-values (1/variable-reference?) (hash-ref linklet-primitive-table 'variable-reference? #f))
+ (define-values (1/variable-reference->instance) (hash-ref linklet-primitive-table 'variable-reference->instance #f))
+ (define-values (1/variable-reference-constant?) (hash-ref linklet-primitive-table 'variable-reference-constant? #f))
+"""
+    
+@expose("instance-variable-names", [LinkletInstance])
+def instance_variable_names(inst):
+    # inst = args[0]
+    # if not isinstance(inst, LinkletInstance):
+    #     raise SchemeException("Not a linklet instance! %s" % inst)
+
+    names = []
+    for name in inst.defs.keys():
+        
+        if isinstance(name, str):
+            n = W_Symbol.make(name)
+        elif isinstance(name, W_Symbol):
+            n = name
+        else:
+            raise SchemeException("name not a symbol : %s" % name)
+
+        names.append(n)
+
+    return to_list(names)
+
+@expose("linklet-directory?", [W_Object])
+def linklet_directory_huh(d):
+    if isinstance(d, LinkletDirectory):
+        return w_true
+    else:
+        return w_false
+
+@expose("linklet-bundle?", [W_Object])
+def linklet_bundle_huh(b):
+    if isinstance(b, LinkletBundle):
+        return w_true
+    else:
+        return w_false
+
+@expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
+def make_instance(args): # name, data, *vars_vals
+    name = args[0]
+    data = args[1]
+    vars_vals = args[2:]
+    # check if the vars and vals match
+    if ((len(vars_vals) % 2) != 0):
+        raise SchemeException("Variable names and values do not match : %s" % vars_vals)
+
+    if isinstance(name, W_Symbol):
+        name_str = name.utf8value # which is a str
+    else:
+        name_str = name.tostring()
+    
+    vars_vals_dict = {}
+    for i in range(0, len(vars_vals), 2):
+        n = vars_vals[i]
+        v = vars_vals[i+1]
+        vars_vals_dict[n] = v
+    
+    return LinkletInstance(name_str, [], [], vars_vals_dict)
+
+@expose("instance-set-variable-value!", [LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
+def instance_set_variable_value(instance, name, val, mode):
+    # if len(args) != 4:
+    #     raise SchemeException("Expected 4 arguments, given %s - %s" % (len(args), args))
+
+    # instance = args[0]
+    # name = args[1]
+    # val = args[2]
+    # mode = args[3]
+
+    instance.set_bang_def(name, val)
