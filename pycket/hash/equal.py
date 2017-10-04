@@ -199,6 +199,10 @@ class EmptyHashmapStrategy(HashmapStrategy):
         self.switch_to_correct_strategy(w_dict, w_key)
         return w_dict.hash_set(w_key, w_val, env, cont)
 
+    def rem(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        return return_value(w_dict, env, cont) # there's nothing to remove
+
     def _set(self, w_dict, w_key, w_val):
         self.switch_to_correct_strategy(w_dict, w_key)
         return w_dict._set(w_key, w_val)
@@ -265,6 +269,15 @@ class ObjectHashmapStrategy(HashmapStrategy):
     def set(self, w_dict, w_key, w_val, env, cont):
         bucket = self.get_bucket(w_dict, w_key, nonull=True)
         return equal_hash_set_loop(bucket, 0, w_key, w_val, env, cont)
+
+    def rem(self, w_dict, w_key, env, cont):
+        from pycket.interpreter import return_value
+        storage = self.unerase(w_dict.hstorage)
+        hash = tagged_hash(w_key)
+        if hash in storage:
+            del storage[hash]
+            
+        return return_value(w_dict, env, cont)
 
     def _set(self, w_dict, w_key, w_val):
         raise NotImplementedError("Unsafe set not supported for ObjectHashmapStrategy")
@@ -486,6 +499,9 @@ class W_EqualHashTable(W_HashTable):
 
     def hash_ref(self, key, env, cont):
         return self.strategy.get(self, key, env, cont)
+
+    def hash_remove(self, key, env, cont):
+        return self.strategy.rem(self, key, env, cont)
 
     def get_item(self, i):
         return self.strategy.get_item(self, i)
