@@ -265,6 +265,25 @@ define_nyi("hash-clear", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
 
+@expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
+def hash_keys_subset_huh(hash_1, hash_2, env, cont):
+    from pycket.interpreter import return_value
+    ok = False
+    for key, val in hash_1.hash_items():
+        # FIXME : use hash_ref
+        # for key, val in hash_1.hash_items():
+        #     val_2 = hash_ref([hash_2, key, values.w_false], env, cont)
+        #     if val_2 is values.w_false:
+        #         return return_value(values.w_false, env, cont)
+        for k, v in hash_2.hash_items():
+            ok = key is k
+            if ok:
+                break
+        if not ok:
+            return return_value(values.w_false, env, cont)
+    
+    return return_value(values.w_true, env, cont)
+
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
     from pycket.interpreter import check_one_val
