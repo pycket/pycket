@@ -13,7 +13,7 @@ class LinkletDirectory(W_Object)
 from pycket.expand import readfile_rpython, getkey, mksym
 from pycket.interpreter import DefineValues, interpret_one, Context
 from pycket.assign_convert import assign_convert
-from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool, W_Symbol, to_list, w_true, w_false
+from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool, W_Symbol, to_list, w_true, w_false, W_List
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, expose_val, default
@@ -113,7 +113,7 @@ class LinkletDirectory(W_Object):
     def __init__():
         self.bundles = []
         
-class Linklet(object):
+class Linklet(W_Object):
     """
     def instantiate(self, env, imported_instances):
 
@@ -123,8 +123,8 @@ class Linklet(object):
 
     def __init__(self, name, importss, exports, all_forms):
         self.name = name # for debugging
-        self.importss = importss # list of list of python str
-        self.exports = exports # list of python str
+        self.importss = importss # list of list of W_Symbol
+        self.exports = exports # list of W_Symbol
         self.forms = all_forms # list of pycket asts
 
     def instantiate(self, env, imported_instances):
@@ -211,17 +211,17 @@ class Linklet(object):
  OK (define-values (1/primitive-table) (hash-ref linklet-primitive-table 'primitive-table #f))
  (define-values (1/primitive->compiled-position) (hash-ref linklet-primitive-table 'primitive->compiled-position #f))
  (define-values (1/compiled-position->primitive) (hash-ref linklet-primitive-table 'compiled-position->primitive #f))
- (define-values (1/linklet?) (hash-ref linklet-primitive-table 'linklet? #f))
+ OK (define-values (1/linklet?) (hash-ref linklet-primitive-table 'linklet? #f))
  (define-values (1/compile-linklet) (hash-ref linklet-primitive-table 'compile-linklet #f))
  (define-values (1/recompile-linklet) (hash-ref linklet-primitive-table 'recompile-linklet #f))
  (define-values (1/eval-linklet) (hash-ref linklet-primitive-table 'eval-linklet #f))
  (define-values (1/read-compiled-linklet) (hash-ref linklet-primitive-table 'read-compiled-linklet #f))
- (define-values (1/instantiate-linklet) (hash-ref linklet-primitive-table 'instantiate-linklet #f))
- (define-values (1/linklet-import-variables) (hash-ref linklet-primitive-table 'linklet-import-variables #f))
- (define-values (1/linklet-export-variables) (hash-ref linklet-primitive-table 'linklet-export-variables #f))
- (define-values (1/instance?) (hash-ref linklet-primitive-table 'instance? #f))
+ STUB (define-values (1/instantiate-linklet) (hash-ref linklet-primitive-table 'instantiate-linklet #f))
+ OK (define-values (1/linklet-import-variables) (hash-ref linklet-primitive-table 'linklet-import-variables #f))
+ OK (define-values (1/linklet-export-variables) (hash-ref linklet-primitive-table 'linklet-export-variables #f))
+ OK (define-values (1/instance?) (hash-ref linklet-primitive-table 'instance? #f))
  OK (define-values (1/make-instance) (hash-ref linklet-primitive-table 'make-instance #f))
- (define-values (1/instance-name) (hash-ref linklet-primitive-table 'instance-name #f))
+ OK (define-values (1/instance-name) (hash-ref linklet-primitive-table 'instance-name #f))
  (define-values (1/instance-data) (hash-ref linklet-primitive-table 'instance-data #f))
  OK (define-values (1/instance-variable-names) (hash-ref linklet-primitive-table 'instance-variable-names #f))
  (define-values (1/instance-variable-value) (hash-ref linklet-primitive-table 'instance-variable-value #f))
@@ -237,6 +237,53 @@ class Linklet(object):
  (define-values (1/variable-reference->instance) (hash-ref linklet-primitive-table 'variable-reference->instance #f))
  (define-values (1/variable-reference-constant?) (hash-ref linklet-primitive-table 'variable-reference-constant? #f))
 """
+
+@expose("linklet?", [W_Object])
+def linklet_huh(l):
+    if isinstance(l, Linklet):
+        return w_true
+    else:
+        return w_false
+
+@expose("instance?", [W_Object])
+def linklet_huh(l_inst):
+    if isinstance(l_inst, LinkletInstance):
+        return w_true
+    else:
+        return w_false
+
+@expose("instance-name", [LinkletInstance])
+def instance_name(l_inst):
+    return W_Symbol.make(l_inst.name)
+    
+# @expose("instantiate-linklet", [Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
+# def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
+#     if use_prompt is w_true:
+#         raise Exception("instantiate-linklet : not implemented yet : wrap each definition and expression in the linklet in a prompt")
+#     if target_instance is None or target_instance is w_false:
+#         return linkl.instantiate(env, import_instances) <<<< FIXME: import_instances : W_List to 'list'
+#     elif isinstance(target_instance, LinkletInstance):
+#         raise Exception("instantiate-linklet : not implemented yet : use and modify target_instance for the linklet definitions and expressions")
+#     # FIXME
+#     # The linklet’s exported variables are accessible in the result instance or in target-instance using the linklet’s external name for each export. If target-instance is provided as non-#f, its existing variables remain intact if they are not modified by a linklet definition.
+#     else:
+#         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
+
+@expose("linklet-import-variables", [Linklet])
+def linklet_import_variables(linkl):
+    importss_py_lst = linkl.importss
+    importss = []
+    for imp in importss_py_lst:
+        imp_py_lst = []
+        for sym in imp:
+            imp_py_lst.append(sym)
+        importss.append(to_list(imp_py_lst))
+    return to_list(importss)
+
+@expose("linklet-export-variables", [Linklet])
+def linklet_export_variables(linkl):
+    return to_list(linkl.exports)
+    
     
 @expose("instance-variable-names", [LinkletInstance])
 def instance_variable_names(inst):
