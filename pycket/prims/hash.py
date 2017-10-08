@@ -265,24 +265,29 @@ define_nyi("hash-clear", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
 
+@continuation
+def hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(_vals)
+    if val is w_missing:
+        return return_value(values.w_false, env, cont)
+    else:
+        return hash_keys_subset_huh_loop(keys_vals, hash_2, idx + 1, env, cont)
+
+@loop_label
+def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(keys_vals):
+        return return_value(values.w_true, env, cont)
+    else:
+        return hash_ref([hash_2, keys_vals[idx][0], values.w_false], env,
+                        hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont))
+
 @expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
 def hash_keys_subset_huh(hash_1, hash_2, env, cont):
     from pycket.interpreter import return_value
-    ok = False
-    for key, val in hash_1.hash_items():
-        # FIXME : use hash_ref
-        # for key, val in hash_1.hash_items():
-        #     val_2 = hash_ref([hash_2, key, values.w_false], env, cont)
-        #     if val_2 is values.w_false:
-        #         return return_value(values.w_false, env, cont)
-        for k, v in hash_2.hash_items():
-            ok = key is k
-            if ok:
-                break
-        if not ok:
-            return return_value(values.w_false, env, cont)
-    
-    return return_value(values.w_true, env, cont)
+
+    return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
