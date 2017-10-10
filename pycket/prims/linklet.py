@@ -17,6 +17,7 @@ from pycket.values import W_LinkletPrim, W_Procedure, W_Object, W_Bool, W_Symbol
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, expose_val, default
+from pycket.prims.general import make_pred
 
 class LinkletInstance(W_Object):
     """
@@ -238,19 +239,9 @@ class Linklet(W_Object):
  (define-values (1/variable-reference-constant?) (hash-ref linklet-primitive-table 'variable-reference-constant? #f))
 """
 
-@expose("linklet?", [W_Object])
-def linklet_huh(l):
-    if isinstance(l, Linklet):
-        return w_true
-    else:
-        return w_false
+make_pred("linklet?", Linklet)
 
-@expose("instance?", [W_Object])
-def linklet_huh(l_inst):
-    if isinstance(l_inst, LinkletInstance):
-        return w_true
-    else:
-        return w_false
+make_pred("instance?", LinkletInstance)
 
 @expose("instance-name", [LinkletInstance])
 def instance_name(l_inst):
@@ -305,19 +296,9 @@ def instance_variable_names(inst):
 
     return to_list(names)
 
-@expose("linklet-directory?", [W_Object])
-def linklet_directory_huh(d):
-    if isinstance(d, LinkletDirectory):
-        return w_true
-    else:
-        return w_false
+make_pred("linklet-directory?", LinkletDirectory)
 
-@expose("linklet-bundle?", [W_Object])
-def linklet_bundle_huh(b):
-    if isinstance(b, LinkletBundle):
-        return w_true
-    else:
-        return w_false
+make_pred("linklet-bundle?", LinkletBundle)
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
