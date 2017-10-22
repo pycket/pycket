@@ -1,8 +1,6 @@
-from rpython.rlib.rstring import StringBuilder
 from rpython.rlib.runicode import unicode_encode_utf_8
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, r_dict
 from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
-from rpython.rlib.parsing.tree import Symbol, Nonterminal, RPythonVisitor
 from rpython.tool.pairtype import extendabletype
 
 # Union-Object to represent a json structure in a static way
@@ -179,6 +177,9 @@ class FakeSpace(object):
     def newdict(self):
         return JsonObject({})
 
+    def newobject(self, d):
+        return JsonObject(d)
+
     def newlist(self, items):
         return JsonArray([])
 
@@ -190,6 +191,12 @@ class FakeSpace(object):
 
     def newunicode(self, unicodeval):
         return JsonString(unicodeval.encode('utf-8'))
+
+    def unicode_w(self, s):
+        assert isinstance(s, JsonString)
+        string = s.value_string()
+        return string.decode('utf-8')
+        # return str_decode_utf_8(string, len(string), 'strict')
 
     def newtext(self, text):
         return JsonString(text)
@@ -230,7 +237,7 @@ class FakeSpace(object):
 
 fakespace = FakeSpace()
 
-from pypy.module._pypyjson.interp_decoder import JSONDecoder
+from pypy.module._pypyjson.interp_decoder import JSONDecoder, slice_eq, slice_hash
 
 class OwnJSONDecoder(JSONDecoder):
     def __init__(self, s):
@@ -241,10 +248,17 @@ class OwnJSONDecoder(JSONDecoder):
         #    which means that we never have to check for the "end of string"
         self.ll_chars = s + chr(0)
         self.pos = 0
-        self.last_type = 0
+        self.cache = r_dict(slice_eq, slice_hash)
 
     def close(self):
         pass
+
+    def _create_dict(self, d):
+        newdict = {}
+        for key, val in d.iteritems():
+            utf8 = unicode_encode_utf_8(key, len(key), "strict")
+            newdict[utf8] = val
+        return self.space.newobject(newdict)
 
     @specialize.arg(1)
     def _raise(self, msg, *args):
@@ -266,7 +280,6 @@ class OwnJSONDecoder(JSONDecoder):
             i += 1
             if ch == '"':
                 content_utf8 = self.getslice(start, i-1)
-                self.last_type = 1
                 self.pos = i
                 return JsonString(content_utf8)
             elif ch == '\\':
