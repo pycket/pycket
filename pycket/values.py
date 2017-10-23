@@ -1292,17 +1292,6 @@ class W_Prim(W_Procedure):
     def tostring(self):
         return "#<procedure:%s>" % self.name.variable_name()
 
-class W_LinkletPrim(W_Object):
-
-    def __init__(self, code):
-        self.lambda_value = code
-
-    def call(self, args, env, cont):
-        return self.lambda_value.call(args, env, cont)
-
-    def call_with_extra_info(self, args, env, cont, extra_call_info):
-        return self.lambda_value.call_with_extra_info(args, env, cont, extra_call_info)
-
 @always_inline
 def to_list(l, start=0):
     return to_improper(l, w_null, start=start)

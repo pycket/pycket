@@ -733,7 +733,7 @@ class JsonLoader(object):
                     else:
                         instance_number = source["number"].value_object()["integer"].value_string()
                         instance_number = string_to_int(instance_number)
-                    return LinkletVar(mksym(srcname),instance_number)
+                    return LinkletVar(srcsym, instance_number)
                 elif "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()

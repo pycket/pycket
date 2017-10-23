@@ -34,6 +34,7 @@ def print_help(argv):
 %s [<option> ...] <argument> ...
  File and expression options:
   -e <exprs>, --eval <exprs> : Evaluate <exprs>, prints results
+  -r <expr>, : read-eval-print
   -t <file>, --require <file> : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -p <package> : Like -e '(require (planet "<package>")'
@@ -96,6 +97,15 @@ def parse_args(argv):
             config['mode'] = _eval
             i += 1
             names['exprs'] = argv[i]
+        elif argv[i] == "-r":
+            if to <= i + 1:
+                print "missing argument after -r"
+                retval = 5
+                break
+            retval = 0
+            config['rep'] = True
+            i += 1
+            names['expr'] = argv[i]
         elif argv[i] in ["-u", "-t", "-l", "-p"]:
             arg = argv[i][1]
             stop = arg in ["u"]
@@ -183,7 +193,10 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if 'multiple-modules' in names:
+    if 'rep' in config:
+        return "top-module", None
+
+    elif 'multiple-modules' in names:
         file_name = names['multiple-modules']
         assert file_name.endswith('.json') or file_name.endswith('.rkt') or file_name.endswith('.rktl')
         json_file = file_name

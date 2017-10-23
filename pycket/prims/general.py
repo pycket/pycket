@@ -81,7 +81,6 @@ for args in [
         ("byte-regexp?", values_regex.W_ByteRegexp),
         ("byte-pregexp?", values_regex.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
-        ("syntax?", values.W_Syntax),
         ("thread-cell?", values.W_ThreadCell),
         ("thread-cell-values?", values.W_ThreadCellValues),
         ("semaphore?", values.W_Semaphore),
@@ -156,40 +155,10 @@ def syntax_original(v):
 def syntax_tainted(v):
     return values.w_false
 
-@expose("syntax->datum", [values.W_Syntax])
-def syntax_to_datum(stx):
-    return stx.val
-
-@expose("syntax-e", [values.W_Syntax])
-def syntax_e(stx):
-    # XXX Obviously not correct
-    print "NOT YET IMPLEMENTED: syntax-e"
-    raise SchemeException("This is not the syntax-e you're looking for. Why don't you use the one in the linklet?")
-    return stx.val
-
-# FIXME: not implemented
-@expose("datum->syntax", [values.W_Object, values.W_Object,
-  default(values.W_Object, None), default(values.W_Object, None),
-  default(values.W_Object, None)])
-def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
-    print "NOT YET IMPLEMENTED: datum->syntax"
-    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
-    return values.W_Syntax(v)
-
-@expose("syntax-source", [values.W_Syntax])
-def syntax_source(stx):
-    # XXX Obviously not correct
-    return values.w_false
-
 @expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
     return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))
-
-@expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
-def syntax_numbers(stx):
-    # XXX Obviously not correct
-    return values.w_false
 
 @expose("srcloc->string", [values.W_Object])
 def srcloc_to_string(obj):
@@ -1593,10 +1562,3 @@ def primitive_table(v):
     return make_simple_immutable_table(W_EqImmutableHashTable,
                                        prim_env.keys(),
                                        prim_env.values())
-
-@expose("syntax-property-symbol-keys", [values.W_Syntax])
-def syntax_property_symbol_keys(v):
-    return values.w_null
-
-define_nyi("syntax-property")
-

@@ -1345,17 +1345,13 @@ class LinkletVar(Var):
 
         instance.set_bang_def(self.sym, w_val)
 
-
     def _lookup(self, env):
         instance = env.get_current_linklet_instance()
-
-        return instance.lookup(self.sym, self.srcinstance_number)
+        return instance.lookup_linkl(self.sym, self.srcinstance_number)
     
 class LexicalVar(Var):
     visitable = True
     def _lookup(self, env):
-        if not objectmodel.we_are_translated():
-            self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
@@ -2166,14 +2162,17 @@ def inner_interpret_one_state(ast, env, cont):
         if ast.should_enter:
             driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
 
-def interpret_one(ast, env=None):
+def interpret_one(ast, env=None, cont=None):
     if env is None:
         env = ToplevelEnv()
     if env.pycketconfig().two_state:
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-    cont = NilCont()
+        
+    if cont is None:
+        cont = NilCont()
+    
     cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)

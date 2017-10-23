@@ -22,6 +22,46 @@ def save_callgraph(config, env):
         with open('callgraph.dot', 'w') as outfile:
             env.callgraph.write_dot_file(outfile)
 
+def get_primitive(prim_name_str):
+    from pycket.prims.expose import prim_env
+    from pycket.values import W_Symbol
+    from pycket.error import SchemeException
+
+    prim_sym = W_Symbol.make(prim_name_str)
+    if not prim_sym in prim_env:
+        raise SchemeException("Primitive not found : %s" % prim_name_str)
+
+    return prim_env[prim_sym]
+
+def read_eval_print(expr_str, pycketconfig):
+    from pycket.interpreter import check_one_val
+    from pycket.values import W_Symbol, W_WrappedConsProper, w_null
+    from pycket.values_string import W_String
+    
+    # namespace-require the '#%kernel
+    ns = get_primitive("namespace-require")
+    ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                                  W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
+                                                                           w_null))], pycketconfig)
+    # get the read, eval, print, open-input-string primitives
+    ev = get_primitive("eval")
+    rd = get_primitive("read")
+    pr = get_primitive("print")
+    ois = get_primitive("open-input-string")
+
+    # Start calling
+    # open-input-string
+    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig))
+    # read
+    sexp = check_one_val(rd.call_interpret([str_port], pycketconfig))
+    # eval
+    results = check_one_val(ev.call_interpret([sexp], pycketconfig))  # FIXME handle multiple values
+    # print
+    pr.call_interpret([results], pycketconfig)
+    pr.call_interpret([W_String.make("\n")], pycketconfig)
+    
+    return
+
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
     from pycket.prims.linklet import Linklet
@@ -51,6 +91,8 @@ def make_entry_point(pycketconfig=None):
         if retval != 0 or config is None:
             return retval
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
+
+
         module_name, json_ast = ensure_json_ast(config, names)
 
         entry_flag = 'byte-expand' in names
@@ -62,21 +104,34 @@ def make_entry_point(pycketconfig=None):
                             multiple_modules=multi_mod_flag,
                             module_mapper=multi_mod_map)
 
+        env = ToplevelEnv(pycketconfig)
+        env.commandline_arguments = args_w
+
+        # load the expander
+        expander_linkl = Linklet.load_linklet("expander.rktl", reader)
+        expander_instance = expander_linkl.instantiate([], config=pycketconfig)
+        expander_instance.provide_all_exports_to_prim_env()
+        
+        env.current_linklet_instance = expander_instance
+
+        if 'rep' in config:
+            
+            expr_str = names['expr']
+            read_eval_print(expr_str, pycketconfig)
+
+            from pycket.prims.input_output import shutdown
+            for callback in POST_RUN_CALLBACKS:
+                callback(config, env)
+            shutdown(env)
+            return 0
+
         if json_ast is None:
             ast = reader.expand_to_ast(module_name)
         else:
             ast = reader.load_json_ast_rpython(module_name, json_ast)
 
-        env = ToplevelEnv(pycketconfig)
         env.globalconfig.load(ast)
-        env.commandline_arguments = args_w
         env.module_env.add_module(module_name, ast)
-        
-        expander_linkl = Linklet.load_linklet("expander.rktl", reader)
-        expander_instance = expander_linkl.instantiate(env, [])
-        expander_instance.provide_all_exports_to_prim_env()
-        
-        env.current_linklet_instance = expander_instance
         
         try:
             val = interpret_module(ast, env)

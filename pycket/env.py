@@ -159,6 +159,9 @@ class ToplevelEnv(Env):
     def get_current_linklet_instance(self):
         return self.current_linklet_instance
 
+    def set_current_linklet_instance(self, inst):
+        self.current_linklet_instance = inst
+
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
 
@@ -201,6 +204,9 @@ class ConsEnv(Env):
 
     def get_current_linklet_instance(self):
         return self.current_linklet_instance
+
+    def set_current_linklet_instance(self, inst):
+        self.current_linklet_instance = inst
 
     def consenv_get_size(self):
         return self._get_size_list()
