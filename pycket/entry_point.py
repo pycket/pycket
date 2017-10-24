@@ -64,7 +64,7 @@ def read_eval_print(expr_str, pycketconfig):
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
-    from pycket.prims.linklet import Linklet
+    from pycket.prims.linklet import W_Linklet
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
@@ -108,7 +108,7 @@ def make_entry_point(pycketconfig=None):
         env.commandline_arguments = args_w
 
         # load the expander
-        expander_linkl = Linklet.load_linklet("expander.rktl", reader)
+        expander_linkl = W_Linklet.load_linklet("expander.rktl", reader)
         expander_instance = expander_linkl.instantiate([], config=pycketconfig)
         expander_instance.provide_all_exports_to_prim_env()
         

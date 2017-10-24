@@ -1,9 +1,9 @@
 """ Implementation of linklets
 
-class LinkletInstance(W_Object)
-class Linklet(object)
-class LinkletBundle(W_Object)
-class LinkletDirectory(W_Object)
+class W_LinkletInstance(W_Object)
+class W_Linklet(object)
+class W_LinkletBundle(W_Object)
+class W_LinkletDirectory(W_Object)
  """
 
 #! /usr/bin/env python
@@ -18,11 +18,11 @@ from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, default
 from pycket.prims.general import make_pred
-from pycket.prims.correlated import Correlated
+from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
 
-class LinkletInstance(W_Object):
+class W_LinkletInstance(W_Object):
     """
     def tostring(self):
 
@@ -42,12 +42,12 @@ class LinkletInstance(W_Object):
 
     def __init__(self, name, imported_instances, export_ids, defs):
         self.name = name # W_Symbol (for debugging)
-        self.imported_instances = imported_instances # [[...],[..., LinkletInstance ,...],...]
+        self.imported_instances = imported_instances # [[...],[..., W_LinkletInstance ,...],...]
         self.export_ids = export_ids # [..., str ,...]
         self.defs = defs # {W_Symbol-W_Object}
 
     def tostring(self):
-        return "Linklet Instance : %s - Importing : %s" % (self.name, self.imported_instances)
+        return "W_Linklet Instance : %s - Importing : %s" % (self.name, self.imported_instances)
 
     def export_val(self, id_str):
         """ Exports a defined value."""
@@ -100,7 +100,7 @@ class LinkletInstance(W_Object):
 
         self.defs.update(new_defs)
 
-class LinkletBundle(W_Object):
+class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
     
     def __init__(self,bundle_mapping):
@@ -108,13 +108,13 @@ class LinkletBundle(W_Object):
 
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
-    return LinkletBundle(content)
+    return W_LinkletBundle(content)
 
-@expose("linklet-bundle->hash", [LinkletBundle])
+@expose("linklet-bundle->hash", [W_LinkletBundle])
 def linklet_bundle_to_hash(linkl_bundle):
     return linkl_bundle.bundle_mapping
 
-class LinkletDirectory(W_Object):
+class W_LinkletDirectory(W_Object):
 
     # When a Racket module has submodules, the linklet bundles for the module and the submodules are grouped together in a linklet directory. A linklet directory can have nested linklet directories. Information in a linklet directory is keyed by #f or a symbol, where #f must be mapped to a linklet bundle (if anything) and each symbol must be mapped to a linklet directory. A linklet directory can be equivalently viewed as a mapping from a lists of symbols to a linklet bundle.
     
@@ -123,13 +123,13 @@ class LinkletDirectory(W_Object):
 
 @expose("hash->linklet-directory", [W_Object])
 def hash_to_linklet_directory(content):
-    return LinkletDirectory(content)
+    return W_LinkletDirectory(content)
 
-@expose("linklet-directory->hash", [LinkletDirectory])
+@expose("linklet-directory->hash", [W_LinkletDirectory])
 def linklet_directory_to_hash(linkl_directory):
     return linkl_directory.dir_mapping
         
-class Linklet(W_Object):
+class W_Linklet(W_Object):
     """
     def instantiate(self, env, imported_instances):
 
@@ -145,9 +145,9 @@ class Linklet(W_Object):
 
     def instantiate(self, w_imported_instances, config, toplevel_eval=False):
         """ Instantiates the linklet:
-        --- takes the imported linklet instances (list LinkletInstances)
+        --- takes the imported linklet instances (list W_LinkletInstances)
         --- extracts the specified set of variables
-        --- returns a LinkletInstance (or a result if toplevel_eval)
+        --- returns a W_LinkletInstance (or a result if toplevel_eval)
         """
         return_val = None
         l_importss = len(self.importss)
@@ -155,7 +155,7 @@ class Linklet(W_Object):
         l_given_instances = len(w_imported_instances)
         
         # FIXME: coming from "instantiate-linklet" when toplevel_eval==True, there's 3 additional instances when self.importss is []
-        # (when target_instance is a LinkletInstance)
+        # (when target_instance is a W_LinkletInstance)
         if not toplevel_eval and l_importss != l_given_instances:
             raise SchemeException("Required %s instances but given %s" % (l_importss, l_given_instances))
 
@@ -169,7 +169,7 @@ class Linklet(W_Object):
         #         assert isinstance(id_str, str)
         #         assert imported_instances[index].is_exporting(id_str)
 
-        inst = LinkletInstance(self.name, w_imported_instances, self.exports, {})
+        inst = W_LinkletInstance(self.name, w_imported_instances, self.exports, {})
 
         from pycket.env import ToplevelEnv
         env = ToplevelEnv(config, inst)
@@ -199,7 +199,7 @@ class Linklet(W_Object):
         
         return inst
 
-    @staticmethod # json_file_name -> Linklet
+    @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
         """ Expands and loads a linklet from a JSON file"""
         data = readfile_rpython(json_file_name+".linklet")
@@ -233,7 +233,7 @@ class Linklet(W_Object):
             form.clean_caches()
             all_forms.append(form)
 
-        return Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms)
+        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms)
 
 
 """
@@ -269,9 +269,9 @@ class Linklet(W_Object):
  OK (define-values (1/linklet-bundle->hash) (hash-ref linklet-primitive-table 'linklet-bundle->hash #f))
 """
 
-make_pred("linklet?", Linklet)
+make_pred("linklet?", W_Linklet)
 
-make_pred("instance?", LinkletInstance)
+make_pred("instance?", W_LinkletInstance)
 
 
 def to_rpython_list(r_list):
@@ -318,7 +318,7 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
     # "('linklet (('.'top-level-bind! '.'top-level-require!) ('.'mpi-vector '.'syntax-literals) ('.'namespace '.'phase '.'self '.'inspector '.'bulk-binding-registry '.'set-transformer!)) () 1)"
 
     if isinstance(form, W_WrappedConsProper): # s-expr
-        # read it and create an AST, put it in a Linklet and return
+        # read it and create an AST, put it in a W_Linklet and return
         if not isinstance(form.car(), W_Symbol) or "'linklet" != form.car().tostring():
             raise SchemeException("Malformed s-expr. Expected a linklet")
         else:
@@ -348,11 +348,11 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                 w_name = W_Symbol.make("ad-hoc")
             else:
                 w_name = name
-            linkl = Linklet(w_name, importss_list, exports, body_forms)
+            linkl = W_Linklet(w_name, importss_list, exports, body_forms)
             return return_multi_vals(Values.make([linkl, vector([])]), env, cont)
             
     else: # correlated
-        # take the AST from the correlated and put it in a Linklet and return
+        # take the AST from the correlated and put it in a W_Linklet and return
         #import pdb;pdb.set_trace()
         raise Exception("NYI")
     # (Pdb) name
@@ -379,11 +379,11 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
     ##################################        
 
 
-@expose("instance-name", [LinkletInstance])
+@expose("instance-name", [W_LinkletInstance])
 def instance_name(l_inst):
     return l_inst.name
     
-@expose("instantiate-linklet", [Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
+@expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
 
     if use_prompt is w_true:
@@ -395,7 +395,7 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
 
         return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig), env, cont)
     
-    elif isinstance(target_instance, LinkletInstance):
+    elif isinstance(target_instance, W_LinkletInstance):
         #Providing a target instance to `instantiate-linklet` means that we get the body's results instead of the instance as a result
         # use and modify target_instance for the linklet definitions and expressions"
         # When a target instance is provided to instantiate-linklet, any existing variable with the same name will be left as-is, instead of set to undefined. This treatment of uninitialized variables provides core support for top-level evaluation where variables may be referenced and then defined in a separate element of compilation.
@@ -407,7 +407,7 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
 
-@expose("linklet-import-variables", [Linklet])
+@expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
     importss_py_lst = linkl.importss
     importss = w_null
@@ -418,14 +418,14 @@ def linklet_import_variables(linkl):
         importss = W_Cons.make(imp_inner, importss)
     return importss
 
-@expose("linklet-export-variables", [Linklet])
+@expose("linklet-export-variables", [W_Linklet])
 def linklet_export_variables(linkl):
     exports = w_null
     for e in linkl.exports:
         exports = W_Cons.make(W_Symbol.make(e), exports)
     return exports
 
-@expose("instance-variable-names", [LinkletInstance])
+@expose("instance-variable-names", [W_LinkletInstance])
 def instance_variable_names(inst):
     names = w_null
     for name in inst.defs.keys():
@@ -433,9 +433,9 @@ def instance_variable_names(inst):
         
     return names
 
-make_pred("linklet-directory?", LinkletDirectory)
+make_pred("linklet-directory?", W_LinkletDirectory)
 
-make_pred("linklet-bundle?", LinkletBundle)
+make_pred("linklet-bundle?", W_LinkletBundle)
 
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
@@ -453,9 +453,9 @@ def make_instance(args): # name, data, *vars_vals
         v = vars_vals[i+1]
         vars_vals_dict[n] = v
 
-    return LinkletInstance(name, [], [], vars_vals_dict)
+    return W_LinkletInstance(name, [], [], vars_vals_dict)
 
-@expose("instance-set-variable-value!", [LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
+@expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
 def instance_set_variable_value(instance, name, val, mode):
 
     instance.set_bang_def(name, val)

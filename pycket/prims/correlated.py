@@ -9,7 +9,7 @@ from pycket.prims.general import make_pred
 
 # FIXME: W_Srcloc expose srcloc function
 
-class Correlated(W_Object):
+class W_Correlated(W_Object):
 
     def __init__(self, obj, srcloc, props):
         self.obj = obj # W_Object
@@ -26,15 +26,15 @@ class Correlated(W_Object):
 
 
 # [core:correlated? syntax?]
-make_pred("syntax?", Correlated)
+make_pred("syntax?", W_Correlated)
 
 # [core:correlated-e syntax-e]
-@expose("syntax-e", [Correlated])
+@expose("syntax-e", [W_Correlated])
 def correlated_e(c):
     return c.get_obj()
 
 def correlated_to_datum_inner(e):
-    if isinstance(e, Correlated):
+    if isinstance(e, W_Correlated):
         return correlated_to_datum_inner(e.get_obj())
     elif isinstance(e, W_List):
         a = correlated_to_datum_inner(e.car())
@@ -54,7 +54,7 @@ def correlated_to_datum(e):
 # [core:datum->correlated datum->syntax]
 @expose("datum->syntax", [W_Object, default(W_Object, None)])
 def datum_to_correlated(v, srcloc):
-    if isinstance(v, Correlated):
+    if isinstance(v, W_Correlated):
         return v
     else:
         # FIXME : obviously wrong, create Srcloc class
@@ -63,35 +63,35 @@ def datum_to_correlated(v, srcloc):
                   "column":W_Fixnum(3),
                   "position":W_Fixnum(4),
                   "span":W_Fixnum(5)}
-        return Correlated(v, srcloc, {})
+        return W_Correlated(v, srcloc, {})
 
 # [core:correlated-source syntax-source]
-@expose("syntax-source", [Correlated])
+@expose("syntax-source", [W_Correlated])
 def correlated_source(c):
     return c.get_srcloc_field("source")
 
 # [core:correlated-line syntax-line]
-@expose("syntax-line", [Correlated])
+@expose("syntax-line", [W_Correlated])
 def correlated_line(c):
     return c.get_srcloc_field("line")
 
 # [core:correlated-column syntax-column]
-@expose("syntax-column", [Correlated])
+@expose("syntax-column", [W_Correlated])
 def correlated_column(c):
     return c.get_srcloc_field("column")
 
 # [core:correlated-position syntax-position]
-@expose("syntax-position", [Correlated])
+@expose("syntax-position", [W_Correlated])
 def correlated_position(c):
     return c.get_srcloc_field("position")
 
 # [core:correlated-span syntax-span]
-@expose("syntax-span", [Correlated])
+@expose("syntax-span", [W_Correlated])
 def correlated_span(c):
     return c.get_srcloc_field("span")
 
 # [core:correlated-property-symbol-keys syntax-property-symbol-keys]))
-@expose("syntax-property-symbol-keys", [Correlated])
+@expose("syntax-property-symbol-keys", [W_Correlated])
 def correlated_property_symbol_keys(c):
     acc = w_null
     for k,v in c.props.iteritems():
