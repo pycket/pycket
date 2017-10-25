@@ -26,7 +26,7 @@ class W_LinkletInstance(W_Object):
     """
     def tostring(self):
 
-    def export_val(self, id_str):
+    def get_val(self, id_str):
     def is_defined(self, id_str):
     def is_exporting(self, id_str):
 
@@ -40,21 +40,23 @@ class W_LinkletInstance(W_Object):
 
     """
 
-    def __init__(self, name, imported_instances, export_ids, defs):
+    def __init__(self, name, imported_instances, export_ids, renamings, defs):
         self.name = name # W_Symbol (for debugging)
         self.imported_instances = imported_instances # [[...],[..., W_LinkletInstance ,...],...]
         self.export_ids = export_ids # [..., str ,...]
+        self.renamings = renamings # {str:W_Symbol}
         self.defs = defs # {W_Symbol-W_Object}
 
     def tostring(self):
         return "W_Linklet Instance : %s - Importing : %s" % (self.name, self.imported_instances)
 
-    def export_val(self, id_str):
-        """ Exports a defined value."""
-        # FIXME: we seem to export everything defined
+    def get_val(self, id_str):
+        """ Returns a defined value."""
         if id_str not in self.defs.keys():
              raise SchemeException("%s is not defined/exported in (or through) this instance" % id_str)
 
+        if id_str.variable_name() in self.renamings:
+            id_str = self.renamings[id_str.variable_name()]
         return self.defs[id_str]
 
     def is_defined(self, id_str):
@@ -73,7 +75,7 @@ class W_LinkletInstance(W_Object):
     def lookup_linkl(self, id_str, import_num):
         """ Gets the requested value from the appropriate instance. """
         if import_num < 0:
-            rv = self.export_val(id_str)
+            rv = self.get_val(id_str)
             return rv
         else:
             inst = self.imported_instances[import_num]
@@ -137,10 +139,11 @@ class W_Linklet(W_Object):
     def load_linklet(json_file_name, loader):
     """
 
-    def __init__(self, name, importss, exports, all_forms):
+    def __init__(self, name, importss, exports, renamings, all_forms):
         self.name = name # W_Symbol -- for debugging
         self.importss = importss # [...,[..., str ,...],...]
         self.exports = exports # [..., str ,...]
+        self.renamings = renamings # {str:W_Symbol}
         self.forms = all_forms # [..., AST ,...]
 
     def instantiate(self, w_imported_instances, config, toplevel_eval=False):
@@ -169,7 +172,7 @@ class W_Linklet(W_Object):
         #         assert isinstance(id_str, str)
         #         assert imported_instances[index].is_exporting(id_str)
 
-        inst = W_LinkletInstance(self.name, w_imported_instances, self.exports, {})
+        inst = W_LinkletInstance(self.name, w_imported_instances, self.exports, self.renamings, {})
 
         from pycket.env import ToplevelEnv
         env = ToplevelEnv(config, inst)
@@ -212,11 +215,20 @@ class W_Linklet(W_Object):
 
         # list of JsonObject
         exports_list = getkey(linklet_dict, "exports", type='a')
-        # list of python strings
-        exports = [sym.value_object()['quote'].value_object()['toplevel'].value_string() for sym in exports_list]
-        # FIXME: we're currently not getting the renamings of the exports
-        # fix the linkl_expander for that
 
+        exports = []
+        renamings = {}
+        for exp in exports_list:
+            if exp.is_array:
+                arr = exp.value_array()
+                defined_name = arr[0].value_object()['quote'].value_object()['toplevel'].value_string()
+                exported_name = arr[1].value_object()['quote'].value_object()['toplevel'].value_string()
+
+                renamings[exported_name] = W_Symbol.make(defined_name)
+                exports.append(exported_name)
+            else:
+                exports.append(exp.value_object()['quote'].value_object()['toplevel'].value_string())
+        
         imports_list = getkey(linklet_dict, "importss", type='a')
 
         importss = []
@@ -233,7 +245,7 @@ class W_Linklet(W_Object):
             form.clean_caches()
             all_forms.append(form)
 
-        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms)
+        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, renamings, all_forms)
 
 
 """
@@ -326,7 +338,19 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
             w_exports = form.cdr().cdr().car()
             w_body = form.cdr().cdr().cdr()
 
-            exports = [sym.variable_name() for sym in to_rpython_list(w_exports)]
+            exports = []
+            renamings = {}
+            r_exports = to_rpython_list(w_exports)
+            for exp in r_exports:
+                if isinstance(exp, W_WrappedConsProper):
+                    defined_name = exp.car() # W_Symbol
+                    exported_name = exp.cdr().car().variable_name() # str
+                    renamings[exported_name] = defined_name
+
+                    exports.append(exported_name)
+                else:
+                    exports.append(exp.variable_name())
+            
             body_forms_ls = to_rpython_list(w_body)
             body_forms = [sexp_to_ast(b) for b in body_forms_ls]
 
@@ -348,7 +372,7 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                 w_name = W_Symbol.make("ad-hoc")
             else:
                 w_name = name
-            linkl = W_Linklet(w_name, importss_list, exports, body_forms)
+            linkl = W_Linklet(w_name, importss_list, exports, renamings, body_forms)
             return return_multi_vals(Values.make([linkl, vector([])]), env, cont)
             
     else: # correlated
@@ -453,7 +477,7 @@ def make_instance(args): # name, data, *vars_vals
         v = vars_vals[i+1]
         vars_vals_dict[n] = v
 
-    return W_LinkletInstance(name, [], [], vars_vals_dict)
+    return W_LinkletInstance(name, [], [], {}, vars_vals_dict)
 
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
 def instance_set_variable_value(instance, name, val, mode):
