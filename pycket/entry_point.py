@@ -33,32 +33,37 @@ def get_primitive(prim_name_str):
 
     return prim_env[prim_sym]
 
-def read_eval_print(expr_str, pycketconfig):
+def read_eval_print(expr_str, pycketconfig, sysconfig):
     from pycket.interpreter import check_one_val
     from pycket.values import W_Symbol, W_WrappedConsProper, w_null
     from pycket.values_string import W_String
-    
+
     # namespace-require the '#%kernel
     ns = get_primitive("namespace-require")
     ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
                                                   W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
-                                                                           w_null))], pycketconfig)
+                                                                           w_null))], pycketconfig, sysconfig)
     # get the read, eval, print, open-input-string primitives
     ev = get_primitive("eval")
     rd = get_primitive("read")
+    ex = get_primitive("expand")
     pr = get_primitive("print")
     ois = get_primitive("open-input-string")
 
     # Start calling
     # open-input-string
-    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig))
+    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig, sysconfig))
     # read
-    sexp = check_one_val(rd.call_interpret([str_port], pycketconfig))
+    sexp = check_one_val(rd.call_interpret([str_port], pycketconfig, sysconfig))
+    # expand
+    #expanded = check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
     # eval
-    results = check_one_val(ev.call_interpret([sexp], pycketconfig))  # FIXME handle multiple values
+    results = check_one_val(ev.call_interpret([sexp], pycketconfig, sysconfig))  # FIXME handle multiple values
+
+    
     # print
-    pr.call_interpret([results], pycketconfig)
-    pr.call_interpret([W_String.make("\n")], pycketconfig)
+    pr.call_interpret([results], pycketconfig, sysconfig)
+    pr.call_interpret([W_String.make("\n")], pycketconfig, sysconfig)
     
     return
 
@@ -108,7 +113,7 @@ def make_entry_point(pycketconfig=None):
         env.commandline_arguments = args_w
 
         # load the expander
-        expander_linkl = W_Linklet.load_linklet("expander.rktl", reader)
+        expander_linkl, sys_config = W_Linklet.load_linklet("expander.rktl", reader)
         expander_instance = expander_linkl.instantiate([], config=pycketconfig)
         expander_instance.provide_all_exports_to_prim_env()
         
@@ -117,7 +122,7 @@ def make_entry_point(pycketconfig=None):
         if 'rep' in config:
             
             expr_str = names['expr']
-            read_eval_print(expr_str, pycketconfig)
+            read_eval_print(expr_str, pycketconfig, sys_config)
 
             from pycket.prims.input_output import shutdown
             for callback in POST_RUN_CALLBACKS:

@@ -51,15 +51,18 @@ class W_Object(W_ProtoObject):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
-    def call_interpret(self, racket_vals, pycketconfig=None):
+    def call_interpret(self, racket_vals, pycketconfig=None, sysconfig=None):
         from pycket.interpreter import ToplevelEnv, NilCont, Done, interpret_one
         from pycket import values, values_parameter
 
         cont = NilCont()
         cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+        t_env = ToplevelEnv(pycketconfig)
+        t_env.toplevel_env().globalconfig.config = sysconfig
         
         try:
-            ast, env, cont = self.call_with_extra_info(racket_vals, ToplevelEnv(pycketconfig), cont, None)
+            ast, env, cont = self.call_with_extra_info(racket_vals, t_env, cont, None)
+            env.toplevel_env().globalconfig.config = sysconfig
             return interpret_one(ast, env, cont)
         except Done, e:
             return e.values

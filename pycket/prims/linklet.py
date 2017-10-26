@@ -245,7 +245,13 @@ class W_Linklet(W_Object):
             form.clean_caches()
             all_forms.append(form)
 
-        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, renamings, all_forms)
+        config = {}
+        config_obj = getkey(linklet_dict, "config", type='o')
+        if config_obj is not None:
+            for k, v in config_obj.iteritems():
+                config[k] = v.value_string()
+            
+        return W_Linklet(W_Symbol.make(json_file_name), importss, exports, renamings, all_forms), config
 
 
 """
