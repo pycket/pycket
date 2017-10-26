@@ -43,7 +43,7 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
     # things like '#%kernel really)
 
     boot = get_primitive("boot")
-    boot.call_interpret([])
+    boot.call_interpret([], pycketconfig, sysconfig)
 
     flcl = get_primitive("find-library-collection-links")
     lib_coll_links = flcl.call_interpret([], pycketconfig, sysconfig)
@@ -54,7 +54,7 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
     lib_coll_paths = flcp.call_interpret([], pycketconfig, sysconfig)
     clcp = get_primitive("current-library-collection-paths")
     clcp.call_interpret([lib_coll_paths], pycketconfig, sysconfig)
-
+    
     # namespace-require the '#%kernel
     ns = get_primitive("namespace-require")
     ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
@@ -129,10 +129,16 @@ def make_entry_point(pycketconfig=None):
         env = ToplevelEnv(pycketconfig)
         env.commandline_arguments = args_w
 
-        # load the expander
+        # load the expander linklet
         expander_linkl, sys_config = W_Linklet.load_linklet("expander.rktl", reader)
         expander_instance = expander_linkl.instantiate([], config=pycketconfig)
         expander_instance.provide_all_exports_to_prim_env()
+
+        # load the regexp linklet
+
+        regexp_linkl, sys_c = W_Linklet.load_linklet("regexp.rktl", reader)
+        regexp_instance = regexp_linkl.instantiate([], config=pycketconfig)
+        regexp_instance.provide_all_exports_to_prim_env()
         
         env.current_linklet_instance = expander_instance
 

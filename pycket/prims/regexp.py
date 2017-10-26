@@ -33,8 +33,9 @@ RM_ARGS = [
     default(values.W_Bytes, EMPTY_BYTES)
     ]
 
-@expose("regexp-match", RM_ARGS)
-@jit.unroll_safe
+#@expose("regexp-match", RM_ARGS)
+#@jit.unroll_safe
+# FIXME : remove
 def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
     start = inp_start.value
     if inp_end is values.w_false:

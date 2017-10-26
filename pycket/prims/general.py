@@ -180,7 +180,8 @@ for name in ["prop:evt",
         values.W_Symbol.make(name), values.w_false))
 
 expose_val("prop:authentic", values_struct.w_prop_authentic)
-    
+expose_val("prop:object-name", values_struct.w_prop_object_name)
+
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
 expose_val("prop:arity-string", values_struct.w_prop_arity_string)
