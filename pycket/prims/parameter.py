@@ -8,6 +8,10 @@ from pycket.error           import SchemeException
 from pycket.prims.expose    import expose, expose_val, default, procedure
 from rpython.rlib           import jit
 
+@expose("reparameterize")
+def reparameterize(args):
+    return values.w_void
+
 @expose("make-parameter",
         [values.W_Object, default(values.W_Object, values.w_false)])
 def make_parameter(init, guard):
@@ -55,10 +59,13 @@ def call_with_extended_paramz(f, args, keys, vals, env, cont):
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 
+expose_val("paramz", values_parameter.W_Parameter(values.w_false))
+expose_val("exnh", values_parameter.W_Parameter(values.w_false))
 expose_val("parameterization-key", values.parameterization_key)
 expose_val("print-mpair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_true))
+expose_val("current-read-interaction", values_parameter.W_Parameter(values.w_false))
 
 READ_PARAMS = """
 read-square-bracket-as-paren

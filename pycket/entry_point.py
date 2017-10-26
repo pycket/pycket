@@ -38,6 +38,23 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
     from pycket.values import W_Symbol, W_WrappedConsProper, w_null
     from pycket.values_string import W_String
 
+    # First run (boot) to set things like (current-module-name-resolver) (o/w it's going to stay as the
+    # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
+    # things like '#%kernel really)
+
+    boot = get_primitive("boot")
+    boot.call_interpret([])
+
+    flcl = get_primitive("find-library-collection-links")
+    lib_coll_links = flcl.call_interpret([], pycketconfig, sysconfig)
+    clcl = get_primitive("current-library-collection-links")
+    clcl.call_interpret([lib_coll_links], pycketconfig, sysconfig)
+
+    flcp = get_primitive("find-library-collection-paths")
+    lib_coll_paths = flcp.call_interpret([], pycketconfig, sysconfig)
+    clcp = get_primitive("current-library-collection-paths")
+    clcp.call_interpret([lib_coll_paths], pycketconfig, sysconfig)
+
     # namespace-require the '#%kernel
     ns = get_primitive("namespace-require")
     ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
