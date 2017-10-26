@@ -1333,8 +1333,14 @@ w_system_sym = detect_platform()
 w_os_sym = values.W_Symbol.make("os")
 w_os_so_suffix = values.W_Symbol.make("so-suffix")
 w_os_so_mode_sym = values.W_Symbol.make("so-mode")
+w_fs_change_mode = values.W_Symbol.make("fs-change")
 w_local_mode = values.W_Symbol.make("local")
 w_unix_so_suffix = values.W_Bytes.from_string(".so")
+
+w_fs_supported = values.W_Symbol.make("supported")
+w_fs_scalable = values.W_Symbol.make("scalable")
+w_fs_low_latency = values.W_Symbol.make("low-latency")
+w_fs_file_level = values.W_Symbol.make("file-level")
 
 @expose("system-type", [default(values.W_Symbol, w_os_sym)])
 def system_type(w_what):
@@ -1344,6 +1350,14 @@ def system_type(w_what):
         return w_unix_so_suffix
     if w_what is w_os_so_mode_sym:
         return w_local_mode
+    if w_what is w_fs_change_mode:
+        from pycket.prims.vector import vector
+        w_f = values.w_false
+        # FIXME: Is there a way to get this info from sys or os?
+        if w_system_sym is w_unix_sym:
+            return vector([w_fs_supported, w_fs_scalable, w_f, w_fs_file_level])
+        else:
+            return vector([w_f, w_f, w_f, w_f])
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
 @expose("system-path-convention-type", [])
