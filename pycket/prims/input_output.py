@@ -501,6 +501,34 @@ def file_exists(w_str):
     s = extract_path(w_str)
     return values.W_Bool.make(os.path.isfile(s))
 
+@expose("file-or-directory-modify-seconds", [values.W_Object, default(values.W_Object, None), default(values.W_Object, None)], simple=False)
+def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
+    from pycket.prims.general import detect_platform, w_unix_sym
+    from pycket.interpreter import return_value
+    
+    platform = detect_platform()
+    if platform is not w_unix_sym:
+        raise Exception("Not yet implemented")
+
+    path_str = extract_path(w_path)
+
+    if not os.path.isdir(path_str) and not os.path.isfile(path_str):
+        if fail is not None:
+            return fail.call([], env, cont)
+        else:
+            raise SchemeException("No such file or directory exists : %s" % path_str)
+
+    # secs_n can also be w_false
+    if secs_n is not None and isinstance(secs_n, values.W_Fixnum):
+        # Set the access and modify times of path to the given time
+        t = secs_n.toint() # seconds
+        os.utime(path_str, (t,t))
+        return return_void(env, cont)
+    else:
+        # Get the last modification date of path (in seconds)
+        m_time = int(os.path.getmtime(path_str))
+        return return_value(values.W_Fixnum(m_time), env, cont)
+
 @expose("directory-list", [values.W_Object])
 def dir_list(w_str):
     s = extract_path(w_str)
