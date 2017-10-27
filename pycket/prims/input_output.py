@@ -432,6 +432,45 @@ def peek_byte(w_port, w_skip, env, cont):
     except UnicodeDecodeError:
         raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
 
+@continuation
+def do_peek_bytes_cont(amt, skip, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_port = check_one_val(_vals)
+    return do_peek_bytes(w_port, amt, skip, env, cont)
+
+def do_peek_bytes(w_port, amt, skip, env, cont):
+    from pycket.interpreter import return_value
+    
+    if amt == 0:
+        return return_value(values.W_Bytes.from_string(""), env, cont)
+
+    old = w_port.tell()
+    w_port.seek(old + skip)
+    
+    res = w_port.read(amt)
+
+    w_port.seek(old)
+    
+    if len(res) == 0:
+        return return_value(values.eof_object, env, cont)
+
+    return return_value(values.W_Bytes.from_string(res), env, cont)
+    
+@expose("peek-bytes", [values.W_Fixnum,
+                       values.W_Fixnum,
+                       default(values.W_InputPort, None)], simple=False)
+def peek_bytes(w_amt, w_skip, w_port, env, cont):
+    amt = w_amt.value
+    skip = w_skip.value
+    if amt < 0 or skip < 0:
+        raise SchemeException("peek-bytes : expected non-negative integer for arguments : amt : %s - skip-bytes-amt : %s" % (amt, skip))
+
+    try:
+        cont = do_peek_bytes_cont(amt, skip, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
+    
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
 w_none_sym   = values.W_Symbol.make("none")
@@ -637,7 +676,7 @@ def build_path(args):
         if part == os.path.sep:
             part = ""
         result[i] = part
-    path = os.path.sep.join(result)
+    path = os.path.normpath(os.path.sep.join(result))
     if not path:
         return ROOT
     return values.W_Path(path)
