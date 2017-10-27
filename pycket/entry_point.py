@@ -54,12 +54,20 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
     lib_coll_paths = flcp.call_interpret([], pycketconfig, sysconfig)
     clcp = get_primitive("current-library-collection-paths")
     clcp.call_interpret([lib_coll_paths], pycketconfig, sysconfig)
+
+    
+    dynamic_require = get_primitive("dynamic-require")
+
+    dr = dynamic_require.call_interpret([W_Symbol.make("racket/base"), W_Symbol.make("read-eval-print-loop")], pycketconfig, sysconfig)
+    
+    dr.call_interpret([], pycketconfig, sysconfig)
+
     
     # namespace-require the '#%kernel
-    ns = get_primitive("namespace-require")
-    ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
-                                                  W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
-                                                                           w_null))], pycketconfig, sysconfig)
+    # ns = get_primitive("namespace-require")
+    # ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
+    #                                               W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
+    #                                                                        w_null))], pycketconfig, sysconfig)
     # get the read, eval, print, open-input-string primitives
     ev = get_primitive("eval")
     rd = get_primitive("read")
@@ -134,11 +142,11 @@ def make_entry_point(pycketconfig=None):
         expander_instance = expander_linkl.instantiate([], config=pycketconfig)
         expander_instance.provide_all_exports_to_prim_env()
 
+        # Let's stick with the curent regexp-match for now
         # load the regexp linklet
-
-        regexp_linkl, sys_c = W_Linklet.load_linklet("regexp.rktl", reader)
-        regexp_instance = regexp_linkl.instantiate([], config=pycketconfig)
-        regexp_instance.provide_all_exports_to_prim_env()
+        # regexp_linkl, sys_c = W_Linklet.load_linklet("regexp.rktl", reader)
+        # regexp_instance = regexp_linkl.instantiate([], config=pycketconfig)
+        # regexp_instance.provide_all_exports_to_prim_env()
         
         env.current_linklet_instance = expander_instance
 

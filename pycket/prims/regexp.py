@@ -33,9 +33,8 @@ RM_ARGS = [
     default(values.W_Bytes, EMPTY_BYTES)
     ]
 
-#@expose("regexp-match", RM_ARGS)
-#@jit.unroll_safe
-# FIXME : remove
+@expose("regexp-match", RM_ARGS)
+@jit.unroll_safe
 def regexp_match(w_re, w_str, inp_start, inp_end, output_port, prefix):
     start = inp_start.value
     if inp_end is values.w_false:
@@ -73,6 +72,11 @@ def promote_to_regexp(w_re):
 
 def match(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
+    if isinstance(w_str, values.W_Path):
+        from pycket.prims.input_output import extract_path
+        s = extract_path(w_str)
+        result = w_re.match_string(s, start, end)
+        return result
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_utf8() # XXX for now
         result = w_re.match_string(s, start, end)
