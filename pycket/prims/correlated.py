@@ -24,6 +24,9 @@ class W_Correlated(W_Object):
     def get_obj(self):
         return self.obj
 
+    def extend_prop(self, key, val):
+        self.props[key] = val
+
 
 # [core:correlated? syntax?]
 make_pred("syntax?", W_Correlated)
@@ -99,5 +102,13 @@ def correlated_property_symbol_keys(c):
     return acc
 
 # [core:correlated-property syntax-property]
-# FIXME
-define_nyi("syntax-property")
+@expose("syntax-property", [W_Correlated, W_Object, default(W_Object, None)])
+def correlated_property(stx, key, v):
+    from pycket.interpreter import return_value
+    if v is None:
+        # getting
+        return stx.props[key]
+    else:
+        # setting
+        stx.extend_prop(key, v)
+        return stx
