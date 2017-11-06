@@ -41,13 +41,14 @@ class W_LinkletInstance(W_Object):
 
     """
 
-    def __init__(self, name, imported_instances, export_ids, renamings, defs):
+    def __init__(self, name, imported_instances, export_ids, renamings, defs, data=w_false):
         self.name = name # W_Symbol (for debugging)
         self.imported_instances = imported_instances # [[...],[..., W_LinkletInstance ,...],...]
         self.export_ids = export_ids # [..., str ,...]
         self.renamings = renamings # {str:W_Symbol}
         self.defs = defs # {W_Symbol-W_Object}
-
+        self.data = data
+        
     def tostring(self):
         return "W_Linklet Instance : %s - Importing : %s" % (self.name, self.imported_instances)
 
@@ -495,7 +496,7 @@ def make_instance(args): # name, data, *vars_vals
         v = vars_vals[i+1]
         vars_vals_dict[n] = v
 
-    return W_LinkletInstance(name, [], [], {}, vars_vals_dict)
+    return W_LinkletInstance(name, [], [], {}, vars_vals_dict, data)
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
@@ -508,6 +509,13 @@ def instance_variable_value(instance, name, fail_k, env, cont):
 
     return return_value(instance.get_val(name), env, cont)
 
+@expose("instance-data", [W_LinkletInstance])
+def instance_data(inst):
+    return inst.data
+
+@expose("eval-linklet", [W_Linklet])
+def eval_linklet(l):
+    return l
 
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
 def instance_set_variable_value(instance, name, val, mode):
