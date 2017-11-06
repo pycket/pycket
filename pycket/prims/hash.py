@@ -9,6 +9,7 @@ from pycket.hash.simple  import (
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
 from pycket.hash.equal   import W_EqualHashTable
+from pycket.impersonators.baseline import W_ImpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -261,7 +262,30 @@ def hash_remove(ht, k, env, cont):
         raise SchemeException("hash-remove: expected immutable hash table")
     return ht.hash_remove(k, env, cont)
 
-define_nyi("hash-clear!", [W_HashTable])
+@continuation
+def hash_clear_cont(ht, env, cont, _vals):
+    return hash_clear_loop(ht, env, cont)
+
+def hash_clear_loop(ht, env, cont):
+    from pycket.interpreter import return_value
+
+    if ht.length() == 0:
+        return return_value(values.w_void, env, cont)
+
+    w_k, w_v = ht.get_item(0)
+    return ht.hash_remove_inplace(w_k, env, hash_clear_cont(ht, env, cont))
+
+@expose("hash-clear!", [W_HashTable], simple=False)
+def hash_clear_bang(ht, env, cont):
+    from pycket.interpreter import return_value
+
+    if ht.is_impersonator():
+        #ht.hash_clear_proc(env, cont)
+
+        return hash_clear_loop(ht, env, cont)
+    else:
+        ht.hash_empty()
+        return return_value(values.w_void, env, cont)
 
 define_nyi("hash-clear", [W_HashTable])
 
