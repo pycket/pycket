@@ -21,6 +21,7 @@ from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
+from pycket.cont import Prompt, NilCont
 
 class W_LinkletInstance(W_Object):
     """
@@ -146,12 +147,13 @@ class W_Linklet(W_Object):
         self.renamings = renamings # {str:W_Symbol}
         self.forms = all_forms # [..., AST ,...]
 
-    def instantiate(self, w_imported_instances, config, toplevel_eval=False):
+    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True):
         """ Instantiates the linklet:
         --- takes the imported linklet instances (list W_LinkletInstances)
         --- extracts the specified set of variables
         --- returns a W_LinkletInstance (or a result if toplevel_eval)
         """
+
         return_val = None
         l_importss = len(self.importss)
 
@@ -177,10 +179,14 @@ class W_Linklet(W_Object):
         from pycket.env import ToplevelEnv
         env = ToplevelEnv(config, inst)
 
+        cont = NilCont()
+        if prompt:
+            cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
+
         for form in self.forms:
             if isinstance(form, DefineValues):
                 expression = form.rhs
-                values = interpret_one(expression, env).get_all_values()
+                values = interpret_one(expression, env, cont).get_all_values()
                 len_values = len(values)
                 if len(form.names) == len_values:
                     for index in range(len_values): 
@@ -192,7 +198,7 @@ class W_Linklet(W_Object):
                     raise SchemeException("wrong number of values for define-values")
 
             else: # any expression
-                values = interpret_one(form, env)
+                values = interpret_one(form, env, cont)
                 # FIXME: chech multiple values??
                 if toplevel_eval:
                     return_val = values
@@ -409,6 +415,7 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
     ##################################        
 
 
+
 @expose("instance-name", [W_LinkletInstance])
 def instance_name(l_inst):
     return l_inst.name
@@ -416,23 +423,29 @@ def instance_name(l_inst):
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
 
-    if use_prompt is w_true:
-        raise Exception("instantiate-linklet : not implemented yet : wrap each definition and expression in the linklet in a prompt")
+    prompt = False
+    if use_prompt is w_true: # use-prompt? : any/c = #t - what happens when it is 3 ?
+        prompt = True
     
     im_list = to_rpython_list(import_instances)
+    expected = len(linkl.importss)
+    given = len(im_list)
+
+    if expected != given:
+        raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, given))
 
     if target_instance is None or target_instance is w_false:
 
-        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig), env, cont)
+        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt=prompt), env, cont)
     
     elif isinstance(target_instance, W_LinkletInstance):
         #Providing a target instance to `instantiate-linklet` means that we get the body's results instead of the instance as a result
         # use and modify target_instance for the linklet definitions and expressions"
         # When a target instance is provided to instantiate-linklet, any existing variable with the same name will be left as-is, instead of set to undefined. This treatment of uninitialized variables provides core support for top-level evaluation where variables may be referenced and then defined in a separate element of compilation.
 
-        # The linklet’s exported variables are accessible in the result instance or in target-instance using the linklet’s external name for each export. If target-instance is provided as non-#f, its existing variables remain intact if they are not modified by a linklet definition.
+        # The linklet’s exported variables are accessible in the result instance or in target-instance using the linklet’s external name for each export. If target-instance is provided as non-#f, its existing variables remain intact if they are not modified by a linklet definition.l
 
-        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, toplevel_eval=True), env, cont)
+        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, toplevel_eval=True, prompt=prompt, target=target_instance), env, cont)
 
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
@@ -466,7 +479,6 @@ def instance_variable_names(inst):
 make_pred("linklet-directory?", W_LinkletDirectory)
 
 make_pred("linklet-bundle?", W_LinkletBundle)
-
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
