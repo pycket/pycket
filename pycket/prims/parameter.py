@@ -31,7 +31,7 @@ def scheme_extend_parameterization(args):
     config = args[0]
     argc = len(args)
 
-    if argc < 2 or not isinstance(config, values_parameter.W_Parameterization) or argc % 2 != 1:
+    if argc < 2 or argc % 2 != 1: # or not isinstance(config, values_parameter.W_Parameterization):
         return config
 
     parser = ArgParser("extend-parameterization", args, start_at=1)
@@ -59,7 +59,6 @@ def call_with_extended_paramz(f, args, keys, vals, env, cont):
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 
-expose_val("paramz", values_parameter.W_Parameter(values.w_false))
 expose_val("exnh", values_parameter.W_Parameter(values.w_false))
 expose_val("load-on-demand-enabled", values_parameter.W_Parameter(values.w_true))
 expose_val("read-on-demand-source", values_parameter.W_Parameter(values.w_true))
@@ -68,6 +67,8 @@ expose_val("print-mpair-curly-braces", values_parameter.W_Parameter(values.w_fal
 expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_true))
 expose_val("current-read-interaction", values_parameter.W_Parameter(values.w_false))
+expose_val("read-accept-bar-quote", values_parameter.W_Parameter(values.w_false))
+expose_val("read-accept-compiled", values_parameter.W_Parameter(values.w_true))
 
 READ_PARAMS = """
 read-square-bracket-as-paren
@@ -75,7 +76,6 @@ read-curly-brace-as-paren
 read-square-bracket-with-tag
 read-curly-brace-with-tag
 read-accept-box
-read-accept-compiled
 read-accept-bar-quote
 read-accept-graph
 read-decimal-as-inexact
@@ -87,6 +87,6 @@ read-accept-reader
 read-accept-lang
 """
 
-for name in READ_PARAMS.split():
-    expose_val(name, values_parameter.W_Parameter(values.w_false))
+# for name in READ_PARAMS.split():
+#     expose_val(name, values_parameter.W_Parameter(values.w_false))
 
