@@ -184,6 +184,12 @@ class W_Linklet(W_Object):
         if prompt:
             cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
 
+        # FIXME : check for existing exports and imports in the target
+        if target is not None:
+            target.export_ids = self.exports
+            target.imported_instances = w_imported_instances
+            target.renamings = self.renamings
+
         for form in self.forms:
             if isinstance(form, DefineValues):
                 expression = form.rhs
