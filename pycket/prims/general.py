@@ -1307,13 +1307,9 @@ def load(lib, env, cont):
         "would crash anyway when trying to interpret the Module")
     #return ast, env, cont
 
-@expose("current-load-relative-directory", [])
-def cur_load_rel_dir():
-    return values.w_false
-
-@expose("current-directory", [])
-def cur_dir():
-    return values.W_Path(os.getcwd())
+expose_val("current-load-relative-directory", values_parameter.W_Parameter(values.w_false))
+# FIXME current-directory should be a function that "cd"s at the os level
+expose_val("current-directory", values_parameter.W_Parameter(values.W_Path(os.getcwd())))
 
 w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
