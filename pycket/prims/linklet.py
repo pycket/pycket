@@ -497,6 +497,18 @@ def make_instance(args): # name, data, *vars_vals
 
     return W_LinkletInstance(name, [], [], {}, vars_vals_dict)
 
+@expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
+def instance_variable_value(instance, name, fail_k, env, cont):
+    from pycket.interpreter import return_value
+    if not instance.is_defined(name): #instance.is_exporting(name):
+        if fail_k is not None and fail_k.iscallable():
+            return fail_k.call([], env, cont)
+        else:
+            raise SchemeException("key %s not found in exports of the instance %s" % (name.tostring(), instance.name.tostring()))
+
+    return return_value(instance.get_val(name), env, cont)
+
+
 @expose("instance-set-variable-value!", [W_LinkletInstance, W_Symbol, W_Object, default(W_Object, w_false)])
 def instance_set_variable_value(instance, name, val, mode):
 
