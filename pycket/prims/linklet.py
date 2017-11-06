@@ -11,9 +11,9 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda
 from pycket.assign_convert import assign_convert
-from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void
+from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, default
@@ -314,58 +314,122 @@ def to_rpython_list(r_list):
 
     return py_ls
 
-def sexp_to_ast(form):
-    if isinstance(form, W_Number):
-        form = Quote(form)
-    elif isinstance(form, W_List):
-        form_inner = sexp_to_ast(form.car())
+def def_vals_to_ast(def_vals_sexp, linkl_toplevels, linkl_imports):
+    if not len(to_rpython_list(def_vals_sexp)) == 3:
+        raise Exception("defs_vals_to_ast : unhandled define-values form : %s" % def_vals_sexp.tostring())
 
-        rands_ls = to_rpython_list(form.cdr())
-        rands = [sexp_to_ast(r) for r in rands_ls]
-                    
-        form = App.make(form_inner, rands)
-    elif isinstance(form, W_Symbol):
-        # form_inner.tostring() == "'let"
-        form = ModuleVar(form, "#%kernel", form, None)
-    else:
-        raise Exception("Don't know what to do with this form yet : %s", form)
+    names = def_vals_sexp.cdr().car() # renames?
+    names_ls = to_rpython_list(names)
+
+    body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], linkl_toplevels, linkl_imports)
+
+    return DefineValues(names_ls, body, names_ls)
+
+def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports):
+    if not len(to_rpython_list(lam_sexp)) == 3:
+        raise Exception("defs_vals_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
+
+    formals = lam_sexp.cdr().car() # rest?
+    formals_ls = to_rpython_list(formals)
+
+    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions=True)
+
+    form = CaseLambda([make_lambda(formals_ls, None, [body], None)])
 
     form = Context.normalize_term(form)
     form = assign_convert(form)
     form.clean_caches()
     return form
 
+def is_imported(id_str, linkl_importss):
+    # linkl_importss : [...[..str..]..]
+    for imports in linkl_importss:
+        for id in imports:
+            if id_str == id:
+                return True
+    return False
+
+def import_instance_num(id_str, linkl_importss):
+    # assumes id_str is in the linkl_importss
+    inst_num = -1
+    for imports in linkl_importss:
+        inst_num += 1
+        for id in imports:
+            if id_str == id:
+                return inst_num
+    return inst_num
+
+def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False):
+    if isinstance(form, W_Correlated):
+        return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss)
+    elif isinstance(form, W_Symbol):
+        # lexical?
+        if form in lex_env:
+            form = LexicalVar(form)
+        # toplevel linklet var
+        elif form in linkl_toplevels:
+            form = LinkletVar(form, -1)
+        elif is_imported(form.variable_name(), linkl_importss):
+            # imported linklet var
+            inst_num = import_instance_num(form.variable_name(), linkl_importss)
+            form = LinkletVar(form, inst_num)
+        else:
+            # kernel primitive ModuleVar
+            form = ModuleVar(form, "#%kernel", form, None)
+    elif isinstance(form, W_Number) or isinstance(form, W_Bool):
+        form = Quote(form)
+    elif isinstance(form, W_List):
+        if form.car() is W_Symbol.make("define-values"):
+            form = def_vals_to_ast(form, linkl_toplevels, linkl_importss)
+        elif form.car() is W_Symbol.make("lambda"):
+            return lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss)
+        else:
+            form_inner = sexp_to_ast(form.car(), lex_env, linkl_toplevels, linkl_importss)
+
+            rands_ls = to_rpython_list(form.cdr())
+            rands = [sexp_to_ast(r, lex_env, linkl_toplevels, linkl_importss) for r in rands_ls]
+                    
+            form = App.make(form_inner, rands)
+    else:
+        raise Exception("Don't know what to do with this form yet : %s", form)
+
+    if not disable_conversions:
+        form = Context.normalize_term(form)
+        form = assign_convert(form)
+        form.clean_caches()
+
+    return form
+
+# collect the ids in define-values forms
+def extract_ids(forms_ls):
+    linkl_toplevels = [] # [W_Symbol ...]
+    for form in forms_ls:
+        if isinstance(form, W_Correlated):
+            form = form.get_obj()
+        if isinstance(form, W_List) and form.car() is W_Symbol.make("define-values"):
+            ids = form.cdr().car()
+            ids_ls = to_rpython_list(ids)
+            linkl_toplevels += ids_ls # don't worry about the duplicates now
+    return linkl_toplevels
+
+#[`(define-values (,id) ,rhs)
+#[`(define-values c(,struct:s ,make-s ,s? ,acc/muts ...) ; pattern from `struct` or `define-struct`
+#[`(define-values (,struct:s ,make-s ,s? ,s-ref ,s-set!) ,rhs) ; direct use of `make-struct-type`
+#[`(define-values (,prop:s ,s? ,s-ref)
+#       (make-struct-type-property ,_ . ,rest))
+#[`,_ (values knowns #f)]
+
+
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, cont):
-
-    #     pycket.values.W_WrappedConsProper object at 0x000000001baba5d0>
-    # (Pdb) form.tostring()
-    # "('linklet (('.'top-level-bind! '.'top-level-require!) ('.'mpi-vector '.'syntax-literals) ('.'namespace '.'phase '.'self '.'inspector '.'bulk-binding-registry '.'set-transformer!)) () 1)"
 
     if isinstance(form, W_WrappedConsProper): # s-expr
         # read it and create an AST, put it in a W_Linklet and return
         if not isinstance(form.car(), W_Symbol) or "'linklet" != form.car().tostring():
-            raise SchemeException("Malformed s-expr. Expected a linklet")
+            raise SchemeException("Malformed s-expr. Expected a linklet, got %s" % form.tostring())
         else:
+            # Process the imports
             w_importss = form.cdr().car()
-            w_exports = form.cdr().cdr().car()
-            w_body = form.cdr().cdr().cdr()
-
-            exports = []
-            renamings = {}
-            r_exports = to_rpython_list(w_exports)
-            for exp in r_exports:
-                if isinstance(exp, W_WrappedConsProper):
-                    defined_name = exp.car() # W_Symbol
-                    exported_name = exp.cdr().car().variable_name() # str
-                    renamings[exported_name] = defined_name
-
-                    exports.append(exported_name)
-                else:
-                    exports.append(exp.variable_name())
-            
-            body_forms_ls = to_rpython_list(w_body)
-            body_forms = [sexp_to_ast(b) for b in body_forms_ls]
 
             importss_list = []
             importss_count = 0
@@ -381,10 +445,35 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                 importss_count += 1
                 importss_acc = importss_acc.cdr()
 
+            # Process the exports
+            w_exports = form.cdr().cdr().car()
+
+            exports = []
+            renamings = {}
+            r_exports = to_rpython_list(w_exports)
+            for exp in r_exports:
+                if isinstance(exp, W_WrappedConsProper):
+                    defined_name = exp.car() # W_Symbol
+                    exported_name = exp.cdr().car().variable_name() # str
+                    renamings[exported_name] = defined_name
+
+                    exports.append(exported_name)
+                else:
+                    exports.append(exp.variable_name())
+
+            # Process the body
+            w_body = form.cdr().cdr().cdr()
+            body_forms_ls = to_rpython_list(w_body)
+
+            linkl_toplevel_defined_ids = extract_ids(body_forms_ls)
+
+            body_forms = [sexp_to_ast(b, [], linkl_toplevel_defined_ids, importss_list) for b in body_forms_ls]
+
             if name is w_false:
                 w_name = W_Symbol.make("ad-hoc")
             else:
                 w_name = name
+
             linkl = W_Linklet(w_name, importss_list, exports, renamings, body_forms)
             return return_multi_vals(Values.make([linkl, vector([])]), env, cont)
             
@@ -414,7 +503,6 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
     # (Pdb) serializable_huh
     # <pycket.values.W_Bool object at 0x00000000024e8640>
     ##################################        
-
 
 
 @expose("instance-name", [W_LinkletInstance])
