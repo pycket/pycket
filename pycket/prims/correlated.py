@@ -55,10 +55,10 @@ def correlated_to_datum(e):
     return correlated_to_datum_inner(e)
 
 # [core:datum->correlated datum->syntax]
-@expose("datum->syntax", [W_Object, default(W_Object, None)])
-def datum_to_correlated(v, srcloc):
-    if isinstance(v, W_Correlated):
-        return v
+@expose("datum->syntax", [W_Object, W_Object, default(W_Object, None)])
+def datum_to_correlated(ignored, datum, srcloc):
+    if isinstance(datum, W_Correlated):
+        return datum
     else:
         # FIXME : obviously wrong, create Srcloc class
         srcloc = {"source":W_Fixnum(1),
@@ -66,7 +66,7 @@ def datum_to_correlated(v, srcloc):
                   "column":W_Fixnum(3),
                   "position":W_Fixnum(4),
                   "span":W_Fixnum(5)}
-        return W_Correlated(v, srcloc, {})
+        return W_Correlated(datum, srcloc, {})
 
 # [core:correlated-source syntax-source]
 @expose("syntax-source", [W_Correlated])
