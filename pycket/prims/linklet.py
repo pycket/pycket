@@ -267,11 +267,7 @@ class W_Linklet(W_Object):
 """
  (define-values (1/primitive->compiled-position) (hash-ref linklet-primitive-table 'primitive->compiled-position #f))
  (define-values (1/compiled-position->primitive) (hash-ref linklet-primitive-table 'compiled-position->primitive #f))
- (define-values (1/recompile-linklet) (hash-ref linklet-primitive-table 'recompile-linklet #f))
- (define-values (1/eval-linklet) (hash-ref linklet-primitive-table 'eval-linklet #f))
  (define-values (1/read-compiled-linklet) (hash-ref linklet-primitive-table 'read-compiled-linklet #f))
- (define-values (1/instance-data) (hash-ref linklet-primitive-table 'instance-data #f))
- (define-values (1/instance-variable-value) (hash-ref linklet-primitive-table 'instance-variable-value #f))
  (define-values (1/instance-unset-variable!) (hash-ref linklet-primitive-table 'instance-unset-variable! #f))
  (define-values (1/variable-reference?) (hash-ref linklet-primitive-table 'variable-reference? #f))
  (define-values (1/variable-reference->instance) (hash-ref linklet-primitive-table 'variable-reference->instance #f))
@@ -280,6 +276,10 @@ class W_Linklet(W_Object):
  STUB (define-values (1/compile-linklet) (hash-ref linklet-primitive-table 'compile-linklet #f))
  STUB (define-values (1/instantiate-linklet) (hash-ref linklet-primitive-table 'instantiate-linklet #f))
 
+ OK (define-values (1/recompile-linklet) (hash-ref linklet-primitive-table 'recompile-linklet #f))
+ OK (define-values (1/eval-linklet) (hash-ref linklet-primitive-table 'eval-linklet #f))
+ OK (define-values (1/instance-data) (hash-ref linklet-primitive-table 'instance-data #f))
+ OK (define-values (1/instance-variable-value) (hash-ref linklet-primitive-table 'instance-variable-value #f))
  OK (define-values (1/primitive-table) (hash-ref linklet-primitive-table 'primitive-table #f))
  OK (define-values (1/linklet?) (hash-ref linklet-primitive-table 'linklet? #f))
  OK (define-values (1/linklet-import-variables) (hash-ref linklet-primitive-table 'linklet-import-variables #f))
@@ -588,6 +588,13 @@ def make_instance(args): # name, data, *vars_vals
         vars_vals_dict[n] = v
 
     return W_LinkletInstance(name, [], [], {}, vars_vals_dict, data)
+
+@expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
+def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
+    if import_keys is not None:
+        return return_multi_vals(Values.make([linkl, import_keys]), env, cont)
+    else:
+        return return_value(linkl, env, cont)
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
