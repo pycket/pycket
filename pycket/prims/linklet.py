@@ -148,7 +148,7 @@ class W_Linklet(W_Object):
         self.renamings = renamings # {str:W_Symbol}
         self.forms = all_forms # [..., AST ,...]
 
-    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True):
+    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None):
         """ Instantiates the linklet:
         --- takes the imported linklet instances (list W_LinkletInstances)
         --- extracts the specified set of variables
@@ -193,6 +193,9 @@ class W_Linklet(W_Object):
                     for index in range(len_values): 
                         name = form.names[index]
                         value = values[index]
+
+                        if target is not None and not target.is_defined(name):
+                            target.add_def(name, value)
 
                         inst.add_def(name, value)
                 else:
