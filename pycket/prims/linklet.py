@@ -484,7 +484,10 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                 w_name = name
 
             linkl = W_Linklet(w_name, importss_list, exports, renamings, body_forms)
-            return return_multi_vals(Values.make([linkl, vector([])]), env, cont)
+            if import_keys is w_false:
+                return return_value(linkl, env, cont)
+            else:
+                return return_multi_vals(Values.make([linkl, import_keys]), env, cont)
             
     else: # correlated
         # take the AST from the correlated and put it in a W_Linklet and return
