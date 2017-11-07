@@ -27,6 +27,13 @@ def do_make_sibling_instpector(inspector, env, cont):
     new_inspector = values_struct.W_StructInspector.make(inspector, issibling=True)
     return return_value(new_inspector, env, cont)
 
+@expose("inspector-superior?", [values_struct.W_StructInspector, values_struct.W_StructInspector])
+def inspector_superior_huh(inspector, maybe_subinspector):
+    if inspector is maybe_subinspector.super and inspector is not maybe_subinspector:
+        return values.w_true
+    else:
+        return values.w_false
+
 @expose("struct?", [values.W_Object], simple=False)
 def do_is_struct(v, env, cont):
     from pycket.interpreter import return_value
