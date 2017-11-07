@@ -11,7 +11,7 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag
 from pycket.error import SchemeException
@@ -336,7 +336,7 @@ def def_vals_to_ast(def_vals_sexp, linkl_toplevels, linkl_imports):
 
 def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports):
     if not len(to_rpython_list(lam_sexp)) == 3:
-        raise Exception("defs_vals_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
+        raise Exception("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
 
     formals = lam_sexp.cdr().car() # rest?
     formals_ls = to_rpython_list(formals)
@@ -368,6 +368,39 @@ def import_instance_num(id_str, linkl_importss):
                 return inst_num
     return inst_num
 
+def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports):
+    if not len(to_rpython_list(let_sexp)) == 3:
+        raise Exception("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
+
+    varss_rhss = to_rpython_list(let_sexp.cdr().car()) # a little inefficient but still..
+    varss_list = [None] * len(varss_rhss)
+    rhss_list = [None] * len(varss_rhss)
+    num_ids = 0
+    i = 0
+    for w_vars_rhss in varss_rhss:
+        varr = to_rpython_list(w_vars_rhss.car()) # [W_Symbol,....]
+        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports)
+        varss_list[i] = varr
+        rhss_list[i] = rhsr
+        i += 1
+        num_ids += len(varr)
+
+    ids = [None] * num_ids
+    index = 0
+    for vars_ in varss_list:
+        for var_ in vars_:
+            ids[index] = var_ # W_Symbol
+            index += 1
+
+    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, linkl_toplevels, linkl_imports, disable_conversions=True)
+
+    form = make_let(varss_list, rhss_list, [body])
+
+    form = Context.normalize_term(form)
+    form = assign_convert(form)
+    form.clean_caches()
+    return form
+
 def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False):
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss)
@@ -392,6 +425,8 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
             form = def_vals_to_ast(form, linkl_toplevels, linkl_importss)
         elif form.car() is W_Symbol.make("lambda"):
             return lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss)
+        elif form.car() is W_Symbol.make("let-values"):
+            return let_to_ast(form, lex_env, linkl_toplevels, linkl_importss)
         else:
             form_inner = sexp_to_ast(form.car(), lex_env, linkl_toplevels, linkl_importss)
 
