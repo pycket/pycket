@@ -97,6 +97,14 @@ def parse_args(argv):
             config['mode'] = _eval
             i += 1
             names['exprs'] = argv[i]
+        elif argv[i] == "-x":
+            if to <= i + 1:
+                print "missing argument after -r"
+                retval = 5
+                break
+            retval = 0
+            i += 1
+            names['nr'] = argv[i]
         elif argv[i] == "-r":
             if to <= i + 1:
                 print "missing argument after -r"

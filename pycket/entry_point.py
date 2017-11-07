@@ -33,7 +33,7 @@ def get_primitive(prim_name_str):
 
     return prim_env[prim_sym]
 
-def read_eval_print(expr_str, pycketconfig, sysconfig):
+def read_eval_print(expr_str, pycketconfig, sysconfig, nr_lib=None):
     from pycket.interpreter import check_one_val
     from pycket.values import W_Symbol, W_WrappedConsProper, w_null
     from pycket.values_string import W_String
@@ -55,26 +55,26 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
     clcp = get_primitive("current-library-collection-paths")
     clcp.call_interpret([lib_coll_paths], pycketconfig, sysconfig)
 
-    
-    dynamic_require = get_primitive("dynamic-require")
+    # don't use compiled code
+    ucfp = get_primitive("use-compiled-file-paths")
+    ucfp.call_interpret([w_null], pycketconfig, sysconfig)
 
-    dr = dynamic_require.call_interpret([W_Symbol.make("racket/base"), W_Symbol.make("read-eval-print-loop")], pycketconfig, sysconfig)
-    
-    dr.call_interpret([], pycketconfig, sysconfig)
-
-    
     # namespace-require the '#%kernel
-    # ns = get_primitive("namespace-require")
-    # ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
-    #                                               W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
-    #                                                                        w_null))], pycketconfig, sysconfig)
+    ns = get_primitive("namespace-require")
+    ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                                W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
+                                                                         w_null))], pycketconfig, sysconfig)
+    
     # get the read, eval, print, open-input-string primitives
     ev = get_primitive("eval")
     rd = get_primitive("read")
     ex = get_primitive("expand")
     pr = get_primitive("print")
     ois = get_primitive("open-input-string")
-
+    
+    if nr_lib is not None:
+        ns.call_interpret([W_String.make(nr_lib)], pycketconfig, sysconfig)
+    
     # Start calling
     # open-input-string
     str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig, sysconfig))
@@ -87,8 +87,9 @@ def read_eval_print(expr_str, pycketconfig, sysconfig):
 
     
     # print
+    pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
     pr.call_interpret([results], pycketconfig, sysconfig)
-    pr.call_interpret([W_String.make("\n")], pycketconfig, sysconfig)
+    pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
     
     return
 
@@ -151,9 +152,13 @@ def make_entry_point(pycketconfig=None):
         env.current_linklet_instance = expander_instance
 
         if 'rep' in config:
-            
+
+            nr_lib = None
+            if 'nr' in names:
+                nr_lib = names['nr']
+                
             expr_str = names['expr']
-            read_eval_print(expr_str, pycketconfig, sys_config)
+            read_eval_print(expr_str, pycketconfig, sys_config, nr_lib)
 
             from pycket.prims.input_output import shutdown
             for callback in POST_RUN_CALLBACKS:
