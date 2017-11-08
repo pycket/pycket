@@ -29,10 +29,16 @@ def do_make_sibling_instpector(inspector, env, cont):
 
 @expose("inspector-superior?", [values_struct.W_StructInspector, values_struct.W_StructInspector])
 def inspector_superior_huh(inspector, maybe_subinspector):
-    if inspector is maybe_subinspector.super and inspector is not maybe_subinspector:
-        return values.w_true
-    else:
+    if inspector is maybe_subinspector:
         return values.w_false
+
+    s = maybe_subinspector.super
+    while(s is not None):
+        if inspector is s:
+            return values.w_true
+        s = s.super
+
+    return values.w_false
 
 @expose("struct?", [values.W_Object], simple=False)
 def do_is_struct(v, env, cont):
