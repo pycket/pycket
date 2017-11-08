@@ -45,21 +45,22 @@ class W_LinkletInstance(W_Object):
         self.name = name # W_Symbol (for debugging)
         self.imported_instances = imported_instances # [[...],[..., W_LinkletInstance ,...],...]
         self.export_ids = export_ids # [..., str ,...]
-        self.renamings = renamings # {str:W_Symbol}
+        self.renamings = renamings # {W_Symbol:W_Symbol}
         self.defs = defs # {W_Symbol-W_Object}
         self.data = data
         
     def tostring(self):
         return "W_Linklet Instance : %s - Importing : %s" % (self.name, self.imported_instances)
 
-    def get_val(self, id_str):
+    def get_val(self, id_sym):
         """ Returns a defined value."""
-        if id_str not in self.defs.keys():
-             raise SchemeException("%s is not defined/exported in (or through) this instance" % id_str)
+        if id_sym in self.renamings:
+            id_sym = self.renamings[id_sym]
 
-        if id_str.variable_name() in self.renamings:
-            id_str = self.renamings[id_str.variable_name()]
-        return self.defs[id_str]
+        if id_sym not in self.defs.keys():
+            raise SchemeException("%s is not defined/exported in (or through) this instance" % id_sym)
+
+        return self.defs[id_sym]
 
     def is_defined(self, id_str):
         """ Checks if given id is defined by this instance. """
@@ -240,7 +241,7 @@ class W_Linklet(W_Object):
                 defined_name = arr[0].value_object()['quote'].value_object()['toplevel'].value_string()
                 exported_name = arr[1].value_object()['quote'].value_object()['toplevel'].value_string()
 
-                renamings[exported_name] = W_Symbol.make(defined_name)
+                renamings[W_Symbol.make(exported_name)] = W_Symbol.make(defined_name)
                 exports.append(exported_name)
             else:
                 exports.append(exp.value_object()['quote'].value_object()['toplevel'].value_string())
@@ -465,7 +466,7 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
         else:
             # Process the imports
             w_importss = form.cdr().car()
-
+            renamings = {}
             importss_list = []
             importss_count = 0
             importss_acc = w_importss
@@ -474,8 +475,20 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                 inner_acc = []
                 while (importss_current is not w_null):
                     c = importss_current.car()
-                    inner_acc.append(c.variable_name())
+                    if isinstance(c, W_Symbol):
+                        inner_acc.append(c.variable_name())
+                    elif isinstance(c, W_List):
+                        if c.cdr().cdr() is not w_null:
+                            Exception("Unhandled renamed import form : %s" % c.tostring())
+                        external_id = c.car()
+                        internal_id = c.cdr().car()
+
+                        assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
+                        inner_acc.append(external_id.variable_name())
+                        renamings[external_id] = internal_id
+
                     importss_current = importss_current.cdr()
+
                 importss_list.append(inner_acc)
                 importss_count += 1
                 importss_acc = importss_acc.cdr()
@@ -484,7 +497,6 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
             w_exports = form.cdr().cdr().car()
 
             exports = []
-            renamings = {}
             r_exports = to_rpython_list(w_exports)
             for exp in r_exports:
                 if isinstance(exp, W_WrappedConsProper):
