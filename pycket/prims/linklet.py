@@ -334,21 +334,16 @@ def def_vals_to_ast(def_vals_sexp, linkl_toplevels, linkl_imports):
 
     return DefineValues(names_ls, body, names_ls)
 
-def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports):
+def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions):
     if not len(to_rpython_list(lam_sexp)) == 3:
         raise Exception("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
 
     formals = lam_sexp.cdr().car() # rest?
     formals_ls = to_rpython_list(formals)
 
-    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions=True)
+    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
 
-    form = CaseLambda([make_lambda(formals_ls, None, [body], None)])
-
-    form = Context.normalize_term(form)
-    form = assign_convert(form)
-    form.clean_caches()
-    return form
+    return CaseLambda([make_lambda(formals_ls, None, [body], None)])
 
 def is_imported(id_str, linkl_importss):
     # linkl_importss : [...[..str..]..]
@@ -368,7 +363,7 @@ def import_instance_num(id_str, linkl_importss):
                 return inst_num
     return inst_num
 
-def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports):
+def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions):
     if not len(to_rpython_list(let_sexp)) == 3:
         raise Exception("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
@@ -379,7 +374,7 @@ def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports):
     i = 0
     for w_vars_rhss in varss_rhss:
         varr = to_rpython_list(w_vars_rhss.car()) # [W_Symbol,....]
-        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports)
+        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports, disable_conversions)
         varss_list[i] = varr
         rhss_list[i] = rhsr
         i += 1
@@ -392,18 +387,14 @@ def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports):
             ids[index] = var_ # W_Symbol
             index += 1
 
-    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, linkl_toplevels, linkl_imports, disable_conversions=True)
+    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
 
-    form = make_let(varss_list, rhss_list, [body])
-
-    form = Context.normalize_term(form)
-    form = assign_convert(form)
-    form.clean_caches()
-    return form
+    return make_let(varss_list, rhss_list, [body])
 
 def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False):
+    # "('map 'add1 ('quote (1 2 3)))"
     if isinstance(form, W_Correlated):
-        return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss)
+        return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
     elif isinstance(form, W_Symbol):
         # lexical?
         if form in lex_env:
@@ -424,14 +415,14 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
         if form.car() is W_Symbol.make("define-values"):
             form = def_vals_to_ast(form, linkl_toplevels, linkl_importss)
         elif form.car() is W_Symbol.make("lambda"):
-            return lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss)
+            form = lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
         elif form.car() is W_Symbol.make("let-values"):
-            return let_to_ast(form, lex_env, linkl_toplevels, linkl_importss)
+            form = let_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
         else:
-            form_inner = sexp_to_ast(form.car(), lex_env, linkl_toplevels, linkl_importss)
+            form_inner = sexp_to_ast(form.car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
 
             rands_ls = to_rpython_list(form.cdr())
-            rands = [sexp_to_ast(r, lex_env, linkl_toplevels, linkl_importss) for r in rands_ls]
+            rands = [sexp_to_ast(r, lex_env, linkl_toplevels, linkl_importss, disable_conversions) for r in rands_ls]
                     
             form = App.make(form_inner, rands)
     else:
@@ -498,10 +489,10 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
             for exp in r_exports:
                 if isinstance(exp, W_WrappedConsProper):
                     defined_name = exp.car() # W_Symbol
-                    exported_name = exp.cdr().car().variable_name() # str
+                    exported_name = exp.cdr().car() # W_Symbol
                     renamings[exported_name] = defined_name
 
-                    exports.append(exported_name)
+                    exports.append(exported_name.variable_name())
                 else:
                     exports.append(exp.variable_name())
 
