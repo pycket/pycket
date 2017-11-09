@@ -400,7 +400,18 @@ def is_val_type(form):
             return True
     return False
 
-def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False):
+def sexp_to_value(w_form):
+    if is_val_type(w_form):
+        return w_form
+    elif isinstance(w_form, W_List):
+        w_values_list = w_null
+        while(w_form is not w_null):
+            w_values_list = W_Cons.make(sexp_to_value(w_form.car()), w_values_list)
+        return w_values_list
+    else:
+        raise Exception("Unexpected datum in quote : %s" % w_form.tostring())
+
+def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, quoted=False):
     
     # "('map 'add1 ('quote (1 2 3)))"
     if isinstance(form, W_Correlated):
@@ -428,6 +439,11 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
             form = lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
         elif form.car() is W_Symbol.make("let-values"):
             form = let_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
+        elif form.car() is W_Symbol.make("quote"):
+            if form.cdr().cdr() is not w_null:
+                raise Exception("malformed quote form : %s" % form.tostring())
+            quoted = sexp_to_value(form.cdr().car())
+            form = Quote(quoted)
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
