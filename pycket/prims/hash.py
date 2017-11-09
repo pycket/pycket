@@ -297,7 +297,7 @@ def hash_count(hash):
 def hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont, _vals):
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(_vals)
-    if val is w_missing:
+    if val is values.w_false:
         return return_value(values.w_false, env, cont)
     else:
         return hash_keys_subset_huh_loop(keys_vals, hash_2, idx + 1, env, cont)
