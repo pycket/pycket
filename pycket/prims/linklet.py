@@ -11,9 +11,10 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag
+from pycket.values_string import W_String
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, default
@@ -392,10 +393,20 @@ def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conver
 
     return make_let(varss_list, rhss_list, [body])
 
+def is_val_type(form):
+    val_types = [W_Number, W_Bool, W_String]
+    for t in val_types:
+        if isinstance(form, t):
+            return True
+    return False
+
 def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False):
+    
     # "('map 'add1 ('quote (1 2 3)))"
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+    elif is_val_type(form):
+        form = Quote(form)
     elif isinstance(form, W_Symbol):
         # lexical?
         if form in lex_env:
@@ -410,8 +421,6 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
         else:
             # kernel primitive ModuleVar
             form = ModuleVar(form, "#%kernel", form, None)
-    elif isinstance(form, W_Number) or isinstance(form, W_Bool):
-        form = Quote(form)
     elif isinstance(form, W_List):
         if form.car() is W_Symbol.make("define-values"):
             form = def_vals_to_ast(form, linkl_toplevels, linkl_importss)
@@ -419,6 +428,14 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
             form = lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
         elif form.car() is W_Symbol.make("let-values"):
             form = let_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
+        elif form.car() is W_Symbol.make("if"):
+            tst_w = form.cdr().car()
+            thn_w = form.cdr().cdr().car()
+            els_w = form.cdr().cdr().cdr().car()
+            tst = sexp_to_ast(tst_w, lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            thn = sexp_to_ast(thn_w, lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            els = sexp_to_ast(els_w, lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            form = If.make(tst, thn, els)
         else:
             form_inner = sexp_to_ast(form.car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
 
