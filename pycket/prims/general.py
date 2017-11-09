@@ -817,7 +817,7 @@ def do_set_mcar(a, b):
 def do_set_mcdr(a, b):
     a.set_cdr(b)
 
-#@expose("map", simple=False, arity=Arity.geq(2))
+@expose("map", simple=False, arity=Arity.geq(2))
 def do_map(args, env, cont):
     # XXX this is currently not properly jitted
     if not args:
