@@ -11,7 +11,7 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag
 from pycket.values_string import W_String
@@ -365,7 +365,7 @@ def import_instance_num(id_str, linkl_importss):
                 return inst_num
     return inst_num
 
-def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions):
+def let_like_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions, is_letrec):
     if not len(to_rpython_list(let_sexp)) == 3:
         raise Exception("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
@@ -375,7 +375,7 @@ def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conver
     num_ids = 0
     i = 0
     for w_vars_rhss in varss_rhss:
-        varr = to_rpython_list(w_vars_rhss.car()) # [W_Symbol,....]
+        varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
         rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports, disable_conversions)
         varss_list[i] = varr
         rhss_list[i] = rhsr
@@ -391,7 +391,10 @@ def let_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conver
 
     body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
 
-    return make_let(varss_list, rhss_list, [body])
+    if is_letrec:
+        return make_letrec(list(varss_list), list(rhss_list), [body])
+    else:
+        return make_let(varss_list, rhss_list, [body])
 
 def is_val_type(form):
     val_types = [W_Number, W_Bool, W_String]
@@ -400,20 +403,8 @@ def is_val_type(form):
             return True
     return False
 
-def sexp_to_value(w_form):
-    if is_val_type(w_form):
-        return w_form
-    elif isinstance(w_form, W_List):
-        w_values_list = w_null
-        while(w_form is not w_null):
-            w_values_list = W_Cons.make(sexp_to_value(w_form.car()), w_values_list)
-        return w_values_list
-    else:
-        raise Exception("Unexpected datum in quote : %s" % w_form.tostring())
-
 def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, quoted=False):
-    
-    # "('map 'add1 ('quote (1 2 3)))"
+
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
     elif is_val_type(form):
@@ -438,12 +429,13 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
         elif form.car() is W_Symbol.make("lambda"):
             form = lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
         elif form.car() is W_Symbol.make("let-values"):
-            form = let_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
+            form = let_like_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, False)
+        elif form.car() is W_Symbol.make("letrec-values"):
+            form = let_like_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, True)
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
                 raise Exception("malformed quote form : %s" % form.tostring())
-            quoted = sexp_to_value(form.cdr().car())
-            form = Quote(quoted)
+            form = Quote(form)
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
