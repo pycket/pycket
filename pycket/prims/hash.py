@@ -250,10 +250,6 @@ def hash_ref(ht, k, default, env, cont):
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
-    from pycket.interpreter import return_value
-    items = [i[0] for i in ht.hash_items()]
-    if k not in items:
-        return return_value(values.w_void, env, cont)
     return ht.hash_remove_inplace(k, env, cont)
 
 @expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
@@ -268,7 +264,6 @@ def hash_clear_cont(ht, env, cont, _vals):
 
 def hash_clear_loop(ht, env, cont):
     from pycket.interpreter import return_value
-
     if ht.length() == 0:
         return return_value(values.w_void, env, cont)
 
