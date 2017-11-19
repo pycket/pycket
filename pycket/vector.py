@@ -474,7 +474,7 @@ class CharacterImmutableVectorStrategy(CharacterVectorStrategy):
 class FlonumVectorStrategy(VectorStrategy):
     import_from_mixin(UnwrappedVectorStrategyMixin)
 
-    erase, unerase = rerased.new_erasing_pair("flonum-vector-strategry")
+    erase, unerase = rerased.new_erasing_pair("flonum-vector-strategy")
     erase = staticmethod(erase)
     unerase = staticmethod(unerase)
 
