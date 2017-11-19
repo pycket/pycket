@@ -752,6 +752,25 @@ def complete_path(v):
     # FIXME: stub
     return values.w_true
 
+@expose("expand-user-path", [values.W_Object])
+def expand_user_path(p):
+    if isinstance(p, values.W_Path):
+        path_str = p.path
+    elif isinstance(p, values_string.W_String):
+        path_str = p.tostring()
+    else:
+        raise SchemeException("expand_user_path expects a string or a path")
+
+    if "~" in path_str:
+        if os.environ.get('HOME') is None:
+            raise Exception("HOME is not found among the os environment variables")
+
+        home_dir = os.environ.get('HOME')
+        # assumes a) there's exactly one ~ and b) nothing is there behind the ~
+        path_str = home_dir.join(path_str.split("~"))
+
+    return values.W_Path(path_str)
+
 @expose("path->string", [values.W_Path])
 def path2string(p):
     return values_string.W_String.fromstr_utf8(p.path)
