@@ -11,7 +11,7 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec, Begin, CellRef, SetBang, Begin0, VariableReference, WithContinuationMark, Var, Lambda
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag
 from pycket.values_string import W_String
@@ -345,7 +345,7 @@ def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conver
 
     body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
 
-    return CaseLambda([make_lambda(formals_ls, None, [body], None)])
+    return make_lambda(formals_ls, None, [body], None)
 
 def is_imported(id_str, linkl_importss):
     # linkl_importss : [...[..str..]..]
@@ -391,6 +391,9 @@ def let_like_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_c
 
     body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
 
+    if len(ids) == 0:
+        return Begin.make([body])
+
     if is_letrec:
         return make_letrec(list(varss_list), list(rhss_list), [body])
     else:
@@ -403,7 +406,7 @@ def is_val_type(form):
             return True
     return False
 
-def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, quoted=False):
+def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=False):
 
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
@@ -412,7 +415,10 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
     elif isinstance(form, W_Symbol):
         # lexical?
         if form in lex_env:
-            form = LexicalVar(form)
+            if cell_ref:
+                form = CellRef(form)
+            else:
+                form = LexicalVar(form)
         # toplevel linklet var
         elif form in linkl_toplevels:
             form = LinkletVar(form, -1)
@@ -424,14 +430,40 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
             # kernel primitive ModuleVar
             form = ModuleVar(form, "#%kernel", form, None)
     elif isinstance(form, W_List):
-        if form.car() is W_Symbol.make("define-values"):
+        if form.car() is W_Symbol.make("begin"):
+            form = Begin.make([sexp_to_ast(f, lex_env, linkl_toplevels, linkl_importss, disable_conversions) for f in to_rpython_list(form.cdr())])
+        elif form.car() is W_Symbol.make("begin0"):
+            fst = sexp_to_ast(form.cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            rst = [sexp_to_ast(f, lex_env, linkl_toplevels, linkl_importss, disable_conversions) for f in to_rpython_list(form.cdr().cdr())]
+            if len(rst) == 0:
+                form = fst
+            else:
+                form = Begin0.make(fst, rst)
+        elif form.car() is W_Symbol.make("define-values"):
             form = def_vals_to_ast(form, linkl_toplevels, linkl_importss)
+        elif form.car() is W_Symbol.make("with-continuation-mark"):
+            if len(to_rpython_list(form)) != 4:
+                raise Exception("Unrecognized with-continuation-mark form : %s" % form.tostring())
+            key = sexp_to_ast(form.cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            val = sexp_to_ast(form.cdr().cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            form = WithContinuationMark(key, val, body)
+            #elif form.car() is W_Symbol.make("#%variable-reference"):
+            #import pdb;pdb.set_trace() #########################################
+        elif form.car() is W_Symbol.make("case-lambda"):
+            lams = [lam_to_ast(f, lex_env, linkl_toplevels, linkl_importss, True) for f in to_rpython_list(form.cdr())]
+            form = CaseLambda(lams)
         elif form.car() is W_Symbol.make("lambda"):
-            form = lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)
+            form = CaseLambda([lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)])
         elif form.car() is W_Symbol.make("let-values"):
             form = let_like_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, False)
         elif form.car() is W_Symbol.make("letrec-values"):
             form = let_like_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, True)
+        elif form.car() is W_Symbol.make("set!"):
+            var = sexp_to_ast(form.cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions, cell_ref=True)
+            rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
+            assert isinstance(var, Var)
+            form = SetBang(var, rhs)
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
                 raise Exception("malformed quote form : %s" % form.tostring())
@@ -486,7 +518,7 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
 
     if isinstance(form, W_WrappedConsProper): # s-expr
         # read it and create an AST, put it in a W_Linklet and return
-        if not isinstance(form.car(), W_Symbol) or "'linklet" != form.car().tostring():
+        if not isinstance(form.car(), W_Symbol) or "linklet" != form.car().tostring():
             raise SchemeException("Malformed s-expr. Expected a linklet, got %s" % form.tostring())
         else:
             # Process the imports
