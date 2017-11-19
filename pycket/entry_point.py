@@ -22,84 +22,13 @@ def save_callgraph(config, env):
         with open('callgraph.dot', 'w') as outfile:
             env.callgraph.write_dot_file(outfile)
 
-def get_primitive(prim_name_str):
-    from pycket.prims.expose import prim_env
-    from pycket.values import W_Symbol
-    from pycket.error import SchemeException
-
-    prim_sym = W_Symbol.make(prim_name_str)
-    if not prim_sym in prim_env:
-        raise SchemeException("Primitive not found : %s" % prim_name_str)
-
-    return prim_env[prim_sym]
-
-def read_eval_print(expr_str, pycketconfig, sysconfig, nr_lib=None):
-    from pycket.interpreter import check_one_val
-    from pycket.values import W_Symbol, W_WrappedConsProper, w_null
-    from pycket.values_string import W_String
-
-    # First run (boot) to set things like (current-module-name-resolver) (o/w it's going to stay as the
-    # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
-    # things like '#%kernel really)
-
-    boot = get_primitive("boot")
-    boot.call_interpret([], pycketconfig, sysconfig)
-
-    flcl = get_primitive("find-library-collection-links")
-    lib_coll_links = flcl.call_interpret([], pycketconfig, sysconfig)
-    clcl = get_primitive("current-library-collection-links")
-    clcl.call_interpret([lib_coll_links], pycketconfig, sysconfig)
-
-    flcp = get_primitive("find-library-collection-paths")
-    lib_coll_paths = flcp.call_interpret([], pycketconfig, sysconfig)
-    clcp = get_primitive("current-library-collection-paths")
-    clcp.call_interpret([lib_coll_paths], pycketconfig, sysconfig)
-
-    # don't use compiled code
-    ucfp = get_primitive("use-compiled-file-paths")
-    ucfp.call_interpret([w_null], pycketconfig, sysconfig)
-
-    # namespace-require the '#%kernel
-    ns = get_primitive("namespace-require")
-    ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("quote"),
-                                                W_WrappedConsProper.make(W_Symbol.make("#%kernel"),
-                                                                         w_null))], pycketconfig, sysconfig)
-    
-    # get the read, eval, print, open-input-string primitives
-    ev = get_primitive("eval")
-    rd = get_primitive("read")
-    ex = get_primitive("expand")
-    pr = get_primitive("print")
-    ois = get_primitive("open-input-string")
-    
-    if nr_lib is not None:
-        ns.call_interpret([W_String.make(nr_lib)], pycketconfig, sysconfig)
-    
-    # Start calling
-    # open-input-string
-    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig, sysconfig))
-    # read
-    sexp = check_one_val(rd.call_interpret([str_port], pycketconfig, sysconfig))
-    # expand
-    #expanded = check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
-    # eval
-    results = check_one_val(ev.call_interpret([sexp], pycketconfig, sysconfig))  # FIXME handle multiple values
-
-    
-    # print
-    pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
-    pr.call_interpret([results], pycketconfig, sysconfig)
-    pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
-    
-    return
-
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
-    from pycket.prims.linklet import W_Linklet
     from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args, ensure_json_ast
     from pycket.values_string import W_String
+    from pycket.racket_entry import load_bootstrap_linklets, racket_entry
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -135,49 +64,21 @@ def make_entry_point(pycketconfig=None):
                             multiple_modules=multi_mod_flag,
                             module_mapper=multi_mod_map)
 
-        env = ToplevelEnv(pycketconfig)
-        env.commandline_arguments = args_w
-
-        # load the expander linklet
-        expander_linkl, sys_config = W_Linklet.load_linklet("expander.rktl", reader)
-        expander_instance = expander_linkl.instantiate([], config=pycketconfig)
-        expander_instance.provide_all_exports_to_prim_env()
-
-        # Let's stick with the curent regexp-match for now
-        # load the regexp linklet
-        # regexp_linkl, sys_c = W_Linklet.load_linklet("regexp.rktl", reader)
-        # regexp_instance = regexp_linkl.instantiate([], config=pycketconfig)
-        # regexp_instance.provide_all_exports_to_prim_env()
+        sysconfig = load_bootstrap_linklets(reader, pycketconfig)
         
-        env.current_linklet_instance = expander_instance
+        require_file = names['req_file'] if 'req_file' in names else None
+        require_lib = names['req_lib'] if 'req_lib' in names else None
+        load_file = names['load_file'] if 'load_file' in names else None
+        expr_str = names['exprs'] if 'exprs' in names else None
 
-        if 'rep' in config:
+        is_repl = 'repl' in config
 
-            nr_lib = None
-            if 'nr' in names:
-                nr_lib = names['nr']
-                
-            expr_str = names['expr']
-            read_eval_print(expr_str, pycketconfig, sys_config, nr_lib)
-
-            from pycket.prims.input_output import shutdown
-            for callback in POST_RUN_CALLBACKS:
-                callback(config, env)
-            shutdown(env)
-            return 0
-
-        if json_ast is None:
-            ast = reader.expand_to_ast(module_name)
-        else:
-            ast = reader.load_json_ast_rpython(module_name, json_ast)
-
-        env.globalconfig.load(ast)
-        env.module_env.add_module(module_name, ast)
-        
         try:
-            val = interpret_module(ast, env)
+            racket_entry(require_file, load_file, require_lib, expr_str, is_repl, pycketconfig, sysconfig)
         finally:
             from pycket.prims.input_output import shutdown
+            env = ToplevelEnv(pycketconfig)
+            env.commandline_arguments = args_w
             for callback in POST_RUN_CALLBACKS:
                 callback(config, env)
             shutdown(env)

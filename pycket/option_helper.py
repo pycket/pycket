@@ -34,13 +34,18 @@ def print_help(argv):
 %s [<option> ...] <argument> ...
  File and expression options:
   -e <exprs>, --eval <exprs> : Evaluate <exprs>, prints results
-  -r <expr>, : read-eval-print
+  -f <file>, --load <file> : Like -e '(load "<file>")' without printing
   -t <file>, --require <file> : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
-  -p <package> : Like -e '(require (planet "<package>")'
-  -u <file>, --require-script <file> : Same as -t <file> -N <file> --
-  -b (-R) <file> : run pycket with bytecode expansion, optional -R flag enables recursive bytecode expansion
-  -c <file> : run pycket with complete expansion, expanding every dependent module and put everything into one single json. <file> can also be a json pre-generated with -c option, in this case pycket doesn't need to expand anything at all.
+  NYI -p <package> : Like -e '(require (planet "<package>")'
+  NYI -r <file>, --script <file> : Same as -f <file> -N <file> --
+  NYI -u <file>, --require-script <file> : Same as -t <file> -N <file> --
+  -i, --repl : Run interactive read-eval-print loop; implies -v
+  NYI -n, --no-lib : Skip `(require (lib "<init-lib>"))' for -i/-e/-f/-r
+  NYI -v, --version : Show version
+
+  DEL -b (-R) <file> : run pycket with bytecode expansion, optional -R flag enables recursive bytecode expansion
+  DEL -c <file> : run pycket with complete expansion, expanding every dependent module and put everything into one single json. <file> can also be a json pre-generated with -c option, in this case pycket doesn't need to expand anything at all.
  Configuration options:
   --stdlib: Use Pycket's version of stdlib (only applicable for -e)
  Meta options:
@@ -57,6 +62,7 @@ _eval = False
 def parse_args(argv):
     config = {
         'stdlib': False,
+        'racket': True,
 #        'mcons': False,
         'mode': _run,
     }
@@ -97,23 +103,19 @@ def parse_args(argv):
             config['mode'] = _eval
             i += 1
             names['exprs'] = argv[i]
-        elif argv[i] == "-x":
+
+        elif argv[i] == "-f":
             if to <= i + 1:
                 print "missing argument after -r"
                 retval = 5
                 break
             retval = 0
             i += 1
-            names['nr'] = argv[i]
-        elif argv[i] == "-r":
-            if to <= i + 1:
-                print "missing argument after -r"
-                retval = 5
-                break
+            names['load_file'] = argv[i]
+        elif argv[i] == "-i":
             retval = 0
-            config['rep'] = True
+            config['repl'] = True
             i += 1
-            names['expr'] = argv[i]
         elif argv[i] in ["-u", "-t", "-l", "-p"]:
             arg = argv[i][1]
             stop = arg in ["u"]
@@ -124,18 +126,26 @@ def parse_args(argv):
                 break
             # if arg == "r":
             #     suffix = "f"
-            elif arg == "u":
-                suffix = "t"
-            else:
-                suffix = arg
+            # elif arg == "u":
+            #     suffix = "t"
+            # else:
+            #     suffix = arg
+
             i += 1
-            names['file'] = "%s.%s" % (argv[i], suffix)
-            names['exprs'] = script_exprs(arg, argv[i])
-            config['mode'] = _eval
-            retval = 0
-            if stop:
-                i += 1
-                break
+            if arg == "t":
+                names['req_file'] = argv[i]
+            elif arg == "l":
+                names['req_lib'] = argv[i]
+
+            retval = 0 # FIXME: temporary
+            #i += 1
+            # names['file'] = "%s.%s" % (argv[i], suffix)
+            # names['exprs'] = script_exprs(arg, argv[i])
+            # config['mode'] = _eval
+            # retval = 0
+            # if stop:
+            #     i += 1
+            #     break
         elif argv[i] == "-c":
             arg = argv[i][1]
 
@@ -201,7 +211,8 @@ def ensure_json_ast(config, names):
     # mcons = config.get('mcons', False)
     # assert not mcons
 
-    if 'rep' in config:
+    # FIXME : completely bypassing ensure_json_ast
+    if 'racket' in config:
         return "top-module", None
 
     elif 'multiple-modules' in names:
