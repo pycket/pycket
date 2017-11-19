@@ -27,6 +27,8 @@ class W_Correlated(W_Object):
     def extend_prop(self, key, val):
         self.props[key] = val
 
+    def tostring(self):
+        return "#<correlated:%s>" % self.get_obj().tostring()
 
 # [core:correlated? syntax?]
 make_pred("syntax?", W_Correlated)
