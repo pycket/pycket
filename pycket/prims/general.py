@@ -359,7 +359,6 @@ for args in [ ("subprocess?",),
               ("readtable?",),
               ("link-exists?",),
               ("rename-transformer?",),
-              ("identifier?",),
               ("port?",),
               ("sequence?",),
               ("namespace-anchor?",),
@@ -1211,10 +1210,6 @@ def string_to_symbol(v):
 @expose("immutable?", [values.W_Object])
 def immutable(v):
     return values.W_Bool.make(v.immutable())
-
-@expose("eval-jit-enabled", [])
-def jit_enabled():
-    return values.w_true
 
 @expose("make-thread-cell",
         [values.W_Object, default(values.W_Bool, values.w_false)])
