@@ -1466,7 +1466,7 @@ class SetBang(AST):
         return Context.normalize_name(self.rhs, context, hint="SetBang")
 
     def _tostring(self):
-        return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
+        return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -1562,12 +1562,9 @@ class CaseLambda(AST):
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
-            if w_closure is None:
+            if w_closure is None or w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env():
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
-            else:
-                if not jit.we_are_jitted():
-                    assert w_closure.closure._get_list(0).toplevel_env() is env.toplevel_env()
             return w_closure
         return values.W_Closure.make(self, env)
 
