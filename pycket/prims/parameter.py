@@ -5,7 +5,7 @@ from pycket.argument_parser import ArgParser
 from pycket.arity           import Arity
 from pycket.base            import W_Object
 from pycket.error           import SchemeException
-from pycket.prims.expose    import expose, expose_val, default, procedure
+from pycket.prims.expose    import expose, expose_val, default, procedure, make_procedure
 from rpython.rlib           import jit
 
 @expose("reparameterize")
@@ -59,6 +59,13 @@ def call_with_extended_paramz(f, args, keys, vals, env, cont):
     paramz_new = paramz.extend(keys, vals)
     return call_with_parameterization(f, args, paramz_new, env, cont)
 
+@make_procedure("eval-jit-enabled-guard", [values.W_Object], simple=False)
+def eval_jit_enabled_guard(arg, env, cont):
+    from pycket.interpreter import return_value
+    # never disable the jit
+    return return_value(values.w_void, env, cont)
+
+expose_val("eval-jit-enabled", values_parameter.W_Parameter(values.w_true, eval_jit_enabled_guard))
 expose_val("exnh", values_parameter.W_Parameter(values.w_false))
 expose_val("load-on-demand-enabled", values_parameter.W_Parameter(values.w_true))
 expose_val("read-on-demand-source", values_parameter.W_Parameter(values.w_true))
