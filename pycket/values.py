@@ -1181,7 +1181,7 @@ class W_Symbol(W_Object):
         return False
 
     def tostring(self):
-        return "'%s" % self.utf8value
+        return "%s" % self.utf8value
 
     def variable_name(self):
         return self.utf8value
