@@ -275,28 +275,20 @@ class ObjectHashmapStrategy(HashmapStrategy):
 
     def rem(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
-        is_imm = w_dict.immutable()
-        if is_imm:
-            # functional remove (don't touch the self, create a new one)
-            new_keys = []
-            new_vals = []
-            for (k, v) in w_dict.hash_items():
-                if k is w_key:
-                    continue
-                new_keys.append(k)
-                new_vals.append(v)
+        if not w_dict.immutable():
+            raise Exception("Expected an immutable hash table")
 
-            assert isinstance(w_dict, W_EqualHashTable)
-            new_table = W_EqualHashTable(new_keys, new_vals, is_imm)
-            return return_value(new_table, env, cont)
-        else:
-            # mutative remove
-            storage = self.unerase(w_dict.hstorage)
-            hash = tagged_hash(w_key)
-            if hash in storage:
-                del storage[hash]
-            
-            return return_value(w_dict, env, cont)
+        new_keys = []
+        new_vals = []
+        for (k, v) in w_dict.hash_items():
+            if k is w_key:
+                continue
+            new_keys.append(k)
+            new_vals.append(v)
+
+        assert isinstance(w_dict, W_EqualHashTable)
+        new_table = W_EqualHashTable(new_keys, new_vals, True)
+        return return_value(new_table, env, cont)
 
     def _set(self, w_dict, w_key, w_val):
         raise NotImplementedError("Unsafe set not supported for ObjectHashmapStrategy")
@@ -417,27 +409,20 @@ class SymbolHashmapStrategy(HashmapStrategy):
 
     def rem(self, w_dict, w_key, env, cont):
         from pycket.interpreter import return_value
-        is_imm = w_dict.immutable()
-        if is_imm:
-            new_keys = []
-            new_vals = []
-            for (k, v) in w_dict.hash_items():
-                if k is w_key:
-                    continue
-                new_keys.append(k)
-                new_vals.append(v)
+        if not w_dict.immutable():
+            raise Exception("Expected an immutable hash table")
 
-            assert isinstance(w_dict, W_EqualHashTable)
-            new_table = W_EqualHashTable(new_keys, new_vals, is_imm)
-            return return_value(new_table, env, cont)
-        else:
-            storage = self.unerase(w_dict.hstorage)
-            if w_key in storage:
-                del storage[w_key]
+        new_keys = []
+        new_vals = []
+        for (k, v) in w_dict.hash_items():
+            if k is w_key:
+                continue
+            new_keys.append(k)
+            new_vals.append(v)
 
-            return return_value(w_dict, env, cont)
-
-
+        assert isinstance(w_dict, W_EqualHashTable)
+        new_table = W_EqualHashTable(new_keys, new_vals, True)
+        return return_value(new_table, env, cont)
 
 def hash_strings(w_b):
     assert isinstance(w_b, values_string.W_String)

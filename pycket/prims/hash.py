@@ -250,6 +250,8 @@ def hash_ref(ht, k, default, env, cont):
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
+    if ht.immutable():
+        raise SchemeException("hash-remove!: expected mutable hash table")
     return ht.hash_remove_inplace(k, env, cont)
 
 @expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
