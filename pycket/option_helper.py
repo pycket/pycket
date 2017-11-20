@@ -1,33 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-import os
-
-from .expand import (expand_file_to_json, expand_code_to_json, _expand_file_to_json,
-                     ensure_json_ast_eval, ensure_json_ast_run, _json_name, _BE,
-                     PermException, SchemeException)
-
 from rpython.rlib import jit
-
-
-def script_exprs(arg, content):
-    if False: pass
-    elif arg in ["f", "r"]:
-        exprs = '(load "%s")' % content
-    elif arg in ["t", "u"]:
-        exprs = '(require (file "%s"))' % content
-    elif arg == "l":
-        exprs = '(require (lib "%s"))' % content
-    elif arg == "p":
-        exprs = '(require (planet "%s"))' % content
-    else:
-        exprs = content
-    return exprs
-
-# Re-enable when we have a top-level
-#   -f <file>, --load <file> : Like -e '(load "<file>")'
-#   -r <file>, --script <file> : Same as -f <file> -N <file> -
-#  --mcons: Support mutable conses
 
 def print_help(argv):
     print """Welcome to Pycket.
@@ -195,75 +169,5 @@ def parse_args(argv):
         args = argv[i:to]
 
     return config, names, args, retval
-
-def _temporary_file():
-    from rpython.rlib.objectmodel import we_are_translated
-    if we_are_translated():
-        return os.tmpnam()
-    else:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return os.tmpnam()
-
-def ensure_json_ast(config, names):
-    stdlib = config.get('stdlib', False)
-    # mcons = config.get('mcons', False)
-    # assert not mcons
-
-    # FIXME : completely bypassing ensure_json_ast
-    if 'racket' in config:
-        return "top-module", None
-
-    elif 'multiple-modules' in names:
-        file_name = names['multiple-modules']
-        assert file_name.endswith('.json') or file_name.endswith('.rkt') or file_name.endswith('.rktl')
-        json_file = file_name
-        
-        if file_name.endswith('.rkt') or file_name.endswith('.rktl'):
-            json_file = _json_name(file_name)
-            _expand_file_to_json(file_name, json_file, byte_flag=False, multi_flag=True)
-        else:
-            # strip the json
-            to = len(file_name) - 5
-            assert to > 0
-            file_name = file_name[:to]
-        
-    elif 'byte-expand' in names:
-
-        file_name = names['byte-expand']
-        assert file_name.endswith('.rkt') or file_name.endswith('.rktl')
-
-        json_file = _json_name(file_name)
-        json_file = _expand_file_to_json(file_name, json_file, byte_flag=True)
-
-    elif config["mode"] is _eval:
-        code = names['exprs']
-        if 'file' in names:
-            file_name = names['file']
-        else:
-            file_name = _temporary_file()
-        assert not file_name.endswith('.json')
-
-        json_file = ensure_json_ast_eval(code, file_name, stdlib)
-
-    elif config["mode"] is _run:
-        assert not stdlib
-        assert 'file' in names
-        file_name = names['file']
-
-        if file_name.endswith('.json'):
-            json_file = file_name
-            to = len(file_name) - 5
-            assert to > 0
-            file_name = file_name[:to]
-        else:
-            try:
-                json_file = ensure_json_ast_run(file_name)
-            except PermException:
-                json_file = None
-    else:
-        raise SchemeException("unknown mode %s" % config["mode"])
-    return os.path.abspath(file_name), json_file
 
 # EOF
