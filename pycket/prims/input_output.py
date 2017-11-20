@@ -568,6 +568,21 @@ def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
         m_time = int(os.path.getmtime(path_str))
         return return_value(values.W_Fixnum(m_time), env, cont)
 
+@expose("sync/timeout", simple=False)
+def sync_timeout(args, env, cont):
+    from pycket.interpreter import return_value
+    w_timeout = args[0]
+    w_events = args[1:]
+
+    # FIXME : actually check if any event is ready
+
+    if isinstance(w_timeout, values.W_Number):
+        return return_value(values.w_false, env, cont)
+    elif isinstance(w_timeout, values.W_Procedure) and w_timeout.iscallable():
+        return w_timeout.call([], env, cont)
+    else:
+        raise Exception("Unsupported timeout type : %s" % w_timeout.tostring())
+
 @expose("directory-list", [values.W_Object])
 def dir_list(w_str):
     s = extract_path(w_str)
