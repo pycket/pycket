@@ -65,7 +65,7 @@ def eval_jit_enabled_guard(arg, env, cont):
     # never disable the jit
     return return_value(values.w_void, env, cont)
 
-expose_val("current-command-line-arguments", values_parameter.W_Parameter(values.w_false)) # init to empty vector?
+expose_val("current-command-line-arguments", values_parameter.W_Parameter(values.w_false))
 expose_val("eval-jit-enabled", values_parameter.W_Parameter(values.w_true, eval_jit_enabled_guard))
 expose_val("exnh", values_parameter.W_Parameter(values.w_false))
 expose_val("load-on-demand-enabled", values_parameter.W_Parameter(values.w_true))

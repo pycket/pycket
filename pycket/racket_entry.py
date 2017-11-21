@@ -26,10 +26,14 @@ def racket_entry(names, config, pycketconfig, sysconfig, command_line_arguments)
 
     require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
 
-    # First run (boot) to set things like (current-module-name-resolver) (o/w it's going to stay as the
+    # Set the cmd arguments for racket
+    ccla = get_primitive("current-command-line-arguments")
+    ccla.call_interpret([W_Vector.fromelements(command_line_arguments)], pycketconfig, sysconfig)
+
+    # Run "boot" to set things like (current-module-name-resolver) (o/w it's going to stay as the
     # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
     # things like '#%kernel really)
-    
+
     if DEBUG:
         print("\nEntering Boot Sequence\n")
     boot = get_primitive("boot")
@@ -52,17 +56,7 @@ def racket_entry(names, config, pycketconfig, sysconfig, command_line_arguments)
     if DEBUG:
         print("...Boot Sequence Complete\n\n")
 
-    if command_line_arguments:
-        ccla = get_primitive("current-command-line-arguments")
-        ccla.call_interpret([W_Vector.fromelements(command_line_arguments)], pycketconfig, sysconfig)
-
     namespace_require = get_primitive("namespace-require")
-
-    q_kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
-                                        W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
-    namespace_require.call_interpret([q_kernel], pycketconfig, sysconfig)
-    if DEBUG:
-        print("\n(namespace-require ''#%kernel) ... done\n\n")
 
     if run_file_set:
         import os
@@ -71,8 +65,15 @@ def racket_entry(names, config, pycketconfig, sysconfig, command_line_arguments)
         sysconfig['run-file'] = run_file_set
 
     if not no_lib:
-        init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                            W_WrappedConsProper.make(W_String.make(init_library), w_null))
+        if init_library == "kernel":
+            init_lib = W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                                W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
+        else:
+            init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                                W_WrappedConsProper.make(W_String.make(init_library), w_null))
+        if DEBUG:
+            print("\n(namespace-require %s) ... done\n\n" % init_lib.tostring())
+
         namespace_require.call_interpret([init_lib], pycketconfig, sysconfig)
 
     if require_files: # -t
@@ -160,7 +161,7 @@ def get_options(names, config):
     expr_strs = names['exprs'] if 'exprs' in names else []
     run_file_set = names['run-file'][0] if 'run-file' in names else ""
 
-    init_library = "racket"
+    init_library = "kernel" # let's avoid racket for now
     is_repl = config['repl']
     no_lib = config['no-lib']
 
