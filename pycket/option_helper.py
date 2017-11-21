@@ -59,7 +59,8 @@ def parse_args(argv):
             jit.set_user_param(None, jitarg)
         elif argv[i] in ["-h", "--help", "/?", "-?", "/h", "/help"]:
             print_help(argv)
-            return (None, None, None, 1)
+            if retval == -1:
+                retval = 3
         elif argv[i] == "--":
             i += 1
             break
