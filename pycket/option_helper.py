@@ -11,17 +11,18 @@ def print_help(argv):
   -f <file>, --load <file> : Like -e '(load "<file>")' without printing
   -t <file>, --require <file> : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
-  NYI -p <package> : Like -e '(require (planet "<package>")'
-  NYI -r <file>, --script <file> : Same as -f <file> -N <file> --
-  NYI -u <file>, --require-script <file> : Same as -t <file> -N <file> --
-  -i, --repl : Run interactive read-eval-print loop; implies -v
-  NYI -n, --no-lib : Skip `(require (lib "<init-lib>"))' for -i/-e/-f/-r
-  NYI -v, --version : Show version
+  -r <file>, --script <file> : Same as -f <file> -N <file> --
+  -u <file>, --require-script <file> : Same as -t <file> -N <file> --
 
-  DEL -b (-R) <file> : run pycket with bytecode expansion, optional -R flag enables recursive bytecode expansion
-  DEL -c <file> : run pycket with complete expansion, expanding every dependent module and put everything into one single json. <file> can also be a json pre-generated with -c option, in this case pycket doesn't need to expand anything at all.
+ Interaction options:
+  -i, --repl : Run interactive read-eval-print loop; implies -v
+  -n, --no-lib : Skip `(require (lib "<init-lib>"))' for -i/-e/-f/-r
+  -v, --version : Show version
+
  Configuration options:
-  --stdlib: Use Pycket's version of stdlib (only applicable for -e)
+  -N <file>, --name <file> : Sets `(find-system-path 'run-file)' to <file>
+  --save-callgraph : save the jit output
+
  Meta options:
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
@@ -31,14 +32,11 @@ Default options:
  If only an argument is specified, it is loaded and evaluated
 """ % (argv[0])
 
-_run = True
-_eval = False
 def parse_args(argv):
     config = {
-        'stdlib': False,
-        'racket': True,
-#        'mcons': False,
-        'mode': _run,
+        'repl' : False,
+        'no-lib' : False,
+        'version' : False
     }
     names = {
         # 'file': "",
@@ -61,109 +59,109 @@ def parse_args(argv):
             jit.set_user_param(None, jitarg)
         elif argv[i] in ["-h", "--help", "/?", "-?", "/h", "/help"]:
             print_help(argv)
-            return (None, None, None, 0)
+            return (None, None, None, 1)
         elif argv[i] == "--":
             i += 1
             break
-        elif argv[i] == "--stdlib":
-            config['stdlib'] = True
-            i += 1
-        elif argv[i] == "-e":
+        elif argv[i] in ["-e", "--eval"]:
             if to <= i + 1:
-                print "missing argument after -e"
+                print "missing argument after %s" % argv[i]
                 retval = 5
                 break
-            retval = 0
-            config['mode'] = _eval
-            i += 1
-            names['exprs'] = argv[i]
 
-        elif argv[i] == "-f":
+            i += 1
+            if 'exprs' in names:
+                names['exprs'].append(argv[i])
+            else:
+                names['exprs'] = [argv[i]]
+
+            config["no-lib"] = True
+            retval = 0
+        elif argv[i] in ["-f", "--load", "-r", "--script"]:
             if to <= i + 1:
-                print "missing argument after -r"
+                print "missing argument after %s" % argv[i]
                 retval = 5
                 break
-            retval = 0
+
+            if argv[i] in ["r", "--script"]:
+                names['run-file'] = [argv[i]]
+
             i += 1
-            names['load_file'] = argv[i]
-        elif argv[i] == "-i":
+            if 'load-file' in names:
+                names['load-file'].append(argv[i])
+            else:
+                names['load-file'] = [argv[i]]
+
             retval = 0
+        elif argv[i] in ["-t", "--require", "-u", "--require-script"]:
+            if to <= i + 1:
+                print "missing argument after %s" % argv[i]
+                retval = 5
+                break
+
+            if argv[i] in ["-u", "--require-script"]:
+                names['run-file'] = [argv[i]]
+
+            i += 1
+            if 'req-file' in names:
+                names['req-file'].append(argv[i])
+            else:
+                names['req-file'] = [argv[i]]
+
+            config['no-lib'] = True
+            retval = 0
+        elif argv[i] in ["-l", "--lib"]:
+            if to <= i + 1:
+                print "missing argument after %s" % argv[i]
+                retval = 5
+                break
+
+            i += 1
+            if 'req-lib' in names:
+                names['req-lib'].append(argv[i])
+            else:
+                names['req-lib'] = [argv[i]]
+
+            config['no-lib'] = True
+            retval = 0
+        elif argv[i] in ["-i", "--repl"]:
             config['repl'] = True
-            i += 1
-        elif argv[i] in ["-u", "-t", "-l", "-p"]:
-            arg = argv[i][1]
-            stop = arg in ["u"]
-
-            if to <= i + 1:
-                print "missing argument after -%s" % arg
-                retval = 5
-                break
-            # if arg == "r":
-            #     suffix = "f"
-            # elif arg == "u":
-            #     suffix = "t"
-            # else:
-            #     suffix = arg
-
-            i += 1
-            if arg == "t":
-                names['req_file'] = argv[i]
-            elif arg == "l":
-                names['req_lib'] = argv[i]
-
-            retval = 0 # FIXME: temporary
-            #i += 1
-            # names['file'] = "%s.%s" % (argv[i], suffix)
-            # names['exprs'] = script_exprs(arg, argv[i])
-            # config['mode'] = _eval
-            # retval = 0
-            # if stop:
-            #     i += 1
-            #     break
-        elif argv[i] == "-c":
-            arg = argv[i][1]
-
-            if to < i + 1:
-                print "missing argument after -%s" % arg
-                retval = 5
-                break
-
-            i += 1
-
-            names['multiple-modules'] = "%s" % (argv[i])
-
+            config['version'] = True
             retval = 0
-            
-        elif argv[i] == "-b":
-            arg = argv[i][1]
-
+        elif argv[i] in ["-n", "--no-lib"]:
+            config['no-lib'] = True
+            if retval == -1:
+                retval = 3
+        elif argv[i] in ["-v", "--version"]:
+            config['version'] = True
+        elif argv[i] == "-N":
             if to <= i + 1:
-                print "missing argument after -%s" % arg
+                print "missing argument after -N"
                 retval = 5
                 break
-
             i += 1
-
-            names['byte-expand'] = "%s" % (argv[i])
-
-            retval = 0
-
+            names['run-file'] = [argv[i]]
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True
 
         else:
-            if 'file' in names:
-                break
-            names['file'] = argv[i]
-            retval = 0
+            if '.rkt' in argv[i]:
+                if 'req-file' in names:
+                    names['req-file'].append(argv[i])
+                else:
+                    names['req-file'] = [argv[i]]
+                i += 1
+                retval = 0
+            else:
+                print "Bad switch : %s" % argv[i]
+                retval = 5
+            break
         i += 1
 
-    if config['stdlib'] and (config['mode'] is not _eval):
-        retval = -1
-
     if retval == -1:
-        print_help(argv)
-        retval = 3
+        config['repl'] = True
+        config['version'] = True
+        retval = 0
 
     if i <= to: #pending args
         args = argv[i:to]

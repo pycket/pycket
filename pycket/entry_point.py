@@ -48,25 +48,23 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "max_unroll_loops", 15)
 
         config, names, args, retval = parse_args(argv)
+
+        if config['version']:
+            print "Welcome to Pycket\n"
+
         if retval != 0 or config is None:
             return retval
-        args_w = [W_String.fromstr_utf8(arg) for arg in args]
+
+        current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
 
         sysconfig = load_bootstrap_linklets(JsonLoader(), pycketconfig)
-        
-        require_file = names['req_file'] if 'req_file' in names else None
-        require_lib = names['req_lib'] if 'req_lib' in names else None
-        load_file = names['load_file'] if 'load_file' in names else None
-        expr_str = names['exprs'] if 'exprs' in names else None
-
-        is_repl = 'repl' in config
 
         try:
-            racket_entry(require_file, load_file, require_lib, expr_str, is_repl, pycketconfig, sysconfig)
+            racket_entry(names, config, pycketconfig, sysconfig, current_cmd_args)
         finally:
             from pycket.prims.input_output import shutdown
             env = ToplevelEnv(pycketconfig)
-            env.commandline_arguments = args_w
+            #env.commandline_arguments = current_cmd_args
             for callback in POST_RUN_CALLBACKS:
                 callback(config, env)
             shutdown(env)

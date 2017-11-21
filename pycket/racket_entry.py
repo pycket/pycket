@@ -2,6 +2,7 @@ from pycket.prims.linklet import W_Linklet
 from pycket.interpreter import check_one_val
 from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values
 from pycket.values_string import W_String
+from pycket.vector import W_Vector
 
 DEBUG = True
 
@@ -21,7 +22,9 @@ def load_bootstrap_linklets(reader, pycketconfig):
 
     return sys_config
 
-def racket_entry(require_file, load_file, require_lib, expr_str, is_repl, pycketconfig, sysconfig):
+def racket_entry(names, config, pycketconfig, sysconfig, command_line_arguments):
+
+    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
 
     # First run (boot) to set things like (current-module-name-resolver) (o/w it's going to stay as the
     # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
@@ -49,35 +52,50 @@ def racket_entry(require_file, load_file, require_lib, expr_str, is_repl, pycket
     if DEBUG:
         print("...Boot Sequence Complete\n\n")
 
-    # (namespace-require ''#%kernel) TEMPORARY
-    namespace_require = get_primitive("namespace-require")
-    q_kernel = W_WrappedConsProper.make(W_Symbol.make("quote"), W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
-    namespace_require.call_interpret([q_kernel], pycketconfig, sysconfig)
+    if command_line_arguments:
+        ccla = get_primitive("current-command-line-arguments")
+        ccla.call_interpret([W_Vector.fromelements(command_line_arguments)], pycketconfig, sysconfig)
 
-    # ns.call_interpret([W_WrappedConsProper.make(W_Symbol.make("lib"),
-    #                                               W_WrappedConsProper.make(W_String.make("racket"),
-    #                                                                        w_null))], pycketconfig, sysconfig)
-    
+    namespace_require = get_primitive("namespace-require")
+
+    q_kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                        W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
+    namespace_require.call_interpret([q_kernel], pycketconfig, sysconfig)
     if DEBUG:
         print("\n(namespace-require ''#%kernel) ... done\n\n")
 
-    if require_file: # -t
-        # (namespace-require '(file <file-string>))
-        file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
-                                             W_WrappedConsProper.make(W_String.make(require_file), w_null))
-        namespace_require.call_interpret([file_form], pycketconfig, sysconfig)
-    if require_lib: # -l
-        # (namespace-require '(lib <lib-sym>))
-        lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                            W_WrappedConsProper.make(W_String.make(require_lib), w_null))
-        namespace_require.call_interpret([lib_form], pycketconfig, sysconfig)
-    if load_file: # -f
-        # (load <file_name>)
-        load = get_primitive("load")
-        load.call_interpret([W_String.make(load_file)], pycketconfig, sysconfig)
+    if run_file_set:
+        import os
+        if not os.path.isfile(run_file_set):
+            raise Exception("File not found : %s" % run_file_set)
+        sysconfig['run-file'] = run_file_set
 
-    if expr_str: # -e
-        read_eval_print_string(expr_str, pycketconfig, sysconfig)
+    if not no_lib:
+        init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                            W_WrappedConsProper.make(W_String.make(init_library), w_null))
+        namespace_require.call_interpret([init_lib], pycketconfig, sysconfig)
+
+    if require_files: # -t
+        for require_file in require_files:
+            # (namespace-require '(file <file-string>))
+            file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
+                                                 W_WrappedConsProper.make(W_String.make(require_file), w_null))
+            namespace_require.call_interpret([file_form], pycketconfig, sysconfig)
+    if require_libs: # -l
+        for require_lib in require_libs:
+            # (namespace-require '(lib <lib-sym>))
+            lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                                W_WrappedConsProper.make(W_String.make(require_lib), w_null))
+            namespace_require.call_interpret([lib_form], pycketconfig, sysconfig)
+    if load_files: # -f
+        for load_file in load_files:
+            # (load <file_name>)
+            load = get_primitive("load")
+            load.call_interpret([W_String.make(load_file)], pycketconfig, sysconfig)
+
+    if expr_strs: # -e
+        for expr_str in expr_strs:
+            read_eval_print_string(expr_str, pycketconfig, sysconfig)
         
     if is_repl: # -i
         dynamic_require = get_primitive("dynamic-require")
@@ -133,3 +151,17 @@ def get_primitive(prim_name_str):
         raise SchemeException("Primitive not found : %s" % prim_name_str)
 
     return prim_env[prim_sym]
+
+def get_options(names, config):
+
+    require_files = names['req-file'] if 'req_file' in names else []
+    require_libs = names['req-lib'] if 'req_lib' in names else []
+    load_files = names['load-file'] if 'load_file' in names else []
+    expr_strs = names['exprs'] if 'exprs' in names else []
+    run_file_set = names['run-file'][0] if 'run-file' in names else ""
+
+    init_library = "racket"
+    is_repl = config['repl']
+    no_lib = config['no-lib']
+
+    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set
