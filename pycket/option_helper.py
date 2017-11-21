@@ -76,7 +76,6 @@ def parse_args(argv):
             else:
                 names['exprs'] = [argv[i]]
 
-            config["no-lib"] = True
             retval = 0
         elif argv[i] in ["-f", "--load", "-r", "--script"]:
             if to <= i + 1:
@@ -151,6 +150,7 @@ def parse_args(argv):
                     names['req-file'].append(argv[i])
                 else:
                     names['req-file'] = [argv[i]]
+                names['run-file'] = [argv[i]]
                 i += 1
                 retval = 0
             else:
