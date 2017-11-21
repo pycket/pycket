@@ -1148,14 +1148,6 @@ def vector_to_list_read_cont(vector, idx, acc, env, cont, _vals):
     acc = values.W_Cons.make(val, acc)
     return vector_to_list_loop(vector, idx - 1, acc, env, cont)
 
-# FIXME: make that a parameter
-@expose("current-command-line-arguments", [], simple=False)
-def current_command_line_arguments(env, cont):
-    from pycket.interpreter import return_value
-    w_v = values_vector.W_Vector.fromelements(
-            env.toplevel_env().commandline_arguments)
-    return return_value(w_v, env, cont)
-
 # Unsafe pair ops
 @expose("unsafe-car", [subclass_unsafe(values.W_Cons)])
 def unsafe_car(p):
