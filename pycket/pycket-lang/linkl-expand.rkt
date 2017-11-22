@@ -1,17 +1,11 @@
 #lang racket
 
-(require racket/linklet compiler/zo-parse json)
-
-(require (only-in '#%linklet compiled-position->primitive))
-
-(require "zo-expand.rkt")
+(require racket/linklet compiler/zo-parse json pycket/expand
+         (only-in '#%linklet compiled-position->primitive)
+         "zo-expand.rkt")
 
 (provide handle-linkl)
 
-;; for manual usage
-(define module-name "map-bytes")
-
-#|--- UTILS ---|#
 
 (define (hash-set* h . kvs)
   (let loop ([kvs kvs] [h h])
@@ -72,14 +66,14 @@
 
 #|------Examples ----|#
 
-(define l '(linklet 
+#;(define l '(linklet
   ;((f x)) ; imports
   ()
   () ; exports
   (display 5)
   (newline)))
 
-(define l2 '(linklet
+#;(define l2 '(linklet
              ()
              (export f)
              (define-values (f) (lambda () (printf "Hello")))
@@ -87,15 +81,8 @@
              (newline)
              ))
 
-(define compiled (compile-linklet l))
+#;(define compiled (compile-linklet l))
 
-(define comp-dir "compiled/")
-
-#;(define zo-file (format "~a~a_rkt.zo" comp-dir module-name))
-
-(define zo-file "map-bytes")
-
-#;(define top (zo-parse (open-input-file zo-file)))
 ;; either
 ;; -------> LINKL-BUNDLE (if module has no submodules)
 #|
@@ -109,14 +96,9 @@ name ::: name
 side-effects ::: listof number? [(0) display] (??????????????)
 decl ::: ????????????????
 
-|#
-
-#;(define main-table (linkl-bundle-table top))
-
-#;main-table
 
 ;; -------> LINKL-DIRECTORY
-#|
+
  --- A linklet directory normally maps '() to the main 
  linklet bundle for a module or a single top-level form;
  --- For a linklet directory that corresponds to a sequence of top-level forms,
@@ -124,28 +106,7 @@ decl ::: ????????????????
  (For a module with submodules, the linklet directory maps submodule paths (as lists of symbols)
  to linklet bundles for the corresponding submodules.
 
-|#
-
-#;(define main-table (linkl-directory-table top)) ;; hash?
-;main-table
-#;(define main-linklet (hash-ref (linkl-bundle-table
-                                (hash-ref main-table '())) 0))
-#;(define main-linklet (hash-ref (linkl-bundle-table top) 0))
-
-#;(define toplevels (append
-                   '(initial-reserved-slot)
-                   (flatten (linkl-importss main-linklet))
-                   (linkl-exports main-linklet)
-                   (linkl-internals main-linklet)
-                   (linkl-lifts main-linklet)))
-
-
-#;(define main-bundle (linkl-bundle-table main-module)) ;; hash?
-
-#;(define main (hash-ref main-bundle 0))
-
-
-#| --- LINKL ---
+ --- LINKL ---
 
 name           :
 importss       : (top) (listof (listof symbol?))
@@ -174,7 +135,7 @@ toplevels = (flatten-and-append importss exports internals lifts)
 ;(define (to-ast body-forms)
 ;  (map (lambda (form) (to-ast-single form '() '())) body-forms))
 
-(define (handle-linkl linklet localref-stack)
+(define (handle-linkl linklet localref-stack debug module-name mod-ext rel-current-dir)
   (let* ([name (linkl-name linklet)]
          ;; (listof (listof symbol?))
          [importss (linkl-importss linklet)]
@@ -195,38 +156,118 @@ toplevels = (flatten-and-append importss exports internals lifts)
                            internals
                            lifts))])
     (begin
-      (set-globals! false
-                    module-name "rkt" "/home/caner/research/pycket-stuff/linklets/" #f)
+      (set-globals! debug module-name mod-ext rel-current-dir #f)
       (set-toplevels! toplevels toplevels '())
       (displayln (format "IMPORTS : ~a" importss))
       (displayln (format "EXPORTS : ~a" exports))
       (hash* 'linklet
              (hash*
               'exports (to-ast exports true importss)
-              'body (to-ast body true importss))))))
+              'body (to-ast body true importss)
+              'config global-config)))))
 
 
-;; for manual use
 
-#;(define out (open-output-file (string-append module-name ".linklet") #:exists 'replace))
+#;(current-command-line-arguments
+ (vector "-v" "set.rkt"))
 
-#;(define final-json-hash
-  (handle-linkl main-linklet '()))
+(module+ main
+  (require racket/cmdline json compiler/cm)
 
-#;(begin
+  (define debug #f)
+  (define sub-dirs-str #f)
+  (define out #f)
+  (define module-name #f)
+  (define module-ext #f)
+
+  (define-syntax (get-extension stx)
+    (syntax-case stx ()
+      [(_ p)
+       (if (identifier-binding #'path-get-extension)
+           #'(path-get-extension p)
+           (if (identifier-binding #'filename-extension)
+               #'(filename-extension p)
+               (error 'use-correct-extension "couldn't find a good extension getter")))]))
+
+  (command-line
+   #:once-each
+   [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+   #:once-any
+   [("--output") file "write output to output <file>"
+    (set! out (open-output-file file #:exists 'replace))]
+   [("--stdout") "write output to standart out" (set! out (current-output-port))]
+
+   #:args (file.rkt)
+   (let* ([p (string->path file.rkt)]
+          [only-path-str (or (and (path-only p) (path->string (path-only p))) "")]
+          [mod-name (let* ([fn-path (file-name-from-path p)]
+                           [fn-str (if fn-path (path->string fn-path) (error 'zo-expand "check the filename ~a" file.rkt))])
+                      (car (string-split fn-str ".")))]
+          [mod-extension (let ([ext (bytes->string/utf-8 (get-extension p))])
+                           (if (string-contains? ext ".") (string-replace ext "." "") ext))])
+     (begin
+       (printf "\nonly-path-str : ~a\n" only-path-str)
+       (printf "\nmod-name : ~a\n" mod-name)
+       (printf "\nmod-extension : ~a\n" mod-extension)
+       ;; setting the stage
+       (set! module-name mod-name)
+       (set! module-ext mod-extension)
+       (set! sub-dirs-str only-path-str)
+       #;(set-globals! debug mod-name mod-extension sub-dirs-str #f)
+       ;(system (format "raco make \"~a\"" file.rkt))
+       #;(managed-compile-zo file.rkt)
+       ;; setting the output port
+       (when (not out)
+         (set! out (open-output-file (format "~a~a.~a.json" sub-dirs-str mod-name mod-extension)
+                                     #:exists 'replace))))))
+
+  (printf "\nonly-path-str : ~a\n" module-name)
+
+  (define dep-file (read (open-input-file (format "~acompiled/~a_~a.dep" sub-dirs-str module-name module-ext))))
+
+  (define top (zo-parse (open-input-file (format "~acompiled/~a_~a.zo" sub-dirs-str module-name module-ext))))
+
+  (unless (or (linkl-directory? top) (linkl-bundle? top))
+    (error (format "what sort of compile top is this : ~a" top)))
+
+  (when debug
+    (printf " \n top is a : ~a\n" (if (linkl-directory? top) "linkl-directory" "linkl-bundle")))
+
+  (define main-table
+    (if (linkl-directory? top) (hash-ref (linkl-directory-table top) '()) (linkl-bundle-table top)))
+
+  (when debug
+    (printf "\n main-table \n\n ~a\n\n" main-table))
+
+  (define main-linklet (if (linkl-bundle? top)
+                           (hash-ref main-table 0)
+                           (hash-ref (linkl-bundle-table main-table) 0)))
+
+  (unless (linkl? main-linklet)
+    (error (format "what sort of linklet is this : ~a" main-linklet)))
+
+  (when debug
+    (printf "\n main-linklet \n\n ~a\n\n" main-linklet))
+
+  (define final-json-hash
+    (handle-linkl main-linklet '() debug module-name module-ext sub-dirs-str))
+
+  (unless (jsexpr? final-json-hash)
+    (error "\n something wrong with the json :\n\n ~a\n\n" final-json-hash))
+
+  (when debug
+    (printf "\n final-json-hash \n\n")
+    final-json-hash)
+
+  (when debug
+    (printf "\nwriting json into : ~a ...." out))
+
   (write-json final-json-hash out)
   (newline out)
-  (flush-output out))
+  (flush-output out)
 
-
-
-
-
-
-
-
-
-
+  (when debug (printf "done\n"))
+)
 
 
 
