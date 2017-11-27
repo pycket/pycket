@@ -54,7 +54,9 @@
   (for/hash ([i (in-naturals)]
              #:break (not (compiled-position->primitive i)))
     (define v (compiled-position->primitive i))
-    (values i (or (object-name v) v))))
+    #;(printf " v : ~a ~a\n" v i)
+    ;(values i (or (object-name v) v))
+    (values i (object-name v))))
 
 ;;;;;; 1291
 
@@ -68,6 +70,7 @@
          (let ([ns (make-base-empty-namespace)])
            (parameterize ([current-namespace ns])
              (namespace-require ''#%kernel)
+             (namespace-require ''#%paramz)
              (namespace-require ''#%unsafe)
              (namespace-require ''#%flfxnum)
              (namespace-require ''#%extfl)
@@ -78,6 +81,7 @@
                          (compile l))))))]
         [table (make-hash)])
     (for ([b (in-list bindings)])
+      #;(printf "binding : ~a\n" (car b))
       (let* ([v (and (cdr b)
                      (zo-parse
                       (open-input-bytes
@@ -197,7 +201,7 @@
 (define (handle-symbol racket-sym [are-we-in-a-linklet? #f])
   (let ([s (symbol->string racket-sym)])
     (begin
-      (displayln (format "handle-symbol : ~a : are-we-in-a-linklet? : ~a" racket-sym are-we-in-a-linklet?))
+      1#;(displayln (format "handle-symbol : ~a : are-we-in-a-linklet? : ~a : sym : ~a" racket-sym are-we-in-a-linklet? s))
       (if (and (not are-we-in-a-linklet?) (memv racket-sym primitives))
           (hash* 'source-name s)
           (hash* 'toplevel s)))))
@@ -267,9 +271,9 @@
   (let* ([id (primval-id operation)]
          [operator-name (get-primval-name id)])
     (if (string-contains? operator-name "unsafe") ;; cheat
-        (hash* 'source-name operator-name
-               'source-module '("#%unsafe"))
-        (hash* 'source-name operator-name))))
+          (hash* 'source-name operator-name
+                 'source-module '("#%unsafe"))
+          (hash* 'source-name operator-name))))
 
 
 #|
@@ -558,15 +562,18 @@ put the usual application-rands to the operands
     (cond
       [(hash? stack-slot) (error 'handle-localref "interesting... we seem to have a hash in the stack slot : ~a" stack-slot)]
       [(box? stack-slot) (error 'handle-localref "we have unboxing issues with pos : ~a - slot : ~a" pos stack-slot)]
-      [else (hash* 'lexical 
-                   (let ([slot-payload (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot)])
-                     (if (or (box? slot-payload)
-                             (and (string? stack-slot)
-                                  (string-contains? stack-slot "dummy")))
-                         (error 'handle-localref
-                                "pos: ~a shouldn't have extracted this: ~a \n here's the stack: \n~a\n"
-                                pos stack-slot localref-stack)
-                         slot-payload)))])))
+      [else
+       (let ([slot-payload (if (symbol? stack-slot) (symbol->string stack-slot) stack-slot)])
+         (if (or (box? slot-payload)
+                 (and (string? stack-slot)
+                      (string-contains? stack-slot "dummy")))
+             (error 'handle-localref
+                    "pos: ~a shouldn't have extracted this: ~a \n here's the stack: \n~a\n"
+                    pos stack-slot localref-stack)
+             (if unbox?
+                 (hash* 'operator (hash* 'source-name "unbox")
+                        'operands (list (hash* 'lexical slot-payload)))
+                 (hash* 'lexical slot-payload))))])))
 
 (define (self-mod? mpi)
   (let-values ([(mod-path base-path) (module-path-index-split mpi)])
@@ -774,7 +781,7 @@ put the usual application-rands to the operands
     (cond
       [(symbol? toplevel-id)
        (begin
-         (displayln (format "TOPLEVEL id : ~a --- linklet? : ~a --- importss : ~a" toplevel-id linklet? importss))
+         1#;(displayln (format "TOPLEVEL id : ~a --- linklet? : ~a --- importss : ~a" toplevel-id linklet? importss))
        (if linklet?
            (hash* 'source-name toplevel-id-str
                   'source-linklet
@@ -859,12 +866,15 @@ put the usual application-rands to the operands
   (let* ([pos (boxenv-pos body-form)]
          [pre-pos (take localref-stack pos)]
          [post-pos (drop localref-stack pos)]
-         [boxed-slot (string-append (car post-pos) "-box")])
-    (begin
-      #;(when DEBUG
-          (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
-      #;(to-ast-single (boxenv-body body-form) (append pre-pos (list boxed-slot) (cdr post-pos)) current-closure-refs)
-      (to-ast-single (boxenv-body body-form) localref-stack current-closure-refs linklet?))))
+         [boxed-slot (car post-pos)])
+    #;(when DEBUG
+        (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
+    (hash* 'let-bindings (list) ; create a begin
+           'let-body (list (list (hash* 'source-name "set!")
+                                 (hash* 'lexical boxed-slot)
+                                 (hash* 'operator (hash* 'source-name "box")
+                                        'operands (list (hash* 'lexical boxed-slot))))
+                           (to-ast-single (boxenv-body body-form) localref-stack current-closure-refs linklet?)))))
 
 (define (handle-assign body-form localref-stack current-closure-refs [linklet? #f])
   (let ([id (assign-id body-form)]
@@ -883,7 +893,11 @@ put the usual application-rands to the operands
          [count-lst (range count)]
          [payload (if boxes? "let-void-box-" "let-void-")]
          [new-slots (map (λ (s) (symbol->string (gensym (string-append payload (number->string s) ".")))) count-lst)]
-         [rhss (map (λ (r) (hash* 'quote (hash* 'toplevel "uninitialized"))) count-lst)]
+         [rhss (map (λ (r) (let ((slot (hash* 'quote (hash* 'toplevel "uninitialized"))))
+                             (if boxes?
+                                 (hash* 'operator (hash* 'source-name "box")
+                                        'operands (list slot))
+                                 slot))) count-lst)]
          [newstack (begin
                      (when DEBUG
                        (displayln (format "LetVoid pushes ~a slots.. boxes? : ~a" count boxes?)))
@@ -914,9 +928,13 @@ put the usual application-rands to the operands
                          reg))]
 
          [set-nodes (map (λ (let-void-slot inst-val-binding)
-                           (list (hash* 'source-name "set!")
-                                 (hash* 'lexical let-void-slot)
-                                 (hash* 'lexical inst-val-binding))) mod-region binding-list)]
+                           (if boxes?
+                               (hash* 'operator (hash* 'source-name "set-box!")
+                                      'operands (list (hash* 'lexical let-void-slot)
+                                                      (hash* 'lexical inst-val-binding)))
+                               (list (hash* 'source-name "set!")
+                                     (hash* 'lexical let-void-slot)
+                                     (hash* 'lexical inst-val-binding)))) mod-region binding-list)]
          
          [rhs-ready (list (list binding-list
                                 (to-ast-single rhs localref-stack current-closure-refs linklet?)))])
