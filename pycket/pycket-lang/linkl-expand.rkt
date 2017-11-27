@@ -1,7 +1,7 @@
 #lang racket
 
 (require racket/linklet compiler/zo-parse json pycket/expand
-         (only-in '#%linklet compiled-position->primitive)
+         #;(only-in '#%linklet compiled-position->primitive)
          "zo-expand.rkt")
 
 (provide handle-linkl)
@@ -135,6 +135,8 @@ toplevels = (flatten-and-append importss exports internals lifts)
 ;(define (to-ast body-forms)
 ;  (map (lambda (form) (to-ast-single form '() '())) body-forms))
 
+(define toplevels 'toBeSetByHandleLinkl)
+
 (define (handle-linkl linklet localref-stack debug module-name mod-ext rel-current-dir)
   (let* ([name (linkl-name linklet)]
          ;; (listof (listof symbol?))
@@ -149,27 +151,35 @@ toplevels = (flatten-and-append importss exports internals lifts)
          [body (linkl-body linklet)]
          ;; number
          [max-let-depth (linkl-max-let-depth linklet)]
-         [toplevels (cons 'initial-reserved-slot
-                          (append
-                           (flatten importss)
-                           exports
-                           internals
-                           lifts))])
+         [toplevels_ (cons 'initial-reserved-slot
+                           (append
+                            (flatten importss)
+                            exports
+                            internals
+                            lifts))])
     (begin
       (set-globals! debug module-name mod-ext rel-current-dir #f)
-      (set-toplevels! toplevels toplevels '())
+      (set-toplevels! toplevels_ toplevels_ '())
+      (set! toplevels toplevels_)
       (displayln (format "IMPORTS : ~a" importss))
       (displayln (format "EXPORTS : ~a" exports))
       (hash* 'linklet
              (hash*
               'exports (to-ast exports true importss)
               'body (to-ast body true importss)
-              'config global-config)))))
+              'config (hash-set* global-config
+                                 'collects-dir
+                                 "/home/caner/racketland/racket7/racket/collects"))))))
 
+(define byte-codes 'toBeSetByMain)
+(define json-hash 'toBeSetByMain)
 
+(define (set-out main-linklet final-json)
+  (set! byte-codes main-linklet)
+  (set! json-hash final-json))
 
 #;(current-command-line-arguments
- (vector "-v" "set.rkt"))
+ (vector "../read/sequence.rkt"))
 
 (module+ main
   (require racket/cmdline json compiler/cm)
@@ -262,6 +272,8 @@ toplevels = (flatten-and-append importss exports internals lifts)
   (when debug
     (printf "\nwriting json into : ~a ...." out))
 
+  (set-out main-linklet final-json-hash)
+  
   (write-json final-json-hash out)
   (newline out)
   (flush-output out)
