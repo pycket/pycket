@@ -23,12 +23,11 @@ def save_callgraph(config, env):
             env.callgraph.write_dot_file(outfile)
 
 def make_entry_point(pycketconfig=None):
-    from pycket.expand import JsonLoader
     from pycket.interpreter import ToplevelEnv
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args
     from pycket.values_string import W_String
-    from pycket.racket_entry import load_bootstrap_linklets, racket_entry
+    from pycket.racket_entry import load_inst_linklet_json, racket_entry
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -57,10 +56,13 @@ def make_entry_point(pycketconfig=None):
 
         current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
 
-        sysconfig = load_bootstrap_linklets(JsonLoader(), pycketconfig)
+        if 'json-linklets' in names:
+            for linkl_json in names['json-linklets']:
+                load_inst_linklet_json(linkl_json, pycketconfig)
 
         try:
-            racket_entry(names, config, pycketconfig, sysconfig, current_cmd_args)
+            if not config['stop']:
+                racket_entry(names, config, pycketconfig, current_cmd_args)
         finally:
             from pycket.prims.input_output import shutdown
             env = ToplevelEnv(pycketconfig)

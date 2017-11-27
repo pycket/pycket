@@ -3,16 +3,18 @@ from pycket.interpreter import check_one_val
 from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
+from pycket.expand import JsonLoader
 
 DEBUG = True
 
-def load_bootstrap_linklets(reader, pycketconfig):
-    print("\n\nLoading the expander linklet... \n")
+def load_bootstrap_linklets(pycketconfig):
+    if DEBUG:
+        print("\n\nLoading the expander linklet... \n")
     # load the expander linklet
-    expander_linkl, sys_config = W_Linklet.load_linklet("expander.rktl", reader)
-    expander_instance = expander_linkl.instantiate([], config=pycketconfig)
+    expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet",pycketconfig)
     expander_instance.provide_all_exports_to_prim_env()
-    print("\nExpander loading complete.\n")
+    if DEBUG:
+        print("\nExpander loading complete.\n")
 
     # Let's stick with the curent regexp-match for now
     # load the regexp linklet
@@ -22,9 +24,23 @@ def load_bootstrap_linklets(reader, pycketconfig):
 
     return sys_config
 
-def racket_entry(names, config, pycketconfig, sysconfig, command_line_arguments):
+def load_inst_linklet_json(json_file_name, pycketconfig):
+
+    if DEBUG:
+        print("\nLoading linklet from %s\n" % json_file_name)
+    linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
+    if DEBUG:
+        print("\nInstantiating %s ...."  % json_file_name)
+    linkl_instance = linkl.instantiate([], config=pycketconfig)
+    if DEBUG:
+        print("DONE.\n")
+    return linkl_instance, sys_config
+
+def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
+
+    sysconfig = load_bootstrap_linklets(pycketconfig)
 
     # Set the cmd arguments for racket
     ccla = get_primitive("current-command-line-arguments")
@@ -119,6 +135,7 @@ def read_eval_print_string(expr_str, pycketconfig, sysconfig):
     str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig, sysconfig))
     # read
     sexp = check_one_val(rd.call_interpret([str_port], pycketconfig, sysconfig))
+
     # expand
     #expanded = check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
     # eval
@@ -155,9 +172,9 @@ def get_primitive(prim_name_str):
 
 def get_options(names, config):
 
-    require_files = names['req-file'] if 'req_file' in names else []
-    require_libs = names['req-lib'] if 'req_lib' in names else []
-    load_files = names['load-file'] if 'load_file' in names else []
+    require_files = names['req-file'] if 'req-file' in names else []
+    require_libs = names['req-lib'] if 'req-lib' in names else []
+    load_files = names['load-file'] if 'load-file' in names else []
     expr_strs = names['exprs'] if 'exprs' in names else []
     run_file_set = names['run-file'][0] if 'run-file' in names else ""
 

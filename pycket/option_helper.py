@@ -13,6 +13,8 @@ def print_help(argv):
   -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
   -r <file>, --script <file> : Same as -f <file> -N <file> --
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
+  -g <json>, --eval-json <json> : Load and instantiate a linklet json
+  -gg <json> : Like -g but stops after instantiating
 
  Interaction options:
   -i, --repl : Run interactive read-eval-print loop; implies -v
@@ -36,7 +38,8 @@ def parse_args(argv):
     config = {
         'repl' : False,
         'no-lib' : False,
-        'version' : False
+        'version' : False,
+        'stop' : False
     }
     names = {
         # 'file': "",
@@ -121,6 +124,22 @@ def parse_args(argv):
                 names['req-lib'].append(argv[i])
             else:
                 names['req-lib'] = [argv[i]]
+
+            config['no-lib'] = True
+            retval = 0
+        elif argv[i] in ["-g", "-gg", "--eval-json"]:
+            if argv[i] == "-gg":
+                config['stop'] = True
+            if to <= i + 1:
+                print "missing argument after %s" % argv[i]
+                retval = 5
+                break
+
+            i += 1
+            if 'json-linklets' in names:
+                names['json-linklets'].append(argv[i])
+            else:
+                names['json-linklets'] = [argv[i]]
 
             config['no-lib'] = True
             retval = 0
