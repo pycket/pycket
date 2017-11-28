@@ -277,7 +277,7 @@ def hash_clear_bang(ht, env, cont):
     from pycket.interpreter import return_value
 
     if ht.is_impersonator():
-        #ht.hash_clear_proc(env, cont)
+        ht.hash_clear_proc(env, cont)
 
         return hash_clear_loop(ht, env, cont)
     else:
