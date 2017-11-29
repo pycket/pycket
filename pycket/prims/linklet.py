@@ -341,13 +341,18 @@ def def_vals_to_ast(def_vals_sexp, linkl_toplevels, linkl_imports):
 def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions, name=""):
     from pycket.expand import SourceInfo
 
-    if not len(to_rpython_list(lam_sexp)) == 3:
+    lam_sexp_elements = to_rpython_list(lam_sexp)
+    l = len(lam_sexp_elements)
+    if not (l == 3 or l == 2):
         raise Exception("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
 
-    formals = lam_sexp.cdr().car() # rest?
+    if lam_sexp.car() is W_Symbol.make("lambda"):
+        lam_sexp = lam_sexp.cdr()
+
+    formals = lam_sexp.car() # rest?
     formals_ls = to_rpython_list(formals)
 
-    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=False, name=name)
+    body = sexp_to_ast(lam_sexp.cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=False, name=name)
     dummy = 1
     return make_lambda(formals_ls, None, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
 
