@@ -9,6 +9,7 @@ from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
 from rpython.rlib.objectmodel import newlist_hint
 
+from pycket.arity        import Arity
 from pycket.cont         import continuation, loop_label, call_cont
 from pycket.base         import W_ProtoObject
 from pycket              import values
@@ -568,6 +569,11 @@ def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
         m_time = int(os.path.getmtime(path_str))
         return return_value(values.W_Fixnum(m_time), env, cont)
 
+@expose("sync", arity=Arity.geq(1))
+def sync(args):
+    # FIXME : actually check if any event is ready
+    return args[0]
+
 @expose("sync/timeout", simple=False)
 def sync_timeout(args, env, cont):
     from pycket.interpreter import return_value
@@ -577,6 +583,8 @@ def sync_timeout(args, env, cont):
     # FIXME : actually check if any event is ready
 
     if isinstance(w_timeout, values.W_Number):
+        # import time
+        # time.sleep(w_timeout.value)
         return return_value(values.w_false, env, cont)
     elif isinstance(w_timeout, values.W_Procedure) and w_timeout.iscallable():
         return w_timeout.call([], env, cont)
