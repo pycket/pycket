@@ -430,9 +430,11 @@ def call_with_sem(args, env, cont):
     sem.wait()
     return f.call(new_args, env, sem_post_cont(sem, env, cont))
 
+c_thread = values.W_Thread()
+
 @expose("current-thread", [])
 def current_thread():
-    return values.W_Thread()
+    return c_thread
 
 @expose("semaphore-post", [values.W_Semaphore])
 def sem_post(s):
