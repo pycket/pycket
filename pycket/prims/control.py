@@ -464,6 +464,31 @@ def raise_args_err(args):
         i += 2
     raise SchemeException(error_msg.build())
 
+@expose("raise-mismatch-error", arity=Arity.geq(3))
+def raise_mismatch_err(args):
+    name = args[0]
+    assert isinstance(name, values.W_Symbol)
+    message = args[1]
+    assert isinstance(message, values_string.W_String)
+    v = args[2]
+    assert isinstance(v, values.W_Object)
+    from rpython.rlib.rstring import StringBuilder
+    error_msg = StringBuilder()
+    error_msg.append(name.utf8value)
+    error_msg.append(": ")
+    error_msg.append(message.as_str_utf8())
+    error_msg.append(v.tostring())
+    i = 3
+    while i + 1 < len(args):
+        message = args[i]
+        assert isinstance(message, values_string.W_String)
+        error_msg.append(message.as_str_utf8())
+        v = args[i+1]
+        assert isinstance(v, values.W_Object)
+        error_msg.append(v.tostring())
+        i += 2
+    raise SchemeException(error_msg.build())
+
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
     raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
