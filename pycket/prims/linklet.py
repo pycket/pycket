@@ -82,6 +82,8 @@ class W_LinkletInstance(W_Object):
             rv = self.get_val(id_str)
             return rv
         else:
+            if id_str in self.renamings:
+                id_str = self.renamings[id_str]
             inst = self.imported_instances[import_num]
             return inst.lookup_linkl(id_str, -1)
 
@@ -223,7 +225,7 @@ class W_Linklet(W_Object):
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
         """ Expands and loads a linklet from a JSON file"""
-        data = readfile_rpython(json_file_name+".linklet")
+        data = readfile_rpython(json_file_name)
         json = pycket_json.loads(data)
         assert json.is_object
         json_python_dict = json.value_object()
@@ -332,20 +334,22 @@ def def_vals_to_ast(def_vals_sexp, linkl_toplevels, linkl_imports):
     names = def_vals_sexp.cdr().car() # renames?
     names_ls = to_rpython_list(names)
 
-    body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], linkl_toplevels, linkl_imports)
+    body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], linkl_toplevels, linkl_imports, disable_conversions=False, cell_ref=False, name=names_ls[0].variable_name())
 
     return DefineValues(names_ls, body, names_ls)
 
-def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions):
+def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conversions, name=""):
+    from pycket.expand import SourceInfo
+
     if not len(to_rpython_list(lam_sexp)) == 3:
         raise Exception("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
 
     formals = lam_sexp.cdr().car() # rest?
     formals_ls = to_rpython_list(formals)
 
-    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions)
-
-    return make_lambda(formals_ls, None, [body], None)
+    body = sexp_to_ast(lam_sexp.cdr().cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=False, name=name)
+    dummy = 1
+    return make_lambda(formals_ls, None, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
 
 def is_imported(id_str, linkl_importss):
     # linkl_importss : [...[..str..]..]
@@ -376,7 +380,8 @@ def let_like_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_c
     i = 0
     for w_vars_rhss in varss_rhss:
         varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
-        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports, disable_conversions)
+        rhs_env = varr + lex_env if is_letrec else lex_env
+        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), rhs_env, linkl_toplevels, linkl_imports, disable_conversions)
         varss_list[i] = varr
         rhss_list[i] = rhsr
         i += 1
@@ -406,7 +411,7 @@ def is_val_type(form):
             return True
     return False
 
-def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=False):
+def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=False, name=""):
 
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
@@ -448,13 +453,13 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
             val = sexp_to_ast(form.cdr().cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
             body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, linkl_toplevels, linkl_importss, disable_conversions)
             form = WithContinuationMark(key, val, body)
-            #elif form.car() is W_Symbol.make("#%variable-reference"):
-            #import pdb;pdb.set_trace() #########################################
+        elif form.car() is W_Symbol.make("#%variable-reference"):
+            raise Exception("variable-reference not yet implemented")
         elif form.car() is W_Symbol.make("case-lambda"):
-            lams = [lam_to_ast(f, lex_env, linkl_toplevels, linkl_importss, True) for f in to_rpython_list(form.cdr())]
+            lams = [lam_to_ast(f, lex_env, linkl_toplevels, linkl_importss, True, name) for f in to_rpython_list(form.cdr())]
             form = CaseLambda(lams)
         elif form.car() is W_Symbol.make("lambda"):
-            form = CaseLambda([lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True)])
+            form = CaseLambda([lam_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, name)])
         elif form.car() is W_Symbol.make("let-values"):
             form = let_like_to_ast(form, lex_env, linkl_toplevels, linkl_importss, True, False)
         elif form.car() is W_Symbol.make("letrec-values"):
@@ -467,7 +472,7 @@ def sexp_to_ast(form, lex_env, linkl_toplevels, linkl_importss, disable_conversi
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
                 raise Exception("malformed quote form : %s" % form.tostring())
-            form = Quote(form)
+            form = Quote(form.cdr().car())
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
@@ -541,8 +546,8 @@ def compile_linklet(form, name, import_keys, get_import, serializable_huh, env, 
                         internal_id = c.cdr().car()
 
                         assert isinstance(external_id, W_Symbol) and isinstance(internal_id, W_Symbol)
-                        inner_acc.append(external_id.variable_name())
-                        renamings[external_id] = internal_id
+                        inner_acc.append(internal_id.variable_name())
+                        renamings[internal_id] = external_id
 
                     importss_current = importss_current.cdr()
 
