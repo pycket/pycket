@@ -349,12 +349,24 @@ def lam_to_ast(lam_sexp, lex_env, linkl_toplevels, linkl_imports, disable_conver
     if lam_sexp.car() is W_Symbol.make("lambda"):
         lam_sexp = lam_sexp.cdr()
 
-    formals = lam_sexp.car() # rest?
+    formals_ = lam_sexp.car()
+    rest = None
+    formals = w_null
+    # check for a "rest"
+    while (formals_ is not w_null):
+        if isinstance(formals_, W_Symbol):
+            rest = formals_
+            lex_env.append(rest)
+            break
+        formals = W_Cons.make(formals_.car(), formals)
+        formals_ = formals_.cdr()
+
     formals_ls = to_rpython_list(formals)
+    formals_ls.reverse() # FIXME : refactor the double reverse
 
     body = sexp_to_ast(lam_sexp.cdr().car(), formals_ls + lex_env, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=False, name=name)
     dummy = 1
-    return make_lambda(formals_ls, None, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
+    return make_lambda(formals_ls, rest, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
 
 def is_imported(id_str, linkl_importss):
     # linkl_importss : [...[..str..]..]
