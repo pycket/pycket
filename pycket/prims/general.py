@@ -17,6 +17,7 @@ from pycket.hash.base import W_HashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe, make_procedure)
+from pycket.prims.primitive_tables import *
 
 
 from rpython.rlib         import jit, objectmodel, unroll
@@ -1559,6 +1560,16 @@ def __dummy__():
 
 @expose("primitive-table", [values.W_Object])
 def primitive_table(v):
+    if v not in select_prim_table:
+        return values.w_false
+
+    id_table = select_prim_table[v]
+
+    expose_env = {}
+    for k,v in prim_env.iteritems():
+        if k in id_table:
+            expose_env[k] = v
+
     return make_simple_immutable_table(W_EqImmutableHashTable,
-                                       prim_env.keys(),
-                                       prim_env.values())
+                                       expose_env.keys(),
+                                       expose_env.values())
