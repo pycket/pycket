@@ -32,10 +32,12 @@ def make_cmp(name, op, con):
             start = idx - 2
             assert start >= 0
             w_a, w_b = args[start], args[start + 1]
-            if not isinstance(w_a, values.W_Number):
-                raise SchemeException("expected number")
-            if not isinstance(w_b, values.W_Number):
-                raise SchemeException("expected number")
+            nan_a = not isinstance(w_a, values.W_Number)
+            nan_b = not isinstance(w_b, values.W_Number)
+            if nan_a or nan_b:
+                pf = ["st", "nd", "rd"][idx-1] if idx <= 3 else "th"
+                w = w_a if nan_a else w_b
+                raise SchemeException("%s expected number as %s%s argument, got : %s" % (name, idx, pf, w.tostring()))
             idx += 1
             truth = truth and getattr(w_a, "arith_" + op)(w_b)
 
