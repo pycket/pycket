@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 #
 
-from pycket.values import W_Object, w_true, w_false, w_null, W_Cons, W_List, W_Fixnum 
-from pycket.prims.expose import expose, default, define_nyi
-from pycket.error import SchemeException
+from pycket.values import W_Object, w_true, w_false, w_null, W_Cons, W_List, W_Fixnum, W_Number, W_Symbol
+from pycket.vector import W_Vector
+from pycket.prims.expose import expose, default
 from pycket.prims.general import make_pred
-
-# FIXME: W_Srcloc expose srcloc function
+from pycket.cont import continuation
+from pycket.interpreter import check_one_val, return_value
 
 class W_Correlated(W_Object):
 
@@ -16,13 +16,14 @@ class W_Correlated(W_Object):
         self.srcloc = srcloc # (or correlated? #f '(line column position span) (vector line column position any))
         self.props = props
 
-    def get_srcloc_field(self, field):
-        if field not in self.srcloc.keys():
-            raise SchemeException("Invalid key : %s" % field)
-        return self.srcloc[field]
-
     def get_obj(self):
         return self.obj
+
+    def get_srcloc(self):
+        return self.srcloc
+
+    def get_props(self):
+        return self.props
 
     def extend_prop(self, key, val):
         self.props[key] = val
@@ -56,60 +57,96 @@ def correlated_to_datum_inner(e):
 def correlated_to_datum(e):
     return correlated_to_datum_inner(e)
 
+
+@continuation
+def datum_to_corr_cont(datum, env, cont, _vals):
+    srcloc_object = check_one_val(_vals)
+    return return_value(W_Correlated(datum, srcloc_object, {}), env, cont)
+
 # [core:datum->correlated datum->syntax]
-@expose("datum->syntax", [W_Object, W_Object, default(W_Object, None)])
-def datum_to_correlated(ignored, datum, srcloc):
+@expose("datum->syntax", [W_Object, W_Object, default(W_Object, None)], simple=False)
+def datum_to_correlated(ignored, datum, _srcloc, env, cont):
+
     if isinstance(datum, W_Correlated):
-        return datum
+        return return_value(datum, env, cont)
     else:
-        # FIXME : obviously wrong, create Srcloc class
-        srcloc = {"source":W_Fixnum(1),
-                  "line":W_Fixnum(2),
-                  "column":W_Fixnum(3),
-                  "position":W_Fixnum(4),
-                  "span":W_Fixnum(5)}
-        return W_Correlated(datum, srcloc, {})
+        from pycket.prims.general import srcloc
+        srcloc_const = srcloc.constructor
+        if isinstance(_srcloc, W_Vector):
+            #unerase = _srcloc.get_strategy().unerase
+            #vector_contents = unerase(_srcloc.storage)
+            v_ref = _srcloc.get_strategy().ref
+            return srcloc_const.call([v_ref(_srcloc, 0),
+                                      v_ref(_srcloc, 1),
+                                      v_ref(_srcloc, 2),
+                                      v_ref(_srcloc, 3),
+                                      v_ref(_srcloc, 4)],
+                                     env, datum_to_corr_cont(datum, env, cont))
+        elif isinstance(_srcloc, W_List):
+            return srcloc_const.call([_srcloc.car(),
+                                      _srcloc.cdr().car(),
+                                      _srcloc.cdr().cdr().car(),
+                                      _srcloc.cdr().cdr().cdr().car(),
+                                      _srcloc.cdr().cdr().cdr().cdr().car()],
+                                     env, datum_to_corr_cont(datum, env, cont))
+        elif isinstance(_srcloc, W_Correlated):
+            raise Exception("FIXME NYI datum->syntax _srcloc is a correlated")
+        else:
+            if _srcloc is not w_false:
+                raise Exception("FIXME, unhandled srcloc type %s" % _srcloc.tostring())
+            srcloc = _srcloc
+            return return_value(W_Correlated(datum, srcloc, {}), env, cont)
 
 # [core:correlated-source syntax-source]
 @expose("syntax-source", [W_Correlated])
 def correlated_source(c):
-    return c.get_srcloc_field("source")
+    if c.get_srcloc() is w_false:
+        return w_false
+    return c.get_srcloc()._ref(0)
 
 # [core:correlated-line syntax-line]
 @expose("syntax-line", [W_Correlated])
 def correlated_line(c):
-    return c.get_srcloc_field("line")
+    if c.get_srcloc() is w_false:
+        return w_false
+    return c.get_srcloc()._ref(1)
+
 
 # [core:correlated-column syntax-column]
 @expose("syntax-column", [W_Correlated])
 def correlated_column(c):
-    return c.get_srcloc_field("column")
+    if c.get_srcloc() is w_false:
+        return w_false
+    return c.get_srcloc()._ref(2)
 
 # [core:correlated-position syntax-position]
 @expose("syntax-position", [W_Correlated])
 def correlated_position(c):
-    return c.get_srcloc_field("position")
+    if c.get_srcloc() is w_false:
+        return w_false
+    return c.get_srcloc()._ref(3)
 
 # [core:correlated-span syntax-span]
 @expose("syntax-span", [W_Correlated])
-def correlated_span(c):
-    return c.get_srcloc_field("span")
+def correlated_line(c):
+    if c.get_srcloc() is w_false:
+        return w_false
+    return c.get_srcloc()._ref(4)
 
 # [core:correlated-property-symbol-keys syntax-property-symbol-keys]))
 @expose("syntax-property-symbol-keys", [W_Correlated])
 def correlated_property_symbol_keys(c):
     acc = w_null
-    for k,v in c.props.iteritems():
+    for k,v in c.get_props().iteritems():
         acc = W_Cons.make(k, acc)
     return acc
 
 # [core:correlated-property syntax-property]
 @expose("syntax-property", [W_Correlated, W_Object, default(W_Object, None)])
 def correlated_property(stx, key, v):
-    from pycket.interpreter import return_value
     if v is None:
         # getting
-        return stx.props[key]
+        return stx.get_props()[key]
     else:
         # setting
         stx.extend_prop(key, v)
