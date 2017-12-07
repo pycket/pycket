@@ -1,6 +1,8 @@
 from pycket.values import W_Symbol
 from pycket.prims.expose import define_nyi
 
+DEBUG = False
+
 def make_primitive_table(ls_str):
     table = [None] * len(ls_str)
     for i, exposed_id in enumerate(ls_str):
@@ -514,10 +516,8 @@ all_prims = linklet_str + \
             extfl_str + \
             network_str
 
+if DEBUG:
+    print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
 
-def prime_primitives(DEBUG):
-    if DEBUG:
-        print("\n\nPriming all primitives in : linklet + kernel + paramz + unsafe + foreign + futures + place + flfxnum + extfl + network\n")
-
-    for prim_name_str in all_prims:
-        define_nyi(prim_name_str)
+for prim_name_str in all_prims:
+    define_nyi(prim_name_str)

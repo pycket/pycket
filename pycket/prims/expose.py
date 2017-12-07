@@ -328,7 +328,7 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
 def expose_val(name, w_v):
     from pycket import values
     sym = values.W_Symbol.make(name)
-    if sym in prim_env:
+    if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
 

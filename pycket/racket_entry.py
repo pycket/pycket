@@ -4,7 +4,6 @@ from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Value
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
-from pycket.prims.primitive_tables import prime_primitives
 
 DEBUG = True
 
@@ -41,8 +40,6 @@ def load_inst_linklet_json(json_file_name, pycketconfig):
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
-
-    prime_primitives(DEBUG)
 
     sysconfig = load_bootstrap_linklets(pycketconfig)
 
