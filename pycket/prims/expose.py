@@ -284,10 +284,10 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         result_arity = Arity.ONE if simple else None
         p = values.W_Prim(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          simple1=call1, simple2=call2)
+                          simple1=call1, simple2=call2, is_nyi=nyi)
         for nam in names:
             sym = values.W_Symbol.make(nam)
-            if sym in prim_env:
+            if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
         func_arg_unwrap.w_prim = p
@@ -333,13 +333,15 @@ def expose_val(name, w_v):
     prim_env[sym] = w_v
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
-    if bail:
-        @expose(name, prim_args, nyi=True, *args, **kwargs)
-        def nyi(a):
-            pass
-    else:
-        @expose(name, prim_args, nyi=False, *args, **kwargs)
-        def nyi(a):
-            from pycket import values
-            print "NOT YET IMPLEMENTED: %s" % name
-            return values.w_false
+    from pycket import values
+    if values.W_Symbol.make(name) not in prim_env:
+        if bail:
+            @expose(name, prim_args, nyi=True, *args, **kwargs)
+            def nyi(a):
+                pass
+        else:
+            @expose(name, prim_args, nyi=False, *args, **kwargs)
+            def nyi(a):
+                from pycket import values
+                print "NOT YET IMPLEMENTED: %s" % name
+                return values.w_false
