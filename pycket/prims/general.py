@@ -1058,8 +1058,19 @@ def list_ref_impl(lst, pos):
 def list_ref(lst, pos):
     return list_ref_impl(lst, pos.value)
 
+@expose("unsafe-list-ref", [subclass_unsafe(values.W_Cons), values.W_Fixnum])
+def unsafe_list_ref(lst, pos):
+    return list_ref_impl(lst, pos.value)
+
+@expose("unsafe-list-tail", [subclass_unsafe(values.W_Object), values.W_Fixnum])
+def unsafe_list_tail(lst, pos):
+    return list_tail_impl(lst, pos)
+
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
+    return list_tail_impl(lst, pos)
+
+def list_tail_impl(lst, pos):
     start_pos = pos.value
     if start_pos == 0:
         return lst

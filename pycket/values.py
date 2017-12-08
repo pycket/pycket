@@ -1338,11 +1338,16 @@ def from_list_unroll_pred(lst, idx, unroll_to=0, force=False):
 
 @jit.elidable
 def from_list_elidable(w_curr):
+    is_improper = not w_curr.is_proper_list()
+
     result = []
     while isinstance(w_curr, W_Cons):
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
-    if w_curr is w_null:
+    if is_improper:
+        result.append(w_curr)
+
+    if is_improper or (w_curr is w_null):
         return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
@@ -1350,6 +1355,7 @@ def from_list_elidable(w_curr):
 @jit.unroll_safe
 @specialize.arg(2)
 def from_list(w_curr, unroll_to=0, force=False):
+    is_improper = not w_curr.is_proper_list()
     result = []
     n = 0
     while isinstance(w_curr, W_Cons):
@@ -1358,7 +1364,10 @@ def from_list(w_curr, unroll_to=0, force=False):
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
         n += 1
-    if w_curr is w_null:
+    if is_improper:
+        result.append(w_curr)
+
+    if is_improper or (w_curr is w_null):
         return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
