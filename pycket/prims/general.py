@@ -937,14 +937,14 @@ def ormap(args, env, cont):
     for l in ls:
         if not isinstance(l, values.W_List):
             raise SchemeException("ormap: expected a list, but got %s"%l)
-    return return_value(values.w_void, env, ormap_cont(f, ls, env, cont))
+    return return_value(values.w_false, env, ormap_cont(f, ls, env, cont))
 
 @continuation
 def ormap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val is values.w_true:
+    if val is not values.w_false:
         return return_value(val, env, cont)
     for l in ls:
         if l is values.w_null:
