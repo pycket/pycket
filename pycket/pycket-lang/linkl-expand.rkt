@@ -1,6 +1,6 @@
 #lang racket
 
-(require racket/linklet compiler/zo-parse json pycket/expand
+(require #;racket/linklet compiler/zo-parse json pycket/expand
          #;(only-in '#%linklet compiled-position->primitive)
          "zo-expand.rkt")
 
