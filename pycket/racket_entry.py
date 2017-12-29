@@ -37,9 +37,7 @@ def load_inst_linklet_json(json_file_name, pycketconfig):
         print("DONE.\n")
     return linkl_instance, sys_config
 
-def racket_entry(names, config, pycketconfig, command_line_arguments):
-
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
+def initiate_boot_sequence(pycketconfig, command_line_arguments):
 
     sysconfig = load_bootstrap_linklets(pycketconfig)
 
@@ -72,6 +70,21 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     if DEBUG:
         print("...Boot Sequence Complete\n\n")
+
+    return sysconfig
+
+# temporary
+def namespace_require_kernel(pycketconfig, sysconfig):
+    namespace_require = get_primitive("namespace-require")
+    kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                      W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
+    namespace_require.call_interpret([kernel], pycketconfig, sysconfig)
+
+def racket_entry(names, config, pycketconfig, command_line_arguments):
+
+    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
+
+    sysconfig = initiate_boot_sequence(pycketconfig, command_line_arguments)
 
     namespace_require = get_primitive("namespace-require")
 
@@ -122,7 +135,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     return 0
 
-def read_eval_print_string(expr_str, pycketconfig, sysconfig):
+def read_eval_print_string(expr_str, pycketconfig, sysconfig, return_val=False):
 
     # get the read, eval, print, open-input-string primitives
     ev = get_primitive("eval")
@@ -141,6 +154,9 @@ def read_eval_print_string(expr_str, pycketconfig, sysconfig):
     #expanded = check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
     # eval
     results = ev.call_interpret([sexp], pycketconfig, sysconfig)
+
+    if return_val:
+        return results
     
     # print
     pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
