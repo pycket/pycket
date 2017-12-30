@@ -23,9 +23,8 @@ def test_ast():
     run_ast(ast)
 
 def test_sexp():
-    sexp = W_Cons.make(W_Symbol.make("+"), W_Cons.make(W_Fixnum(1), W_Cons.make(W_Fixnum(2), w_null)))
-    run_sexp(sexp, 3)
-
+    run_sexp("(+ 1 2)", 3)
+    run_sexp("(car (cons 1 2))", 1)
 
 def test_string():
     run_string("(+ 1 2)", 3)

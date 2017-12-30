@@ -11,12 +11,11 @@ from pycket.interpreter import *
 from pycket.env import ToplevelEnv
 from pycket import values
 from pycket.prims.linklet import W_Linklet, do_compile_linklet
-from pycket.values import w_false, W_Cons, W_Symbol, w_null
 from pycket.cont import continuation
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string
 
 import pytest
-
+from pycket.linklet_test.utils import *
 #
 # basic runners
 #
@@ -27,9 +26,6 @@ sysconfig = initiate_boot_sequence(None, [])
 namespace_require_kernel(None, sysconfig)
 
 delete_temp_files = True
-
-def debug_out(p):
-    open("debug_out.txt", "a").write(p)
 
 def run_linklet(w_linkl, v=None):
     ov = w_linkl.instantiate([], None, toplevel_eval=True, prompt=False)
@@ -43,13 +39,8 @@ def run_ast(ast, v=None):
     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
     return run_linklet(l, v)
 
-def wrap_linklet_sexp(body_sexp):
-    return W_Cons.make(W_Symbol.make("linklet"),
-                       W_Cons.make(w_null, # imports
-                                   W_Cons.make(w_null, # exports
-                                               W_Cons.make(body_sexp, w_null))))
-
-def run_sexp(body_sexp, v=None):
+def run_sexp(body_sexp_str, v=None):
+    body_sexp = string_to_sexp(body_sexp_str)
     linkl_sexp = wrap_linklet_sexp(body_sexp)
     try:
         do_compile_linklet(linkl_sexp, "test_linklet_sexp", w_false, w_false, w_false, ToplevelEnv(), NilCont())
