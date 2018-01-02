@@ -259,13 +259,13 @@ case "$COMMAND" in
   prepare)
     echo "Preparing dependencies"
     install_pypy
-    install_racket
+    #install_racket
     install_deps
     ;;
   install)
     echo "Preparing pypy and racket"
     fetch_pypy
-    prepare_racket
+    #prepare_racket
     ;;
   test)
     export PYTHONPATH=$PYTHONPATH:../pypy:pycket
