@@ -29,7 +29,7 @@ delete_temp_files = True
 
 def run_linklet(w_linkl, v=None):
     ov = w_linkl.instantiate([], None, toplevel_eval=True, prompt=False)
-    assert isinstance(ov, values.W_Fixnum) # FIXME: test for different types of results
+    assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
     if v:
         assert ov.value == v
     #debug_out("\nHEY\n")
@@ -38,6 +38,10 @@ def run_linklet(w_linkl, v=None):
 def run_ast(ast, v=None):
     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
     return run_linklet(l, v)
+
+def run_sexp_and_string(expr_str, v):
+    run_sexp(expr_str, v)
+    run_string(expr_str, v)
 
 def run_sexp(body_sexp_str, v=None):
     body_sexp = string_to_sexp(body_sexp_str)
@@ -51,7 +55,7 @@ def run_sexp(body_sexp_str, v=None):
 def run_string(expr_str, v=None):
     ov = read_eval_print_string(expr_str, None, sysconfig, return_val=True)
     # FIXME: check for multiple results
-    assert isinstance(ov, values.W_Fixnum) # FIXME: test for different types of results
+    assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
     if v:
         assert ov.value == v
     return ov.value

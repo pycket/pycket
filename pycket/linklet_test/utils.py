@@ -25,6 +25,9 @@ def to_w_list(lst):
 
 dbg = False
 
+## Based on :
+## https://rosettacode.org/wiki/S-Expressions#Python
+
 term_regex = r'''(?mx)
     \s*(?:
         (?P<l_paren>\()|
