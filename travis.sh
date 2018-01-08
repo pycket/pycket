@@ -77,9 +77,9 @@ do_tests() {
   py.test -n 3 --duration 20 pycket
 }
 
-do_test_bytecode() {
-  py.test -n 3 --duration 20 --bytecode go pycket
-}
+# do_test_bytecode() {
+#   py.test -n 3 --duration 20 --bytecode go pycket
+# }
 
 do_coverage() {
   set +e
@@ -96,40 +96,40 @@ do_coverage() {
 
 do_translate() {
   ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
-  do_performance_smoke
+  #do_performance_smoke
 }
 
 
 
-do_performance_smoke() {
-  _smoke() {
-    RATIO=$1
-    shift
-    echo "> $1"
-    raco make $1 >/dev/null
-    RACKET_TIME=$($TIME_IT racket "$@")
-    echo "    Racket took $RACKET_TIME"
-    TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
-    KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
-    racket -l pycket/expand $1 2>/dev/null >/dev/null
-    # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
-    PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
-    echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
-    [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
-  }
-  echo ; echo ">> Performance smoke test" ; echo
-  echo ">>> Preparing racket files to not skew test"
-  expand_rkt yes
-  echo ">>> Smoke"
-  _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
-  _smoke 0.7 pycket/test/triangle.rkt
-  _smoke 1.8 pycket/test/earley.rkt
-  _smoke 2.0 pycket/test/nucleic2.rkt
-  _smoke 2.5 pycket/test/nqueens.rkt
-  _smoke 2.5 pycket/test/treerec.rkt
-  _smoke 1.5 pycket/test/hashtable-benchmark.rkt
-  echo ; echo ">> Smoke cleared" ; echo
-}
+# do_performance_smoke() {
+#   _smoke() {
+#     RATIO=$1
+#     shift
+#     echo "> $1"
+#     raco make $1 >/dev/null
+#     RACKET_TIME=$($TIME_IT racket "$@")
+#     echo "    Racket took $RACKET_TIME"
+#     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
+#     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
+#     racket -l pycket/expand $1 2>/dev/null >/dev/null
+#     # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
+#     PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
+#     echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
+#     [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
+#   }
+#   echo ; echo ">> Performance smoke test" ; echo
+#   echo ">>> Preparing racket files to not skew test"
+#   expand_rkt yes
+#   echo ">>> Smoke"
+#   _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
+#   _smoke 0.7 pycket/test/triangle.rkt
+#   _smoke 1.8 pycket/test/earley.rkt
+#   _smoke 2.0 pycket/test/nucleic2.rkt
+#   _smoke 2.5 pycket/test/nqueens.rkt
+#   _smoke 2.5 pycket/test/treerec.rkt
+#   _smoke 1.5 pycket/test/hashtable-benchmark.rkt
+#   echo ; echo ">> Smoke cleared" ; echo
+# }
 
 do_translate_nojit_and_racket_tests() {
   ../pypy/rpython/bin/rpython --batch targetpycket.py
