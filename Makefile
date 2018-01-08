@@ -73,8 +73,8 @@ debug: $(PYFILES)
 	cp pycket-c pycket-c-debug
 
 setup:
-	raco pkg install -t dir pycket/pycket-lang/ || \
-		raco pkg update --link pycket/pycket-lang
+	# raco pkg install -t dir pycket/pycket-lang/ || \
+	# 	raco pkg update --link pycket/pycket-lang
 	hg -R $(PYPYPATH) pull && \
 	hg -R $(PYPYPATH) update
 
