@@ -13,14 +13,13 @@ env:
   - PATH=./racket/bin:$PATH
   matrix:
   - TEST_TYPE=tests
-  - TEST_TYPE=test_bytecode
   - TEST_TYPE=coverage
   - TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
 matrix:
   fast_finish: true
   allow_failures:
-  - env: TEST_TYPE=coverage
+  - env: TEST_TYPE=coverage TEST_TYPE=translate_nojit_and_racket_tests
 before_install: ./travis.sh prepare
 install: ./travis.sh install
-script: ./travis.sh test $TEST_TYPE
+script: travis_wait ./travis.sh test $TEST_TYPE
