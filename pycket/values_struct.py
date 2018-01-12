@@ -731,7 +731,7 @@ class W_Struct(W_RootStruct):
         if has_super:
             count -= w_super.total_field_cnt
         assert len(fields) >= count + offset
-        if w_type.isopaque:
+        if w_type.isopaque and offset < len(fields):
             fields[offset] = "..."
         else:
             for i in range(offset, offset + count):
@@ -747,6 +747,12 @@ class W_Struct(W_RootStruct):
         if w_type.isprefab:
             return self.tostring_prefab()
         elif w_type.all_opaque():
+            # import pdb;pdb.set_trace()
+            # ret_str = "#<%s" % typename
+            # for i in range(0, self._get_size_list()):
+            #     ret_str += ":%s" % self._ref(i).tostring()
+            # ret_str += ">"
+            #return ret_str
             return "#<%s>" % typename
         else:
             fields = [None] * w_type.total_field_cnt

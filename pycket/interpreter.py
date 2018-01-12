@@ -881,8 +881,7 @@ class Quote(AST):
     def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
             isinstance(self.w_val, values.W_Number) or
-            isinstance(self.w_val, values_string.W_String) or
-            isinstance(self.w_val, values.W_Symbol)):
+            isinstance(self.w_val, values_string.W_String)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
 
@@ -2120,8 +2119,8 @@ driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  should_unroll_one_iteration=lambda *args : True,
                                  is_recursive=True)
 
-last_asts = []
-how_many = 50
+# last_asts = []
+# how_many = 100
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
@@ -2133,9 +2132,10 @@ def inner_interpret_two_state(ast, env, cont):
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
 
-        last_asts.insert(0, ast)
-        if len(last_asts) > how_many:
-            last_asts.pop()
+        #last_asts.insert(0, ast)
+        # last_asts.append(ast)
+        # if len(last_asts) > how_many:
+        #     del last_asts[0]
 
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
@@ -2176,8 +2176,9 @@ def interpret_one(ast, env=None, cont=None):
         
     if cont is None:
         cont = NilCont()
-    
-    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+    if cont.marks is None:
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)
     except Done, e:
@@ -2185,9 +2186,11 @@ def interpret_one(ast, env=None, cont=None):
     except SchemeException, e:
         if e.context_ast is None:
             e.context_ast = ast
-        print("\nRacket's last %s asts : \n" % how_many)
-        for a in list(last_asts):
-            print("-- %s\n" % a.tostring())
+        # i = 1
+        # print("\nRacket's last %s asts : \n" % how_many)
+        # for a in list(last_asts):
+        #     print("%s -- %s\n" % (i, a.tostring()))
+        #     i += 1
         raise
 
 def interpret_toplevel(a, env):
