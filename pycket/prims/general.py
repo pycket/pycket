@@ -1072,15 +1072,16 @@ def list_tail(lst, pos):
 
 def list_tail_impl(lst, pos):
     start_pos = pos.value
-    if start_pos == 0:
-        return lst
-    else:
-        if isinstance(lst, values.W_Cons):
-            assert start_pos > 0
-            # XXX inefficient
-            return values.to_list(values.from_list(lst)[start_pos:])
-        else:
-            return values.w_null
+
+    while start_pos > 0:
+        if not isinstance(lst, values.W_Cons):
+            msg = "index too large for list" if lst is values.w_null else "index reaches a non-pair"
+            raise SchemeException("list-tail : %s\n -- lst : %s\n -- index : %s\n" % (msg, lst.tostring(), start_pos))
+
+        lst = lst.cdr()
+        start_pos -= 1
+
+    return lst
 
 @expose("current-seconds", [])
 def current_seconds():
