@@ -400,9 +400,13 @@ def let_like_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_c
     i = 0
     for w_vars_rhss in varss_rhss:
         varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
-        rhs_env = varr + lex_env if is_letrec else lex_env
-        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), rhs_env, linkl_toplevels, linkl_imports, disable_conversions)
         varss_list[i] = varr
+        if is_letrec:
+            for varss in varss_list:
+                if varss is not None:
+                    lex_env += varss
+
+        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=True)
         rhss_list[i] = rhsr
         i += 1
         num_ids += len(varr)
