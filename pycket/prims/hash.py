@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys
 from pycket              import impersonators as imp
-from pycket              import values
+from pycket              import values, values_string
 from pycket.hash.base    import W_HashTable, W_ImmutableHashTable, w_missing
 from pycket.hash.simple  import (
     W_EqvMutableHashTable, W_EqMutableHashTable,
@@ -345,6 +346,25 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
+
+    # only for improper path cache entries
+    if isinstance(v, values.W_Cons):
+        if v.is_proper_list():
+            return values.W_Fixnum.ZERO
+
+        nm = v.car()
+        p = v.cdr()
+        if not isinstance(nm, values_string.W_String) or \
+           not isinstance(p, values.W_Path) or \
+           not isinstance(p.path, str):
+            return values.W_Fixnum.ZERO
+
+        nums = [ord(c) for c in nm.tostring() + p.path]
+        prod = 1
+        for n in nums:
+            prod *= n
+        return values.W_Fixnum(int(prod%sys.maxint))
+
     return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
