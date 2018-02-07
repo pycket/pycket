@@ -763,3 +763,15 @@ def instance_set_variable_value(instance, name, val, mode):
 
     instance.set_bang_def(name, val)
     return w_void
+
+@expose("primitive->compiled-position", [W_Object])
+def prim_to_compiled_pos(prim):
+    return w_false
+
+@expose("compiled-position->primitive", [W_Object])
+def compiled_pos_to_prim(pos):
+    return w_false
+
+@expose("primitive-in-category?", [W_Object, W_Object])
+def prim_in_category(sym, cat):
+    return w_false
