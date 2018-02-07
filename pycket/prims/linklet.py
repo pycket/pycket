@@ -13,7 +13,7 @@ class W_LinkletDirectory(W_Object)
 from pycket.expand import readfile_rpython, getkey
 from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec, Begin, CellRef, SetBang, Begin0, VariableReference, WithContinuationMark, Var, Lambda
 from pycket.assign_convert import assign_convert
-from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag, parameterization_key
+from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag, parameterization_key, W_ImmutableBytes
 from pycket.values_string import W_String
 from pycket.error import SchemeException
 from pycket import pycket_json
@@ -429,7 +429,7 @@ def let_like_to_ast(let_sexp, lex_env, linkl_toplevels, linkl_imports, disable_c
         return make_let(varss_list, rhss_list, [body])
 
 def is_val_type(form):
-    val_types = [W_Number, W_Bool, W_String]
+    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes]
     for t in val_types:
         if isinstance(form, t):
             return True
