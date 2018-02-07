@@ -1254,10 +1254,8 @@ def gensym(init):
     from pycket.interpreter import Gensym
     if not isinstance(init, values.W_Symbol) and not isinstance(init, values_string.W_String):
         raise SchemeException("gensym exptected a string or symbol but got : %s" % init.tostring())
-    if isinstance(init, values_string.W_String):
-        gensym_key = init.tostring()
-    else:
-        gensym_key = init.utf8value
+
+    gensym_key = init.tostring()
     return Gensym.gensym(gensym_key)
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
