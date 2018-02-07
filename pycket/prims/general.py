@@ -1249,10 +1249,16 @@ def current_preserved_thread_cell_values(v):
 def do_is_place_enabled(args):
     return values.w_false
 
-@expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
+@expose("gensym", [default(values.W_Object, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
-    return Gensym.gensym(init.utf8value)
+    if not isinstance(init, values.W_Symbol) and not isinstance(init, values_string.W_String):
+        raise SchemeException("gensym exptected a string or symbol but got : %s" % init.tostring())
+    if isinstance(init, values_string.W_String):
+        gensym_key = init.tostring()
+    else:
+        gensym_key = init.utf8value
+    return Gensym.gensym(gensym_key)
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
