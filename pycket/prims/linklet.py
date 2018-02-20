@@ -149,8 +149,22 @@ class W_Linklet(W_Object):
         self.name = name # W_Symbol -- for debugging
         self.importss = importss # [...,[..., str ,...],...]
         self.exports = exports # [..., str ,...]
-        self.renamings = renamings # {str:W_Symbol}
+        self.renamings = renamings # {W_Symbol:W_Symbol}
         self.forms = all_forms # [..., AST ,...]
+
+    def tostring(self):
+        forms_str = ", ".join([f.tostring() for f in self.forms])
+        exports_str = ""
+        for ex in self.exports:
+            ex_sym = W_Symbol.make(ex)
+            if ex_sym in self.renamings:
+                exported_id = ex_sym.tostring()
+                internal_id = self.renamings[ex_sym].tostring()
+                exports_str += ",[%s - %s]" % (exported_id, internal_id)
+            else:
+                exports_str += ",%s" % ex
+
+        return "#<linklet:%s -- imports : %s -- exports : [ %s ] -- body-forms : %s>" % (self.name, self.importss, exports_str, forms_str)
 
     def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
         """ Instantiates the linklet:
