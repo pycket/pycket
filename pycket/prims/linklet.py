@@ -715,11 +715,18 @@ make_pred("linklet-bundle?", W_LinkletBundle)
 
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
+
     name = args[0] # W_Symbol
-    data = w_false if len(args) <= 1 else args[1]
-    mode = w_false if len(args) <= 2 else args[2]
-    #mode = args[2] # default(w_false), 'constant, 'consistent
-    vars_vals = args[3:]
+    data = w_false
+    mode = w_false
+    if len(args) <= 2:
+        data = args[1]
+        vars_vals = []
+    else:
+        data = args[1]
+        mode = args[2]
+        vars_vals = args[3:]
+
     # check if the vars and vals match
     if ((len(vars_vals) % 2) != 0):
         raise SchemeException("Variable names and values do not match : %s" % vars_vals)
