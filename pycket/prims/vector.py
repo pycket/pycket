@@ -7,6 +7,7 @@ from pycket import vector as values_vector
 from pycket.cont import continuation, label, loop_label
 from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
+from pycket.prims import equal
 from rpython.rlib import jit
 
 @expose("vector")
@@ -123,6 +124,29 @@ def vector2immutablevector(v, env, cont):
     if v.immutable():
         return return_value(v, env, cont)
     return copy_vector(v, env, cont)
+
+
+@continuation
+def vector_cas_success(env, cont, _vals):
+    from pycket.interpreter import return_value
+    return return_value(values.w_true, env, cont)
+
+@continuation
+def vector_cas_bang_cont(vec, pos_idx, old_val, new_val, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    current_vec_val = check_one_val(_vals)
+    if equal.eqp_logic(current_vec_val,old_val): #eq?
+        return vec.vector_set(pos_idx, new_val, env, vector_cas_success(env, cont))
+    return return_value(values.w_false, env, cont)
+
+# FIXME: Chaperones
+@expose("vector-cas!", [values.W_MVector, values.W_Fixnum, values.W_Object, values.W_Object], simple=False)
+def vector_cas_bang(vec, pos, old_val, new_val, env, cont):
+    if isinstance(vec, imp.W_ImpVector):
+        raise SchemeException("vector-cas!: exptects a non impersonator vector")
+
+    return vec.vector_ref(pos.value, env,
+                          vector_cas_bang_cont(vec, pos.value, old_val, new_val, env, cont))
 
 @expose("vector-copy!",
         [values.W_MVector, values.W_Fixnum, values.W_MVector,
