@@ -922,7 +922,8 @@ class VariableReference(AST):
             return False
 
     def interpret_simple(self, env):
-        return values.W_VariableReference(self)
+        current_inst = env.get_current_linklet_instance()
+        return values.W_VariableReference(self, current_inst)
 
     def direct_children(self):
         return []
@@ -2136,7 +2137,6 @@ def inner_interpret_two_state(ast, env, cont):
         # last_asts.append(ast)
         # if len(last_asts) > how_many:
         #     del last_asts[0]
-
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
         elif t is If:

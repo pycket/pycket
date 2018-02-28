@@ -22,6 +22,7 @@ import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
+
 UNROLLING_CUTOFF = 5
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
@@ -210,9 +211,14 @@ class W_ContinuationMarkKey(W_Object):
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
-    _attrs_ = ['varref']
-    def __init__(self, varref):
+    _attrs_ = ['varref', 'linklet_instance']
+    def __init__(self, varref, l_instance=None):
         self.varref = varref
+        self.linklet_instance = l_instance
+
+    def get_instance(self):
+        return self.linklet_instance
+
     def tostring(self):
         return "#<#%variable-reference>"
 
