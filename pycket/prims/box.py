@@ -2,6 +2,8 @@
 from pycket              import values
 from pycket.prims        import equal as eq_prims
 from pycket.prims.expose import default, expose, subclass_unsafe
+from pycket.impersonators import W_ImpBox
+from pycket.error import SchemeException
 
 @expose("box", [values.W_Object])
 def box(v):
@@ -15,12 +17,25 @@ def box_immutable(v):
 def unbox(b, env, cont):
     return b.unbox(env, cont)
 
+@expose("unbox*", [values.W_Box], simple=False)
+def unbox_star(b, env, cont):
+    if isinstance(b, W_ImpBox):
+        raise SchemeException("unbox* is constrained to work on boxes that are not impersonators.")
+    return b.unbox(env, cont)
+
 @expose("unsafe-unbox", [subclass_unsafe(values.W_Box)], simple=False)
 def unsafe_unbox(b, env, cont):
     return b.unbox(env, cont)
 
 @expose("set-box!", [values.W_Box, values.W_Object], simple=False)
 def set_box(box, v, env, cont):
+    return box.set_box(v, env, cont)
+
+@expose("set-box*!", [values.W_Box, values.W_Object], simple=False)
+def set_box_star(box, v, env, cont):
+    if isinstance(box, W_ImpBox):
+        raise SchemeException("set-box!* is constrained to work on boxes that are not impersonators.")
+
     return box.set_box(v, env, cont)
 
 @expose("unsafe-set-box!", [subclass_unsafe(values.W_Box), values.W_Object], simple=False)
