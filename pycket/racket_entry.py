@@ -116,7 +116,8 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         for require_lib in require_libs:
             # (namespace-require '(lib <lib-sym>))
             lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                                W_WrappedConsProper.make(W_String.make(require_lib), w_null))
+                                                W_WrappedConsProper.make(W_String.make(require_lib),
+                                                                         w_null))
             namespace_require.call_interpret([lib_form], pycketconfig, sysconfig)
     if load_files: # -f
         for load_file in load_files:
@@ -130,35 +131,33 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         
     if is_repl: # -i
         dynamic_require = get_primitive("dynamic-require")
-        repl = dynamic_require.call_interpret([W_Symbol.make("racket/base"), W_Symbol.make("read-eval-print-loop")], pycketconfig, sysconfig)    
+        repl = dynamic_require.call_interpret([W_Symbol.make("racket/base"),
+                                               W_Symbol.make("read-eval-print-loop")],
+                                              pycketconfig, sysconfig)
         repl.call_interpret([], pycketconfig, sysconfig)
 
     return 0
 
-def read_eval_print_string(expr_str, pycketconfig, sysconfig, return_val=False):
 
-    # get the read, eval, print, open-input-string primitives
-    ev = get_primitive("eval")
-    rd = get_primitive("read")
-    ex = get_primitive("expand")
-    pr = get_primitive("print")
+def racket_read(expr_str, pycketconfig, sysconfig):
     ois = get_primitive("open-input-string")
+    read_prim = get_primitive("read")
+    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)],
+                                                pycketconfig, sysconfig))
 
-    # Start calling
-    # open-input-string
-    str_port = check_one_val(ois.call_interpret([W_String.make(expr_str)], pycketconfig, sysconfig))
-    # read
-    sexp = check_one_val(rd.call_interpret([str_port], pycketconfig, sysconfig))
+    return check_one_val(read_prim.call_interpret([str_port], pycketconfig, sysconfig))
 
-    # expand
-    #expanded = check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
-    # eval
-    results = ev.call_interpret([sexp], pycketconfig, sysconfig)
+def racket_eval(sexp, pycketconfig, sysconfig):
+    eval_prim = get_primitive("eval")
+    return eval_prim.call_interpret([sexp], pycketconfig, sysconfig)
 
-    if return_val:
-        return results
-    
-    # print
+def racket_expand(sexp, pycketconfig, sysconfig):
+    ex = get_primitive("expand")
+    return check_one_val(ex.call_interpret([sexp], pycketconfig, sysconfig))
+
+def racket_print(results, pycketconfig, sysconfig):
+    pr = get_primitive("print")
+
     pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
 
     if isinstance(results, W_Object):
@@ -173,7 +172,26 @@ def read_eval_print_string(expr_str, pycketconfig, sysconfig, return_val=False):
         raise Exception("Unsupoorted result value : %s" % results.tostring())
     
     pr.call_interpret([W_String.make("\n\n")], pycketconfig, sysconfig)
-    
+
+def read_eval_print_string(expr_str, pycketconfig, sysconfig, return_val=False):
+
+    # Start calling
+
+    # read
+    sexp = racket_read(expr_str, pycketconfig, sysconfig)
+
+    # expand
+    #expanded = racket_expand(sexp, pycketconfig, sysconfig)
+
+    # eval
+    results = racket_eval(sexp, pycketconfig, sysconfig)
+
+    if return_val:
+        return results
+
+    # print
+    racket_print(results, pycketconfig, sysconfig)
+
     return 0
 
 def get_primitive(prim_name_str):
