@@ -11,7 +11,7 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec, Begin, CellRef, SetBang, Begin0, VariableReference, WithContinuationMark, Var, Lambda
+from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_value_direct, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec, Begin, CellRef, SetBang, Begin0, VariableReference, WithContinuationMark, Var, Lambda
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag, parameterization_key, W_ImmutableBytes, W_VariableReference
 from pycket.values_string import W_String
@@ -90,7 +90,7 @@ class W_LinkletInstance(W_Object):
     def provide_val_of(self, name):
         # to be used when a linklet imports from this instance
         if not self.is_exported(name):
-            raise SchemeException("Id %s is not exported by this instance : %s" % (name.tostring(), self.tostring()))
+            raise SchemeException("Id --> %s <-- is not exported by this instance : \n%s" % (name.tostring(), self.tostring()))
 
         return self.get_val_of(self.internal_id_of(name))
 
@@ -124,7 +124,6 @@ class W_LinkletInstance(W_Object):
 
     def add_def(self, name, val, reason="definition", linkl=None):
         if name in self.defs:
-            import pdb;pdb.set_trace()
             raise SchemeException("Duplicate %s : %s" % (reason, name.tostring()))
 
         self.defs[name] = val
@@ -211,7 +210,7 @@ class W_Linklet(W_Object):
             imports_str = ""
             for ext_name, int_name in imp_dict.iteritems():
                 imports_str += "[%s - %s]," % (ext_name.tostring(), int_name.tostring())
-            importss_str += "%s," % imports_str
+            importss_str += "[%s]," % imports_str
 
         exports_str = ""
         for int_name, ext_name in self.exports.iteritems():
@@ -236,7 +235,6 @@ class W_Linklet(W_Object):
         """
         ||| create instance or use target to evaluate the linklet forms
         """
-        #import pdb;pdb.set_trace()
         used_instance = W_LinkletInstance(self.name, self.exports, {})
 
         if target:
@@ -296,7 +294,7 @@ class W_Linklet(W_Object):
 
         so far used_instance has : imported values, initialized values (by target)
         """
-        return_values = None
+        return_values = w_void
         for form in self.forms:
             if isinstance(form, DefineValues):
                 expression = form.rhs
@@ -628,7 +626,6 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
         if not isinstance(form.car(), W_Symbol) or "linklet" != form.car().tostring():
             raise SchemeException("Malformed s-expr. Expected a linklet, got %s" % form.tostring())
         else:
-            import pdb;pdb.set_trace()
             # Process the imports
             w_importss = form.cdr().car()
 
@@ -684,7 +681,7 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
 
             linkl = W_Linklet(w_name, importss_list, exports, body_forms)
             if import_keys is w_false:
-                return return_value(linkl, env, cont)
+                return return_value_direct(linkl, env, cont)
             else:
                 return return_multi_vals(Values.make([linkl, import_keys]), env, cont)
             
@@ -798,8 +795,6 @@ def make_instance(args): # name, data, *vars_vals
         vars_vals_dict[n] = v
         exports[n] = n
 
-    # if "#%core" in name.tostring():
-    #     import pdb;pdb.set_trace()
     return W_LinkletInstance(name, exports, vars_vals_dict, data)
 
 @expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
