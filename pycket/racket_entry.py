@@ -272,7 +272,7 @@ def run_linklet_file(file_name, pycketconfig, current_cmd_args):
                 # create the W_Linklet
                 linkl = None
                 try:
-                    do_compile_linklet(linkl_sexp, linkl_name, w_false, w_false, w_false, ToplevelEnv(), NilCont())
+                    do_compile_linklet(linkl_sexp, linkl_name, w_false, w_false, w_false, ToplevelEnv(pycketconfig), NilCont())
                 except Done, e:
                     linkl = e.values
                 w_linklets[linkl_name] = linkl
@@ -323,7 +323,7 @@ def run_linklet_file(file_name, pycketconfig, current_cmd_args):
                     raise Exception("target instance is not instantiated : %s" % target_inst_name.tostring())
                 target_inst = instances[target_inst_name]
 
-                out_val = linkl.instantiate(imp_insts, None, toplevel_eval=True, prompt=False, target=target_inst)
+                out_val = linkl.instantiate(imp_insts, pycketconfig, toplevel_eval=True, prompt=False, target=target_inst)
                 racket_print(out_val, pycketconfig, sysconfig)
                 return out_val
         else:
