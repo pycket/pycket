@@ -851,3 +851,12 @@ def var_ref_to_instance(varref, ref_site):
         return w_false # anonymous
     else:
         return varref.get_instance()
+
+@expose("variable-reference-from-unsafe?", [W_VariableReference])
+def var_ref_from_unsafe_huh(varref):
+    """
+    Returns #t if the module of the variable reference itself
+    (not necessarily a referenced variable) is compiled in unsafe mode,
+    #f otherwise.
+    """
+    return w_false

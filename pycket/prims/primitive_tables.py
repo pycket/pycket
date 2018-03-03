@@ -100,7 +100,8 @@ linklet_str = ["linklet?", "compile-linklet", "recompile-linklet", "eval-linklet
                "linklet-import-variables", "linklet-export-variables", "instance?", "make-instance", "instance-name", "instance-data",
                "instance-variable-names", "instance-variable-value", "instance-set-variable-value!", "instance-unset-variable!",
                "linklet-directory?", "hash->linklet-directory", "linklet-directory->hash", "linklet-bundle?", "hash->linklet-bundle", 
-               "linklet-bundle->hash", "variable-reference?", "variable-reference->instance", "variable-reference-constant?", "primitive-table"]
+               "linklet-bundle->hash", "variable-reference?", "variable-reference->instance", "variable-reference-constant?",
+               "primitive-table", "variable-reference-from-unsafe?"]
 
 unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail", 
               "unsafe-list-ref", "unsafe-cons-list", "unsafe-fx+", 
@@ -365,7 +366,7 @@ kernel_str = ["*", "+", "-",
               "round", "seconds->date", "security-guard?", 
               "semaphore?", "semaphore-peek-evt", "semaphore-peek-evt?", 
               "semaphore-post", "semaphore-try-wait?", "semaphore-wait", 
-              "semaphore-wait/enable-break", "set-box!", "set-phantom-bytes!", 
+              "semaphore-wait/enable-break", "set-box!", "set-box*!", "set-phantom-bytes!",
               "shared-bytes", "shell-execute", "simplify-path", 
               "sin", "single-flonum?", "sleep", 
               "split-path", "sqrt", "string", 
@@ -406,7 +407,7 @@ kernel_str = ["*", "+", "-",
               "thread-resume-evt", "thread-rewind-receive", "thread-running?", 
               "thread-send", "thread-receive", "thread-suspend", 
               "thread-suspend-evt", "thread-try-receive", "thread-wait", 
-              "true-object?", "truncate", "unbox", 
+              "true-object?", "truncate", "unbox", "unbox*"
               "uncaught-exception-handler", "unquoted-printing-string", "unquoted-printing-string?", 
               "unquoted-printing-string-value", "values", "vector", 
               "vector->immutable-vector", "vector->list", "vector->pseudo-random-generator", 
