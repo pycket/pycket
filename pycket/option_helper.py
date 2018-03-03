@@ -127,6 +127,16 @@ def parse_args(argv):
 
             config['no-lib'] = True
             retval = 0
+        elif argv[i] in ["--linklet"]:
+            if to <= i + 1:
+                print "missing argument after %s" % argv[i]
+                retval = 5
+                break
+
+            i += 1
+            names['linklet-file'] = [argv[i]]
+            config['stop'] = True
+            retval = 0
         elif argv[i] in ["-g", "-gg", "--eval-json"]:
             if argv[i] == "-gg":
                 config['stop'] = True
