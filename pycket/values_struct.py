@@ -1,4 +1,4 @@
-import itertools
+import itertools, sys
 
 from pycket import config
 from pycket import values
@@ -329,7 +329,7 @@ class W_StructType(values.W_Object):
 
     @jit.elidable
     def is_transparent(self):
-        while self is not None:
+        while self is not None and self is not values.w_false:
             if self.inspector is not values.w_false:
                 return False
             self = self.super
@@ -603,9 +603,23 @@ class W_RootStruct(values.W_Object):
 
     def hash_equal(self, info=None):
         struct_type = self.struct_type()
-        if struct_type.read_prop(w_prop_equal_hash):
-            raise UnhashableType
-        return values.W_Object.hash_equal(self, info)
+        if not struct_type.is_transparent():
+            # if not transparent, eqv?
+            if struct_type.read_prop(w_prop_equal_hash):
+                raise UnhashableType
+            return values.W_Object.hash_equal(self, info)
+        else:
+            # if transparent, equal?
+            size = self._get_size_list()
+            struct_name = self.struct_type().name
+            total_hash_val = struct_name.hash_equal()
+            for n in range(0, size):
+                try:
+                    field_hash = self._get_list(n).hash_equal()
+                    total_hash_val = int((field_hash*total_hash_val)%sys.maxint)
+                except UnhashableType:
+                    continue
+            return total_hash_val
 
 @inline_small_list(immutable=True, attrname="storage", unbox_num=True)
 class W_Struct(W_RootStruct):
