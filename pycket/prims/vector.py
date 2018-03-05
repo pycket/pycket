@@ -9,6 +9,7 @@ from pycket.error import SchemeException
 from pycket.prims.expose import unsafe, default, expose, subclass_unsafe
 from pycket.prims import equal
 from rpython.rlib import jit
+from pycket.impersonators import W_ImpVector
 
 @expose("vector")
 def vector(args):
@@ -50,12 +51,21 @@ def vector_length(v):
 def flvector_length(v):
     return values.W_Fixnum(v.length())
 
-@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
-def vector_ref(v, i, env, cont, calling_app):
+def vector_ref_impl(v, i, env, cont, calling_app):
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-ref: index out of bounds")
     return v.vector_ref(idx, env, cont, app=calling_app)
+
+@expose("vector*-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
+def vector_star_ref(v, i, env, cont, calling_app):
+    if isinstance(v, W_ImpVector):
+        raise SchemeException("vector*-ref is constrained to work on vectors that are not impersonators.")
+    return vector_ref_impl(v, i, env, cont, calling_app)
+
+@expose("vector-ref", [values.W_MVector, values.W_Fixnum], simple=False, extra_info=True)
+def vector_ref(v, i, env, cont, calling_app):
+    return vector_ref_impl(v, i, env, cont, calling_app)
 
 @expose("flvector-ref", [values_vector.W_FlVector, values.W_Fixnum], simple=False)
 def flvector_ref(v, i, env, cont):
