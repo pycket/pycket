@@ -330,10 +330,16 @@ class W_StructType(values.W_Object):
     @jit.elidable
     def is_transparent(self):
         while self is not None and self is not values.w_false:
-            if self.inspector is not values.w_false:
+            if self.get_inspector() is not values.w_false:
                 return False
-            self = self.super
+            self = self.get_super()
         return True
+
+    def get_inspector(self):
+        return self.inspector
+
+    def get_super(self):
+        return self.super
 
     @jit.elidable
     def has_subtype(self, type):
@@ -611,7 +617,7 @@ class W_RootStruct(values.W_Object):
         else:
             # if transparent, equal?
             size = self._get_size_list()
-            struct_name = self.struct_type().name
+            struct_name = struct_type.name
             total_hash_val = struct_name.hash_equal()
             for n in range(0, size):
                 try:
