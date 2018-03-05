@@ -48,7 +48,7 @@ class W_LinkletInstance(W_Object):
             exports_str += "[%s - %s]," % (ext_name.tostring(), int_name.tostring())
 
         defs_str = ", ".join([d.tostring() for d in self.defs])
-        return "W_Linklet Instance : %s \n-- exports(e/i) : [ %s ] \n-- definitions : %s" % (self.name, exports_str, defs_str)
+        return "<#linklet-instance:%s|(e/i)[ %s ]|%s>\n" % (self.name, exports_str, defs_str)
 
     def get_name(self):
         return self.name
@@ -216,7 +216,7 @@ class W_Linklet(W_Object):
         for int_name, ext_name in self.exports.iteritems():
             exports_str += "[%s - %s]," % (int_name.tostring(), ext_name.tostring())
 
-        return "#<linklet:%s -- imports(e/i) : [ %s ] -- exports(i/e) : [ %s ] -- body-forms : %s>" % (self.name, importss_str, exports_str, forms_str)
+        return "#<linklet:%s|(e/i)[ %s ]|(i/e)[ %s ]|%s>\n" % (self.name, importss_str, exports_str, forms_str)
 
     def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
         """ Instantiates the linklet:
@@ -275,7 +275,7 @@ class W_Linklet(W_Object):
         initialize the uninitialized vars using target's defs
         """
         if target:
-            for name, val in target.get_defs():
+            for name, val in target.get_defs().iteritems():
                 used_instance.initialize_var(name, val)
 
         """
