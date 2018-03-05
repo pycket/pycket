@@ -47,6 +47,12 @@ def make_flvector(w_size, w_val):
 def vector_length(v):
     return values.W_Fixnum(v.length())
 
+@expose("vector*-length", [values_vector.W_MVector])
+def vector_length(v):
+    if isinstance(v, W_ImpVector):
+        raise SchemeException("vector*-length is constrained to work on vectors that are not impersonators.")
+    return values.W_Fixnum(v.length())
+
 @expose("flvector-length", [values_vector.W_FlVector])
 def flvector_length(v):
     return values.W_Fixnum(v.length())
@@ -74,15 +80,25 @@ def flvector_ref(v, i, env, cont):
         raise SchemeException("vector-ref: index out of bounds")
     return v.vector_ref(idx, env, cont)
 
-@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object],
-        simple=False, extra_info=True)
-def vector_set(v, i, new, env, cont, calling_app):
+def vector_set_impl(v, i, new, env, cont, calling_app):
     if v.immutable():
         raise SchemeException("vector-set!: given immutable vector")
     idx = i.value
     if not (0 <= idx < v.length()):
         raise SchemeException("vector-set!: index out of bounds")
     return v.vector_set(idx, new, env, cont, app=calling_app)
+
+@expose("vector-set!", [values.W_MVector, values.W_Fixnum, values.W_Object],
+        simple=False, extra_info=True)
+def vector_set(v, i, new, env, cont, calling_app):
+    return vector_set_impl(v, i, new, env, cont, calling_app)
+
+@expose("vector*-set!", [values.W_MVector, values.W_Fixnum, values.W_Object],
+        simple=False, extra_info=True)
+def vector_set(v, i, new, env, cont, calling_app):
+    if isinstance(v, W_ImpVector):
+        raise SchemeException("vector*-set! is constrained to work on vectors that are not impersonators.")
+    return vector_set_impl(v, i, new, env, cont, calling_app)
 
 @expose("flvector-set!", [values_vector.W_FlVector, values.W_Fixnum, values.W_Flonum],
         simple=False, extra_info=True)
