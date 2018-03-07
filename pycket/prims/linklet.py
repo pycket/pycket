@@ -315,6 +315,11 @@ class W_Linklet(W_Object):
                 return_values = w_void
             else:
                 # form is not a DefineValues, evaluate it for the side effects
+                if isinstance(form, SetBang):
+                    set_bang_target = form.get_var().get_sym()
+                    for instance_index, imports_dict in enumerate(self.importss):
+                        if set_bang_target in imports_dict:
+                            raise SchemeException("Cannot mutate imported variable")
                 return_values = interpret_one(form, env, cont)
                     
                     
