@@ -133,13 +133,14 @@ class W_LinkletInstance(W_Object):
             raise SchemeException("Name is already exported through this instance : %s -- id : %s" % (self.name.tostring(), ext_name.tostring()))
         self.exports[ext_name] = int_name
 
-    def initialize_or_add(self, name, val):
+    def initialize_or_add(self, name, val, add_export=False):
         # adds only if it doesn't exist OR is uninitialized
         # otherwise doesn't do anything, no errors
         if (not self.is_defined(name)) or (self.is_defined(name) and self.is_var_uninitialized(name)):
             self.defs[name] = val
             # Anything wrong with blindly exporting ids?
-            self.exports[name] = name
+            if add_export:
+                self.exports[name] = name
 
     def initialize_var(self, name, val):
         # adds only if self has it but it's uninitialized
@@ -219,26 +220,35 @@ class W_Linklet(W_Object):
         return "#<linklet:%s|(e/i)[ %s ]|(i/e)[ %s ]|%s>\n" % (self.name, importss_str, exports_str, forms_str)
 
     def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
+
+        l_importss = len(self.importss)
+        l_given_instances = len(w_imported_instances)
+
+        if l_importss != l_given_instances:
+            raise SchemeException("Required %s instances but given %s" % (str(l_importss), str(l_given_instances)))
+
+        if not target:
+            used_instance = W_LinkletInstance(self.name, self.exports, {})
+            inst, ret_val = self._instantiate(w_imported_instances, config, toplevel_eval=toplevel_eval, prompt=prompt, target=used_instance, cont_params=cont_params)
+            return inst
+
+        _, ret_val = self._instantiate(w_imported_instances, config, toplevel_eval, prompt, target, cont_params)
+        return ret_val
+    
+    def _instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
         """ Instantiates the linklet:
         --- takes the imported linklet instances (list W_LinkletInstances)
         --- extracts the specified set of variables
         --- returns a W_LinkletInstance (or a result if toplevel_eval)
         """
         
-        l_importss = len(self.importss)
-        l_given_instances = len(w_imported_instances)
-        
-        if l_importss != l_given_instances:
-            raise SchemeException("Required %s instances but given %s" % (str(l_importss), str(l_given_instances)))
-
-
         """
         ||| create instance or use target to evaluate the linklet forms
         """
-        used_instance = W_LinkletInstance(self.name, self.exports, {})
+        # used_instance = W_LinkletInstance(self.name, self.exports, {})
 
-        if target:
-           used_instance.set_data(target.get_data())
+        # if target:
+        #    used_instance.set_data(target.get_data())
         
         """
         -- get the imported values from w_imported_instances -- name, val 
@@ -254,7 +264,7 @@ class W_Linklet(W_Object):
                 if imported_val is w_uninitialized:
                     raise SchemeException("Reference to a variable that is uninitialized : %s" % ext_name.tostring())
 
-                used_instance.add_def(int_name, imported_val, reason="import", linkl=self)
+                target.initialize_or_add(int_name, imported_val)
 
         """
         collect the ids defined in the given linklet's forms
@@ -269,21 +279,30 @@ class W_Linklet(W_Object):
         """
         for internal_id, external_id in self.exports.iteritems():
             if internal_id not in linklet_defined_ids:
-                used_instance.add_def(internal_id, w_uninitialized, reason="un-initialization")
+                target.initialize_or_add(internal_id, w_uninitialized, True)
         
         """
         initialize the uninitialized vars using target's defs
         """
-        if target:
-            for name, val in target.get_defs().iteritems():
-                used_instance.initialize_var(name, val)
+        # if target:
+        #     for name, val in target.get_defs().iteritems():
+        #         used_instance.initialize_var(name, val)
+
+        """
+        Temporarily pull out(uninitialize) the defs from target that the linklet defines
+        """
+        target_originals = {} # we'll restore these after linklet evaluation
+        for linklet_defined_id in linklet_defined_ids:
+            if linklet_defined_id in target.get_defs():
+                target_originals[linklet_defined_id] = target.get_val_of(linklet_defined_id)
+                target.set_bang_def(linklet_defined_id, w_uninitialized)
 
         """
         prep the environment and the continuation
         put the instance into the environment
         """
         from pycket.env import ToplevelEnv
-        env = ToplevelEnv(config, used_instance)
+        env = ToplevelEnv(config, target)
         
         cont = NilCont()
         if prompt:
@@ -307,10 +326,10 @@ class W_Linklet(W_Object):
                     name = form.names[index]
                     value = values[index]
                     
-                    used_instance.add_def(name, value)
+                    # used_instance.add_def(name, value)
 
-                    if target:
-                        target.initialize_or_add(name, value)
+                    # if target:
+                    target.initialize_or_add(name, value, True)
                 
                 return_values = w_void
             else:
@@ -326,12 +345,16 @@ class W_Linklet(W_Object):
         """
         return instance or return value
         """
-        if target:
-            assert return_values is not None
-            return return_values
+        # if target:
+        #     assert return_values is not None
+        #     return return_values
+        """
+        Restore target's original definitions
+        """
+        for name, val in target_originals.iteritems():
+            target.set_bang_def(name, val)
 
-        return used_instance
-
+        return target, return_values
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
