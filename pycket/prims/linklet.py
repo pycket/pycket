@@ -422,7 +422,7 @@ def to_rpython_list(r_list):
 
 def def_vals_to_ast(def_vals_sexp, exports, linkl_toplevels, linkl_imports):
     if not len(to_rpython_list(def_vals_sexp)) == 3:
-        raise Exception("defs_vals_to_ast : unhandled define-values form : %s" % def_vals_sexp.tostring())
+        raise SchemeException("defs_vals_to_ast : unhandled define-values form : %s" % def_vals_sexp.tostring())
 
     names = def_vals_sexp.cdr().car() # renames?
     names_ls = to_rpython_list(names)
@@ -437,7 +437,7 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disab
     lam_sexp_elements = to_rpython_list(lam_sexp)
     l = len(lam_sexp_elements)
     if not (l == 3 or l == 2):
-        raise Exception("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
+        raise SchemeException("lam_to_ast : unhandled lambda form : %s" % lam_sexp.tostring())
 
     if lam_sexp.car() is W_Symbol.make("lambda"):
         lam_sexp = lam_sexp.cdr()
@@ -470,7 +470,7 @@ def is_imported(id_sym, linkl_importss):
 
 def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, is_letrec, cell_ref):
     if not len(to_rpython_list(let_sexp)) == 3:
-        raise Exception("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
+        raise SchemeException("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
     varss_rhss = to_rpython_list(let_sexp.cdr().car()) # a little inefficient but still..
     varss_list = [None] * len(varss_rhss)
@@ -550,7 +550,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             form = def_vals_to_ast(form, exports, linkl_toplevels, linkl_importss)
         elif form.car() is W_Symbol.make("with-continuation-mark"):
             if len(to_rpython_list(form)) != 4:
-                raise Exception("Unrecognized with-continuation-mark form : %s" % form.tostring())
+                raise SchemeException("Unrecognized with-continuation-mark form : %s" % form.tostring())
             key = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             val = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
@@ -560,7 +560,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                 form = VariableReference(None, None)
             else:
                 if not isinstance(form.cdr().car(), W_Symbol):
-                    raise Exception("NIY")
+                    raise SchemeException("NIY")
                 else:
                     var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
                     form = VariableReference(var, "dummy.rkt")
@@ -580,7 +580,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             form = SetBang(var, rhs)
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
-                raise Exception("malformed quote form : %s" % form.tostring())
+                raise SchemeException("malformed quote form : %s" % form.tostring())
             form = Quote(form.cdr().car())
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
@@ -598,7 +598,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                     
             form = App.make(form_inner, rands)
     else:
-        raise Exception("Don't know what to do with this form yet : %s", form)
+        raise SchemeException("Don't know what to do with this form yet : %s", form)
 
     if not disable_conversions:
         form = Context.normalize_term(form)
@@ -646,7 +646,7 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
                         inner_acc[c] = c
                     elif isinstance(c, W_List):
                         if c.cdr().cdr() is not w_null:
-                            raise Exception("Unhandled renamed import form : %s" % c.tostring())
+                            raise SchemeException("Unhandled renamed import form : %s" % c.tostring())
                         external_id = c.car()
                         internal_id = c.cdr().car()
 
@@ -692,7 +692,7 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
             
     else: # correlated
         # take the AST from the correlated and put it in a W_Linklet and return
-        raise Exception("NYI")
+        raise SchemeException("NYI")
 
     ##################################
     ##### The optional import-keys and get-import arguments support cross-linklet optimization.
