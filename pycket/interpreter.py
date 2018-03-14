@@ -1333,21 +1333,31 @@ class Gensym(object):
 class LinkletVar(Var):
     visitable = True
 
-    def __init__(self, sym, srcinstance_num):
+    def __init__(self, sym, srcinstance_num, is_imported=False):
         self.sym = sym
         self.srcinstance_number = srcinstance_num
+        self.w_value = None
+        self.is_imported = is_imported
 
     def _free_vars(self):
         return SymbolSet.EMPTY
 
     def _set(self, w_val, env):
+        if self.is_imported: # FIXME: handle this with constance
+            raise SchemeException("Cannot mutate imported variable : %s" % self.sym.tostring())
         instance = env.get_current_linklet_instance()
 
         instance.set_bang_def(self.sym, w_val)
 
     def _lookup(self, env):
-        instance = env.get_current_linklet_instance()
-        return instance.lookup_linkl(self.sym, self.srcinstance_number)
+        w_res = self.w_value
+        if w_res is None:
+            instance = env.get_current_linklet_instance()
+            self.w_value = w_res = instance.lookup_linkl(self.sym, self.srcinstance_number, self.is_imported)
+        if type(w_res) is values.W_Cell:
+            return w_res.get_val()
+        else:
+            return w_res
     
 class LexicalVar(Var):
     visitable = True
