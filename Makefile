@@ -79,7 +79,7 @@ setup:
 	hg -R $(PYPYPATH) update
 
 test: $(PYFILES)
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/
+	$(RUNINTERP) $(PYTEST) pycket -k test_linklet.py -m linkl #--ignore=pycket/test/
 
 test-random: $(PYFILES)
 	$(RUNINTERP) $(PYTEST) --random pycket --ignore=pycket/test/

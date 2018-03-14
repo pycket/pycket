@@ -22,10 +22,29 @@ from pycket.linklet_test.utils import *
 
 # This is where all the work happens
 
-sysconfig = initiate_boot_sequence(None, [])
-namespace_require_kernel(None, sysconfig)
+# sysconfig = initiate_boot_sequence(None, [])
+# namespace_require_kernel(None, sysconfig)
 
 delete_temp_files = True
+
+def defines(inst, name_str):
+    return inst.is_defined(W_Symbol.make(name_str))
+
+def get_val(inst, name_str):
+    return inst.get_val_of(values.W_Symbol.make(name_str))
+
+def inst(linkl_inst, imports=[], target=None):
+    return linkl_inst.instantiate(imports, None, target=target)
+
+def make_linklet(linkl_str):
+    #"(linklet () (x) (define-values (x) 4))"
+    linkl_sexp = string_to_sexp(linkl_str)
+    try:
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make("test_linklet_sexp"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+    except Done, e:
+        l = e.values # W_Linklet
+        return l
+    raise Exception("do_compile_linklet didn't raised a Done exception")
 
 def run_linklet(w_linkl, v=None):
     ov = w_linkl.instantiate([], None, toplevel_eval=True, prompt=False)
@@ -44,13 +63,9 @@ def run_sexp_and_string(expr_str, v):
     run_string(expr_str, v)
 
 def run_sexp(body_sexp_str, v=None):
-    body_sexp = string_to_sexp(body_sexp_str)
-    linkl_sexp = wrap_linklet_sexp(body_sexp)
-    try:
-        do_compile_linklet(linkl_sexp, "test_linklet_sexp", w_false, w_false, w_false, ToplevelEnv(), NilCont())
-    except Done, e:
-        l = e[0] # W_Linklet
-        return run_linklet(l, v)
+    linkl_str = "(linklet () () %s)" % body_sexp_str
+    l = make_linklet(linkl_str)
+    return run_linklet(l, v)
 
 def run_string(expr_str, v=None):
     ov = read_eval_print_string(expr_str, None, sysconfig, return_val=True)
