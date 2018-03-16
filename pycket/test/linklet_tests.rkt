@@ -98,6 +98,9 @@
 (check-satisfied 'x (not-in? (instance-variable-names l52-inst)))
 (check-expect (instance-variable-value l52-inst 'x15) 4)
 (check-expect (instance-variable-value l52-inst 'k) 75)
+(check-expect (instance-variable-value l52-inst (list-ref (instance-variable-names l52-inst) 2)) 75)
+
+;; uninterned symbol W_Symbol("str")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; use targets def
@@ -215,8 +218,10 @@
 ;; import rename
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define l110-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
-(define l111-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 10))) null))
+(define l110-inst (instantiate-linklet
+                   (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
+(define l111-inst (instantiate-linklet
+                   (compile-linklet '(linklet () (x) (define-values (x) 10))) null))
 (define l112 (compile-linklet '(linklet (((x x1))((x x2))) () (+ x1 x2))))
 (define targ110 (make-instance #f #f #f))
 (define result110 (instantiate-linklet l112 (list l110-inst l111-inst) targ110))
@@ -227,7 +232,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define l120 (compile-linklet '(linklet () ((x x15)) (define-values (x) 4) (+ x x))))
-(define targ120 (instantiate-linklet (compile-linklet '(linklet () ((x x16)) (define-values (x) 1000))) null))
+(define targ120 (instantiate-linklet
+                 (compile-linklet '(linklet () ((x x16)) (define-values (x) 1000))) null))
 (define result120 (instantiate-linklet l120 null targ120))
 (check-expect result120 8)
 (check-satisfied 'x15 (in? (instance-variable-names targ120)))
@@ -235,6 +241,8 @@
 (check-satisfied 'x (not-in? (instance-variable-names targ120)))
 (check-expect (instance-variable-value targ120 'x15) 4)
 (check-expect (instance-variable-value targ120 'x16) 1000)
+
+#;(instance-variable-names targ120)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; target def stays the same
@@ -255,12 +263,16 @@
 ;; closures and variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define l140-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
+(define l140-inst (instantiate-linklet
+                   (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
 (define l141 (compile-linklet '(linklet ((x)) (g) (define-values (g) (lambda (y) x)))))
 (define targ140 (make-instance #f #f #f))
 (define result140 (instantiate-linklet l141 (list l140-inst) targ140))
 #;(check-expect result140 4)
 (check-satisfied 'g (in? (instance-variable-names targ140)))
+(check-satisfied 'x (not-in? (instance-variable-names targ140)))
+
+#;(instance-variable-names targ140)
 
 #;((instance-variable-value targ140 'g) 2)
 

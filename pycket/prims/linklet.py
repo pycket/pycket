@@ -695,7 +695,7 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
             for original_id in _linkl_toplevel_defined_ids:
                 if external_of_an_export(original_id, exports):
                     gensym_count += 1
-                    linkl_toplevel_defined_ids[original_id] = W_Symbol.make(original_id.tostring() + "." + str(gensym_count))
+                    linkl_toplevel_defined_ids[original_id] = W_Symbol(original_id.tostring() + "." + str(gensym_count))
                 else:
                     linkl_toplevel_defined_ids[original_id] = original_id
 
@@ -786,6 +786,9 @@ def linklet_export_variables(linkl):
 
 @expose("instance-variable-names", [W_LinkletInstance])
 def instance_variable_names(inst):
+    return get_instance_variable_names(inst)
+# to be able to call it without prim_env indirection
+def get_instance_variable_names(inst):
     names = w_null
     for name in inst.defs.keys():
         names = W_Cons.make(name, names)

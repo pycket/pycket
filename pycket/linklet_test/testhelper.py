@@ -10,7 +10,7 @@ from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.env import ToplevelEnv
 from pycket import values
-from pycket.prims.linklet import W_Linklet, do_compile_linklet
+from pycket.prims.linklet import *
 from pycket.cont import continuation
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string
 
@@ -26,6 +26,16 @@ from pycket.linklet_test.utils import *
 # namespace_require_kernel(None, sysconfig)
 
 delete_temp_files = True
+
+def get_var_val(inst, id_str):
+    # for getting uninterned symbols
+    for k,v in inst.defs.iteritems():
+        if id_str == k.tostring():
+            return k, v
+    raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
+
+def variables(inst):
+    return get_instance_variable_names(inst) # W_Cons
 
 def defines(inst, name_str):
     return inst.is_defined(W_Symbol.make(name_str))
