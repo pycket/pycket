@@ -1350,10 +1350,19 @@ class LinkletVar(Var):
         instance.set_bang_def(self.sym, w_val)
 
     def _lookup(self, env):
+        from pycket.prims.linklet import w_uninitialized
         w_res = self.w_value
         if w_res is None:
             instance = env.get_current_linklet_instance()
+            self.w_value = w_res = env.toplevel_lookup(self.sym)
+
+        if w_res is w_uninitialized:
+            # let's try the target
+            instance = env.get_current_linklet_instance()
             self.w_value = w_res = instance.lookup_linkl(self.sym, self.srcinstance_number, self.is_imported)
+            if w_res is w_uninitialized:
+                raise SchemeException("Reference to an uninitialized variable : %s" % self.sym)
+
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
         else:
