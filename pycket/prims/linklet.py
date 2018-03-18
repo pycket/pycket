@@ -538,6 +538,8 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is W_Symbol.make("letrec-values"):
             form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
         elif form.car() is W_Symbol.make("set!"):
+            if is_imported(form.cdr().car(), linkl_importss):
+                raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
             var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, True, name)
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             assert isinstance(var, Var)

@@ -288,6 +288,26 @@
 (define result142 (instantiate-linklet l143 (list l141-inst) targ141))
 (check-expect result142 4)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; set!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; # mutating an imported variable is a compilation error
+(check-error (compile-linklet '(linklet ((x)) () (set! x 5) (+ x x))))
+
+(define l150 (compile-linklet '(linklet () () (define-values (x) 3) (set! x 5) (+ x x))))
+(define targ150 (make-instance #f #f #f))
+(define result150 (instantiate-linklet l150 null targ150))
+(check-satisfied 'x (in? (instance-variable-names targ150)))
+(check-expect (instance-variable-value targ150 'x) 5)
+(check-expect result150 10)
+
+(define l151 (compile-linklet '(linklet () (x) (set! x 5) (+ x x))))
+(define targ151 (make-instance #f #f #f 'x 3))
+(define result151 (instantiate-linklet l151 null targ151))
+(check-expect (instance-variable-value targ151 'x) 5)
+(check-expect result151 10)
+
 
 ;; (define _l-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
 ;; (define _l (compile-linklet '(linklet ((x)) () (define-values (x) 3) (+ x x))))

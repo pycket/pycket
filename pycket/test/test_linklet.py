@@ -99,6 +99,8 @@ def test_instantiate_discarding_defs():
 
     assert not defines(l1_inst, "x")
     assert get_val(l1_inst, "x15").value == 4 #### Not 75!
+    k,v = get_var_val(l1_inst, "x15.1")
+    assert v.value == 75
 
     l1 = make_linklet("(linklet () ((x x15) k) (define-values (x) 4) (define-values (x15) 75) (define-values (k) x15))")
     l1_inst = inst(l1)
@@ -282,11 +284,9 @@ def test_instantiate_closures_and_variables():
 
     result = inst(l2, [l1_inst], target=targ_inst)
     assert defines(targ_inst, "g")
-    assert not defines(targ_inst, "x") # hidden_env
-    #assert result.value == 4
+    assert not defines(targ_inst, "x")
 
     # use the modified target
-    # REASON for the "hidden_env" in the instances
     l3 = make_linklet("(linklet () (g) (g 5))")
     result2 = inst(l3, [], target=targ_inst)
     assert result2.value == 4
@@ -298,3 +298,25 @@ def test_instantiate_closures_and_variables():
     targ2_inst = inst(targ2)
     result3 = inst(l4, [l2_inst], target=targ2_inst)
     assert result3.value == 4
+
+@pytest.mark.linklh
+def test_instantiate_set_bang():
+    # mutating an imported variable is a compilation error
+    with pytest.raises(SchemeException) as e:
+        make_linklet("(linklet ((x)) () (set! x 5) (+ x x))")
+    assert "cannot mutate imported variable" in str(e.value)
+
+    l1 = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
+    targ = make_linklet("(linklet () ())")
+    targ_inst = inst(targ)
+    result = inst(l1, [], target=targ_inst)
+    assert defines(targ_inst, "x")
+    assert get_val(targ_inst, "x").value == 5
+    assert result.value == 10
+
+    l2 = make_linklet("(linklet () (x) (set! x 5) (+ x x))")
+    targ2 = make_linklet("(linklet () () (define-values (x) 3))")
+    targ2_inst = inst(targ2)
+    result2 = inst(l2, [], target=targ2_inst)
+    assert get_val(targ2_inst, "x").value == 5
+    assert result2.value == 10
