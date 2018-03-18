@@ -1333,9 +1333,8 @@ class Gensym(object):
 class LinkletVar(Var):
     visitable = True
 
-    def __init__(self, sym, srcinstance_num, is_imported=False):
+    def __init__(self, sym, is_imported=False):
         self.sym = sym
-        self.srcinstance_number = srcinstance_num
         self.w_value = None
         self.is_imported = is_imported
 
@@ -1359,7 +1358,7 @@ class LinkletVar(Var):
         if w_res is w_uninitialized:
             # let's try the target
             instance = env.get_current_linklet_instance()
-            self.w_value = w_res = instance.lookup_linkl(self.sym, self.srcinstance_number, self.is_imported)
+            self.w_value = w_res = instance.lookup_linkl(self.sym, self.is_imported)
             if w_res is w_uninitialized:
                 raise SchemeException("Reference to an uninitialized variable : %s" % self.sym)
 

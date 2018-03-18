@@ -85,7 +85,7 @@ class W_LinkletInstance(W_Object):
         for name, value in self.defs.iteritems():
             prim_env[name] = value
 
-    def lookup_linkl(self, name, import_num, is_imported):
+    def lookup_linkl(self, name, is_imported):
         return self.get_val_of(name, is_imported)
 
     def uninitialize_var(self, internal_name):
@@ -493,10 +493,10 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                 form = LexicalVar(form)
         # toplevel linklet var
         elif is_imported(form, linkl_importss):
-            form = LinkletVar(form, -1, True)
+            form = LinkletVar(form, True)
         elif (form in linkl_toplevels) or (form in exports):
             # LinkletVar ############# FIXME -- no need for instance indices anymore
-            form = LinkletVar(form, -1)
+            form = LinkletVar(form)
         else:
             # kernel primitive ModuleVar
             form = ModuleVar(form, "#%kernel", form, None)
