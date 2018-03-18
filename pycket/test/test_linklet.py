@@ -306,17 +306,26 @@ def test_instantiate_set_bang():
         make_linklet("(linklet ((x)) () (set! x 5) (+ x x))")
     assert "cannot mutate imported variable" in str(e.value)
 
-    l1 = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
+    l0 = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
     targ = make_linklet("(linklet () ())")
     targ_inst = inst(targ)
-    result = inst(l1, [], target=targ_inst)
+    result = inst(l0, [], target=targ_inst)
     assert defines(targ_inst, "x")
     assert get_val(targ_inst, "x").value == 5
     assert result.value == 10
 
-    l2 = make_linklet("(linklet () (x) (set! x 5) (+ x x))")
-    targ2 = make_linklet("(linklet () () (define-values (x) 3))")
-    targ2_inst = inst(targ2)
-    result2 = inst(l2, [], target=targ2_inst)
+    l1 = make_linklet("(linklet () (x) (set! x 5) (+ x x))")
+    targ1 = make_linklet("(linklet () () (define-values (x) 3))")
+    targ1_inst = inst(targ1)
+    result1 = inst(l1, [], target=targ1_inst)
+    assert get_val(targ1_inst, "x").value == 5
+    assert result1.value == 10
+
+    # resetting by another linklet
+    l2_inst = inst(make_linklet("(linklet () (x) (define-values (x) -1))"))
+    l3_inst = inst(make_linklet("(linklet ((x)) (g) (define-values (g) (lambda (p) x)))"), [l2_inst])
+    l4 = make_linklet("(linklet ((g)) (x) (set! x 5) (g 1000))")
+    targ2_inst = inst(make_linklet("(linklet () () (define-values (x) 2000))"))
+    result2 = inst(l4, [l3_inst], target=targ2_inst)
     assert get_val(targ2_inst, "x").value == 5
-    assert result2.value == 10
+    assert result2.value == -1

@@ -308,6 +308,15 @@
 (check-expect (instance-variable-value targ151 'x) 5)
 (check-expect result151 10)
 
+; # resetting by another linklet
+(define l152_inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) -1))) null))
+(define l153_inst (instantiate-linklet (compile-linklet '(linklet ((x)) (g) (define-values (g) (lambda (p) x)))) (list l152_inst)))
+(define l154 (compile-linklet '(linklet ((g)) (x) (set! x 5) (g 1000))))
+(define targ152 (make-instance #f #f #f 'x 2000))
+(define result152 (instantiate-linklet l154 (list l153_inst) targ152))
+(check-expect (instance-variable-value targ152 'x) 5)
+(check-expect result152 -1)
+
 
 ;; (define _l-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
 ;; (define _l (compile-linklet '(linklet ((x)) () (define-values (x) 3) (+ x x))))
