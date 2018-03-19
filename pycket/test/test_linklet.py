@@ -329,3 +329,12 @@ def test_instantiate_set_bang():
     result2 = inst(l4, [l3_inst], target=targ2_inst)
     assert get_val(targ2_inst, "x").value == 5
     assert result2.value == -1
+
+    # boxed immutable hash table (small-list.rkt)
+    l5_inst = inst(make_linklet("(linklet () (h) (define-values (h) (box (hasheq))))"))
+    l6 = make_linklet("(linklet ((h)) () (set-box! h (hash-set (unbox h) \"a\" 5)) (hash-ref (unbox h) \"a\" #f))")
+    targ3_inst = inst(make_linklet("(linklet () ())"))
+    result3 = inst(l6, [l5_inst], target=targ3_inst)
+    assert result3.value == 5
+    result4 = inst(make_linklet("(linklet ((h)) () (hash-ref (unbox h) \"a\" #f))"), [l5_inst], target=targ3_inst)
+    assert result4.value == 5

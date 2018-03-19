@@ -3,6 +3,7 @@
 
 import re
 from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true
+from pycket.values_string import W_String
 
 def debug_out(p):
     open("debug_out.txt", "a").write(p)

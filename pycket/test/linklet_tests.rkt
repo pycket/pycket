@@ -317,22 +317,16 @@
 (check-expect (instance-variable-value targ152 'x) 5)
 (check-expect result152 -1)
 
-
-;; (define _l-inst (instantiate-linklet (compile-linklet '(linklet () (x) (define-values (x) 4))) null))
-;; (define _l (compile-linklet '(linklet ((x)) () (define-values (x) 3) (+ x x))))
-;; (define _targ (make-instance #f #f #f))
-;; (instantiate-linklet _l (list _l-inst) _targ)
-
-;; extra
-
-;; (define l1000-inst (instantiate-linklet (compile-linklet '(linklet () (d) (define-values (d) 15))) null))
-;; (define l1001 (compile-linklet '(linklet ((d)) (g) (define-values (g) (lambda (x) d)) (g 3))))
-;; (define targ1000 (make-instance #f #f #f))
-;; (define result1000 (instantiate-linklet l1001 (list l1000-inst) targ1000))
-;; (check-expect result1000 15)
-;; (check-satisfied 'g (in? (instance-variable-names targ1000)))
-;; (instance-variable-names targ1000)
-
+; # boxed immutable hash table (small-list.rkt)
+(define l155-inst (instantiate-linklet (compile-linklet '(linklet () (h) (define-values (h) (box (hasheq))))) null))
+(define l156 (compile-linklet '(linklet ((h)) () (set-box! h (hash-set (unbox h) "a" 5)) (hash-ref (unbox h) "a" #f))))
+(define targ153 (make-instance #f #f #f))
+(define result153 (instantiate-linklet l156 (list l155-inst) targ153))
+(check-expect result153 5)
+(define result154
+  (instantiate-linklet
+   (compile-linklet '(linklet ((h)) () (hash-ref (unbox h) "a" #f))) (list l155-inst) targ153))
+(check-expect result154 5)
 
 
 
