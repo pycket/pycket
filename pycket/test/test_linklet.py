@@ -299,7 +299,7 @@ def test_instantiate_closures_and_variables():
     result3 = inst(l4, [l2_inst], target=targ2_inst)
     assert result3.value == 4
 
-@pytest.mark.linklh
+@pytest.mark.linkl
 def test_instantiate_set_bang():
     # mutating an imported variable is a compilation error
     with pytest.raises(SchemeException) as e:
@@ -330,6 +330,8 @@ def test_instantiate_set_bang():
     assert get_val(targ2_inst, "x").value == 5
     assert result2.value == -1
 
+@pytest.mark.linkl
+def test_instantiate_boxes_and_hashes():
     # boxed immutable hash table (small-list.rkt)
     l5_inst = inst(make_linklet("(linklet () (h) (define-values (h) (box (hasheq))))"))
     l6 = make_linklet("(linklet ((h)) () (set-box! h (hash-set (unbox h) \"a\" 5)) (hash-ref (unbox h) \"a\" #f))")
@@ -338,3 +340,12 @@ def test_instantiate_set_bang():
     assert result3.value == 5
     result4 = inst(make_linklet("(linklet ((h)) () (hash-ref (unbox h) \"a\" #f))"), [l5_inst], target=targ3_inst)
     assert result4.value == 5
+
+    l7_inst = inst(make_linklet("(linklet () (h) (define-values (h) (hasheq \"a\" 4 \"b\" 5)))"))
+    l8 = make_linklet("(linklet ((h)) (h2) (define-values (h2) (hash-copy h)) (hash-ref h2 \"b\"))")
+    targ4_inst = inst(make_linklet("(linklet () ())"))
+    result5 = inst(l8, [l7_inst], target=targ4_inst)
+    assert result5.value == 5
+    l9 = make_linklet("(linklet ((h2)) () (hash-ref h2 \"a\"))")
+    result6 = inst(l9, [targ4_inst], inst(make_linklet("(linklet () ())")))
+    assert result6.value == 4

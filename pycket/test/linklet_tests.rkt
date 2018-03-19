@@ -317,6 +317,10 @@
 (check-expect (instance-variable-value targ152 'x) 5)
 (check-expect result152 -1)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Boxes and Hashes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ; # boxed immutable hash table (small-list.rkt)
 (define l155-inst (instantiate-linklet (compile-linklet '(linklet () (h) (define-values (h) (box (hasheq))))) null))
 (define l156 (compile-linklet '(linklet ((h)) () (set-box! h (hash-set (unbox h) "a" 5)) (hash-ref (unbox h) "a" #f))))
@@ -328,6 +332,13 @@
    (compile-linklet '(linklet ((h)) () (hash-ref (unbox h) "a" #f))) (list l155-inst) targ153))
 (check-expect result154 5)
 
-
+(define l157-inst (instantiate-linklet (compile-linklet '(linklet () (h) (define-values (h) (hasheq "a" 4 "b" 5)))) null))
+(define l158 (compile-linklet '(linklet ((h)) (h2) (define-values (h2) (hash-copy h)) (hash-ref h2 "b"))))
+(define targ154 (make-instance #f #f #f))
+(define result155 (instantiate-linklet l158 (list l157-inst) targ154))
+(define l159 (compile-linklet '(linklet ((h2)) () (hash-ref h2 "a"))))
+(define result156 (instantiate-linklet l159 (list targ154) (make-instance #f #f #f)))
+(check-expect result155 5)
+(check-expect result156 4)
 
 (test)
