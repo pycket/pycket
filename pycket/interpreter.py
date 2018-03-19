@@ -1344,16 +1344,18 @@ class LinkletVar(Var):
     def _set(self, w_val, env):
         if self.is_imported: # FIXME: handle this with constance
             raise SchemeException("Cannot mutate imported variable : %s" % self.sym.tostring())
-        instance = env.get_current_linklet_instance()
 
+        # FIXME : what if instance didn't have it before?
+        instance = env.get_current_linklet_instance()
         instance.set_bang_def(self.sym, w_val)
+
+        env.toplevel_env().toplevel_set(self.sym, w_val)
 
     def _lookup(self, env):
         from pycket.prims.linklet import w_uninitialized
         w_res = self.w_value
         if w_res is None:
-            instance = env.get_current_linklet_instance()
-            self.w_value = w_res = env.toplevel_lookup(self.sym)
+            self.w_value = w_res = env.toplevel_env().toplevel_lookup(self.sym)
 
         if w_res is w_uninitialized:
             # let's try the target

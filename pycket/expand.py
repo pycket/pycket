@@ -622,12 +622,7 @@ class JsonLoader(object):
 
                     elif "source-linklet" in target:
                         source = target["source-linklet"].value_object()["quote"].value_object()
-                        if "toplevel" in source and source["toplevel"].value_string() == "self":
-                            instance_number = -1
-                        else:
-                            instance_number = source["number"].value_object()["integer"].value_string()
-                            instance_number = string_to_int(instance_number)
-                        var = LinkletVar(srcname, instance_number)
+                        var = LinkletVar(srcname)
                     else:
                         srcmod = "#%kernel"
                         path   = None
@@ -728,12 +723,7 @@ class JsonLoader(object):
                 modsym = mksym(modname) if modname else srcsym
                 if "source-linklet" in obj:
                     source = obj["source-linklet"].value_object()["quote"].value_object()
-                    if "toplevel" in source and source["toplevel"].value_string() == "self":
-                        instance_number = -1
-                    else:
-                        instance_number = source["number"].value_object()["integer"].value_string()
-                        instance_number = string_to_int(instance_number)
-                    return LinkletVar(srcsym, instance_number)
+                    return LinkletVar(srcsym)
                 elif "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()
