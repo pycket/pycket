@@ -349,3 +349,32 @@ def test_instantiate_boxes_and_hashes():
     l9 = make_linklet("(linklet ((h2)) () (hash-ref h2 \"a\"))")
     result6 = inst(l9, [targ4_inst], inst(make_linklet("(linklet () ())")))
     assert result6.value == 4
+
+@pytest.mark.linkl
+def test_instantiate_lets_and_scopes():
+    l0 = make_linklet("(linklet () () (letrec-values (((fact) (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5)))")
+    targ0_inst = inst(make_linklet("(linklet () ())"))
+    result0 = inst(l0, [], target=targ0_inst)
+    assert result0.value == 120
+
+    # Context.normalize_term might be faulty
+    # l1 = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) x))))")
+    # #import pdb;pdb.set_trace()
+    # result1 = inst(l1, [], target=targ0_inst)
+    # assert result1.value == 15
+    # l2 = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) (+ x (let-values (((x) 20) ((y) 21)) (+ x y)))))))")
+    # result2 = inst(l2, [], target=targ0_inst)
+    # assert result2.value == 56
+
+    l3_inst = inst(make_linklet("(linklet () (add2) (define-values (add) (lambda (x) (lambda (y) (+ x y)))) (define-values (add2) (add 2)))"))
+    l4 = make_linklet("(linklet ((add2)) () (add2 6))")
+    result3 = inst(l4, [l3_inst], target=targ0_inst)
+    assert result3.value == 8
+
+    l5 = make_linklet("(linklet () () ((((lambda (x) (lambda (x) (lambda (y) (+ x y)))) 1) 2) 3))")
+    result4 = inst(l5, [], target=targ0_inst)
+    assert result4.value == 5
+
+    l6 = make_linklet("(linklet () () (let-values (((x) (let-values (((x) 2)) (+ x x)))) (+ x x)))")
+    result5 = inst(l6, [], target=targ0_inst)
+    assert result5.value == 8

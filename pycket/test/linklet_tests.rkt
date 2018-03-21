@@ -341,4 +341,50 @@
 (check-expect result155 5)
 (check-expect result156 4)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Lets and Scopes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define l160 (compile-linklet
+              '(linklet () ()
+                        (letrec-values (((fact) (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))))
+                          (fact 5)))))
+(define result160 (instantiate-linklet l160 null (make-instance #f #f #f)))
+(check-expect result160 120)
+
+; # Context.normalize_term might be faulty
+(define l161 (compile-linklet
+              '(linklet () ()
+                        (let-values (((x) 5))
+                          (+ x
+                             (let-values (((x) 10)) x))))))
+(define result161 (instantiate-linklet l161 null (make-instance #f #f #f)))
+(check-expect result161 15)
+(define l162 (compile-linklet
+              '(linklet () ()
+                        (let-values (((x) 5))
+                          (+ x
+                             (let-values (((x) 10))
+                               (+ x
+                                  (let-values (((x) 20) ((y) 21)) (+ x y)))))))))
+(define result162 (instantiate-linklet l162 null (make-instance #f #f #f)))
+(check-expect result162 56)
+
+(define l163-inst
+  (instantiate-linklet (compile-linklet
+                        '(linklet () (add2)
+                                  (define-values (add) (lambda (x) (lambda (y) (+ x y))))
+                                  (define-values (add2) (add 2)))) null))
+(define l164 (compile-linklet '(linklet ((add2)) () (add2 6))))
+(define result163 (instantiate-linklet l164 (list l163-inst) (make-instance #f #f #f)))
+(check-expect result163 8)
+
+(define l165 (compile-linklet '(linklet () () ((((lambda (x) (lambda (x) (lambda (y) (+ x y)))) 1) 2) 3))))
+(define result164 (instantiate-linklet l165 null (make-instance #f #f #f)))
+(check-expect result164 5)
+
+(define l166 (compile-linklet '(linklet () () (let-values (((x) (let-values (((x) 2)) (+ x x)))) (+ x x)))))
+(define result165 (instantiate-linklet l166 null (make-instance #f #f #f)))
+(check-expect result165 8)
+
 (test)
