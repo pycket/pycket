@@ -61,21 +61,11 @@ class W_LinkletInstance(W_Object):
     def is_var_uninitialized(self, name):
         return self.is_defined(name) and self.defs[name] is w_uninitialized
 
-    def is_var_uninit_unsafe(self, name):
-        # assumes self.is_defined(name)
-        return self.defs[name] is w_uninitialized
-
     # Error if NOT exists
     def check_exists(self, name):
         if not self.is_defined(name):
             #import pdb;pdb.set_trace()
             raise SchemeException("Reference to an undefined variable : %s" % name.tostring())
-
-    # Error if DOES exist
-    def check_already_defined(self, name):
-        if self.is_defined(name):
-            #import pdb;pdb.set_trace()
-            raise SchemeException("Variable is already defined : %s" % name.tostring())
 
     def get_val_of(self, name, is_imported=False):
         self.check_exists(name)
@@ -88,37 +78,13 @@ class W_LinkletInstance(W_Object):
     def lookup_linkl(self, name, is_imported):
         return self.get_val_of(name, is_imported)
 
-    def uninitialize_var(self, internal_name):
-        self.check_exists(internal_name)
-        self.defs[internal_name] = w_uninitialized
-
-    def initialize_var(self, name, new_value):
-        self.check_exists(name)
-
-        val = self.defs[name]
-        if val is not w_uninitialized:
-            #import pdb;pdb.set_trace()
-            raise SchemeException("Expected an uninitialized variable to initialize : %s - old value : %s - new value : %s" % (name.tostring(), val.tostring(), new_value.tostring()))
-
-        self.defs[name] = new_value
-        return True
-
     def uninitialize_if_not_defined(self, internal_name):
         if not self.is_defined(internal_name):
             self.defs[internal_name] = w_uninitialized
 
-    def add_def(self, name, value):
-        self.check_already_defined(name)
-        self.defs[name] = value
-
     def set_bang_def(self, name, value):
         ## add without checking anything
         self.defs[name] = value
-
-    def remove_def(self, name):
-        if not self.is_defined(name):
-            raise SchemeException("Trying to remove a non-existant definition : %s" % name.tostring())
-        del self.defs[name]
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
@@ -491,6 +457,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                 form = CellRef(form)
             else:
                 form = LexicalVar(form)
+                #form.simple = False
         # toplevel linklet var
         elif is_imported(form, linkl_importss):
             form = LinkletVar(form, True)
@@ -565,11 +532,6 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             form = App.make(form_inner, rands)
     else:
         raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
-
-    if not disable_conversions:
-        form = Context.normalize_term(form)
-        form = assign_convert(form)
-        form.clean_caches()
 
     return form
 
@@ -651,7 +613,14 @@ def do_compile_linklet(form, name, import_keys, get_import, serializable_huh, en
 
             linkl_toplevel_defined_ids = extract_ids(body_forms_ls)
 
-            body_forms = [sexp_to_ast(b, [], exports, linkl_toplevel_defined_ids, importss_list) for b in body_forms_ls]
+            _body_forms = [sexp_to_ast(b, [], exports, linkl_toplevel_defined_ids, importss_list) for b in body_forms_ls]
+            # FIXME : remove "disable_conversions" argument entirely
+            body_forms = [None]*len(_body_forms)
+            for i, bf in enumerate(_body_forms):
+                form = Context.normalize_term(bf)
+                form = assign_convert(form)
+                form.clean_caches()
+                body_forms[i] = form
 
             if name is w_false:
                 w_name = W_Symbol.make("ad-hoc")
