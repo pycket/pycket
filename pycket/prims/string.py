@@ -90,6 +90,10 @@ def string_to_keyword(str):
     repr = str.as_str_utf8()
     return values.W_Keyword.make(repr)
 
+@expose("keyword->string", [values.W_Keyword])
+def string_to_keyword(keyword):
+    return W_String.make(keyword.value)
+
 @expose("string->immutable-string", [W_String])
 def string_to_immutable_string(string):
     return string.make_immutable()
