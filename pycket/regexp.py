@@ -7,7 +7,8 @@ from rpython.rlib.rsre.rsre_core import (OPCODE_LITERAL, OPCODE_LITERAL_IGNORE,
     OPCODE_SUCCESS, OPCODE_ASSERT, OPCODE_MARK, OPCODE_REPEAT, OPCODE_ANY,
     OPCODE_ANY_ALL, OPCODE_MAX_UNTIL, OPCODE_MIN_UNTIL, OPCODE_GROUPREF,
     OPCODE_AT, OPCODE_BRANCH, OPCODE_RANGE, OPCODE_JUMP, OPCODE_ASSERT_NOT,
-    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE)
+    OPCODE_CATEGORY, OPCODE_FAILURE, OPCODE_IN, OPCODE_NEGATE,
+    CompiledPattern)
 from rpython.rlib.rsre.rsre_char import is_digit, is_space, is_word
 
 IGNORE_CASE = 1 << 0
@@ -279,7 +280,7 @@ class CompilerContext(object):
         self.data[pos] = value
 
     def build(self):
-        return self.data[:]
+        return CompiledPattern(self.data[:])
 
 
 class Counts(object):
