@@ -6,375 +6,391 @@ from pycket.values import W_Symbol
 from pycket.error import SchemeException
 from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 
-from pycket.linklet_test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val)
+from pycket.linklet_test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval, empty_target, make_instance, check_val)
 
 
 @pytest.mark.linkl
 def test_instantiate_basic():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
-
-    l1_inst = inst(l1)
-    assert isinstance(l1_inst, W_LinkletInstance)
-    assert get_val(l1_inst, "x").value == 4
+    l = make_instance("(linklet () (x) (define-values (x) 4))")
+    assert isinstance(l, W_LinkletInstance)
+    assert check_val(l, "x", 4)
 
 @pytest.mark.linkl
 def test_instantiate_target():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () ())")
+    l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
+    result, t = eval(l, empty_target())
+    assert result == 8
+    assert check_val(t, "x", 4)
 
-    targ_inst = inst(targ)
-    result = inst(l1, target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "x").value == 4
+    # even if linklet doesn't export, def goes into target if it doesn't already have it
+    l2 = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
+    result2, t2 = eval(l2, empty_target())
+    assert result2 == 8
+    assert check_val(t2, "x", 4)
 
 @pytest.mark.linkl
 def test_instantiate_target_def_overwrite():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () () (define-values (x) 1) (define-values (y) 2))")
-    targ_inst = inst(targ)
-    result = inst(l1, target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "x").value == 4
-    assert get_val(targ_inst, "y").value == 2
+    l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
+    t = make_instance("(linklet () () (define-values (x) 1) (define-values (y) 2))")
+    result, t = eval(l, t)
+    assert result == 8
+    assert check_val(t, "x", 4)
+    assert check_val(t, "y", 2)
 
-    # if linklet doesn't export, then target's def stay the same
-    l1 = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () () (define-values (x) 1) (define-values (y) 2))")
-    targ_inst = inst(targ)
-    result = inst(l1, target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "x").value == 1
-    assert get_val(targ_inst, "y").value == 2
-
+@pytest.mark.linkl
+def test_instantiate_target_always_overwrite():
     # if target doesn't have it, then it doesn't matter if linklet exports or not,
     # put the variable in the target
-    l1 = make_linklet("(linklet () () (define-values (z) 4) z)")
-    targ = make_linklet("(linklet () ())")
-    targ_inst = inst(targ)
-    result = inst(l1, target=targ_inst)
-    assert result.value == 4
-    assert get_val(targ_inst, "z").value == 4
+    l = make_linklet("(linklet () () (define-values (z) 4) z)")
+    result, t = eval(l, empty_target())
+    assert result == 4
+    assert check_val(t, "z", 4)
+
+@pytest.mark.linkl
+def test_instantiate_target_def_stays_the_same():
+    # if linklet doesn't export, then target's def stay the same
+    l = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
+    t = make_instance("(linklet () () (define-values (x) 1) (define-values (y) 2))")
+    result, t = eval(l, t)
+    assert result == 8
+    assert check_val(t, "x", 1)
+    assert check_val(t, "y", 2)
+
+    # use the local var, don't change target's var if you don't export
+    l = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
+    t1 = make_instance("(linklet () () (define-values (x) 10))")
+    t2 = make_instance("(linklet () (x) (define-values (x) 10))")
+    result1, t1 = eval(l, t1)
+    result2, t2 = eval(l, t2)
+    assert result1 == 8 and result2 == 8
+    assert check_val(t1, "x", 10)
+    assert check_val(t2, "x", 10)
 
     # imported variables doesn't get into target at all ...
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) () (+ x x))")
-    targ = make_linklet("(linklet () () )")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
-    assert not defines(targ_inst, "x")
+    result, t = eval(l2, empty_target(), [l1])
+    assert result == 8
+    assert not defines(t, "x")
 
     # ... let alone overwrite any var inside the target
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) () (+ x x))")
-    targ = make_linklet("(linklet () () (define-values (x) 1))")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "x").value == 1
+    t = make_instance("(linklet () () (define-values (x) 1))")
+    result, t = eval(l2, t, [l1])
+    assert result == 8
+    assert check_val(t, "x", 1)
 
 @pytest.mark.linkl
 def test_instantiate_defs_export_names():
-    l1 = make_linklet("(linklet () ((x x15)) (define-values (x) 4))")
-    l1_inst = inst(l1)
-    assert not defines(l1_inst, "x")
-    assert defines(l1_inst, "x15")
+    l = make_instance("(linklet () ((x x15)) (define-values (x) 4))")
+    assert not defines(l, "x")
+    assert defines(l, "x15")
 
     # LinkletVars will be referred by the external name (e.g. (+ x15 x15)
-    l1 = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () ())")
-    targ_inst = inst(targ)
-
-    result = inst(l1, [], target=targ_inst)
-    assert result.value == 8
-    assert not defines(targ_inst, "x")
-    assert defines(targ_inst, "x15")
+    l = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (+ x x))")
+    result, t = eval(l, empty_target())
+    assert result == 8
+    assert not defines(t, "x")
+    assert defines(t, "x15")
 
 @pytest.mark.linkl
 def test_instantiate_discarding_defs():
-    l1 = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (define-values (x15) 75))")
-    l1_inst = inst(l1)
-
-    assert not defines(l1_inst, "x")
-    assert get_val(l1_inst, "x15").value == 4 #### Not 75!
-    k,v = get_var_val(l1_inst, "x15.1")
+    l = make_instance("(linklet () ((x x15)) (define-values (x) 4) (define-values (x15) 75))")
+    assert not defines(l, "x")
+    assert check_val(l, "x15", 4) #### Not 75!
+    k,v = get_var_val(l, "x15.1") # uninterned
     assert v.value == 75
 
-    l1 = make_linklet("(linklet () ((x x15) k) (define-values (x) 4) (define-values (x15) 75) (define-values (k) x15))")
-    l1_inst = inst(l1)
-
-    assert not defines(l1_inst, "x")
-    assert get_val(l1_inst, "x15").value == 4 #### Not 75!
-    assert get_val(l1_inst, "k").value == 75 #### Not 4!
-
-    #vars = variables(l1_inst)
-    k,v = get_var_val(l1_inst, "x15.1")
+    l = make_instance("(linklet () ((x x15) k) (define-values (x) 4) (define-values (x15) 75) (define-values (k) x15))")
+    assert not defines(l, "x")
+    assert check_val(l, "x15", 4) #### Not 75!
+    assert check_val(l, "k", 75) #### Not 4!
+    k,v = get_var_val(l, "x15.1")
     assert v.value == 75
 
 @pytest.mark.linkl
 def test_instantiate_use_targets_def():
-    l1 = make_linklet("(linklet () (x) (+ x x))")
-    targ = make_linklet("(linklet () () (define-values (x) 10))")
-    targ_inst = inst(targ)
-    result = inst(l1, target=targ_inst)
-    assert result.value == 20
+    l = make_linklet("(linklet () (x) (+ x x))")
+    t = make_instance("(linklet () () (define-values (x) 10))")
+    result, _ = eval(l, t)
+    assert result == 20
 
     # use linklet's definition if both linklet and target have it
-    l2 = make_linklet("(linklet () () (define-values (x) 4) (+ x x))") # doesn't export x
-    targ = make_linklet("(linklet () () (define-values (x) 10))")
-    targ_inst = inst(targ)    
-    result = inst(l2, target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "x").value == 10
+    l = make_linklet("(linklet () () (define-values (x) 4) (+ x x))") # doesn't export x
+    t = make_instance("(linklet () () (define-values (x) 10))")
+    result, t = eval(l, t)
+    assert result == 8
+    assert check_val(t, "x", 10)
 
 @pytest.mark.linkl
 def test_instantiate_basic_import():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) () (+ x x))")
-    targ = make_linklet("(linklet () ())")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
+    result, _ = eval(l2, empty_target(), [l1])
+    assert result == 8
 
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) (y) (define-values (y) (+ x x)) (+ y y))")
-    targ = make_linklet("(linklet () ())")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 16
-    assert get_val(targ_inst, "y").value == 8
-    assert not defines(targ_inst, "x")
+    result, t = eval(l2, empty_target(), [l1])
+    assert result == 16
+    assert check_val(t, "y", 8)
+    assert not defines(t, "x")
 
     # target's defs are overwritten only if the linklet has a definition
     # not with an imported variable
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) () (+ x x))")    
-    targ2 = make_linklet("(linklet () () (define-values (x) 1000))")
-    targ2_inst = inst(targ2)
-    result = inst(l2, [l1_inst], target=targ2_inst)
-    assert result.value == 8
-    assert get_val(targ2_inst, "x").value == 1000
+    t = make_instance("(linklet () () (define-values (x) 1000))")
+    result, t = eval(l2, t, [l1])
+    assert result == 8
+    assert check_val(t, "x", 1000)
 
     ## same thing with the import renaming
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
-    l3 = make_linklet("(linklet (((x x2))) () (+ x2 x2))")
-    targ3 = make_linklet("(linklet () () (define-values (x) 1000) (define-values (x2) 2000))")
-    targ3_inst = inst(targ3)
-    result = inst(l3, [l1_inst], target=targ3_inst)
-    assert result.value == 8
-    assert get_val(targ3_inst, "x").value == 1000
-    assert get_val(targ3_inst, "x2").value == 2000
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
+    l2 = make_linklet("(linklet (((x x2))) () (+ x2 x2))")
+    t = make_instance("(linklet () () (define-values (x) 1000) (define-values (x2) 2000))")
+    result, t = eval(l2, t, [l1])
+    assert result == 8
+    assert check_val(t, "x", 1000)
+    assert check_val(t, "x2", 2000)
 
     ## slightly trickier
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
-    l3 = make_linklet("(linklet (((x x2))) () (define-values (x) 14) (+ x2 x))")
-    targ3 = make_linklet("(linklet () () (define-values (x) 1000) (define-values (x2) 2000))")
-    targ3_inst = inst(targ3)
-    result = inst(l3, [l1_inst], target=targ3_inst)
-    assert result.value == 18
-    assert get_val(targ3_inst, "x").value == 1000
-    assert get_val(targ3_inst, "x2").value == 2000
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
+    l2 = make_linklet("(linklet (((x x2))) () (define-values (x) 14) (+ x2 x))")
+    t = make_instance("(linklet () () (define-values (x) 1000) (define-values (x2) 2000))")
+    result, t = eval(l2, t, [l1])
+    assert result == 18
+    assert check_val(t, "x", 1000)
+    assert check_val(t, "x2", 2000)
 
 @pytest.mark.linkl
 def test_instantiate_basic_export():
-    l1 = make_linklet("(linklet () (a) (define-values (a) 4))")
+    l1 = make_instance("(linklet () (a) (define-values (a) 4))")
     l2 = make_linklet("(linklet ((a)) () (+ a a))")
-    targ = make_linklet("(linklet () ())")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
+    result, _ = eval(l2, empty_target(), [l1])
+    assert result == 8
 
-    # export-rename
-    l1 = make_linklet("(linklet () ((a1 a)) (define-values (a1) 4))")
+    l1 = make_instance("(linklet () ((a1 a)) (define-values (a1) 4))")
     l2 = make_linklet("(linklet ((a)) () (+ a a))")
-    targ = make_linklet("(linklet () ())")
-    l1_inst = inst(l1)
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
+    result, _ = eval(l2, empty_target(), [l1])
+    assert result == 8
 
 @pytest.mark.linkl
 def test_instantiate_uninitialize_undefined_exports():
-    l1 = make_linklet("(linklet () (x))")
-    targ = make_linklet("(linklet () ())")
-    targ_inst = inst(targ)
-    inst(l1, [], target=targ_inst)
-    assert targ_inst.is_var_uninitialized(W_Symbol.make("x"))
+    l = make_linklet("(linklet () (x))")
+    _, t = eval(l, empty_target())
+    assert t.is_var_uninitialized(W_Symbol.make("x"))
 
     # don't touch if target has it
-    targ2 = make_linklet("(linklet () () (define-values (x) 10))")
-    targ2_inst = inst(targ2)
-    inst(l1, [], target=targ2_inst)
-    assert not targ2_inst.is_var_uninitialized(W_Symbol.make("x"))
+    l = make_linklet("(linklet () (x))")
+    t = make_instance("(linklet () () (define-values (x) 10))")
+    _, t = eval(l, t)
+    assert not t.is_var_uninitialized(W_Symbol.make("x"))
 
     # target exports the same var with another external name
-    l1 = make_linklet("(linklet () (x2) (+ x2 x2))")
-    targ3 = make_linklet("(linklet () ((x x2)) (define-values (x) 10))")
-    targ3_inst = inst(targ3)
-    result = inst(l1, [], target=targ3_inst)
-    assert result.value == 20
-    assert get_val(targ3_inst, "x2").value == 10
+    l = make_linklet("(linklet () (x2) (+ x2 x2))")
+    t = make_instance("(linklet () ((x x2)) (define-values (x) 10))")
+    result, t = eval(l, t)
+    assert result == 20
+    assert check_val(t, "x2", 10)
+    assert not defines(t, "x")
 
 @pytest.mark.linkl
 def test_instantiate_export_rename():
-    l1 = make_linklet("(linklet () ((x1 x)) (define-values (x1) 4))")
+    l1 = make_instance("(linklet () ((x1 x)) (define-values (x1) 4))")
     l2 = make_linklet("(linklet ((x)) ((y1 y)) (define-values (y1) x) (+ x y1))")
-    targ = make_linklet("(linklet () ())")
-
-    l1_inst = inst(l1)
-    assert get_val(l1_inst, "x").value == 4
-    targ_inst = inst(targ)
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert result.value == 8
-    assert get_val(targ_inst, "y").value == 4
-    assert not defines(targ_inst, "x")
+    assert check_val(l1, "x", 4)
+    result, t = eval(l2, empty_target(), [l1])
+    assert result == 8
+    assert check_val(t, "y", 4)
+    assert not defines(t, "x")
 
 @pytest.mark.linkl
 def test_instantiate_import_rename():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
-    l2 = make_linklet("(linklet () (x) (define-values (x) 10))")
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
+    l2 = make_instance("(linklet () (x) (define-values (x) 10))")
     l3 = make_linklet("(linklet (((x x1))((x x2))) () (+ x1 x2))")
-    targ = make_linklet("(linklet () ())")
-
-    l1_inst = inst(l1)
-    l2_inst = inst(l2)    
-    targ_inst = inst(targ)
-    result = inst(l3, [l1_inst,l2_inst], target=targ_inst)
-    assert result.value == 14
+    result, _ = eval(l3, empty_target(), [l1,l2])
+    assert result == 14
 
 @pytest.mark.linkl
 def test_instantiate_eval_define_values():
-    l1 = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () ((x x16)) (define-values (x) 1000))")
-
-    targ_inst = inst(targ)
-    l1_inst = inst(l1, [], target=targ_inst)
-    assert defines(targ_inst, "x15") and defines(targ_inst, "x16")
-    assert not defines(targ_inst, "x")
-    assert get_val(targ_inst, "x15").value == 4
-    assert get_val(targ_inst, "x16").value == 1000
-
-@pytest.mark.linkl
-def test_instantiate_target_def_stays_the_same():
-    # use the local var, don't change target's var if you don't export
-    l1 = make_linklet("(linklet () () (define-values (x) 4) (+ x x))")
-    targ = make_linklet("(linklet () () (define-values (x) 10))")
-    targ2 = make_linklet("(linklet () (x) (define-values (x) 10))")
-
-    targ_inst = inst(targ)
-    targ2_inst = inst(targ2)
-    result = inst(l1, [], target=targ_inst)
-    result2 = inst(l1, [], target=targ2_inst)
-    assert result.value == 8 and result2.value == 8
-    assert get_val(targ_inst, "x").value == 10
-    assert get_val(targ2_inst, "x").value == 10
+    l = make_linklet("(linklet () ((x x15)) (define-values (x) 4) (+ x x))")
+    t = make_instance("(linklet () ((x x16)) (define-values (x) 1000))")
+    _, t = eval(l, t)
+    assert defines(t, "x15") and defines(t, "x16") and not defines(t, "x")
+    assert check_val(t, "x15", 4)
+    assert check_val(t, "x16", 1000)
 
 @pytest.mark.linkl
 def test_instantiate_closures_and_variables():
-    l1 = make_linklet("(linklet () (x) (define-values (x) 4))")
-    l1_inst = inst(l1)
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
     l2 = make_linklet("(linklet ((x)) (g) (define-values (g) (lambda (y) x)))")
-    targ = make_linklet("(linklet () ())")
-    targ_inst = inst(targ)
-
-    result = inst(l2, [l1_inst], target=targ_inst)
-    assert defines(targ_inst, "g")
-    assert not defines(targ_inst, "x")
+    _, t = eval(l2, empty_target(), [l1])
+    assert defines(t, "g") and not defines(t, "x")
 
     # use the modified target
     l3 = make_linklet("(linklet () (g) (g 5))")
-    result2 = inst(l3, [], target=targ_inst)
-    assert result2.value == 4
+    result, t = eval(l3, t)
+    assert result == 4
 
     # import the closure
+    l1 = make_instance("(linklet () (x) (define-values (x) 4))")
+    l2 = make_instance("(linklet ((x)) (g) (define-values (g) (lambda (y) x)))", [l1])
     l4 = make_linklet("(linklet ((g)) () (g 3))")
-    l2_inst = inst(l2, [l1_inst])
-    targ2 = make_linklet("(linklet () ())")
-    targ2_inst = inst(targ2)
-    result3 = inst(l4, [l2_inst], target=targ2_inst)
-    assert result3.value == 4
+    result, _ = eval(l4, empty_target(), [l2])
+    assert result == 4
 
 @pytest.mark.linkl
-def test_instantiate_set_bang():
-    # mutating an imported variable is a compilation error
+def test_instantiate_cannot_mutate_imported():
+    # mutating an imported variable is a *compilation* error
     with pytest.raises(SchemeException) as e:
         make_linklet("(linklet ((x)) () (set! x 5) (+ x x))")
     assert "cannot mutate imported variable" in str(e.value)
 
-    l0 = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
-    targ = make_linklet("(linklet () ())")
-    targ_inst = inst(targ)
-    result = inst(l0, [], target=targ_inst)
-    assert defines(targ_inst, "x")
-    assert get_val(targ_inst, "x").value == 5
-    assert result.value == 10
+@pytest.mark.linkl
+def test_instantiate_set_bang():
+    l = make_linklet("(linklet () () (define-values (x) 3) (set! x 5) (+ x x))")
+    t = make_instance("(linklet () () (define-values (x) 6))")
+    result, t = eval(l, t)
+    assert defines(t, "x")
+    assert check_val(t, "x", 6)
+    assert result == 10
 
-    l1 = make_linklet("(linklet () (x) (set! x 5) (+ x x))")
-    targ1 = make_linklet("(linklet () () (define-values (x) 3))")
-    targ1_inst = inst(targ1)
-    result1 = inst(l1, [], target=targ1_inst)
-    assert get_val(targ1_inst, "x").value == 5
-    assert result1.value == 10
-
-    # resetting by another linklet
-    l2_inst = inst(make_linklet("(linklet () (x) (define-values (x) -1))"))
-    l3_inst = inst(make_linklet("(linklet ((x)) (g) (define-values (g) (lambda (p) x)))"), [l2_inst])
-    l4 = make_linklet("(linklet ((g)) (x) (set! x 5) (g 1000))")
-    targ2_inst = inst(make_linklet("(linklet () () (define-values (x) 2000))"))
-    result2 = inst(l4, [l3_inst], target=targ2_inst)
-    assert get_val(targ2_inst, "x").value == 5
-    assert result2.value == -1
+    l = make_linklet("(linklet () (x) (set! x 5) (+ x x))")
+    t = make_instance("(linklet () () (define-values (x) 3))")
+    result, t = eval(l, t)
+    assert check_val(t, "x", 5)
+    assert result == 10
 
 @pytest.mark.linkl
-def test_instantiate_boxes_and_hashes():
-    # boxed immutable hash table (small-list.rkt)
-    l5_inst = inst(make_linklet("(linklet () (h) (define-values (h) (box (hasheq))))"))
-    l6 = make_linklet("(linklet ((h)) () (set-box! h (hash-set (unbox h) \"a\" 5)) (hash-ref (unbox h) \"a\" #f))")
-    targ3_inst = inst(make_linklet("(linklet () ())"))
-    result3 = inst(l6, [l5_inst], target=targ3_inst)
-    assert result3.value == 5
-    result4 = inst(make_linklet("(linklet ((h)) () (hash-ref (unbox h) \"a\" #f))"), [l5_inst], target=targ3_inst)
-    assert result4.value == 5
+def test_instantiate_closure_capture_and_reset():
+    l1 = make_instance("(linklet () (x) (define-values (x) -1))")
+    l2 = make_instance("(linklet ((x)) (g) (define-values (g) (lambda (p) x)))", [l1])
+    l3 = make_linklet("(linklet ((g)) (x) (set! x 5) (g 1000))")
+    t = make_instance("(linklet () () (define-values (x) 2000))")
+    result, t = eval(l3, t, [l2])
+    assert check_val(t, "x", 5)
+    assert result == -1
 
-    l7_inst = inst(make_linklet("(linklet () (h) (define-values (h) (hasheq \"a\" 4 \"b\" 5)))"))
-    l8 = make_linklet("(linklet ((h)) (h2) (define-values (h2) (hash-copy h)) (hash-ref h2 \"b\"))")
-    targ4_inst = inst(make_linklet("(linklet () ())"))
-    result5 = inst(l8, [l7_inst], target=targ4_inst)
-    assert result5.value == 5
-    l9 = make_linklet("(linklet ((h2)) () (hash-ref h2 \"a\"))")
-    result6 = inst(l9, [targ4_inst], inst(make_linklet("(linklet () ())")))
-    assert result6.value == 4
+    l1 = make_instance("(linklet () (x) (define-values (x) -11))")
+    l2 = make_instance("(linklet ((x)) (g) (define-values (y) 131) (define-values (g) (lambda (p) (+ x y))) (set! y 71))", [l1])
+    l3 = make_linklet("(linklet ((g)) () (g -1))")
+    result, t = eval(l3, empty_target(), [l2])
+    assert result == 60
+
+    l1 = make_instance("(linklet () (x) (define-values (x) 1))")
+    l2 = make_linklet("(linklet ((x)) (y g) (define-values (y) 10) (define-values (g) (lambda (p) (+ x y))) (set! y 50))")
+    t1 = empty_target()
+    t2 = empty_target()
+    t3 = empty_target()
+    _, t1 = eval(l2, t1, [l1])
+    _, t2 = eval(l2, t2, [l1])
+    _, t3 = eval(l2, t3, [l1])
+
+    # at this point:
+    # t : {y:71, g:closure}
+    l3 = make_linklet("(linklet () (y g) (set! y 200) (g -1))")
+    result, t1 = eval(l3, t1)
+    assert result == 201 # result1530
+    # here's an interesting one:
+    assert check_val(t1, "y", 200)
+
+    # t2 : {y:71, g:closure}
+    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g -1))")
+    result, t2 = eval(l4, t2)
+    assert result == 91 # racket - result1531
+    assert check_val(t2, "y", 90)
+
+    # t3 : {y:71, g:closure}
+    l5 = make_linklet("(linklet () (g) (define-values (y) 90) (+ y (g -1)))")
+    result, t3 = eval(l5, t3)
+    assert result == 141 # racket - result1532
+    assert check_val(t3, "y", 50)
+
+@pytest.mark.linkl
+def test_instantiate_small_list():
+    # boxed immutable hash table (small-list.rkt)
+    l1 = make_instance("(linklet () (h) (define-values (h) (box (hasheq))))")
+    l2 = make_linklet("(linklet ((h)) () (set-box! h (hash-set (unbox h) \"a\" 5)) (hash-ref (unbox h) \"a\" #f))")
+    result, t = eval(l2, empty_target(), [l1])
+    assert result == 5
+    result, _ = eval(make_linklet("(linklet ((h)) () (hash-ref (unbox h) \"a\" #f))"), t, [l1])
+    assert result == 5
+
+@pytest.mark.linkl
+def test_instantiate_hashes():
+    l1 = make_instance("(linklet () (h) (define-values (h) (hasheq \"a\" 4 \"b\" 5)))")
+    l2 = make_linklet("(linklet ((h)) (h2) (define-values (h2) (hash-copy h)) (hash-ref h2 \"b\"))")
+    result, t = eval(l2, empty_target(), [l1])
+    assert result == 5
+    l3 = make_linklet("(linklet ((h2)) () (hash-ref h2 \"a\"))")
+    result, _ = eval(l3, empty_target(), [t])
+    assert result == 4
+
+    # hash-set! to target
+    t = make_instance("(linklet () () (define-values (h) (make-hasheq)))")
+    l1 = make_linklet("(linklet () (h) (hash-set! h \"k\" 150) (hash-set! h \"y\" 29))")
+    _, t = eval(l1, t)
+    l2 = make_linklet("(linklet () (h) (hash-set! h \"y\" 50) (hash-ref h \"k\"))")
+    result, t = eval(l2, t)
+    assert result == 150
+    l3 = make_linklet("(linklet () (h) (+ (hash-ref h \"k\") (hash-ref h \"y\")))")
+    result, _ = eval(l3, t)
+    assert result == 200
+
+    # hash-set! to imported instance
+    l1_use_later = make_instance("(linklet () (h) (define-values (h) (make-hasheq)))")
+    l2 = make_linklet("(linklet ((h)) () (hash-set! h \"a\" 5) (hash-set! h \"b\" 10) (hash-set! h \"c\" 20) (hash-ref h \"a\" #f))")
+    result, t = eval(l2, empty_target(), [l1_use_later])
+    assert result == 5
+    l3 = make_linklet("(linklet ((h)) () (hash-set! h \"c\" 200) (hash-ref h \"b\" #f))")
+    result, t = eval(l3, t, [l1_use_later])
+    assert result == 10
+    l4 = make_linklet("(linklet ((h)) () (hash-ref h \"c\" #f))")
+    result, t = eval(l4, t, [l1_use_later])
+    assert result == 200
+
+    # slightly more complicated
+    # l1_use_later has a hash-table "h" contains {a:5, b:10, c:200}
+    l10 = make_linklet("(linklet ((h)) (g) (define-values (g) (hash-copy h)) (hash-ref g \"c\"))")
+    result, t = eval(l10, empty_target(), [l1_use_later])
+    assert result == 200
+    l11 = make_linklet("(linklet () (g) (hash-set! g \"a\" -1) (hash-ref g \"b\"))")
+    result, t = eval(l11, t)
+    assert result == 10
+    l12 = make_linklet("(linklet () (g) (hash-ref g \"a\"))")
+    result, _ = eval(l12, t)
+    assert result == -1
 
 @pytest.mark.linkl
 def test_instantiate_lets_and_scopes():
-    l0 = make_linklet("(linklet () () (letrec-values (((fact) (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5)))")
-    targ0_inst = inst(make_linklet("(linklet () ())"))
-    result0 = inst(l0, [], target=targ0_inst)
-    assert result0.value == 120
+    l = make_linklet("(linklet () () (letrec-values (((fact) (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5)))")
+    result, _ = eval(l, empty_target())
+    assert result == 120
 
+    l1 = make_instance("(linklet () (add2) (define-values (add) (lambda (x) (lambda (y) (+ x y)))) (define-values (add2) (add 2)))")
+    l2 = make_linklet("(linklet ((add2)) () (add2 6))")
+    result, _ = eval(l2, empty_target(), [l1])
+    assert result == 8
+
+    l = make_linklet("(linklet () () ((((lambda (x) (lambda (x) (lambda (y) (+ x y)))) 1) 2) 3))")
+    result, _ = eval(l, empty_target())
+    assert result == 5
+
+    l = make_linklet("(linklet () () (let-values (((x) (let-values (((x) 2)) (+ x x)))) (+ x x)))")
+    result, _ = eval(l, empty_target())
+    assert result == 8
+
+@pytest.mark.fault
+def test_compilation_context_normalize_term():
     # Context.normalize_term might be faulty
-    # l1 = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) x))))")
-    # #import pdb;pdb.set_trace()
-    # result1 = inst(l1, [], target=targ0_inst)
-    # assert result1.value == 15
-    # l2 = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) (+ x (let-values (((x) 20) ((y) 21)) (+ x y)))))))")
-    # result2 = inst(l2, [], target=targ0_inst)
-    # assert result2.value == 56
+    l = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) x))))")
+    #import pdb;pdb.set_trace()
+    result, _ = eval(l, empty_target())
+    assert result == 15
 
-    l3_inst = inst(make_linklet("(linklet () (add2) (define-values (add) (lambda (x) (lambda (y) (+ x y)))) (define-values (add2) (add 2)))"))
-    l4 = make_linklet("(linklet ((add2)) () (add2 6))")
-    result3 = inst(l4, [l3_inst], target=targ0_inst)
-    assert result3.value == 8
-
-    l5 = make_linklet("(linklet () () ((((lambda (x) (lambda (x) (lambda (y) (+ x y)))) 1) 2) 3))")
-    result4 = inst(l5, [], target=targ0_inst)
-    assert result4.value == 5
-
-    l6 = make_linklet("(linklet () () (let-values (((x) (let-values (((x) 2)) (+ x x)))) (+ x x)))")
-    result5 = inst(l6, [], target=targ0_inst)
-    assert result5.value == 8
+    l = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) (+ x (let-values (((x) 20) ((y) 21)) (+ x y)))))))")
+    result, _ = eval(l, empty_target())
+    assert result == 56

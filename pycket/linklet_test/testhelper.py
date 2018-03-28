@@ -29,22 +29,40 @@ delete_temp_files = True
 
 def get_var_val(inst, id_str):
     # for getting uninterned symbols
-    for k,v in inst.defs.iteritems():
+    for k,v in inst.vars.iteritems():
         if id_str == k.tostring():
-            return k, v
+            return k, v.get_value_direct()
     raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
 
 def variables(inst):
     return get_instance_variable_names(inst) # W_Cons
 
 def defines(inst, name_str):
-    return inst.is_defined(W_Symbol.make(name_str))
+    return inst.has_var(W_Symbol.make(name_str))
 
 def get_val(inst, name_str):
-    return inst.get_val_of(values.W_Symbol.make(name_str))
+    return inst.lookup_var_value(values.W_Symbol.make(name_str))
 
-def inst(linkl_inst, imports=[], target=None):
-    return linkl_inst.instantiate(imports, None, target=target)
+def check_val(inst, var_str, val):
+    return get_val(inst, var_str).value == val
+
+def inst(linkl, imports=[], target=None):
+    return linkl.instantiate(imports, None, target=target)
+
+def eval(linkl, target, imports=[]):
+    # config is None
+    result = linkl.instantiate(imports, None, target=target)
+    # assumes result is W_Fixnum
+    if isinstance(result, values.W_Fixnum):
+        result = result.value
+    return result, target
+
+def empty_target():
+    # creates an empty target
+    return inst(make_linklet("(linklet () ())"))
+
+def make_instance(linkl_str, imports=[]):
+    return inst(make_linklet(linkl_str), imports)
 
 def make_linklet(linkl_str):
     #"(linklet () (x) (define-values (x) 4))"
