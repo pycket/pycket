@@ -1,6 +1,5 @@
 from rpython.rlib.runicode import unicode_encode_utf_8
-from rpython.rlib.objectmodel import specialize, r_dict
-from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
+from rpython.rlib.objectmodel import specialize
 from rpython.tool.pairtype import extendabletype
 
 # Union-Object to represent a json structure in a static way
@@ -106,7 +105,6 @@ class JsonString(JsonPrimitive):
     is_string = True
 
     def __init__(self, value):
-        assert value is not None
         self.value = value
 
     def tostring(self):
@@ -177,32 +175,8 @@ class FakeSpace(object):
     def newdict(self):
         return JsonObject({})
 
-    def newobject(self, d):
-        return JsonObject(d)
-
     def newlist(self, items):
         return JsonArray([])
-
-    def newint(self, intval):
-        return JsonInt(intval)
-
-    def newfloat(self, floatval):
-        return JsonFloat(floatval)
-
-    def newunicode(self, unicodeval):
-        return JsonString(unicodeval.encode('utf-8'))
-
-    def unicode_w(self, s):
-        assert isinstance(s, JsonString)
-        string = s.value_string()
-        return string.decode('utf-8')
-        # return str_decode_utf_8(string, len(string), 'strict')
-
-    def newtext(self, text):
-        return JsonString(text)
-
-    def newbytes(self, bytes):
-        return JsonString(bytes)
 
     def call_method(self, obj, name, arg):
         assert name == 'append'
@@ -218,47 +192,23 @@ class FakeSpace(object):
         assert isinstance(key, JsonString)
         d.value[key.value_string()] = value
 
-    def wrapunicode(self, x):
+    def newunicode(self, x):
         return JsonString(unicode_encode_utf_8(x, len(x), "strict"))
 
-    def wrapint(self, x):
+    def newint(self, x):
         return JsonInt(x)
 
-    def wrapfloat(self, x):
+    def newfloat(self, x):
         return JsonFloat(x)
-
-    def wrap(self, x):
-        if isinstance(x, int):
-            return JsonInt(x)
-        elif isinstance(x, float):
-            return JsonFloat(x)
-        return self.wrapunicode(unicode(x))
-    wrap._annspecialcase_ = "specialize:argtype(1)"
 
 fakespace = FakeSpace()
 
-from pypy.module._pypyjson.interp_decoder import JSONDecoder, slice_eq, slice_hash
+from pypy.module._pypyjson.interp_decoder import JSONDecoder
 
 class OwnJSONDecoder(JSONDecoder):
     def __init__(self, s):
         self.space = fakespace
-        self.s = s
-        # we put our string in a raw buffer so:
-        # 1) we automatically get the '\0' sentinel at the end of the string,
-        #    which means that we never have to check for the "end of string"
-        self.ll_chars = s + chr(0)
-        self.pos = 0
-        self.cache = r_dict(slice_eq, slice_hash)
-
-    def close(self):
-        pass
-
-    def _create_dict(self, d):
-        newdict = {}
-        for key, val in d.iteritems():
-            utf8 = unicode_encode_utf_8(key, len(key), "strict")
-            newdict[utf8] = val
-        return self.space.newobject(newdict)
+        JSONDecoder.__init__(self, fakespace, s)
 
     @specialize.arg(1)
     def _raise(self, msg, *args):
@@ -269,7 +219,7 @@ class OwnJSONDecoder(JSONDecoder):
         while self.ll_chars[i] in "+-0123456789.eE":
             i += 1
         self.pos = i
-        return self.space.wrap(float(self.getslice(start, i)))
+        return self.space.newfloat(float(self.getslice(start, i)))
 
     def decode_string(self, i):
         start = i
@@ -280,6 +230,7 @@ class OwnJSONDecoder(JSONDecoder):
             i += 1
             if ch == '"':
                 content_utf8 = self.getslice(start, i-1)
+                self.last_type = 1
                 self.pos = i
                 return JsonString(content_utf8)
             elif ch == '\\':
@@ -287,6 +238,9 @@ class OwnJSONDecoder(JSONDecoder):
                 return self.decode_string_escaped(start)
             elif ch < '\x20':
                 self._raise("Invalid control character at char %d", self.pos-1)
+
+    def _create_dict(self, d):
+        return JsonObject(d)
 
 
 
