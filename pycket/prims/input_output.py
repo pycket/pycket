@@ -1383,6 +1383,10 @@ expose_val("current-readtable", current_readtable_param)
 expose_val("current-output-port", current_out_param)
 expose_val("current-error-port", current_error_param)
 expose_val("current-input-port", current_in_param)
+# FIXME : get all these from the io linklet
+expose_val("current-get-interaction-input-port", current_in_param)
+expose_val("current-read-interaction", current_in_param)
+expose_val("current-prompt-read", current_in_param)
 
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)

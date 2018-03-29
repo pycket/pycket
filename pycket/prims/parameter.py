@@ -81,7 +81,6 @@ expose_val("parameterization-key", values.parameterization_key)
 expose_val("print-mpair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_false))
 expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_true))
-expose_val("current-read-interaction", values_parameter.W_Parameter(values.w_false))
 expose_val("read-accept-bar-quote", values_parameter.W_Parameter(values.w_false))
 expose_val("read-accept-compiled", values_parameter.W_Parameter(values.w_true))
 
