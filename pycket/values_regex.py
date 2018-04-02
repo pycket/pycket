@@ -57,14 +57,14 @@ class W_AnyRegexp(W_Object):
         self.ensure_compiled()
         start, end = rsre_core._adjust(start, end, len(s))
         if isinstance(s, unicode):
-            return rsre_core.UnicodeMatchContext(self.code, s, start, end, self.flags)
+            return rsre_core.UnicodeMatchContext(s, start, end, self.flags)
         assert isinstance(s, str)
-        return rsre_core.StrMatchContext(self.code, s, start, end, self.flags)
+        return rsre_core.StrMatchContext(s, start, end, self.flags)
 
     @specialize.argtype(1)
     def match_string(self, s, start=0, end=sys.maxint):
         ctx = self.make_ctx(s, start, end)
-        if not rsre_core.search_context(ctx):
+        if not rsre_core.search_context(ctx, self.code):
             return None
         return _extract_result(ctx, self.groupcount)
 
@@ -73,7 +73,7 @@ class W_AnyRegexp(W_Object):
         ctx = self.make_ctx(s, start, end)
         matchlist = []
         while ctx.match_start <= ctx.end:
-            if not rsre_core.search_context(ctx):
+            if not rsre_core.search_context(ctx, self.code):
                 break
             match = extract(ctx, self.groupcount)
             matchlist.append(match)
@@ -93,7 +93,7 @@ class W_AnyRegexp(W_Object):
     @specialize.argtype(1)
     def match_string_positions(self, s, start=0, end=sys.maxint):
         ctx = self.make_ctx(s, start, end)
-        if not rsre_core.search_context(ctx):
+        if not rsre_core.search_context(ctx, self.code):
             return None
         return _extract_spans(ctx, self.groupcount)
 
@@ -112,8 +112,8 @@ class W_AnyRegexp(W_Object):
             return _extract_result(ctx, self.groupcount)
         buf = PortBuffer(w_port)
         end = min(end, buf.getlength())
-        ctx = rsre_core.BufMatchContext(self.code, buf, 0, end, 0)
-        matched = rsre_core.search_context(ctx)
+        ctx = rsre_core.BufMatchContext(buf, 0, end, 0)
+        matched = rsre_core.search_context(ctx, self.code)
         if not matched:
             return None
         return _extract_result(ctx, self.groupcount)

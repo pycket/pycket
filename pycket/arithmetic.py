@@ -784,7 +784,7 @@ class __extend__(values.W_Flonum):
         return values.W_Flonum(round_double(self.value, 0, half_even=True))
 
     def arith_truncate(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         elif self.value < 0:
@@ -793,13 +793,13 @@ class __extend__(values.W_Flonum):
             return self.arith_floor()
 
     def arith_floor(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         return values.W_Flonum(float(math.floor(self.value)))
 
     def arith_ceiling(self):
-        from rpython.rlib.rfloat import isinf
+        from math import isinf
         if isinf(self.value):
             return self
         return values.W_Flonum(float(math.ceil(self.value)))
