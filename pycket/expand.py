@@ -422,6 +422,7 @@ def parse_path(p):
     if srcmod in (".", ".."):
         return None, arr
     if not ModTable.builtin(srcmod):
+        assert srcmod is not None
         srcmod = rpath.realpath(srcmod)
     return srcmod, path
 
@@ -517,6 +518,7 @@ class JsonLoader(object):
         modtable = self.modtable
         if modtable.builtin(fname):
             return VOID
+        assert fname is not None
         fname = rpath.realpath(fname)
         return Require(fname, self, path=path)
 

@@ -195,6 +195,15 @@ class FakeSpace(object):
     def newunicode(self, x):
         return JsonString(unicode_encode_utf_8(x, len(x), "strict"))
 
+    def newtext(self, x):
+        return JsonString(x)
+    newbytes = newtext
+
+    def unicode_w(self, s):
+        assert isinstance(s, JsonString)
+        string = s.value_string()
+        return string.decode('utf-8')
+
     def newint(self, x):
         return JsonInt(x)
 
@@ -239,7 +248,10 @@ class OwnJSONDecoder(JSONDecoder):
             elif ch < '\x20':
                 self._raise("Invalid control character at char %d", self.pos-1)
 
-    def _create_dict(self, d):
+    def _create_dict(self, dct):
+        d = {}
+        for key, value in dct.iteritems():
+            d[unicode_encode_utf_8(key, len(key), "strict")] = value
         return JsonObject(d)
 
 
