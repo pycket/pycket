@@ -32,10 +32,12 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
     s = w_s.as_str_utf8()
     try:
         if "." in s:
+            if not radix.equal(values.W_Fixnum(10)): # FIXME
+                raise SchemeException("Floats with base different than 10 are not supported yet")
             return values.W_Flonum(rfloat.string_to_float(s))
         else:
             try:
-                return values.W_Fixnum(rarithmetic.string_to_int(s, base=10))
+                return values.W_Fixnum(rarithmetic.string_to_int(s, base=radix.toint()))
             except ParseStringOverflowError:
                 return values.W_Bignum(rbigint.rbigint.fromstr(s))
     except ParseStringError as e:
