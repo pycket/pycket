@@ -15,6 +15,7 @@ from pycket.interpreter import DefineValues, interpret_one, Context, return_valu
 from pycket.assign_convert import assign_convert
 from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag, parameterization_key, W_ImmutableBytes, W_VariableReference, W_Cell
 from pycket.values_string import W_String
+from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
 from pycket import pycket_json
 from pycket.prims.expose import prim_env, expose, default
@@ -155,7 +156,7 @@ class W_Linklet(W_Object):
 
         return "#(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
 
-    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
+    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=False, target=None, cont_params=None):
 
         l_importss = len(self.importss)
         l_given_instances = len(w_imported_instances)
@@ -165,13 +166,13 @@ class W_Linklet(W_Object):
 
         if not target:
             used_instance = W_LinkletInstance(self.name, {})
-            inst, ret_val = self.do_instantiate(w_imported_instances, config, False, prompt=prompt, target=used_instance, cont_params=cont_params)
+            inst, ret_val = self.do_instantiate(w_imported_instances, config, False, prompt, target=used_instance, cont_params=cont_params)
             return inst
 
         _, ret_val = self.do_instantiate(w_imported_instances, config, True, prompt, target, cont_params)
         return ret_val
     
-    def do_instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=True, target=None, cont_params=None):
+    def do_instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=False, target=None, cont_params=None):
 
         """ Instantiates the linklet:
 
@@ -193,6 +194,8 @@ class W_Linklet(W_Object):
         cont = NilCont()
         if prompt:
             cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
+
+        cont.update_cm(parameterization_key, top_level_config)
 
         """
         Process the imports, get them into the toplevel environment
@@ -527,7 +530,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is W_Symbol.make("set!"):
             if is_imported(form.cdr().car(), linkl_importss):
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
-            var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, True, name)
+            var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref=True, name=name)
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             assert isinstance(var, Var)
             form = SetBang(var, rhs)
@@ -544,12 +547,12 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             els = sexp_to_ast(els_w, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             form = If.make(tst, thn, els)
         else:
-            form_inner = sexp_to_ast(form.car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions)
+            form_rator = sexp_to_ast(form.car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref)
 
             rands_ls = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for r in rands_ls]
                     
-            form = App.make(form_inner, rands)
+            form = App.make(form_rator, rands)
     else:
         raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
 
