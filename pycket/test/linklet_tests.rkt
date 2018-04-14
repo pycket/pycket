@@ -484,6 +484,61 @@
   (check-eq? result 8))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Letrec RHS cells
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(test-case "letrec rhs cells"
+  (define l1 (compile-linklet
+             '(linklet () ()
+                       (define-values (k)
+                         (lambda (stx_32)
+                           (letrec-values (
+                                           [(e) 1]
+                                           [(x) (+ stx_32 e)]
+                                           )
+                             x)))
+                       (k 5))))
+  (define result1 (instantiate-linklet l1 null (empty-target)))
+  (check-eq? result1 6))
+
+(test-case ""
+  (define l2 (compile-linklet
+             '(linklet () ()
+                       (define-values (k)
+                         (lambda (stx_32)
+                           (letrec-values (
+                                           [(e) 1]
+                                           [(x) (+ stx_32 e)]
+                                           [(p) ((lambda (x) x) x)]
+                                           )
+                             p)))
+                       (k 5))))
+  (define result2 (instantiate-linklet l2 null (empty-target)))
+  (check-eq? result2 6)
+)
+
+(test-case "deep"
+  (define l2 (compile-linklet
+             '(linklet () ()
+                       (define-values (k)
+                         (lambda (stx_32)
+                           (letrec-values (
+                                           ((e) 1)
+                                           ((x) (+ stx_32 e))
+                                           ((p) ((lambda (x)
+                                                   (letrec-values
+                                                       (
+                                                        ((u) e)
+                                                        )
+                                                     u)) x))
+                                           )
+                             p)))
+                       (k 5))))
+  (define result2 (instantiate-linklet l2 null (empty-target)))
+  (check-eq? result2 1)
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Context.normalize_term might be faulty
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

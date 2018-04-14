@@ -383,6 +383,20 @@ def test_instantiate_lets_and_scopes():
     result, _ = eval(l, empty_target())
     assert result == 8
 
+@pytest.mark.linkl
+def test_instantiate_letrec_rhs_cells():
+    l1 = make_linklet("(linklet () () (define-values (k) (lambda (stx_32) (letrec-values (((e) 1)((x) (+ stx_32 e))) x))) (k 5))")
+    result1, _ = eval(l1, empty_target())
+    assert result1 == 6
+
+    l2 = make_linklet("(linklet () () (define-values (k) (lambda (stx_32) (letrec-values (((e) 1)((x) (+ stx_32 e))((p) ((lambda (x) x) x))) p))) (k 5))")
+    result2, _ = eval(l2, empty_target())
+    assert result2 == 6
+
+    l3 = make_linklet("(linklet () () (define-values (k) (lambda (stx_32) (letrec-values (((e) 1)((x) (+ stx_32 e))((p) ((lambda (x) (letrec-values (((u) e)) u)) x))) p))) (k 5))")
+    result3, _ = eval(l3, empty_target())
+    assert result3 == 1
+
 @pytest.mark.fault
 def test_compilation_context_normalize_term():
     # Context.normalize_term might be faulty
