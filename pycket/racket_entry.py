@@ -221,7 +221,7 @@ def get_options(names, config):
     expr_strs = names['exprs'] if 'exprs' in names else []
     run_file_set = names['run-file'][0] if 'run-file' in names else ""
 
-    init_library = "racket/base" # racket/init
+    init_library = names['init-lib'][0] if 'init-lib' in names else "racket/base" # racket/init
     is_repl = config['repl']
     no_lib = config['no-lib']
 

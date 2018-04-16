@@ -22,6 +22,7 @@ def print_help(argv):
   -v, --version : Show version
 
  Configuration options:
+  -I <path> : Set <init-lib> to <path> (sets language)
   -N <file>, --name <file> : Sets `(find-system-path 'run-file)' to <file>
   --save-callgraph : save the jit output
 
@@ -163,6 +164,13 @@ def parse_args(argv):
                 retval = 3
         elif argv[i] in ["-v", "--version"]:
             config['version'] = True
+        elif argv[i] == "-I":
+            if to <= i + 1:
+                print "missing argument after -N"
+                retval = 5
+                break
+            i += 1
+            names['init-lib'] = [argv[i]]
         elif argv[i] == "-N":
             if to <= i + 1:
                 print "missing argument after -N"
@@ -179,7 +187,7 @@ def parse_args(argv):
                     names['req-file'].append(argv[i])
                 else:
                     names['req-file'] = [argv[i]]
-                names['run-file'] = [argv[i]]
+                #names['run-file'] = [argv[i]]
                 i += 1
                 retval = 0
             else:
