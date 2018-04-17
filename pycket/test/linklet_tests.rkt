@@ -538,6 +538,17 @@
   (check-eq? result2 1)
 )
 
+(test-case ""
+  (define l (compile-linklet
+             '(linklet
+               () ()
+               (let-values ()
+                 (letrec-values (((f) (lambda (p) (g (- p 1))))
+                                 ((g) (lambda (k) (if (zero? k) 1 (f k)))))
+                   (g 100))))))
+  (define result (instantiate-linklet l null (empty-target)))
+  (check-eq? result 1))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Context.normalize_term might be faulty
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

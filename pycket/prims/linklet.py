@@ -240,7 +240,6 @@ class W_Linklet(W_Object):
         gensym_count = 0
         return_values = w_void
         for form in self.forms:
-
             if isinstance(form, DefineValues):
                 expression = form.rhs
                 values = interpret_one(expression, env, cont).get_all_values()
@@ -412,6 +411,10 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disab
     formals_ls = to_rpython_list(formals)
     formals_ls.reverse() # FIXME : refactor the double reverse
 
+    for f in formals_ls:
+        if f in cell_ref:
+            cell_ref.remove(f)
+
     body = sexp_to_ast(lam_sexp.cdr().car(), formals_ls + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[], name=name)
     dummy = 1
     return make_lambda(formals_ls, rest, [body], SourceInfo(dummy, dummy, dummy, dummy, name))
@@ -428,25 +431,30 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
         raise SchemeException("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
     varss_rhss = to_rpython_list(let_sexp.cdr().car()) # a little inefficient but still..
+
     varss_list = [None] * len(varss_rhss)
     rhss_list = [None] * len(varss_rhss)
+    cells_for_the_body = list(cell_ref) if is_letrec else cell_ref
+    cells_for_the_rhss = list(cell_ref) if is_letrec else cell_ref
+    #import pdb;pdb.set_trace()
+    if is_letrec:
+        # populate lex_env // cell_refs for rhss ahead of time
+        for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
+            ids = to_rpython_list(rhs.car()) # (id ...)
+            cells_for_the_rhss += ids  #import pdb;pdb.set_trace()
+            lex_env += [i.get_obj() if isinstance(i, W_Correlated) else i for i in ids]
+
     num_ids = 0
     i = 0
-    # FIXME : refactor this part
-    cells_for_the_body = list(cell_ref)
-    cells_for_the_rhs = list(cell_ref)
     for w_vars_rhss in varss_rhss:
         varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
         varss_list[i] = varr
-        if is_letrec:
-            for varss in varss_list:
-                if varss is not None:
-                    lex_env += varss
+        # if is_letrec:
+        #     for varss in varss_list:
+        #         if varss is not None:
+        #             lex_env += varss
 
-        if is_letrec:
-            # then let's add the introduced names to the cell_ref list
-            cells_for_the_rhs += varr
-        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cells_for_the_rhs)
+        rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
         rhss_list[i] = rhsr
         i += 1
         num_ids += len(varr)
@@ -458,7 +466,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
             ids[index] = var_ # W_Symbol
             index += 1
 
-    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=cells_for_the_body)
+    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
 
     if len(ids) == 0:
         return Begin.make([body])
@@ -482,13 +490,10 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
     elif is_val_type(form):
         form = Quote(form)
     elif isinstance(form, W_Symbol):
-        # lexical?
-        if form in lex_env:
-            if form in cell_ref:
-                form = CellRef(form)
-            else:
-                form = LexicalVar(form)
-                #form.simple = False
+        if form in cell_ref:
+            form = CellRef(form)
+        elif form in lex_env:
+            form = LexicalVar(form)
         # toplevel linklet var
         elif is_imported(form, linkl_importss):
             form = LinkletVar(form, None, W_Symbol.make("constant"), is_imported=True)
@@ -537,7 +542,10 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is W_Symbol.make("set!"):
             if is_imported(form.cdr().car(), linkl_importss):
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())
-            cr = [form.cdr().car()] if not cell_ref else [form.cdr().car()] + cell_ref
+            cr = cell_ref
+            target = form.cdr().car()
+            if target in lex_env:
+                cr = [target] if not cr else [target] + cr
             var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref=cr, name=name)
             rhs = sexp_to_ast(form.cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             assert isinstance(var, Var)
@@ -645,6 +653,7 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             linkl_toplevel_defined_ids = extract_ids(body_forms_ls)
 
             _body_forms = [sexp_to_ast(b, [], exports, linkl_toplevel_defined_ids, importss_list) for b in body_forms_ls]
+
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):

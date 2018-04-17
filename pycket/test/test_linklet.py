@@ -397,6 +397,10 @@ def test_instantiate_letrec_rhs_cells():
     result3, _ = eval(l3, empty_target())
     assert result3 == 1
 
+    l4 = make_linklet("(linklet () () (let-values () (letrec-values (((f) (lambda (p) (g (- p 1)))) ((g) (lambda (k) (if (zero? k) 1 (f k))))) (g 100))))")
+    result4, _ = eval(l4, empty_target())
+    assert result4 == 1
+
 @pytest.mark.fault
 def test_compilation_context_normalize_term():
     # Context.normalize_term might be faulty
