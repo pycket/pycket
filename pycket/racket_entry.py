@@ -10,7 +10,7 @@ DEBUG = True
 def load_bootstrap_linklets(pycketconfig):
 
     if DEBUG:
-        print("\n\nLoading the expander linklet... \n")
+        print("\nLoading the expander linklet... \n")
     # load the expander linklet
     expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet",pycketconfig)
     expander_instance.provide_all_exports_to_prim_env()
@@ -82,7 +82,7 @@ def namespace_require_kernel(pycketconfig, sysconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set = get_options(names, config)
+    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel = get_options(names, config)
 
     sysconfig = initiate_boot_sequence(pycketconfig, command_line_arguments)
 
@@ -94,17 +94,22 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
             raise Exception("File not found : %s" % run_file_set)
         sysconfig['run-file'] = run_file_set
 
-    if not no_lib:
-        if init_library == "kernel":
-            init_lib = W_WrappedConsProper.make(W_Symbol.make("quote"),
-                                                W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
-        else:
-            init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                                W_WrappedConsProper.make(W_String.make(init_library), w_null))
+    if just_kernel:
+        initialize_with = W_WrappedConsProper.make(W_Symbol.make("quote"),
+                                                   W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
         if DEBUG:
-            print("\n(namespace-require %s) ... done\n\n" % init_lib.tostring())
+            print("\nRunning on just the #%kernel\n")
+        namespace_require.call_interpret([initialize_with], pycketconfig, sysconfig)
+
+    if not no_lib:
+        init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                            W_WrappedConsProper.make(W_String.make(init_library), w_null))
+        if DEBUG:
+            print("\n(namespace-require %s) ..." % init_lib.tostring())
 
         namespace_require.call_interpret([init_lib], pycketconfig, sysconfig)
+        if DEBUG:
+            print("... done \n")
 
     if require_files: # -t
         for require_file in require_files:
@@ -224,8 +229,11 @@ def get_options(names, config):
     init_library = names['init-lib'][0] if 'init-lib' in names else "racket/base" # racket/init
     is_repl = config['repl']
     no_lib = config['no-lib']
+    just_kernel = config['just_kernel']
 
-    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set
+    if DEBUG:
+        print("\nOptions : \nrequire_files : %s\nrequire_libs : %s\nload_files : %s\nexpr_strs : %s\nrun_file_set : %s\ninit_library : %s\nis_repl : %s\nno_lib : %s\njust-#%%kernel : %s\n" % (require_files, require_libs, load_files, expr_strs, run_file_set, init_library, is_repl, no_lib, just_kernel))
+    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel
 
 
 # maybe we should move this to testhelpers

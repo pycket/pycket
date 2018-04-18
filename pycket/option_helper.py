@@ -22,6 +22,7 @@ def print_help(argv):
   -v, --version : Show version
 
  Configuration options:
+  --kernel : ignore everything, only load the #%%kernel (for development purposes)
   -I <path> : Set <init-lib> to <path> (sets language)
   -N <file>, --name <file> : Sets `(find-system-path 'run-file)' to <file>
   --save-callgraph : save the jit output
@@ -40,7 +41,8 @@ def parse_args(argv):
         'repl' : False,
         'no-lib' : False,
         'version' : False,
-        'stop' : False
+        'stop' : False,
+        'just_kernel' : False
     }
     names = {
         # 'file': "",
@@ -164,9 +166,13 @@ def parse_args(argv):
                 retval = 3
         elif argv[i] in ["-v", "--version"]:
             config['version'] = True
+        elif argv[i] == "--kernel":
+            config['just_kernel'] = True
+            config['no-lib'] = True
+            retval = 0
         elif argv[i] == "-I":
             if to <= i + 1:
-                print "missing argument after -N"
+                print "missing argument after -I"
                 retval = 5
                 break
             i += 1
