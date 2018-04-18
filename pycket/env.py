@@ -106,6 +106,9 @@ class GlobalConfig(object):
     def __init__(self):
         self.config = None
 
+    def get_config(self):
+        return self.config
+
     def lookup(self, s):
         return self.config.get(s, None)
 

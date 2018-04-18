@@ -1800,12 +1800,16 @@ class W_StringInputPort(W_InputPort):
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file', 'read_handler']
+    _attrs_ = ['closed', 'file', 'read_handler', 'stdin']
 
-    def __init__(self, f):
+    def __init__(self, f, stdin=False):
         self.closed = False
         self.file = f
         self.read_handler = None
+        self.stdin = stdin
+
+    def is_stdin(self):
+        return self.stdin
 
     def close(self):
         self.closed = True
@@ -1829,9 +1833,13 @@ class W_FileInputPort(W_InputPort):
         if offset < len(string):
             # fast path:
             return string[offset]
-        pos = self.file.tell()
-        res = self.file.read(1)
-        self.file.seek(pos, 0)
+
+        if self.is_stdin():
+            res = self.file.read(1)
+        else:
+            pos = self.file.tell()
+            res = self.file.read(1)
+            self.file.seek(pos, 0)
         return res
 
     def seek(self, offset, end=False):
@@ -1854,11 +1862,15 @@ class W_FileInputPort(W_InputPort):
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file']
+    _attrs_ = ['closed', 'file', 'stdout']
 
-    def __init__(self, f):
+    def __init__(self, f, stdout=False):
         self.closed = False
         self.file = f
+        self.stdout = stdout
+
+    def is_stdout(self):
+        return self.stdout
 
     def write(self, str):
         self.file.write(str)

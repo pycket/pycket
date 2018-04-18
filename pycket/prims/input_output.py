@@ -17,11 +17,33 @@ from pycket              import values_parameter
 from pycket              import values_struct
 from pycket              import values_string
 from pycket.error        import SchemeException
-from pycket.prims.expose import default, expose, expose_val, procedure
+from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
 from sys import platform
 
 import os
+
+############################ Values and Parameters
+
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), stdin=True)
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), stdout=True)
+stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), stdout=True)
+
+expose_val("eof", values.eof_object)
+
+current_out_param = values_parameter.W_Parameter(stdout_port)
+current_error_param = values_parameter.W_Parameter(stderr_port)
+current_in_param = values_parameter.W_Parameter(stdin_port)
+current_readtable_param = values_parameter.W_Parameter(values.w_false)
+
+# FIXME : get all these from the io linklet
+expose_val("current-readtable", current_readtable_param)
+expose_val("current-output-port", current_out_param)
+expose_val("current-error-port", current_error_param)
+expose_val("current-input-port", current_in_param)
+expose_val("current-get-interaction-input-port", values_parameter.W_Parameter(stdin_port))
+expose_val("current-read-interaction", values_parameter.W_Parameter(stdin_port))
+
 
 class Token(W_ProtoObject):
     _attrs_ = []
@@ -343,6 +365,8 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     i = ord(c[0])
     if as_bytes:
         return return_value(values.W_Fixnum(i), env, cont)
+    elif w_port.is_stdin():
+        return return_value(values.W_Character(c[0]), env, cont)
     else:
         # hmpf, poking around in internals
         needed = utf8_code_length(i)
@@ -412,8 +436,10 @@ def peek_char_or_special(w_port, w_skip, special_wrap, source_name, env, cont):
         return get_input_port(w_port, env, cont)
     except UnicodeDecodeError:
         raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
-    
-@expose("peek-char", [default(values.W_Object, None),
+
+
+
+@expose("peek-char", [default(values.W_InputPort, stdin_port),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
@@ -1075,7 +1101,6 @@ def flush_output(port, env, cont):
     port.flush()
     return return_void(env, cont)
 
-
 def cur_print_proc(args, env, cont, extra_call_info):
     from pycket.interpreter import return_value
     v = args[0]
@@ -1086,13 +1111,15 @@ def cur_print_proc(args, env, cont, extra_call_info):
     return return_void(env, cont)
 
 standard_printer = values.W_Prim("current-print", cur_print_proc)
-
-string_sym  = values.W_Symbol.make("string")
+current_print_param = values_parameter.W_Parameter(standard_printer)
+expose_val("current-print", current_print_param)
 
 @expose(["open-output-string", "open-output-bytes"], [])
 def open_output_string():
     # FIXME: actual implementation for bytes and string
     return values.W_StringOutputPort()
+
+string_sym  = values.W_Symbol.make("string")
 
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
 def open_input_bytes(bstr, name):
@@ -1363,30 +1390,35 @@ def shutdown(env):
     # called before the interpreter exits
     stdout_port.flush()
 
-############################ Values and Parameters
+@make_procedure("mock-prompt-thunk", [], arity=Arity.ZERO, simple=False)
+def mock_prompt_thunk(env, cont):
+    return mock_prompt_thunk_worker(env, cont)
 
-expose_val("eof", values.eof_object)
+# to be able to call it internally
+def mock_prompt_thunk_worker(env, cont):
+    """
+    (lambda ()
+    (display "> ")
+    (let ([in ((current-get-interaction-input-port))])
+    ((current-read-interaction) (object-name in) in)))"""
 
-current_print_param = values_parameter.W_Parameter(standard_printer)
-expose_val("current-print", current_print_param)
+    sysconfig = env.toplevel_env().globalconfig.get_config()
+    pycketconfig = env.toplevel_env()._pycketconfig
+    from pycket.interpreter import return_value
 
-# line buffer stdout
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
-stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1))
-stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
-current_out_param = values_parameter.W_Parameter(stdout_port)
-current_error_param = values_parameter.W_Parameter(stderr_port)
-current_in_param = values_parameter.W_Parameter(stdin_port)
-current_readtable_param = values_parameter.W_Parameter(values.w_false)
-expose_val("current-readtable", current_readtable_param)
+    stdout_port.write("> ")
 
-expose_val("current-output-port", current_out_param)
-expose_val("current-error-port", current_error_param)
-expose_val("current-input-port", current_in_param)
-# FIXME : get all these from the io linklet
-expose_val("current-get-interaction-input-port", current_in_param)
-expose_val("current-read-interaction", current_in_param)
-expose_val("current-prompt-read", current_in_param)
+    from pycket.racket_entry import get_primitive
+    rs = get_primitive("read-syntax")
+    obj_name = values.W_Symbol.make("readline-input")
+
+    return return_value(rs.call_interpret([obj_name, stdin_port], pycketconfig, sysconfig), env, cont)
+
+
+@expose("current-prompt-read", [], simple=True)
+def mock_current_prompt_read():
+    return mock_prompt_thunk
+
 
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)
