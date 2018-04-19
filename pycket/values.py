@@ -179,6 +179,7 @@ class W_ContinuationPromptTag(W_Object):
         return "#<continuation-prompt-tag:%s>" % name
 
 w_default_continuation_prompt_tag = W_ContinuationPromptTag(None)
+w_root_continuation_prompt_tag = W_ContinuationPromptTag(None)
 
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
