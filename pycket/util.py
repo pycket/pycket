@@ -7,6 +7,10 @@ import string
 from rpython.rlib        import jit, objectmodel
 from rpython.rlib.unroll import unrolling_iterable
 
+def console_log(print_str, debug):
+    if debug:
+        print("\n%s\n" % (print_str))
+
 def snake_case(str):
     if not str:
         return str

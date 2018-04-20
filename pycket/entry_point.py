@@ -48,8 +48,8 @@ def make_entry_point(pycketconfig=None):
 
         config, names, args, retval = parse_args(argv)
 
-        if config['version']:
-            print "Welcome to Pycket\n"
+        # if config['version']:
+        #     print "Welcome to Pycket\n"
 
         if retval != 0 or config is None:
             return retval
@@ -58,7 +58,8 @@ def make_entry_point(pycketconfig=None):
 
         if 'json-linklets' in names:
             for linkl_json in names['json-linklets']:
-                load_inst_linklet_json(linkl_json, pycketconfig)
+                vvv = config['verbose']
+                load_inst_linklet_json(linkl_json, pycketconfig, vvv)
 
         if 'linklet-file' in names:
             run_linklet_file(names['linklet-file'][0], pycketconfig, current_cmd_args)

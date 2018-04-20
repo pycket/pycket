@@ -28,6 +28,7 @@ def print_help(argv):
   --save-callgraph : save the jit output
 
  Meta options:
+  --verbose : Print the debug logs.
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
   -- : No argument following this switch is used as a switch
@@ -36,25 +37,182 @@ Default options:
  If only an argument is specified, it is loaded and evaluated
 """ % (argv[0])
 
+file_expr_opts = ["-e", "--eval",
+                  "-f", "--load",
+                  "-t", "--require",
+                  "-l", "--lib",
+                  "-r", "--script",
+                  "-u", "--require-script",
+                  "-g", "--eval-json",
+                  "-gg"]
+inter_opts = ["-i", "--repl",
+              "-n", "--no-lib",
+              "-v", "--version"]
+conf_opts = ["--kernel", "-I", "-N", "--name", "--save-callgraph"]
+meta_opts = ["--verbose", "--jit", "-h"]
+
+all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
+
+def add_name(names, name, val):
+    if name in names:
+        names[name].append(val)
+    else:
+        names[name] = [val]
+
 def parse_args(argv):
+    INIT = -1
+    RETURN_OK = 0
+    MISSING_ARG = 5
+    JUST_EXIT = 3
+
     config = {
         'repl' : False,
         'no-lib' : False,
         'version' : False,
         'stop' : False,
-        'just_kernel' : False
+        'just_kernel' : False,
+        'verbose' : False
     }
     names = {
         # 'file': "",
         # 'exprs': "",
     }
     args = []
-    retval = -1
+    retval = INIT
     i = 1
     to = len(argv)
     while i < to:
         if False:
             pass
+
+        elif argv[i] in ["-e", "--eval"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            i += 1
+            add_name(names, 'exprs', argv[i])
+            retval = RETURN_OK
+
+        elif argv[i] in ["-f", "--load", "-r", "--script"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            if argv[i] in ["r", "--script"]:
+                names['run-file'] = [argv[i]]
+
+            i += 1
+            add_name(names, 'load-file', argv[i])
+            retval = RETURN_OK
+
+        elif argv[i] in ["-t", "--require", "-u", "--require-script"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            if argv[i] in ["-u", "--require-script"]:
+                names['run-file'] = [argv[i]]
+
+            i += 1
+            add_name(names, 'req-file', argv[i])
+
+            config['no-lib'] = True
+            retval = RETURN_OK
+
+        elif argv[i] in ["-l", "--lib"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            i += 1
+            add_name(names, 'req-lib', argv[i])
+
+            config['no-lib'] = True
+            retval = RETURN_OK
+
+        elif argv[i] in ["-g", "-gg", "--eval-json"]:
+            if argv[i] == "-gg":
+                config['stop'] = True
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            i += 1
+            add_name(names, 'json-linklets', argv[i])
+
+            config['no-lib'] = True
+            retval = RETURN_OK
+
+        elif argv[i] in ["--linklet"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+
+            i += 1
+            names['linklet-file'] = [argv[i]]
+            config['stop'] = True
+            retval = RETURN_OK
+
+        #########################
+        # Interaction Options
+        #########################
+
+        elif argv[i] in ["-i", "--repl"]:
+            config['repl'] = True
+            config['version'] = True
+            retval = RETURN_OK
+
+        elif argv[i] in ["-n", "--no-lib"]:
+            config['no-lib'] = True
+            if retval == INIT:
+                retval = JUST_EXIT
+
+        elif argv[i] in ["-v", "--version"]:
+            config['version'] = True
+
+        #########################
+        # Configuration Options
+        #########################
+
+        elif argv[i] == "--kernel":
+            config['just_kernel'] = True
+            config['no-lib'] = True
+            retval = RETURN_OK
+
+        elif argv[i] == "-I":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after -I"
+                retval = MISSING_ARG
+                break
+            i += 1
+            names['init-lib'] = [argv[i]]
+
+        elif argv[i] == "-N":
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after -N"
+                retval = MISSING_ARG
+                break
+            i += 1
+            names['run-file'] = [argv[i]]
+
+        elif argv[i] == '--save-callgraph':
+            config['save-callgraph'] = True
+
+        #########################
+        # Meta Options
+        #########################
+
+        elif argv[i] == "--verbose":
+            config['verbose'] = True
+            retval = RETURN_OK
+
         elif argv[i] == "--jit":
             if to <= i + 1:
                 print "missing argument after --jit"
@@ -63,149 +221,32 @@ def parse_args(argv):
             i += 1
             jitarg = argv[i]
             jit.set_user_param(None, jitarg)
-        elif argv[i] in ["-h", "--help", "/?", "-?", "/h", "/help"]:
-            print_help(argv)
-            if retval == -1:
-                retval = 3
+
         elif argv[i] == "--":
             i += 1
             break
-        elif argv[i] in ["-e", "--eval"]:
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
 
-            i += 1
-            if 'exprs' in names:
-                names['exprs'].append(argv[i])
-            else:
-                names['exprs'] = [argv[i]]
-
-            retval = 0
-        elif argv[i] in ["-f", "--load", "-r", "--script"]:
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
-
-            if argv[i] in ["r", "--script"]:
-                names['run-file'] = [argv[i]]
-
-            i += 1
-            if 'load-file' in names:
-                names['load-file'].append(argv[i])
-            else:
-                names['load-file'] = [argv[i]]
-
-            retval = 0
-        elif argv[i] in ["-t", "--require", "-u", "--require-script"]:
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
-
-            if argv[i] in ["-u", "--require-script"]:
-                names['run-file'] = [argv[i]]
-
-            i += 1
-            if 'req-file' in names:
-                names['req-file'].append(argv[i])
-            else:
-                names['req-file'] = [argv[i]]
-
-            config['no-lib'] = True
-            retval = 0
-        elif argv[i] in ["-l", "--lib"]:
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
-
-            i += 1
-            if 'req-lib' in names:
-                names['req-lib'].append(argv[i])
-            else:
-                names['req-lib'] = [argv[i]]
-
-            config['no-lib'] = True
-            retval = 0
-        elif argv[i] in ["--linklet"]:
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
-
-            i += 1
-            names['linklet-file'] = [argv[i]]
-            config['stop'] = True
-            retval = 0
-        elif argv[i] in ["-g", "-gg", "--eval-json"]:
-            if argv[i] == "-gg":
-                config['stop'] = True
-            if to <= i + 1:
-                print "missing argument after %s" % argv[i]
-                retval = 5
-                break
-
-            i += 1
-            if 'json-linklets' in names:
-                names['json-linklets'].append(argv[i])
-            else:
-                names['json-linklets'] = [argv[i]]
-
-            config['no-lib'] = True
-            retval = 0
-        elif argv[i] in ["-i", "--repl"]:
-            config['repl'] = True
-            config['version'] = True
-            retval = 0
-        elif argv[i] in ["-n", "--no-lib"]:
-            config['no-lib'] = True
-            if retval == -1:
-                retval = 3
-        elif argv[i] in ["-v", "--version"]:
-            config['version'] = True
-        elif argv[i] == "--kernel":
-            config['just_kernel'] = True
-            config['no-lib'] = True
-            retval = 0
-        elif argv[i] == "-I":
-            if to <= i + 1:
-                print "missing argument after -I"
-                retval = 5
-                break
-            i += 1
-            names['init-lib'] = [argv[i]]
-        elif argv[i] == "-N":
-            if to <= i + 1:
-                print "missing argument after -N"
-                retval = 5
-                break
-            i += 1
-            names['run-file'] = [argv[i]]
-        elif argv[i] == '--save-callgraph':
-            config['save-callgraph'] = True
+        elif argv[i] in ["-h", "--help", "/?", "-?", "/h", "/help"]:
+            print_help(argv)
+            if retval == INIT:
+                retval = JUST_EXIT
 
         else:
             if '.rkt' in argv[i]:
-                if 'req-file' in names:
-                    names['req-file'].append(argv[i])
-                else:
-                    names['req-file'] = [argv[i]]
-                #names['run-file'] = [argv[i]]
+                add_name(names, 'req-file', argv[i])
+
                 i += 1
-                retval = 0
+                retval = RETURN_OK
             else:
                 print "Bad switch : %s" % argv[i]
-                retval = 5
+                retval = MISSING_ARG
             break
         i += 1
 
-    if retval == -1:
+    if retval == INIT:
         config['repl'] = True
         config['version'] = True
-        retval = 0
+        retval = RETURN_OK
 
     if i <= to: #pending args
         args = argv[i:to]

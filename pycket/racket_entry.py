@@ -4,42 +4,36 @@ from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Value
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
+from pycket.util import console_log
 
 DEBUG = True
 
-def load_bootstrap_linklets(pycketconfig):
+def load_bootstrap_linklets(pycketconfig, debug=False):
 
-    if DEBUG:
-        print("\nLoading the expander linklet... \n")
+    console_log("Loading the expander linklet...", debug)
+
     # load the expander linklet
-    expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet",pycketconfig)
+    expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet", pycketconfig, debug)
     expander_instance.provide_all_exports_to_prim_env()
-    if DEBUG:
-        print("\nExpander loading complete.\n")
 
-    # Let's stick with the curent regexp-match for now
-    # load the regexp linklet
-    # regexp_linkl, sys_c = W_Linklet.load_linklet("regexp.rktl", reader)
-    # regexp_instance = regexp_linkl.instantiate([], config=pycketconfig)
-    # regexp_instance.provide_all_exports_to_prim_env()
+    console_log("Expander loading complete.", debug)
 
     return sys_config
 
-def load_inst_linklet_json(json_file_name, pycketconfig):
+def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
 
-    if DEBUG:
-        print("\nLoading linklet from %s\n" % json_file_name)
+    console_log("Loading linklet from %s" % json_file_name, debug)
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
-    if DEBUG:
-        print("\nInstantiating %s ...."  % json_file_name)
+
+    console_log("Instantiating %s ...."  % json_file_name, debug)
     linkl_instance = linkl.instantiate([], config=pycketconfig)
-    if DEBUG:
-        print("DONE.\n")
+
+    console_log("DONE.", debug)
     return linkl_instance, sys_config
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments):
+def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False):
 
-    sysconfig = load_bootstrap_linklets(pycketconfig)
+    sysconfig = load_bootstrap_linklets(pycketconfig, debug)
 
     # Set the cmd arguments for racket
     ccla = get_primitive("current-command-line-arguments")
@@ -49,8 +43,8 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments):
     # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
     # things like '#%kernel really)
 
-    if DEBUG:
-        print("\nEntering Boot Sequence\n")
+    console_log("Entering Boot Sequence", debug)
+
     boot = get_primitive("boot")
     boot.call_interpret([], pycketconfig, sysconfig)
 
@@ -68,23 +62,25 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments):
     ucfp = get_primitive("use-compiled-file-paths")
     ucfp.call_interpret([w_null], pycketconfig, sysconfig)
 
-    if DEBUG:
-        print("...Boot Sequence Complete\n\n")
+    console_log("...Boot Sequence Complete", debug)
 
     return sysconfig
 
 # temporary
-def namespace_require_kernel(pycketconfig, sysconfig):
-    namespace_require = get_primitive("namespace-require")
+def namespace_require_kernel(namespace_require, pycketconfig, sysconfig):
     kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
                                       W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
     namespace_require.call_interpret([kernel], pycketconfig, sysconfig)
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel = get_options(names, config)
+    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel, debug, version = get_options(names, config)
 
-    sysconfig = initiate_boot_sequence(pycketconfig, command_line_arguments)
+    sysconfig = initiate_boot_sequence(pycketconfig, command_line_arguments, debug)
+
+    if version:
+        v = sysconfig["version"]
+        print("Welcome to Pycket v%s" % v)
 
     namespace_require = get_primitive("namespace-require")
 
@@ -95,21 +91,16 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         sysconfig['run-file'] = run_file_set
 
     if just_kernel:
-        initialize_with = W_WrappedConsProper.make(W_Symbol.make("quote"),
-                                                   W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
-        if DEBUG:
-            print("\nRunning on just the #%kernel\n")
-        namespace_require.call_interpret([initialize_with], pycketconfig, sysconfig)
+        console_log("Running on just the #%kernel", debug)
+        namespace_require_kernel(namespace_require, pycketconfig, sysconfig)
 
     if not no_lib:
         init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
                                             W_WrappedConsProper.make(W_String.make(init_library), w_null))
-        if DEBUG:
-            print("\n(namespace-require %s) ..." % init_lib.tostring())
+        console_log("(namespace-require %s) ..." % init_lib.tostring(), debug)
 
         namespace_require.call_interpret([init_lib], pycketconfig, sysconfig)
-        if DEBUG:
-            print("... done \n")
+        console_log("Init lib : %s loaded..." % init_library, debug)
 
     if require_files: # -t
         for require_file in require_files:
@@ -230,10 +221,11 @@ def get_options(names, config):
     is_repl = config['repl']
     no_lib = config['no-lib']
     just_kernel = config['just_kernel']
+    debug = config['verbose']
+    version = config['version']
 
-    if DEBUG:
-        print("\nOptions : \nrequire_files : %s\nrequire_libs : %s\nload_files : %s\nexpr_strs : %s\nrun_file_set : %s\ninit_library : %s\nis_repl : %s\nno_lib : %s\njust-#%%kernel : %s\n" % (require_files, require_libs, load_files, expr_strs, run_file_set, init_library, is_repl, no_lib, just_kernel))
-    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel
+    console_log("Options :\n \nrequire_files : %s\nrequire_libs : %s\nload_files : %s\nexpr_strs : %s\nrun_file_set : %s\ninit_library : %s\nis_repl : %s\nno_lib : %s\njust-#%%kernel : %s" % (require_files, require_libs, load_files, expr_strs, run_file_set, init_library, is_repl, no_lib, just_kernel), debug)
+    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel, debug, version
 
 
 # maybe we should move this to testhelpers
