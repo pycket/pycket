@@ -151,3 +151,10 @@ def correlated_property(stx, key, v):
         # setting
         stx.extend_prop(key, v)
         return stx
+
+_syntax_primitives = ["syntax?", "syntax-e", "syntax->datum",
+                      "datum->syntax", "syntax-source", "syntax-line",
+                      "syntax-column", "syntax-position", "syntax-span",
+                      "syntax-property-symbol-keys", "syntax-property"]
+
+syntax_primitives = [W_Symbol.make(f) for f in _syntax_primitives]

@@ -87,9 +87,10 @@ class W_LinkletInstance(W_Object):
         self.check_var_exists(name)
         self.vars[name].set(val, None, mode)
 
-    def provide_all_exports_to_prim_env(self):
+    def provide_all_exports_to_prim_env(self, excludes=[]):
         for name, var in self.vars.iteritems():
-            prim_env[name] = var.get_value_direct()
+            if name not in excludes:
+                prim_env[name] = var.get_value_direct()
 
     def lookup_var_value(self, name):
         var = self.get_var(name)

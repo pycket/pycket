@@ -5,6 +5,7 @@ from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log
+from pycket.prims.correlated import syntax_primitives
 
 DEBUG = True
 
@@ -14,7 +15,7 @@ def load_bootstrap_linklets(pycketconfig, debug=False):
 
     # load the expander linklet
     expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet", pycketconfig, debug)
-    expander_instance.provide_all_exports_to_prim_env()
+    expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
     console_log("Expander loading complete.", debug)
 
