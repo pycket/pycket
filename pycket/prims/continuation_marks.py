@@ -79,27 +79,23 @@ def cms_context(marks):
         [values.W_Object,
          values.W_Object,
          default(values.W_Object, values.w_false),
-         default(values.W_Object, values.w_root_continuation_prompt_tag)],
+         default(values.W_Object, values.w_default_continuation_prompt_tag)],
         simple=False)
 def cms_first(cms, key, missing, prompt_tag, env, cont):
     from pycket.interpreter import return_value
     is_cmk = isinstance(key, values.W_ContinuationMarkKey)
     m = imp.get_base_object(key) if is_cmk else key
 
-    pt = prompt_tag
-    if prompt_tag is values.w_root_continuation_prompt_tag and \
-       (key is not values.break_enabled_key and key is not values.parameterization_key):
-        pt = values.w_default_continuation_prompt_tag
-        # if the user didn't provide prompt-tag (we defaulted to the-root-cont-prompt-tag)
-        # stay at the-root-cont-prompt-tag only if the given key is either break-enabled or parameterization-key
-        # otherwise switch to default-cont-prompt-tag
+    if prompt_tag is values.w_default_continuation_prompt_tag and \
+       (key is values.break_enabled_key or key is values.parameterization_key):
+        prompt_tag = values.w_root_continuation_prompt_tag
 
     if cms is values.w_false:
         the_cont = cont
-        v = cont.get_mark_first(m, upto=[pt])
+        v = cont.get_mark_first(m, upto=[prompt_tag])
     elif isinstance(cms, values.W_ContinuationMarkSet):
         the_cont = cms.cont
-        v = cont.get_mark_first(m, upto=[pt, cms.prompt_tag])
+        v = cont.get_mark_first(m, upto=[prompt_tag, cms.prompt_tag])
     else:
         raise SchemeException("Expected #f or a continuation-mark-set")
     val = v if v is not None else missing
