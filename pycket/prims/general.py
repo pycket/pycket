@@ -18,7 +18,7 @@ from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_ta
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe, make_procedure)
 from pycket.prims.primitive_tables import *
-
+from pycket.racket_paths import racket_sys_paths
 
 from rpython.rlib         import jit, objectmodel, unroll
 from rpython.rlib.rsre    import rsre_re as re
@@ -397,13 +397,13 @@ def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
 def find_main_config():
     return values.w_false
 
-@expose("version", [], simple=False)
-def version(env, cont):
-    from pycket.interpreter import return_value
-    toplevel = env.toplevel_env()
-    version = toplevel.globalconfig.lookup("version")
-    result = values_string.W_String.fromascii("unknown version" if version is None else version)
-    return return_value(result, env, cont)
+@expose("version", [])
+def version():
+    from pycket.env import w_version
+
+    version = w_version.get_version()
+    return values_string.W_String.fromascii("unknown version" if version is None else version)
+
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -1274,14 +1274,9 @@ def env_var_ref(set, name):
 def check_for_break():
     return values.w_false
 
-@expose("find-system-path", [values.W_Symbol], simple=False)
-def find_sys_path(sym, env, cont):
-    from pycket.interpreter import return_value
-    v = env.toplevel_env().globalconfig.lookup(sym.utf8value)
-    if v:
-        return return_value(values.W_Path(v), env, cont)
-    else:
-        raise SchemeException("unknown system path %s" % sym.utf8value)
+@expose("find-system-path", [values.W_Symbol], simple=True)
+def find_sys_path(kind):
+    return racket_sys_paths.get_path(kind)
 
 @expose("find-main-collects", [])
 def find_main_collects():

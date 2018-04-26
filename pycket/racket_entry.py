@@ -33,8 +33,13 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
     return linkl_instance, sys_config
 
 def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False):
+    from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
+
+    v = sysconfig["version"]
+    console_log("Setting the version to %s" % v, debug)
+    w_version.set_version(v)
 
     # Set the cmd arguments for racket
     ccla = get_primitive("current-command-line-arguments")
@@ -80,8 +85,8 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     sysconfig = initiate_boot_sequence(pycketconfig, command_line_arguments, debug)
 
     if version:
-        v = sysconfig["version"]
-        print("Welcome to Pycket v%s" % v)
+        from pycket.env import w_version
+        print("Welcome to Pycket v%s" % w_version.get_version())
 
     namespace_require = get_primitive("namespace-require")
 

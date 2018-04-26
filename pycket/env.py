@@ -138,8 +138,17 @@ class Env(W_Object):
         return self.toplevel_env()._pycketconfig.pycket
 
 class Version(object):
-    pass
 
+    def __init__(self):
+        self.version = ""
+
+    def get_version(self):
+        return self.version
+
+    def set_version(self, new_version):
+        self.version = new_version
+
+w_version = Version()
 
 class ToplevelEnv(Env):
     _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance']
@@ -147,7 +156,7 @@ class ToplevelEnv(Env):
     def __init__(self, pycketconfig=None, current_linklet_instance=None):
         from rpython.config.config import Config
         self.bindings = {}
-        self.version = Version()
+        self.version = w_version
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
@@ -158,6 +167,9 @@ class ToplevelEnv(Env):
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
         self.current_linklet_instance = current_linklet_instance
+
+    def get_current_version(self):
+        return self.version
 
     def get_current_linklet_instance(self):
         return self.current_linklet_instance

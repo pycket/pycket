@@ -1,0 +1,237 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+import os
+from pycket.error import SchemeException
+from pycket import values
+#from pycket.env import w_version
+
+class RacketPaths(object):
+
+    def __init__(self):
+        self.paths = {}
+
+    def get_path(self, kind):
+        if not self.paths:
+            self.paths = self.initialize_paths()
+
+        if kind not in self.paths:
+            raise SchemeException("Path cannot be found for : %s" % kind.tostring())
+
+        return self.paths[kind]
+
+    # FIXME : to be used by entry to set paths from the command line (e.g. --collects)
+    def set_path(self, kind, path):
+        self.paths[kind] = path
+
+    def initialize_paths(self):
+        # FIXME : check absolute/relative paths
+        paths = {}
+
+        # Environment Variables
+        OS_ENV_VARS = os.environ
+        env_vars = OS_ENV_VARS.keys()
+
+        if "PLTHOME" not in env_vars and "PLTCOLLECTS" not in env_vars:
+            raise SchemeException("In order to locate the Racket installation, Pycket requires a `PLTHOME` environment variable to point to Racket directory. If Racket is installed in Unix-style, then you can just set a `PLTCOLLECTS` variable to point to the Racket `collects`.")
+
+        PLTHOME = OS_ENV_VARS["PLTHOME"] if "PLTHOME" in env_vars else ""
+        PLTCOLLECTS = OS_ENV_VARS["PLTCOLLECTS"] if "PLTCOLLECTS" in env_vars else ""
+
+        PLTUSERHOME = OS_ENV_VARS["PLTUSERHOME"] if "PLTUSERHOME" in env_vars else ""
+        HOME = OS_ENV_VARS["HOME"] if "HOME" in env_vars else ""
+        USER = OS_ENV_VARS["USER"] if "USER" in env_vars else ""
+        LOGNAME = OS_ENV_VARS["LOGNAME"] if "LOGNAME" in env_vars else ""
+        TMPDIR = OS_ENV_VARS["TMPDIR"] if "TMPDIR" in env_vars else ""
+        PLTCONFIGDIR = OS_ENV_VARS["PLTCONFIGDIR"] if "PLTCONFIGDIR" in env_vars else ""
+        PLTADDONDIR = OS_ENV_VARS["PLTADDONDIR"] if "PLTADDONDIR" in env_vars else ""
+
+        CURRENT_DIR = os.getcwd()
+
+        path_home_dir = values.W_Symbol.make("home-dir")
+        path_pref_dir = values.W_Symbol.make("pref-dir")
+        path_pref_file = values.W_Symbol.make("pref-file")
+        path_temp_dir = values.W_Symbol.make("temp-dir")
+        path_init_dir = values.W_Symbol.make("init-dir")
+        path_init_file = values.W_Symbol.make("init-file")
+        path_config_dir = values.W_Symbol.make("config-dir")
+        path_host_config_dir = values.W_Symbol.make("host-config-dir")
+        path_addon_dir = values.W_Symbol.make("addon-dir")
+        path_doc_dir = values.W_Symbol.make("doc-dir")
+        path_desk_dir = values.W_Symbol.make("desk-dir")
+        path_sys_dir = values.W_Symbol.make("sys-dir")
+        path_exec_file = values.W_Symbol.make("exec-file")
+        path_run_file = values.W_Symbol.make("run-file")
+        path_collects_dir = values.W_Symbol.make("collects-dir")
+        path_host_collects_dir = values.W_Symbol.make("host-collects-dir")
+        path_orig_dir = values.W_Symbol.make("orig-dir")
+
+        #############
+        # HOME
+        #############
+
+        W_PATH_HOME_DIR = ""
+        if PLTUSERHOME:
+            W_PATH_HOME_DIR = PLTUSERHOME
+        elif HOME:
+            W_PATH_HOME_DIR = HOME
+        elif USER:
+            W_PATH_HOME_DIR = USER
+        elif LOGNAME:
+            W_PATH_HOME_DIR = LOGNAME
+
+        paths[path_home_dir] = values.W_Path(W_PATH_HOME_DIR)
+
+        #############
+        # PREF-DIR
+        #############
+
+        W_PATH_PREF_DIR = ""
+        if W_PATH_HOME_DIR:
+            W_PATH_PREF_DIR = W_PATH_HOME_DIR + "/.racket"
+
+        paths[path_pref_dir] = values.W_Path(W_PATH_PREF_DIR)
+
+        #############
+        # PREF-FILE
+        #############
+
+        W_PATH_PREF_FILE = ""
+        if W_PATH_PREF_DIR:
+            W_PATH_PREF_FILE = W_PATH_PREF_DIR + "/racket-prefs.rktd"
+
+        paths[path_pref_file] = values.W_Path(W_PATH_PREF_FILE)
+
+        #############
+        # TEMP-DIR
+        #############
+
+        W_PATH_TEMP_DIR = ""
+        if TMPDIR:
+            W_PATH_TEMP_DIR = TMPDIR
+        elif os.path.exists("/var/tmp"):
+            W_PATH_TEMP_DIR = "/var/tmp"
+        elif os.path.exists("/usr/tmp"):
+            W_PATH_TEMP_DIR = "/usr/tmp"
+        elif os.path.exists("/tmp"):
+            W_PATH_TEMP_DIR = "/tmp"
+
+        paths[path_temp_dir] = values.W_Path(W_PATH_TEMP_DIR)
+
+        #############
+        # INIT-DIR
+        #############
+
+        W_PATH_INIT_DIR = W_PATH_HOME_DIR
+
+        paths[path_init_dir] = values.W_Path(W_PATH_INIT_DIR)
+
+        #############
+        # INIT-FILE -- startup file
+        #
+        # Unix and Mac OS: ".racketrc"
+        # Windows: "racketrc.rktl"
+        #############
+
+        W_PATH_INIT_FILE = ""
+        if W_PATH_INIT_DIR:
+            W_PATH_INIT_FILE = W_PATH_INIT_DIR + "/.racketrc"
+
+        paths[path_init_file] = values.W_Path(W_PATH_INIT_FILE)
+
+        #############
+        # CONFIG-DIR
+        # defaults to an "etc" directory relative to the current executable
+        # It might not exist
+        #############
+
+        W_PATH_CONFIG_DIR = ""
+        if PLTCONFIGDIR:
+            W_PATH_CONFIG_DIR = PLTCONFIGDIR
+        else:
+            W_PATH_CONFIG_DIR = CURRENT_DIR + "/etc"
+
+        paths[path_config_dir] = values.W_Path(W_PATH_CONFIG_DIR)
+
+        #############
+        # HOST-CONFIG-DIR
+        #############
+
+        W_PATH_HOST_CONFIG_DIR = W_PATH_CONFIG_DIR
+
+        paths[path_host_config_dir] = values.W_Path(W_PATH_HOST_CONFIG_DIR)
+
+        #############
+        # ADDON-DIR
+        #############
+
+        W_PATH_ADDON_DIR = W_PATH_PREF_DIR
+        if PLTADDONDIR:
+            W_PATH_ADDON_DIR = PLTADDONDIR
+
+        paths[path_addon_dir] = values.W_Path(W_PATH_ADDON_DIR)
+
+        #############
+        # DOC-DIR
+        #############
+
+        W_PATH_DOC_DIR = W_PATH_HOME_DIR
+
+        paths[path_doc_dir] = values.W_Path(W_PATH_DOC_DIR)
+
+        #############
+        # SYS-DIR
+        #############
+
+        W_PATH_SYS_DIR = "/"
+
+        paths[path_sys_dir] = values.W_Path(W_PATH_SYS_DIR)
+
+        #############
+        # EXEC-FILE
+        #############
+
+        # FIXME : get argv[0] from target args
+        W_PATH_EXEC_FILE = CURRENT_DIR + "/pycket-c"
+
+        paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
+
+        #############
+        # RUN-FILE
+        #############
+
+        W_PATH_RUN_FILE = W_PATH_EXEC_FILE
+
+        paths[path_run_file] = values.W_Path(W_PATH_RUN_FILE)
+
+        #############
+        # COLLECTS-DIR
+        #############
+        
+        if PLTHOME:
+            W_PATH_COLLECTS_DIR = PLTHOME + "/collects"
+        else:
+            W_PATH_COLLECTS_DIR = PLTCOLLECTS
+
+        paths[path_collects_dir] = values.W_Path(W_PATH_COLLECTS_DIR)
+
+        #############
+        # HOST-COLLECTS-DIR
+        #############
+
+        W_PATH_HOST_COLLECTS_DIR = W_PATH_COLLECTS_DIR
+
+        paths[path_host_collects_dir] = values.W_Path(W_PATH_HOST_COLLECTS_DIR)
+
+        #############
+        # ORIG-DIR
+        #############
+
+        W_PATH_ORIG_DIR = CURRENT_DIR
+
+        paths[path_orig_dir] = values.W_Path(W_PATH_ORIG_DIR)
+
+        #self.paths["version"] = w_version.get_version()
+        return paths
+
+# initialize at load
+racket_sys_paths = RacketPaths()

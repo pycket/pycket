@@ -16,19 +16,6 @@ On a Debian or Ubuntu system:
 
     $ sudo apt-get build-dep pypy
 
-You also need a reasonably recent version of Racket, at least version
-6.1.1. Then you need to set up the `pycket` language in Racket:
-
-    $ raco pkg install -t dir pycket/pycket-lang/
-
-Afterwards you can run the unit-tests as follows:
-
-    $ pypy/pytest.py pycket
-
-or using `make`
-
-    $ make test
-
 To produce an executable, run:
 
     $ ./pypy/rpython/bin/rpython -Ojit targetpycket.py
@@ -36,32 +23,47 @@ To produce an executable, run:
 This expects that a binary named `pypy` is in your path. (Note that
 a hand-compiled PyPy by running `make` produces `pypy-c`, not `pypy`).
 
-If you don't have a compiled pypy, you can also translate with:
+If you don't have a pypy binary, you can also translate with the cpython:
 
     $ python ./pypy/rpython/bin/rpython -Ojit targetpycket.py
 
 This will take upwards of 10 minutes.
+
 This requires a `PYTHONPATH` that includes both `rpython` (that should
 be the `pypy` directory cloned above) and `pycket` (that should be
 this directory).
 
+Pycket bootstraps Racket by reading and evaluating the Racket main
+collection by loading and using the bootstrap linklets (currently only
+the `expander.rktl.linklet`) exported by Racket.
+
+In order to locate the Racket installation, Pycket requires a
+`PLTHOME` environment variable to point to the Racket directory. If
+Racket is installed in Unix-style, then you can just set a
+`PLTCOLLECTS` variable to point to the Racket `collects`.
+
 You can also use `make` for any of the above,
 
- * `make setup` to setup the Racket language and update your `pypy` chekout
+ * `make test` to run the unit tests
+ * `make setup` to setup and update the `pypy` checkout
  * `make pycket-c` to translate with JIT
  * `make pycket-c-nojit` to translate without JIT (which is may be a lot faster to translate but runs a lot lot slower)
 
-
 ## Running
 
-Afterwards you can execute a program:
+You can run `pycket-c` like the `racket` binary:
 
-    $ ./pycket-c program
+    $ ./pycket-c -h
+
+    $ ./pycket-c program.rkt
 
 You can also run pycket under plain python, like this:
 
     $ ./pycket-slow.sh program
-    
+
+
+## Deprecated Stuff Below -- Will be revised 
+   
 Or even this, when this directory is in your `PYTHONPATH`:
 
     $ python -mpycket program
