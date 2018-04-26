@@ -275,6 +275,32 @@ class W_StructType(values.W_Object):
         for t, v in self.offsets:
             if t is type:
                 return v
+            elif t.isprefab and type.isprefab:
+                ## They might not be the same object but they
+                ## might be the same prefab struct, so
+                ## check if their fields are the same
+                if (t.name is type.name and
+                    t.constructor_name is type.constructor_name and
+                    #t.super is type.super and
+                    t.init_field_cnt is type.init_field_cnt and
+                    t.total_init_field_cnt is type.total_init_field_cnt and
+                    t.auto_field_cnt is type.auto_field_cnt and
+                    t.total_auto_field_cnt is type.total_auto_field_cnt and
+                    t.total_field_cnt is type.total_field_cnt and
+                    t.auto_v is type.auto_v and
+                    t.props == type.props and
+                    t.prop_procedure is type.prop_procedure and
+                    t.procedure_source is type.procedure_source and
+                    t.inspector is type.inspector and
+                    t.immutables == type.immutables and
+                    t.guard is type.guard and
+                    t.auto_values == type.auto_values and
+                    #t.isprefab is type.isprefab and \\
+                    t.isopaque is type.isopaque and
+                    #t.offsets is type.offsets and
+                    t.immutable_fields == type.immutable_fields and
+                    t.constructor_arity.get_arity_list() == type.constructor_arity.get_arity_list()):
+                    return v
         return -1
 
     @jit.elidable
