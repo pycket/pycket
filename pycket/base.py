@@ -58,11 +58,9 @@ class W_Object(W_ProtoObject):
         cont = NilCont()
         cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
         t_env = ToplevelEnv(pycketconfig)
-        #t_env.toplevel_env().globalconfig.config = sysconfig
         
         try:
             ast, env, cont = self.call_with_extra_info(racket_vals, t_env, cont, None)
-            #env.toplevel_env().globalconfig.config = sysconfig
             return interpret_one(ast, env, cont)
         except Done, e:
             return e.values

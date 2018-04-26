@@ -1,13 +1,11 @@
 from pycket.prims.linklet import W_Linklet, to_rpython_list, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log
 from pycket.prims.correlated import syntax_primitives
-
-DEBUG = True
 
 def load_bootstrap_linklets(pycketconfig, debug=False):
 
@@ -32,7 +30,16 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
     console_log("DONE.", debug)
     return linkl_instance, sys_config
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False):
+def set_path(kind_str, path_str):
+    import os
+    from pycket.racket_paths import racket_sys_paths
+
+    if not os.path.exists(path_str):
+        raise Exception("File not found : %s" % path_str)
+
+    racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
+
+def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
@@ -40,6 +47,23 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False):
     v = sysconfig["version"]
     console_log("Setting the version to %s" % v, debug)
     w_version.set_version(v)
+
+    # These need to be set before the boot sequence
+    if set_run_file:
+        console_log("Setting the 'run-file path to %s" % set_run_file, debug)
+        set_path("run-file", set_run_file)
+
+    if set_collects_dir:
+        console_log("Setting the 'collects-dir path to %s" % set_collects_dir, debug)
+        set_path("collects-dir", set_collects_dir)
+
+    if set_config_dir:
+        console_log("Setting the 'config-dir path to %s" % set_config_dir, debug)
+        set_path("config-dir", set_config_dir)
+
+    if set_addon_dir:
+        console_log("Setting the 'addon-dir path to %s" % set_addon_dir, debug)
+        set_path("addon-dir", set_addon_dir)
 
     # Set the cmd arguments for racket
     ccla = get_primitive("current-command-line-arguments")
@@ -80,21 +104,15 @@ def namespace_require_kernel(namespace_require, pycketconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel, debug, version = get_options(names, config)
+    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
 
-    initiate_boot_sequence(pycketconfig, command_line_arguments, debug)
+    initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
 
     if version:
         from pycket.env import w_version
         print("Welcome to Pycket v%s" % w_version.get_version())
 
     namespace_require = get_primitive("namespace-require")
-
-    if run_file_set: # FIXME ??
-        import os
-        if not os.path.isfile(run_file_set):
-            raise Exception("File not found : %s" % run_file_set)
-        #names['run-file'] = run_file_set
 
     if just_kernel:
         console_log("Running on just the #%kernel", debug)
@@ -220,7 +238,10 @@ def get_options(names, config):
     require_libs = names['req-lib'] if 'req-lib' in names else []
     load_files = names['load-file'] if 'load-file' in names else []
     expr_strs = names['exprs'] if 'exprs' in names else []
-    run_file_set = names['run-file'][0] if 'run-file' in names else ""
+    set_run_file = names['set-run-file'][0] if 'set-run-file' in names else ""
+    set_collects_dir = names['set-collects-dir'][0] if 'set-collects-dir' in names else ""
+    set_config_dir = names['set-config-dir'][0] if 'set-config-dir' in names else ""
+    set_addon_dir = names['set-addon-dir'][0] if 'set-addon-dir' in names else ""
 
     init_library = names['init-lib'][0] if 'init-lib' in names else "racket/base" # racket/init
     is_repl = config['repl']
@@ -229,8 +250,36 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
 
-    console_log("Options :\n \nrequire_files : %s\nrequire_libs : %s\nload_files : %s\nexpr_strs : %s\nrun_file_set : %s\ninit_library : %s\nis_repl : %s\nno_lib : %s\njust-#%%kernel : %s" % (require_files, require_libs, load_files, expr_strs, run_file_set, init_library, is_repl, no_lib, just_kernel), debug)
-    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, run_file_set, just_kernel, debug, version
+    log_str = """Options :
+
+require_files : %s
+require_libs : %s
+load_files : %s
+expr_strs : %s
+set-run-file : %s
+set-collects-dir : %s
+set-config-dir : %s
+set-addon-dir : %s
+init_library : %s
+is_repl : %s
+no_lib : %s
+just-#%%kernel : %s
+""" % (require_files,
+       require_libs,
+       load_files,
+       expr_strs,
+       set_run_file,
+       set_collects_dir,
+       set_config_dir,
+       set_addon_dir,
+       init_library,
+       is_repl,
+       no_lib,
+       just_kernel)
+
+    console_log(log_str, debug)
+
+    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
 
 
 # maybe we should move this to testhelpers

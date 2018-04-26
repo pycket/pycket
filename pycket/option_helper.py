@@ -24,6 +24,9 @@ def print_help(argv):
  Configuration options:
   --kernel : ignore everything, only load the #%%kernel (for development purposes)
   -I <path> : Set <init-lib> to <path> (sets language)
+  -X <dir>, --collects <dir> : Main collects at <dir> (or "" disables all)
+  -G <dir>, --config <dir> : Main configuration directory at <dir>
+  -A <dir>, --addon <dir> : Addon directory at <dir>
   -N <file>, --name <file> : Sets `(find-system-path 'run-file)' to <file>
   --save-callgraph : save the jit output
 
@@ -48,7 +51,13 @@ file_expr_opts = ["-e", "--eval",
 inter_opts = ["-i", "--repl",
               "-n", "--no-lib",
               "-v", "--version"]
-conf_opts = ["--kernel", "-I", "-N", "--name", "--save-callgraph"]
+conf_opts = ["--kernel",
+             "-I",
+             "-X", "--collects",
+             "-G", "--config",
+             "-A", "--addon",
+             "-N", "--name",
+             "--save-callgraph"]
 meta_opts = ["--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
@@ -192,15 +201,39 @@ def parse_args(argv):
                 retval = MISSING_ARG
                 break
             i += 1
-            names['init-lib'] = [argv[i]]
+            add_name(names, 'init-lib', argv[i])
 
-        elif argv[i] == "-N":
+        elif argv[i] in ["-X", "--collects"]:
             if to <= i + 1 or argv[i+1] in all_opts:
-                print "missing argument after -N"
+                print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
             i += 1
-            names['run-file'] = [argv[i]]
+            add_name(names, 'set-collects-dir', argv[i])
+
+        elif argv[i] in ["-G", "--config"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            i += 1
+            add_name(names, 'set-config-dir', argv[i])
+
+        elif argv[i] in ["-A", "--addon"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            i += 1
+            add_name(names, 'set-addon-dir', argv[i])
+
+        elif argv[i] in ["-N", "--name"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            i += 1
+            add_name(names, 'set-run-file', argv[i])
 
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True

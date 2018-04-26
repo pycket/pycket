@@ -3,29 +3,66 @@
 import os
 from pycket.error import SchemeException
 from pycket import values
-#from pycket.env import w_version
+
+path_home_dir = values.W_Symbol.make("home-dir")
+path_pref_dir = values.W_Symbol.make("pref-dir")
+path_pref_file = values.W_Symbol.make("pref-file")
+path_temp_dir = values.W_Symbol.make("temp-dir")
+path_init_dir = values.W_Symbol.make("init-dir")
+path_init_file = values.W_Symbol.make("init-file")
+path_config_dir = values.W_Symbol.make("config-dir")
+path_host_config_dir = values.W_Symbol.make("host-config-dir")
+path_addon_dir = values.W_Symbol.make("addon-dir")
+path_doc_dir = values.W_Symbol.make("doc-dir")
+path_desk_dir = values.W_Symbol.make("desk-dir")
+path_sys_dir = values.W_Symbol.make("sys-dir")
+path_exec_file = values.W_Symbol.make("exec-file")
+path_run_file = values.W_Symbol.make("run-file")
+path_collects_dir = values.W_Symbol.make("collects-dir")
+path_host_collects_dir = values.W_Symbol.make("host-collects-dir")
+path_orig_dir = values.W_Symbol.make("orig-dir")
+
+path_kinds = [path_home_dir,
+              path_pref_dir,
+              path_pref_file,
+              path_temp_dir,
+              path_init_dir,
+              path_init_file,
+              path_config_dir,
+              path_host_config_dir,
+              path_addon_dir,
+              path_doc_dir,
+              path_desk_dir,
+              path_sys_dir,
+              path_exec_file,
+              path_run_file,
+              path_collects_dir,
+              path_host_collects_dir,
+              path_orig_dir
+          ]
 
 class RacketPaths(object):
 
     def __init__(self):
         self.paths = {}
+        self.initialized = False
 
     def get_path(self, kind):
-        if not self.paths:
-            self.paths = self.initialize_paths()
+        if not self.initialized:
+            self.initialize_paths()
 
         if kind not in self.paths:
             raise SchemeException("Path cannot be found for : %s" % kind.tostring())
 
         return self.paths[kind]
 
-    # FIXME : to be used by entry to set paths from the command line (e.g. --collects)
     def set_path(self, kind, path):
+        if kind not in path_kinds:
+            raise SchemeException("Possibly trying to set a wrong kind of system-path : %s" % kind.tostring())
         self.paths[kind] = path
 
     def initialize_paths(self):
         # FIXME : check absolute/relative paths
-        paths = {}
 
         # Environment Variables
         OS_ENV_VARS = os.environ
@@ -47,24 +84,6 @@ class RacketPaths(object):
 
         CURRENT_DIR = os.getcwd()
 
-        path_home_dir = values.W_Symbol.make("home-dir")
-        path_pref_dir = values.W_Symbol.make("pref-dir")
-        path_pref_file = values.W_Symbol.make("pref-file")
-        path_temp_dir = values.W_Symbol.make("temp-dir")
-        path_init_dir = values.W_Symbol.make("init-dir")
-        path_init_file = values.W_Symbol.make("init-file")
-        path_config_dir = values.W_Symbol.make("config-dir")
-        path_host_config_dir = values.W_Symbol.make("host-config-dir")
-        path_addon_dir = values.W_Symbol.make("addon-dir")
-        path_doc_dir = values.W_Symbol.make("doc-dir")
-        path_desk_dir = values.W_Symbol.make("desk-dir")
-        path_sys_dir = values.W_Symbol.make("sys-dir")
-        path_exec_file = values.W_Symbol.make("exec-file")
-        path_run_file = values.W_Symbol.make("run-file")
-        path_collects_dir = values.W_Symbol.make("collects-dir")
-        path_host_collects_dir = values.W_Symbol.make("host-collects-dir")
-        path_orig_dir = values.W_Symbol.make("orig-dir")
-
         #############
         # HOME
         #############
@@ -79,7 +98,7 @@ class RacketPaths(object):
         elif LOGNAME:
             W_PATH_HOME_DIR = LOGNAME
 
-        paths[path_home_dir] = values.W_Path(W_PATH_HOME_DIR)
+        self.paths[path_home_dir] = values.W_Path(W_PATH_HOME_DIR)
 
         #############
         # PREF-DIR
@@ -89,7 +108,7 @@ class RacketPaths(object):
         if W_PATH_HOME_DIR:
             W_PATH_PREF_DIR = W_PATH_HOME_DIR + "/.racket"
 
-        paths[path_pref_dir] = values.W_Path(W_PATH_PREF_DIR)
+        self.paths[path_pref_dir] = values.W_Path(W_PATH_PREF_DIR)
 
         #############
         # PREF-FILE
@@ -99,7 +118,7 @@ class RacketPaths(object):
         if W_PATH_PREF_DIR:
             W_PATH_PREF_FILE = W_PATH_PREF_DIR + "/racket-prefs.rktd"
 
-        paths[path_pref_file] = values.W_Path(W_PATH_PREF_FILE)
+        self.paths[path_pref_file] = values.W_Path(W_PATH_PREF_FILE)
 
         #############
         # TEMP-DIR
@@ -115,7 +134,7 @@ class RacketPaths(object):
         elif os.path.exists("/tmp"):
             W_PATH_TEMP_DIR = "/tmp"
 
-        paths[path_temp_dir] = values.W_Path(W_PATH_TEMP_DIR)
+        self.paths[path_temp_dir] = values.W_Path(W_PATH_TEMP_DIR)
 
         #############
         # INIT-DIR
@@ -123,7 +142,7 @@ class RacketPaths(object):
 
         W_PATH_INIT_DIR = W_PATH_HOME_DIR
 
-        paths[path_init_dir] = values.W_Path(W_PATH_INIT_DIR)
+        self.paths[path_init_dir] = values.W_Path(W_PATH_INIT_DIR)
 
         #############
         # INIT-FILE -- startup file
@@ -136,7 +155,7 @@ class RacketPaths(object):
         if W_PATH_INIT_DIR:
             W_PATH_INIT_FILE = W_PATH_INIT_DIR + "/.racketrc"
 
-        paths[path_init_file] = values.W_Path(W_PATH_INIT_FILE)
+        self.paths[path_init_file] = values.W_Path(W_PATH_INIT_FILE)
 
         #############
         # CONFIG-DIR
@@ -150,7 +169,8 @@ class RacketPaths(object):
         else:
             W_PATH_CONFIG_DIR = CURRENT_DIR + "/etc"
 
-        paths[path_config_dir] = values.W_Path(W_PATH_CONFIG_DIR)
+        if path_config_dir not in self.paths:
+            self.paths[path_config_dir] = values.W_Path(W_PATH_CONFIG_DIR)
 
         #############
         # HOST-CONFIG-DIR
@@ -158,7 +178,7 @@ class RacketPaths(object):
 
         W_PATH_HOST_CONFIG_DIR = W_PATH_CONFIG_DIR
 
-        paths[path_host_config_dir] = values.W_Path(W_PATH_HOST_CONFIG_DIR)
+        self.paths[path_host_config_dir] = values.W_Path(W_PATH_HOST_CONFIG_DIR)
 
         #############
         # ADDON-DIR
@@ -168,7 +188,8 @@ class RacketPaths(object):
         if PLTADDONDIR:
             W_PATH_ADDON_DIR = PLTADDONDIR
 
-        paths[path_addon_dir] = values.W_Path(W_PATH_ADDON_DIR)
+        if path_addon_dir not in self.paths:
+            self.paths[path_addon_dir] = values.W_Path(W_PATH_ADDON_DIR)
 
         #############
         # DOC-DIR
@@ -176,7 +197,7 @@ class RacketPaths(object):
 
         W_PATH_DOC_DIR = W_PATH_HOME_DIR
 
-        paths[path_doc_dir] = values.W_Path(W_PATH_DOC_DIR)
+        self.paths[path_doc_dir] = values.W_Path(W_PATH_DOC_DIR)
 
         #############
         # SYS-DIR
@@ -184,7 +205,7 @@ class RacketPaths(object):
 
         W_PATH_SYS_DIR = "/"
 
-        paths[path_sys_dir] = values.W_Path(W_PATH_SYS_DIR)
+        self.paths[path_sys_dir] = values.W_Path(W_PATH_SYS_DIR)
 
         #############
         # EXEC-FILE
@@ -193,7 +214,7 @@ class RacketPaths(object):
         # FIXME : get argv[0] from target args
         W_PATH_EXEC_FILE = CURRENT_DIR + "/pycket-c"
 
-        paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
+        self.paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
 
         #############
         # RUN-FILE
@@ -201,7 +222,8 @@ class RacketPaths(object):
 
         W_PATH_RUN_FILE = W_PATH_EXEC_FILE
 
-        paths[path_run_file] = values.W_Path(W_PATH_RUN_FILE)
+        if path_run_file not in self.paths:
+            self.paths[path_run_file] = values.W_Path(W_PATH_RUN_FILE)
 
         #############
         # COLLECTS-DIR
@@ -212,7 +234,8 @@ class RacketPaths(object):
         else:
             W_PATH_COLLECTS_DIR = PLTCOLLECTS
 
-        paths[path_collects_dir] = values.W_Path(W_PATH_COLLECTS_DIR)
+        if path_collects_dir not in self.paths:
+            self.paths[path_collects_dir] = values.W_Path(W_PATH_COLLECTS_DIR)
 
         #############
         # HOST-COLLECTS-DIR
@@ -220,7 +243,7 @@ class RacketPaths(object):
 
         W_PATH_HOST_COLLECTS_DIR = W_PATH_COLLECTS_DIR
 
-        paths[path_host_collects_dir] = values.W_Path(W_PATH_HOST_COLLECTS_DIR)
+        self.paths[path_host_collects_dir] = values.W_Path(W_PATH_HOST_COLLECTS_DIR)
 
         #############
         # ORIG-DIR
@@ -228,10 +251,8 @@ class RacketPaths(object):
 
         W_PATH_ORIG_DIR = CURRENT_DIR
 
-        paths[path_orig_dir] = values.W_Path(W_PATH_ORIG_DIR)
+        self.paths[path_orig_dir] = values.W_Path(W_PATH_ORIG_DIR)
 
-        #self.paths["version"] = w_version.get_version()
-        return paths
+        self.initialized = True
 
-# initialize at load
 racket_sys_paths = RacketPaths()
