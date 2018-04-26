@@ -7,12 +7,40 @@ from pycket.expand import JsonLoader
 from pycket.util import console_log
 from pycket.prims.correlated import syntax_primitives
 
+def locate_linklet(file_name):
+    import os
+    from pycket.error import SchemeException
+
+    env_vars = os.environ.keys()
+    if "PYTHONPATH" not in env_vars:
+        raise SchemeException("For PyPy to work with Pycket, PYTHONPATH variable should be set in the environment.. See README")
+
+    python_path = os.environ["PYTHONPATH"]
+    py_paths = python_path.split(':')
+
+    file_path = ""
+    for p in py_paths:
+        f_path = os.path.join(p, file_name)
+        if os.path.exists(f_path):
+            file_path = f_path
+            break
+        # Also try the UP (since PYTHONPATH may only point to the PyPy)
+        up_file = os.path.join(p, "../" + file_name)
+        if os.path.exists(up_file):
+            file_path = up_file
+            break
+    else:
+        raise SchemeException("Can't locate the : %s" % file_name)
+
+    return file_path
+
 def load_bootstrap_linklets(pycketconfig, debug=False):
 
     console_log("Loading the expander linklet...", debug)
+    expander_file_path = locate_linklet("expander.rktl.linklet")
 
     # load the expander linklet
-    expander_instance, sys_config = load_inst_linklet_json("expander.rktl.linklet", pycketconfig, debug)
+    expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug)
     expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
     console_log("Expander loading complete.", debug)

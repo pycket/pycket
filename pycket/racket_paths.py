@@ -106,7 +106,7 @@ class RacketPaths(object):
 
         W_PATH_PREF_DIR = ""
         if W_PATH_HOME_DIR:
-            W_PATH_PREF_DIR = W_PATH_HOME_DIR + "/.racket"
+            W_PATH_PREF_DIR = os.path.join(W_PATH_HOME_DIR, ".racket")
 
         self.paths[path_pref_dir] = values.W_Path(W_PATH_PREF_DIR)
 
@@ -116,7 +116,7 @@ class RacketPaths(object):
 
         W_PATH_PREF_FILE = ""
         if W_PATH_PREF_DIR:
-            W_PATH_PREF_FILE = W_PATH_PREF_DIR + "/racket-prefs.rktd"
+            W_PATH_PREF_FILE = os.path.join(W_PATH_PREF_DIR, "racket-prefs.rktd")
 
         self.paths[path_pref_file] = values.W_Path(W_PATH_PREF_FILE)
 
@@ -153,7 +153,7 @@ class RacketPaths(object):
 
         W_PATH_INIT_FILE = ""
         if W_PATH_INIT_DIR:
-            W_PATH_INIT_FILE = W_PATH_INIT_DIR + "/.racketrc"
+            W_PATH_INIT_FILE = os.path.join(W_PATH_INIT_DIR, ".racketrc")
 
         self.paths[path_init_file] = values.W_Path(W_PATH_INIT_FILE)
 
@@ -167,7 +167,7 @@ class RacketPaths(object):
         if PLTCONFIGDIR:
             W_PATH_CONFIG_DIR = PLTCONFIGDIR
         else:
-            W_PATH_CONFIG_DIR = CURRENT_DIR + "/etc"
+            W_PATH_CONFIG_DIR = os.path.join(CURRENT_DIR, "etc")
 
         if path_config_dir not in self.paths:
             self.paths[path_config_dir] = values.W_Path(W_PATH_CONFIG_DIR)
@@ -212,7 +212,7 @@ class RacketPaths(object):
         #############
 
         # FIXME : get argv[0] from target args
-        W_PATH_EXEC_FILE = CURRENT_DIR + "/pycket-c"
+        W_PATH_EXEC_FILE = os.path.join(CURRENT_DIR, "pycket-c")
 
         self.paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
 
@@ -230,7 +230,7 @@ class RacketPaths(object):
         #############
         
         if PLTHOME:
-            W_PATH_COLLECTS_DIR = PLTHOME + "/collects"
+            W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, "racket/collects")
         else:
             W_PATH_COLLECTS_DIR = PLTCOLLECTS
 
