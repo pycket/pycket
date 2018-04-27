@@ -22,8 +22,8 @@ from pycket.linklet_test.utils import *
 
 # This is where all the work happens
 
-# sysconfig = initiate_boot_sequence(None, [])
-# namespace_require_kernel(None, sysconfig)
+# initiate_boot_sequence(None, [])
+# namespace_require_kernel(None)
 
 delete_temp_files = True
 
@@ -82,21 +82,23 @@ def run_linklet(w_linkl, v=None):
     #debug_out("\nHEY\n")
     return ov.value
 
-def run_ast(ast, v=None):
-    l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
-    return run_linklet(l, v)
+# def run_ast(ast, v=None):
+#     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
+#     return run_linklet(l, v)
 
 def run_sexp_and_string(expr_str, v):
     run_sexp(expr_str, v)
-    run_string(expr_str, v)
+    #run_string(expr_str, v)
 
 def run_sexp(body_sexp_str, v=None):
     linkl_str = "(linklet () () %s)" % body_sexp_str
     l = make_linklet(linkl_str)
-    return run_linklet(l, v)
+    #import pdb;pdb.set_trace()
+    r, _ = eval(l, empty_target())
+    return r
 
 def run_string(expr_str, v=None):
-    ov = read_eval_print_string(expr_str, None, sysconfig, return_val=True)
+    ov = read_eval_print_string(expr_str, None, return_val=True)
     # FIXME: check for multiple results
     assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
     if v:
@@ -133,15 +135,15 @@ def expand_from_bytecode(m, srcloc):
 
     return s
 
-def run_mod(m, stdlib=False, srcloc=True):
-    assert not stdlib
+# def run_mod(m, stdlib=False, srcloc=True):
+#     assert not stdlib
 
-    if not pytest.config.byte_option:
-        ast = parse_module(expand_string(m, srcloc=srcloc))
-    else:
-        ast = parse_module(expand_from_bytecode(m, srcloc), bytecode_expand=True)
+#     if not pytest.config.byte_option:
+#         ast = parse_module(expand_string(m, srcloc=srcloc))
+#     else:
+#         ast = parse_module(expand_from_bytecode(m, srcloc), bytecode_expand=True)
 
-    return run_ast(ast)
+#     return run_ast(ast)
 
 def format_pycket_mod(s, stdlib=False, extra=""):
     # pycket handles the stdlib, various requires

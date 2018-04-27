@@ -401,7 +401,7 @@ def test_instantiate_letrec_rhs_cells():
     result4, _ = eval(l4, empty_target())
     assert result4 == 1
 
-@pytest.mark.fault
+@pytest.mark.skip(reason="need to fix the context normalizer")
 def test_compilation_context_normalize_term():
     # Context.normalize_term might be faulty
     l = make_linklet("(linklet () () (let-values (((x) 5)) (+ x (let-values (((x) 10)) x))))")

@@ -1668,6 +1668,9 @@ class W_Port(W_Object):
     def close(self):
         self.closed = True
 
+    def is_stdin(self):
+        return False
+
     def seek(self, offset, end=False):
         raise NotImplementedError("abstract base classe")
 

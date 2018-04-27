@@ -125,7 +125,10 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     return 0
 
 # temporary
-def namespace_require_kernel(namespace_require, pycketconfig):
+def namespace_require_kernel(pycketconfig):
+
+    namespace_require = get_primitive("namespace-require")
+
     kernel = W_WrappedConsProper.make(W_Symbol.make("quote"),
                                       W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
     namespace_require.call_interpret([kernel], pycketconfig)
@@ -144,7 +147,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     if just_kernel:
         console_log("Running on just the #%kernel", debug)
-        namespace_require_kernel(namespace_require, pycketconfig)
+        namespace_require_kernel(pycketconfig)
 
     if not no_lib:
         init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
