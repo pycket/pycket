@@ -2,7 +2,7 @@ language: python
 cache: apt
 sudo: false
 python:
-- "pypy-5.3.1"
+- "pypy-5.10.0"
 notifications:
   irc:
     channels:
@@ -13,7 +13,6 @@ env:
   - PATH=./racket/bin:$PATH
   matrix:
   - TEST_TYPE=tests
-  - TEST_TYPE=coverage
   - TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
 matrix:
