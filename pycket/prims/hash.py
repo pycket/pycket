@@ -355,16 +355,10 @@ def equal_hash_code(v):
 
         nm = v.car()
         p = v.cdr()
-        if not isinstance(nm, values_string.W_String) or \
-           not isinstance(p, values.W_Path) or \
-           not isinstance(p.path, str):
-            return values.W_Fixnum.ZERO
-
-        nums = [ord(c) for c in nm.tostring() + p.path]
-        prod = 1
-        for n in nums:
-            prod *= n
-        return values.W_Fixnum(int(prod%sys.maxint))
+        if isinstance(nm, values_string.W_String) and \
+           isinstance(p, values.W_Path) and \
+           isinstance(p.path, str):
+            return values.W_Fixnum(objectmodel.compute_hash((nm.tostring(), p.path)))
 
     return values.W_Fixnum.ZERO
 
