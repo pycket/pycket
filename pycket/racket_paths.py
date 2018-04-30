@@ -73,7 +73,7 @@ class RacketPaths(object):
 
         PLTHOME = OS_ENV_VARS["PLTHOME"] if "PLTHOME" in env_vars else ""
         PLTCOLLECTS = OS_ENV_VARS["PLTCOLLECTS"] if "PLTCOLLECTS" in env_vars else ""
-
+        PLTEXECFILE = OS_ENV_VARS["PLTEXECFILE"] if "PLTEXECFILE" in env_vars else ""
         PLTUSERHOME = OS_ENV_VARS["PLTUSERHOME"] if "PLTUSERHOME" in env_vars else ""
         HOME = OS_ENV_VARS["HOME"] if "HOME" in env_vars else ""
         USER = OS_ENV_VARS["USER"] if "USER" in env_vars else ""
@@ -167,7 +167,10 @@ class RacketPaths(object):
         if PLTCONFIGDIR:
             W_PATH_CONFIG_DIR = PLTCONFIGDIR
         else:
-            W_PATH_CONFIG_DIR = os.path.join(CURRENT_DIR, "etc")
+            if PLTHOME:
+                W_PATH_CONFIG_DIR = os.path.join(PLTHOME, os.path.join("racket", "etc"))
+            else:
+                W_PATH_CONFIG_DIR = os.path.join(CURRENT_DIR, "etc")
 
         if path_config_dir not in self.paths:
             self.paths[path_config_dir] = values.W_Path(W_PATH_CONFIG_DIR)
@@ -212,8 +215,18 @@ class RacketPaths(object):
         #############
 
         # FIXME : get argv[0] from target args
-        W_PATH_EXEC_FILE = os.path.join(CURRENT_DIR, "pycket-c")
 
+        if PLTHOME:
+            # assume the binary is at $PLTHOME/racket/bin/racket
+            W_PATH_EXEC_FILE = os.path.join(PLTHOME, os.path.join("racket", os.path.join("bin", "racket")))
+        elif PLTEXECFILE:
+            # expect PLTEXECFILE
+            W_PATH_EXEC_FILE = PLTEXECFILE
+        else:
+            # should we error?
+            # set it to pycket-c for now
+            W_PATH_EXEC_FILE = os.path.join(CURRENT_DIR, "pycket-c")
+        
         self.paths[path_exec_file] = values.W_Path(W_PATH_EXEC_FILE)
 
         #############
@@ -230,7 +243,7 @@ class RacketPaths(object):
         #############
         
         if PLTHOME:
-            W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, "racket/collects")
+            W_PATH_COLLECTS_DIR = os.path.join(PLTHOME, os.path.join("racket", "collects"))
         else:
             W_PATH_COLLECTS_DIR = PLTCOLLECTS
 
