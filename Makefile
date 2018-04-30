@@ -79,6 +79,9 @@ setup:
 	hg -R $(PYPYPATH) update
 
 test: $(PYFILES)
+	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
+
+test-fast: $(PYFILES)
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
 
 test-random: $(PYFILES)

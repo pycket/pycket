@@ -22,8 +22,13 @@ from pycket.linklet_test.utils import *
 
 # This is where all the work happens
 
-# initiate_boot_sequence(None, [])
-# namespace_require_kernel(None)
+if pytest.config.load_expander:
+    # get the expander
+    print("Loading and initializing the expander")
+    initiate_boot_sequence(None, [])
+    # load the '#%kernel
+    print("(namespace-require '#%%kernel)")
+    namespace_require_kernel(None)
 
 delete_temp_files = True
 
@@ -86,9 +91,13 @@ def run_linklet(w_linkl, v=None):
 #     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
 #     return run_linklet(l, v)
 
-def run_sexp_and_string(expr_str, v):
-    run_sexp(expr_str, v)
-    #run_string(expr_str, v)
+# use_expander is to request it to use expander
+# it will just return True without running if the test is set to not use the expander
+def run_expr(expr_str, v, use_expander=False):
+    if pytest.config.use_expander:
+        run_string(expr_str, v)
+    else:
+        run_sexp(expr_str, v)
 
 def run_sexp(body_sexp_str, v=None):
     linkl_str = "(linklet () () %s)" % body_sexp_str
@@ -212,10 +221,11 @@ def parse_file(fname, *replacements, **kwargs):
 
     if kwargs.get("inplace", False):
         assert not replacements
-        if not pytest.config.byte_option:
-            reader = JsonLoader(bytecode_expand=False)
-        else:
-            reader = JsonLoader(bytecode_expand=True)
+        JsonLoader(bytecode_expand=False)
+        # if not pytest.config.byte_option:
+        #     reader = JsonLoader(bytecode_expand=False)
+        # else:
+        #     reader = JsonLoader(bytecode_expand=True)
         ast = reader.expand_to_ast(fname)
         return ast
 
@@ -226,12 +236,14 @@ def parse_file(fname, *replacements, **kwargs):
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
 
-    if not pytest.config.byte_option:
-        s = expand_string(s)
-        ast = parse_module(s)
-    else:
-        s = expand_from_bytecode(s, True)
-        ast = parse_module(s, bytecode_expand=True)
+    # if not pytest.config.byte_option:
+    #     s = expand_string(s)
+    #     ast = parse_module(s)
+    # else:
+    #     s = expand_from_bytecode(s, True)
+    #     ast = parse_module(s, bytecode_expand=True)
+    s = expand_string(s)
+    ast = parse_module(s)
 
     return ast
 
