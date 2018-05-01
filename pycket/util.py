@@ -3,13 +3,15 @@
 
 import inspect
 import string
+import timeit
 
 from rpython.rlib        import jit, objectmodel
 from rpython.rlib.unroll import unrolling_iterable
 
 def console_log(print_str, debug):
     if debug:
-        print("\n%s\n" % (print_str))
+        # print already has a newline
+        print("[%s] %s" % (timeit.default_timer(), print_str))
 
 def snake_case(str):
     if not str:
