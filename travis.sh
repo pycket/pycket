@@ -156,13 +156,13 @@ install_pypy() {
   # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
   # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
   #PYPY_PAK=pypy-4.0.1-linux64.tar.bz2
-  PYPY_PAK=pypy2-v5.10.0-linux64.tar.bz2
+  PYPY_PAK=pypy2-v6.0.0-linux64.tar.bz2
   PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
 
   wget $PYPY_URL
   tar xjf $PYPY_PAK
   # ln -s pypy-c-*-linux64 pypy-c
-  ln -s pypy2-v5.6.0-linux64 pypy-c
+  ln -s pypy2-v6.0.0-linux64 pypy-c
   pip install -I --upgrade virtualenv
   virtualenv --no-wheel --no-setuptools --no-pip -p pypy-c/bin/pypy ~/virtualenv/pypy
   # fix virtualenv...
