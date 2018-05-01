@@ -267,6 +267,7 @@ def parse_args(argv):
         else:
             if '.rkt' in argv[i]:
                 add_name(names, 'req-file', argv[i])
+                config['no-lib'] = True
 
                 i += 1
                 retval = RETURN_OK
