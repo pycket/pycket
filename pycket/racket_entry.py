@@ -195,7 +195,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         
     if is_repl: # -i
         dynamic_require = get_primitive("dynamic-require")
-        repl = dynamic_require.call_interpret([W_Symbol.make("racket/private/misc"),
+        repl = dynamic_require.call_interpret([W_Symbol.make("racket/private/repl"),
                                                W_Symbol.make("read-eval-print-loop")],
                                               pycketconfig)
         repl.call_interpret([], pycketconfig)
