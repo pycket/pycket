@@ -14,7 +14,7 @@ from pycket.impersonators.baseline import W_ImpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
-from rpython.rlib        import jit, objectmodel
+from rpython.rlib        import jit, objectmodel, rarithmetic
 
 _KEY = 0
 _VALUE = 1
@@ -360,11 +360,7 @@ def equal_hash_code(v):
            not isinstance(p.path, str):
             return values.W_Fixnum.ZERO
 
-        nums = [ord(c) for c in nm.tostring() + p.path]
-        prod = 1
-        for n in nums:
-            prod *= n
-        return values.W_Fixnum(int(prod%sys.maxint))
+        return values.W_Fixnum(objectmodel.compute_hash((nm.tostring(), p.path)))
 
     return values.W_Fixnum.ZERO
 

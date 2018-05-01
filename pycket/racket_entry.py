@@ -67,62 +67,6 @@ def set_path(kind_str, path_str):
 
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
-    from pycket.env import w_version
-
-    sysconfig = load_bootstrap_linklets(pycketconfig, debug)
-
-    v = sysconfig["version"]
-    console_log("Setting the version to %s" % v, debug)
-    w_version.set_version(v)
-
-    # These need to be set before the boot sequence
-    if set_run_file:
-        console_log("Setting the 'run-file path to %s" % set_run_file, debug)
-        set_path("run-file", set_run_file)
-
-    if set_collects_dir:
-        console_log("Setting the 'collects-dir path to %s" % set_collects_dir, debug)
-        set_path("collects-dir", set_collects_dir)
-
-    if set_config_dir:
-        console_log("Setting the 'config-dir path to %s" % set_config_dir, debug)
-        set_path("config-dir", set_config_dir)
-
-    if set_addon_dir:
-        console_log("Setting the 'addon-dir path to %s" % set_addon_dir, debug)
-        set_path("addon-dir", set_addon_dir)
-
-    # Set the cmd arguments for racket
-    ccla = get_primitive("current-command-line-arguments")
-    ccla.call_interpret([W_Vector.fromelements(command_line_arguments)], pycketconfig)
-
-    # Run "boot" to set things like (current-module-name-resolver) (o/w it's going to stay as the
-    # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
-    # things like '#%kernel really)
-
-    console_log("Entering Boot Sequence", debug)
-
-    boot = get_primitive("boot")
-    boot.call_interpret([], pycketconfig)
-
-    flcl = get_primitive("find-library-collection-links")
-    lib_coll_links = flcl.call_interpret([], pycketconfig)
-    clcl = get_primitive("current-library-collection-links")
-    clcl.call_interpret([lib_coll_links], pycketconfig)
-
-    flcp = get_primitive("find-library-collection-paths")
-    lib_coll_paths = flcp.call_interpret([], pycketconfig)
-    clcp = get_primitive("current-library-collection-paths")
-    clcp.call_interpret([lib_coll_paths], pycketconfig)
-
-    # don't use compiled code
-    ucfp = get_primitive("use-compiled-file-paths")
-    ucfp.call_interpret([w_null], pycketconfig)
-
-    console_log("...Boot Sequence Complete", debug)
-
-    return 0
 
 # temporary
 def namespace_require_kernel(pycketconfig):
@@ -133,61 +77,222 @@ def namespace_require_kernel(pycketconfig):
                                       W_WrappedConsProper.make(W_Symbol.make("#%kernel"), w_null))
     namespace_require.call_interpret([kernel], pycketconfig)
 
-def racket_entry(names, config, pycketconfig, command_line_arguments):
+def make_racket_entry(pycketconfig):
+    sysconfig = load_bootstrap_linklets(pycketconfig, False) # XXX
 
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
-
-    initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
-
-    if version:
+    def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
         from pycket.env import w_version
-        print("Welcome to Pycket v%s" % w_version.get_version())
 
-    namespace_require = get_primitive("namespace-require")
+        v = sysconfig["version"]
+        console_log("Setting the version to %s" % v, debug)
+        w_version.set_version(v)
 
-    if just_kernel:
-        console_log("Running on just the #%kernel", debug)
-        namespace_require_kernel(pycketconfig)
+        # These need to be set before the boot sequence
+        if set_run_file:
+            console_log("Setting the 'run-file path to %s" % set_run_file, debug)
+            set_path("run-file", set_run_file)
 
-    if not no_lib:
-        init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                            W_WrappedConsProper.make(W_String.make(init_library), w_null))
-        console_log("(namespace-require %s) ..." % init_lib.tostring(), debug)
+        if set_collects_dir:
+            console_log("Setting the 'collects-dir path to %s" % set_collects_dir, debug)
+            set_path("collects-dir", set_collects_dir)
 
-        namespace_require.call_interpret([init_lib], pycketconfig)
-        console_log("Init lib : %s loaded..." % init_library, debug)
+        if set_config_dir:
+            console_log("Setting the 'config-dir path to %s" % set_config_dir, debug)
+            set_path("config-dir", set_config_dir)
 
-    if require_files: # -t
-        for require_file in require_files:
-            # (namespace-require '(file <file-string>))
-            file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
-                                                 W_WrappedConsProper.make(W_String.make(require_file), w_null))
-            namespace_require.call_interpret([file_form], pycketconfig)
-    if require_libs: # -l
-        for require_lib in require_libs:
-            # (namespace-require '(lib <lib-sym>))
-            lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                                W_WrappedConsProper.make(W_String.make(require_lib),
-                                                                         w_null))
-            namespace_require.call_interpret([lib_form], pycketconfig)
-    if load_files: # -f
-        for load_file in load_files:
-            # (load <file_name>)
-            load = get_primitive("load")
-            load.call_interpret([W_String.make(load_file)], pycketconfig)
+        if set_addon_dir:
+            console_log("Setting the 'addon-dir path to %s" % set_addon_dir, debug)
+            set_path("addon-dir", set_addon_dir)
 
-    if expr_strs: # -e
-        for expr_str in expr_strs:
-            read_eval_print_string(expr_str, pycketconfig)
-        
-    if is_repl: # -i
-        dynamic_require = get_primitive("dynamic-require")
-        repl = dynamic_require.call_interpret([W_Symbol.make("racket/private/misc"),
-                                               W_Symbol.make("read-eval-print-loop")],
-                                              pycketconfig)
-        repl.call_interpret([], pycketconfig)
+        # Set the cmd arguments for racket
+        ccla = get_primitive("current-command-line-arguments")
+        ccla.call_interpret([W_Vector.fromelements(command_line_arguments)], pycketconfig)
 
-    return 0
+        # Run "boot" to set things like (current-module-name-resolver) (o/w it's going to stay as the
+        # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
+        # things like '#%kernel really)
+
+        console_log("Entering Boot Sequence", debug)
+
+        boot = get_primitive("boot")
+        boot.call_interpret([], pycketconfig)
+
+        flcl = get_primitive("find-library-collection-links")
+        lib_coll_links = flcl.call_interpret([], pycketconfig)
+        clcl = get_primitive("current-library-collection-links")
+        clcl.call_interpret([lib_coll_links], pycketconfig)
+
+        flcp = get_primitive("find-library-collection-paths")
+        lib_coll_paths = flcp.call_interpret([], pycketconfig)
+        clcp = get_primitive("current-library-collection-paths")
+        clcp.call_interpret([lib_coll_paths], pycketconfig)
+
+        # don't use compiled code
+        ucfp = get_primitive("use-compiled-file-paths")
+        ucfp.call_interpret([w_null], pycketconfig)
+
+        console_log("...Boot Sequence Complete", debug)
+
+        return 0
+
+    def racket_entry(names, config, pycketconfig, command_line_arguments):
+
+        require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
+
+        initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
+
+        if version:
+            from pycket.env import w_version
+            print("Welcome to Pycket v%s" % w_version.get_version())
+
+        namespace_require = get_primitive("namespace-require")
+
+        if just_kernel:
+            console_log("Running on just the #%kernel", debug)
+            namespace_require_kernel(pycketconfig)
+
+        if not no_lib:
+            init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                                W_WrappedConsProper.make(W_String.make(init_library), w_null))
+            console_log("(namespace-require %s) ..." % init_lib.tostring(), debug)
+
+            namespace_require.call_interpret([init_lib], pycketconfig)
+            console_log("Init lib : %s loaded..." % init_library, debug)
+
+        if require_files: # -t
+            for require_file in require_files:
+                # (namespace-require '(file <file-string>))
+                file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
+                                                     W_WrappedConsProper.make(W_String.make(require_file), w_null))
+                namespace_require.call_interpret([file_form], pycketconfig)
+        if require_libs: # -l
+            for require_lib in require_libs:
+                # (namespace-require '(lib <lib-sym>))
+                lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
+                                                    W_WrappedConsProper.make(W_String.make(require_lib),
+                                                                             w_null))
+                namespace_require.call_interpret([lib_form], pycketconfig)
+        if load_files: # -f
+            for load_file in load_files:
+                # (load <file_name>)
+                load = get_primitive("load")
+                load.call_interpret([W_String.make(load_file)], pycketconfig)
+
+        if expr_strs: # -e
+            for expr_str in expr_strs:
+                read_eval_print_string(expr_str, pycketconfig)
+            
+        if is_repl: # -i
+            dynamic_require = get_primitive("dynamic-require")
+            repl = dynamic_require.call_interpret([W_Symbol.make("racket/private/misc"),
+                                                   W_Symbol.make("read-eval-print-loop")],
+                                                  pycketconfig)
+            repl.call_interpret([], pycketconfig)
+
+        return 0
+
+    # maybe we should move this to testhelpers
+    def run_linklet_file(file_name, pycketconfig, current_cmd_args):
+
+        # CAUTION: doesn't check the format of the file, assumes a lot
+        # Make sure Racket runs it without a problem
+
+        # Assumptions:
+        # 1) (define (instantiate-linklet ....) doesn't have any target
+        # 2) it's gonna return after one targeted instantitation at the toplevel
+        # 3) use (list) for empty list
+
+        initiate_boot_sequence(pycketconfig, current_cmd_args)
+
+        # Racket read the module
+        module_sexp_ = racket_read_file(file_name, pycketconfig)
+
+        # get the module body
+        module_sexp = module_sexp_.cdr().cdr().cdr().cdr()
+        exprs = to_rpython_list(module_sexp)
+
+        from pycket.env import ToplevelEnv
+        from pycket.interpreter import NilCont
+
+        # Start going through the expressions at the toplevel
+
+        w_linklets = {}
+        instances = {}
+
+        for expr in exprs:
+            if "define" in expr.car().tostring():
+                first_op = expr.cdr().cdr().car().car()
+                if "compile-linklet" in first_op.tostring():
+                    """
+                    (define l-0
+                      (compile-linklet
+                        (datum->correlated
+                          (quote
+                            (linklet .......)))))
+                    """
+                    linkl_name = expr.cdr().car()
+                    linkl_sexp = expr.cdr().cdr().car().cdr().car().cdr().car().cdr().car() # Trust me :)
+                    # create the W_Linklet
+                    linkl = None
+                    try:
+                        do_compile_linklet(linkl_sexp, linkl_name, w_false, w_false, w_false, ToplevelEnv(pycketconfig), NilCont())
+                    except Done, e:
+                        linkl = e.values
+                    w_linklets[linkl_name] = linkl
+
+                elif "instantiate-linklet" in first_op.tostring():
+                    # (define inst-0 (instantiate-linklet l-0 (list inst-1)))
+                    imp_names = to_rpython_list(expr.cdr().cdr().car().cdr().cdr().car().cdr())
+                    inst_name = expr.cdr().car()
+                    linkl_name = expr.cdr().cdr().car().cdr().car()
+
+                    if linkl_name not in w_linklets:
+                        raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
+
+                    imp_insts = []
+                    for imp_name in imp_names:
+                        if imp_name not in instances:
+                            raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
+                        imp_insts.append(instances[imp_name])
+
+                    linkl = w_linklets[linkl_name]
+                    instances[inst_name] = linkl.instantiate(imp_insts, pycketconfig)
+                else:
+                    raise Exception("I don't know yet: %s" % expr.tostring())
+
+            elif "instantiate-linklet" in expr.car().tostring():
+                # see it there's a target
+                if expr.cdr().cdr().cdr() is w_null:
+                    # no target, don't care, well should we? #FIXME
+                    continue
+                else:
+                    # (instantiate-linklet l-0 (list inst-1) target)
+                    linkl_name = expr.cdr().car()
+                    imp_names = to_rpython_list(expr.cdr().cdr().car().cdr())
+                    target_inst_name = expr.cdr().cdr().cdr().car()
+
+                    if linkl_name not in w_linklets:
+                        raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
+
+                    linkl = w_linklets[linkl_name]
+
+                    imp_insts = []
+                    for imp_name in imp_names:
+                        if imp_name not in instances:
+                            raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
+                        imp_insts.append(instances[imp_name])
+
+                    if target_inst_name not in instances:
+                        raise Exception("target instance is not instantiated : %s" % target_inst_name.tostring())
+                    target_inst = instances[target_inst_name]
+
+                    out_val = linkl.instantiate(imp_insts, pycketconfig, toplevel_eval=True, prompt=False, target=target_inst)
+                    racket_print(out_val, pycketconfig)
+                    return out_val
+            else:
+                raise Exception("I don't know yet: %s" % expr.tostring())
+
+    return racket_entry, run_linklet_file
 
 
 def racket_read(input_port, pycketconfig):
@@ -313,103 +418,3 @@ just-#%%kernel : %s
     return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
 
 
-# maybe we should move this to testhelpers
-def run_linklet_file(file_name, pycketconfig, current_cmd_args):
-
-    # CAUTION: doesn't check the format of the file, assumes a lot
-    # Make sure Racket runs it without a problem
-
-    # Assumptions:
-    # 1) (define (instantiate-linklet ....) doesn't have any target
-    # 2) it's gonna return after one targeted instantitation at the toplevel
-    # 3) use (list) for empty list
-
-    initiate_boot_sequence(pycketconfig, current_cmd_args)
-
-    # Racket read the module
-    module_sexp_ = racket_read_file(file_name, pycketconfig)
-
-    # get the module body
-    module_sexp = module_sexp_.cdr().cdr().cdr().cdr()
-    exprs = to_rpython_list(module_sexp)
-
-    from pycket.env import ToplevelEnv
-    from pycket.interpreter import NilCont
-
-    # Start going through the expressions at the toplevel
-
-    w_linklets = {}
-    instances = {}
-
-    for expr in exprs:
-        if "define" in expr.car().tostring():
-            first_op = expr.cdr().cdr().car().car()
-            if "compile-linklet" in first_op.tostring():
-                """
-                (define l-0
-                  (compile-linklet
-                    (datum->correlated
-                      (quote
-                        (linklet .......)))))
-                """
-                linkl_name = expr.cdr().car()
-                linkl_sexp = expr.cdr().cdr().car().cdr().car().cdr().car().cdr().car() # Trust me :)
-                # create the W_Linklet
-                linkl = None
-                try:
-                    do_compile_linklet(linkl_sexp, linkl_name, w_false, w_false, w_false, ToplevelEnv(pycketconfig), NilCont())
-                except Done, e:
-                    linkl = e.values
-                w_linklets[linkl_name] = linkl
-
-            elif "instantiate-linklet" in first_op.tostring():
-                # (define inst-0 (instantiate-linklet l-0 (list inst-1)))
-                imp_names = to_rpython_list(expr.cdr().cdr().car().cdr().cdr().car().cdr())
-                inst_name = expr.cdr().car()
-                linkl_name = expr.cdr().cdr().car().cdr().car()
-
-                if linkl_name not in w_linklets:
-                    raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
-
-                imp_insts = []
-                for imp_name in imp_names:
-                    if imp_name not in instances:
-                        raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
-                    imp_insts.append(instances[imp_name])
-
-                linkl = w_linklets[linkl_name]
-                instances[inst_name] = linkl.instantiate(imp_insts, pycketconfig)
-            else:
-                raise Exception("I don't know yet: %s" % expr.tostring())
-
-        elif "instantiate-linklet" in expr.car().tostring():
-            # see it there's a target
-            if expr.cdr().cdr().cdr() is w_null:
-                # no target, don't care, well should we? #FIXME
-                continue
-            else:
-                # (instantiate-linklet l-0 (list inst-1) target)
-                linkl_name = expr.cdr().car()
-                imp_names = to_rpython_list(expr.cdr().cdr().car().cdr())
-                target_inst_name = expr.cdr().cdr().cdr().car()
-
-                if linkl_name not in w_linklets:
-                    raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
-
-                linkl = w_linklets[linkl_name]
-
-                imp_insts = []
-                for imp_name in imp_names:
-                    if imp_name not in instances:
-                        raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
-                    imp_insts.append(instances[imp_name])
-
-                if target_inst_name not in instances:
-                    raise Exception("target instance is not instantiated : %s" % target_inst_name.tostring())
-                target_inst = instances[target_inst_name]
-
-                out_val = linkl.instantiate(imp_insts, pycketconfig, toplevel_eval=True, prompt=False, target=target_inst)
-                racket_print(out_val, pycketconfig)
-                return out_val
-        else:
-            raise Exception("I don't know yet: %s" % expr.tostring())

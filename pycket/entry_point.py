@@ -27,7 +27,9 @@ def make_entry_point(pycketconfig=None):
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args
     from pycket.values_string import W_String
-    from pycket.racket_entry import load_inst_linklet_json, racket_entry, run_linklet_file
+    from pycket.racket_entry import load_inst_linklet_json, make_racket_entry
+
+    racket_entry, run_linklet_file = make_racket_entry(pycketconfig)
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
