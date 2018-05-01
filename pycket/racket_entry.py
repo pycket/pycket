@@ -6,6 +6,7 @@ from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log
 from pycket.prims.correlated import syntax_primitives
+import timeit
 
 def locate_linklet(file_name):
     import os
@@ -67,7 +68,10 @@ def set_path(kind_str, path_str):
 
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
+def elapsed(past_timer):
+    return timeit.default_timer()-past_timer
+
+def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir="", current_timer=timeit.default_timer()):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
@@ -124,7 +128,7 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     ucfp = get_primitive("use-compiled-file-paths")
     ucfp.call_interpret([w_null], pycketconfig)
 
-    console_log("...Boot Sequence Complete", debug)
+    console_log("...Boot Sequence Completed -- %s seconds" % str(elapsed(current_timer)), debug)
 
     return 0
 
@@ -141,7 +145,9 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
 
-    initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
+    current_timer = timeit.default_timer()
+
+    initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, current_timer)
 
     if version:
         from pycket.env import w_version
@@ -159,7 +165,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         console_log("(namespace-require %s) ..." % init_lib.tostring(), debug)
 
         namespace_require.call_interpret([init_lib], pycketconfig)
-        console_log("Init lib : %s loaded..." % init_library, debug)
+        console_log("Init lib : %s loaded... -- %s seconds" % (init_library, str(elapsed(current_timer))), debug)
 
     if require_files: # -t
         for require_file in require_files:
@@ -167,6 +173,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
             file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
                                                  W_WrappedConsProper.make(W_String.make(require_file), w_null))
             namespace_require.call_interpret([file_form], pycketconfig)
+            console_log("(namespace-require '(file %s)) -- %s seconds" % (require_file, str(elapsed(current_timer))), debug)
     if require_libs: # -l
         for require_lib in require_libs:
             # (namespace-require '(lib <lib-sym>))
@@ -174,15 +181,17 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                                                 W_WrappedConsProper.make(W_String.make(require_lib),
                                                                          w_null))
             namespace_require.call_interpret([lib_form], pycketconfig)
+            console_log("(namespace-require '(lib %s)) -- %s seconds" % (require_lib, str(elapsed(current_timer))), debug)
     if load_files: # -f
         for load_file in load_files:
             # (load <file_name>)
             load = get_primitive("load")
             load.call_interpret([W_String.make(load_file)], pycketconfig)
+            console_log("(namespace-require '(load %s)) -- %s seconds" % (load_file, str(elapsed(current_timer))), debug)
 
     if expr_strs: # -e
         for expr_str in expr_strs:
-            read_eval_print_string(expr_str, pycketconfig)
+            read_eval_print_string(expr_str, pycketconfig, False, debug, current_timer)
         
     if is_repl: # -i
         dynamic_require = get_primitive("dynamic-require")
@@ -239,7 +248,7 @@ def racket_print(results, pycketconfig):
     
     pr.call_interpret([W_String.make("\n\n")], pycketconfig)
 
-def read_eval_print_string(expr_str, pycketconfig, return_val=False):
+def read_eval_print_string(expr_str, pycketconfig, return_val=False, debug=False, current_timer=timeit.default_timer()):
     # read
     sexp = racket_read_str(expr_str, pycketconfig)
 
@@ -255,6 +264,8 @@ def read_eval_print_string(expr_str, pycketconfig, return_val=False):
     # print
     racket_print(results, pycketconfig)
 
+    # FIXME
+    console_log("(print (eval (read (open-input-string %s)))) -- %s seconds" % (expr_str, str(elapsed(current_timer))), debug)
     return 0
 
 def get_primitive(prim_name_str):
