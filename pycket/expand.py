@@ -247,7 +247,6 @@ def finalize_module(mod):
     from pycket.assign_convert import assign_convert
     mod = Context.normalize_term(mod)
     mod = assign_convert(mod)
-    mod.clean_caches()
     return mod
 
 def parse_module(json_string, bytecode_expand=False):

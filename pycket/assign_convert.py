@@ -29,11 +29,11 @@ from pycket.interpreter import (
     variable_set,
 )
 
-def compute_body_frees(node):
+def compute_body_frees(node, cache):
     assert isinstance(node, SequencedBodyAST)
     frees = SymbolSet.EMPTY
     for b in node.body:
-        frees = frees.union(b.free_vars())
+        frees = frees.union(b.free_vars(cache))
     return frees
 
 class AssignConvertVisitor(ASTVisitor):
@@ -45,6 +45,10 @@ class AssignConvertVisitor(ASTVisitor):
     the sizes of environment frames by removing cells unreferenced by an expression.
     """
 
+    def __init__(self):
+        self.free_vars_cache = {}
+        self.mutated_vars_cache = {}
+
     @staticmethod
     def remove_var(set, key):
         try:
@@ -52,12 +56,11 @@ class AssignConvertVisitor(ASTVisitor):
         except KeyError:
             pass
 
-    @staticmethod
-    def body_muts(node):
+    def body_muts(self, node):
         assert isinstance(node, SequencedBodyAST)
         muts = variable_set()
         for b in node.body:
-            muts.update(b.mutated_vars())
+            muts.update(b.mutated_vars(self.mutated_vars_cache))
         return muts
 
     def visit_cell_ref(self, ast, vars, env_structure):
@@ -115,7 +118,7 @@ class AssignConvertVisitor(ASTVisitor):
         assert isinstance(ast, Letrec)
         local_muts = self.body_muts(ast)
         for b in ast.rhss:
-            local_muts.update(b.mutated_vars())
+            local_muts.update(b.mutated_vars(self.mutated_vars_cache))
         for v in ast.args.elems:
             lv = LexicalVar(v)
             local_muts[lv] = None
@@ -187,7 +190,7 @@ class AssignConvertVisitor(ASTVisitor):
         env_structures = [None] * len(ast.body)
         curr_remove = env_structure.depth_and_size()[0]
         for i in range(len(ast.body) - 1, -1, -1):
-            free_vars = ast.body[i].free_vars()
+            free_vars = ast.body[i].free_vars(self.free_vars_cache)
             for var in free_vars:
                 var_depth = env_structure.depth_of_var(var)[1]
                 curr_remove = min(curr_remove, var_depth)
@@ -210,7 +213,7 @@ class AssignConvertVisitor(ASTVisitor):
         module table.
         """
         assert isinstance(ast, Module)
-        local_muts = ast.mod_mutated_vars()
+        local_muts = ast.mod_mutated_vars(self.mutated_vars_cache)
         ast.body = [b.visit(self, local_muts, None) for b in ast.body]
         return ast
 
@@ -223,7 +226,7 @@ class AssignConvertVisitor(ASTVisitor):
             return ast, sub_env_structure, env_structures, remove_num_envs
 
         # find out whether a smaller environment is sufficient for the body
-        free_vars_not_from_let = compute_body_frees(ast)
+        free_vars_not_from_let = compute_body_frees(ast, self.free_vars_cache)
         free_vars_not_from_let = free_vars_not_from_let.without_many(
                 ast.args.elems)
 
@@ -258,7 +261,7 @@ class AssignConvertVisitor(ASTVisitor):
         remove_num_envs = [curr_remove] * (len(ast.rhss) + 1)
         env_structures = [body_env_structure] * (len(ast.rhss) + 1)
         for i in range(len(ast.rhss) - 1, -1, -1):
-            free_vars = ast.rhss[i].free_vars()
+            free_vars = ast.rhss[i].free_vars(self.free_vars_cache)
             for v in free_vars:
                 var_depth = sub_env_structure.prev.depth_of_var(v)[1]
                 curr_remove = min(curr_remove, var_depth)
@@ -266,8 +269,7 @@ class AssignConvertVisitor(ASTVisitor):
             remove_num_envs[i] = curr_remove
         return ast, sub_env_structure, env_structures, remove_num_envs
 
-    @staticmethod
-    def _copy_live_vars(ast, free_vars_not_from_let):
+    def _copy_live_vars(self, ast, free_vars_not_from_let):
         # there is unneeded local env storage that we will never need
         # in the body. thus, make a copy of all local variables into
         # the current let, at the point where the variable is not longer
@@ -280,7 +282,7 @@ class AssignConvertVisitor(ASTVisitor):
         rhss = ast.rhss
         for var in free_vars_not_from_let:
             i = len(ast.rhss) - 1
-            while i != 0 and not rhss[i].free_vars().haskey(var):
+            while i != 0 and not rhss[i].free_vars(self.free_vars_cache).haskey(var):
                 i -= 1
             dead_after_sets[i].append(var)
 
@@ -306,6 +308,14 @@ class AssignConvertVisitor(ASTVisitor):
         return counts, new_lhs_vars, new_rhss
 
 def assign_convert(ast, visitor=None):
+    """ make a copy of the AST that converts all writable variables into
+    using cells. In addition, compute the state of the environment for
+    every AST node that needs to know.
+
+    The vars arguments in all the visit_* methods contain the variables that
+    need to use cells. The env_structure is an instance of SymList (or None)
+    describing the environment at that AST node.
+    """
     if visitor is None:
         visitor = AssignConvertVisitor()
     return ast.visit(visitor, variable_set(), None)

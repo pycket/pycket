@@ -684,11 +684,11 @@ class Module(AST):
             raise SchemeException("use of module variable before definition %s" % (sym.tostring()))
         return v
 
-    # all the module-bound variables that are mutated
-    def mod_mutated_vars(self):
+    def mod_mutated_vars(self, cache):
+        """ return all the module-bound variables that are mutated"""
         x = variable_set()
         for r in self.body:
-            x.update(r.mutated_vars())
+            x.update(r.mutated_vars(cache))
         return x
 
     def direct_children(self):
@@ -1276,7 +1276,7 @@ class Var(AST):
     def direct_children(self):
         return []
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         return SymbolSet.singleton(self.sym)
 
     def _tostring(self):
@@ -1351,7 +1351,7 @@ class ModuleVar(Var):
         self.modenv = None
         self.w_value = None
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         return SymbolSet.EMPTY
 
     def _lookup(self, env):
@@ -1428,8 +1428,8 @@ class SetBang(AST):
         self.var._set(w_val, env)
         return values.w_void
 
-    def _mutated_vars(self):
-        x = self.rhs.mutated_vars()
+    def _mutated_vars(self, cache):
+        x = self.rhs.mutated_vars(cache)
         var = self.var
         if isinstance(var, CellRef):
             x[LexicalVar(self.var.sym)] = None
@@ -1496,14 +1496,14 @@ def make_lambda(formals, rest, body, sourceinfo=None):
     """
     body = remove_pure_ops(body)
     args = SymList(formals + ([rest] if rest else []))
-    frees = SymList(free_vars_lambda(body, args).keys())
+    frees = SymList(free_vars_lambda(body, args, {}).keys())
     args = SymList(args.elems, frees)
     return Lambda(formals, rest, args, frees, body, sourceinfo=sourceinfo)
 
-def free_vars_lambda(body, args):
+def free_vars_lambda(body, args, cache):
     x = SymbolSet.EMPTY
     for b in body:
-        x = x.union(b.free_vars())
+        x = x.union(b.free_vars(cache))
     x = x.without_many(args.elems)
     return x
 
@@ -1553,9 +1553,9 @@ class CaseLambda(AST):
             return w_closure
         return values.W_Closure.make(self, env)
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         # call _free_vars() to avoid populating the free vars cache
-        result = AST._free_vars(self)
+        result = AST._free_vars(self, cache)
         if self.recursive_sym is not None:
             result = result.without(self.recursive_sym)
         return result
@@ -1664,18 +1664,18 @@ class Lambda(SequencedBodyAST):
         self.surrounding_lambda = lam
         # don't recurse
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             if lv in x:
                 del x[lv]
         return x
 
-    def _free_vars(self):
-        return free_vars_lambda(self.body, self.args)
+    def _free_vars(self, cache):
+        return free_vars_lambda(self.body, self.args, cache)
 
     @jit.unroll_safe
     def _has_mutable_args(self):
@@ -1841,17 +1841,17 @@ class Letrec(SequencedBodyAST):
     def direct_children(self):
         return self.rhss + self.body
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body + self.rhss:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             x[lv] = None
         return x
 
-    def _free_vars(self):
-        x = AST._free_vars(self)
+    def _free_vars(self, cache):
+        x = AST._free_vars(self, cache)
         x = x.without_many(self.args.elems)
         return x
 
@@ -2005,25 +2005,25 @@ class Let(SequencedBodyAST):
     def direct_children(self):
         return self.rhss + self.body
 
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         x = variable_set()
         for b in self.body:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         for v in self.args.elems:
             lv = LexicalVar(v)
             if lv in x:
                 del x[lv]
         for b in self.rhss:
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         return x
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         x = SymbolSet.EMPTY
         for b in self.body:
-            x = x.union(b.free_vars())
+            x = x.union(b.free_vars(cache))
         x = x.without_many(self.args.elems)
         for b in self.rhss:
-            x = x.union(b.free_vars())
+            x = x.union(b.free_vars(cache))
         return x
 
     def normalize(self, context):

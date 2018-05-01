@@ -15,14 +15,12 @@ class Visitable(type):
 class AST(object):
     __metaclass__ = Visitable
 
-    _attrs_ = ["should_enter", "_mvars", "_fvars", "surrounding_lambda", "_stringrepr"]
+    _attrs_ = ["should_enter", "surrounding_lambda", "_stringrepr"]
     _immutable_fields_ = ["should_enter", "surrounding_lambda"]
     _settled_ = True
 
     should_enter = False # default value
     _stringrepr = None # default value
-    _mvars = None
-    _fvars = None
     surrounding_lambda = None
 
     simple = False
@@ -71,51 +69,43 @@ class AST(object):
     def collect_module_info(self, info):
         return self.direct_children()
 
-    def free_vars(self):
-        if self._fvars is None:
-            self._fvars = self._free_vars()
-        return self._fvars
+    def free_vars(self, cache=None):
+        if cache is None:
+            cache = {}
+        else:
+            try:
+                return cache[self]
+            except KeyError:
+                pass
+        fvars = self._free_vars(cache)
+        cache[self] = fvars
+        return fvars
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         from pycket.interpreter import SymbolSet
         free_vars = SymbolSet.EMPTY
         for child in self.direct_children():
-            free_vars = free_vars.union(child.free_vars())
+            free_vars = free_vars.union(child.free_vars(cache))
         return free_vars
 
-    def assign_convert(self, vars, env_structure):
-        """ make a copy of the AST that converts all writable variables into
-        using cells. In addition, compute the state of the environment for
-        every AST node that needs to know.
+    def mutated_vars(self, cache=None):
+        if cache is None:
+            cache = {}
+        else:
+            try:
+                return cache[self]
+            except KeyError:
+                pass
+        mvars = self._mutated_vars(cache)
+        cache[self] = mvars
+        return mvars
 
-        The vars argument contains the variables that need to use cells.
-        The env_structure is an instance of SymList (or None) describing the
-        environment at that AST node.
-        """
-        raise NotImplementedError("abstract base class")
-
-    def mutated_vars(self):
-        if self._mvars is None:
-            self._mvars = self._mutated_vars()
-        return self._mvars
-
-    def _mutated_vars(self):
+    def _mutated_vars(self, cache):
         from pycket.interpreter import variable_set
         x = variable_set()
         for b in self.direct_children():
-            x.update(b.mutated_vars())
+            x.update(b.mutated_vars(cache))
         return x
-
-    def _clean_cache(self):
-        self._mvars = None
-        self._fvars = None
-
-    def clean_caches(self):
-        nodes = [self]
-        while nodes:
-            node = nodes.pop()
-            node._clean_cache()
-            nodes.extend(node.direct_children())
 
     def normalize(self, ctxt):
         return ctxt.plug(self)
