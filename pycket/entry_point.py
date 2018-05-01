@@ -45,6 +45,7 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "threshold", 131)
         jit.set_param(None, "trace_eagerness", 50)
         jit.set_param(None, "max_unroll_loops", 15)
+        jit.set_param(None, "enable_opts", "intbounds:rewrite:virtualize:string:pure:earlyforce:heap")
 
         config, names, args, retval = parse_args(argv)
 
