@@ -131,7 +131,7 @@ for args in [
 @expose("datum-intern-literal", [values.W_Object])
 def datum_intern_literal(v):
     return v
-    
+
 @expose("byte?", [values.W_Object])
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
@@ -515,7 +515,7 @@ def do_port_read_handler(ip, proc):
             ip.set_read_handler(default_read_handler)
         else:
             ip.set_read_handler(proc)
-            
+
         return values.w_void
 
 @expose("procedure-arity?", [values.W_Object])
@@ -1514,16 +1514,23 @@ def procedure_specialize(proc):
 def processor_count():
     return values.W_Fixnum.ONE
 
-@expose("cache-configuration", [values.W_Fixnum, values.W_Object])
-def cache_configuration(val, proc):
-    """
-    This function seems to be responsible for setting up callbacks in the
-    Racket runtime. We have no such callbacks as of yet. The corresponding Racket
-    implementation can be found at:
+cached_values = {}
 
-    https://github.com/racket/racket/blob/161a9edb57c38ab71686d9a6e3c7920c96713fed/racket/src/racket/src/thread.c#L744
-    """
-    return values.w_false
+@continuation
+def thunk_cont(index, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    cached_values[index] = val
+    return return_value(val, env, cont)
+
+@expose("cache-configuration", [values.W_Fixnum, values.W_Object], simple=False)
+def cache_configuration(index, proc, env, cont):
+    from pycket.interpreter import return_value
+
+    if index in cached_values:
+        return return_value(cached_values[index], env, cont)
+
+    return proc.call([], env, thunk_cont(index, env, cont))
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
 def make_readtable(parent, char, sym, proc):
