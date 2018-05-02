@@ -100,8 +100,12 @@ def hash_for_each_loop(ht, f, index, env, cont):
 def hash_for_each_cont(ht, f, index, env, cont, _vals):
     return hash_for_each_loop(ht, f, index + 1, env, cont)
 
-@expose("hash-map", [W_HashTable, procedure], simple=False)
-def hash_map(h, f, env, cont):
+@expose("hash-map", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
+def hash_map(h, f, try_order, env, cont):
+    # FIXME : If try-order? is true, then the order of keys and values
+    # passed to proc is normalized under certain circumstances, such
+    # as when the keys are all symbols and hash is not an
+    # impersonator.
     from pycket.interpreter import return_value
     acc = values.w_null
     return hash_map_loop(f, h, 0, acc, env, cont)
@@ -384,5 +388,3 @@ def eq_hash_code(v):
 def eqv_hash_code(v):
     hash = v.hash_eqv()
     return values.W_Fixnum(hash)
-
-
