@@ -108,13 +108,13 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     boot = get_primitive("boot")
     boot.call_interpret([], pycketconfig)
 
-    console_log("(find-library-collection-links (current-library-collection-links))", debug)
+    console_log("(current-library-collection-links (find-library-collection-links))", debug)
     flcl = get_primitive("find-library-collection-links")
     lib_coll_links = flcl.call_interpret([], pycketconfig)
     clcl = get_primitive("current-library-collection-links")
     clcl.call_interpret([lib_coll_links], pycketconfig)
 
-    console_log("(find-library-collection-paths (current-library-collection-paths))", debug)
+    console_log("(current-library-collection-paths (find-library-collection-paths))", debug)
     flcp = get_primitive("find-library-collection-paths")
     lib_coll_paths = flcp.call_interpret([], pycketconfig)
     clcp = get_primitive("current-library-collection-paths")

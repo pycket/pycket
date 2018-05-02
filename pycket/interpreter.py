@@ -1382,7 +1382,7 @@ class LinkletVar(Var):
     def get_value_direct(self):
         w_res = self.w_value
         if w_res is None:
-            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym)
+            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
         if isinstance(w_res, values.W_Cell):
             return w_res.get_val()
         return w_res
@@ -1391,7 +1391,7 @@ class LinkletVar(Var):
     def get_value_unstripped(self):
         w_res = self.w_value
         if w_res is None:
-            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym)
+            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
         return w_res
 
     def is_uninitialized(self):
