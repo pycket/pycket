@@ -798,8 +798,13 @@ def path_stringp(v):
 
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
-    # FIXME: stub
-    return values.w_true
+    if not isinstance(v, values_string.W_String) and not isinstance(v, values.W_Path):
+        raise SchemeException("complete-path?: expected a path? or path-string?")
+
+    path_str = extract_path(v)
+    if path_str[0] == os.path.sep:
+        return values.w_true
+    return values.w_false
 
 @expose("expand-user-path", [values.W_Object])
 def expand_user_path(p):
@@ -914,7 +919,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
     port = open_outfile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values_string.W_String, values.W_Object,
+@expose("with-input-from-file", [values.W_Object, values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
