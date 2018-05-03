@@ -244,7 +244,6 @@ def parse_args(argv):
 
         elif argv[i] == "--verbose":
             config['verbose'] = True
-            retval = RETURN_OK
 
         elif argv[i] == "--jit":
             if to <= i + 1:
