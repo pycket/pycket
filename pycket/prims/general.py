@@ -1568,6 +1568,14 @@ make_stub_predicates(
     "compiled-module-expression?",
     "channel?")
 
+@expose("unsafe-start-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
+@expose("unsafe-end-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
 @expose("__dummy-function__", [])
 def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
