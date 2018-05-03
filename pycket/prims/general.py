@@ -1083,6 +1083,22 @@ def list_tail_impl(lst, pos):
 
     return lst
 
+@expose("assoc", [values.W_Object, values.W_List, default(values.W_Object, values.w_false)])
+def assoc(v, lst, is_equal):
+    if is_equal is not values.w_false:
+        raise SchemeException("assoc: using a custom equal? is not yet implemented")
+
+    while isinstance(lst, values.W_Cons):
+        c = lst.car()
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("assoc: non-pair found in list: %s in %s" % (c.tostring(), lst.tostring()))
+        cc = c.car()
+        if v.equal(cc):
+            return c
+        lst = lst.cdr()
+
+    return values.w_false
+
 @expose("current-seconds", [])
 def current_seconds():
     tick = int(time.clock())
