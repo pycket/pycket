@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+#import struct
 from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
@@ -1351,19 +1352,58 @@ w_fs_change_mode = values.W_Symbol.make("fs-change")
 w_local_mode = values.W_Symbol.make("local")
 w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
+w_word_sym = values.W_Symbol.make("word")
+w_link_sym = values.W_Symbol.make("link")
+w_vm_sym = values.W_Symbol.make("vm")
+w_gc_sym = values.W_Symbol.make("gc")
+w_machine_sym = values.W_Symbol.make("machine")
+w_cross_sym = values.W_Symbol.make("cross")
+
 w_fs_supported = values.W_Symbol.make("supported")
 w_fs_scalable = values.W_Symbol.make("scalable")
 w_fs_low_latency = values.W_Symbol.make("low-latency")
 w_fs_file_level = values.W_Symbol.make("file-level")
 
-@expose("system-type", [default(values.W_Symbol, w_os_sym)])
 def system_type(w_what):
+    # os
     if w_what is w_os_sym:
         return w_system_sym
+
+    # word
+    if w_what is w_word_sym:
+        #return values.W_Fixnum(8*struct.calcsize("P"))
+        return values.W_Fixnum(64)
+
+    # vm
+    if w_what is w_vm_sym:
+        return values.W_Symbol.make("racket")
+
+    # gc
+    if w_what is w_gc_sym:
+        return values.W_Symbol.make("cgc") # ??
+
+    # link
+    #
+    # 'static (Unix)
+    # 'shared (Unix)
+    # 'dll (Windows)
+    # 'framework (Mac OS)
+    if w_what is w_link_sym:
+        return values.W_Symbol.make("static")
+
+    # machine
+    if w_what is w_machine_sym:
+        return values_string.W_String.make("further details about the current machine in a platform-specific format")
+
+    # so-suffix
     if w_what is w_os_so_suffix:
         return w_unix_so_suffix
+
+    # so-mode
     if w_what is w_os_so_mode_sym:
         return w_local_mode
+
+    # fs-change
     if w_what is w_fs_change_mode:
         from pycket.prims.vector import vector
         w_f = values.w_false
@@ -1372,14 +1412,27 @@ def system_type(w_what):
             return vector([w_fs_supported, w_fs_scalable, w_f, w_fs_file_level])
         else:
             return vector([w_f, w_f, w_f, w_f])
+
+    # cross
+    if w_what is w_cross_sym:
+        return values.W_Symbol.make("infer")
+
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
-@expose("system-path-convention-type", [])
-def system_path_convetion_type():
+expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
+
+def system_path_convention_type():
     if w_system_sym is w_windows_sym:
         return w_windows_sym
     else:
         return w_unix_sym
+
+expose("system-path-convention-type", [])(system_path_convention_type)
+
+@expose("bytes->path", [values.W_Bytes, default(values.W_Symbol, system_path_convention_type())])
+def bytes_to_path(bstr, typ):
+    # FIXME : ignores the type, won't work for windows
+    return values.W_Path(bstr.as_str())
 
 @expose("collect-garbage", [])
 @jit.dont_look_inside
