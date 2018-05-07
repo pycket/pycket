@@ -1376,11 +1376,11 @@ def system_type(w_what):
 
     # vm
     if w_what is w_vm_sym:
-        return values.W_Symbol.make("racket")
+        return values.W_Symbol.make("pycket")
 
     # gc
     if w_what is w_gc_sym:
-        return values.W_Symbol.make("cgc") # ??
+        return values.W_Symbol.make("3m") # ??
 
     # link
     #
