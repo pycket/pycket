@@ -98,7 +98,7 @@ class W_LinkletInstance(W_Object):
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
-    
+
     def __init__(self,bundle_mapping):
         self.bundle_mapping = bundle_mapping
 
@@ -113,7 +113,7 @@ def linklet_bundle_to_hash(linkl_bundle):
 class W_LinkletDirectory(W_Object):
 
     # When a Racket module has submodules, the linklet bundles for the module and the submodules are grouped together in a linklet directory. A linklet directory can have nested linklet directories. Information in a linklet directory is keyed by #f or a symbol, where #f must be mapped to a linklet bundle (if anything) and each symbol must be mapped to a linklet directory. A linklet directory can be equivalently viewed as a mapping from a lists of symbols to a linklet bundle.
-    
+
     def __init__(self,dir_mapping):
         self.dir_mapping = dir_mapping
 
@@ -157,7 +157,7 @@ class W_Linklet(W_Object):
 
         return "#(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
 
-    def instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=False, target=None, cont_params=None):
+    def instantiate(self, w_imported_instances, config, prompt=False, target=None):
 
         l_importss = len(self.importss)
         l_given_instances = len(w_imported_instances)
@@ -165,25 +165,10 @@ class W_Linklet(W_Object):
         if l_importss != l_given_instances:
             raise SchemeException("Required %s instances but given %s" % (str(l_importss), str(l_given_instances)))
 
+        return_val = True
         if not target:
-            used_instance = W_LinkletInstance(self.name, {})
-            inst, ret_val = self.do_instantiate(w_imported_instances, config, False, prompt, target=used_instance, cont_params=cont_params)
-            return inst
-
-        _, ret_val = self.do_instantiate(w_imported_instances, config, True, prompt, target, cont_params)
-        return ret_val
-    
-    def do_instantiate(self, w_imported_instances, config, toplevel_eval=False, prompt=False, target=None, cont_params=None):
-
-        """ Instantiates the linklet:
-
-        --- Prep the environment and the continuation for the evaluation of linklet forms
-        --- Process the imports, get them into the toplevel environment
-        --- Collect the ids defined in the self linklet's forms
-        --- Uninitialize the undefined exports in the linklet into the target (if it doesn't already have it)
-        --- Evaluate linklet forms
-        --- Return target instance and return value (None if a target is given to instantiate)
-        """
+            target = W_LinkletInstance(self.name, {})
+            return_val = False
 
         """
         Prep the environment and the continuation
@@ -197,6 +182,25 @@ class W_Linklet(W_Object):
             cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
 
         cont.update_cm(parameterization_key, top_level_config)
+
+        inst, ret_val = self.do_instantiate(w_imported_instances, config, target, env, cont)
+
+        if return_val:
+            return ret_val
+        else:
+            return inst
+
+    def do_instantiate(self, w_imported_instances, config, target, env, cont):
+
+        """ Instantiates the linklet:
+
+        --- Prep the environment and the continuation for the evaluation of linklet forms
+        --- Process the imports, get them into the toplevel environment
+        --- Collect the ids defined in the self linklet's forms
+        --- Uninitialize the undefined exports in the linklet into the target (if it doesn't already have it)
+        --- Evaluate linklet forms
+        --- Return target instance and return value (None if a target is given to instantiate)
+        """
 
         """
         Process the imports, get them into the toplevel environment
@@ -329,7 +333,7 @@ class W_Linklet(W_Object):
                     sym = W_Symbol.make(id_str.value_object()['quote'].value_object()['toplevel'].value_string())
                     instance_imports[sym] = sym
                 importss.append(instance_imports)
-                
+
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
             form = loader.to_ast(body_form)
@@ -343,7 +347,7 @@ class W_Linklet(W_Object):
         if config_obj is not None:
             for k, v in config_obj.iteritems():
                 config[k] = v.value_string()
-            
+
         return W_Linklet(W_Symbol.make(json_file_name), importss, exports, all_forms), config
 
 
@@ -568,7 +572,7 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
 
             rands_ls = to_rpython_list(form.cdr())
             rands = [sexp_to_ast(r, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for r in rands_ls]
-                    
+
             form = App.make(form_rator, rands)
     else:
         raise SchemeException("Don't know what to do with this form yet : %s" % form.tostring())
@@ -673,7 +677,7 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
                 return return_value_direct(linkl, env, cont)
             else:
                 return return_multi_vals(Values.make([linkl, import_keys]), env, cont)
-            
+
     else: # correlated
         # take the AST from the correlated and put it in a W_Linklet and return
         raise SchemeException("NYI")
@@ -691,22 +695,22 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
     ##################################
 
     ##### As long as serializable? is true, the resulting linklet can be marshaled to and from a byte stream when it is part of a linklet bundle.
-        
+
     # (Pdb) serializable_huh
     # <pycket.values.W_Bool object at 0x00000000024e8640>
-    ##################################        
+    ##################################
 
 @expose("instance-name", [W_LinkletInstance])
 def instance_name(l_inst):
     return l_inst.get_name()
-    
+
 @expose("instantiate-linklet", [W_Linklet, W_List, default(W_Object, w_false), default(W_Object, w_true)], simple=False)
 def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, env, cont):
 
     prompt = False
     if use_prompt is w_true: # use-prompt? : any/c = #t - what happens when it is 3 ?
         prompt = True
-    
+
     im_list = to_rpython_list(import_instances)
     expected = len(linkl.importss)
     given = len(im_list)
@@ -714,19 +718,14 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
     if expected != given:
         raise SchemeException("The number of instances in import-instances must match the number of import sets in linklet. Expected %s but got %s" % (expected, given))
 
-    cont_params = None
-    from pycket.cont import Link
-    if isinstance(cont.marks, Link):
-        cont_params = cont.marks.val
-
     if target_instance is None or target_instance is w_false:
-        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt=prompt, target=None, cont_params=cont_params), env, cont)
-    
+        target = None
     elif isinstance(target_instance, W_LinkletInstance):
-        return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, toplevel_eval=True, prompt=prompt, target=target_instance, cont_params=cont_params), env, cont)
-
+        target = target_instance
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
+
+    return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target), env, cont)
 
 @expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
@@ -754,7 +753,7 @@ def get_instance_variable_names(inst):
     names = w_null
     for name in inst.get_var_names():
         names = W_Cons.make(name, names)
-        
+
     return names
 
 make_pred("linklet-directory?", W_LinkletDirectory)
