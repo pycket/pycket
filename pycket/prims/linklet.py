@@ -11,9 +11,9 @@ class W_LinkletDirectory(W_Object)
 #
 
 from pycket.expand import readfile_rpython, getkey
-from pycket.interpreter import DefineValues, interpret_one, Context, return_value, return_value_direct, return_multi_vals, Quote, App, ModuleVar, make_lambda, LexicalVar, LinkletVar, CaseLambda, make_let, If, make_letrec, Begin, CellRef, SetBang, Begin0, VariableReference, WithContinuationMark, Var, Lambda
+from pycket.interpreter import *
 from pycket.assign_convert import assign_convert
-from pycket.values import W_Object, W_Symbol, w_true, w_false, W_List, W_Cons, W_WrappedConsProper, w_null, Values, W_Number, w_void, W_Bool, w_default_continuation_prompt_tag, parameterization_key, W_ImmutableBytes, W_VariableReference, W_Cell
+from pycket.values import *
 from pycket.values_string import W_String
 from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
@@ -23,7 +23,7 @@ from pycket.prims.general import make_pred
 from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
-from pycket.cont import Prompt, NilCont
+from pycket.cont import Prompt, NilCont, continuation
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -125,6 +125,64 @@ def hash_to_linklet_directory(content):
 def linklet_directory_to_hash(linkl_directory):
     return linkl_directory.dir_mapping
 
+@continuation
+def instantiate_val_cont(forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
+    if index >= len(forms):
+        if return_val:
+            return return_value(_vals, env, cont)
+        else:
+            return return_value(target, env, cont)
+
+    # there's more
+    return instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont)
+
+@continuation
+def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, exports, env, cont, _vals):
+
+    values = _vals.get_all_values()
+    len_values = len(values)
+    if len(form.names) != len_values:
+        raise SchemeException("%s -- expected %s values but got %s" % (form.tostring(), str(len(form.names)), str(len_values)))
+
+    for i in range(len_values):
+        name = form.names[i]
+        value = values[i]
+
+        # modify target
+        ext_name = exports[name] if name in exports else name
+
+        c = W_Cell(value)
+        var = LinkletVar(ext_name, c)
+        if name in exports: # variable is definitely going into target
+            if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
+                target.overwrite_var(ext_name, value)
+                var = target.get_var(ext_name)
+                val = var.get_value_unstripped()
+                # FIXME : this already_celled here is redundant -- get rid of it
+                env.toplevel_env().toplevel_set(name, val, already_celled=isinstance(val, W_Cell))
+                continue
+            else:
+                target.add_var(ext_name, var)
+        elif external_of_an_export(name, exports):
+            gensym_count += 1
+            ex_name = W_Symbol(name.tostring() + "." + str(gensym_count))
+            target.add_var(ex_name, var)
+        elif not target.has_var(ext_name):
+            target.add_var(ext_name, var)
+
+        # already_celled here is for being able to put the same W_Cell in the
+        # environment into the target
+        env.toplevel_env().toplevel_set(name, c, already_celled=True)
+
+    return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
+
+def instantiate_loop(forms, index, gensym_count, return_val, target, exports, env, cont):
+    form = forms[index]
+    if isinstance(form, DefineValues):
+        return form.rhs, env, instantiate_def_cont(form, forms, index, gensym_count, return_val, target, exports, env, cont)
+    else:
+        return form, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont)
+
 class W_Linklet(W_Object):
 
     def __init__(self, name, importss, exports, all_forms):
@@ -157,7 +215,7 @@ class W_Linklet(W_Object):
 
         return "#(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
 
-    def instantiate(self, w_imported_instances, config, prompt=False, target=None):
+    def instantiate(self, w_imported_instances, config, prompt=False, target=None, env=None, cont=None):
 
         l_importss = len(self.importss)
         l_given_instances = len(w_imported_instances)
@@ -170,28 +228,6 @@ class W_Linklet(W_Object):
             target = W_LinkletInstance(self.name, {})
             return_val = False
 
-        """
-        Prep the environment and the continuation
-        Put the target into the environment
-        """
-        from pycket.env import ToplevelEnv
-        env = ToplevelEnv(config, target)
-
-        cont = NilCont()
-        if prompt:
-            cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
-
-        cont.update_cm(parameterization_key, top_level_config)
-
-        inst, ret_val = self.do_instantiate(w_imported_instances, config, target, env, cont)
-
-        if return_val:
-            return ret_val
-        else:
-            return inst
-
-    def do_instantiate(self, w_imported_instances, config, target, env, cont):
-
         """ Instantiates the linklet:
 
         --- Prep the environment and the continuation for the evaluation of linklet forms
@@ -201,6 +237,29 @@ class W_Linklet(W_Object):
         --- Evaluate linklet forms
         --- Return target instance and return value (None if a target is given to instantiate)
         """
+
+        """
+        Prep the environment and the continuation
+        Put the target into the environment
+        """
+        # Discard the current environment and create a new one at
+        # every instantiation This is crucial because linklet
+        # variables are put into the toplevel environment, and
+        # replacing the W_Cell (not overwriting its value) with
+        # another one makes the corresponding target to lose the link
+        # to that variable (whenever the target's variable is
+        # modified, the one in the environment has to be updated too)
+        from pycket.env import ToplevelEnv
+        env = ToplevelEnv(config)
+
+        env.set_current_linklet_instance(target)
+
+        if not cont:
+            cont = NilCont()
+            cont.update_cm(parameterization_key, top_level_config)
+
+        if prompt:
+            cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
 
         """
         Process the imports, get them into the toplevel environment
@@ -217,7 +276,7 @@ class W_Linklet(W_Object):
 
                 # imports never get into the target
                 # put the into the toplevel env
-                env.toplevel_set(int_name, imported_var.get_value_direct())
+                env.toplevel_env().toplevel_set(int_name, imported_var.get_value_direct())
 
         """
         Collect the ids defined in the given linklet's forms
@@ -239,57 +298,21 @@ class W_Linklet(W_Object):
                 if not target.has_var(external_name):
                     target.add_var(external_name, LinkletVar(external_name))
 
-        """
-        Evaluate forms (LinkletVar always -1), add newly defined vals into the instance
-        """
-        gensym_count = 0
-        return_values = w_void
-        for form in self.forms:
-            if isinstance(form, DefineValues):
-                expression = form.rhs
-                values = interpret_one(expression, env, cont).get_all_values()
-                len_values = len(values)
-                if len(form.names) != len_values:
-                    raise SchemeException("wrong number of values for define-values")
-
-                for index in range(len_values):
-                    name = form.names[index]
-                    value = values[index]
-
-                    # modify target
-                    ext_name = self.exports[name] if name in self.exports else name
-
-                    c = W_Cell(value)
-                    var = LinkletVar(ext_name, c)
-                    if name in self.exports: # variable is definitely going into target
-                        if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
-                            target.overwrite_var(ext_name, value)
-                            var = target.get_var(ext_name)
-                            val = var.get_value_unstripped()
-                            env.toplevel_set(name, val, already_celled=isinstance(val, W_Cell))
-                            return_values = w_void
-                            continue
-                        else:
-                            target.add_var(ext_name, var)
-                    elif external_of_an_export(name, self.exports):
-                        gensym_count += 1
-                        ex_name = W_Symbol(name.tostring() + "." + str(gensym_count))
-                        target.add_var(ex_name, var)
-                    elif not target.has_var(ext_name):
-                        target.add_var(ext_name, var)
-
-                    # already_celled is for being able to put the same W_Cell in the environment
-                    # into the target
-                    env.toplevel_set(name, c, already_celled=True)
-                return_values = w_void
+        if len(self.forms) == 0:
+            # no need for any evaluation, just return the instance or the value
+            if return_val:
+                return return_value(w_void, env, cont)
             else:
-                # form is not a DefineValues, evaluate it for the side effects
-                return_values = interpret_one(form, env, cont)
+                return return_value(target, env, cont)
 
-        """
-        Return target instance and return value (None if a target is given to instantiate)
-        """
-        return target, return_values
+        #try:
+        return instantiate_loop(self.forms, 0, 0, return_val, target, self.exports, env, cont)
+        # except Done, e:
+        #     import pdb;pdb.set_trace()
+        #     return e.values
+        # except SchemeException, e:
+        #     #import pdb;pdb.set_trace()
+        #     raise
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
@@ -725,7 +748,7 @@ def instantiate_linklet(linkl, import_instances, target_instance, use_prompt, en
     else:
         raise SchemeException("Expected #f or instance? as target-instance, got : %s" % target_instance)
 
-    return return_value(linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target), env, cont)
+    return linkl.instantiate(im_list, env.toplevel_env()._pycketconfig, prompt, target, env, cont)
 
 @expose("linklet-import-variables", [W_Linklet])
 def linklet_import_variables(linkl):
@@ -795,7 +818,6 @@ def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
-    from pycket.interpreter import return_value
     if not instance.has_var(name):
         if fail_k is not None and fail_k.iscallable():
             return fail_k.call([], env, cont)

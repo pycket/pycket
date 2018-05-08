@@ -54,8 +54,8 @@ def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
 
     console_log("Instantiating %s ...."  % json_file_name, debug)
-    linkl_instance = linkl.instantiate([], config=pycketconfig)
-
+    instantiate_linklet = get_primitive("instantiate-linklet")
+    linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false], pycketconfig)
     console_log("DONE.", debug)
     return linkl_instance, sys_config
 
@@ -144,10 +144,6 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
 
-    if version:
-        from pycket.env import w_version
-        print("Welcome to Pycket v%s" % w_version.get_version())
-
     namespace_require = get_primitive("namespace-require")
 
     if just_kernel:
@@ -187,6 +183,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     if expr_strs: # -e
         for expr_str in expr_strs:
             read_eval_print_string(expr_str, pycketconfig, False, debug)
+
+    if version:
+        from pycket.env import w_version
+        print("Welcome to Pycket v%s" % w_version.get_version())
         
     if is_repl: # -i
         dynamic_require = get_primitive("dynamic-require")
@@ -321,105 +321,3 @@ just-#%%kernel : %s
     console_log(log_str, debug)
 
     return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
-
-
-# maybe we should move this to testhelpers
-def run_linklet_file(file_name, pycketconfig, current_cmd_args):
-
-    # CAUTION: doesn't check the format of the file, assumes a lot
-    # Make sure Racket runs it without a problem
-
-    # Assumptions:
-    # 1) (define (instantiate-linklet ....) doesn't have any target
-    # 2) it's gonna return after one targeted instantitation at the toplevel
-    # 3) use (list) for empty list
-
-    initiate_boot_sequence(pycketconfig, current_cmd_args)
-
-    # Racket read the module
-    module_sexp_ = racket_read_file(file_name, pycketconfig)
-
-    # get the module body
-    module_sexp = module_sexp_.cdr().cdr().cdr().cdr()
-    exprs = to_rpython_list(module_sexp)
-
-    from pycket.env import ToplevelEnv
-    from pycket.interpreter import NilCont
-
-    # Start going through the expressions at the toplevel
-
-    w_linklets = {}
-    instances = {}
-
-    for expr in exprs:
-        if "define" in expr.car().tostring():
-            first_op = expr.cdr().cdr().car().car()
-            if "compile-linklet" in first_op.tostring():
-                """
-                (define l-0
-                  (compile-linklet
-                    (datum->correlated
-                      (quote
-                        (linklet .......)))))
-                """
-                linkl_name = expr.cdr().car()
-                linkl_sexp = expr.cdr().cdr().car().cdr().car().cdr().car().cdr().car() # Trust me :)
-                # create the W_Linklet
-                linkl = None
-                try:
-                    do_compile_linklet(linkl_sexp, linkl_name, w_false, w_false, w_false, ToplevelEnv(pycketconfig), NilCont())
-                except Done, e:
-                    linkl = e.values
-                w_linklets[linkl_name] = linkl
-
-            elif "instantiate-linklet" in first_op.tostring():
-                # (define inst-0 (instantiate-linklet l-0 (list inst-1)))
-                imp_names = to_rpython_list(expr.cdr().cdr().car().cdr().cdr().car().cdr())
-                inst_name = expr.cdr().car()
-                linkl_name = expr.cdr().cdr().car().cdr().car()
-
-                if linkl_name not in w_linklets:
-                    raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
-
-                imp_insts = []
-                for imp_name in imp_names:
-                    if imp_name not in instances:
-                        raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
-                    imp_insts.append(instances[imp_name])
-
-                linkl = w_linklets[linkl_name]
-                instances[inst_name] = linkl.instantiate(imp_insts, pycketconfig)
-            else:
-                raise Exception("I don't know yet: %s" % expr.tostring())
-
-        elif "instantiate-linklet" in expr.car().tostring():
-            # see it there's a target
-            if expr.cdr().cdr().cdr() is w_null:
-                # no target, don't care, well should we? #FIXME
-                continue
-            else:
-                # (instantiate-linklet l-0 (list inst-1) target)
-                linkl_name = expr.cdr().car()
-                imp_names = to_rpython_list(expr.cdr().cdr().car().cdr())
-                target_inst_name = expr.cdr().cdr().cdr().car()
-
-                if linkl_name not in w_linklets:
-                    raise Exception("linklet is not yet defined : %s" % linkl_name.tostring())
-
-                linkl = w_linklets[linkl_name]
-
-                imp_insts = []
-                for imp_name in imp_names:
-                    if imp_name not in instances:
-                        raise Exception("required instance is not instantiated : %s" % imp_name.tostring())
-                    imp_insts.append(instances[imp_name])
-
-                if target_inst_name not in instances:
-                    raise Exception("target instance is not instantiated : %s" % target_inst_name.tostring())
-                target_inst = instances[target_inst_name]
-
-                out_val = linkl.instantiate(imp_insts, pycketconfig, False, target_inst)
-                racket_print(out_val, pycketconfig)
-                return out_val
-        else:
-            raise Exception("I don't know yet: %s" % expr.tostring())

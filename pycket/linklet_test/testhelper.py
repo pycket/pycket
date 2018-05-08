@@ -12,13 +12,17 @@ from pycket.env import ToplevelEnv
 from pycket import values
 from pycket.prims.linklet import *
 from pycket.cont import continuation
-from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string
+from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.values import to_list, w_false
+from pycket.config import get_testing_config
 
 import pytest
 from pycket.linklet_test.utils import *
 #
 # basic runners
 #
+
+instantiate_linklet = get_primitive("instantiate-linklet")
 
 # This is where all the work happens
 
@@ -52,11 +56,15 @@ def check_val(inst, var_str, val):
     return get_val(inst, var_str).value == val
 
 def inst(linkl, imports=[], target=None):
-    return linkl.instantiate(imports, None, target=target)
+    if not target:
+        target = w_false
+
+    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
 def eval(linkl, target, imports=[]):
-    # config is None
-    result = linkl.instantiate(imports, None, target=target)
+
+    #result = linkl.instantiate(imports, None, target=target)
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
     # assumes result is W_Fixnum
     if isinstance(result, values.W_Fixnum):
         result = result.value
@@ -64,10 +72,11 @@ def eval(linkl, target, imports=[]):
 
 def empty_target():
     # creates an empty target
-    return inst(make_linklet("(linklet () ())"))
+    return make_instance("(linklet () ())")
 
 def make_instance(linkl_str, imports=[]):
-    return inst(make_linklet(linkl_str), imports)
+    instance = inst(make_linklet(linkl_str), imports)
+    return instance
 
 def make_linklet(linkl_str):
     #"(linklet () (x) (define-values (x) 4))"
@@ -80,7 +89,8 @@ def make_linklet(linkl_str):
     raise Exception("do_compile_linklet didn't raised a Done exception")
 
 def run_linklet(w_linkl, v=None):
-    ov = w_linkl.instantiate([], None, toplevel_eval=True, prompt=False)
+    # FIXME instantiate
+    ov = w_linkl.instantiate([], None, prompt=False)
     assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
     if v:
         assert ov.value == v
@@ -113,6 +123,39 @@ def run_string(expr_str, v=None):
     if v:
         assert ov.value == v
     return ov.value
+
+def execute(p, stdlib=False, extra=""):
+    return run_expr(p, stdlib=stdlib, extra=extra)
+
+#
+# Combined checking
+#
+def check_all(*snippets_returning_true, **kwargs):
+    code = []
+    tail = []
+    for i, snippet in enumerate(snippets_returning_true):
+        code.append("  " * i + "(if %s" % snippet)
+        tail.append("  " * (i + 1) + "%s)" % i)
+    code.append("  " * (i + 1) + "#t")
+    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
+    print code
+    res = execute(code, extra=kwargs.get("extra", ""))
+    if res is not values.w_true:
+        assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
+
+def check_none(*snippets_returning_false, **kwargs):
+    code = []
+    tail = []
+    for i, snippet in enumerate(snippets_returning_false):
+        code.append("  " * i + "(if %s %s" % (snippet, i))
+        tail.append("  " * (i + 1) + ")")
+    code.append("  " * (i + 1) + "#t")
+    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
+    print code
+    res = execute(code, extra=kwargs.get("extra", ""))
+    if res is not values.w_false:
+        assert 0, "%s returned a true value" % snippets_returning_false[res.value]
+
 
 
 """
@@ -174,9 +217,6 @@ def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
     if v:
         assert ov.equal(v)
     return ov
-
-def execute(p, stdlib=False, extra=""):
-    return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
 def run_fix(p, v=None, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
@@ -246,35 +286,6 @@ def parse_file(fname, *replacements, **kwargs):
     ast = parse_module(s)
 
     return ast
-
-#
-# Combined checking
-#
-def check_all(*snippets_returning_true, **kwargs):
-    code = []
-    tail = []
-    for i, snippet in enumerate(snippets_returning_true):
-        code.append("  " * i + "(if %s" % snippet)
-        tail.append("  " * (i + 1) + "%s)" % i)
-    code.append("  " * (i + 1) + "#t")
-    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
-    res = execute(code, extra=kwargs.get("extra", ""))
-    if res is not values.w_true:
-        assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
-
-def check_none(*snippets_returning_false, **kwargs):
-    code = []
-    tail = []
-    for i, snippet in enumerate(snippets_returning_false):
-        code.append("  " * i + "(if %s %s" % (snippet, i))
-        tail.append("  " * (i + 1) + ")")
-    code.append("  " * (i + 1) + "#t")
-    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
-    res = execute(code, extra=kwargs.get("extra", ""))
-    if res is not values.w_true:
-        assert 0, "%s returned a true value" % snippets_returning_false[res.value]
 
 def check_equal(*pairs_of_equal_stuff, **kwargs):
     code = []

@@ -27,7 +27,7 @@ def make_entry_point(pycketconfig=None):
     from pycket.error import SchemeException
     from pycket.option_helper import parse_args
     from pycket.values_string import W_String
-    from pycket.racket_entry import load_inst_linklet_json, racket_entry, run_linklet_file
+    from pycket.racket_entry import load_inst_linklet_json, racket_entry
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
@@ -60,9 +60,6 @@ def make_entry_point(pycketconfig=None):
             for linkl_json in names['json-linklets']:
                 vvv = config['verbose']
                 load_inst_linklet_json(linkl_json, pycketconfig, vvv)
-
-        if 'linklet-file' in names:
-            run_linklet_file(names['linklet-file'][0], pycketconfig, current_cmd_args)
 
         try:
             if not config['stop']:

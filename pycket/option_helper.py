@@ -158,17 +158,6 @@ def parse_args(argv):
             config['no-lib'] = True
             retval = RETURN_OK
 
-        elif argv[i] in ["--linklet"]:
-            if to <= i + 1 or argv[i+1] in all_opts:
-                print "missing argument after %s" % argv[i]
-                retval = MISSING_ARG
-                break
-
-            i += 1
-            names['linklet-file'] = [argv[i]]
-            config['stop'] = True
-            retval = RETURN_OK
-
         #########################
         # Interaction Options
         #########################

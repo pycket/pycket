@@ -2187,8 +2187,6 @@ driver_two_state = jit.JitDriver(reds=["env", "cont"],
                                  should_unroll_one_iteration=lambda *args : True,
                                  is_recursive=True)
 
-# last_asts = []
-# how_many = 100
 def inner_interpret_two_state(ast, env, cont):
     came_from = ast
     config = env.pycketconfig()
@@ -2199,11 +2197,6 @@ def inner_interpret_two_state(ast, env, cont):
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
-
-        #last_asts.insert(0, ast)
-        # last_asts.append(ast)
-        # if len(last_asts) > how_many:
-        #     del last_asts[0]
         if t is Let:
             ast, env, cont = ast.interpret(env, cont)
         elif t is If:
@@ -2253,11 +2246,6 @@ def interpret_one(ast, env=None, cont=None):
     except SchemeException, e:
         if e.context_ast is None:
             e.context_ast = ast
-        # i = 1
-        # print("\nRacket's last %s asts : \n" % how_many)
-        # for a in list(last_asts):
-        #     print("%s -- %s\n" % (i, a.tostring()))
-        #     i += 1
         raise
 
 def interpret_toplevel(a, env):
