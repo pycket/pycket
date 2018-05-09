@@ -1229,7 +1229,7 @@ class Begin(SequencedBodyAST):
     def direct_children(self):
         return self.body
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
@@ -1553,7 +1553,7 @@ class If(AST):
                 return thn
         return If(tst, thn, els)
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if w_val is values.w_false:
@@ -2078,7 +2078,7 @@ class Let(SequencedBodyAST):
             env_structure = env_structure.prev
         return env
 
-    @objectmodel.always_inline
+    #@objectmodel.always_inline
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
