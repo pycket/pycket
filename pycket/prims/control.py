@@ -349,17 +349,59 @@ def abort_current_continuation(args, env, cont):
 
 expose("abort-current-continuation", simple=False)(abort_current_continuation)
 
-@make_procedure("default-error-escape-handler", [], simple=False)
-def default_error_escape_handler(env, cont):
+@make_procedure("default-error-escape-handler", simple=False)
+def default_error_escape_handler(args, env, cont):
     from pycket.prims.general import do_void
     args = [values.w_default_continuation_prompt_tag, do_void.w_prim]
     return abort_current_continuation(args, env, cont)
 
-expose_val("error-escape-handler", values_parameter.W_Parameter(default_error_escape_handler))
+error_escape_handler_param = values_parameter.W_Parameter(default_error_escape_handler)
+
+expose_val("error-escape-handler", error_escape_handler_param)
+
+@make_procedure("default-error-display-handler", [values_string.W_String, values.W_Object], simple=False)
+def default_error_display_handler(msg, exn_object, env, cont):
+    from pycket.prims.input_output import current_error_param, return_void
+    port = current_error_param.get(cont)
+
+    port.write(msg.tostring())
+    port.write("\n")
+    # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
+    return return_void(env, cont)
+
+error_display_handler_param = values_parameter.W_Parameter(default_error_display_handler)
+
+expose_val("error-display-handler", error_display_handler_param)
+
+@continuation
+def display_escape_cont(exn, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    message = check_one_val(_vals)
+
+    display_handler = error_display_handler_param.get(cont) # parameterize this to default first
+    escape_handler = error_escape_handler_param.get(cont) # this one too
+
+    # display, then escape
+    return display_handler.call([message, exn], env, call_handler_cont(escape_handler, [], env, cont))
+
+@make_procedure("default-uncaught-exception-handler", [values.W_Object], simple=False)
+def default_uncaught_exception_handler(exn, env, cont):
+    # racket/src/cs/rumble/error.ss
+
+    #FIXME : handle Breaks
+    from pycket.prims.general import exn_fail
+
+    message_field = values.W_Fixnum(-2) # -2! really?
+
+    return exn_fail.accessor.call([exn, message_field], env, display_escape_cont(exn, env, cont))
 
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
 def default_continuation_prompt_handler(proc, env, cont):
     return proc.call([], env, cont)
+
+# @expose("call-with-exception-handler", [procedure, procedure], simple=False)
+# def call_with_exception_handler(f, thunk, env, cont):
+#     #FIXME
 
 @expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1))
 def call_with_continuation_prompt(args, env, cont):
@@ -492,5 +534,3 @@ def raise_mismatch_err(args):
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
     raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
-
-

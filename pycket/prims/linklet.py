@@ -24,6 +24,7 @@ from pycket.prims.correlated import W_Correlated
 from pycket.prims.vector import vector
 from pycket.AST import AST
 from pycket.cont import Prompt, NilCont, continuation
+from pycket.prims.control import default_error_escape_handler, default_uncaught_exception_handler
 
 class W_Uninitialized(W_Object):
     errorname = "uninitialized"
@@ -256,10 +257,14 @@ class W_Linklet(W_Object):
 
         if not cont:
             cont = NilCont()
-            cont.update_cm(parameterization_key, top_level_config)
+            prompt = True
 
         if prompt:
             cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
+
+        cont.update_cm(parameterization_key, top_level_config)
+        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+
 
         """
         Process the imports, get them into the toplevel environment
@@ -305,14 +310,7 @@ class W_Linklet(W_Object):
             else:
                 return return_value(target, env, cont)
 
-        #try:
         return instantiate_loop(self.forms, 0, 0, return_val, target, self.exports, env, cont)
-        # except Done, e:
-        #     import pdb;pdb.set_trace()
-        #     return e.values
-        # except SchemeException, e:
-        #     #import pdb;pdb.set_trace()
-        #     raise
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):

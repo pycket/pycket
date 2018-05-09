@@ -1382,7 +1382,7 @@ class LinkletVar(Var):
     def get_value_direct(self):
         w_res = self.w_value
         if w_res is None:
-            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
+            raise SchemeException("Reference to an undefined variable : %s" % self.sym.tostring())
         if isinstance(w_res, values.W_Cell):
             return w_res.get_val()
         return w_res
@@ -1391,7 +1391,7 @@ class LinkletVar(Var):
     def get_value_unstripped(self):
         w_res = self.w_value
         if w_res is None:
-            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
+            raise SchemeException("Reference to an undefined variable : %s" % self.sym.tostring())
         return w_res
 
     def is_uninitialized(self):
@@ -2197,16 +2197,20 @@ def inner_interpret_two_state(ast, env, cont):
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
-        if t is Let:
-            ast, env, cont = ast.interpret(env, cont)
-        elif t is If:
-            ast, env, cont = ast.interpret(env, cont)
-        elif t is Begin:
-            ast, env, cont = ast.interpret(env, cont)
-        else:
-            ast, env, cont = ast.interpret(env, cont)
-        if ast.should_enter:
-            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+        try:
+            if t is Let:
+                ast, env, cont = ast.interpret(env, cont)
+            elif t is If:
+                ast, env, cont = ast.interpret(env, cont)
+            elif t is Begin:
+                ast, env, cont = ast.interpret(env, cont)
+            else:
+                ast, env, cont = ast.interpret(env, cont)
+            if ast.should_enter:
+                driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
+        except SchemeException, e:
+            from pycket.prims.control import convert_runtime_exception, post_build_exception
+            ast, env, cont = convert_runtime_exception(e, env, cont)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
@@ -2233,7 +2237,7 @@ def interpret_one(ast, env=None, cont=None):
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-        
+
     if cont is None:
         cont = NilCont()
 
