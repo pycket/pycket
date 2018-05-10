@@ -214,7 +214,29 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 return return_value_direct(result, env, cont)
         return func_result_handling
     else:
-        return func_arg_unwrap
+        def func_error_handling(*args):
+            from pycket.prims.control import convert_runtime_exception
+            from pycket.cont import Cont
+            from pycket.env import Env
+            # Fixme : It's difficult to figure out when there's
+            # supposed to be an extra argument *after* the env, cont
+            # pair.
+            a = args[-1]
+            if isinstance(a, Cont):
+                assert isinstance(args[-2], Env)
+                env = args[-2]
+                cont = args[-1]
+            else:
+                assert isinstance(args[-2], Cont) and isinstance(args[-3], Env)
+                env = args[-3]
+                cont = args[-2]
+
+            try:
+                return func_arg_unwrap(*args)
+            except SchemeException, exn:
+                return convert_runtime_exception(exn, env, cont)
+        return func_error_handling
+
 
 # FIXME: Abstract away the common operations between this and expose
 def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):

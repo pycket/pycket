@@ -10,6 +10,7 @@ from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
+from pycket.prims.control     import convert_runtime_exception
 
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
@@ -994,14 +995,17 @@ class App(AST):
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        w_callable = rator.interpret_simple(env)
-        args_w = [None] * len(self.rands)
-        for i, rand in enumerate(self.rands):
-            args_w[i] = rand.interpret_simple(env)
-        if isinstance(w_callable, values.W_PromotableClosure):
-            # fast path
-            jit.promote(w_callable)
-            w_callable = w_callable.closure
+        try:
+            w_callable = rator.interpret_simple(env)
+            args_w = [None] * len(self.rands)
+            for i, rand in enumerate(self.rands):
+                args_w[i] = rand.interpret_simple(env)
+            if isinstance(w_callable, values.W_PromotableClosure):
+                # fast path
+                jit.promote(w_callable)
+                w_callable = w_callable.closure
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def normalize(self, context):
@@ -1037,7 +1041,6 @@ class SimplePrimApp1(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
@@ -1062,7 +1065,6 @@ class SimplePrimApp2(App):
         return Context.normalize_names(self.rands, context)
 
     def run(self, env):
-        from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
@@ -1074,7 +1076,6 @@ class SimplePrimApp2(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
@@ -1229,7 +1230,7 @@ class Begin(SequencedBodyAST):
     def direct_children(self):
         return self.body
 
-    #@objectmodel.always_inline
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         return self.make_begin_cont(env, cont)
 
@@ -1553,7 +1554,7 @@ class If(AST):
                 return thn
         return If(tst, thn, els)
 
-    #@objectmodel.always_inline
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         w_val = self.tst.interpret_simple(env)
         if w_val is values.w_false:
@@ -2078,7 +2079,7 @@ class Let(SequencedBodyAST):
             env_structure = env_structure.prev
         return env
 
-    #@objectmodel.always_inline
+    @objectmodel.always_inline
     def interpret(self, env, cont):
         env = self._prune_env(env, 0)
         return self.rhss[0], env, LetCont.make(
@@ -2197,20 +2198,16 @@ def inner_interpret_two_state(ast, env, cont):
         # Manual conditionals to force specialization in translation
         # This (or a slight variant) is known as "The Trick" in the partial evaluation literature
         # (see Jones, Gomard, Sestof 1993)
-        try:
-            if t is Let:
-                ast, env, cont = ast.interpret(env, cont)
-            elif t is If:
-                ast, env, cont = ast.interpret(env, cont)
-            elif t is Begin:
-                ast, env, cont = ast.interpret(env, cont)
-            else:
-                ast, env, cont = ast.interpret(env, cont)
-            if ast.should_enter:
-                driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
-        except SchemeException, e:
-            from pycket.prims.control import convert_runtime_exception, post_build_exception
-            ast, env, cont = convert_runtime_exception(e, env, cont)
+        if t is Let:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is If:
+            ast, env, cont = ast.interpret(env, cont)
+        elif t is Begin:
+            ast, env, cont = ast.interpret(env, cont)
+        else:
+            ast, env, cont = ast.interpret(env, cont)
+        if ast.should_enter:
+            driver_two_state.can_enter_jit(ast=ast, came_from=came_from, env=env, cont=cont)
 
 def get_printable_location_one_state(green_ast ):
     if green_ast is None:
