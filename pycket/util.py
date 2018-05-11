@@ -3,9 +3,8 @@
 
 import inspect
 import string
-import timeit
 
-from rpython.rlib        import jit, objectmodel
+from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
 def console_log(print_str, debug=False):
@@ -16,7 +15,7 @@ def console_log(print_str, debug=False):
     from pycket.env import w_global_config
     if w_global_config.get_config_val('verbose') or debug:
         # print already has a newline
-        print("[%s] %s" % (timeit.default_timer(), print_str))
+        print("[%.2f] %s" % (rtime.time(), print_str))
 
 def snake_case(str):
     if not str:
