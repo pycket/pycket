@@ -37,26 +37,26 @@ def locate_linklet(file_name):
 
 def load_bootstrap_linklets(pycketconfig, debug=False):
 
-    console_log("Loading the expander linklet...", debug)
+    console_log("Loading the expander linklet...")
     expander_file_path = locate_linklet("expander.rktl.linklet")
 
     # load the expander linklet
     expander_instance, sys_config = load_inst_linklet_json(expander_file_path, pycketconfig, debug)
     expander_instance.provide_all_exports_to_prim_env(excludes=syntax_primitives)
 
-    console_log("Expander loading complete.", debug)
+    console_log("Expander loading complete.")
 
     return sys_config
 
 def load_inst_linklet_json(json_file_name, pycketconfig, debug=False):
 
-    console_log("Loading linklet from %s" % json_file_name, debug)
+    console_log("Loading linklet from %s" % json_file_name)
     linkl, sys_config = W_Linklet.load_linklet(json_file_name, JsonLoader())
 
-    console_log("Instantiating %s ...."  % json_file_name, debug)
+    console_log("Instantiating %s ...."  % json_file_name)
     instantiate_linklet = get_primitive("instantiate-linklet")
     linkl_instance = instantiate_linklet.call_interpret([linkl, w_null, w_false, w_false], pycketconfig)
-    console_log("DONE.", debug)
+    console_log("DONE.")
     return linkl_instance, sys_config
 
 def set_path(kind_str, path_str):
@@ -74,24 +74,24 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
 
     v = sysconfig["version"]
-    console_log("Setting the version to %s" % v, debug)
+    console_log("Setting the version to %s" % v)
     w_version.set_version(v)
 
     # These need to be set before the boot sequence
     if set_run_file:
-        console_log("Setting the 'run-file path to %s" % set_run_file, debug)
+        console_log("Setting the 'run-file path to %s" % set_run_file)
         set_path("run-file", set_run_file)
 
     if set_collects_dir:
-        console_log("Setting the 'collects-dir path to %s" % set_collects_dir, debug)
+        console_log("Setting the 'collects-dir path to %s" % set_collects_dir)
         set_path("collects-dir", set_collects_dir)
 
     if set_config_dir:
-        console_log("Setting the 'config-dir path to %s" % set_config_dir, debug)
+        console_log("Setting the 'config-dir path to %s" % set_config_dir)
         set_path("config-dir", set_config_dir)
 
     if set_addon_dir:
-        console_log("Setting the 'addon-dir path to %s" % set_addon_dir, debug)
+        console_log("Setting the 'addon-dir path to %s" % set_addon_dir)
         set_path("addon-dir", set_addon_dir)
 
     # Set the cmd arguments for racket
@@ -102,30 +102,30 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     # "core-module-name-resolver" which can't recognize modules like 'racket/base (anything other than
     # things like '#%kernel really)
 
-    console_log("Entering Boot Sequence", debug)
+    console_log("Entering Boot Sequence")
 
-    console_log("(boot)", debug)
+    console_log("(boot)")
     boot = get_primitive("boot")
     boot.call_interpret([], pycketconfig)
 
-    console_log("(current-library-collection-links (find-library-collection-links))", debug)
+    console_log("(current-library-collection-links (find-library-collection-links))")
     flcl = get_primitive("find-library-collection-links")
     lib_coll_links = flcl.call_interpret([], pycketconfig)
     clcl = get_primitive("current-library-collection-links")
     clcl.call_interpret([lib_coll_links], pycketconfig)
 
-    console_log("(current-library-collection-paths (find-library-collection-paths))", debug)
+    console_log("(current-library-collection-paths (find-library-collection-paths))")
     flcp = get_primitive("find-library-collection-paths")
     lib_coll_paths = flcp.call_interpret([], pycketconfig)
     clcp = get_primitive("current-library-collection-paths")
     clcp.call_interpret([lib_coll_paths], pycketconfig)
 
-    console_log("(use-compiled-file-paths null)", debug)
+    console_log("(use-compiled-file-paths null)")
     # don't use compiled code
     ucfp = get_primitive("use-compiled-file-paths")
     ucfp.call_interpret([w_null], pycketconfig)
 
-    console_log("...Boot Sequence Completed", debug)
+    console_log("...Boot Sequence Completed")
 
     return 0
 
@@ -147,16 +147,16 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     namespace_require = get_primitive("namespace-require")
 
     if just_kernel:
-        console_log("Running on just the #%kernel", debug)
+        console_log("Running on just the #%kernel")
         namespace_require_kernel(pycketconfig)
 
     if not no_lib:
         init_lib = W_WrappedConsProper.make(W_Symbol.make("lib"),
                                             W_WrappedConsProper.make(W_String.make(init_library), w_null))
-        console_log("(namespace-require %s) ..." % init_lib.tostring(), debug)
+        console_log("(namespace-require %s) ..." % init_lib.tostring())
 
         namespace_require.call_interpret([init_lib], pycketconfig)
-        console_log("Init lib : %s loaded..." % (init_library), debug)
+        console_log("Init lib : %s loaded..." % (init_library))
 
     if require_files: # -t
         for require_file in require_files:
@@ -164,7 +164,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
             file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
                                                  W_WrappedConsProper.make(W_String.make(require_file), w_null))
             namespace_require.call_interpret([file_form], pycketconfig)
-            console_log("(namespace-require '(file %s))" % (require_file), debug)
+            console_log("(namespace-require '(file %s))" % (require_file))
     if require_libs: # -l
         for require_lib in require_libs:
             # (namespace-require '(lib <lib-sym>))
@@ -172,13 +172,13 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                                                 W_WrappedConsProper.make(W_String.make(require_lib),
                                                                          w_null))
             namespace_require.call_interpret([lib_form], pycketconfig)
-            console_log("(namespace-require '(lib %s))" % (require_lib), debug)
+            console_log("(namespace-require '(lib %s))" % (require_lib))
     if load_files: # -f
         for load_file in load_files:
             # (load <file_name>)
             load = get_primitive("load")
             load.call_interpret([W_String.make(load_file)], pycketconfig)
-            console_log("(namespace-require '(load %s))" % (load_file), debug)
+            console_log("(namespace-require '(load %s))" % (load_file))
 
     if expr_strs: # -e
         for expr_str in expr_strs:
@@ -260,7 +260,7 @@ def read_eval_print_string(expr_str, pycketconfig, return_val=False, debug=False
     racket_print(results, pycketconfig)
 
     # FIXME
-    console_log("(print (eval (read (open-input-string %s))))" % (expr_str), debug)
+    console_log("(print (eval (read (open-input-string %s))))" % (expr_str))
     return 0
 
 def get_primitive(prim_name_str):
@@ -318,6 +318,6 @@ just-#%%kernel : %s
        no_lib,
        just_kernel)
 
-    console_log(log_str, debug)
+    console_log(log_str)
 
     return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version

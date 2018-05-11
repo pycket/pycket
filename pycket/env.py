@@ -101,13 +101,18 @@ class ModuleEnv(object):
     def _find_module(self, name):
         return self.modules.get(name, None)
 
-
 class GlobalConfig(object):
     def __init__(self):
-        self.config = None
+        self.config = {'verbose':False}
 
     def get_config(self):
         return self.config
+
+    def get_config_val(self, name):
+        return self.config[name]
+
+    def set_config_val(self, name, val):
+        self.config[name] = val
 
     def lookup(self, s):
         return self.config.get(s, None)
@@ -119,6 +124,7 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
 
+w_global_config = GlobalConfig()
 
 class Env(W_Object):
     _attrs_ = []
@@ -160,7 +166,7 @@ class ToplevelEnv(Env):
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
-        self.globalconfig = GlobalConfig()
+        self.globalconfig = w_global_config
         if pycketconfig is None:
             assert not objectmodel.we_are_translated()
             pycketconfig = get_testing_config()

@@ -48,8 +48,9 @@ def make_entry_point(pycketconfig=None):
 
         config, names, args, retval = parse_args(argv)
 
-        # if config['version']:
-        #     print "Welcome to Pycket\n"
+        if config['verbose']:
+            from pycket.env import w_global_config
+            w_global_config.set_config_val('verbose', True)
 
         if retval != 0 or config is None:
             return retval

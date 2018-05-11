@@ -8,8 +8,13 @@ import timeit
 from rpython.rlib        import jit, objectmodel
 from rpython.rlib.unroll import unrolling_iterable
 
-def console_log(print_str, debug):
-    if debug:
+def console_log(print_str, debug=False):
+    # If you want to log only specific points in the code, then
+    # disable the logging in general (i.e. don't use the --verbose)
+    # and give debug=True to the console_log calls you want to enable
+
+    from pycket.env import w_global_config
+    if w_global_config.get_config_val('verbose') or debug:
         # print already has a newline
         print("[%s] %s" % (timeit.default_timer(), print_str))
 
@@ -78,4 +83,3 @@ def add_copy_method(copy_method="copy"):
         setattr(cls, copy_method, copy)
         return cls
     return wrapper
-
