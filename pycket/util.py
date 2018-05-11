@@ -14,8 +14,14 @@ def console_log(print_str, debug=False):
 
     from pycket.env import w_global_config
     if w_global_config.get_config_val('verbose') or debug:
-        # print already has a newline
-        print("[%.2f] %s" % (rtime.time(), print_str))
+        current_str = str(rtime.time()) # str will trim it to 2 decimals
+        decimal = len(current_str.split(".")[1])
+        # decimal cannot be 0, since we know rtime.time() will always
+        # return float(...), so it can actually be either 1 or 2
+        if decimal == 1:
+            current_str += "0"
+
+        print("[%s] %s" % (current_str, print_str))
 
 def snake_case(str):
     if not str:
