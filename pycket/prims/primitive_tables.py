@@ -152,7 +152,10 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-custodian-unregister", "unsafe-register-process-global", "unsafe-make-security-guard-at-root", 
               "unsafe-abort-current-continuation/no-wind", "unsafe-call-with-composable-continuation/no-wind", "unsafe-poller", 
               "unsafe-poll-ctx-fd-wakeup", "unsafe-poll-ctx-eventmask-wakeup", "unsafe-poll-ctx-milliseconds-wakeup", 
-              "unsafe-signal-received", "unsafe-set-sleep-in-thread!"]
+              "unsafe-signal-received", "unsafe-set-sleep-in-thread!",
+              "unsafe-file-descriptor->port", "unsafe-socket->port",
+              "unsafe-file-descriptor->semaphore", "unsafe-socket->semaphore",
+              "unsafe-port->file-descriptor", "unsafe-port->socket"]
 
  # This table omits anything that the expander implements itself,
  # since the expander will export its own variant instead of the
