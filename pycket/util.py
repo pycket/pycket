@@ -7,13 +7,24 @@ import string
 from rpython.rlib        import jit, objectmodel, rtime
 from rpython.rlib.unroll import unrolling_iterable
 
-def console_log(print_str, debug=False):
-    # If you want to log only specific points in the code, then
-    # disable the logging in general (i.e. don't use the --verbose)
-    # and give debug=True to the console_log calls you want to enable
+def console_log(print_str, given_verbosity_level=0, debug=False):
+    # use the given_verbosity_level argument to control at which level
+    # of verbosity you want this log to appear. Default is 0.
+
+    # i.e. For a console log with a given_verbosity_level = 5 , the
+    # user has to give "--verbose 5" at the entry for it to
+    # appear. Note that in that case all the logs with less than 5
+    # verbosity_levels will also appear.
+
+    # use the debug parameter to print irregardless of the
+    # verbosity_levels. You can use this to print only the specific
+    # logs you want. Don't provide "--verbose" flag at the entry, and
+    # only the ones having debug=True will appear.
 
     from pycket.env import w_global_config
-    if w_global_config.get_config_val('verbose') or debug:
+    current_v_level = w_global_config.get_config_val('verbose')
+
+    if given_verbosity_level <= current_v_level:
         current_str = str(rtime.time()) # str will trim it to 2 decimals
         decimal = len(current_str.split(".")[1])
         # decimal cannot be 0, since we know rtime.time() will always

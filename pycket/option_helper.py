@@ -31,7 +31,7 @@ def print_help(argv):
   --save-callgraph : save the jit output
 
  Meta options:
-  --verbose : Print the debug logs.
+  --verbose <level> : Print the debug logs. <level> : [0,1] (defaults to 0)
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
   -- : No argument following this switch is used as a switch
@@ -62,11 +62,16 @@ meta_opts = ["--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
 
-def add_name(names, name, val):
-    if name in names:
-        names[name].append(val)
-    else:
+verbosity_levels = ['0','1']
+
+def add_name(names, name, val, replace=False):
+    if name not in names or replace:
         names[name] = [val]
+    else:
+        names[name].append(val)
+
+def is_rkt_file(name_str):
+    return ".rkt" in name_str
 
 def parse_args(argv):
     INIT = -1
@@ -233,6 +238,15 @@ def parse_args(argv):
 
         elif argv[i] == "--verbose":
             config['verbose'] = True
+            add_name(names, 'verbosity_level', '0')
+            if to > i + 1 and not is_rkt_file(argv[i+1]) and argv[i+1] not in all_opts:
+                vl = argv[i+1]
+                if vl not in verbosity_levels:
+                    print("--verbose <level> can only be one of : %s" % verbosity_levels)
+                    retval = MISSING_ARG
+                    break
+                add_name(names, 'verbosity_level', vl, replace=True)
+                i += 1
 
         elif argv[i] == "--jit":
             if to <= i + 1:

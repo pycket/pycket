@@ -50,7 +50,8 @@ def make_entry_point(pycketconfig=None):
 
         if config['verbose']:
             from pycket.env import w_global_config
-            w_global_config.set_config_val('verbose', True)
+            level = int(names['verbosity_level'][0])
+            w_global_config.set_config_val('verbose', level)
 
         if retval != 0 or config is None:
             return retval

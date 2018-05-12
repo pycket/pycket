@@ -1,3 +1,4 @@
+import sys
 from rpython.rlib             import jit, objectmodel
 from pycket.small_list        import inline_small_list
 from pycket.error             import SchemeException
@@ -5,6 +6,7 @@ from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
 
+MIN_INT = -sys.maxint-1
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
@@ -103,7 +105,7 @@ class ModuleEnv(object):
 
 class GlobalConfig(object):
     def __init__(self):
-        self.config = {'verbose':False}
+        self.config = {'verbose':MIN_INT}
 
     def get_config(self):
         return self.config
