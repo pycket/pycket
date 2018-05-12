@@ -194,7 +194,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                                                W_Symbol.make("read-eval-print-loop")],
                                               pycketconfig)
         repl.call_interpret([], pycketconfig)
-
+    print
     return 0
 
 
