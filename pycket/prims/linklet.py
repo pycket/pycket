@@ -38,10 +38,11 @@ w_uninitialized = W_Uninitialized()
 
 class W_LinkletInstance(W_Object):
 
-    def __init__(self, name, vars, data=w_false):
+    def __init__(self, name, vars, exports, data=w_false):
         self.name = name # W_Symbol (for debugging)
-        self.data = data #
         self.vars = vars # {W_Symbol:LinkletVar}
+        self.exports = exports
+        self.data = data #
 
     def tostring(self):
         vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
@@ -59,6 +60,9 @@ class W_LinkletInstance(W_Object):
     def get_var_names(self):
         return self.vars.keys()
 
+    def set_exports(self, exports):
+        self.exports = exports
+
     def has_var(self, var_name):
         return var_name in self.vars
 
@@ -69,7 +73,10 @@ class W_LinkletInstance(W_Object):
 
     def check_var_exists(self, name):
         if not self.has_var(name):
-            raise SchemeException("Reference to an undefined variable : %s" % name.tostring())
+            name_rep = name
+            if name in self.exports:
+                name_rep = self.exports[name]
+            raise SchemeException("Reference to an undefined variable : %s" % name_rep.tostring())
 
     def get_var(self, name):
         self.check_var_exists(name)
@@ -226,8 +233,10 @@ class W_Linklet(W_Object):
 
         return_val = True
         if not target:
-            target = W_LinkletInstance(self.name, {})
+            target = W_LinkletInstance(self.name, {}, self.exports)
             return_val = False
+        else:
+            target.set_exports(self.exports)
 
         """ Instantiates the linklet:
 
@@ -683,10 +692,10 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
-                form = Context.normalize_term(bf)
-                form = assign_convert(form)
-                form.clean_caches()
-                body_forms[i] = form
+                b_form = Context.normalize_term(bf)
+                b_form = assign_convert(b_form)
+                b_form.clean_caches()
+                body_forms[i] = b_form
 
             if name is w_false:
                 w_name = W_Symbol.make("ad-hoc")
@@ -809,7 +818,7 @@ def make_instance(args): # name, data, *vars_vals
         v = vars_vals[i+1]
         vars_vals_dict[n] = LinkletVar(n, v, mode)
 
-    return W_LinkletInstance(name, vars_vals_dict, data)
+    return W_LinkletInstance(name, vars_vals_dict, {}, data)
 
 @expose("recompile-linklet", [W_Linklet, default(W_Object, None), default(W_Object, w_false), default(W_Object, None)], simple=False)
 def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
