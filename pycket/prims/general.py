@@ -19,6 +19,7 @@ from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_ta
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
                                  procedure, define_nyi, subclass_unsafe, make_procedure)
 from pycket.prims.primitive_tables import *
+from pycket.prims import string
 from pycket.racket_paths import racket_sys_paths
 
 from rpython.rlib         import jit, objectmodel, unroll
@@ -1229,6 +1230,25 @@ def sym_unreadable(v):
 @expose("symbol-interned?", [values.W_Symbol])
 def string_to_symbol(v):
     return values.W_Bool.make(v.is_interned())
+
+@expose("symbol<?", arity=Arity.geq(1))
+def symbol_lt(args):
+    name = "symbol<?"
+    if len(args) < 2:
+        raise SchemeException(name + ": requires at least 2 arguments")
+    head = args[0]
+    if not isinstance(head, values.W_Symbol):
+        raise SchemeException(name + ": not given a string")
+    for i in range(1, len(args)):
+        t = args[i]
+        if not isinstance(t, values.W_Symbol):
+            raise SchemeException(name + ": not given a string")
+        # FIXME: shouldn't need to convert to W_String
+        # but this is much easier than recreating the logic
+        if string.symbol_to_string_impl(head).cmp(string.symbol_to_string_impl(t)) < 0:
+            return values.w_false
+        head = t
+    return values.w_true
 
 
 @expose("immutable?", [values.W_Object])

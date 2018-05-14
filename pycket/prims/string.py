@@ -12,6 +12,9 @@ from rpython.rlib import jit
 
 @expose("symbol->string", [values.W_Symbol])
 def symbol_to_string(v):
+    return symbol_to_string_impl(v)
+
+def symbol_to_string_impl(v):
     asciivalue = v.asciivalue()
     if asciivalue is not None:
         return W_String.fromascii(asciivalue)
