@@ -156,7 +156,9 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-file-descriptor->port", "unsafe-socket->port",
               "unsafe-file-descriptor->semaphore", "unsafe-socket->semaphore",
               "unsafe-port->file-descriptor", "unsafe-port->socket",
-              "unsafe-get-place-table"]
+              "unsafe-get-place-table", "unsafe-call-in-os-thread",
+              "unsafe-make-os-semaphore", "unsafe-os-semaphore-post", "unsafe-os-semaphore-wait",
+              "unsafe-os-thread-enabled?", "unsafe-struct*-cas!"]
 
  # This table omits anything that the expander implements itself,
  # since the expander will export its own variant instead of the
