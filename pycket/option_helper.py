@@ -31,7 +31,7 @@ def print_help(argv):
   --save-callgraph : save the jit output
 
  Meta options:
-  --verbose <level> : Print the debug logs. <level> : [0,1] (defaults to 0)
+  --verbose <level> : Print the debug logs. <level> : natural number (defaults to 0)
   --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
                     or 'param=value,param=value' list
   -- : No argument following this switch is used as a switch
@@ -61,8 +61,6 @@ conf_opts = ["--kernel",
 meta_opts = ["--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
-
-verbosity_levels = ['0','1']
 
 def add_name(names, name, val, replace=False):
     if name not in names or replace:
@@ -245,8 +243,8 @@ def parse_args(argv):
             add_name(names, 'verbosity_level', '0')
             if to > i + 1 and not is_rkt_file(argv[i+1]) and argv[i+1] not in all_opts:
                 vl = argv[i+1]
-                if vl not in verbosity_levels:
-                    print("--verbose <level> can only be one of : %s" % verbosity_levels)
+                if not vl.isdigit() or int(vl) < 0:
+                    print("--verbose <level> can only be a natural number, given : %s" % vl)
                     retval = MISSING_ARG
                     break
                 add_name(names, 'verbosity_level', vl, replace=True)
