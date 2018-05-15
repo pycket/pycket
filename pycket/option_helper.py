@@ -106,7 +106,8 @@ def parse_args(argv):
                 break
 
             i += 1
-            add_name(names, 'exprs', argv[i])
+            add_name(names, 'loads', "eval")
+            add_name(names, 'load_arguments', argv[i])
             retval = RETURN_OK
 
         elif argv[i] in ["-f", "--load", "-r", "--script"]:
@@ -119,7 +120,8 @@ def parse_args(argv):
                 names['run-file'] = [argv[i]]
 
             i += 1
-            add_name(names, 'load-file', argv[i])
+            add_name(names, 'loads', "load")
+            add_name(names, 'load_arguments', argv[i])
             retval = RETURN_OK
 
         elif argv[i] in ["-t", "--require", "-u", "--require-script"]:
@@ -132,7 +134,8 @@ def parse_args(argv):
                 names['run-file'] = [argv[i]]
 
             i += 1
-            add_name(names, 'req-file', argv[i])
+            add_name(names, 'loads', "file")
+            add_name(names, 'load_arguments', argv[i])
 
             config['no-lib'] = True
             retval = RETURN_OK
@@ -144,7 +147,8 @@ def parse_args(argv):
                 break
 
             i += 1
-            add_name(names, 'req-lib', argv[i])
+            add_name(names, 'loads', "lib")
+            add_name(names, 'load_arguments', argv[i])
 
             config['no-lib'] = True
             retval = RETURN_OK

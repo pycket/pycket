@@ -140,11 +140,12 @@ def namespace_require_kernel(pycketconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
 
     initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
 
     namespace_require = get_primitive("namespace-require")
+    load = get_primitive("load")
 
     if just_kernel:
         console_log("Running on just the #%kernel")
@@ -158,31 +159,24 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
         namespace_require.call_interpret([init_lib], pycketconfig)
         console_log("Init lib : %s loaded..." % (init_library))
 
-    if require_files: # -t
-        for require_file in require_files:
-            # (namespace-require '(file <file-string>))
-            file_form = W_WrappedConsProper.make(W_Symbol.make("file"),
-                                                 W_WrappedConsProper.make(W_String.make(require_file), w_null))
-            namespace_require.call_interpret([file_form], pycketconfig)
-            console_log("(namespace-require '(file %s))" % (require_file))
-    if require_libs: # -l
-        for require_lib in require_libs:
-            # (namespace-require '(lib <lib-sym>))
-            lib_form = W_WrappedConsProper.make(W_Symbol.make("lib"),
-                                                W_WrappedConsProper.make(W_String.make(require_lib),
-                                                                         w_null))
-            namespace_require.call_interpret([lib_form], pycketconfig)
-            console_log("(namespace-require '(lib %s))" % (require_lib))
-    if load_files: # -f
-        for load_file in load_files:
-            # (load <file_name>)
-            load = get_primitive("load")
-            load.call_interpret([W_String.make(load_file)], pycketconfig)
-            console_log("(namespace-require '(load %s))" % (load_file))
-
-    if expr_strs: # -e
-        for expr_str in expr_strs:
-            read_eval_print_string(expr_str, pycketconfig, False, debug)
+    ran_eval = False
+    if loads:
+        for rator_str, rand_str in loads:
+            if rator_str == "load":
+                # -f
+                console_log("(load %s)" % (rand_str))
+                load.call_interpret([W_String.make(rand_str)], pycketconfig)
+            elif rator_str == "file" or rator_str == "lib":
+                # -t & -l
+                load_form = W_WrappedConsProper.make(W_Symbol.make(rator_str),
+                                                     W_WrappedConsProper.make(W_String.make(rand_str), w_null))
+                console_log("(namespace-require '(%s %s))" % (rator_str, rand_str))
+                namespace_require.call_interpret([load_form], pycketconfig)
+            elif rator_str == "eval":
+                # -e
+                ran_eval = True
+                console_log("(eval (read (open-input-string %s)))" % rand_str)
+                read_eval_print_string(rand_str, pycketconfig, False, debug)
 
     if version:
         from pycket.env import w_version
@@ -194,7 +188,10 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
                                                W_Symbol.make("read-eval-print-loop")],
                                               pycketconfig)
         repl.call_interpret([], pycketconfig)
-    print
+
+    if is_repl or not ran_eval:
+        print
+
     return 0
 
 
@@ -228,11 +225,10 @@ def racket_expand(sexp, pycketconfig):
 def racket_print(results, pycketconfig):
     pr = get_primitive("print")
 
-    pr.call_interpret([W_String.make("\n\n")], pycketconfig)
-
     if isinstance(results, W_Object):
         # print single
         pr.call_interpret([results], pycketconfig)
+        pr.call_interpret([W_String.make("\n")], pycketconfig)
     elif isinstance(results, Values):
         # print multiple values
         for r in results.get_all_values():
@@ -240,8 +236,6 @@ def racket_print(results, pycketconfig):
             pr.call_interpret([W_String.make("\n")], pycketconfig)
     else:
         raise Exception("Unsupoorted result value : %s" % results.tostring())
-    
-    pr.call_interpret([W_String.make("\n\n")], pycketconfig)
 
 def read_eval_print_string(expr_str, pycketconfig, return_val=False, debug=False):
     # read
@@ -275,10 +269,8 @@ def get_primitive(prim_name_str):
 
 def get_options(names, config):
 
-    require_files = names['req-file'] if 'req-file' in names else []
-    require_libs = names['req-lib'] if 'req-lib' in names else []
-    load_files = names['load-file'] if 'load-file' in names else []
-    expr_strs = names['exprs'] if 'exprs' in names else []
+    load_rators = names['loads'] if 'loads' in names else []
+    load_rands = names['load_arguments'] if 'load_arguments' in names else []
     set_run_file = names['set-run-file'][0] if 'set-run-file' in names else ""
     set_collects_dir = names['set-collects-dir'][0] if 'set-collects-dir' in names else ""
     set_config_dir = names['set-config-dir'][0] if 'set-config-dir' in names else ""
@@ -291,24 +283,25 @@ def get_options(names, config):
     debug = config['verbose']
     version = config['version']
 
+    loads_print_str = []
+    loads = []
+    for index, rator in enumerate(load_rators):
+        rand = load_rands[index]
+        loads_print_str.append("(%s %s)" % (rator, rand))
+        loads.append([rator, rand])
+
     log_str = """Options :
 
-require_files : %s
-require_libs : %s
-load_files : %s
-expr_strs : %s
-set-run-file : %s
+loads            : %s
+set-run-file     : %s
 set-collects-dir : %s
-set-config-dir : %s
-set-addon-dir : %s
-init_library : %s
-is_repl : %s
-no_lib : %s
-just-#%%kernel : %s
-""" % (require_files,
-       require_libs,
-       load_files,
-       expr_strs,
+set-config-dir   : %s
+set-addon-dir    : %s
+init_library     : %s
+is_repl          : %s
+no_lib           : %s
+just-#%%kernel    : %s
+""" % (loads_print_str,
        set_run_file,
        set_collects_dir,
        set_config_dir,
@@ -320,4 +313,4 @@ just-#%%kernel : %s
 
     console_log(log_str)
 
-    return require_files, require_libs, load_files, expr_strs, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
