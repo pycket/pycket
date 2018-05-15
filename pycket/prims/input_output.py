@@ -1029,7 +1029,21 @@ def format(form, vals, name):
         if i+1 == len_fmt:
             raise SchemeException(name + ": bad format string")
         s = fmt[i+1]
-        if (s == 'a' or # turns into switch
+        if (s == '.'):
+            i += 1
+            s = fmt[i+1]
+            if (s == 'a' or # turns into switch
+                s == 'A' or
+                s == 's' or
+                s == 'S' or
+                s == 'v' or
+                s == 'V'):
+                #FIXME: use error-print-width
+                if j >= len(vals):
+                    raise SchemeException(name + ": not enough arguments for format string")
+                result.append(vals[j].tostring())
+                j += 1
+        elif (s == 'a' or # turns into switch
             s == 'A' or
             s == 's' or
             s == 'S' or
