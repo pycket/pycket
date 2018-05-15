@@ -65,9 +65,11 @@ def eval(linkl, target, imports=[]):
 
     #result = linkl.instantiate(imports, None, target=target)
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
-    # assumes result is W_Fixnum
-    if isinstance(result, values.W_Fixnum):
+
+    if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
         result = result.value
+    elif isinstance(result, values_string.W_String):
+        result = result.as_str_utf8()
     return result, target
 
 def empty_target():
@@ -112,17 +114,25 @@ def run_expr(expr_str, v, use_expander=False):
 def run_sexp(body_sexp_str, v=None):
     linkl_str = "(linklet () () %s)" % body_sexp_str
     l = make_linklet(linkl_str)
-    #import pdb;pdb.set_trace()
-    r, _ = eval(l, empty_target())
-    return r
+    result, _ = eval(l, empty_target())
+
+    if v:
+        assert result == v
+    return result
 
 def run_string(expr_str, v=None):
     ov = read_eval_print_string(expr_str, None, return_val=True)
     # FIXME: check for multiple results
-    assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
+    assert isinstance(ov, values.W_Object)
+    # FIXME : unify this and the one in eval
+    if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
+        result = result.value
+    elif isinstance(result, values_string.W_String):
+        result = result.as_str_utf8()
+
     if v:
-        assert ov.value == v
-    return ov.value
+        assert result == v
+    return result
 
 def execute(p, stdlib=False, extra=""):
     return run_expr(p, stdlib=stdlib, extra=extra)
