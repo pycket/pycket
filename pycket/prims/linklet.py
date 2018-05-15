@@ -798,7 +798,10 @@ def make_instance(args): # name, data, *vars_vals
     mode = w_false
 
     from pycket.util import console_log
-    console_log("making instance : %s" % name.tostring(), 1)
+    if "'" in name.tostring():
+        console_log("making instance : %s" % name.tostring(), 1)
+    else:
+        console_log("making instance : %s" % name.tostring(), 2)
 
     if len(args) <= 2:
         data = args[1]
