@@ -78,10 +78,26 @@ setup:
 	hg -R $(PYPYPATH) pull && \
 	hg -R $(PYPYPATH) update
 
-test: $(PYFILES)
+THIS_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+## Assumes PLTHOME
+EXPANDER_DIR := $(PLTHOME)/racket/src/expander
+EXTRACT_DIR := $(EXPANDER_DIR)/extract
+
+expander:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	mv $(EXTRACT_DIR)/main.rkt $(EXTRACT_DIR)/orig_main.rkt
+	cp linklet-extractor/* $(EXTRACT_DIR)/
+	$(MAKE) -C $(EXPANDER_DIR) expander-src-generate
+	mv $(EXPANDER_DIR)/compiled/expander.rktl.pycket_ast $(THIS_DIR)/expander.rktl.linklet
+	rm -f $(EXTRACT_DIR)/main.rkt
+	rm -f $(EXTRACT_DIR)/zo-expand.rkt
+	rm -f $(EXTRACT_DIR)/linkl-expand.rkt
+	mv $(EXTRACT_DIR)/orig_main.rkt $(EXTRACT_DIR)/main.rkt
+
+test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
 
-test-with-expander: $(PYFILES)
+test-with-expander:
 	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
 
 test-random: $(PYFILES)

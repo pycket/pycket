@@ -31,7 +31,9 @@ This will take upwards of 10 minutes.
 
 You can also use `make` for any of the above,
 
+ * `make expander` to generate the expander linklet (it assumes an unmodified Racket install and PLTHOME environment variable -- see the Environment Variables section below)
  * `make test` to run the unit tests
+ * `make test-with-expander` to run the unit tests by calling functions we get from the expander linklet (this will take longer)
  * `make setup` to setup and update the `pypy` checkout
  * `make pycket-c` to translate with JIT
  * `make pycket-c-nojit` to translate without JIT (which is may be a lot faster to translate but runs a lot lot slower)
