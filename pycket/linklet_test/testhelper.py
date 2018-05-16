@@ -61,10 +61,13 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
-def eval(linkl, target, imports=[]):
+def eval(linkl, target, imports=[], just_return=False):
 
     #result = linkl.instantiate(imports, None, target=target)
     result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+
+    if just_return:
+        return result, None
 
     if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
         result = result.value
@@ -105,25 +108,27 @@ def run_linklet(w_linkl, v=None):
 
 # use_expander is to request it to use expander
 # it will just return True without running if the test is set to not use the expander
-def run_expr(expr_str, v, use_expander=False):
+def run_expr(expr_str, v=None, use_expander=False, just_return=False):
     if pytest.config.use_expander:
-        run_string(expr_str, v)
+        return run_string(expr_str, v, just_return)
     else:
-        run_sexp(expr_str, v)
+        return run_sexp(expr_str, v, just_return)
 
-def run_sexp(body_sexp_str, v=None):
+def run_sexp(body_sexp_str, v=None, just_return=False):
     linkl_str = "(linklet () () %s)" % body_sexp_str
     l = make_linklet(linkl_str)
-    result, _ = eval(l, empty_target())
+    result, _ = eval(l, empty_target(), just_return=just_return)
 
-    if v:
+    if v and not just_return:
         assert result == v
     return result
 
-def run_string(expr_str, v=None):
+def run_string(expr_str, v=None, just_return=False):
     ov = read_eval_print_string(expr_str, None, return_val=True)
     # FIXME: check for multiple results
     assert isinstance(ov, values.W_Object)
+    if just_return:
+        return ov
     # FIXME : unify this and the one in eval
     if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
         result = result.value
@@ -135,7 +140,7 @@ def run_string(expr_str, v=None):
     return result
 
 def execute(p, stdlib=False, extra=""):
-    return run_expr(p, stdlib=stdlib, extra=extra)
+    return run_expr(p,just_return=True)
 
 #
 # Combined checking
