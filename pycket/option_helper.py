@@ -11,8 +11,11 @@ def print_help(argv):
   -f <file>, --load <file>           : Like -e '(load "<file>")' without printing
   -t <file>, --require <file>        : Like -e '(require (file "<file>"))'
   -l <path>, --lib <path>            : Like -e '(require (lib "<path>"))'
+  -p <package>                    ***: Like -e '(require (planet "<package>")'
   -r <file>, --script <file>         : Same as -f <file> -N <file> --
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
+  -k <n> <m> <p>                  ***: Load executable-embedded code from offset <n> to <p>
+  -m, --main                      ***: Call `main' with command-line arguments, print results
   -g <json>, --eval-json <json>      : Load and instantiate a linklet json
   -gg <json>                         : Like -g but stops after instantiating
 
@@ -55,8 +58,11 @@ file_expr_opts = ["-e", "--eval",
                   "-f", "--load",
                   "-t", "--require",
                   "-l", "--lib",
+                  "-p",
                   "-r", "--script",
                   "-u", "--require-script",
+                  "-k",
+                  "-m", "--main",
                   "-g", "--eval-json",
                   "-gg"]
 inter_opts = ["-i", "--repl",
@@ -139,12 +145,13 @@ def parse_args(argv):
                 retval = MISSING_ARG
                 break
 
-            if argv[i] in ["r", "--script"]:
-                names['run-file'] = [argv[i]]
-
             i += 1
             add_name(names, 'loads', "load")
             add_name(names, 'load_arguments', argv[i])
+
+            if argv[i-1] in ["-r", "--script"]:
+                add_name(names, 'set-run-file', argv[i])
+
             retval = RETURN_OK
 
         elif argv[i] in ["-t", "--require", "-u", "--require-script"]:
@@ -153,12 +160,12 @@ def parse_args(argv):
                 retval = MISSING_ARG
                 break
 
-            if argv[i] in ["-u", "--require-script"]:
-                names['run-file'] = [argv[i]]
-
             i += 1
             add_name(names, 'loads', "file")
             add_name(names, 'load_arguments', argv[i])
+
+            if argv[i-1] in ["-u", "--require-script"]:
+                add_name(names, 'set-run-file', argv[i])
 
             config['no-lib'] = True
             retval = RETURN_OK
@@ -175,6 +182,17 @@ def parse_args(argv):
 
             config['no-lib'] = True
             retval = RETURN_OK
+
+        elif argv[i] in ["-p"]:
+            add_name(names, 'not-implemented', argv[i])
+            i += 1
+
+        elif argv[i] in ["-k"]:
+            add_name(names, 'not-implemented', argv[i])
+            i += 3
+
+        elif argv[i] in ["-m", "--main"]:
+            add_name(names, 'not-implemented', argv[i])
 
         elif argv[i] in ["-g", "-gg", "--eval-json"]:
             if argv[i] == "-gg":
