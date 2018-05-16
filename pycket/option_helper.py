@@ -7,35 +7,46 @@ def print_help(argv):
     print """Welcome to Pycket.
 %s [<option> ...] <argument> ...
  File and expression options:
-  -e <exprs>, --eval <exprs> : Evaluate <exprs>, prints results
-  -f <file>, --load <file> : Like -e '(load "<file>")' without printing
-  -t <file>, --require <file> : Like -e '(require (file "<file>"))'
-  -l <path>, --lib <path> : Like -e '(require (lib "<path>"))'
-  -r <file>, --script <file> : Same as -f <file> -N <file> --
+  -e <exprs>, --eval <exprs>         : Evaluate <exprs>, prints results
+  -f <file>, --load <file>           : Like -e '(load "<file>")' without printing
+  -t <file>, --require <file>        : Like -e '(require (file "<file>"))'
+  -l <path>, --lib <path>            : Like -e '(require (lib "<path>"))'
+  -r <file>, --script <file>         : Same as -f <file> -N <file> --
   -u <file>, --require-script <file> : Same as -t <file> -N <file> --
-  -g <json>, --eval-json <json> : Load and instantiate a linklet json
-  -gg <json> : Like -g but stops after instantiating
+  -g <json>, --eval-json <json>      : Load and instantiate a linklet json
+  -gg <json>                         : Like -g but stops after instantiating
 
  Interaction options:
-  -i, --repl : Run interactive read-eval-print loop; implies -v
-  -n, --no-lib : Skip `(require (lib "<init-lib>"))' for -i/-e/-f/-r
-  -v, --version : Show version
+  -i, --repl                         : Run interactive read-eval-print loop; implies -v
+  -n, --no-lib                       : Skip `(require (lib "<init-lib>"))' for -i/-e/-f/-r
+  -v, --version                      : Show version
 
  Configuration options:
-  --kernel : ignore everything, only load the #%%kernel (for development purposes)
-  -I <path> : Set <init-lib> to <path> (sets language)
-  -X <dir>, --collects <dir> : Main collects at <dir> (or "" disables all)
-  -G <dir>, --config <dir> : Main configuration directory at <dir>
-  -A <dir>, --addon <dir> : Addon directory at <dir>
-  -N <file>, --name <file> : Sets `(find-system-path 'run-file)' to <file>
-  --save-callgraph : save the jit output
+  -c, --no-compiled               ***: Disable loading of compiled files
+  -q, --no-init-file              ***: Skip load of ~/.racketrc for -i
+  -I <path>                          : Set <init-lib> to <path> (sets language)
+  -X <dir>, --collects <dir>         : Main collects at <dir> (or "" disables all)
+  -G <dir>, --config <dir>           : Main configuration directory at <dir>
+  -A <dir>, --addon <dir>            : Addon directory at <dir>
+  -U, --no-user-path              ***: Ignore user-specific collects, etc.
+  -R <paths>, --compiled <paths>  ***: Set compiled-file search roots to <paths>
+  -C, --cross                     ***: Cross-build mode; save current collects and config as host
+  -N <file>, --name <file>           : Sets `(find-system-path 'run-file)' to <file>
+  -j, --no-jit                    ***: Disable the just-in-time compiler
+  -d, --no-delay                  ***: Disable on-demand loading of syntax and code
+  -b, --binary                    ***: Read stdin and write stdout/stderr in binary mode
+  -W <levels>, --warn <levels>    ***: Set stderr logging to <levels>
+  -O <levels>, --stdout <levels>  ***: Set stdout logging to <levels>
+  -L <levels>, --syslog <levels>  ***: Set syslog logging to <levels>
+  --kernel                           : ignore everything, only load the #%%kernel (for development purposes)
+  --save-callgraph                   : save the jit output
 
  Meta options:
-  --verbose <level> : Print the debug logs. <level> : natural number (defaults to 0)
-  --jit <jitargs> : Set RPython JIT options may be 'default', 'off',
-                    or 'param=value,param=value' list
-  -- : No argument following this switch is used as a switch
-  -h, --help : Show this information and exits, ignoring other options
+  --verbose <level>                  : Print the debug logs. <level> : natural number (defaults to 0)
+  --jit <jitargs>                    : Set RPython JIT options may be 'default', 'off',
+                                       or 'param=value,param=value' list
+  --                                 : No argument following this switch is used as a switch
+  -h, --help                         : Show this information and exits, ignoring other options
 Default options:
  If only an argument is specified, it is loaded and evaluated
 """ % (argv[0])
@@ -51,16 +62,43 @@ file_expr_opts = ["-e", "--eval",
 inter_opts = ["-i", "--repl",
               "-n", "--no-lib",
               "-v", "--version"]
-conf_opts = ["--kernel",
+conf_opts = ["-c", "--no-compiled",
+             "-q", "--no-init-file",
              "-I",
              "-X", "--collects",
              "-G", "--config",
              "-A", "--addon",
+             "-A", "--addon",
+             "-U", "--no-user-path",
+             "-R", "--compiled",
+             "-C", "--cross",
              "-N", "--name",
+             "-j", "--no-jit",
+             "-d", "--no-delay",
+             "-b", "--binary",
+             "-W", "--warn",
+             "-O", "--stdout",
+             "-L", "--syslog",
+             "--kernel",
              "--save-callgraph"]
 meta_opts = ["--verbose", "--jit", "-h"]
 
 all_opts = file_expr_opts + inter_opts + conf_opts + meta_opts
+
+INIT = -1
+RETURN_OK = 0
+MISSING_ARG = 5
+JUST_EXIT = 3
+RET_JIT = 2
+
+config = {
+    'repl' : False,
+    'no-lib' : False,
+    'version' : False,
+    'stop' : False,
+    'just_kernel' : False,
+    'verbose' : False
+}
 
 def add_name(names, name, val, replace=False):
     if name not in names or replace:
@@ -72,19 +110,6 @@ def is_rkt_file(name_str):
     return ".rkt" in name_str
 
 def parse_args(argv):
-    INIT = -1
-    RETURN_OK = 0
-    MISSING_ARG = 5
-    JUST_EXIT = 3
-
-    config = {
-        'repl' : False,
-        'no-lib' : False,
-        'version' : False,
-        'stop' : False,
-        'just_kernel' : False,
-        'verbose' : False
-    }
     names = {
         # 'file': "",
         # 'exprs': "",
@@ -186,14 +211,15 @@ def parse_args(argv):
         # Configuration Options
         #########################
 
-        elif argv[i] == "--kernel":
-            config['just_kernel'] = True
-            config['no-lib'] = True
-            retval = RETURN_OK
+        elif argv[i] in ["-c", "--no-compiled"]:
+            add_name(names, 'not-implemented', argv[i])
+
+        elif argv[i] in ["-q", "--no-init-file"]:
+            add_name(names, 'not-implemented', argv[i])
 
         elif argv[i] == "-I":
             if to <= i + 1 or argv[i+1] in all_opts:
-                print "missing argument after -I"
+                print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
             i += 1
@@ -223,6 +249,20 @@ def parse_args(argv):
             i += 1
             add_name(names, 'set-addon-dir', argv[i])
 
+        elif argv[i] in ["-U", "--no-user-path"]:
+            add_name(names, 'not-implemented', argv[i])
+
+        elif argv[i] in ["-R", "--compiled"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            add_name(names, 'not-implemented', argv[i])
+            i += 1
+
+        elif argv[i] in ["-C", "--cross"]:
+            add_name(names, 'not-implemented', argv[i])
+
         elif argv[i] in ["-N", "--name"]:
             if to <= i + 1 or argv[i+1] in all_opts:
                 print "missing argument after %s" % argv[i]
@@ -230,6 +270,44 @@ def parse_args(argv):
                 break
             i += 1
             add_name(names, 'set-run-file', argv[i])
+
+        elif argv[i] in ["-j", "--no-jit"]:
+            add_name(names, 'not-implemented', argv[i])
+
+        elif argv[i] in ["-d", "--no-delay"]:
+            add_name(names, 'not-implemented', argv[i])
+
+        elif argv[i] in ["-b", "--binary"]:
+            add_name(names, 'not-implemented', argv[i])
+
+        elif argv[i] in ["-W", "--warn"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            add_name(names, 'not-implemented', argv[i])
+            i += 1
+
+        elif argv[i] in ["-O", "--stdout"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            add_name(names, 'not-implemented', argv[i])
+            i += 1
+
+        elif argv[i] in ["-L", "--syslog"]:
+            if to <= i + 1 or argv[i+1] in all_opts:
+                print "missing argument after %s" % argv[i]
+                retval = MISSING_ARG
+                break
+            add_name(names, 'not-implemented', argv[i])
+            i += 1
+
+        elif argv[i] == "--kernel":
+            config['just_kernel'] = True
+            config['no-lib'] = True
+            retval = RETURN_OK
 
         elif argv[i] == '--save-callgraph':
             config['save-callgraph'] = True
@@ -253,13 +331,14 @@ def parse_args(argv):
         elif argv[i] == "--jit":
             if to <= i + 1:
                 print "missing argument after --jit"
-                retval = 2
+                retval = RET_JIT
                 break
             i += 1
             jitarg = argv[i]
             jit.set_user_param(None, jitarg)
 
         elif argv[i] == "--":
+            retval = RETURN_OK
             i += 1
             break
 
@@ -270,15 +349,13 @@ def parse_args(argv):
 
         else:
             if '.rkt' in argv[i]:
-                add_name(names, 'req-file', argv[i])
+                add_name(names, 'loads', "file")
+                add_name(names, 'load_arguments', argv[i])
                 config['no-lib'] = True
-
-                i += 1
                 retval = RETURN_OK
             else:
                 print "Bad switch : %s" % argv[i]
                 retval = MISSING_ARG
-            break
         i += 1
 
     if retval == INIT:
