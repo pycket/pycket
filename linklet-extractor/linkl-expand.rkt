@@ -180,9 +180,6 @@ toplevels = (flatten-and-append importss exports internals lifts)
   (set! byte-codes main-linklet)
   (set! json-hash final-json))
 
-#;(current-command-line-arguments
- (vector "-d" "/home/caner/racketland/racket/racket/collects/racket/private/stxloc.rkt"))
-
 (module+ main
   (require racket/cmdline json compiler/cm)
 
@@ -190,54 +187,37 @@ toplevels = (flatten-and-append importss exports internals lifts)
   (define sub-dirs-str #f)
   (define out #f)
   (define module-name #f)
-  (define module-ext #f)
+  (define expander #f)
 
-  (define-syntax (get-extension stx)
-    (syntax-case stx ()
-      [(_ p)
-       (if (identifier-binding #'path-get-extension)
-           #'(path-get-extension p)
-           (if (identifier-binding #'filename-extension)
-               #'(filename-extension p)
-               (error 'use-correct-extension "couldn't find a good extension getter")))]))
+  (define byte-file
+    (open-input-file
+     (command-line
+      #:once-each
+      [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
+      [("-e" "--expander") "generate the expander linklet json" (set! expander #t)]
+      #:once-any
+      [("--output") file "write output to output <file>"
+                    (set! out (open-output-file file #:exists 'replace))]
+      [("--stdout") "write output to standart out" (set! out (current-output-port))]
 
-  (command-line
-   #:once-each
-   [("-v" "--verbose" "-d" "--debug") "show what you're doing" (set! debug #t)]
-   #:once-any
-   [("--output") file "write output to output <file>"
-    (set! out (open-output-file file #:exists 'replace))]
-   [("--stdout") "write output to standart out" (set! out (current-output-port))]
+      #:args (file.zo) ; accept only bytecode
+      (begin
+        (when expander
+          (when (not out)
+            (set! out (open-output-file "expander.rktl.linklet" #:exists 'truncate/replace)))
+          (set! module-name "expander"))
 
-   #:args (file.rkt)
-   (let* ([p (string->path file.rkt)]
-          [only-path-str (or (and (path-only p) (path->string (path-only p))) "")]
-          [mod-name (let* ([fn-path (file-name-from-path p)]
-                           [fn-str (if fn-path (path->string fn-path) (error 'zo-expand "check the filename ~a" file.rkt))])
-                      (car (string-split fn-str ".")))]
-          [mod-extension (let ([ext (bytes->string/utf-8 (get-extension p))])
-                           (if (string-contains? ext ".") (string-replace ext "." "") ext))])
-     (begin
-       (printf "\nonly-path-str : ~a\n" only-path-str)
-       (printf "\nmod-name : ~a\n" mod-name)
-       (printf "\nmod-extension : ~a\n" mod-extension)
-       ;; setting the stage
-       (set! module-name mod-name)
-       (set! module-ext mod-extension)
-       (set! sub-dirs-str only-path-str)
-       #;(set-globals! debug mod-name mod-extension sub-dirs-str #f)
-       ;(system (format "raco make \"~a\"" file.rkt))
-       #;(managed-compile-zo file.rkt)
-       ;; setting the output port
-       (when (not out)
-         (set! out (open-output-file (format "~a~a.~a.json" sub-dirs-str mod-name mod-extension)
-                                     #:exists 'replace))))))
+        ;; setting the stage
+        (when (not module-name)
+          (set! module-name (car (string-split file.zo "."))))
+        (when (not sub-dirs-str)
+          (set! sub-dirs-str (path->string (current-directory))))
+        (when (not out)
+          (set! out (open-output-file (build-path sub-dirs-str (format "~a.json" module-name))
+                                      #:exists 'replace)))
+        file.zo))))
 
-  (printf "\nonly-path-str : ~a\n" module-name)
-
-  (define dep-file (read (open-input-file (format "~acompiled/~a_~a.dep" sub-dirs-str module-name module-ext))))
-
-  (define top (zo-parse (open-input-file (format "~acompiled/~a_~a.zo" sub-dirs-str module-name module-ext))))
+  (define top (zo-parse byte-file))
 
   (unless (or (linkl-directory? top) (linkl-bundle? top))
     (error (format "what sort of compile top is this : ~a" top)))
@@ -262,7 +242,7 @@ toplevels = (flatten-and-append importss exports internals lifts)
     (printf "\n main-linklet \n\n ~a\n\n" main-linklet))
 
   (define final-json-hash
-    (handle-linkl main-linklet '() debug module-name module-ext sub-dirs-str))
+    (handle-linkl main-linklet '() debug module-name "rkt" sub-dirs-str))
 
   (unless (jsexpr? final-json-hash)
     (error "\n something wrong with the json :\n\n ~a\n\n" final-json-hash))

@@ -16,7 +16,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit
-.PHONY: setup test coverage
+.PHONY: setup test coverage expander
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -78,21 +78,9 @@ setup:
 	hg -R $(PYPYPATH) pull && \
 	hg -R $(PYPYPATH) update
 
-THIS_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-## Assumes PLTHOME
-EXPANDER_DIR := $(PLTHOME)/racket/src/expander
-EXTRACT_DIR := $(EXPANDER_DIR)/extract
-
 expander:
 	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
-	mv $(EXTRACT_DIR)/main.rkt $(EXTRACT_DIR)/orig_main.rkt
-	cp linklet-extractor/* $(EXTRACT_DIR)/
-	$(MAKE) -C $(EXPANDER_DIR) expander-src-generate
-	mv $(EXPANDER_DIR)/compiled/expander.rktl.pycket_ast $(THIS_DIR)/expander.rktl.linklet
-	rm -f $(EXTRACT_DIR)/main.rkt
-	rm -f $(EXTRACT_DIR)/zo-expand.rkt
-	rm -f $(EXTRACT_DIR)/linkl-expand.rkt
-	mv $(EXTRACT_DIR)/orig_main.rkt $(EXTRACT_DIR)/main.rkt
+	$(MAKE) -C linklet-extractor
 
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
