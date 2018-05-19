@@ -439,6 +439,13 @@ c_thread = values.W_Thread()
 def current_thread():
     return c_thread
 
+# FIXME : implementation
+@expose("current-memory-use", [default(values.W_Object, values.w_false)])
+def current_memory_use(mode):
+    # mode is : (or/c #f 'cumulative custodian?)
+
+    return values.W_Fixnum(1)
+
 @expose("semaphore-post", [values.W_Semaphore])
 def sem_post(s):
     s.post()
