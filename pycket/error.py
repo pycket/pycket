@@ -3,6 +3,14 @@
 
 from rpython.rlib.objectmodel import we_are_translated
 
+class ExitException(Exception):
+
+    def __init__(self, status_msg):
+        self.exit_status = status_msg
+
+    def is_user(self):
+        return False
+
 class SchemeException(Exception):
 
     def __init__(self, msg, w_exn_type=None):

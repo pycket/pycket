@@ -7,6 +7,7 @@ from pycket.cont               import continuation, loop_label, call_cont, Barri
 from pycket.error              import SchemeException
 from pycket.argument_parser    import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
+from pycket.prims.plumber      import current_plumber_param
 from pycket.util               import add_copy_method
 from rpython.rlib              import jit
 from rpython.rlib.objectmodel  import specialize
@@ -345,6 +346,41 @@ def abort_current_continuation(args, env, cont):
     return handler.call(args, env, cont)
 
 expose("abort-current-continuation", simple=False)(abort_current_continuation)
+
+@expose("force-exit", [values.W_Object])
+def force_exit(v):
+    return _force_exit(v)
+
+def _force_exit(v):
+    from pycket.error import ExitException
+
+    if isinstance(v, values.W_Fixnum) and (0 <= v.value <= 255):
+        raise ExitException(v)
+    else:
+        raise ExitException(values.W_Fixnum(0))
+
+@continuation
+def force_exit_cont(v, env, cont, _vals):
+    return _force_exit(v)
+
+@make_procedure("initial-exit-handler", [values.W_Object], arity=Arity.ZERO, simple=False)
+def initial_exit_handler(v, env, cont):
+    from pycket.prims.plumber import do_plumber_flush_all
+    root_plumber = current_plumber_param.get(cont) ## ??
+    return do_plumber_flush_all(root_plumber, env , force_exit_cont(v, env, cont))
+
+exit_handler_param = values_parameter.W_Parameter(initial_exit_handler)
+expose_val("exit-handler", exit_handler_param)
+
+@continuation
+def exit_cont(env, cont, _vals):
+    from pycket.interpreter import return_value
+    return return_value(values.w_void, env, cont)
+
+@expose("exit", [default(values.W_Object, values.w_true)], simple=False)
+def exit(v, env, cont):
+    exit_handler = exit_handler_param.get(cont)
+    return exit_handler.call([v], env, exit_cont(env, cont))
 
 @make_procedure("default-error-escape-handler", [], simple=False)
 def default_error_escape_handler(env, cont):
