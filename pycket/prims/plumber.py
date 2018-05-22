@@ -3,7 +3,6 @@
 from pycket import values, values_parameter
 from pycket.prims.expose import (expose, expose_val, default, make_procedure, procedure)
 from pycket.cont import continuation, loop_label
-from pycket.util import console_log
 
 class W_PlumberFlushHandle(values.W_Object):
 
@@ -29,7 +28,6 @@ class W_Plumber(values.W_Object):
         return self.weak_callbacks
 
     def set_callback(self, h, proc):
-        # can potentially overwrite, is that a problem?
         self.callbacks[h] = proc
 
     def set_weak_callback(self, h, proc):
@@ -51,7 +49,6 @@ def make_plumber():
 
 @expose("plumber-add-flush!", [W_Plumber, procedure, default(values.W_Bool, values.w_false)])
 def plumber_add_flush_bang(p, proc, is_weak):
-    console_log("plumber-add-flush -- is called", 1)
 
     # create a new handle
     h = W_PlumberFlushHandle(p)
@@ -87,8 +84,6 @@ def plumber_flush_all(p, env, cont):
 
 def do_plumber_flush_all(p, env, cont):
     from pycket.interpreter import return_value
-
-    console_log("plumber-flush-all -- is called", 1)
 
     callbacks = p.get_callbacks()
     weak_callbacks = p.get_weak_callbacks()
