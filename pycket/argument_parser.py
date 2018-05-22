@@ -31,13 +31,13 @@ class ArgParser(object):
             raise EndOfInput
         index = self.index
         val = self.args[index]
-        self.index = index + 1
         return val
 
     @specialize.arg(1)
     def expect(self, *args):
         val = self.next()
         if validate_arg(val, *args):
+            self.index += 1
             return val
         raise SchemeException(
                 "%s: expected %s at argument %d got %s" %
