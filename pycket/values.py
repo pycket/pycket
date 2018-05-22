@@ -165,6 +165,9 @@ class W_Logger(W_Object):
         self.stderr_level    = stderr_level
         self.stdout_level    = stdout_level
 
+    def get_name(self):
+        return self.topic # io/logger/logger.rkt
+
     def get_syslog_level(self):
         return self.syslog_level
 
@@ -1608,7 +1611,7 @@ class W_Closure1AsEnv(ConsEnv):
             lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
-        
+
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 self, env_structure, env)
         return lam.make_begin_cont(
@@ -1800,7 +1803,7 @@ class W_StringInputPort(W_InputPort):
 
     def set_read_handler(self, handler):
         self.read_handler = handler
-        
+
     def readline(self):
         from rpython.rlib.rstring import find
         start = self.ptr
@@ -1878,7 +1881,7 @@ class W_FileInputPort(W_InputPort):
 
     def set_read_handler(self, handler):
         self.read_handler = handler
-    
+
     def readline(self):
         return self.file.readline()
 
@@ -1986,4 +1989,3 @@ def wrap(*_pyval):
         if isinstance(car, W_Object):
             return W_Cons.make(car, cdr)
     assert False
-

@@ -1,5 +1,5 @@
 
-from pycket                 import values, values_parameter
+from pycket                 import values, values_parameter, values_string
 from pycket.arity           import Arity
 from pycket.argument_parser import ArgParser, EndOfInput
 from pycket.prims.expose    import default, expose, expose_val
@@ -87,8 +87,39 @@ def log_message(args):
     # The complete solution is to :
     # FIXME : implement log_receivers, create an event and distribute it
 
-    # FIXME : print properly
-    print(args[2].tostring())
+    parser = ArgParser("log-message", args)
+
+
+    # logger : logger?
+    logger = parser.expect(values.W_Logger)
+
+    # level : log-level/c
+    level = parser.expect(*LOG_LEVEL)
+
+    # topic : (or/c symbol? #f) = (logger-name logger)
+    try:
+        topic = parser.expect(values.W_Symbol, values.w_false)
+    except Exception, e:
+        topic = logger.get_name()
+
+    # message : string?
+    message = parser.expect(values_string.W_String)
+
+    # data : any/c
+    data = parser.expect(values.W_Object)
+
+    try:
+        # prefix-message? : any/c = #t
+        prefix_message_huh = parser.expect(values.W_Object, values.w_true)
+    except EndOfInput:
+        prefix_message_huh = values.w_true
+
+    print_str = message.tostring()
+
+    if (prefix_message_huh is not values.w_false) and (topic is not values.w_false):
+        print_str = "%s: %s" % (topic.tostring(), print_str)
+
+    print(print_str)
 
     return values.w_void
 
