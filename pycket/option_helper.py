@@ -38,9 +38,9 @@ def print_help(argv):
   -j, --no-jit                    ***: Disable the just-in-time compiler
   -d, --no-delay                  ***: Disable on-demand loading of syntax and code
   -b, --binary                    ***: Read stdin and write stdout/stderr in binary mode
-  -W <levels>, --warn <levels>    ***: Set stderr logging to <levels>
-  -O <levels>, --stdout <levels>  ***: Set stdout logging to <levels>
-  -L <levels>, --syslog <levels>  ***: Set syslog logging to <levels>
+  -W <levels>, --warn <levels>       : Set stderr logging to <levels>
+  -O <levels>, --stdout <levels>     : Set stdout logging to <levels>
+  -L <levels>, --syslog <levels>     : Set syslog logging to <levels>
   --kernel                           : ignore everything, only load the #%%kernel (for development purposes)
   --save-callgraph                   : save the jit output
 
@@ -303,24 +303,24 @@ def parse_args(argv):
                 print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
-            add_name(names, 'not-implemented', argv[i])
             i += 1
+            add_name(names, 'stderr_level', argv[i])
 
         elif argv[i] in ["-O", "--stdout"]:
             if to <= i + 1 or argv[i+1] in all_opts:
                 print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
-            add_name(names, 'not-implemented', argv[i])
             i += 1
+            add_name(names, 'stdout_level', argv[i])
 
         elif argv[i] in ["-L", "--syslog"]:
             if to <= i + 1 or argv[i+1] in all_opts:
                 print "missing argument after %s" % argv[i]
                 retval = MISSING_ARG
                 break
-            add_name(names, 'not-implemented', argv[i])
             i += 1
+            add_name(names, 'syslog_level', argv[i])
 
         elif argv[i] == "--kernel":
             config['just_kernel'] = True

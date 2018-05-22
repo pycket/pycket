@@ -56,6 +56,18 @@ def make_entry_point(pycketconfig=None):
             if 'not-implemented' in names:
                 print("These flags are not implemented yet : %s" % names['not-implemented'])
 
+        if 'stdout_level' in names: # -O
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_stdout_level(names['stdout_level'][0])
+
+        if 'stderr_level' in names: # -W
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_stderr_level(names['stderr_level'][0])
+
+        if 'syslog_level' in names: # -L
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_syslog_level(names['syslog_level'][0])
+
         if retval != 0 or config is None:
             return retval
 
