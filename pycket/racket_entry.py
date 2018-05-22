@@ -6,7 +6,6 @@ from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
 from pycket.util import console_log
 from pycket.prims.correlated import syntax_primitives
-import timeit
 
 def locate_linklet(file_name):
     import os
@@ -191,6 +190,9 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
 
     if is_repl or not ran_eval:
         print
+
+    exit = get_primitive("exit")
+    exit.call_interpret([], pycketconfig)
 
     return 0
 
