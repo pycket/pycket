@@ -154,13 +154,63 @@ class W_Logger(W_Object):
     errorname = "logger"
 
     _immutable_fields_ = ['topic', 'parent', 'propagate_level', 'propagate_topic[*]']
-    _attrs_ = ['topic', 'parent', 'propagate_level', 'propagate_topic']
+    _attrs_ = ['topic', 'parent', 'propagate_level', 'propagate_topic', 'syslog_level', 'stderr_level', 'stdout_level']
 
-    def __init__(self, topic, parent, propagate_level, propagate_topic):
-        self.topic           = topic
-        self.parent          = parent
-        self.propagate_level = propagate_level
-        self.propagate_topic = propagate_topic
+    def __init__(self, topic, parent, propagate_level, propagate_topic, syslog_level, stderr_level, stdout_level):
+        self.topic           = topic # (or/c symbol? #f) = #f performance
+        self.parent          = parent # (or/c symbol? #f) = #f
+        self.propagate_level = propagate_level # log-level/c = 'debug
+        self.propagate_topic = propagate_topic # (or/c #f symbol?) = #f
+        self.syslog_level    = syslog_level
+        self.stderr_level    = stderr_level
+        self.stdout_level    = stdout_level
+
+    def get_syslog_level(self):
+        return self.syslog_level
+
+    def get_stderr_level(self):
+        return self.syslog_level
+
+    def get_stdout_level(self):
+        return self.syslog_level
+
+    def set_syslog_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.syslog_level = lvl
+
+    def set_stderr_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.stderr_level = lvl
+
+    def set_stdout_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.stdout_level = lvl
+
+    def is_anyone_interested(self, level, topic):
+        from pycket.prims.logging import level_geq
+
+        if self.topic is w_false or self.topic is topic:
+            # self.topic #f : we're interested in events at level for any topic
+            if level_geq(self.syslog_level, level):
+                return True
+
+            # cheating : any of these three types are enough to trigger logging
+            if level_geq(self.stderr_level, level):
+                return True
+
+            if level_geq(self.stdout_level, level):
+                return True
+
+        if self.parent is w_false or level_geq(level, self.propagate_level):
+            return False
+
+        return self.parent.is_anyone_interested(level, topic)
 
     def tostring(self):
         return "#<logger>"
