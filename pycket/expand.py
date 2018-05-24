@@ -384,12 +384,12 @@ class SourceInfo(object):
 JSON_TYPES = unrolling_iterable(['string', 'int', 'float', 'object', 'array'])
 
 @specialize.arg(2)
-def getkey(obj, key, type, throws=False):
+def getkey(obj, key, type, throws=False, default=None):
     result = obj.get(key, None)
     if result is None:
         if throws:
             raise KeyError
-        return -1 if type == 'i' else None
+        return -1 if type == 'i' else default
     for t in JSON_TYPES:
         if type == t or type == t[0]:
             if not getattr(result, "is_" + t):

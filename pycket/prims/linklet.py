@@ -349,7 +349,7 @@ class W_Linklet(W_Object):
 
                 exports[exp_sym] = exp_sym
 
-        imports_list = getkey(linklet_dict, "importss", type='a')
+        imports_list = getkey(linklet_dict, "importss", type='a', default=[])
 
         importss = [None]*len(imports_list) # list of dict
 
