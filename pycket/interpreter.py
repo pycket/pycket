@@ -1411,7 +1411,7 @@ class LinkletVar(Var):
     def _get_cell(self, env):
         try:
             return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-        except KeyError:
+        except SchemeException:
             inst = env.toplevel_env().get_current_linklet_instance()
             return inst.lookup_var_value(self.sym)
 
