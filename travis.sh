@@ -196,6 +196,7 @@ fetch_pypy() {
 
 prepare_racket() {
   ## SET UP THE ENV VARS TO ACCESS RACKET LIBS
+  print_console "preparing racket"
 }
 
 expand_rkt() {
