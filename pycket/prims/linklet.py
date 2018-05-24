@@ -351,9 +351,10 @@ class W_Linklet(W_Object):
 
         imports_list = getkey(linklet_dict, "importss", type='a')
 
-        importss = [] # list of dict
+        importss = [None]*len(imports_list) # list of dict
+
         if "importss" in linklet_dict:
-            for imports in imports_list:
+            for index, imports in enumerate(imports_list):
                 arr = imports.value_array()
                 # we don't care about renamed imports because we will only load bootstrap
                 # linklets from json (and they have no imports at all)
@@ -362,7 +363,7 @@ class W_Linklet(W_Object):
                 for id_str in arr:
                     sym = W_Symbol.make(id_str.value_object()['quote'].value_object()['toplevel'].value_string())
                     instance_imports[sym] = sym
-                importss.append(instance_imports)
+                importss[index] = instance_imports
 
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
@@ -651,11 +652,9 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             # Process the imports
             w_importss = form.cdr().car()
 
-            importss_list = []
-
-            importss_acc = w_importss
-            while (importss_acc is not w_null):
-                importss_current = importss_acc.car()
+            importss_acc = to_rpython_list(w_importss)
+            importss_list = [None]*len(importss_acc)
+            for index, importss_current in enumerate(importss_acc):
                 inner_acc = {}
                 while (importss_current is not w_null):
                     c = importss_current.car()
@@ -672,8 +671,7 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
 
                     importss_current = importss_current.cdr()
 
-                importss_list.append(inner_acc)
-                importss_acc = importss_acc.cdr()
+                importss_list[index] = inner_acc
 
             # Process the exports
             w_exports = form.cdr().cdr().car()
