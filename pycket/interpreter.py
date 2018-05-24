@@ -1333,16 +1333,17 @@ class Gensym(object):
 
 class LinkletVar(Var):
     visitable = True
+    _immutable_fields_ = ["w_value?", "sym", "constance", "is_transparent"]
 
-    def __init__(self, sym, w_value=None, constance=values.w_false, is_imported=False):
+    def __init__(self, sym, w_value=None, constance=values.w_false, is_transparent=False):
         self.sym = sym
         self.w_value = w_value
-        self.is_imported = is_imported
+        self.is_transparent = is_transparent
         self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
-        self.w_instance = None
 
     def tostring(self):
-        return "LinkletVar(%s)" % (self.sym.tostring())
+        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
+        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
 
     def _free_vars(self):
         return SymbolSet.EMPTY
@@ -1366,15 +1367,12 @@ class LinkletVar(Var):
         self._set(w_val, env)
 
     def _set(self, w_val, env):
-        try:
-            v = env.toplevel_env().toplevel_lookup(self.sym)
-            env.toplevel_env().toplevel_set(self.sym, w_val)
-        except:
-            if self.w_instance is None:
-                self.w_instance = env.get_current_linklet_instance()
-            var = self.w_instance.get_var(self.sym)
-            var.set_bang(w_val)
-        #self.w_value = w_val
+        c = self.w_value
+        if not c:
+            c = self._get_cell(env)
+
+        assert isinstance(c, values.W_Cell)
+        c.set_val(w_val)
 
     def set_bang(self, w_val):
         assert isinstance(self.w_value, values.W_Cell)
@@ -1398,22 +1396,24 @@ class LinkletVar(Var):
 
     def _lookup(self, env):
         w_res = self.w_value
-        if w_res is None or self.w_instance is None:
-            try:
-                self.w_value = w_res = env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-            except:
-                if self.w_instance is None:
-                    self.w_instance = env.get_current_linklet_instance()
-                self.w_value = w_res = self._elidable_lookup()
+
+        if w_res is None:
+            w_res = self._get_cell(env)
+
+            if not self.is_transparent:
+                w_value = w_res
 
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
         else:
             return w_res
 
-    def _elidable_lookup(self):
-        assert self.w_instance
-        return self.w_instance.lookup_var_value(self.sym)
+    def _get_cell(self, env):
+        try:
+            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
+        except:
+            inst = env.toplevel_env().get_current_linklet_instance()
+            return inst.lookup_var_value(self.sym)
 
 class LexicalVar(Var):
     visitable = True

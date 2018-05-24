@@ -6,16 +6,17 @@ from pycket.cont import continuation, loop_label
 
 class W_PlumberFlushHandle(values.W_Object):
 
+    _attrs_ = _immutable_fields_ = ["plumber"]
+
     def __init__(self, plumber):
         self.plumber = plumber
 
     def get_plumber(self):
         return self.plumber
 
-    def set_plumber(self, plumber):
-        self.plumber = plumber
-
 class W_Plumber(values.W_Object):
+
+    _attrs_ = ["callbacks", "weak_callbacks"]
 
     def __init__(self, callbacks={}, weak_callbacks={}):
         self.callbacks = callbacks # hash table of handles -> callbacks

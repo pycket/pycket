@@ -38,6 +38,9 @@ w_uninitialized = W_Uninitialized()
 
 class W_LinkletInstance(W_Object):
 
+    _attrs_ = ["name", "vars", "exports", "data"]
+    _immutable_fields_ = ["name", "data"]
+
     def __init__(self, name, vars, exports, data=w_false):
         self.name = name # W_Symbol (for debugging)
         self.vars = vars # {W_Symbol:LinkletVar}
@@ -102,10 +105,12 @@ class W_LinkletInstance(W_Object):
 
     def lookup_var_value(self, name):
         var = self.get_var(name)
-        return var.get_value_direct()
+        return var.get_value_unstripped()
 
 class W_LinkletBundle(W_Object):
     # Information in a linklet bundle is keyed by either a symbol or a fixnum
+
+    _attrs_ = _immutable_fields_ = ["bundle_mapping"]
 
     def __init__(self,bundle_mapping):
         self.bundle_mapping = bundle_mapping
@@ -121,6 +126,8 @@ def linklet_bundle_to_hash(linkl_bundle):
 class W_LinkletDirectory(W_Object):
 
     # When a Racket module has submodules, the linklet bundles for the module and the submodules are grouped together in a linklet directory. A linklet directory can have nested linklet directories. Information in a linklet directory is keyed by #f or a symbol, where #f must be mapped to a linklet bundle (if anything) and each symbol must be mapped to a linklet directory. A linklet directory can be equivalently viewed as a mapping from a lists of symbols to a linklet bundle.
+
+    _attrs_ = _immutable_fields_ = ["dir_mapping"]
 
     def __init__(self,dir_mapping):
         self.dir_mapping = dir_mapping
@@ -160,27 +167,18 @@ def instantiate_def_cont(form, forms, index, gensym_count, return_val, target, e
         ext_name = exports[name] if name in exports else name
 
         c = W_Cell(value)
+        env.toplevel_env().toplevel_set(name, c, already_celled=True)
+
         var = LinkletVar(ext_name, c)
-        if name in exports: # variable is definitely going into target
+        if name in exports or not target.has_var(ext_name): # variable is definitely going into target
             if target.has_var(ext_name) and not target.is_var_uninitialized(ext_name):
                 target.overwrite_var(ext_name, value)
-                var = target.get_var(ext_name)
-                val = var.get_value_unstripped()
-                # FIXME : this already_celled here is redundant -- get rid of it
-                env.toplevel_env().toplevel_set(name, val, already_celled=isinstance(val, W_Cell))
-                continue
             else:
                 target.add_var(ext_name, var)
         elif external_of_an_export(name, exports):
             gensym_count += 1
             ex_name = W_Symbol(name.tostring() + "." + str(gensym_count))
             target.add_var(ex_name, var)
-        elif not target.has_var(ext_name):
-            target.add_var(ext_name, var)
-
-        # already_celled here is for being able to put the same W_Cell in the
-        # environment into the target
-        env.toplevel_env().toplevel_set(name, c, already_celled=True)
 
     return return_value(w_void, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont))
 
@@ -192,6 +190,8 @@ def instantiate_loop(forms, index, gensym_count, return_val, target, exports, en
         return form, env, instantiate_val_cont(forms, index + 1, gensym_count, return_val, target, exports, env, cont)
 
 class W_Linklet(W_Object):
+
+    _immutable_fields_ = ["name", "importss", "exports", "all_forms"]
 
     def __init__(self, name, importss, exports, all_forms):
         self.name = name # W_Symbol -- for debugging
@@ -531,9 +531,12 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             form = LexicalVar(form)
         # toplevel linklet var
         elif is_imported(form, linkl_importss):
-            form = LinkletVar(form, None, W_Symbol.make("constant"), is_imported=True)
+            form = LinkletVar(form, None, W_Symbol.make("constant"), is_transparent=True)
         elif (form in linkl_toplevels) or (form in exports):
-            form = LinkletVar(form)
+            if form in linkl_toplevels:
+                form = linkl_toplevels[form]
+            else:
+                form = LinkletVar(form, is_transparent=True)
         else:
             # kernel primitive ModuleVar
             form = ModuleVar(form, "#%kernel", form, None)
@@ -610,15 +613,20 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
     return form
 
 # collect the ids in define-values forms
-def extract_ids(forms_ls):
-    linkl_toplevels = [] # [W_Symbol ...]
+def create_toplevel_linklet_vars(forms_ls):
+    linkl_toplevels = {} # {W_Symbol:LinkletVar}
     for form in forms_ls:
         if isinstance(form, W_Correlated):
             form = form.get_obj()
         if isinstance(form, W_List) and form.car() is W_Symbol.make("define-values"):
             ids = form.cdr().car()
             ids_ls = to_rpython_list(ids)
-            linkl_toplevels += ids_ls # don't worry about the duplicates now
+            # create LinkletVar for each id
+            for id in ids_ls:
+                if id in linkl_toplevels:
+                    raise SchemeException("duplicate binding name : %s" % id.tostring())
+                linkl_toplevels[id] = LinkletVar(id, is_transparent=True)
+
     return linkl_toplevels
 
 def external_of_an_export(sym, exports):
@@ -685,9 +693,9 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             w_body = form.cdr().cdr().cdr()
             body_forms_ls = to_rpython_list(w_body)
 
-            linkl_toplevel_defined_ids = extract_ids(body_forms_ls)
+            toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
 
-            _body_forms = [sexp_to_ast(b, [], exports, linkl_toplevel_defined_ids, importss_list) for b in body_forms_ls]
+            _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
 
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
