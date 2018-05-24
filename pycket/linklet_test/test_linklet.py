@@ -29,6 +29,15 @@ def test_instantiate_target():
     assert check_val(t2, "x", 4)
 
 @pytest.mark.linkl
+def test_instantiate_target_transfer_set_banged():
+    l2 = make_linklet("(linklet () (y) (define-values (y) 10) (set! y 50))", "l2")
+    t1 = empty_target("t1")
+    t2 = empty_target("t2")
+    _, t1 = eval(l2, t1, [])
+    _, t2 = eval(l2, t2, [])
+    assert check_val(t2, "y", 50)
+
+@pytest.mark.linkl
 def test_instantiate_target_def_overwrite():
     l = make_linklet("(linklet () (x) (define-values (x) 4) (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 1) (define-values (y) 2))")
@@ -280,31 +289,31 @@ def test_instantiate_closure_capture_and_reset():
     result, t = eval(l3, empty_target(), [l2])
     assert result == 60
 
-    l1 = make_instance("(linklet () (x) (define-values (x) 1))")
-    l2 = make_linklet("(linklet ((x)) (y g) (define-values (y) 10) (define-values (g) (lambda (p) (+ x y))) (set! y 50))")
-    t1 = empty_target()
-    t2 = empty_target()
-    t3 = empty_target()
+    l1 = make_instance("(linklet () (x) (define-values (x) 1))", l_name="l1")
+    l2 = make_linklet("(linklet ((x)) (y g) (define-values (y) 10) (define-values (g) (lambda (p) (+ x y))) (set! y 50))", "l2")
+    t1 = empty_target("t1")
+    t2 = empty_target("t2")
+    t3 = empty_target("t3")
     _, t1 = eval(l2, t1, [l1])
     _, t2 = eval(l2, t2, [l1])
     _, t3 = eval(l2, t3, [l1])
 
     # at this point:
-    # t : {y:71, g:closure}
-    l3 = make_linklet("(linklet () (y g) (set! y 200) (g -1))")
+    # t : {y:50, g:closure}
+    l3 = make_linklet("(linklet () (y g) (set! y 200) (g -1))", "l3")
     result, t1 = eval(l3, t1)
     assert result == 201 # result1530
     # here's an interesting one:
     assert check_val(t1, "y", 200)
 
-    # t2 : {y:71, g:closure}
-    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g -1))")
+    # t2 : {y:50, g:closure}
+    l4 = make_linklet("(linklet () (y g) (set! y 200) (define-values (y) 90) (g -1))", "l4")
     result, t2 = eval(l4, t2)
     assert result == 91 # racket - result1531
     assert check_val(t2, "y", 90)
 
-    # t3 : {y:71, g:closure}
-    l5 = make_linklet("(linklet () (g) (define-values (y) 90) (+ y (g -1)))")
+    # t3 : {y:50, g:closure}
+    l5 = make_linklet("(linklet () (g) (define-values (y) 90) (+ y (g -1)))", "l5")
     result, t3 = eval(l5, t3)
     assert result == 141 # racket - result1532
     assert check_val(t3, "y", 50)

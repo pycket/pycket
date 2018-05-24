@@ -50,7 +50,7 @@ def defines(inst, name_str):
     return inst.has_var(W_Symbol.make(name_str))
 
 def get_val(inst, name_str):
-    return inst.lookup_var_value(values.W_Symbol.make(name_str))
+    return inst.lookup_var_value(values.W_Symbol.make(name_str)).get_val()
 
 def check_val(inst, var_str, val):
     return get_val(inst, var_str).value == val
@@ -75,19 +75,20 @@ def eval(linkl, target, imports=[], just_return=False):
         result = result.as_str_utf8()
     return result, target
 
-def empty_target():
+def empty_target(l_name="test_empty_instance"):
     # creates an empty target
-    return make_instance("(linklet () ())")
+    return make_instance("(linklet () ())", l_name=l_name)
 
-def make_instance(linkl_str, imports=[]):
-    instance = inst(make_linklet(linkl_str), imports)
+def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
+    instance = inst(make_linklet(linkl_str, l_name), imports)
     return instance
 
-def make_linklet(linkl_str):
+def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"
+    #import pdb;pdb.set_trace()
     linkl_sexp = string_to_sexp(linkl_str)
     try:
-        do_compile_linklet(linkl_sexp, values.W_Symbol.make("test_linklet_sexp"), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
     except Done, e:
         l = e.values # W_Linklet
         return l
@@ -108,14 +109,14 @@ def run_linklet(w_linkl, v=None):
 
 # use_expander is to request it to use expander
 # it will just return True without running if the test is set to not use the expander
-def run_expr(expr_str, v=None, use_expander=False, just_return=False):
+def run_expr(expr_str, v=None, use_expander=False, just_return=False, extra=""):
     if pytest.config.use_expander:
         return run_string(expr_str, v, just_return)
     else:
-        return run_sexp(expr_str, v, just_return)
+        return run_sexp(expr_str, v, just_return, extra)
 
-def run_sexp(body_sexp_str, v=None, just_return=False):
-    linkl_str = "(linklet () () %s)" % body_sexp_str
+def run_sexp(body_sexp_str, v=None, just_return=False, extra=""):
+    linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
     l = make_linklet(linkl_str)
     result, _ = eval(l, empty_target(), just_return=just_return)
 
@@ -140,7 +141,7 @@ def run_string(expr_str, v=None, just_return=False):
     return result
 
 def execute(p, stdlib=False, extra=""):
-    return run_expr(p,just_return=True)
+    return run_expr(p,just_return=True, extra=extra)
 
 #
 # Combined checking

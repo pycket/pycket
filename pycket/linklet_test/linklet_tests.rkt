@@ -36,6 +36,18 @@
   (check-eq? (instance-variable-value t2 'x) 4))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; target_transfer_set_banged
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(test-case
+    "target-transfer-set-banged"
+  (define l (compile-linklet '(linklet () () (define-values (y) 10) (set! y 50))))
+  (define t (empty-target))
+  (define result (instantiate-linklet l null t))
+  (check-eq? (instance-variable-value t 'y) 50))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; target_def_overwrite
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
