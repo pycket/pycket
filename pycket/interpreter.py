@@ -1401,7 +1401,7 @@ class LinkletVar(Var):
             w_res = self._get_cell(env)
 
             if not self.is_transparent:
-                w_value = w_res
+                self.w_value = w_res
 
         if type(w_res) is values.W_Cell:
             return w_res.get_val()
@@ -1411,7 +1411,7 @@ class LinkletVar(Var):
     def _get_cell(self, env):
         try:
             return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
-        except:
+        except KeyError:
             inst = env.toplevel_env().get_current_linklet_instance()
             return inst.lookup_var_value(self.sym)
 
