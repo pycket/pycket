@@ -15,7 +15,7 @@ def test_doctest(doctest):
     2
     """
 
-@pytest.mark.skip(reason="not yet")
+@pytest.mark.skipif(not pytest.config.load_expander, reason="quote issue")
 def test_string_to_sexp(doctest):
     r"""
     > (car '(red round))

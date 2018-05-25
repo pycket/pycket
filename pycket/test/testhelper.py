@@ -13,7 +13,8 @@ from pycket import values
 from pycket.prims.linklet import *
 from pycket.cont import continuation
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
-from pycket.values import to_list, w_false
+from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void
+from pycket.hash.base import W_HashTable
 from pycket.config import get_testing_config
 
 import pytest
@@ -131,16 +132,22 @@ def run_string(expr_str, v=None, just_return=False):
     expr_str = "(begin %s)" % expr_str
     ov = read_eval_print_string(expr_str, None, return_val=True)
     # FIXME: check for multiple results
-    assert isinstance(ov, values.W_Object)
+    assert isinstance(ov, W_Object)
     if just_return:
         return ov
     # FIXME : unify this and the one in eval
-    if isinstance(ov, values.W_Fixnum) or isinstance(ov, values.W_Flonum):
+    if isinstance(ov, W_Fixnum) or isinstance(ov, W_Flonum):
         result = ov.value
     elif isinstance(ov, values_string.W_String):
         result = ov.as_str_utf8()
+    elif ov is w_true:
+        result = True
+    elif ov is w_false:
+        result = False
+    elif isinstance(ov, W_HashTable):
+        result = ov
     else:
-        raise Exception("I don't know this type yet : %s -- actual value: " % (ov, ov.tostring()))
+        raise Exception("I don't know this type yet : %s -- actual value: %s" % (ov, ov.tostring()))
 
     if v:
         assert result == v
@@ -230,6 +237,7 @@ def run_mod_defs(m, extra="",stdlib=False, srcloc=True):
     return mod
 
 def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
+    #import pdb;pdb.set_trace()
     # this (let () e) wrapping is needed if e is `(begin (define x 1) x)`, for example
     # FIXME: this should get moved into a language
     expr = "(let () %s)"%e if wrap else e
@@ -319,7 +327,7 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
         b = pairs_of_equal_stuff[i * 2 + 1]
         ind += 1
         if isinstance(a, list):
-            code.append("  " * ind + "(let ()")
+            code.append("  " * ind + "(let-values ()")
             ind += 1
             code.extend(["  " * ind + x for x in a[:-1]])
             code.append( "  " * ind + ("(if (equal? %s %s)" % (a[-1], b)))
@@ -341,7 +349,7 @@ def check_equal(*pairs_of_equal_stuff, **kwargs):
     if res is not values.w_true:
         src = pairs_of_equal_stuff[res.value * 2]
         if isinstance(src, list):
-            src = "(let ()\n" + "\n".join(src) + ")"
+            src = "(let-values ()\n" + "\n".join(src) + ")"
         wrong = execute(src, extra=extra)
         assert 0, u"%s is %s, which is different from %s" % (
             pairs_of_equal_stuff[res.value * 2], wrong.tostring(),

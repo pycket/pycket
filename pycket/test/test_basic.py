@@ -50,11 +50,6 @@ def test_thunk():
     prog = "((lambda () 1))"
     run_expr(prog, 1)
 
-@pytest.mark.skip(reason="unhandled lambda form")
-def test_thunk2():
-    prog = "((lambda () 1 2))"
-    run_expr(prog, 2)
-
 def test_call():
     prog = "((lambda (x) (+ x 1)) 2)"
     run_expr(prog, 3)
