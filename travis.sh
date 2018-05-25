@@ -82,12 +82,12 @@ print_console() {
 ############### test targets ################################
 do_tests() {
 
-    ./pypy-c ../pypy/pytest.py pycket --ignore=pycket/test
+    ./pypy-c ../pypy/pytest.py pycket --ignore=pycket/old-test
 }
 
-# do_test_bytecode() {
-#   py.test -n 3 --duration 20 --bytecode go pycket
-# }
+do_test_expander() {
+    ./pypy-c ../pypy/pytest.py pycket --use-expander --ignore=pycket/old-test
+}
 
 do_coverage() {
   set +e

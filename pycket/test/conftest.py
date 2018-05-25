@@ -62,7 +62,7 @@ def pytest_funcarg__source(request):
 
 def pytest_funcarg__doctest(request):
     from textwrap import dedent
-    from pycket.linklet_test.testhelper import check_equal, execute
+    from pycket.test.testhelper import check_equal, execute
     from pycket.error import SchemeException
 
     assert request.function.__doc__ is not None

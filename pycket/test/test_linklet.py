@@ -6,7 +6,7 @@ from pycket.values import W_Symbol
 from pycket.error import SchemeException
 from pycket.prims.linklet import W_LinkletInstance, w_uninitialized
 
-from pycket.linklet_test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval, empty_target, make_instance, check_val)
+from pycket.test.testhelper import (make_linklet, inst, get_val, defines, variables, get_var_val, eval, empty_target, make_instance, check_val)
 
 
 @pytest.mark.linkl
@@ -118,7 +118,7 @@ def test_instantiate_discarding_defs():
     k,v = get_var_val(l, "x15.1")
     assert v.value == 75
 
-@pytest.mark.linkl
+@pytest.mark.linklh
 def test_instantiate_use_targets_def():
     l = make_linklet("(linklet () (x) (+ x x))")
     t = make_instance("(linklet () () (define-values (x) 10))")

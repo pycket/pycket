@@ -10,22 +10,185 @@ from pycket.pycket_json import loads
 from pycket.interpreter import *
 from pycket.env import ToplevelEnv
 from pycket import values
+from pycket.prims.linklet import *
+from pycket.cont import continuation
+from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.values import to_list, w_false
+from pycket.config import get_testing_config
 
 import pytest
-
+from pycket.test.utils import *
 #
 # basic runners
 #
 
+instantiate_linklet = get_primitive("instantiate-linklet")
+
 # This is where all the work happens
+
+if pytest.config.load_expander:
+    # get the expander
+    print("Loading and initializing the expander")
+    initiate_boot_sequence(None, [])
+    # load the '#%kernel
+    print("(namespace-require '#%%kernel)")
+    namespace_require_kernel(None)
 
 delete_temp_files = True
 
-def run_ast(ast):
-    env = ToplevelEnv()
-    env.globalconfig.load(ast)
-    mod = interpret_module(ast, env)
-    return mod
+def get_var_val(inst, id_str):
+    # for getting uninterned symbols
+    for k,v in inst.vars.iteritems():
+        if id_str == k.tostring():
+            return k, v.get_value_direct()
+    raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
+
+def variables(inst):
+    return get_instance_variable_names(inst) # W_Cons
+
+def defines(inst, name_str):
+    return inst.has_var(W_Symbol.make(name_str))
+
+def get_val(inst, name_str):
+    return inst.lookup_var_value(values.W_Symbol.make(name_str)).get_val()
+
+def check_val(inst, var_str, val):
+    return get_val(inst, var_str).value == val
+
+def inst(linkl, imports=[], target=None):
+    if not target:
+        target = w_false
+
+    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+
+def eval(linkl, target, imports=[], just_return=False):
+
+    #result = linkl.instantiate(imports, None, target=target)
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    #import pdb;pdb.set_trace()
+    if just_return:
+        return result, None
+
+    if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
+        result = result.value
+    elif isinstance(result, values_string.W_String):
+        result = result.as_str_utf8()
+    return result, target
+
+def empty_target(l_name="test_empty_instance"):
+    # creates an empty target
+    return make_instance("(linklet () ())", l_name=l_name)
+
+def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
+    instance = inst(make_linklet(linkl_str, l_name), imports)
+    return instance
+
+def make_linklet(linkl_str, l_name="test_linklet_sexp"):
+    #"(linklet () (x) (define-values (x) 4))"
+    #import pdb;pdb.set_trace()
+    linkl_sexp = string_to_sexp(linkl_str)
+    try:
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+    except Done, e:
+        l = e.values # W_Linklet
+        return l
+    raise Exception("do_compile_linklet didn't raised a Done exception")
+
+def run_linklet(w_linkl, v=None):
+    # FIXME instantiate
+    ov = w_linkl.instantiate([], None, prompt=False)
+    assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
+    if v:
+        assert ov.value == v
+    #debug_out("\nHEY\n")
+    return ov.value
+
+# def run_ast(ast, v=None):
+#     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
+#     return run_linklet(l, v)
+
+# use_expander is to request it to use expander
+# it will just return True without running if the test is set to not use the expander
+def run_expr(expr_str, v=None, use_expander=False, just_return=False, extra=""):
+    expr_str = extra + expr_str
+    if pytest.config.use_expander:
+        return run_string(expr_str, v, just_return)
+    else:
+        return run_sexp(expr_str, v, just_return)
+
+def run_sexp(body_sexp_str, v=None, just_return=False, extra=""):
+    linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
+    l = make_linklet(linkl_str)
+    result, _ = eval(l, empty_target(), just_return=just_return)
+
+    if v and not just_return:
+        assert result == v
+    return result
+
+def run_string(expr_str, v=None, just_return=False):
+    # FIXME : removing \n is not ideal, as the test itself may have one
+    expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
+    expr_str = "(begin %s)" % expr_str
+    ov = read_eval_print_string(expr_str, None, return_val=True)
+    # FIXME: check for multiple results
+    assert isinstance(ov, values.W_Object)
+    if just_return:
+        return ov
+    # FIXME : unify this and the one in eval
+    if isinstance(ov, values.W_Fixnum) or isinstance(ov, values.W_Flonum):
+        result = ov.value
+    elif isinstance(ov, values_string.W_String):
+        result = ov.as_str_utf8()
+    else:
+        raise Exception("I don't know this type yet : %s -- actual value: " % (ov, ov.tostring()))
+
+    if v:
+        assert result == v
+    return result
+
+def execute(p, stdlib=False, extra=""):
+    return run_expr(p,just_return=True, extra=extra)
+
+#
+# Combined checking
+#
+def check_all(*snippets_returning_true, **kwargs):
+    code = []
+    tail = []
+    for i, snippet in enumerate(snippets_returning_true):
+        code.append("  " * i + "(if %s" % snippet)
+        tail.append("  " * (i + 1) + "%s)" % i)
+    code.append("  " * (i + 1) + "#t")
+    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
+    print code
+    res = execute(code, extra=kwargs.get("extra", ""))
+    if res is not values.w_true:
+        assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
+
+def check_none(*snippets_returning_false, **kwargs):
+    code = []
+    tail = []
+    for i, snippet in enumerate(snippets_returning_false):
+        code.append("  " * i + "(if %s %s" % (snippet, i))
+        tail.append("  " * (i + 1) + ")")
+    code.append("  " * (i + 1) + "#t")
+    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
+    print code
+    res = execute(code, extra=kwargs.get("extra", ""))
+    if res is not values.w_false:
+        assert 0, "%s returned a true value" % snippets_returning_false[res.value]
+
+
+
+"""
+--- OLD TEST HELPERS BELOW
+"""
+
+# def run_ast(ast):
+#     env = ToplevelEnv()
+#     env.globalconfig.load(ast)
+#     mod = interpret_module(ast, env)
+#     return mod
 
 def expand_from_bytecode(m, srcloc):
     with NamedTemporaryFile(delete=delete_temp_files) as f:
@@ -46,15 +209,15 @@ def expand_from_bytecode(m, srcloc):
 
     return s
 
-def run_mod(m, stdlib=False, srcloc=True):
-    assert not stdlib
+# def run_mod(m, stdlib=False, srcloc=True):
+#     assert not stdlib
 
-    if not pytest.config.byte_option:
-        ast = parse_module(expand_string(m, srcloc=srcloc))
-    else:
-        ast = parse_module(expand_from_bytecode(m, srcloc), bytecode_expand=True)
+#     if not pytest.config.byte_option:
+#         ast = parse_module(expand_string(m, srcloc=srcloc))
+#     else:
+#         ast = parse_module(expand_from_bytecode(m, srcloc), bytecode_expand=True)
 
-    return run_ast(ast)
+#     return run_ast(ast)
 
 def format_pycket_mod(s, stdlib=False, extra=""):
     # pycket handles the stdlib, various requires
@@ -76,9 +239,6 @@ def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
     if v:
         assert ov.equal(v)
     return ov
-
-def execute(p, stdlib=False, extra=""):
-    return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
 def run_fix(p, v=None, stdlib=False, extra=""):
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
@@ -123,10 +283,11 @@ def parse_file(fname, *replacements, **kwargs):
 
     if kwargs.get("inplace", False):
         assert not replacements
-        if not pytest.config.byte_option:
-            reader = JsonLoader(bytecode_expand=False)
-        else:
-            reader = JsonLoader(bytecode_expand=True)
+        JsonLoader(bytecode_expand=False)
+        # if not pytest.config.byte_option:
+        #     reader = JsonLoader(bytecode_expand=False)
+        # else:
+        #     reader = JsonLoader(bytecode_expand=True)
         ast = reader.expand_to_ast(fname)
         return ast
 
@@ -137,43 +298,16 @@ def parse_file(fname, *replacements, **kwargs):
         s = s.replace(replace, with_)
     s = s.decode("utf-8")
 
-    if not pytest.config.byte_option:
-        s = expand_string(s)
-        ast = parse_module(s)
-    else:
-        s = expand_from_bytecode(s, True)
-        ast = parse_module(s, bytecode_expand=True)
+    # if not pytest.config.byte_option:
+    #     s = expand_string(s)
+    #     ast = parse_module(s)
+    # else:
+    #     s = expand_from_bytecode(s, True)
+    #     ast = parse_module(s, bytecode_expand=True)
+    s = expand_string(s)
+    ast = parse_module(s)
 
     return ast
-
-#
-# Combined checking
-#
-def check_all(*snippets_returning_true, **kwargs):
-    code = []
-    tail = []
-    for i, snippet in enumerate(snippets_returning_true):
-        code.append("  " * i + "(if %s" % snippet)
-        tail.append("  " * (i + 1) + "%s)" % i)
-    code.append("  " * (i + 1) + "#t")
-    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
-    res = execute(code, extra=kwargs.get("extra", ""))
-    if res is not values.w_true:
-        assert 0, "%s returned a non-true value" % snippets_returning_true[res.value]
-
-def check_none(*snippets_returning_false, **kwargs):
-    code = []
-    tail = []
-    for i, snippet in enumerate(snippets_returning_false):
-        code.append("  " * i + "(if %s %s" % (snippet, i))
-        tail.append("  " * (i + 1) + ")")
-    code.append("  " * (i + 1) + "#t")
-    code = "\n".join(code) + "\n" + "\n".join(reversed(tail))
-    print code
-    res = execute(code, extra=kwargs.get("extra", ""))
-    if res is not values.w_true:
-        assert 0, "%s returned a true value" % snippets_returning_false[res.value]
 
 def check_equal(*pairs_of_equal_stuff, **kwargs):
     code = []

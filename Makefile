@@ -83,10 +83,16 @@ expander:
 	$(MAKE) -C linklet-extractor
 
 test:
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
+
+test-mark:
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
+
+test-mark-expander:
+	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ -m ${mark}
 
 test-with-expander:
-	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
+	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
 
 test-random: $(PYFILES)
 	$(RUNINTERP) $(PYTEST) --random pycket --ignore=pycket/test/
