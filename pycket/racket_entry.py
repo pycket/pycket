@@ -139,9 +139,12 @@ def namespace_require_kernel(pycketconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init = get_options(names, config)
 
     initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
+
+    if just_init:
+        return 0
 
     namespace_require = get_primitive("namespace-require")
     load = get_primitive("load")
@@ -282,6 +285,7 @@ def get_options(names, config):
     is_repl = config['repl']
     no_lib = config['no-lib']
     just_kernel = config['just_kernel']
+    just_init = config['just-init']
     debug = config['verbose']
     version = config['version']
 
@@ -303,6 +307,7 @@ init_library     : %s
 is_repl          : %s
 no_lib           : %s
 just-#%%kernel    : %s
+just-init        : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -311,8 +316,9 @@ just-#%%kernel    : %s
        init_library,
        is_repl,
        no_lib,
-       just_kernel)
+       just_kernel,
+       just_init)
 
     console_log(log_str)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init
