@@ -4,7 +4,7 @@ from pycket                          import values
 from pycket.hash.base                import ll_get_dict_item, get_dict_item
 from pycket.hash.equal               import MutableByteHashmapStrategy, StringHashmapStrategy
 from pycket.hash.persistent_hash_map import make_persistent_hash_type, validate_persistent_hash
-from pycket.test.testhelper  import run_expr
+from pycket.test.testhelper  import run_expr, run_expr_result
 from rpython.rlib.rarithmetic        import r_uint
 from rpython.jit.metainterp.test.support import LLJitMixin, noConst
 
@@ -253,8 +253,8 @@ def test_default_hash(source):
     (make-hasheqv)
     #t)
     """
-    result = run_expr(source, v=True)
-    #assert result is values.w_true
+    result = run_expr_result(source)
+    assert result is values.w_true
 
 def test_get_item():
     from rpython.rtyper.test.test_llinterp import interpret, get_interpreter
@@ -330,7 +330,7 @@ def test_whitebox_str(source):
         (hash-ref ht "c" "not there")
         ht)
     """
-    result = run_expr(source)
+    result = run_expr_result(source)
     assert result.strategy is StringHashmapStrategy.singleton
 
 @pytest.mark.skipif(not pytest.config.load_expander, reason="can't handle yet the quotes in the test string")
@@ -344,7 +344,7 @@ def test_whitebox_str(source):
         (hash-ref ht "c" "not there")
         ht)
     """
-    result = run_expr(source)
+    result = run_expr_result(source)
     assert result.strategy is StringHashmapStrategy.singleton
 
 @pytest.mark.skipif(not pytest.config.load_expander, reason="can't handle yet the quotes in the test string")
@@ -358,7 +358,7 @@ def test_whitebox_bytes(source):
         (hash-ref ht (bytes 7 8 9) "not there")
         ht)
     """
-    result = run_expr(source)
+    result = run_expr_result(source)
     assert result.strategy is MutableByteHashmapStrategy.singleton
 
 @pytest.mark.skip(reason="can't handle yet the quotes in the test string")

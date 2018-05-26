@@ -16,7 +16,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit
-.PHONY: setup test coverage expander
+.PHONY: setup test coverage expander test-expander test-one test-one-expander test-mark test-mark-expander test-random
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -83,7 +83,18 @@ expander:
 	$(MAKE) -C linklet-extractor
 
 test:
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/
+
+test-with-expander:
+	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/
+
+test-one:
+
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -k test_${what}.py
+
+test-one-expander:
+
+	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ -k test_${what}.py
 
 test-mark:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
@@ -91,11 +102,9 @@ test-mark:
 test-mark-expander:
 	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ -m ${mark}
 
-test-with-expander:
-	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ #-k test_linklet.py -m linkl #--ignore=pycket/test/
-
-test-random: $(PYFILES)
-	$(RUNINTERP) $(PYTEST) --random pycket --ignore=pycket/test/
+test-random: #$(PYFILES)
+	@echo "Not yet implemented"
+	# RUNINTERP PYTEST --random pycket --ignore=pycket/test/
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)

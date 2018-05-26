@@ -13,7 +13,7 @@ from pycket import values
 from pycket.prims.linklet import *
 from pycket.cont import continuation
 from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
-from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void
+from pycket.values import to_list, w_false, w_true, W_Fixnum, W_Object, W_Flonum, W_Void, w_null
 from pycket.hash.base import W_HashTable
 from pycket.config import get_testing_config
 
@@ -62,20 +62,6 @@ def inst(linkl, imports=[], target=None):
 
     return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
 
-def eval(linkl, target, imports=[], just_return=False):
-
-    #result = linkl.instantiate(imports, None, target=target)
-    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
-    #import pdb;pdb.set_trace()
-    if just_return:
-        return result, None
-
-    if isinstance(result, values.W_Fixnum) or isinstance(result, values.W_Flonum):
-        result = result.value
-    elif isinstance(result, values_string.W_String):
-        result = result.as_str_utf8()
-    return result, target
-
 def empty_target(l_name="test_empty_instance"):
     # creates an empty target
     return make_instance("(linklet () ())", l_name=l_name)
@@ -86,7 +72,6 @@ def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
 
 def make_linklet(linkl_str, l_name="test_linklet_sexp"):
     #"(linklet () (x) (define-values (x) 4))"
-    #import pdb;pdb.set_trace()
     linkl_sexp = string_to_sexp(linkl_str)
     try:
         do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
@@ -95,63 +80,71 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
         return l
     raise Exception("do_compile_linklet didn't raised a Done exception")
 
-def run_linklet(w_linkl, v=None):
-    # FIXME instantiate
-    ov = w_linkl.instantiate([], None, prompt=False)
-    assert isinstance(ov, values.W_Number) # FIXME: test for different types of results
-    if v:
-        assert ov.value == v
-    #debug_out("\nHEY\n")
-    return ov.value
+def run_expr_result(expr_str):
+    return run_expr(expr_str, just_return=True)
 
-# def run_ast(ast, v=None):
-#     l = W_Linklet("test_linklet_ast", [], [], {}, [ast])
-#     return run_linklet(l, v)
-
-# use_expander is to request it to use expander
-# it will just return True without running if the test is set to not use the expander
-def run_expr(expr_str, v=None, use_expander=False, just_return=False, extra=""):
+def run_expr(expr_str, v=None, just_return=False, extra="", equal_huh=False):
     expr_str = extra + expr_str
     if pytest.config.use_expander:
-        return run_string(expr_str, v, just_return)
+        return run_string(expr_str, v, just_return, equal_huh=equal_huh)
     else:
-        return run_sexp(expr_str, v, just_return)
+        return run_sexp(expr_str, v, just_return, equal_huh=equal_huh)
 
-def run_sexp(body_sexp_str, v=None, just_return=False, extra=""):
+def check_result(result, expected, equal_huh=False):
+    if equal_huh:
+        assert result.equal(expected)
+        return result
+
+    if isinstance(result, W_Fixnum) or isinstance(result, W_Flonum) or isinstance(result, W_Bignum):
+        check = result.value
+    elif isinstance(result, values_string.W_String):
+        check = result.as_str_utf8()
+    elif result is w_true:
+        check = True
+    elif result is w_false:
+        check = False
+    elif isinstance(result, W_HashTable):
+        check = result
+    else:
+        raise Exception("I don't know this type yet : %s -- actual value: %s" % (result, result.tostring()))
+
+    assert check == expected
+
+    return result
+
+def eval(linkl, target, imports=[], just_return=False):
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    return result, target
+
+def eval_fixnum(linkl, target, imports=[], just_return=False):
+    r, t = eval(linkl, target, imports=imports, just_return=just_return)
+    if isinstance(r, W_Fixnum):
+        r = r.value
+    # o/w don't care it's not used
+    return r, t
+
+def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False):
     linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
     l = make_linklet(linkl_str)
     result, _ = eval(l, empty_target(), just_return=just_return)
 
-    if v and not just_return:
-        assert result == v
-    return result
+    if just_return:
+        return result
 
-def run_string(expr_str, v=None, just_return=False):
+    return check_result(result, v, equal_huh)
+
+def run_string(expr_str, v=None, just_return=False, equal_huh=False):
     # FIXME : removing \n is not ideal, as the test itself may have one
     expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
     expr_str = "(begin %s)" % expr_str
-    ov = read_eval_print_string(expr_str, None, return_val=True)
-    # FIXME: check for multiple results
-    assert isinstance(ov, W_Object)
-    if just_return:
-        return ov
-    # FIXME : unify this and the one in eval
-    if isinstance(ov, W_Fixnum) or isinstance(ov, W_Flonum):
-        result = ov.value
-    elif isinstance(ov, values_string.W_String):
-        result = ov.as_str_utf8()
-    elif ov is w_true:
-        result = True
-    elif ov is w_false:
-        result = False
-    elif isinstance(ov, W_HashTable):
-        result = ov
-    else:
-        raise Exception("I don't know this type yet : %s -- actual value: %s" % (ov, ov.tostring()))
+    result = read_eval_print_string(expr_str, None, return_val=True)
 
-    if v:
-        assert result == v
-    return result
+    # FIXME: check for multiple results
+    assert isinstance(result, W_Object)
+    if just_return:
+        return result
+
+    return check_result(result, v, equal_huh)
 
 def execute(p, stdlib=False, extra=""):
     return run_expr(p,just_return=True, extra=extra)

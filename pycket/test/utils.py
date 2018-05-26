@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import re
-from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true
+from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true, W_Bignum
 from pycket.values_string import W_String
+from rpython.rlib.rbigint import rbigint
+from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
 
 def debug_out(p):
     open("debug_out.txt", "a").write(p)
@@ -54,11 +57,25 @@ def string_to_sexp(sexp):
             tmpout, out = out, stack.pop(-1)
             out.append(tmpout)
         elif term == 'num':
+
+            if value == "+inf.0":
+                v = W_Flonum.INF
+            elif value == "-inf.0":
+                v = W_Flonum.NEGINF
+            elif value == "+nan.0":
+                v = W_Flonum.NAN
+
             v = float(value)
-            if v.is_integer():
-                v = W_Fixnum(int(v))
-            else:
+
+            if "." in value:
                 v = W_Flonum(v)
+            else:
+                try:
+                    v = W_Fixnum.make(string_to_int(value))
+                except ParseStringOverflowError:
+                    val = rbigint.fromdecimalstr(value)
+                    v = W_Bignum(val)
+
             out.append(v)
         elif term == 'string':
             s = W_String.make(value[1:-1])
