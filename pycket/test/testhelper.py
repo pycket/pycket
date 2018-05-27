@@ -8,6 +8,7 @@ from tempfile import NamedTemporaryFile, gettempdir
 from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_module
 from pycket.pycket_json import loads
 from pycket.interpreter import *
+from pycket.error import SchemeException
 from pycket.env import ToplevelEnv
 from pycket import values
 from pycket.prims.linklet import *
@@ -80,6 +81,10 @@ def make_linklet(linkl_str, l_name="test_linklet_sexp"):
         return l
     raise Exception("do_compile_linklet didn't raised a Done exception")
 
+# for backwards compatibility
+def run(expr_str, w_result):
+    run_expr(expr_str, v=w_result, equal_huh=True)
+
 def run_expr_result(expr_str):
     return run_expr(expr_str, just_return=True)
 
@@ -146,8 +151,14 @@ def run_string(expr_str, v=None, just_return=False, equal_huh=False):
 
     return check_result(result, v, equal_huh)
 
-def execute(p, stdlib=False, extra=""):
-    return run_expr(p,just_return=True, extra=extra)
+def execute(p, stdlib=False, extra="", error=False):
+    if error:
+        try:
+            return run_expr(p, v=w_void, just_return=True, extra=extra, equal_huh=True)
+        except SchemeException, e:
+            return True
+
+    return run_expr(p, just_return=True, extra=extra)
 
 #
 # Combined checking
@@ -255,8 +266,8 @@ def run_flo(p, v=None, stdlib=False, extra=""):
         assert ov.value == v
     return ov.value
 
-def run(p, v=None, stdlib=False, extra=""):
-    return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
+# def run(p, v=None, stdlib=False, extra=""):
+#     return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
 
 def run_top(p, v=None, stdlib=False, extra=""):
     return run_mod_expr(p,v=v,stdlib=stdlib, wrap=True, extra=extra)
