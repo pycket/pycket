@@ -85,8 +85,8 @@ expander:
 test:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/
 
-test-with-expander:
-	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/
+test-expander:
+	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
 
 test-one:
 
@@ -94,13 +94,13 @@ test-one:
 
 test-one-expander:
 
-	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ -k test_${what}.py
+	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -k test_${what}.py
 
 test-mark:
 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
 
 test-mark-expander:
-	$(RUNINTERP) $(PYTEST) pycket --use-expander --ignore=pycket/old-test/ -m ${mark}
+	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -m ${mark}
 
 test-random: #$(PYFILES)
 	@echo "Not yet implemented"
