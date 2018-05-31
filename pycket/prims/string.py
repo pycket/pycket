@@ -31,11 +31,12 @@ def string_to_symbol(v):
 def str2num(w_s, radix, convert_mode, decimal_mode):
     from rpython.rlib import rarithmetic, rfloat, rbigint
     from rpython.rlib.rstring import ParseStringError, ParseStringOverflowError
+    from rpython.rlib.rsre import rsre_re as re
     import math
 
     s = w_s.as_str_utf8()
     try:
-        if "f" in s:
+        if re.match("([\d]+)?.?\d+f\d", s):
             f_parts = s.split("f")
             if len(f_parts) > 2:
                 raise ParseStringError("invalid floating point number")
@@ -49,7 +50,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
             return values.W_Flonum(numb*p)
 
-        if "e" in s:
+        if re.match("([\d]+)?.?\d+e\d", s):
             e_parts = s.split("e")
             if len(e_parts) > 2:
                 raise ParseStringError("invalid floating point number")
