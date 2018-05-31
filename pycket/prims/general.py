@@ -388,13 +388,6 @@ def object_name(v):
         return v.name
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
-@expose("namespace-variable-value", [values.W_Symbol,
-    default(values.W_Object, values.w_true),
-    default(values.W_Object, values.w_true),
-    default(values.W_Object, None)])
-def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
-    return values.w_void
-
 @expose("find-main-config", [])
 def find_main_config():
     return values.w_false

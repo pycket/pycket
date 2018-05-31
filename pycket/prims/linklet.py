@@ -838,7 +838,7 @@ def recompile_linklet(linkl, name, import_keys, get_import, env, cont):
 
 @expose("instance-variable-value", [W_LinkletInstance, W_Symbol, default(W_Object, None)], simple=False)
 def instance_variable_value(instance, name, fail_k, env, cont):
-    if not instance.has_var(name):
+    if not instance.has_var(name) or instance.get_var(name).is_uninitialized():
         if fail_k is not None and fail_k.iscallable():
             return fail_k.call([], env, cont)
         else:
