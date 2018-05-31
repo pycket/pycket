@@ -36,7 +36,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
     s = w_s.as_str_utf8()
     try:
-        if re.match("([\d]+)?.?\d+f\d", s):
+        if re.match("[+-]?([\d]+)?.?\d+f\d", s):
             f_parts = s.split("f")
             if len(f_parts) > 2:
                 raise ParseStringError("invalid floating point number")
@@ -50,7 +50,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
             return values.W_Flonum(numb*p)
 
-        if re.match("([\d]+)?.?\d+e\d", s):
+        if re.match("[+-]?([\d]+)?.?\d+e\d", s):
             e_parts = s.split("e")
             if len(e_parts) > 2:
                 raise ParseStringError("invalid floating point number")

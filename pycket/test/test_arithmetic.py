@@ -254,6 +254,8 @@ def test_string_to_number(doctest):
     ;0.0
     > (string->number "2e3")
     2000.0
+    > (string->number "-1.2e3")
+    -1200.0
     > (string->number "hello")
     #f
     ;> (string->number "111" 7)
