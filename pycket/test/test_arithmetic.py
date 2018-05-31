@@ -539,6 +539,17 @@ def test_rational(doctest):
     1/2
     > (sub1 5/3)
     2/3
+    > (numerator 23/3)
+    23
+    > (denominator 3/17)
+    17
+    ; FIXME : Racket disaggrees with the following
+    ;(numerator 2.3)
+    ;2589569785738035.0 <-- this is racket
+    > (numerator 2.3)
+    23
+    > (denominator 2.3)
+    10
     ; bignum to rational
     > (/ 12323111111111111111111111111111111111111112222222222222 232321122)
     2053851851851851851851851851851851851851852037037037037/38720187

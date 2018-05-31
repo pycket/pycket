@@ -665,6 +665,12 @@ class W_Rational(W_Real):
         _gcd = gcd(n, d)
         return W_Rational.fromint(n/_gcd, d/_gcd)
 
+    def get_numerator(self):
+        return self._numerator
+
+    def get_denominator(self):
+        return self._denominator
+
     def tostring(self):
         return "%s/%s" % (self._numerator.str(), self._denominator.str())
 

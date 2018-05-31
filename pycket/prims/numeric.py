@@ -121,6 +121,26 @@ def is_exact(n):
             isinstance(n, values.W_Bignum) or
             isinstance(n, values.W_Rational))
 
+@expose("numerator", [values.W_Real])
+def numerator(r):
+    if isinstance(r, values.W_Flonum):
+        # FIXME : Racket seems to be computing this differently,
+        # see test_arithmetic : (numerator 2.3)
+        r = values.W_Rational.fromfloat(r.value)
+
+    assert isinstance(r, values.W_Rational)
+
+    return values.W_Integer.frombigint(r.get_numerator())
+
+@expose("denominator", [values.W_Real])
+def denominator(r):
+    if isinstance(r, values.W_Flonum):
+        r = values.W_Rational.fromfloat(r.value)
+
+    assert isinstance(r, values.W_Rational)
+
+    return values.W_Integer.frombigint(r.get_denominator())
+
 def is_inexact(n):
     if isinstance(n, values.W_Complex):
         return is_inexact(n.real) or is_inexact(n.imag)
