@@ -244,11 +244,16 @@ def test_zero(doctest):
     #f
     """
 
+# FIXME: printing (string->number "0.0f0") : 0.0f0
 def test_string_to_number(doctest):
     """
     ; not yet supported
     ;> (string->number "3.0+2.5i")
     ;3.0+2.5i
+    ;> (string->number "0.0f0")
+    ;0.0
+    > (string->number "2e3")
+    2000.0
     > (string->number "hello")
     #f
     ;> (string->number "111" 7)
