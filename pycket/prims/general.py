@@ -1454,9 +1454,13 @@ def bytes_to_path(bstr, typ):
     # FIXME : ignores the type, won't work for windows
     return values.W_Path(bstr.as_str())
 
-@expose("collect-garbage", [])
+major_gc_sym = values.W_Symbol.make("major")
+minor_gc_sym = values.W_Symbol.make("minor")
+incremental_gc_sym = values.W_Symbol.make("incremental")
+
+@expose("collect-garbage", [default(values.W_Symbol, major_gc_sym)])
 @jit.dont_look_inside
-def do_collect_garbage():
+def do_collect_garbage(request):
     from rpython.rlib import rgc
     rgc.collect()
     return values.w_void
