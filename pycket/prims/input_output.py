@@ -389,8 +389,8 @@ def read_char_or_special(in_port, special_wrap, source_name, env, cont):
         cont = do_read_one_cont(False, False, env, cont)
         return get_input_port(in_port, env, cont)
     except UnicodeDecodeError:
-        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")    
-    
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")
+
 @expose("read-char", [default(values.W_Object, None)], simple=False)
 def read_char(w_port, env, cont):
     try:
@@ -467,22 +467,22 @@ def do_peek_bytes_cont(amt, skip, env, cont, _vals):
 
 def do_peek_bytes(w_port, amt, skip, env, cont):
     from pycket.interpreter import return_value
-    
+
     if amt == 0:
         return return_value(values.W_Bytes.from_string(""), env, cont)
 
     old = w_port.tell()
     w_port.seek(old + skip)
-    
+
     res = w_port.read(amt)
 
     w_port.seek(old)
-    
+
     if len(res) == 0:
         return return_value(values.eof_object, env, cont)
 
     return return_value(values.W_Bytes.from_string(res), env, cont)
-    
+
 @expose("peek-bytes", [values.W_Fixnum,
                        values.W_Fixnum,
                        default(values.W_InputPort, None)], simple=False)
@@ -497,7 +497,7 @@ def peek_bytes(w_amt, w_skip, w_port, env, cont):
         return get_input_port(w_port, env, cont)
     except UnicodeDecodeError:
         raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
-    
+
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
 w_none_sym   = values.W_Symbol.make("none")
@@ -547,8 +547,13 @@ def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
 def extract_path(obj):
+
     if isinstance(obj, values_string.W_String):
-        result = obj.as_str_utf8()
+        try:
+            result = obj.as_str_utf8()
+        except UnicodeDecodeError as e:
+            msg = str(e)
+            raise SchemeException(msg)
     elif isinstance(obj, values.W_Path):
         result = obj.path
     elif isinstance(obj, values.W_Bytes):
@@ -571,7 +576,7 @@ def file_exists(w_str):
 def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
     from pycket.prims.general import detect_platform, w_unix_sym
     from pycket.interpreter import return_value
-    
+
     platform = detect_platform()
     if platform is not w_unix_sym:
         raise Exception("Not yet implemented")
@@ -772,10 +777,11 @@ def _path_for_some_systemp(path):
 def path_for_some_systemp(path):
     return values.W_Bool.make(_path_for_some_systemp(path))
 
-@expose("relative-path?", [values.W_Object])
-def relative_path(obj):
+@expose("relative-path?", [values.W_Object], simple=False)
+def relative_path(obj, env, cont):
+    from pycket.interpreter import return_value
     string = extract_path(obj)
-    return values.W_Bool.make(not os.path.isabs(string))
+    return return_value(values.W_Bool.make(not os.path.isabs(string)), env, cont)
 
 @expose("absolute-path?", [values.W_Object])
 def absolute_path(obj):
@@ -879,10 +885,16 @@ def close_cont(port, env, cont, vals):
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
+    if not os.path.exists(s):
+        raise SchemeException("No such file or directory : %s" % s)
+
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
 def open_outfile(w_str, mode):
     s = extract_path(w_str)
+    if not os.path.exists(s):
+        raise SchemeException("No such file or directory : %s" % s)
+
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
 @expose("call-with-input-file", [values.W_Object,
@@ -1457,4 +1469,3 @@ expose_val("print-as-expression", print_as_expression_param)
 
 w_read_case_sensitive = values_parameter.W_Parameter(values.w_true)
 expose_val("read-case-sensitive", w_read_case_sensitive)
-
