@@ -3,21 +3,10 @@
 (require racket/linklet compiler/zo-parse json
          #;(only-in '#%linklet compiled-position->primitive)
          #;"expand.rkt"
-         "zo-expand.rkt")
+         "zo-expand.rkt"
+         "normalizer.rkt")
 
-(provide handle-linkl)
-
-
-(define (hash-set* h . kvs)
-  (let loop ([kvs kvs] [h h])
-    (if (null? kvs)
-        h
-        (let* ([k (car kvs)]
-               [v (cadr kvs)]
-               [h (if v (hash-set h k v) h)])
-          (loop (cddr kvs) h)))))
-
-(define (hash* . kvs) (apply hash-set* (hash) kvs))
+(provide (all-defined-out))
 
 ;; pkgs/compiler-lib/compiler/decompile.rkt
 #;(define primitive-table
@@ -241,8 +230,11 @@ toplevels = (flatten-and-append importss exports internals lifts)
   (when debug
     (printf "\n main-linklet \n\n ~a\n\n" main-linklet))
 
-  (define final-json-hash
+  (define _final-json-hash
     (handle-linkl main-linklet '() debug module-name "rkt" sub-dirs-str))
+
+  (define final-json-hash
+    (normalize-linklet _final-json-hash))
 
   (unless (jsexpr? final-json-hash)
     (error "\n something wrong with the json :\n\n ~a\n\n" final-json-hash))

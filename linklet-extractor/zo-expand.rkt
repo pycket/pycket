@@ -1,8 +1,8 @@
 #lang racket
 
 (require compiler/zo-parse setup/dirs racket/undefined racket/path racket/extflonum
-         #;(only-in "expand.rkt" hash* global-config)
-         (only-in '#%linklet compiled-position->primitive))
+         (only-in '#%linklet compiled-position->primitive)
+         "normalizer.rkt")
 
 #;(provide to-ast-wrapper to-ast-val
          primitive-table)
@@ -37,17 +37,6 @@
 
 ;; FROM
 ;; https://github.com/racket/compiler/blob/master/compiler-lib/compiler/decompile.rkt#L14
-
-(define (hash-set* h . kvs)
-  (let loop ([kvs kvs] [h h])
-    (if (null? kvs)
-        h
-        (let* ([k (car kvs)]
-               [v (cadr kvs)]
-               [h (if v (hash-set h k v) h)])
-          (loop (cddr kvs) h)))))
-
-(define (hash* . kvs) (apply hash-set* (hash) kvs))
 
 ;; pkgs/compiler-lib/compiler/decompile.rkt
 (define primitive-table2
@@ -116,7 +105,6 @@
            'body-forms (if pycket?
                            whole-body
                            (cons body1 whole-body)))))
-
 
 (define (handle-def-values def-values-form localref-stack current-closure-refs [linklet? #f] [importss '()])
   (let ([ids (def-values-ids def-values-form)]
@@ -288,10 +276,16 @@ put the usual application-rands to the operands
 (define (handle-application app-form localref-stack current-closure-refs [linklet? #f] [importss '()])
   (let* ([rator (application-rator app-form)]
          [rands (application-rands app-form)]
+         ;; to evaluate the application forms, the stack machine
+         ;; pushes empty slots to run the args over, and that will
+         ;; obviously push the existing local refs further in the
+         ;; stack
+
+         ;; we simulate it here to make the localref pos indexes point
+         ;; to the right identifier
          [newlocalstack (append (map (λ (x) 'app-empty-slot) (range (length rands)))
                                 localref-stack)]
-         ;; the application pushes empty slots to run the args over, so it will push the existing local refs further in the stack
-         ;; we simulate it here to make the localref pos indices point to the right identifier
+
          [rator-evaluated (to-ast-single rator newlocalstack current-closure-refs linklet? importss)]
          [operands-evaluated (map (λ (rand) (to-ast-single rand newlocalstack current-closure-refs linklet? importss)) rands)])
     (if (closure? rator)
@@ -820,8 +814,10 @@ put the usual application-rands to the operands
          [last-seq (list (last seqs))]
          [seqs-non-simple (filter (λ (form) (not (localref? form))) (take seqs (sub1 (length seqs))))]
          [exprs (map (λ (expr) (to-ast-single expr localref-stack current-closure-refs linklet?)) (append seqs-non-simple last-seq))])
-    (hash* 'let-bindings (list)
-           'let-body exprs)))
+    (if (= 1 (length exprs))
+        (car exprs)
+        (cons (hash* 'source-name "begin")
+              exprs))))
 
 #;(define (handle-splice splice-expr localref-stack current-closure-refs)
   (let* ([splices (splice-forms splice-expr)]
@@ -869,12 +865,12 @@ put the usual application-rands to the operands
          [boxed-slot (car post-pos)])
     #;(when DEBUG
         (displayln (format "boxenv pos : ~a | old-slot : ~a | new-slot : ~a" pos (car post-pos) boxed-slot)))
-    (hash* 'let-bindings (list) ; create a begin
-           'let-body (list (list (hash* 'source-name "set!")
-                                 (hash* 'lexical boxed-slot)
-                                 (hash* 'operator (hash* 'source-name "box")
-                                        'operands (list (hash* 'lexical boxed-slot))))
-                           (to-ast-single (boxenv-body body-form) localref-stack current-closure-refs linklet?)))))
+    (cons (hash* 'source-name "begin")
+          (list (list (hash* 'source-name "set!")
+                      (hash* 'lexical boxed-slot)
+                      (hash* 'operator (hash* 'source-name "box")
+                             'operands (list (hash* 'lexical boxed-slot))))
+                (to-ast-single (boxenv-body body-form) localref-stack current-closure-refs linklet?)))))
 
 (define (handle-assign body-form localref-stack current-closure-refs [linklet? #f])
   (let ([id (assign-id body-form)]
@@ -972,11 +968,12 @@ put the usual application-rands to the operands
 
          [proc-bodies (map (λ (proc) (to-ast-single proc new-localref-stack current-closure-refs linklet?)) procs)]
          [body (let-rec-body letrec-form)])
-    
-    (hash* 'letrec-bindings (map (λ (p-name p-body)
+    (let ([bindings (map (λ (p-name p-body)
                                    (list (list p-name) p-body))
-                                 proc-names proc-bodies)
-           'letrec-body (list (to-ast-single body new-localref-stack current-closure-refs linklet?)))))
+                         proc-names proc-bodies)]
+          [body (to-ast-single body new-localref-stack current-closure-refs linklet?)])
+      (hash* 'letrec-bindings bindings
+             'letrec-body (list body)))))
 
 
 (define (handle-case-lambda body-form localref-stack current-closure-refs [linklet? #f])
