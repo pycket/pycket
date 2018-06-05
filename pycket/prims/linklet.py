@@ -472,7 +472,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
     rhss_list = [None] * len(varss_rhss)
     cells_for_the_body = list(cell_ref) if is_letrec else cell_ref
     cells_for_the_rhss = list(cell_ref) if is_letrec else cell_ref
-    #import pdb;pdb.set_trace()
+
     if is_letrec:
         # populate lex_env // cell_refs for rhss ahead of time
         for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
@@ -485,10 +485,6 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
     for w_vars_rhss in varss_rhss:
         varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
         varss_list[i] = varr
-        # if is_letrec:
-        #     for varss in varss_list:
-        #         if varss is not None:
-        #             lex_env += varss
 
         rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
         rhss_list[i] = rhsr
@@ -504,7 +500,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
 
     body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
 
-    if len(ids) == 0:
+    if len(varss_rhss) == 0:
         return Begin.make([body])
 
     if is_letrec:
@@ -694,7 +690,6 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             toplevel_defined_linklet_vars = create_toplevel_linklet_vars(body_forms_ls)
 
             _body_forms = [sexp_to_ast(b, [], exports, toplevel_defined_linklet_vars, importss_list) for b in body_forms_ls]
-
             # FIXME : remove "disable_conversions" argument entirely
             body_forms = [None]*len(_body_forms)
             for i, bf in enumerate(_body_forms):
