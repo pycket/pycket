@@ -266,13 +266,10 @@ class W_Linklet(W_Object):
 
         if not cont:
             cont = NilCont()
-            prompt = True
-
-        if prompt:
             cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
 
-        cont.update_cm(parameterization_key, top_level_config)
-        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+            cont.update_cm(parameterization_key, top_level_config)
+            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
 
         """
