@@ -1,6 +1,6 @@
 from pycket.prims.linklet import W_Linklet, to_rpython_list, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path, W_ThreadCell
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
@@ -132,7 +132,9 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     # because it prints a report to stdout
     from pycket.values_parameter import top_level_config
     from pycket.prims.general import current_directory_param
-    top_level_config.get(current_directory_param).set(W_Path(c_dir))
+    c = top_level_config.get(current_directory_param)
+    assert isinstance(c, W_ThreadCell)
+    c.set(W_Path(c_dir))
 
     console_log("...Boot Sequence Completed")
 
