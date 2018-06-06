@@ -128,8 +128,11 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     import os
     c_dir = os.getcwd()
     console_log("(current-directory %s)" % c_dir)
-    current_directory = get_primitive("current-directory")
-    current_directory.call_interpret([W_Path(c_dir)], pycketconfig)
+    # We can't call the current-directory like a primitive
+    # because it prints a report to stdout
+    from pycket.values_parameter import top_level_config
+    from pycket.prims.general import current_directory_param
+    top_level_config.get(current_directory_param).set(W_Path(c_dir))
 
     console_log("...Boot Sequence Completed")
 
