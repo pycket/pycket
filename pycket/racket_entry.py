@@ -124,6 +124,13 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     ucfp = get_primitive("use-compiled-file-paths")
     ucfp.call_interpret([w_null], pycketconfig)
 
+    # set the current directory to the current directory
+    import os
+    c_dir = os.getcwd()
+    console_log("(current-directory %s)" % c_dir)
+    current_directory = get_primitive("current-directory")
+    current_directory.call_interpret([W_Path(c_dir)], pycketconfig)
+
     console_log("...Boot Sequence Completed")
 
     return 0
