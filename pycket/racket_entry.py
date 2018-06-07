@@ -1,6 +1,6 @@
 from pycket.prims.linklet import W_Linklet, to_rpython_list, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path, W_ThreadCell
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
@@ -124,6 +124,18 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     ucfp = get_primitive("use-compiled-file-paths")
     ucfp.call_interpret([w_null], pycketconfig)
 
+    # set the current directory to the current directory
+    import os
+    c_dir = os.getcwd()
+    console_log("(current-directory %s)" % c_dir)
+    # We can't call the current-directory like a primitive
+    # because it prints a report to stdout
+    from pycket.values_parameter import top_level_config
+    from pycket.prims.general import current_directory_param
+    c = top_level_config.get(current_directory_param)
+    assert isinstance(c, W_ThreadCell)
+    c.set(W_Path(c_dir))
+
     console_log("...Boot Sequence Completed")
 
     return 0
@@ -186,7 +198,7 @@ def racket_entry(names, config, pycketconfig, command_line_arguments):
     if is_repl: # -i
         put_newline = True
         dynamic_require = get_primitive("dynamic-require")
-        repl = dynamic_require.call_interpret([W_Symbol.make("racket/private/repl"),
+        repl = dynamic_require.call_interpret([W_Symbol.make("racket/repl"),
                                                W_Symbol.make("read-eval-print-loop")],
                                               pycketconfig)
         repl.call_interpret([], pycketconfig)

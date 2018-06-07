@@ -1346,8 +1346,36 @@ def load(lib, env, cont):
     #return ast, env, cont
 
 expose_val("current-load-relative-directory", values_parameter.W_Parameter(values.w_false))
-# FIXME current-directory should be a function that "cd"s at the os level
-expose_val("current-directory", values_parameter.W_Parameter(values.W_Path(os.getcwd())))
+
+@make_procedure("current-directory-guard", [values.W_Object], simple=False)
+def current_directory_guard(path, env, cont):
+    from pycket.interpreter import return_value
+    # "cd"s at the os level
+    if not (isinstance(path, values_string.W_String) or isinstance(path, values.W_Path)):
+        raise SchemeException("current-directory: exptected a path-string? as argument 0, but got : %s" % path.tostring())
+    path_str = input_output.extract_path(path)
+
+    # if path is a complete-path?, set it
+    if path_str[0] == os.path.sep:
+        new_current_dir = path_str
+    else: # relative to the current one
+        current_dir = current_directory_param.get(cont)
+        current_path_str = input_output.extract_path(current_dir)
+        # let's hope that there's no symbolic links etc.
+        new_current_dir = os.path.normpath(os.path.sep.join([current_path_str, path_str]))
+
+    try:
+        os.chdir(new_current_dir)
+    except OSError:
+        raise SchemeException("path doesn't exist : %s" % path_str)
+
+    out_port = input_output.current_out_param.get(cont)
+    out_port.write("; now in %s\n" % new_current_dir)
+
+    return return_value(values.W_Path(new_current_dir), env, cont)
+
+current_directory_param = values_parameter.W_Parameter(values.W_Path(os.getcwd()), current_directory_guard)
+expose_val("current-directory", current_directory_param)
 
 w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
