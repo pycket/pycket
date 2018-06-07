@@ -52,6 +52,9 @@ class W_AnyRegexp(W_Object):
             self.indexgroup = indexgroup
             self.group_offsets = group_offsets
 
+    def get_source(self):
+        return self.source
+
     @specialize.argtype(1)
     def make_ctx(self, s, start, end):
         self.ensure_compiled()
@@ -126,7 +129,7 @@ class W_AnyRegexp(W_Object):
         return False
 
     def tostring(self):
-        return '#px"%s"' % self.source
+        return '#rx"%s"' % self.source
 
 @rsre_core.specializectx
 @jit.unroll_safe
@@ -156,10 +159,25 @@ def _getslice(ctx, start, end):
     else:
         return ''.join([chr(ctx.str(j)) for j in range(start, end)])
 
-class W_Regexp(W_AnyRegexp): pass
-class W_PRegexp(W_AnyRegexp): pass
-class W_ByteRegexp(W_AnyRegexp): pass
-class W_BytePRegexp(W_AnyRegexp): pass
+class W_Regexp(W_AnyRegexp):
+
+    def tostring(self):
+        return '#rx"%s"' % self.source
+
+class W_PRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        return '#px"%s"' % self.source
+
+class W_ByteRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        return '#rx#"%s"' % self.source
+
+class W_BytePRegexp(W_AnyRegexp):
+
+    def tostring(self):
+        return '#px#"%s"' % self.source
 
 class ReplacementOption(object):
     _attrs_ = []
