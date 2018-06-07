@@ -125,7 +125,14 @@ def linklet_bundle_to_hash(linkl_bundle):
 
 class W_LinkletDirectory(W_Object):
 
-    # When a Racket module has submodules, the linklet bundles for the module and the submodules are grouped together in a linklet directory. A linklet directory can have nested linklet directories. Information in a linklet directory is keyed by #f or a symbol, where #f must be mapped to a linklet bundle (if anything) and each symbol must be mapped to a linklet directory. A linklet directory can be equivalently viewed as a mapping from a lists of symbols to a linklet bundle.
+    # When a Racket module has submodules, the linklet bundles for the
+    # module and the submodules are grouped together in a linklet
+    # directory. A linklet directory can have nested linklet
+    # directories. Information in a linklet directory is keyed by #f
+    # or a symbol, where #f must be mapped to a linklet bundle (if
+    # anything) and each symbol must be mapped to a linklet
+    # directory. A linklet directory can be equivalently viewed as a
+    # mapping from a lists of symbols to a linklet bundle.
 
     _attrs_ = _immutable_fields_ = ["dir_mapping"]
 
@@ -238,14 +245,19 @@ class W_Linklet(W_Object):
         else:
             target.set_exports(self.exports)
 
-        """ Instantiates the linklet:
+        """Instantiates the linklet:
 
-        --- Prep the environment and the continuation for the evaluation of linklet forms
-        --- Process the imports, get them into the toplevel environment
+        --- Prep the environment and the continuation for the
+            evaluation of linklet forms
+        --- Process the imports, get them into the toplevel
+            environment
         --- Collect the ids defined in the self linklet's forms
-        --- Uninitialize the undefined exports in the linklet into the target (if it doesn't already have it)
+        --- Uninitialize the undefined exports in the linklet into the
+            target (if it doesn't already have it)
         --- Evaluate linklet forms
-        --- Return target instance and return value (None if a target is given to instantiate)
+        --- Return target instance and return value (None if a target
+            is given to instantiate)
+
         """
 
         """
@@ -297,15 +309,12 @@ class W_Linklet(W_Object):
             if isinstance(b, DefineValues):
                 linklet_defined_names += b.names
 
-        # if len(linklet_defined_names) != len(set(linklet_defined_names)):
-        #     raise SchemeException("Duplicate binding name : %s" % linklet_defined_names)
         """
         Uninitialize the undefined exports -- name, undef
         """
         for internal_name, external_name in self.exports.iteritems():
             # Defined name ids are changed in compilation based on renames
             if external_name not in linklet_defined_names:
-                #env.toplevel_set(external_name, LinkletVar(external_name))
                 if not target.has_var(external_name):
                     target.add_var(external_name, LinkletVar(external_name))
 
@@ -327,7 +336,7 @@ class W_Linklet(W_Object):
         json_python_dict = json.value_object()
         assert "linklet" in json_python_dict
         linklet_dict = getkey(json_python_dict, "linklet", type='o')
-        assert "exports" in linklet_dict and "body" in linklet_dict # and "importss" in linklet_dict
+        assert "exports" in linklet_dict and "body" in linklet_dict
 
         # list of JsonObject
         exports_list = getkey(linklet_dict, "exports", type='a')
@@ -353,9 +362,8 @@ class W_Linklet(W_Object):
         if "importss" in linklet_dict:
             for index, imports in enumerate(imports_list):
                 arr = imports.value_array()
-                # we don't care about renamed imports because we will only load bootstrap
-                # linklets from json (and they have no imports at all)
-                # this is effectively only for debugging purposes
+                # bootstrap linklets have no imports at all
+                # this is only for debugging purposes
                 instance_imports = {}
                 for id_str in arr:
                     sym = W_Symbol.make(id_str.value_object()['quote'].value_object()['toplevel'].value_string())
@@ -410,7 +418,7 @@ def def_vals_to_ast(def_vals_sexp, exports, linkl_toplevels, linkl_imports):
     if not len(to_rpython_list(def_vals_sexp)) == 3:
         raise SchemeException("defs_vals_to_ast : unhandled define-values form : %s" % def_vals_sexp.tostring())
 
-    names = def_vals_sexp.cdr().car() # renames?
+    names = def_vals_sexp.cdr().car()
     names_ls = to_rpython_list(names)
 
     body = sexp_to_ast(def_vals_sexp.cdr().cdr().car(), [], exports, linkl_toplevels, linkl_imports, disable_conversions=False, cell_ref=[], name=names_ls[0].variable_name())
@@ -474,7 +482,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
         # populate lex_env // cell_refs for rhss ahead of time
         for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
             ids = to_rpython_list(rhs.car()) # (id ...)
-            cells_for_the_rhss += ids  #import pdb;pdb.set_trace()
+            cells_for_the_rhss += ids
             lex_env += [i.get_obj() if isinstance(i, W_Correlated) else i for i in ids]
 
     num_ids = 0
@@ -513,7 +521,6 @@ def is_val_type(form):
     return False
 
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
-
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
     elif is_val_type(form):
@@ -633,6 +640,8 @@ def external_of_an_export(sym, exports):
 
 @expose("compile-linklet", [W_Object, default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false), default(W_Object, w_false)], simple=False)
 def compile_linklet(form, name, import_keys, get_import, options, env, cont):
+    from pycket.util import console_log
+    console_log("compiling linklet : %s" % form.tostring(), 3)
     return do_compile_linklet(form, name, import_keys, get_import, options, env, cont)
 
 def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
@@ -885,9 +894,8 @@ def var_ref_to_instance(varref, ref_site):
 
 @expose("variable-reference-from-unsafe?", [W_VariableReference])
 def var_ref_from_unsafe_huh(varref):
-    """
-    Returns #t if the module of the variable reference itself
-    (not necessarily a referenced variable) is compiled in unsafe mode,
-    #f otherwise.
+    """Returns #t if the module of the variable reference itself (not
+    necessarily a referenced variable) is compiled in unsafe mode, #f
+    otherwise.
     """
     return w_false
