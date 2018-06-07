@@ -31,12 +31,12 @@
 (define kernel-prim-id? (make-pred 'source-name))
 
 ;; Just some meta info
-(define let-app-count 0)
+(define app-let-count 0)
 (define if-anorm-count 0)
-(define begin-single-count 0)
 (define let-rhs-count 0)
 (define begin-let-count 0)
 (define app-rand-count 0)
+(define merge-let-count 0)
 
 (define (normalize-linklet h)
   (printf "\nNormalizer:\n")
@@ -50,18 +50,57 @@
   ; single run)
   (define normalized-body (normalize (normalize body)))
 
-  (printf "~a let-apps normalized\n" let-app-count)
-  (printf "~a if-anorms normalized\n" if-anorm-count)
-  #;(printf "~a begin-singles normalized\n" begin-single-count)
-  (printf "~a let-rhss normalized\n" let-rhs-count)
-  (printf "~a begin-lets normalized\n" begin-let-count)
+  (printf "~a app-lets normalized\n" app-let-count)
   (printf "~a app-rands normalized\n" app-rand-count)
+  (printf "~a let-rhss normalized\n" let-rhs-count)
+  (printf "~a merge-lets normalized\n" merge-let-count)
+  (printf "~a if-anorms normalized\n" if-anorm-count)
+  (printf "~a begin-lets normalized\n" begin-let-count)
+
   (hash* 'linklet
          (hash* 'config config
                 'exports exports
                 'body normalized-body)))
 
-#| LET-APP
+#| MERGE-LET
+
+(let ([v1 e1]) (let ([v2 e2]) e3)) => (let ([v1 e1] [v2 e2]) e3)
+
+|#
+
+(define (extract-bindings rhs)
+  (foldr append null (map car rhs)))
+
+(define (free-vars rhs) ; vars is a set
+  (cond
+    [(lexical-id? rhs) (list (hash-ref rhs 'lexical))]
+    [(list? rhs) (foldr append null (map free-vars rhs))]
+    [(hash? rhs) (foldr append null
+                        (for/list ([(key value) (in-hash rhs)])
+                          (free-vars value)))]
+    [else '()]))
+
+(define (check-merge-let let-form)
+  (let ([out-body (hash-ref let-form 'let-body)]
+        [out-rhs (hash-ref let-form 'let-bindings)])
+    (and (= 1 (length out-body))
+         (let? (car out-body))
+         (let* ([inner-rhs (hash-ref (car out-body) 'let-bindings)]
+                [outer-bindings (extract-bindings out-rhs)]
+                [inner-frees (free-vars inner-rhs)])
+           (not (ormap (lambda (b) (member b inner-frees)) outer-bindings))))))
+
+(define (apply-merge-let let-form)
+  (set! merge-let-count (add1 merge-let-count))
+  (let* ([out-rhs (hash-ref let-form 'let-bindings)]
+         [inner-let (car (hash-ref let-form 'let-body))]
+         [inner-let-rhs (hash-ref inner-let 'let-bindings)]
+         [inner-let-body (hash-ref inner-let 'let-body)])
+    (normalize
+     (hash* 'let-bindings (append out-rhs inner-let-rhs)
+            'let-body inner-let-body))))
+
+#| APP-LET
 
 ((let ((func (lambda (x y z) ...))) func) 1 2 3)
 
@@ -73,10 +112,7 @@
 
 |#
 
-(define (extract-bindings bindingss is-let?)
-  (caar bindingss))
-
-(define (let-app? term)
+(define (app-let? term)
   (and (or (let? term) (letrec? term))
        (let*
            ([body-sym (if (let? term) 'let-body 'letrec-body)]
@@ -84,7 +120,7 @@
          (and (= 1 (length body))
               (lexical-id? (car body))))))
 
-(define (apply-let-app app-form)
+(define (apply-app-let app-form)
   (let* ([rator (hash-ref app-form 'operator)]
          [rands (hash-ref app-form 'operands)]
          [rhs-sym (if (let? rator) 'let-bindings 'letrec-bindings)]
@@ -92,7 +128,7 @@
          [rhs (hash-ref rator rhs-sym)]
          ; we know the body is just a lexical ID
          [body (car (hash-ref rator body-sym))])
-    (set! let-app-count (add1 let-app-count))
+    (set! app-let-count (add1 app-let-count))
     ; reconstructing let/letrec
     (normalize
      (hash* rhs-sym rhs
@@ -208,13 +244,13 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 |#
 
 (define (one-of-these? name)
-  (member name '("hash-set" "hash-set!" "eq?")))
+  (member name '("hash-set" "hash-set!" "eq?" "bytes->path" "string->bytes/locale" "regexp-replace*")))
 
 (define (check-app-rand app-form)
   (let* ([rator (hash-ref app-form 'operator)]
          [rands (hash-ref app-form 'operands)])
     (and (list? rands)
-         (>= (length rands) 2)
+         #;(>= (length rands) 1)
          (or (ormap app? rands) (ormap let? rands))
          (kernel-prim-id? rator)
          #;(printf "rator id : ~a\n" (hash-ref rator 'source-name #f))
@@ -254,11 +290,11 @@ Convert (begin (let ([...]) letbody) rest ...) =>
     (normalize
      (if wrapper-rhss
          ;; there's a wrapping let
-         (hash* 'let-bindings wrapper-rhss
-                'let-body (list (hash* 'let-bindings (list let-rhss)
+         (hash* 'let-bindings (normalize wrapper-rhss)
+                'let-body (list (hash* 'let-bindings (list (normalize let-rhss))
                                        'let-body (list (hash* 'operator rator
                                                               'operands new-rands)))))
-         (hash* 'let-bindings (list let-rhss)
+         (hash* 'let-bindings (list (normalize let-rhss))
                 'let-body (list (hash* 'operator rator
                                        'operands new-rands)))))))
 
@@ -266,13 +302,13 @@ Convert (begin (let ([...]) letbody) rest ...) =>
   (cond
     [(or (number? body) (boolean? body) (string? body)) body]
 
-    #;[(and (begin? body) (= 1 (length body))) (apply-begin-single body)]
     [(and (begin? body) (check-begin-let body)) (apply-begin-let body)]
 
-    ;; [(and (let? body) (check-let-rhs body))
-    ;;  (apply-let-rhs body)]
+    #;[(and (let? body) (check-let-rhs body)) (apply-let-rhs body)]
+    [(and (let? body) (check-merge-let body)) (apply-merge-let body)]
+
     [(and (if? body) (check-if-anorm body)) (apply-if-anorm body)]
-    [(and (app? body) (let-app? (hash-ref body 'operator))) (apply-let-app body)]
+    [(and (app? body) (app-let? (hash-ref body 'operator))) (apply-app-let body)]
     [(and (app? body) (check-app-rand body)) (apply-app-rand body)]
 
     [(hash? body) (for/hash ([(key value) (in-hash body)])
