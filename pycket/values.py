@@ -1138,6 +1138,9 @@ class W_MutableBytes(W_Bytes):
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
 
+    def as_bytes_list(self):
+        return self.value
+
     def immutable(self):
         return False
 
@@ -1163,6 +1166,9 @@ class W_ImmutableBytes(W_Bytes):
         assert bs is not None
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
+
+    def as_bytes_list(self):
+        return self.value
 
     def immutable(self):
         return True
