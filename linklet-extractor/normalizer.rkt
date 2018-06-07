@@ -28,6 +28,7 @@
                       (not (empty? term-ls))
                       (hash? (car term-ls))
                       (equal? "begin" (hash-ref (car term-ls) 'source-name #f)))))
+(define kernel-prim-id? (make-pred 'source-name))
 
 ;; Just some meta info
 (define let-app-count 0)
@@ -35,6 +36,7 @@
 (define begin-single-count 0)
 (define let-rhs-count 0)
 (define begin-let-count 0)
+(define app-rand-count 0)
 
 (define (normalize-linklet h)
   (printf "\nNormalizer:\n")
@@ -50,9 +52,10 @@
 
   (printf "~a let-apps normalized\n" let-app-count)
   (printf "~a if-anorms normalized\n" if-anorm-count)
-  (printf "~a begin-singles normalized\n" begin-single-count)
+  #;(printf "~a begin-singles normalized\n" begin-single-count)
   (printf "~a let-rhss normalized\n" let-rhs-count)
   (printf "~a begin-lets normalized\n" begin-let-count)
+  (printf "~a app-rands normalized\n" app-rand-count)
   (hash* 'linklet
          (hash* 'config config
                 'exports exports
@@ -66,7 +69,7 @@
             ||  move the app inside the let body
             vv
 
-(let ((func (lambda (x y z) ...))) (func 1 2 3)) 
+(let ((func (lambda (x y z) ...))) (func 1 2 3))
 
 |#
 
@@ -98,7 +101,7 @@
 
 #| IF-ANORM
 
-(if (expr expr ...) 1 2)  ===> (let ((if_gen (expr expr ...))) (if if_gen 1 2)) 
+(if (expr expr ...) 1 2)  ===> (let ((if_gen (expr expr ...))) (if if_gen 1 2))
 
 |#
 
@@ -156,7 +159,7 @@ implicit assumption I've yet to find |#
 #| BEGIN-LET
 
 Convert (begin (let ([...]) letbody) rest ...) =>
-(let ([...]) letbody ... rest ...) 
+(let ([...]) letbody ... rest ...)
 
 |#
 
@@ -176,27 +179,101 @@ Convert (begin (let ([...]) letbody) rest ...) =>
 
 #| BEGIN-SINGLE : get rid of begins with single expressions
 
-(begin expr) => expr 
+(begin expr) => expr
 
 |#
 
-(define (apply-begin-single begin-form)
+#;(define (apply-begin-single begin-form)
   (begin (set! begin-single-count (add1 begin-single-count))
          (normalize (cadr begin-form))))
 
 
+#| APP-RAND
+
+(rator rand1 rand2 (....) rand3 ...) ===>
+(let ([AppRand0 (....)]) (rator rand1 rand2 AppRand0 rand3))
+
+(rator rand1 rand2 (let ([sym rhs]) body) rand3 ...) ===>
+(let ([sym rhs])
+  (let ([AppRand0 body])
+    (rator rand1 rand2 AppRand0 rand3 ...)))
+
+(rator rand1 (let ([sym0 rhs0]) body0) (let ([sym rhs]) body) rand3 ...) ===>
+(let ([sym0 rhs0])
+  (let ([AppRand0 body0])
+    (rator rand1 AppRand0 (let ([sym rhs]) body) rand3 ...))) ==>
+
+
+-- reminder : this is a one-step normalization
+|#
+
+(define (one-of-these? name)
+  (member name '("hash-set" "hash-set!" "eq?")))
+
+(define (check-app-rand app-form)
+  (let* ([rator (hash-ref app-form 'operator)]
+         [rands (hash-ref app-form 'operands)])
+    (and (list? rands)
+         (>= (length rands) 2)
+         (or (ormap app? rands) (ormap let? rands))
+         (kernel-prim-id? rator)
+         #;(printf "rator id : ~a\n" (hash-ref rator 'source-name #f))
+         (one-of-these? (hash-ref rator 'source-name #f)))))
+
+(define gensym-counter 0)
+
+(define (apply-app-rand app-form)
+  (let* ([rator (hash-ref app-form 'operator)]
+         [rands (hash-ref app-form 'operands)])
+    (set! app-rand-count (add1 app-rand-count))
+    (define found false)
+    (define let-rhss false)
+    (define wrapper-rhss false)
+    (define new-rands
+      (for/list ([r (in-list rands)])
+        (cond
+          [found r]
+          [(app? r) (let ((new-sym-str (format "AppRand~a" gensym-counter)))
+                      (begin
+                        (set! gensym-counter (add1 gensym-counter))
+                        (set! found true)
+                        (set! let-rhss (list (list new-sym-str) r))
+                        (hash* 'lexical new-sym-str)))]
+          [(let? r) (let ((new-sym-str (format "AppRand~a" gensym-counter))
+                          (wrapping-let-rhss (hash-ref r 'let-bindings))
+                          (wrapping-let-body (hash-ref r 'let-body)))
+                      (when (> (length wrapping-let-body) 1)
+                        (error "rands have let with more than one body expression : ~a" app-form))
+                      (begin
+                        (set! gensym-counter (add1 gensym-counter))
+                        (set! found true)
+                        (set! wrapper-rhss wrapping-let-rhss)
+                        (set! let-rhss (list (list new-sym-str) (car wrapping-let-body)))
+                        (hash* 'lexical new-sym-str)))]
+          [else r])))
+    (normalize
+     (if wrapper-rhss
+         ;; there's a wrapping let
+         (hash* 'let-bindings wrapper-rhss
+                'let-body (list (hash* 'let-bindings (list let-rhss)
+                                       'let-body (list (hash* 'operator rator
+                                                              'operands new-rands)))))
+         (hash* 'let-bindings (list let-rhss)
+                'let-body (list (hash* 'operator rator
+                                       'operands new-rands)))))))
 
 (define (normalize body)
   (cond
     [(or (number? body) (boolean? body) (string? body)) body]
 
-    [(and (begin? body) (= 1 (length body))) (apply-begin-single body)]
+    #;[(and (begin? body) (= 1 (length body))) (apply-begin-single body)]
     [(and (begin? body) (check-begin-let body)) (apply-begin-let body)]
 
     ;; [(and (let? body) (check-let-rhs body))
     ;;  (apply-let-rhs body)]
     [(and (if? body) (check-if-anorm body)) (apply-if-anorm body)]
     [(and (app? body) (let-app? (hash-ref body 'operator))) (apply-let-app body)]
+    [(and (app? body) (check-app-rand body)) (apply-app-rand body)]
 
     [(hash? body) (for/hash ([(key value) (in-hash body)])
                     #;(printf "getting inside key : ~a\n" key)
