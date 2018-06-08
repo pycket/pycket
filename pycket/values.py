@@ -122,6 +122,8 @@ class W_Undefined(W_Object):
     _attrs_ = []
     def __init__(self):
         pass
+    def tostring(self):
+        return "#<unsafe-undefined>"
 
 w_unsafe_undefined = W_Undefined()
 

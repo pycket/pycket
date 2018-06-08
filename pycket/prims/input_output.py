@@ -15,6 +15,7 @@ from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
+from pycket.hash.base import W_HashTable
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
@@ -1000,8 +1001,75 @@ def newline(out, env, cont):
 
 @expose("write", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def write(o, p, env, cont):
-    return do_print(o.tostring(), p, env, cont)
+    cont = do_write_cont(o, env, cont)
+    return get_output_port(p, env, cont)
 
+@continuation
+def do_write_cont(o, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_OutputPort)
+    write_loop(o,port)
+    return return_void(env, cont)
+
+
+def write_loop(v, port):
+    if isinstance(v, values.W_Cons):
+        cur = v
+        port.write("(")
+        while isinstance(cur, values.W_Cons):
+            write_loop(cur.car(), port)
+            cur = cur.cdr()
+            if isinstance(cur, values.W_Cons):
+                # there will be more elements
+                port.write(" ")
+
+        # Are we a dealing with a proper list?
+        if cur is values.w_null:
+            port.write(")")
+        else:
+            port.write(" . ")
+            write_loop(cur, port)
+            port.write(")")
+    elif isinstance(v, values.W_MBox):
+        port.write("#&")
+        write_loop(v.value, port)
+    elif isinstance(v, values.W_IBox):
+        port.write("#&")
+        write_loop(v.value, port)
+
+    elif isinstance(v, values.W_MCons):
+        port.write("{")
+        write_loop(v.car(), port)
+        port.write(" . ")
+        write_loop(v.cdr(), port)
+        port.write("}")
+
+
+    elif isinstance(v, values_string.W_String):
+        port.write("\"")
+        port.write(v.tostring()) # FIXME: need to encode special chars
+        port.write("\"")
+    elif isinstance(v, values.W_Bytes):
+        port.write("#\"")
+        port.write(v.tostring()) # FIXME: need to encode special chars
+        port.write("\"")
+    elif isinstance(v, values.W_Symbol):
+        port.write(v.tostring()) # FIXME: handle special chars
+
+    elif isinstance(v, W_HashTable):
+        port.write("#hash(")
+        for k, v in v.iteritems():
+            port.write("(")
+            write_loop(k, port)
+            port.write(" . ")
+            write_loop(v, port)
+        port.write(")")
+
+    else:
+        port.write(v.tostring())
+
+        
 @expose("print", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def _print(o, p, env, cont):
     return do_print(o.tostring(), p, env, cont)
