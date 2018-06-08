@@ -15,7 +15,8 @@ from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
-from pycket.hash.base import W_HashTable
+from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable
+from pycket.hash.equal import W_EqualHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
@@ -1057,14 +1058,54 @@ def write_loop(v, port):
     elif isinstance(v, values.W_Symbol):
         port.write(v.tostring()) # FIXME: handle special chars
 
-    elif isinstance(v, W_HashTable):
+    elif isinstance(v, W_SimpleMutableHashTable):
         port.write("#hash(")
+        for k, v in v.data.iteritems():
+            port.write("(")
+            write_loop(k, port)
+            port.write(" . ")
+            write_loop(v, port)
+        port.write(")")
+    elif isinstance(v, W_EqvImmutableHashTable):
+        port.write("#hasheqv(")
         for k, v in v.iteritems():
             port.write("(")
             write_loop(k, port)
             port.write(" . ")
             write_loop(v, port)
         port.write(")")
+    elif isinstance(v, W_EqImmutableHashTable):
+        port.write("#hasheq(")
+        for k, v in v.iteritems():
+            port.write("(")
+            write_loop(k, port)
+            port.write(" . ")
+            write_loop(v, port)
+        port.write(")")
+    elif isinstance(v, W_EqualHashTable):
+        port.write("#hash(")
+        for k, v in v.hash_items():
+            port.write("(")
+            write_loop(k, port)
+            port.write(" . ")
+            write_loop(v, port)
+        port.write(")")
+    # elif isinstance(v, W_EqHashTable):
+    #     port.write("#hasheq(")
+    #     for k, v in v.iteritems():
+    #         port.write("(")
+    #         write_loop(k, port)
+    #         port.write(" . ")
+    #         write_loop(v, port)
+    #     port.write(")")
+    # elif isinstance(v, W_EqualHashTable):
+    #     port.write("#hash(")
+    #     for k, v in v.iteritems():
+    #         port.write("(")
+    #         write_loop(k, port)
+    #         port.write(" . ")
+    #         write_loop(v, port)
+    #     port.write(")")
 
     else:
         port.write(v.tostring())
