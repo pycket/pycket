@@ -72,6 +72,10 @@ debug: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug
 
+debug-no-jit: $(PYFILES)
+	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
+	cp pycket-c pycket-c-debug-no-jit
+
 setup:
 	# raco pkg install -t dir pycket/pycket-lang/ || \
 	# 	raco pkg update --link pycket/pycket-lang
