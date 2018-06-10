@@ -1628,7 +1628,7 @@ class CaseLambda(AST):
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
-            if w_closure is None or w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env():
+            if w_closure is None or (len(self.lams) > 0 and w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env()):
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
             return w_closure
