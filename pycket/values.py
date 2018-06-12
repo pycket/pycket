@@ -794,6 +794,17 @@ W_Flonum.INF    = W_Flonum(float("inf"))
 W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
 
+class W_ExtFlonum(W_Object):
+    _immutable_ = True
+    _attrs_ = _immutable_fields_ = ["value_str"]
+    errorname = "extflonum"
+
+    def __init__(self, val_str):
+        self.value_str = val_str
+
+    def tostring(self):
+        return self.value_str
+
 class W_Bignum(W_Integer):
     _immutable_ = True
     _attrs_ = _immutable_fields_ = ["value"]

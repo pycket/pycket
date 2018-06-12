@@ -36,7 +36,11 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
     s = w_s.as_str_utf8()
     try:
-        if re.match("[+-]?([\d]+)?.?\d+f\d", s):
+        if re.match("[+-]?([\d]+)?.?\d+[tT]\d", s):
+            # it's an extflonum
+            return values.W_ExtFlonum(s)
+
+        if re.match("[+-]?([\d]+)?.?\d+[sf]\d", s):
             f_parts = s.split("f")
             if len(f_parts) > 2:
                 raise ParseStringError("invalid floating point number")
