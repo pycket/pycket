@@ -1065,6 +1065,7 @@ def write_loop(v, port):
             write_loop(k, port)
             port.write(" . ")
             write_loop(v, port)
+            port.write(")")
         port.write(")")
     elif isinstance(v, W_EqvImmutableHashTable):
         port.write("#hasheqv(")
@@ -1073,6 +1074,7 @@ def write_loop(v, port):
             write_loop(k, port)
             port.write(" . ")
             write_loop(v, port)
+            port.write(")")
         port.write(")")
     elif isinstance(v, W_EqImmutableHashTable):
         port.write("#hasheq(")
@@ -1081,6 +1083,7 @@ def write_loop(v, port):
             write_loop(k, port)
             port.write(" . ")
             write_loop(v, port)
+            port.write(")")
         port.write(")")
     elif isinstance(v, W_EqualHashTable):
         port.write("#hash(")
@@ -1089,23 +1092,8 @@ def write_loop(v, port):
             write_loop(k, port)
             port.write(" . ")
             write_loop(v, port)
+            port.write(")")
         port.write(")")
-    # elif isinstance(v, W_EqHashTable):
-    #     port.write("#hasheq(")
-    #     for k, v in v.iteritems():
-    #         port.write("(")
-    #         write_loop(k, port)
-    #         port.write(" . ")
-    #         write_loop(v, port)
-    #     port.write(")")
-    # elif isinstance(v, W_EqualHashTable):
-    #     port.write("#hash(")
-    #     for k, v in v.iteritems():
-    #         port.write("(")
-    #         write_loop(k, port)
-    #         port.write(" . ")
-    #         write_loop(v, port)
-    #     port.write(")")
 
     else:
         port.write(v.tostring())
