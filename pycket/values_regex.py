@@ -162,22 +162,30 @@ def _getslice(ctx, start, end):
 class W_Regexp(W_AnyRegexp):
 
     def tostring(self):
-        return '#rx"%s"' % self.source
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#rx%s' % out_encoded
 
 class W_PRegexp(W_AnyRegexp):
 
     def tostring(self):
-        return '#px"%s"' % self.source
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#px%s' % out_encoded
 
 class W_ByteRegexp(W_AnyRegexp):
 
     def tostring(self):
-        return '#rx#"%s"' % self.source
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#rx#%s' % out_encoded
 
 class W_BytePRegexp(W_AnyRegexp):
 
     def tostring(self):
-        return '#px#"%s"' % self.source
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        out_encoded = string_escape_encode(self.source, '"')
+        return '#px#%s' % out_encoded
 
 class ReplacementOption(object):
     _attrs_ = []
