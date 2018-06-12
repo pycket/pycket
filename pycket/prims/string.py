@@ -41,9 +41,15 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
             return values.W_ExtFlonum(s)
 
         if re.match("[+-]?([\d]+)?.?\d+[sf]\d", s):
-            f_parts = s.split("f")
+            if "f" in s:
+                f_parts = s.split("f")
+            elif "s" in s:
+                f_parts = s.split("s")
+            else:
+                raise ParseStringError("invalid floating point number : %s" % s)
+
             if len(f_parts) > 2:
-                raise ParseStringError("invalid floating point number")
+                raise ParseStringError("invalid floating point number : %s" % s)
 
             try:
                 numb = float(f_parts[0])
@@ -52,12 +58,12 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
             except ValueError:
                 return values.w_false
 
-            return values.W_Flonum(numb*p)
+            return values.W_Flonum.make(numb*p, True)
 
         if re.match("[+-]?([\d]+)?.?\d+e\d", s):
             e_parts = s.split("e")
             if len(e_parts) > 2:
-                raise ParseStringError("invalid floating point number")
+                raise ParseStringError("invalid floating point number : %s" % s)
 
             try:
                 num = float(e_parts[0])
@@ -190,7 +196,6 @@ def string_to_bytes_latin(w_str, err, start, end):
                 assert isinstance(err, values.W_Fixnum)
                 final_bytes[index] = chr(err.value)
 
-    #import pdb;pdb.set_trace()
     return values.W_Bytes.from_string("".join(final_bytes))
 
 @expose("string->list", [W_String])

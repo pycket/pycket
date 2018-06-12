@@ -73,7 +73,7 @@ class W_Cell(W_Object): # not the same as Racket's box
         if isinstance(v, W_Fixnum):
             v = W_CellIntegerStrategy(v.value)
         elif isinstance(v, W_Flonum):
-            v = W_CellFloatStrategy(v.value)
+            v = W_CellFloatStrategy(v.value, v.is_single_prec)
         self.w_value = v
 
     def get_val(self):
@@ -81,7 +81,7 @@ class W_Cell(W_Object): # not the same as Racket's box
         if isinstance(w_value, W_CellIntegerStrategy):
             return W_Fixnum(w_value.value)
         elif isinstance(w_value, W_CellFloatStrategy):
-            return W_Flonum(w_value.value)
+            return W_Flonum(w_value.value, w_value.is_single)
         return w_value
 
     def set_val(self, w_value):
@@ -111,10 +111,11 @@ class W_CellIntegerStrategy(W_Object):
         self.value = value
 
 class W_CellFloatStrategy(W_Object):
-    _attrs_ = ["value"]
+    _attrs_ = ["value", "is_single"]
     # can be stored in cells only, is mutated when a W_Flonum is stored
-    def __init__(self, value):
+    def __init__(self, value, is_single=False):
         self.value = value
+        self.is_single = is_single
 
 
 class W_Undefined(W_Object):
@@ -343,8 +344,8 @@ class W_Cons(W_List):
             return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
             if force_proper or cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car.value, cdr)
-            return W_UnwrappedFlonumCons(car.value, cdr)
+                return W_UnwrappedFlonumConsProper(car.value, car.is_single_prec, cdr)
+            return W_UnwrappedFlonumCons(car.value, car.is_single_prec, cdr)
         else:
             if force_proper or cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
@@ -422,13 +423,14 @@ class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumCons(W_Cons):
-    _immutable_fields_ = ["_car", "_cdr"]
-    def __init__(self, a, d):
+    _immutable_fields_ = ["_car", "_car_is_single", "_cdr"]
+    def __init__(self, a, is_single, d):
         self._car = a
+        self._car_is_single = is_single
         self._cdr = d
 
     def car(self):
-        return W_Flonum(self._car)
+        return W_Flonum(self._car, self._car_is_single)
 
     def cdr(self):
         return self._cdr
@@ -760,19 +762,27 @@ W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
 class W_Flonum(W_Real):
     _immutable_ = True
-    _attrs_ = _immutable_fields_ = ["value"]
+    _attrs_ = _immutable_fields_ = ["value", "is_single_prec"]
     errorname = "flonum"
 
-    def __init__(self, val):
+    def __init__(self, val, is_single_prec=False):
         self.value = val
+        self.is_single_prec = is_single_prec
 
     @staticmethod
-    def make(val):
-        return W_Flonum(val)
+    def make(val, is_single=False):
+        return W_Flonum(val, is_single)
 
     def tostring(self):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
-        return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
+        RACKET_SINGLE_STR_PREC = 7
+        RACKET_DOUBLE_STR_PREC = 17
+
+        if self.is_single_prec:
+            rpython_str = formatd(self.value, 'g', RACKET_SINGLE_STR_PREC, DTSF_ADD_DOT_0)
+            return "%sf0" % rpython_str
+        else:
+            return formatd(self.value, 'g', RACKET_DOUBLE_STR_PREC, DTSF_ADD_DOT_0)
 
     def hash_equal(self, info=None):
         return compute_hash(self.value)
@@ -2009,8 +2019,8 @@ def wrap(*_pyval):
             return W_UnwrappedFixnumCons(car, cdr)
         if isinstance(car, float):
             if cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car, cdr)
-            return W_UnwrappedFlonumCons(car, cdr)
+                return W_UnwrappedFlonumConsProper(car, False, cdr)
+            return W_UnwrappedFlonumCons(car, False, cdr)
         if isinstance(car, W_Object):
             return W_Cons.make(car, cdr)
     assert False
