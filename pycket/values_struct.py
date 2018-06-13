@@ -760,9 +760,8 @@ class W_Struct(W_RootStruct):
 
     def tostring_prefab(self):
         prefab_key = W_PrefabKey.from_struct_type(self.struct_type())
-        return ("#s(%s %s)" %
-                (prefab_key.short_key().tostring(),
-                 ' '.join([val.tostring() for val in self.vals()])))
+        key_and_values_all_str = [prefab_key.short_key().tostring()] + [val.tostring() for val in self.vals()]
+        return ("#s(%s)" % (' '.join(key_and_values_all_str)))
 
     @jit.unroll_safe
     def tostring_values(self, fields, w_type, is_super=False):

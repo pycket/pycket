@@ -158,7 +158,6 @@ def do_prefab_struct_key(v):
 
 @expose("make-prefab-struct", arity=Arity.geq(1))
 def do_make_prefab_struct(args):
-    assert len(args) > 1
     key  = args[0]
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)
