@@ -6,6 +6,7 @@ from pycket.prims import *
 from pycket.test.testhelper import run_expr, run_expr_result, run
 from pycket.error import SchemeException
 
+@pytest.mark.skip
 def test_flonum_tostring():
     from rpython.rtyper.test.test_llinterp import interpret
     import math
@@ -376,7 +377,7 @@ def test_flonum_special(doctest):
 @pytest.mark.skipif(not pytest.config.load_expander, reason="need to handle require externally, expander is not loaded")
 def test_fixnum_special(doctest):
     """
-    ! (require '#%flfxnum)
+    ! (#%require '#%flfxnum)
     > (fx+ 1 2)
     3
     E (fx+ 1 1.2)

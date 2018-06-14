@@ -179,7 +179,7 @@ def test_hash_for_each(doctest):
     > x
     21
     """
-@pytest.mark.skipif(not pytest.config.load_expander, reason="can't handle yet the quotes in the test string")
+@pytest.mark.skip(reason="for/fold requires almost racket/base")
 def test_persistent_eqhash_for_each(doctest):
     """
     ! (define-values (x) 1)
@@ -189,15 +189,15 @@ def test_persistent_eqhash_for_each(doctest):
     > x
     21
     """
-@pytest.mark.skip(reason="can't handle yet the quotes in the test string -- also 'or' is beyond #%kernel")
+@pytest.mark.skip(reason="'or' is beyond #%kernel")
 def test_hash_map(doctest):
     """
     ! (define-values (h) #hash((1 . 2) (2 . 3) (3 . 4)))
     ! (define-values (s) (hash-map h (lambda (k v) (+ k v))))
     > s
-    > (or (equal? s '(3 5 7)) (equal? s '(3 7 5))
-          (equal? s '(5 3 7)) (equal? s '(5 7 3))
-          (equal? s '(7 3 5)) (equal? s '(7 5 3)))
+    > (or (equal? s (quote (3 5 7))) (equal? s (quote (3 7 5)))
+          (equal? s (quote (5 3 7))) (equal? s (quote (5 7 3)))
+          (equal? s (quote (7 3 5))) (equal? s (quote (7 5 3))))
     #t
     """
 @pytest.mark.skipif(not pytest.config.load_expander, reason="can't handle yet the quotes in the test string")
