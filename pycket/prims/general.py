@@ -79,10 +79,6 @@ for args in [
         ("struct-type-property-accessor-procedure?",
          values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
-        ("regexp?", values_regex.W_Regexp),
-        ("pregexp?", values_regex.W_PRegexp),
-        ("byte-regexp?", values_regex.W_ByteRegexp),
-        ("byte-pregexp?", values_regex.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
         ("thread-cell?", values.W_ThreadCell),
         ("thread-cell-values?", values.W_ThreadCellValues),
@@ -138,6 +134,30 @@ def datum_intern_literal(v):
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
+    return values.w_false
+
+@expose("regexp?", [values.W_Object])
+def regexp_huh(r):
+    if isinstance(r, values_regex.W_Regexp) or isinstance(r, values_regex.W_PRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("pregexp?", [values.W_Object])
+def pregexp_huh(r):
+    if isinstance(r, values_regex.W_PRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("byte-regexp?", [values.W_Object])
+def byte_regexp_huh(r):
+    if isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("byte-pregexp?", [values.W_Object])
+def byte_pregexp_huh(r):
+    if isinstance(r, values_regex.W_BytePRegexp):
+        return values.w_true
     return values.w_false
 
 @expose("true-object?", [values.W_Object])

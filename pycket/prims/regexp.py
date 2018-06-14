@@ -249,8 +249,11 @@ def regexp_replace(pattern, input, insert, prefix):
         [values.W_Object,
          values.W_Object,
          values.W_Object,
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Object, values.w_false),
          default(values.W_Bytes, EMPTY_BYTES)])
-def regexp_replace_star(pattern, input, insert, prefix):
+def regexp_replace_star(pattern, input, insert, start, end, prefix):
+    # FIXME : start end
     matches = match_all_positions("regexp-replace*", pattern, input)
     if not matches:
         return input

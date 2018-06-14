@@ -285,7 +285,7 @@ def string(args):
         builder.append(char.value)
     return W_String.fromunicode(builder.build())
 
-@expose("string-downcase", [W_String])
+@expose(["string-downcase", "string-foldcase"], [W_String])
 def string_downcase(v):
     return v.lower()
 
