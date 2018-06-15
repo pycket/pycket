@@ -1002,6 +1002,15 @@ def newline(out, env, cont):
 
 @expose("write", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def write(o, p, env, cont):
+    from pycket.values_struct import w_prop_custom_write, W_Struct
+
+    if isinstance(o, W_Struct):
+        w_custom_writer = o.struct_type().read_prop(w_prop_custom_write)
+        if w_custom_writer is not None and w_custom_writer.iscallable():
+            if not p:
+                p = current_out_param.get(cont)
+            return w_custom_writer.call([o, p, values.W_Fixnum(1)], env, cont)
+
     cont = do_write_cont(o, env, cont)
     return get_output_port(p, env, cont)
 
@@ -1013,8 +1022,9 @@ def do_write_cont(o, env, cont, _vals):
     write_loop(o,port)
     return return_void(env, cont)
 
-
 def write_loop(v, port):
+    #from pycket.prims.linklet import W_LinkletBundle
+
     if isinstance(v, values.W_Cons):
         cur = v
         port.write("(")
@@ -1094,6 +1104,9 @@ def write_loop(v, port):
             write_loop(v, port)
             port.write(")")
         port.write(")")
+
+    # elif isinstance(v, W_LinkletBundle):
+    #     import pdb;pdb.set_trace()
 
     else:
         port.write(v.tostring())
