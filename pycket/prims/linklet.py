@@ -277,11 +277,13 @@ class W_Linklet(W_Object):
         env.set_current_linklet_instance(target)
 
         if not cont:
-            cont = NilCont()
-            cont = Prompt(w_default_continuation_prompt_tag, None, env, cont)
+            cont = Prompt(w_default_continuation_prompt_tag, None, env, NilCont())
 
-            cont.update_cm(parameterization_key, top_level_config)
-            cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
+        if prompt:
+            Prompt(w_default_continuation_prompt_tag, None, env, cont)
+
+        cont.update_cm(parameterization_key, top_level_config)
+        cont.update_cm(exn_handler_key, default_uncaught_exception_handler)
 
 
         """
@@ -899,3 +901,14 @@ def var_ref_from_unsafe_huh(varref):
     otherwise.
     """
     return w_false
+
+@expose("read-compiled-linklet", [W_InputPort])
+def read_compiled_linklet(in_port):
+    from pycket.env import w_version
+    version = w_version.get_version()
+
+    #import pdb;pdb.set_trace()
+    # check the version
+
+    # read the one-byte tag (either B (66) for bundle or D (68) for directory
+    raise SchemeException("NYI")
