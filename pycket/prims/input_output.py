@@ -1056,6 +1056,12 @@ def write_loop(v, port):
         write_loop(v.cdr(), port)
         port.write("}")
 
+    elif isinstance(v, values.W_Character):
+        #from rpython.rlib import runicode
+        if v.value == '\0':
+            port.write("#\nul")
+        else:
+            port.write(v.tostring())
 
     elif isinstance(v, values_string.W_String):
         from pypy.objspace.std.bytesobject import string_escape_encode
