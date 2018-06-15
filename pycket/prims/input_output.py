@@ -21,6 +21,7 @@ from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
+
 from sys import platform
 
 import os
@@ -1023,7 +1024,7 @@ def do_write_cont(o, env, cont, _vals):
     return return_void(env, cont)
 
 def write_loop(v, port):
-    #from pycket.prims.linklet import W_LinkletBundle
+    from pycket.prims.linklet import W_LinkletBundle
 
     if isinstance(v, values.W_Cons):
         cur = v
@@ -1111,13 +1112,21 @@ def write_loop(v, port):
             port.write(")")
         port.write(")")
 
-    # elif isinstance(v, W_LinkletBundle):
-    #     import pdb;pdb.set_trace()
+    elif isinstance(v, W_LinkletBundle):
+        from pycket.env import w_version
+
+        port.write("#~")
+        port.write("(%s)" % w_version.get_version())
+        # The #~ and version needs to move up
+        # (e.g. there will be multiple bundles in a linklet directory)
+        port.write("(B . ")
+        write_loop(v.get_bundle_mapping(), port)
+        port.write(")")
 
     else:
         port.write(v.tostring())
 
-        
+
 @expose("print", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def _print(o, p, env, cont):
     return do_print(o.tostring(), p, env, cont)

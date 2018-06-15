@@ -10,7 +10,6 @@ class W_LinkletDirectory(W_Object)
 # -*- coding: utf-8 -*-
 #
 
-from pycket.expand import readfile_rpython, getkey
 from pycket.interpreter import *
 from pycket.assign_convert import assign_convert
 from pycket.values import *
@@ -48,8 +47,11 @@ class W_LinkletInstance(W_Object):
         self.data = data #
 
     def tostring(self):
+
         vars_str = " ".join(["(%s : %s)" % (name.tostring(), var.tostring()) for name, var in self.vars.iteritems()])
-        return "#(linklet-instance %s %s)" % (self.name, vars_str)
+        exports_str = "".join(["(%s . %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
+        data_str = self.data.tostring()
+        return "(linklet-instance %s (%s) (%s) %s)" % (self.name, data_str, exports_str, vars_str)
 
     def get_name(self):
         return self.name
@@ -115,6 +117,9 @@ class W_LinkletBundle(W_Object):
     def __init__(self,bundle_mapping):
         self.bundle_mapping = bundle_mapping
 
+    def get_bundle_mapping(self):
+        return self.bundle_mapping
+
 @expose("hash->linklet-bundle", [W_Object])
 def hash_to_linklet_bundle(content):
     return W_LinkletBundle(content)
@@ -138,6 +143,9 @@ class W_LinkletDirectory(W_Object):
 
     def __init__(self,dir_mapping):
         self.dir_mapping = dir_mapping
+
+    def get_dir_mapping(self):
+        return self.dir_mapping
 
 @expose("hash->linklet-directory", [W_Object])
 def hash_to_linklet_directory(content):
@@ -217,18 +225,16 @@ class W_Linklet(W_Object):
 
     def tostring(self):
         forms_str = " ".join([f.tostring() for f in self.forms])
-        importss_str = ""
-        for imp_dict in self.importss:
-            imports_str = ""
-            for ext_name, int_name in imp_dict.iteritems():
-                imports_str += "(%s - %s) " % (ext_name.tostring(), int_name.tostring())
-            importss_str += "(%s) " % imports_str
+        importss_ls = [None]*len(self.importss)
 
-        exports_str = ""
-        for int_name, ext_name in self.exports.iteritems():
-            exports_str += "(%s - %s)," % (int_name.tostring(), ext_name.tostring())
+        for index, imp_dict in enumerate(self.importss):
+            importss_ls[index] = "".join(["(%s . %s)" % (ext_name.tostring(), int_name.tostring()) for ext_name, int_name in imp_dict.iteritems()])
 
-        return "#(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
+        importss_str = "".join(importss_ls)
+
+        exports_str = "".join(["(%s . %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
+
+        return "(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
 
     def instantiate(self, w_imported_instances, config, prompt=False, target=None, env=None, cont=None):
 
@@ -331,6 +337,7 @@ class W_Linklet(W_Object):
 
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
+        from pycket.expand import readfile_rpython, getkey
         """ Expands and loads a linklet from a JSON file"""
         data = readfile_rpython(json_file_name)
         json = pycket_json.loads(data)
