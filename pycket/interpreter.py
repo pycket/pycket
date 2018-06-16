@@ -2096,6 +2096,30 @@ class Letrec(SequencedBodyAST):
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
 
+    def write(self, port):
+        from pycket.prims.input_output import write_loop
+        port.write("(letrec-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            if count > 1:
+                port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port)
+                j += 1
+            if count > 1:
+                port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port)
+        port.write(")")
+
 def _make_symlist_counts(varss):
     counts = []
     argsl = []
@@ -2275,6 +2299,31 @@ class Let(SequencedBodyAST):
         result.append(" ".join([b.tostring() for b in self.body]))
         result.append(")")
         return "".join(result)
+
+    def write(self, port):
+        from pycket.prims.input_output import write_loop
+        port.write("(let-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            if count > 1:
+                port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port)
+                j += 1
+            if count > 1:
+                port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port)
+        port.write(")")
+
 
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
