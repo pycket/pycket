@@ -1049,12 +1049,8 @@ class App(AST):
         port.write("(")
         self.rator.write(port)
         for r in self.rands:
-            r.write(port)
             port.write(" ")
-        if self.env_structure is None:
-            port.write("[NONE_ENV_STRUCTURE]")
-        else:
-            self.env_structure.write(port)
+            r.write(port)
         port.write(")")
 
 class SimplePrimApp1(App):
@@ -1227,11 +1223,11 @@ class Begin0(SequencedBodyAST):
         return self.first, env, Begin0Cont(self, env, cont)
 
     def write(self, port):
-        port.write("(begin0 ")
+        port.write("(begin0")
         self.first.write(port)
         for b in self.body:
-            b.write(port)
             port.write(" ")
+            b.write(port)
         port.write(")")
 
 @specialize.call_location()
@@ -1292,10 +1288,10 @@ class Begin(SequencedBodyAST):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
     def write(self, port):
-        port.write("(begin ")
+        port.write("(begin")
         for b in self.body:
-            b.write(port)
             port.write(" ")
+            b.write(port)
         port.write(")")
 
 class BeginForSyntax(AST):
@@ -1316,10 +1312,10 @@ class BeginForSyntax(AST):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
     def write(self, port):
-        port.write("(begin-for-syntax ")
+        port.write("(begin-for-syntax")
         for b in self.body:
-            b.write(port)
             port.write(" ")
+            b.write(port)
         port.write(")")
 
 class Var(AST):
@@ -1349,11 +1345,7 @@ class Var(AST):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(var ")
         write_loop(self.sym, port)
-        port.write(" ")
-        self.env_structure.write(port)
-        port.write(")")
 
 class CellRef(Var):
     simple = True
@@ -1374,11 +1366,7 @@ class CellRef(Var):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(cell-ref ")
         write_loop(self.sym, port)
-        port.write(" ")
-        self.env_structure.write(port)
-        port.write(")")
 
 class GensymCounter(object):
     _attrs_ = ['_val']
@@ -1426,16 +1414,7 @@ class LinkletVar(Var):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(linklet-var ")
         write_loop(self.sym, port)
-        if self.w_value is None:
-            port.write("None")
-        else:
-            write_loop(self.w_value, port)
-        port.write(" ")
-        write_loop(self.constance, port)
-        port.write(" ")
-        port.write("%s)" % self.is_transparent)
 
     def _free_vars(self):
         return SymbolSet.EMPTY
@@ -1517,11 +1496,7 @@ class LexicalVar(Var):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(lexical-var ")
         write_loop(self.sym, port)
-        port.write(" ")
-        self.env_structure.write(port)
-        port.write(")")
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
@@ -1540,10 +1515,7 @@ class ModuleVar(Var):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(module-var ")
         write_loop(self.srcsym, port)
-        port.write(")")
-        assert self.srcmod == '#%kernel' and self.path is None and self.modenv is None and self.w_value is None
 
     def _lookup(self, env):
         w_res = self.w_value
@@ -1607,9 +1579,7 @@ class ToplevelVar(Var):
 
     def write(self, port):
         from pycket.prims.input_output import write_loop
-        port.write("(toplevel-var ")
         write_loop(self.sym, port)
-        port.write(")")
 
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
@@ -1778,6 +1748,14 @@ class CaseLambda(AST):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
         return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
+
+    def write(self, port):
+        from pycket.prims.input_output import write_loop
+        port.write("(case-lambda")
+        for l in self.lams:
+            port.write(" ")
+            l.write(port)
+        port.write(")")
 
     @jit.elidable_promote('all')
     def tostring_as_closure(self):
@@ -1978,6 +1956,32 @@ class Lambda(SequencedBodyAST):
                 " ".join([v.variable_name() for v in self.formals]),
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
+
+    def write(self, port):
+        from pycket.prims.input_output import write_loop
+        port.write("(lambda")
+        port.write(" ")
+        if self.rest and not self.formals:
+            write_loop(self.rest, port)
+        if self.rest:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port)
+                port.write(" ")
+            port.write(".")
+            port.write(" ")
+            write_loop(self.rest, port)
+            port.write(")")
+        else:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port)
+                port.write(" ")
+            port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port)
+        port.write(")")
 
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
@@ -2305,12 +2309,7 @@ class DefineValues(AST):
         port.write("(define-values (")
         for n in self.names:
             write_loop(n, port)
-        port.write(")")
-        port.write(" (")
-        for n in self.display_names:
-            write_loop(n, port)
         port.write(") ")
-
         self.rhs.write(port)
         port.write(")")
 

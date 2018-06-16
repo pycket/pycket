@@ -1024,31 +1024,23 @@ def do_write_cont(o, env, cont, _vals):
     return return_void(env, cont)
 
 def write_linklet_bundle_directory(v, port):
-    from pycket.prims.linklet import W_LinkletBundle, W_LinkletDirectory, W_Linklet
-    if isinstance(v, W_LinkletBundle):
+    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
+    if is_bundle(v):
         port.write("(B . ")
     else:
         port.write("(D . ")
     mapping = v.get_mapping()
-    assert isinstance(mapping, W_EqualHashTable)
-    for k, v in mapping.hash_items():
-        port.write("(")
-        write_loop(k, port)
-        port.write(" . ")
-        if isinstance(v, W_Linklet):
-            write_linklet(v, port)
-        elif isinstance(v, W_LinkletBundle) or isinstance(v, W_LinkletDirectory):
-            write_linklet_bundle_directory(v, port)
-        else:
-            write_loop(v, port)
-        port.write(")")
-
+    assert isinstance(mapping, W_EqualHashTable) or \
+        isinstance(mapping, W_EqImmutableHashTable)
+    write_loop(mapping, port)
     port.write(")")
 
 def write_linklet(v, port):
-    port.write("(linklet ")
+    port.write("(linklet")
+    port.write(" ")
     write_loop(v.get_name(), port)
-    port.write(" (")
+    port.write(" ")
+    port.write("(")
     importss = v.get_importss()
     for imp_dict in importss:
         port.write("(")
@@ -1059,8 +1051,8 @@ def write_linklet(v, port):
             write_loop(int_name, port)
             port.write(")")
         port.write(")")
-    port.write(") ")
-
+    port.write(")")
+    port.write(" ")
     port.write("(")
     exports = v.get_exports()
     for int_name, ext_name in exports.iteritems():
@@ -1069,16 +1061,17 @@ def write_linklet(v, port):
         port.write(" . ")
         write_loop(ext_name, port)
         port.write(")")
-    port.write(") ")
+    port.write(")")
 
     forms = v.get_forms()
     for form in forms:
+        port.write(" ")
         form.write(port)
     port.write(")")
 
 
 def write_loop(v, port):
-    from pycket.prims.linklet import W_LinkletBundle, W_Linklet, W_LinkletDirectory
+    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
     from pycket.vector import W_Vector
 
     if isinstance(v, values.W_Cons):
@@ -1114,10 +1107,10 @@ def write_loop(v, port):
 
     elif isinstance(v, W_Vector):
         items = v.get_strategy().ref_all(v)
-        port.write("(vector [strategy] ")
+        port.write("(vector")
         for obj in items:
-            write_loop(obj, port)
             port.write(" ")
+            write_loop(obj, port)
         port.write(")")
 
     elif isinstance(v, values.W_Character):
@@ -1162,7 +1155,10 @@ def write_loop(v, port):
             port.write("(")
             write_loop(k, port)
             port.write(" . ")
-            write_loop(v, port)
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port)
+            else:
+                write_loop(v, port)
             port.write(")")
         port.write(")")
     elif isinstance(v, W_EqualHashTable):
@@ -1171,19 +1167,23 @@ def write_loop(v, port):
             port.write("(")
             write_loop(k, port)
             port.write(" . ")
-            write_loop(v, port)
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port)
+            else:
+                write_loop(v, port)
             port.write(")")
         port.write(")")
 
     elif isinstance(v, W_Linklet):
         write_linklet(v, port)
 
-    elif isinstance(v, W_LinkletBundle) or isinstance(v, W_LinkletDirectory):
+    elif is_bundle(v) or is_directory(v):
         from pycket.env import w_version
 
         port.write("#~")
         port.write("(%s)" % w_version.get_version())
         write_linklet_bundle_directory(v, port)
+        port.write("\n")
 
     else:
         port.write(v.tostring())

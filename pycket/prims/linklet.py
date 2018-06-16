@@ -818,6 +818,12 @@ make_pred("linklet-directory?", W_LinkletDirectory)
 
 make_pred("linklet-bundle?", W_LinkletBundle)
 
+# for internal use
+def is_directory(v):
+    return isinstance(v, W_LinkletDirectory)
+def is_bundle(v):
+    return isinstance(v, W_LinkletBundle)
+
 @expose("make-instance") #FIXME: [W_Object, W_Object, [W_Symbol, W_Object] ....]
 def make_instance(args): # name, data, *vars_vals
 
