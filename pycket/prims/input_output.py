@@ -1620,7 +1620,6 @@ def mock_prompt_thunk_worker(env, cont):
     (let ([in ((current-get-interaction-input-port))])
     ((current-read-interaction) (object-name in) in)))"""
 
-    #sysconfig = env.toplevel_env().globalconfig.get_config()
     pycketconfig = env.toplevel_env()._pycketconfig
     from pycket.interpreter import return_value
 
@@ -1630,8 +1629,7 @@ def mock_prompt_thunk_worker(env, cont):
     rs = get_primitive("read-syntax")
     obj_name = values.W_Symbol.make("readline-input")
 
-    return return_value(rs.call_interpret([obj_name, stdin_port], pycketconfig), env, cont)
-
+    return rs.call([obj_name, stdin_port], env, cont)
 
 @expose("current-prompt-read", [], simple=True)
 def mock_current_prompt_read():

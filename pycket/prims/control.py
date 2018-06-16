@@ -459,6 +459,8 @@ def call_with_continuation_prompt(args, env, cont):
     if handler is values.w_false:
         handler = None
     cont = Prompt(tag, handler, env, cont)
+    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+    cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
     return fun.call(args, env, cont)
 
 @expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)
