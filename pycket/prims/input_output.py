@@ -1023,8 +1023,63 @@ def do_write_cont(o, env, cont, _vals):
     write_loop(o,port)
     return return_void(env, cont)
 
+def write_linklet_bundle_directory(v, port):
+    from pycket.prims.linklet import W_LinkletBundle, W_LinkletDirectory, W_Linklet
+    if isinstance(v, W_LinkletBundle):
+        port.write("(B . ")
+    else:
+        port.write("(D . ")
+    mapping = v.get_mapping()
+    assert isinstance(mapping, W_EqualHashTable)
+    for k, v in mapping.hash_items():
+        port.write("(")
+        write_loop(k, port)
+        port.write(" . ")
+        if isinstance(v, W_Linklet):
+            write_linklet(v, port)
+        elif isinstance(v, W_LinkletBundle) or isinstance(v, W_LinkletDirectory):
+            write_linklet_bundle_directory(v, port)
+        else:
+            write_loop(v, port)
+        port.write(")")
+
+    port.write(")")
+
+def write_linklet(v, port):
+    port.write("(linklet ")
+    write_loop(v.get_name(), port)
+    port.write(" (")
+    importss = v.get_importss()
+    for imp_dict in importss:
+        port.write("(")
+        for ext_name, int_name in imp_dict.iteritems():
+            port.write("(")
+            write_loop(ext_name, port)
+            port.write(" . ")
+            write_loop(int_name, port)
+            port.write(")")
+        port.write(")")
+    port.write(") ")
+
+    port.write("(")
+    exports = v.get_exports()
+    for int_name, ext_name in exports.iteritems():
+        port.write("(")
+        write_loop(int_name, port)
+        port.write(" . ")
+        write_loop(ext_name, port)
+        port.write(")")
+    port.write(") ")
+
+    forms = v.get_forms()
+    for form in forms:
+        form.write(port)
+    port.write(")")
+
+
 def write_loop(v, port):
-    from pycket.prims.linklet import W_LinkletBundle
+    from pycket.prims.linklet import W_LinkletBundle, W_Linklet, W_LinkletDirectory
+    from pycket.vector import W_Vector
 
     if isinstance(v, values.W_Cons):
         cur = v
@@ -1056,6 +1111,14 @@ def write_loop(v, port):
         port.write(" . ")
         write_loop(v.cdr(), port)
         port.write("}")
+
+    elif isinstance(v, W_Vector):
+        items = v.get_strategy().ref_all(v)
+        port.write("(vector [strategy] ")
+        for obj in items:
+            write_loop(obj, port)
+            port.write(" ")
+        port.write(")")
 
     elif isinstance(v, values.W_Character):
         #from rpython.rlib import runicode
@@ -1112,16 +1175,15 @@ def write_loop(v, port):
             port.write(")")
         port.write(")")
 
-    elif isinstance(v, W_LinkletBundle):
+    elif isinstance(v, W_Linklet):
+        write_linklet(v, port)
+
+    elif isinstance(v, W_LinkletBundle) or isinstance(v, W_LinkletDirectory):
         from pycket.env import w_version
 
         port.write("#~")
         port.write("(%s)" % w_version.get_version())
-        # The #~ and version needs to move up
-        # (e.g. there will be multiple bundles in a linklet directory)
-        port.write("(B . ")
-        write_loop(v.get_bundle_mapping(), port)
-        port.write(")")
+        write_linklet_bundle_directory(v, port)
 
     else:
         port.write(v.tostring())

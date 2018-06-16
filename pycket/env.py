@@ -79,6 +79,9 @@ class SymList(object):
     def __repr__(self):
         return "SymList(%r, %r)" % (self.elems, self.prev)
 
+    def write(self, port):
+        port.write("[ENV_STURCTURE_SYMLIST]")
+
 class ModuleEnv(object):
     _immutable_fields_ = ["modules", "toplevel_env"]
     def __init__(self, toplevel_env):

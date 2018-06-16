@@ -117,7 +117,7 @@ class W_LinkletBundle(W_Object):
     def __init__(self,bundle_mapping):
         self.bundle_mapping = bundle_mapping
 
-    def get_bundle_mapping(self):
+    def get_mapping(self):
         return self.bundle_mapping
 
 @expose("hash->linklet-bundle", [W_Object])
@@ -144,7 +144,7 @@ class W_LinkletDirectory(W_Object):
     def __init__(self,dir_mapping):
         self.dir_mapping = dir_mapping
 
-    def get_dir_mapping(self):
+    def get_mapping(self):
         return self.dir_mapping
 
 @expose("hash->linklet-directory", [W_Object])
@@ -222,6 +222,18 @@ class W_Linklet(W_Object):
         # again, may be the same if it's not renamed
 
         self.forms = all_forms # [..., AST ,...]
+
+    def get_name(self):
+        return self.name
+
+    def get_importss(self):
+        return self.importss
+
+    def get_exports(self):
+        return self.exports
+
+    def get_forms(self):
+        return self.forms
 
     def tostring(self):
         forms_str = " ".join([f.tostring() for f in self.forms])
