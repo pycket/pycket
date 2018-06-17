@@ -397,8 +397,7 @@ def default_error_display_handler(msg, exn_object, env, cont):
     from pycket.prims.input_output import current_error_param, return_void
     port = current_error_param.get(cont)
 
-    port.write(msg.tostring())
-    port.write("\n")
+    port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
     # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
     return return_void(env, cont)
 
@@ -422,11 +421,11 @@ def default_uncaught_exception_handler(exn, env, cont):
     # racket/src/cs/rumble/error.ss
 
     #FIXME : handle Breaks
-    from pycket.prims.general import exn_fail
+    offset = exn.struct_type().get_offset(exn.struct_type())
+    original_field_num = 0 # this is for the message field in exceptions
+    message_field_index = values.W_Fixnum(original_field_num-offset)
 
-    message_field = values.W_Fixnum(-2) # -2! really?
-
-    return exn_fail.accessor.call([exn, message_field], env, display_escape_cont(exn, env, cont))
+    return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
 
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
 def default_continuation_prompt_handler(proc, env, cont):
