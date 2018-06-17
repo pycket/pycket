@@ -1074,7 +1074,7 @@ class W_StructAccessor(values.W_Procedure):
             raise SchemeException("%s got %s" % (self.tostring(), struct.tostring()))
         offset = st.get_offset(self.type)
         if offset == -1:
-            raise SchemeException("cannot reference an identifier before its definition")
+            raise SchemeException("cannot access field of the struct : %s" % st.name.tostring())
         return struct.ref_with_extra_info(field + offset, app, env, cont)
 
     @make_call_method([values.W_Object, values.W_Fixnum], simple=False,
