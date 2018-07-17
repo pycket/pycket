@@ -2102,15 +2102,13 @@ class Letrec(SequencedBodyAST):
         j = 0
         for i, count in enumerate(self.counts):
             port.write("(")
-            if count > 1:
-                port.write("(")
+            port.write("(")
             for k in range(count):
                 if k > 0:
                     port.write(" ")
                 write_loop(self.args.elems[j], port)
                 j += 1
-            if count > 1:
-                port.write(")")
+            port.write(")")
             port.write(" ")
             self.rhss[i].write(port)
             port.write(")")
@@ -2306,15 +2304,13 @@ class Let(SequencedBodyAST):
         j = 0
         for i, count in enumerate(self.counts):
             port.write("(")
-            if count > 1:
-                port.write("(")
+            port.write("(")
             for k in range(count):
                 if k > 0:
                     port.write(" ")
                 write_loop(self.args.elems[j], port)
                 j += 1
-            if count > 1:
-                port.write(")")
+            port.write(")")
             port.write(" ")
             self.rhss[i].write(port)
             port.write(")")
