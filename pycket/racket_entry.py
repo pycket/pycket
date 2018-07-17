@@ -1,6 +1,6 @@
 from pycket.prims.linklet import W_Linklet, to_rpython_list, do_compile_linklet, W_LinkletInstance
 from pycket.interpreter import check_one_val, Done
-from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, W_Path, W_ThreadCell
+from pycket.values import W_Symbol, W_WrappedConsProper, w_null, W_Object, Values, w_false, w_true, W_Path, W_ThreadCell
 from pycket.values_string import W_String
 from pycket.vector import W_Vector
 from pycket.expand import JsonLoader
@@ -118,6 +118,10 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     lib_coll_paths = flcp.call_interpret([], pycketconfig)
     clcp = get_primitive("current-library-collection-paths")
     clcp.call_interpret([lib_coll_paths], pycketconfig)
+
+    console_log("(read-accept-compiled true)")
+    read_accept_compiled = get_primitive("read-accept-compiled")
+    read_accept_compiled.call_interpret([w_true], pycketconfig)
 
     console_log("(use-compiled-file-paths null)")
     # don't use compiled code
