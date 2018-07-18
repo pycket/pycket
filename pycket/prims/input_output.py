@@ -1125,9 +1125,7 @@ def write_loop(v, port):
         port.write(string_escape_encode(v.as_str_utf8(), '"'))
 
     elif isinstance(v, values.W_Bytes):
-        port.write('#"')
         port.write(v.tostring()) # FIXME: need to encode special chars
-        port.write('"')
     elif isinstance(v, values.W_Symbol):
         port.write(v.tostring()) # FIXME: handle special chars
 
