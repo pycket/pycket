@@ -1041,7 +1041,7 @@ class BytesMixin(object):
 
     def tostring(self):
         # TODO: No printable byte values should be rendered as base 8
-        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
+        return "#\"%s\"" % "".join(["\\%o" % ord(i) for i in self.value])
 
     def as_bytes_list(self):
         return self.value
