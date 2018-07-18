@@ -1115,8 +1115,27 @@ def write_loop(v, port):
 
     elif isinstance(v, values.W_Character):
         #from rpython.rlib import runicode
-        if v.value == '\0':
-            port.write("#\nul")
+
+        if v.value == u'\x00':
+            port.write("#\\nul")
+        elif v.value == u'\x08':
+            port.write("#\\backspace")
+        elif v.value == u'\t':
+            port.write("#\\tab")
+        elif v.value == u'\n':
+            port.write("#\\newline")
+        elif v.value == u'\x0b':
+            port.write("#\\vtab")
+        elif v.value == u'\x0c':
+            port.write("#\\page")
+        elif v.value == u'\r':
+            port.write("#\\return")
+        elif v.value == u' ':
+            port.write("#\\space")
+        elif v.value == u'\x7f':
+            port.write("#\\rubout")
+
+
         else:
             port.write(v.tostring())
 
