@@ -349,9 +349,11 @@ class W_Linklet(W_Object):
     @staticmethod # json_file_name -> W_Linklet
     def load_linklet(json_file_name, loader):
         from pycket.expand import readfile_rpython, getkey
+        from pycket.util import console_log
         """ Expands and loads a linklet from a JSON file"""
         data = readfile_rpython(json_file_name)
         json = pycket_json.loads(data)
+        console_log("Finished reading JSON from %s" % json_file_name, 2)
         assert json.is_object
         json_python_dict = json.value_object()
         assert "linklet" in json_python_dict
@@ -390,6 +392,8 @@ class W_Linklet(W_Object):
                     instance_imports[sym] = sym
                 importss[index] = instance_imports
 
+        console_log("Converting linklet forms to AST ...", 2)
+                
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
             form = loader.to_ast(body_form)
@@ -397,6 +401,8 @@ class W_Linklet(W_Object):
             form = assign_convert(form)
             form.clean_caches()
             all_forms.append(form)
+
+        console_log("Finished converting linklet forms to AST ...", 2)
 
         config = {}
         config_obj = getkey(linklet_dict, "config", type='o')
