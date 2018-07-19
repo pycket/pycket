@@ -144,8 +144,9 @@ class W_String(W_Object):
 
     def tostring(self):
         from pypy.objspace.std.bytesobject import string_escape_encode
-        assert self.as_str_utf8() is not None
-        return string_escape_encode(self.as_str_utf8(), '"')
+        r = self.as_str_utf8()
+        assert r is not None
+        return r
 
     def setitem(self, index, unichar):
         raise SchemeException("can't mutate string")
