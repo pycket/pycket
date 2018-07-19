@@ -931,6 +931,36 @@ def open_outfile(w_str, mode, exists):
     # FIXME : handle different exists modes (e.g. replace)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
+@expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
+def rename_file_or_directory(o, n, exists_ok):
+    from pycket.prims.general import exn_fail_fs
+
+    old = extract_path(o)
+    new = extract_path(n)
+
+    # Unless exists-ok? is provided as a true value, new cannot refer
+    # to an existing file or directory, but the check is not atomic
+    # with the rename operation on Unix and Mac OS. Even if exists-ok?
+    # is true, new cannot refer to an existing file when old is a
+    # directory, and vice versa.
+
+    if exists_ok is values.w_false and os.path.exists(new):
+        raise SchemeException("%s already exists" % new, exn_fail_fs)
+
+    if exists_ok is not values.w_false:
+        if os.path.isdir(old) and os.path.isfile(new):
+            raise SchemeException("%s is an existing file while %s is a directory" % (new, old), exn_fail_fs)
+
+        if os.path.isdir(new) and os.path.isfile(old):
+            raise SchemeException("%s is an existing file while %s is a directory" % (old, new), exn_fail_fs)
+
+    try:
+        os.rename(old, new)
+    except OSError:
+        raise SchemeException("rename-file-or-directory : cannot move file : %s to %s" % (old, new), exn_fail_fs)
+
+    return values.w_void
+
 @expose("call-with-input-file", [values.W_Object,
                                  values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
