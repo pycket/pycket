@@ -1366,6 +1366,7 @@ def load(lib, env, cont):
     #return ast, env, cont
 
 expose_val("current-load-relative-directory", values_parameter.W_Parameter(values.w_false))
+expose_val("current-write-relative-directory", values_parameter.W_Parameter(values.w_false))
 
 @make_procedure("current-directory-guard", [values.W_Object], simple=False)
 def current_directory_guard(path, env, cont):
