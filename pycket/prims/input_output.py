@@ -570,6 +570,20 @@ def directory_exists(w_str):
     s = extract_path(w_str)
     return values.W_Bool.make(os.path.isdir(s))
 
+@expose("make-directory", [values.W_Object])
+def make_directory(p):
+    from pycket.prims.general import exn_fail_fs
+    s = extract_path(p)
+    if os.path.isdir(s):
+        raise SchemeException("make-directory: cannot make directory; path already exists : %s" % s, exn_fail_fs)
+
+    try:
+        os.mkdir(s)
+    except OSError:
+        raise SchemeException("make-directory: cannot make directory : %s" % s, exn_fail_fs)
+
+    return values.w_void
+
 @expose("file-exists?", [values.W_Object])
 def file_exists(w_str):
     s = extract_path(w_str)
