@@ -1308,7 +1308,7 @@ class W_Keyword(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
-        return "'#:%s" % self.value
+        return "#:%s" % self.value
 
 class W_Procedure(W_Object):
     _attrs_ = []
