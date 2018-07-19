@@ -515,6 +515,13 @@ def open_input_file(path, mode, mod_mode):
     m = "r" if mode is w_text_sym else "rb"
     return open_infile(path, m)
 
+w_error_sym = values.W_Symbol.make("error")
+w_append_sym = values.W_Symbol.make("append")
+w_update_sym = values.W_Symbol.make("update")
+w_replace_sym = values.W_Symbol.make("replace")
+w_truncate_sym = values.W_Symbol.make("truncate")
+w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
+
 @expose("open-output-file", [values.W_Object,
                              default(values.W_Symbol, w_binary_sym),
                              default(values.W_Symbol, w_error_sym)])
@@ -522,7 +529,7 @@ def open_output_file(path, mode, exists):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
         raise SchemeException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
-    return open_outfile(path, m)
+    return open_outfile(path, m, exists)
 
 @expose("close-input-port", [values.W_Object], simple=False)
 def close_input_port(port, env, cont):
@@ -907,11 +914,21 @@ def open_infile(w_str, mode):
 
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
-def open_outfile(w_str, mode):
+def open_outfile(w_str, mode, exists):
+    from pycket.prims.general import exn_fail_fs
     s = extract_path(w_str)
+    if exists is w_error_sym and os.path.exists(s):
+        raise SchemeException("File exists : %s" % s, exn_fail_fs)
     if not os.path.exists(s):
-        raise SchemeException("No such file or directory : %s" % s)
+        # then touch the file
+        # it's not clear to me at the moment how to create while
+        # opening the file through the rlib.streamio
+        try:
+            open(s, 'a').close()
+        except OSError:
+            raise SchemeException("open-output-file : cannot open file : %s" % s, exn_fail_fs)
 
+    # FIXME : handle different exists modes (e.g. replace)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
 
 @expose("call-with-input-file", [values.W_Object,
@@ -922,13 +939,6 @@ def call_with_input_file(s, proc, mode, env, cont):
     m = "r" if mode is w_text_sym else "rb"
     port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
-
-w_error_sym = values.W_Symbol.make("error")
-w_append_sym = values.W_Symbol.make("append")
-w_update_sym = values.W_Symbol.make("update")
-w_replace_sym = values.W_Symbol.make("replace")
-w_truncate_sym = values.W_Symbol.make("truncate")
-w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
 
 @expose("call-with-output-file", [values.W_Object,
                                   values.W_Object,
@@ -945,7 +955,7 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
         raise SchemeException("mode not yet supported: %s" % exists.tostring())
     if mode is not w_text_sym:
         m += "b"
-    port = open_outfile(s, m)
+    port = open_outfile(s, m, exists)
     return proc.call([port], env, close_cont(port, env, cont))
 
 @expose("with-input-from-file", [values.W_Object, values.W_Object,
@@ -966,7 +976,7 @@ def with_output_to_file(s, proc, mode, exists, env, cont):
     # XXX mode and exists are currently ignored, they need to be translated into
     # the proper mode string.
     from pycket.prims.parameter import call_with_extended_paramz
-    port = open_outfile(s, "wb")
+    port = open_outfile(s, "wb", exists)
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
