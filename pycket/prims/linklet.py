@@ -245,7 +245,7 @@ class W_Linklet(W_Object):
 
         exports_str = "".join(["(%s %s)" % (int_name.tostring(), ext_name.tostring()) for int_name, ext_name in self.exports.iteritems()])
 
-        return "(linklet %s (%s) (%s) %s)" % (self.name, importss_str, exports_str, forms_str)
+        return "(linklet %s (%s) (%s) %s)" % (self.name.tostring(), importss_str, exports_str, forms_str)
 
     def instantiate(self, w_imported_instances, config, prompt=False, target=None, env=None, cont=None):
 
@@ -964,6 +964,8 @@ def read_compiled_linklet(in_port, env, cont):
 
     return return_value(read_loop(data), env, cont)
 
+path_sym = W_Symbol.make("p+")
+
 def read_loop(sexp):
     # Work in progress
 
@@ -1032,6 +1034,9 @@ def read_loop(sexp):
                 body_forms[i] = b_form
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
+        elif c is path_sym:
+            path_str = sexp.cdr().car().tostring()
+            return W_Path(path_str)
         else:
             new = w_null
             while sexp is not w_null:
