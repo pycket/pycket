@@ -766,6 +766,17 @@ class W_Struct(W_RootStruct):
         key_and_values_all_str = [prefab_key.short_key().tostring()] + [val.tostring() for val in self.vals()]
         return ("#s(%s)" % (' '.join(key_and_values_all_str)))
 
+    def write_prefab(self, port, env):
+        from pycket.prims.input_output import write_loop
+        prefab_key = W_PrefabKey.from_struct_type(self.struct_type())
+        port.write("#s( ")
+        sk = prefab_key.short_key().tostring()
+        port.write(sk)
+        for val in self.vals():
+            port.write(" ")
+            write_loop(val, port, env)
+        port.write(")")
+
     @jit.unroll_safe
     def tostring_values(self, fields, w_type, is_super=False):
         " fill fields with tostring() version of field if applicable "
@@ -789,6 +800,43 @@ class W_Struct(W_RootStruct):
     def _string_from_list(self, l):
         return ' '.join([s for s in l if s is not None])
 
+    def write_values(self, port, w_type, env):
+        from pycket.prims.input_output import write_loop
+        assert isinstance(w_type, W_StructType)
+        w_super = w_type.super
+        has_super = isinstance(w_super, W_StructType)
+        if has_super:
+            self.write_values(port, w_super, env)
+        offset = self.struct_type().get_offset(w_type)
+        count = w_type.total_field_cnt
+        if has_super:
+            count -= w_super.total_field_cnt
+        for i in range(offset, offset + count):
+            write_loop(self._ref(i), port, env)
+            port.write(" ")
+
+    def write(self, port, env):
+        w_type = self.struct_type()
+        typename = w_type.name.utf8value
+        if w_type.isprefab:
+            self.write_prefab(port, env)
+        elif w_type.all_opaque():
+            port.write("#<%s>" % typename)
+        else:
+            w_val = w_type.read_prop(w_prop_custom_write)
+            if w_val is not None:
+                pycketconfig = env.toplevel_env()._pycketconfig
+                assert isinstance(w_val, values_vector.W_Vector)
+                w_write_proc = w_val.ref(0)
+                # #t for write mode, #f for display mode,
+                # or 0 or 1 indicating the current quoting depth for print mode
+                mode = values.w_true
+                w_write_proc.call_interpret([self, port, mode], pycketconfig)
+            else:
+                port.write("(%s " % typename)
+                self.write_values(port, w_type, env)
+                port.write(")")
+
     def tostring(self):
         w_type = self.struct_type()
         typename = w_type.name.utf8value
@@ -805,7 +853,8 @@ class W_Struct(W_RootStruct):
         else:
             fields = [None] * w_type.total_field_cnt
             self.tostring_values(fields=fields, w_type=w_type, is_super=False)
-            return "(%s %s)" % (typename, self._string_from_list(fields))
+            custom_huh = w_type.read_prop(w_prop_custom_write)
+            return "(%s %s -- custom-write : %s)" % (typename, self._string_from_list(fields), custom_huh)
 
 """
 This method generates a new structure class with inline stored immutable #f
