@@ -1064,7 +1064,7 @@ def write(o, p, env, cont):
         if w_custom_writer is not None and w_custom_writer.iscallable():
             if not p:
                 p = current_out_param.get(cont)
-            return w_custom_writer.call([o, p, values.W_Fixnum(1)], env, cont)
+            return w_custom_writer.call([o, p, values.w_true], env, cont)
 
     cont = do_write_cont(o, env, cont)
     return get_output_port(p, env, cont)
@@ -1074,10 +1074,10 @@ def do_write_cont(o, env, cont, _vals):
     from pycket.interpreter import check_one_val, return_value
     port = check_one_val(_vals)
     assert isinstance(port, values.W_OutputPort)
-    write_loop(o,port)
+    write_loop(o, port, env)
     return return_void(env, cont)
 
-def write_linklet_bundle_directory(v, port):
+def write_linklet_bundle_directory(v, port, env):
     from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
     if is_bundle(v):
         port.write("(:B: . ")
@@ -1086,13 +1086,14 @@ def write_linklet_bundle_directory(v, port):
     mapping = v.get_mapping()
     assert isinstance(mapping, W_EqualHashTable) or \
         isinstance(mapping, W_EqImmutableHashTable)
-    write_loop(mapping, port)
+    write_loop(mapping, port, env)
     port.write(")")
 
-def write_linklet(v, port):
+def write_linklet(v, port, env):
+    print(v.tostring())
     port.write("(linklet")
     port.write(" ")
-    write_loop(v.get_name(), port)
+    write_loop(v.get_name(), port, env)
     port.write(" ")
     port.write("(")
     importss = v.get_importss()
@@ -1100,9 +1101,9 @@ def write_linklet(v, port):
         port.write("(")
         for ext_name, int_name in imp_dict.iteritems():
             port.write("(")
-            write_loop(ext_name, port)
+            write_loop(ext_name, port, env)
             port.write(" ")
-            write_loop(int_name, port)
+            write_loop(int_name, port, env)
             port.write(")")
         port.write(")")
     port.write(")")
@@ -1111,28 +1112,28 @@ def write_linklet(v, port):
     exports = v.get_exports()
     for int_name, ext_name in exports.iteritems():
         port.write("(")
-        write_loop(int_name, port)
+        write_loop(int_name, port, env)
         port.write(" ")
-        write_loop(ext_name, port)
+        write_loop(ext_name, port, env)
         port.write(")")
     port.write(")")
 
     forms = v.get_forms()
     for form in forms:
         port.write(" ")
-        form.write(port)
+        form.write(port, env)
     port.write(")")
 
-
-def write_loop(v, port):
+def write_loop(v, port, env):
     from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
     from pycket.vector import W_Vector
+    from pycket.values_struct import W_Struct
 
     if isinstance(v, values.W_Cons):
         cur = v
         port.write("(")
         while isinstance(cur, values.W_Cons):
-            write_loop(cur.car(), port)
+            write_loop(cur.car(), port, env)
             cur = cur.cdr()
             if isinstance(cur, values.W_Cons):
                 # there will be more elements
@@ -1143,20 +1144,20 @@ def write_loop(v, port):
             port.write(")")
         else:
             port.write(" . ")
-            write_loop(cur, port)
+            write_loop(cur, port, env)
             port.write(")")
     elif isinstance(v, values.W_MBox):
         port.write("#&")
-        write_loop(v.value, port)
+        write_loop(v.value, port, env)
     elif isinstance(v, values.W_IBox):
         port.write("#&")
-        write_loop(v.value, port)
+        write_loop(v.value, port, env)
 
     elif isinstance(v, values.W_MCons):
         port.write("{")
-        write_loop(v.car(), port)
+        write_loop(v.car(), port, env)
         port.write(" . ")
-        write_loop(v.cdr(), port)
+        write_loop(v.cdr(), port, env)
         port.write("}")
 
     elif isinstance(v, W_Vector):
@@ -1164,7 +1165,7 @@ def write_loop(v, port):
         port.write("#(")
         for obj in items:
             port.write(" ")
-            write_loop(obj, port)
+            write_loop(obj, port, env)
         port.write(")")
 
     elif isinstance(v, values.W_Character):
@@ -1206,47 +1207,47 @@ def write_loop(v, port):
         port.write("#hash(")
         for k, v in v.data.iteritems():
             port.write("(")
-            write_loop(k, port)
+            write_loop(k, port, env)
             port.write(" . ")
-            write_loop(v, port)
+            write_loop(v, port, env)
             port.write(")")
         port.write(")")
     elif isinstance(v, W_EqvImmutableHashTable):
         port.write("#hasheqv(")
         for k, v in v.iteritems():
             port.write("(")
-            write_loop(k, port)
+            write_loop(k, port, env)
             port.write(" . ")
-            write_loop(v, port)
+            write_loop(v, port, env)
             port.write(")")
         port.write(")")
     elif isinstance(v, W_EqImmutableHashTable):
         port.write("#hasheq(")
         for k, v in v.iteritems():
             port.write("(")
-            write_loop(k, port)
+            write_loop(k, port, env)
             port.write(" . ")
             if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port)
+                write_linklet_bundle_directory(v, port, env)
             else:
-                write_loop(v, port)
+                write_loop(v, port, env)
             port.write(")")
         port.write(")")
     elif isinstance(v, W_EqualHashTable):
         port.write("#hash(")
         for k, v in v.hash_items():
             port.write("(")
-            write_loop(k, port)
+            write_loop(k, port, env)
             port.write(" . ")
             if is_bundle(v) or is_directory(v):
-                write_linklet_bundle_directory(v, port)
+                write_linklet_bundle_directory(v, port, env)
             else:
-                write_loop(v, port)
+                write_loop(v, port, env)
             port.write(")")
         port.write(")")
 
     elif isinstance(v, W_Linklet):
-        write_linklet(v, port)
+        write_linklet(v, port, env)
 
     elif is_bundle(v) or is_directory(v):
         from pycket.env import w_version
@@ -1256,9 +1257,14 @@ def write_loop(v, port):
         len_version = len(version)
 
         port.write("((%s)" % version)
-        write_linklet_bundle_directory(v, port)
+        write_linklet_bundle_directory(v, port, env)
         port.write(")\n")
 
+    elif isinstance(v, W_Struct):
+        v.write(port, env)
+
+    elif isinstance(v, values.W_Path):
+        v.write(port, env)
     else:
         port.write(v.tostring())
 
@@ -1396,6 +1402,7 @@ def cur_print_proc(args, env, cont, extra_call_info):
     from pycket.interpreter import return_value
     v = args[0]
     port = current_out_param.get(cont)
+    assert isinstance(port, values.W_OutputPort)
     if v is not values.w_void:
         port.write(v.tostring())
         port.write("\n")
@@ -1642,6 +1649,7 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
         to_write = w_bstr[start:slice_stop]
 
     # FIXME: we fake here
+    assert isinstance(w_port, values.W_OutputPort)
     w_port.write("".join(to_write))
     return stop - start
 

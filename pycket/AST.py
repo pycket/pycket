@@ -139,7 +139,7 @@ class AST(object):
     def _tostring(self):
         return "UNKNOWN AST: "
 
-    def write(self, port):
+    def write(self, port, env):
         port.write(self.tostring())
 
     def __str__(self):

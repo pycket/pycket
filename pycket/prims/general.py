@@ -1391,6 +1391,7 @@ def current_directory_guard(path, env, cont):
         raise SchemeException("path doesn't exist : %s" % path_str)
 
     out_port = input_output.current_out_param.get(cont)
+    assert isinstance(out_port, values.W_OutputPort)
     out_port.write("; now in %s\n" % new_current_dir)
 
     return return_value(values.W_Path(new_current_dir), env, cont)

@@ -950,6 +950,9 @@ class W_Path(W_Object):
         if not isinstance(other, W_Path):
             return False
         return self.path == other.path
+    def write(self, port, env):
+        port.write("(p+ %s)" % self.path)
+
     def tostring(self):
         return "#<path:%s>" % self.path
 

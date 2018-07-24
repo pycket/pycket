@@ -397,6 +397,7 @@ def default_error_display_handler(msg, exn_object, env, cont):
     from pycket.prims.input_output import current_error_param, return_void
     port = current_error_param.get(cont)
 
+    assert isinstance(port, values.W_OutputPort)
     port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
     # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
     return return_void(env, cont)
