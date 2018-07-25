@@ -393,7 +393,7 @@ class W_Linklet(W_Object):
                 importss[index] = instance_imports
 
         console_log("Converting linklet forms to AST ...", 2)
-                
+
         all_forms = []
         for body_form in getkey(linklet_dict, "body", type='a'):
             form = loader.to_ast(body_form)
@@ -494,10 +494,14 @@ def is_imported(id_sym, linkl_importss):
     return False
 
 def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, is_letrec, cell_ref):
-    if not len(to_rpython_list(let_sexp)) == 3:
+
+    let_ls = to_rpython_list(let_sexp)
+
+    # just a sanity check
+    if not (let_ls[0] is W_Symbol.make("let-values") or (let_ls[0] is W_Symbol.make("letrec-values") and is_letrec)):
         raise SchemeException("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
-    varss_rhss = to_rpython_list(let_sexp.cdr().car()) # a little inefficient but still..
+    varss_rhss = to_rpython_list(let_ls[1])
 
     varss_list = [None] * len(varss_rhss)
     rhss_list = [None] * len(varss_rhss)
@@ -529,15 +533,19 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
             ids[index] = var_ # W_Symbol
             index += 1
 
-    body = sexp_to_ast(let_sexp.cdr().cdr().car(), ids + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
+    let_body_ls = let_ls[2:]
+    body_ls = [None]*len(let_body_ls)
+
+    for index, b in enumerate(let_body_ls):
+        body_ls[index] = sexp_to_ast(b, ids + lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
 
     if len(varss_rhss) == 0:
-        return Begin.make([body])
+        return Begin.make(body_ls)
 
     if is_letrec:
-        return make_letrec(list(varss_list), list(rhss_list), [body])
+        return make_letrec(list(varss_list), list(rhss_list), body_ls)
     else:
-        return make_let(varss_list, rhss_list, [body])
+        return make_let(varss_list, rhss_list, body_ls)
 
 def is_val_type(form):
     val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes]
