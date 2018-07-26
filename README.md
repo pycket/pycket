@@ -38,6 +38,28 @@ You can also use `make` for any of the above,
  * `make pycket-c` to translate with JIT
  * `make pycket-c-nojit` to translate without JIT (which is may be a lot faster to translate but runs a lot lot slower)
 
+## Using Compiled Files
+
+Pycket is able to generate and use its own `.zo` files. For now both
+the generation and the use are manual.
+
+To generate a `.zo` file for a `.rkt` source file, use `make
+compile-file`:
+
+    $ make compile-file FILE=$(PLTHOME)/racket/collects/racket/private/qq-and-or.rkt
+
+The parameter that enables Racket expander to use compiled code is
+`use-compiled-file-paths`, which for now defaults to `null` in Pycket
+(because we don't have all the Racket modules compiled yet).
+
+To use compiled code, just tell Pycket where to find them:
+
+    pycket-repl> (use-compiled-file-paths (list "pycket-compiled"))
+    pycket-repl> (#%require racket/private/qq-and-or)
+
+Note that `pycket-compiled` is a folder that `make compile-file` is
+going to generate by itself.
+
 ## Environment Variables
 
 Running the interpreter on cpython or pypy requires a `PYTHONPATH`
