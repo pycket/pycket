@@ -787,6 +787,13 @@ class Require(AST):
         self.path = path
         self.loader = loader
 
+    def to_sexp(self):
+        if self.path:
+            return values.to_list([W_Symbol.make("require"),
+                                   values.to_list_improper([W_Symbol.make("submod"), self.fname, values.to_list(self.path)])])
+        else:
+            return values.to_list([W_Symbol.make("require"), self.fname])
+        
     def find_module(self, env):
         assert not jit.we_are_jitted()
         if self.loader is not None:
@@ -863,6 +870,9 @@ class Cell(AST):
     def _tostring(self):
         return "Cell(%s)"%self.expr.tostring()
 
+    def to_sexp(self):
+        return self.to_sexp()
+    
     def write(self, port, env):
         port.write("Cell(")
         self.expr.write(port, env)
@@ -878,6 +888,9 @@ class Quote(AST):
     def __init__ (self, w_val):
         self.w_val = w_val
 
+    def to_sexp(self):
+        return values.to_list([W_Symbol.make("quote"), self.w_val])
+        
     def interpret_simple(self, env):
         return self.w_val
 
@@ -905,6 +918,9 @@ class QuoteSyntax(AST):
 
     def __init__ (self, w_val):
         self.w_val = w_val
+
+    def to_sexp(self):
+        return values.to_list([W_Symbol.make("quote-syntax"), self.w_val])
 
     def interpret_simple(self, env):
         return values.W_Syntax(self.w_val)
@@ -946,6 +962,13 @@ class VariableReference(AST):
     def direct_children(self):
         return []
 
+    def to_sexp(self):
+        var = self.var
+        if isinstance(var, ModuleVar):
+            return values.to_list([W_Symbol.make("#%variable-reference"), var.to_sexp()])
+        else:
+            return values.to_list([W_Symbol.make("#%variable-reference")])
+
     def _tostring(self):
         return "#<#%variable-reference>"
 
@@ -968,6 +991,12 @@ class WithContinuationMark(AST):
                                                     self.value.tostring(),
                                                     self.body.tostring())
 
+    def to_sexp(self):
+        return values.to_list([W_Symbol.make("with-continuation-mark"),
+                               self.key.to_sexp(),
+                               self.value.to_sexp(),
+                               self.body.to_sexp()])
+    
     def direct_children(self):
         return [self.key, self.value, self.body]
 
@@ -996,6 +1025,9 @@ class App(AST):
         self.rator = rator
         self.rands = rands
         self.env_structure = env_structure
+
+    def to_sexp(self):
+        return values.W_Cons.make(self.rator.to_sexp, values.to_list([r.to_sexp for r in self.rands]))
 
     @staticmethod
     def make(rator, rands, env_structure=None):
@@ -1206,6 +1238,11 @@ class Begin0(SequencedBodyAST):
         SequencedBodyAST.__init__(self, rst)
         self.first = fst
 
+    def to_sexp(self):
+        return values.W_Cons.make(W_Symbol.make("begin0"),
+                                  values.to_list([r.to_sexp() for r in self.body]))
+
+        
     def direct_children(self):
         return [self.first] + self.body
 
@@ -1243,6 +1280,9 @@ def remove_pure_ops(ops, always_last=True):
 class Begin(SequencedBodyAST):
     visitable = True
 
+    def to_sexp(self):
+        return values.W_Cons.make(W_Symbol.make("begin"),
+                                  values.to_list([r.to_sexp() for r in self.body]))
     @staticmethod
     def make(body):
         body = remove_pure_ops(body)
@@ -1302,6 +1342,10 @@ class BeginForSyntax(AST):
     def __init__(self, body):
         self.body = body
 
+    def to_sexp(self):
+        return values.W_Cons.make(W_Symbol.make("begin-for-syntax"),
+                                  values.to_list([r.to_sexp() for r in self.body]))
+
     def direct_children(self):
         return self.body[:]
 
@@ -1327,6 +1371,8 @@ class Var(AST):
         assert isinstance(sym, values.W_Symbol)
         self.sym = sym
         self.env_structure = env_structure
+
+    def to_sexp(self): return self.sym
 
     def interpret_simple(self, env):
         val = self._lookup(env)
@@ -1590,6 +1636,11 @@ class SetBang(AST):
         self.var = var
         self.rhs = rhs
 
+    def to_sexp(self):
+        return values.to_list([W_Symbol.make("set!"),
+                               self.var.to_sexp(),
+                               self.rhs.to_sexp()])
+
     def interpret_simple(self, env):
         w_val = self.rhs.interpret_simple(env)
         self.var._set(w_val, env)
@@ -1632,6 +1683,12 @@ class If(AST):
         self.tst = tst
         self.thn = thn
         self.els = els
+
+    def to_sexp(self):
+        return values.to_list([W_Symbol.make("if"),
+                               self.tst.to_sexp(),
+                               self.thn.to_sexp(),
+                               self.els.to_sexp()])
 
     @staticmethod
     def make(tst, thn, els):
@@ -1711,6 +1768,11 @@ class CaseLambda(AST):
         self.recursive_sym = recursive_sym
         self._arity = arity
         self.compute_arity()
+
+    def to_sexp(self):
+        return values.W_Cons.make(values.W_Symbol.make("case-lambda"),
+                                  values.to_list([l.to_sexp for l in lams]))
+                               
 
     @jit.unroll_safe
     def enable_jitting(self):
@@ -1957,6 +2019,21 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+
+    def to_sexp(self):
+        if self.rest and not self.formals:
+            return values.W_Cons.make(values.W_Symbol.make("lambda"),
+                                      values.W_Cons.make(self.rest,
+                                                         values.to_list([b.to_sexp for b in self.body])))
+        if self.rest:
+            return values.W_Cons.make(values.W_Symbol.make("lambda"),
+                                      values.W_Cons.make(values.to_list_improper(self.formals, self.rest),
+                                                         values.to_list([b.to_sexp for b in self.body])))
+        else:
+            return values.W_Cons.make(values.W_Symbol.make("lambda"),
+                                      values.W_Cons.make(values.to_list(self.formals),
+                                                         values.to_list([b.to_sexp for b in self.body])))
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(lambda")
@@ -2096,6 +2173,18 @@ class Letrec(SequencedBodyAST):
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
 
+    def to_sexp(self):
+        varss = self._rebuild_args()
+        bindings = [None] * len(varss)
+        for i, vars in enumerate(varss):
+            lhs = values.to_list([v.to_sexp() for v in vars])
+            rhs = self.rhss[i].to_sexp()
+            bindings[i] = values.to_list([lhs, rhs])
+        bindings = values.to_list(bindings)
+        body = values.to_list([b.to_sexp() for b in self.body])
+        return values.to_list_improper([values.W_Symbol.make("letrec-values"), bindings, body])
+        
+
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(letrec-values (")
@@ -2216,6 +2305,16 @@ class Let(SequencedBodyAST):
             remove_num_envs = [0] * (len(rhss) + 1)
         self.remove_num_envs = remove_num_envs
 
+    def to_sexp(self):
+        bindings = [None] * len(self.counts)
+        for i, vars in enumerate(varss):
+            lhs = values.to_list([v.to_sexp() for v in vars])
+            rhs = self.rhss[i].to_sexp()
+            bindings[i] = values.to_list([lhs, rhs])
+        bindings = values.to_list(bindings)
+        body = values.to_list([b.to_sexp() for b in self.body])
+        return values.to_list_improper([values.W_Symbol.make("let-values"), bindings, body])
+                                                                        
     @jit.unroll_safe
     def _prune_env(self, env, i):
         env_structure = self.args.prev
