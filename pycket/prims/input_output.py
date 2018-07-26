@@ -1201,8 +1201,10 @@ def write_loop(v, port, env):
     elif isinstance(v, values.W_Bytes):
         port.write(v.tostring()) # FIXME: need to encode special chars
     elif isinstance(v, values.W_Symbol):
-        port.write(v.tostring()) # FIXME: handle special chars
-
+        s = v.tostring()
+        if v.is_bar_quoted():
+            s = "|%s|" % s
+        port.write(s) # FIXME: handle special chars
     elif isinstance(v, W_SimpleMutableHashTable):
         port.write("#hash(")
         for k, v in v.data.iteritems():

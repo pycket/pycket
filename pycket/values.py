@@ -1209,8 +1209,8 @@ DEFINITELY_NO, MAYBE, DEFINITELY_YES = (-1, 0, 1)
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value"]
-    _immutable_fields_ = ["unreadable", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value", "bar_quoted"]
+    _immutable_fields_ = ["unreadable", "utf8value", "bar_quoted"]
 
     def __init__(self, val, unreadable=False):
         assert isinstance(val, str)
@@ -1218,6 +1218,13 @@ class W_Symbol(W_Object):
         self.utf8value = val
         self.unreadable = unreadable
         self._isascii = MAYBE
+        if " " in val:
+            self.bar_quoted = True
+        else:
+            self.bar_quoted = False
+
+    def is_bar_quoted(self):
+        return self.bar_quoted
 
     @staticmethod
     def _cache_is_ascii(self):
