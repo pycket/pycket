@@ -1,5 +1,5 @@
 #lang racket/base
 (require (prefix-in r: racket/fasl))
-(define fasl->s-exp r:fasl->s-exp)
-(define s-exp->fasl r:s-exp->fasl)
+(define (fasl->s-exp o [i #f]) (r:fasl->s-exp o i)) 
+(define (s-exp->fasl v [o #f] [k #f]) (r:s-exp->fasl v o k))
 (provide (all-defined-out))
