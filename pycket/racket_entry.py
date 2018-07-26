@@ -123,10 +123,11 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     read_accept_compiled = get_primitive("read-accept-compiled")
     read_accept_compiled.call_interpret([w_true], pycketconfig)
 
-    console_log("(use-compiled-file-paths null)")
+    compiled_file_path = "pycket-compiled"
+    console_log("(use-compiled-file-paths %s)" % compiled_file_path)
     # don't use compiled code
     ucfp = get_primitive("use-compiled-file-paths")
-    ucfp.call_interpret([w_null], pycketconfig)
+    ucfp.call_interpret([W_WrappedConsProper.make(W_String.make(compiled_file_path), w_null)], pycketconfig)
 
     # set the current directory to the current directory
     import os

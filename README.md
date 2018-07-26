@@ -49,12 +49,11 @@ compile-file`:
     $ make compile-file FILE=$(PLTHOME)/racket/collects/racket/private/qq-and-or.rkt
 
 The parameter that enables Racket expander to use compiled code is
-`use-compiled-file-paths`, which for now defaults to `null` in Pycket
-(because we don't have all the Racket modules compiled yet).
+`use-compiled-file-paths`, which defaults to `pycket-compiled` in
+Pycket. Whenever a module is required, the expander will use the
+compiled code if it exists, otherwise it will use the source code of
+the module (read, expand, etc.).
 
-To use compiled code, just tell Pycket where to find them:
-
-    pycket-repl> (use-compiled-file-paths (list "pycket-compiled"))
     pycket-repl> (#%require racket/private/qq-and-or)
 
 Note that `pycket-compiled` is a folder that `make compile-file` is
