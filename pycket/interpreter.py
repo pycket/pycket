@@ -1967,7 +1967,7 @@ class Lambda(SequencedBodyAST):
         port.write(" ")
         if self.rest and not self.formals:
             write_loop(self.rest, port, env)
-        if self.rest:
+        elif self.rest:
             port.write("(")
             for f in self.formals:
                 write_loop(f, port, env)
