@@ -578,6 +578,9 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
     elif isinstance(form, W_List):
         if form.car() is W_Symbol.make("begin"):
             form = Begin.make([sexp_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for f in to_rpython_list(form.cdr())])
+        elif form.car() is W_Symbol.make("p+"):
+            path_str = form.cdr().car().tostring()
+            form = Quote(W_Path(path_str))
         elif form.car() is W_Symbol.make("begin0"):
             fst = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             rst = [sexp_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name) for f in to_rpython_list(form.cdr().cdr())]
@@ -972,6 +975,9 @@ def read_compiled_linklet(in_port, env, cont):
     # Racket's read
     pycketconfig = env.toplevel_env()._pycketconfig
     sexp = read.call_interpret([in_port], pycketconfig)
+
+    if sexp is w_void:
+        raise SchemeException("Couldn't read : %s" % in_port.read(-1))
 
     written_version = sexp.car().car() # W_Symbol
 
