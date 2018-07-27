@@ -2350,13 +2350,14 @@ class DefineValues(AST):
         return context.plug(result)
 
     def _tostring(self):
-        return "(define-values %s %s)" % (
-            self.display_names, self.rhs.tostring())
+        return "(define-values (%s) %s)" % (
+            ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
         port.write("(define-values (")
         for n in self.names:
+            port.write(" ")
             write_loop(n, port, env)
         port.write(") ")
         self.rhs.write(port, env)
