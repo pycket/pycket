@@ -25,7 +25,7 @@ def print_help(argv):
   -v, --version                      : Show version
 
  Configuration options:
-  -c, --no-compiled               ***: Disable loading of compiled files
+  -c, --no-compiled                  : Disable loading of compiled files
   -q, --no-init-file              ***: Skip load of ~/.racketrc for -i
   -I <path>                          : Set <init-lib> to <path> (sets language)
   -X <dir>, --collects <dir>         : Main collects at <dir> (or "" disables all)
@@ -105,7 +105,8 @@ config = {
     'stop' : False,
     'just_kernel' : False,
     'verbose' : False,
-    'just-init' : False
+    'just-init' : False,
+    'use-compiled' : True
 }
 
 def add_name(names, name, val, replace=False):
@@ -232,7 +233,7 @@ def parse_args(argv):
         #########################
 
         elif argv[i] in ["-c", "--no-compiled"]:
-            add_name(names, 'not-implemented', argv[i])
+            config['use-compiled'] = False
 
         elif argv[i] in ["-q", "--no-init-file"]:
             add_name(names, 'not-implemented', argv[i])

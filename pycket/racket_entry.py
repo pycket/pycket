@@ -67,7 +67,7 @@ def set_path(kind_str, path_str):
 
     racket_sys_paths.set_path(W_Symbol.make(kind_str), W_Path(path_str))
 
-def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
+def initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug=False, set_run_file="", set_collects_dir="", set_config_dir="", set_addon_dir=""):
     from pycket.env import w_version
 
     sysconfig = load_bootstrap_linklets(pycketconfig, debug)
@@ -124,10 +124,13 @@ def initiate_boot_sequence(pycketconfig, command_line_arguments, debug=False, se
     read_accept_compiled.call_interpret([w_true], pycketconfig)
 
     compiled_file_path = "pycket-compiled"
-    console_log("(use-compiled-file-paths %s)" % compiled_file_path)
-    # don't use compiled code
     ucfp = get_primitive("use-compiled-file-paths")
-    ucfp.call_interpret([W_WrappedConsProper.make(W_String.make(compiled_file_path), w_null)], pycketconfig)
+    if use_compiled:
+        console_log("(use-compiled-file-paths %s)" % compiled_file_path)
+        ucfp.call_interpret([W_WrappedConsProper.make(W_String.make(compiled_file_path), w_null)], pycketconfig)
+    else:
+        ucfp.call_interpret([w_null], pycketconfig)
+        console_log("(use-compiled-file-paths null)")
 
     # set the current directory to the current directory
     import os
@@ -156,9 +159,9 @@ def namespace_require_kernel(pycketconfig):
 
 def racket_entry(names, config, pycketconfig, command_line_arguments):
 
-    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init = get_options(names, config)
+    loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled = get_options(names, config)
 
-    initiate_boot_sequence(pycketconfig, command_line_arguments, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
+    initiate_boot_sequence(pycketconfig, command_line_arguments, use_compiled, debug, set_run_file, set_collects_dir, set_config_dir, set_addon_dir)
 
     if just_init:
         return 0
@@ -303,6 +306,7 @@ def get_options(names, config):
     no_lib = config['no-lib']
     just_kernel = config['just_kernel']
     just_init = config['just-init']
+    use_compiled = config['use-compiled']
     debug = config['verbose']
     version = config['version']
 
@@ -325,6 +329,7 @@ is_repl          : %s
 no_lib           : %s
 just-#%%kernel    : %s
 just-init        : %s
+use-compiled     : %s
 """ % (loads_print_str,
        set_run_file,
        set_collects_dir,
@@ -334,8 +339,9 @@ just-init        : %s
        is_repl,
        no_lib,
        just_kernel,
-       just_init)
+       just_init,
+       use_compiled)
 
     console_log(log_str)
 
-    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init
+    return loads, init_library, is_repl, no_lib, set_run_file, set_collects_dir, set_config_dir, set_addon_dir, just_kernel, debug, version, just_init, use_compiled
