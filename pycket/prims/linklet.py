@@ -604,8 +604,23 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
                     var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
                     form = VariableReference(var, "dummy.rkt")
         elif form.car() is W_Symbol.make("case-lambda"):
-            lams = [lam_to_ast(f, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name) for f in to_rpython_list(form.cdr())]
-            form = CaseLambda(lams)
+            maybe_rec_sym_part = w_null
+            if form.cdr() is not w_null:
+                maybe_rec_sym_part = form.cdr().car() # (recursive-sym <sym>)
+            rec_sym = None
+            new_lex_env = lex_env
+            lams_part = form.cdr()
+
+            if isinstance(maybe_rec_sym_part, W_Cons) and maybe_rec_sym_part is not w_null:
+                if maybe_rec_sym_part.car() is W_Symbol.make("recursive-sym"):
+                    # then we're reading a caselam that we wrote
+                    lams_part = form.cdr().cdr()
+                    if maybe_rec_sym_part.cdr() is not w_null:
+                        rec_sym = maybe_rec_sym_part.cdr().car()
+                        new_lex_env = lex_env + [rec_sym]
+
+            lams = [lam_to_ast(f, new_lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name) for f in to_rpython_list(lams_part)]
+            form = CaseLambda(lams, rec_sym)
         elif form.car() is W_Symbol.make("lambda"):
             form = CaseLambda([lam_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, cell_ref, name)])
         elif form.car() is W_Symbol.make("let-values"):

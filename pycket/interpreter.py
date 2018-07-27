@@ -1747,11 +1747,15 @@ class CaseLambda(AST):
     def _tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
-        return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
+        r_sym_str = self.recursive_sym.tostring() if self.recursive_sym else ""
+        return "(case-lambda (recursive-sym %s) %s)" % (r_sym_str, " ".join([l.tostring() for l in self.lams]))
 
     def write(self, port, env):
         from pycket.prims.input_output import write_loop
-        port.write("(case-lambda")
+        port.write("(case-lambda (recursive-sym ")
+        if self.recursive_sym:
+            write_loop(self.recursive_sym, port, env)
+        port.write(")")
         for l in self.lams:
             port.write(" ")
             l.write(port, env)
