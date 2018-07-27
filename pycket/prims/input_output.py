@@ -961,6 +961,21 @@ def rename_file_or_directory(o, n, exists_ok):
 
     return values.w_void
 
+@expose("delete-file", [values.W_Object])
+def delete_file(p):
+    from pycket.prims.general import exn_fail_fs
+
+    path = extract_path(p)
+    if not os.path.exists(path):
+        raise SchemeException("No such file : %s" % (path), exn_fail_fs)
+
+    try:
+        os.remove(path)
+    except OSError:
+        raise SchemeException("cannot remove file : %s" % (path), exn_fail_fs)
+
+    return values.w_void
+
 @expose("call-with-input-file", [values.W_Object,
                                  values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
