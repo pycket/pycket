@@ -13,6 +13,7 @@ class W_LinkletDirectory(W_Object)
 from pycket.interpreter import *
 from pycket.assign_convert import assign_convert
 from pycket.values import *
+from pycket.vector import W_Vector
 from pycket.values_string import W_String
 from pycket.values_parameter import top_level_config
 from pycket.error import SchemeException
@@ -426,6 +427,7 @@ make_pred("instance?", W_LinkletInstance)
 
 
 def to_rpython_list(r_list):
+    # assumes r_list is proper
     length = 0
     acc = r_list
     while(acc is not w_null):
@@ -554,6 +556,8 @@ def is_val_type(form):
             return True
     return False
 
+path_sym = W_Symbol.make("p+")
+
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
     if isinstance(form, W_Correlated):
         return sexp_to_ast(form.get_obj(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
@@ -644,7 +648,8 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
         elif form.car() is W_Symbol.make("quote"):
             if form.cdr().cdr() is not w_null:
                 raise SchemeException("malformed quote form : %s" % form.tostring())
-            form = Quote(form.cdr().car())
+            # the reason for read_loop is to deserialize paths (from p+ to W_Path)
+            form = Quote(read_loop(form.cdr().car()))
         elif form.car() is W_Symbol.make("if"):
             tst_w = form.cdr().car()
             thn_w = form.cdr().cdr().car()
@@ -990,10 +995,9 @@ def read_compiled_linklet(in_port, env, cont):
 
     if not D_or_B is dir_sym and not D_or_B is bundle_sym:
         raise SchemeException("malformed compiled code : Expected %s or %s to start with" % (dir_sym.tostring(), bundle_sym.tostring()))
+    read_data = read_loop(data)
 
-    return return_value(read_loop(data), env, cont)
-
-path_sym = W_Symbol.make("p+")
+    return return_value(read_data, env, cont)
 
 def read_loop(sexp):
     # Work in progress
@@ -1009,7 +1013,7 @@ def read_loop(sexp):
             return W_LinkletBundle(read_loop(bundle_map))
         elif c is linklet_sym:
             # Unify this with compile_linklet
-            w_name = sexp.cdr().cdr().car()
+            w_name = sexp.cdr().car()
             w_importss = sexp.cdr().cdr().car()
 
             importss_acc = to_rpython_list(w_importss)
@@ -1067,10 +1071,27 @@ def read_loop(sexp):
             path_str = sexp.cdr().car().tostring()
             return W_Path(path_str)
         else:
-            new = w_null
+            is_improper = False
+            new_rev = w_null
             while sexp is not w_null:
-                new = W_Cons.make(read_loop(sexp.car()), new)
-                sexp = sexp.cdr()
+                if isinstance(sexp, W_Cons):
+                    new_rev = W_Cons.make(read_loop(sexp.car()), new_rev)
+                    sexp = sexp.cdr()
+                else:
+                    is_improper = True
+                    new_rev = W_Cons.make(read_loop(sexp), new_rev)
+                    sexp = w_null
+            # double reverse
+            # FIXME : do this without the double space
+            new = w_null
+            if is_improper:
+                new = new_rev.car()
+                new_rev = new_rev.cdr()
+            
+            while new_rev is not w_null:
+                new = W_Cons.make(new_rev.car(), new)
+                new_rev = new_rev.cdr()
+
             return new
     elif isinstance(sexp, W_EqImmutableHashTable):
         l = sexp.length()
@@ -1096,6 +1117,13 @@ def read_loop(sexp):
             i += 1
 
         return W_EqualHashTable(keys, vals, immutable=True)
+    elif isinstance(sexp, W_Vector):
+        new = [None]*sexp.length()
+        items = sexp.get_strategy().ref_all(sexp)
+        for index, obj in enumerate(items):
+            new[index] = read_loop(obj)
+
+        return W_Vector.fromelements(new, sexp.immutable())
     else:
         #import pdb;pdb.set_trace()
         return sexp
