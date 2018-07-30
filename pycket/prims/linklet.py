@@ -557,6 +557,7 @@ def is_val_type(form):
     return False
 
 path_sym = W_Symbol.make("p+")
+srcloc_sym = W_Symbol.make("srcloc")
 
 def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions=False, cell_ref=[], name=""):
     if isinstance(form, W_Correlated):
@@ -1001,6 +1002,7 @@ def read_compiled_linklet(in_port, env, cont):
 
 def read_loop(sexp):
     # Work in progress
+    from pycket.env import w_global_config
 
     if isinstance(sexp, W_Cons):
         c = sexp.car()
@@ -1067,6 +1069,24 @@ def read_loop(sexp):
                 body_forms[i] = b_form
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
+        elif c is srcloc_sym:
+            from pycket.prims.general import srcloc
+            srcloc_const = srcloc.constructor
+
+            source = read_loop(sexp.cdr().car())
+            line = read_loop(sexp.cdr().cdr().car())
+            column = read_loop(sexp.cdr().cdr().cdr().car())
+            position = read_loop(sexp.cdr().cdr().cdr().cdr().car())
+            span = read_loop(sexp.cdr().cdr().cdr().cdr().cdr().car())
+
+            #FIXME : don't need call_interpret here, allocate the
+            #object manually, get rid of the interpreter indirection
+            srcloc_obj = srcloc_const.call_interpret([source, line, column, position, span])
+
+            if srcloc_obj is w_void:
+                raise SchemeException("Couldn't create a srcloc object")
+
+            return srcloc_obj
         elif c is path_sym:
             path_str = sexp.cdr().car().tostring()
             return W_Path(path_str)
