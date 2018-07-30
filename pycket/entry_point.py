@@ -46,10 +46,12 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "trace_eagerness", 50)
         jit.set_param(None, "max_unroll_loops", 15)
 
+        from pycket.env import w_global_config
+        w_global_config.set_pycketconfig(pycketconfig)
+
         config, names, args, retval = parse_args(argv)
 
         if config['verbose']:
-            from pycket.env import w_global_config
             level = int(names['verbosity_level'][0])
             w_global_config.set_config_val('verbose', level)
 

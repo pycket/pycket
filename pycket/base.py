@@ -53,12 +53,14 @@ class W_Object(W_ProtoObject):
 
     def call_interpret(self, racket_vals, pycketconfig=None):
         from pycket.interpreter import Done, interpret_one
-        from pycket.env import ToplevelEnv
+        from pycket.env import ToplevelEnv, w_global_config
         from pycket.cont import NilCont, Prompt
         from pycket import values, values_parameter
         from pycket.prims.control import default_uncaught_exception_handler
 
-        t_env = ToplevelEnv(pycketconfig)
+        __pycketconfig = w_global_config.get_pycketconfig()
+
+        t_env = ToplevelEnv(__pycketconfig)
 
         cont = NilCont()
         cont = Prompt(values.w_default_continuation_prompt_tag, None, t_env, cont)

@@ -106,6 +106,7 @@ class ModuleEnv(object):
 class GlobalConfig(object):
     def __init__(self):
         self.config = {'verbose':MIN_INT}
+        self.pycketconfig = None
 
     def get_config(self):
         return self.config
@@ -115,6 +116,12 @@ class GlobalConfig(object):
 
     def set_config_val(self, name, val):
         self.config[name] = val
+
+    def set_pycketconfig(self, c):
+        self.pycketconfig = c
+
+    def get_pycketconfig(self):
+        return self.pycketconfig
 
     def lookup(self, s):
         return self.config.get(s, None)
