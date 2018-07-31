@@ -954,7 +954,7 @@ class VariableReference(AST):
         if self.var:
             self.var.write(port, env)
         if self.path:
-            port.write("%s" % self.path)
+            port.write("%s " % self.path)
         port.write("%s" % self.is_mut)
         port.write(")")
 
@@ -1233,7 +1233,7 @@ class Begin0(SequencedBodyAST):
         return self.first, env, Begin0Cont(self, env, cont)
 
     def write(self, port, env):
-        port.write("(begin0")
+        port.write("(begin0 ")
         self.first.write(port, env)
         for b in self.body:
             port.write(" ")
@@ -1298,7 +1298,7 @@ class Begin(SequencedBodyAST):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
     def write(self, port, env):
-        port.write("(begin")
+        port.write("(begin ")
         for b in self.body:
             port.write(" ")
             b.write(port, env)
@@ -1322,7 +1322,7 @@ class BeginForSyntax(AST):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
     def write(self, port, env):
-        port.write("(begin-for-syntax")
+        port.write("(begin-for-syntax ")
         for b in self.body:
             port.write(" ")
             b.write(port, env)
@@ -1977,6 +1977,7 @@ class Lambda(SequencedBodyAST):
         port.write(" ")
         if self.rest and not self.formals:
             write_loop(self.rest, port, env)
+            port.write(" ")
         elif self.rest:
             port.write("(")
             for f in self.formals:
