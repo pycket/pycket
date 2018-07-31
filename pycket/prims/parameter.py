@@ -83,6 +83,8 @@ expose_val("print-pair-curly-braces", values_parameter.W_Parameter(values.w_fals
 expose_val("error-print-source-location", values_parameter.W_Parameter(values.w_true))
 expose_val("read-accept-bar-quote", values_parameter.W_Parameter(values.w_true))
 expose_val("read-accept-compiled", values_parameter.W_Parameter(values.w_true))
+expose_val("read-accept-lang", values_parameter.W_Parameter(values.w_true))
+expose_val("read-accept-reader", values_parameter.W_Parameter(values.w_true))
 
 READ_PARAMS = """
 read-square-bracket-as-paren
