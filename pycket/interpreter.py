@@ -951,8 +951,12 @@ class VariableReference(AST):
 
     def write(self, port, env):
         port.write("(#%variable-reference ")
-        self.var.write(port, env)
-        port.write("%s %s)" % (self.path, self.is_mut))
+        if self.var:
+            self.var.write(port, env)
+        if self.path:
+            port.write("%s" % self.path)
+        port.write("%s" % self.is_mut)
+        port.write(")")
 
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
