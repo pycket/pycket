@@ -987,9 +987,15 @@ class WithContinuationMark(AST):
 
     def write(self, port, env):
         port.write("(with-continuation-mark ")
-        self.key.write(port, env)
-        self.value.write(port, env)
-        self.body.write(port, env)
+        if self.key:
+            self.key.write(port, env)
+            port.write(" ")
+        if self.value:
+            self.value.write(port, env)
+            port.write(" ")
+        if self.body:
+            self.body.write(port, env)
+            port.write(" ")
         port.write(")")
 
 class App(AST):
