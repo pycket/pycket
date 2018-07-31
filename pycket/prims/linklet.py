@@ -603,14 +603,25 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             body = sexp_to_ast(form.cdr().cdr().cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
             form = WithContinuationMark(key, val, body)
         elif form.car() is W_Symbol.make("#%variable-reference"):
-            if form.cdr() is w_null or isinstance(form.cdr().car(), W_Bool):
+            if form.cdr() is w_null: # (variable-reference)
                 form = VariableReference(None, None)
-            else:
-                if not isinstance(form.cdr().car(), W_Symbol):
-                    raise SchemeException("NIY")
-                else:
+            elif form.cdr().cdr() is w_null: # (variable-reference id)
+                if isinstance(form.cdr().car(), W_Symbol):
                     var = sexp_to_ast(form.cdr().car(), lex_env, exports, linkl_toplevels, linkl_importss, disable_conversions, cell_ref, name)
-                    form = VariableReference(var, "dummy.rkt")
+                    form = VariableReference(var, "dummy-path.rkt") # FIXME
+                elif isinstance(form.cdr().car(), W_Fixnum):
+                    # because we're 'writing' variable-reference with is_mutable information
+                    is_mut = False
+                    if form.cdr().car().toint() != 0:
+                        is_mut = True
+                    form = VariableReference(None, None, is_mut)
+                else:
+                    raise SchemeException("Invalid variable-reference form : %s -- arg type : %s" % (form.tostring(), form.cdr().car()))
+            elif form.cdr().cdr().cdr() is w_null: # (variable-reference var #t)
+                raise SchemeException("Unhandled variable-reference form : %s" % (form.tostring()))
+            else:
+                raise SchemeException("Unhandled variable-reference form : %s" % (form.tostring()))
+
         elif form.car() is W_Symbol.make("case-lambda"):
             maybe_rec_sym_part = w_null
             if form.cdr() is not w_null:
@@ -1107,7 +1118,7 @@ def read_loop(sexp):
             if is_improper:
                 new = new_rev.car()
                 new_rev = new_rev.cdr()
-            
+
             while new_rev is not w_null:
                 new = W_Cons.make(new_rev.car(), new)
                 new_rev = new_rev.cdr()
