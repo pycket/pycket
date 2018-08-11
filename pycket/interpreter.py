@@ -286,7 +286,7 @@ SymbolSet = make_persistent_hash_type(
     equal=equal)
 
 def is_builtin_module(mod):
-    return (mod in BUILTIN_MODULES) or (0 <= mod.find("pycket-lang/extra-prims"))
+    return mod in BUILTIN_MODULES
 
 class Done(Exception):
     _attrs_ = ["values"]
