@@ -74,7 +74,7 @@ def str2num(w_s, radix, convert_mode, decimal_mode):
 
             return values.W_Flonum(num*p)
 
-        if "." in s:
+        if "." in s or "e" in s:
             if not radix.equal(values.W_Fixnum(10)): # FIXME
                 raise SchemeException("Floats with base different than 10 are not supported yet")
             return values.W_Flonum(rfloat.string_to_float(s))
