@@ -321,6 +321,10 @@ def make_continuation_prompt_tag(sym):
 def default_continuation_prompt_tag():
     return values.w_default_continuation_prompt_tag
 
+@expose("unsafe-root-continuation-prompt-tag", [])
+def unsafe_root_configuraion_prompt_tag():
+    return values.w_root_continuation_prompt_tag
+
 def abort_current_continuation(args, env, cont):
     from pycket.interpreter import return_multi_vals
     if not args:
