@@ -514,6 +514,32 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, cont)
 
+@continuation
+def mask_arity_cont(arity, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    from pycket.prims.numeric import arith_shift
+    import math
+
+    val = check_one_val(_vals)
+
+    if isinstance(val, values.W_Fixnum):
+        shifted_val = int(math.pow(2, val.value))
+
+        if arity.at_least != -1:
+            v = values.W_Fixnum(-shifted_val)
+        else:
+            v = values.W_Fixnum(shifted_val)
+
+        return return_value(v, env, cont)
+    else:
+        raise SchemeException("procedure-arity-mask : handling list arities is NYI")
+
+@expose("procedure-arity-mask", [procedure], simple=False)
+@jit.unroll_safe
+def do_procedure_arity_mask(proc, env, cont):
+    arity = proc.get_arity()
+    return arity_to_value(arity, env, mask_arity_cont(arity, env, cont))
+
 @make_procedure("default-read-handler",[values.W_InputPort, default(values.W_Object, None)], simple=False)
 def default_read_handler(ip, src, env, cont):
     # default to the "read" and "read-syntax" defined in the expander linklet
