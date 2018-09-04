@@ -161,7 +161,7 @@ unsafe_str = ["unsafe-car", "unsafe-cdr", "unsafe-list-tail",
               "unsafe-get-place-table", "unsafe-call-in-os-thread",
               "unsafe-make-os-semaphore", "unsafe-os-semaphore-post", "unsafe-os-semaphore-wait",
               "unsafe-os-thread-enabled?", "unsafe-struct*-cas!",
-              "unsafe-add-post-custodian-shutdown"]
+              "unsafe-add-post-custodian-shutdown", "unsafe-root-continuation-prompt-tag"]
 
  # This table omits anything that the expander implements itself,
  # since the expander will export its own variant instead of the
@@ -348,7 +348,8 @@ kernel_str = ["*", "+", "-",
               "print-syntax-width", "print-vector-length", "print-unreadable",
               "procedure-arity", "procedure-arity-mask",
               "procedure-arity?", "procedure-arity-includes?",
-              "procedure-extract-target", "procedure-impersonator*?", "procedure-reduce-arity",
+              "procedure-extract-target", "procedure-impersonator*?",
+              "procedure-reduce-arity", "procedure-reduce-arity-mask",
               "procedure-rename", "procedure-result-arity", "procedure->method",
               "procedure?", "procedure-specialize", "procedure-struct-type?",
               "procedure-closure-contents-eq?", "progress-evt?", "prop:arity-string",

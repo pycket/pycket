@@ -1328,6 +1328,8 @@ class W_Procedure(W_Object):
         return True
     def immutable(self):
         return True
+    def set_arity(self, arity):
+        raise SchemeException("%s is not a procedure" % self.tostring())
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
     def call_with_extra_info(self, args, env, cont, app):
@@ -1389,6 +1391,9 @@ class W_Prim(W_Procedure):
         if promote:
             self = jit.promote(self)
         return self.arity
+
+    def set_arity(self, arity):
+        self.arity = arity
 
     def get_result_arity(self):
         return self.result_arity

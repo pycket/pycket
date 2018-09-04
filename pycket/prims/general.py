@@ -534,9 +534,9 @@ def mask_arity_cont(arity, env, cont, _vals):
     else:
         raise SchemeException("procedure-arity-mask : handling list arities is NYI")
 
-@expose("procedure-arity-mask", [procedure], simple=False)
+@expose("procedure-arity-mask", [procedure, default(values.W_Object, values.w_false)], simple=False)
 @jit.unroll_safe
-def do_procedure_arity_mask(proc, env, cont):
+def do_procedure_arity_mask(proc, name, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, mask_arity_cont(arity, env, cont))
 
@@ -610,6 +610,32 @@ def procedure_result_arity(proc, env, cont):
     if arity is None:
         return return_multi_vals(values.w_false, env, cont)
     return arity_to_value(arity, env, cont)
+
+@expose("procedure-reduce-arity", [procedure, values.W_Object])
+def procedure_reduce_arity(proc, arity):
+    # FIXME : checks (keyword args etc)
+    assert isinstance(arity, Arity)
+    proc.set_arity(arity)
+    return proc
+
+@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
+def procedure_reduce_arity(proc, mask, name):
+    import math
+
+    v = mask.value
+    # turn the given mask into an arity
+    if v < 0:
+        # it's an at least value
+        ar_value = int(math.log(abs(v))/math.log(2))
+        # for some reason the 2 argument log doesn't exist
+        ar = Arity([], ar_value)
+    else:
+        ar_value = int(math.log(v)/math.log(2))
+        ar = Arity([ar_value], -1)
+
+    # FIXME: what if the mask represents a list? see math_arity_cont
+    proc.set_arity(ar)
+    return proc
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):
