@@ -522,8 +522,11 @@ def mask_arity_cont(arity, env, cont, _vals):
 
     val = check_one_val(_vals)
 
-    if isinstance(val, values.W_Fixnum):
-        shifted_val = int(math.pow(2, val.value))
+    if isinstance(val, values.W_Fixnum) or isinstance(val, values_struct.W_Struct):
+        if isinstance(val, values.W_Fixnum):
+            shifted_val = int(math.pow(2, val.value))
+        else:
+            shifted_val = int(math.pow(2, arity.at_least))
 
         if arity.at_least != -1:
             v = values.W_Fixnum(-shifted_val)
