@@ -492,7 +492,7 @@ kernel_str = ["*", "+", "-",
               "syntax-source", "syntax-line", "syntax-column",
               "syntax-position", "syntax-span", "syntax-e",
               "syntax->datum", "datum->syntax", "syntax-property",
-              "syntax-property-symbol-keys"]
+              "syntax-property-symbol-keys", "syntax-binding-set-extend"]
 
 place = make_primitive_table(place_str)
 paramz = make_primitive_table(paramz_str)
