@@ -631,7 +631,7 @@ def bytes_to_list(bs):
 # Character
 
 
-@expose("char->integer", [values.W_Character])
+@expose(["unsafe-char->integer", "char->integer"], [values.W_Character])
 def char_to_integer(c):
     return values.W_Fixnum(ord(c.value))
 
@@ -683,11 +683,11 @@ def make_ci(op):
                   unichr(unicodedb.tolower(ord(b))))
     return lower
 
-for a in [("char<?", op.lt),
-          ("char<=?", op.le),
-          ("char=?", op.eq),
-          ("char>=?", op.ge),
-          ("char>?", op.gt),
+for a in [("char<?", op.lt), ("unsafe-char<?", op.lt),
+          ("char<=?", op.le), ("unsafe-char<=?", op.le),
+          ("char=?", op.eq), ("unsafe-char=?", op.eq),
+          ("char>=?", op.ge), ("unsafe-char>=?", op.ge),
+          ("char>?", op.gt), ("unsafe-char>?", op.gt),
           ("char-ci<?", make_ci(op.lt)),
           ("char-ci<=?", make_ci(op.le)),
           ("char-ci=?", make_ci(op.eq)),
