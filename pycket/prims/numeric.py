@@ -203,7 +203,7 @@ for args in [
         ("/"           , values.W_Fixnum.ONE      , "arith_div" , False ) ,
         ("max"         , None                     , "arith_max" , False ) ,
         ("min"         , None                     , "arith_min" , False ) ,
-        ("gcd"         , values.W_Fixnum.ZERO     , "arith_gcd" , True  )  ,
+        ("gcd"         , values.W_Fixnum.ZERO     , "arith_gcd" , True  ) ,
         ("lcm"         , values.W_Fixnum.ONE      , "arith_lcm" , True  ) ,
         ("bitwise-and" , values.W_Fixnum.make(-1) , "arith_and" , True  ) ,
         ("bitwise-ior" , values.W_Fixnum.ZERO     , "arith_or"  , True  ) ,
@@ -211,34 +211,49 @@ for args in [
         ]:
     make_arith(*args)
 
-def make_fixedtype_binary_arith(
-        name, methname, intversion=True, floatversion=True):
+def make_fixedtype_nary_arith(
+        name, methname, int_neutral, fl_neutral, intversion=True, floatversion=True,
+        int_supports_zero_args=False, fl_supports_zero_args=False):
     methname += "_same"
     if floatversion:
-        @expose("fl" + name, [values.W_Flonum] * 2, simple=True)
-        def do(a, b):
-            return getattr(a, methname)(b)
+        @expose("fl" + name, simple=True) # [values.W_Flonum] * 2
+        def do(args):
+            if not args:
+                if not fl_supports_zero_args:
+                    raise SchemeException("expected at least 1 argument to %s" % name)
+                return fl_neutral
+            init = args[0]
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
+            return init
         do.__name__ = "fl_" + methname
 
     if intversion:
-        @expose("fx" + name, [values.W_Fixnum] * 2, simple=True)
-        def do(a, b):
-            return getattr(a, methname)(b)
+        @expose("fx" + name, simple=True) # [values.W_Fixnum] * 2
+        def do(args):
+            if not args:
+                if not int_supports_zero_args:
+                    raise SchemeException("expected at least 1 argument to %s" % name)
+                return int_neutral
+            init = args[0]
+            for i in range(1, jit.promote(len(args))):
+                init = getattr(init, methname)(args[i])
+            return init
         do.__name__ = "fx_" + methname
 
 for args in [
-        ("+"         , "arith_add"                        ) ,
-        ("-"         , "arith_sub"                        ) ,
-        ("*"         , "arith_mul"                        ) ,
-        ("/"         , "arith_div"       , False          ) ,
-        ("and"       , "arith_and"       , True   , False ) ,
-        ("max"       , "arith_max"                        ) ,
-        ("min"       , "arith_min"                        ) ,
-        ("quotient"  , "arith_quotient"  , True   , False ) ,
-        ("remainder" , "arith_remainder" , True   , False ) ,
-        ("modulo"    , "arith_mod"       , True   , False ) ,
+        ("+"         , "arith_add"       , values.W_Fixnum.ZERO , values.W_Flonum.ZERO , True  , True         ) ,
+        ("-"         , "arith_sub"       , values.W_Fixnum.ZERO , values.W_Flonum.ZERO                        ) ,
+        ("*"         , "arith_mul"       , values.W_Fixnum.ONE  , values.W_Flonum.ONE  , True  , True         ) ,
+        ("/"         , "arith_div"       , None                 , values.W_Flonum.ONE  , False                ) ,
+        ("and"       , "arith_and"       , None                 , None                 , True  , False , True ) ,
+        ("max"       , "arith_max"       , None                 , values.W_Flonum.ZERO                        ) ,
+        ("min"       , "arith_min"       , None                 , values.W_Flonum.ZERO                        ) ,
+        ("quotient"  , "arith_quotient"  , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
+        ("remainder" , "arith_remainder" , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
+        ("modulo"    , "arith_mod"       , values.W_Fixnum.ZERO , None                 , True   , False       ) ,
 ]:
-    make_fixedtype_binary_arith(*args)
+    make_fixedtype_nary_arith(*args)
 
 def make_fixedtype_cmps(name, methname):
     methname = "arith_%s_same" % methname
