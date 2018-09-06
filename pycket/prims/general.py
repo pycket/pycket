@@ -390,6 +390,17 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
+@expose("unsafe-make-place-local", [values.W_Object])
+def unsafe_make_place_local(v):
+    return values.W_MBox(v)
+
+@expose("unsafe-place-local-ref", [values.W_MBox], simple=False)
+def unsafe_make_place_local(p, env, cont):
+    return p.unbox(env, cont)
+
+@expose("unsafe-place-local-set!", [values.W_MBox, values.W_Object], simple=False)
+def unsafe_make_place_local(p, v, env, cont):
+    return p.set_box(v, env, cont)
 
 @expose("set!-transformer?", [values.W_Object])
 def set_bang_transformer(v):
