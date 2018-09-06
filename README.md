@@ -117,6 +117,24 @@ Also, the `Makefile` reacts to some variables:
 
 ## Running
 
+Pycket supports two modes of evaluation that we refer as `OLD` and
+`NEW`. The `NEW` Pycket uses `linklets` and bootstraps the Racket
+using the ahead-of-time generated `expander` linklet, while the `OLD`
+Pycket runs Racket's own expander (using Racket's binary) and produces
+json asts and runs them.
+
+It currently defaults to `OLD` Pycket. To use the `NEW` version with
+the linklets, run it with:
+
+    $ ./pycket-c --new <arguments>
+
+You can run it with the `-h` option to see different command line
+options for each versions:
+
+    $ ./pycket-c -h
+
+    $ ./pycket-c --new -h
+
 You can run `pycket-c` like the `racket` binary:
 
     $ ./pycket-c program.rkt

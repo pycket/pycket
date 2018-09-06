@@ -23,9 +23,11 @@ def save_callgraph(config, env):
             env.callgraph.write_dot_file(outfile)
 
 def make_entry_point(pycketconfig=None):
-    from pycket.interpreter import ToplevelEnv
+    from pycket.expand import JsonLoader, ModuleMap, PermException
+    from pycket.interpreter import ToplevelEnv, interpret_one, interpret_module
     from pycket.error import SchemeException, ExitException
     from pycket.option_helper import parse_args
+    from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
     from pycket.racket_entry import load_inst_linklet_json, racket_entry
 
@@ -34,7 +36,15 @@ def make_entry_point(pycketconfig=None):
             import sys
             sys.setrecursionlimit(10000)
         try:
-            return actual_entry(argv)
+            new_pycket = False
+            if argv[1] == "--new":
+                new_pycket = True
+                del argv[1]
+
+            if new_pycket:
+                return actual_entry(argv)
+            else:
+                return old_pycket_actual_entry(argv)
         except SchemeException, e:
             print "ERROR:"
             print e.format_error()
@@ -93,6 +103,46 @@ def make_entry_point(pycketconfig=None):
                 callback(config, env)
             shutdown(env)
         return 0
+
+    def old_pycket_actual_entry(argv):
+        jit.set_param(None, "trace_limit", 1000000)
+        jit.set_param(None, "threshold", 131)
+        jit.set_param(None, "trace_eagerness", 50)
+        jit.set_param(None, "max_unroll_loops", 15)
+
+        config, names, args, retval = old_pycket_parse_args(argv)
+        if retval != 0 or config is None:
+            return retval
+        args_w = [W_String.fromstr_utf8(arg) for arg in args]
+        module_name, json_ast = ensure_json_ast(config, names)
+
+        entry_flag = 'byte-expand' in names
+        multi_mod_flag = 'multiple-modules' in names
+
+        multi_mod_map = ModuleMap(json_ast) if multi_mod_flag else None
+
+        reader = JsonLoader(bytecode_expand=entry_flag,
+                            multiple_modules=multi_mod_flag,
+                            module_mapper=multi_mod_map)
+
+        if json_ast is None:
+            ast = reader.expand_to_ast(module_name)
+        else:
+            ast = reader.load_json_ast_rpython(module_name, json_ast)
+
+        env = ToplevelEnv(pycketconfig)
+        env.globalconfig.load(ast)
+        env.commandline_arguments = args_w
+        env.module_env.add_module(module_name, ast)
+        try:
+            val = interpret_module(ast, env)
+        finally:
+            from pycket.prims.input_output import shutdown
+            for callback in POST_RUN_CALLBACKS:
+                callback(config, env)
+            shutdown(env)
+        return 0
+
     return entry_point
 
 def target(driver, args): #pragma: no cover

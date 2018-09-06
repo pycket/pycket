@@ -81,8 +81,8 @@ compile-file:
 	./pycket-c compile-file-pycket.rkt -- $(FILE)
 
 setup:
-	# raco pkg install -t dir pycket/pycket-lang/ || \
-	# 	raco pkg update --link pycket/pycket-lang
+	raco pkg install -t dir pycket/pycket-lang/ || \
+	raco pkg update --link pycket/pycket-lang
 	hg -R $(PYPYPATH) pull && \
 	hg -R $(PYPYPATH) update
 
