@@ -426,6 +426,8 @@ def parse_path(p):
     if not ModTable.builtin(srcmod):
         assert srcmod is not None
         srcmod = rpath.realpath(srcmod)
+    if srcmod == '#%read':
+        srcmod = '#%kernel'
     return srcmod, path
 
 class ModuleMap(object):

@@ -854,7 +854,7 @@ class W_Struct(W_RootStruct):
             fields = [None] * w_type.total_field_cnt
             self.tostring_values(fields=fields, w_type=w_type, is_super=False)
             custom_huh = w_type.read_prop(w_prop_custom_write)
-            return "(%s %s -- custom-write : %s)" % (typename, self._string_from_list(fields), custom_huh)
+            return "(%s %s)" % (typename, self._string_from_list(fields))
 
 """
 This method generates a new structure class with inline stored immutable #f

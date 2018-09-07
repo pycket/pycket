@@ -37,7 +37,7 @@ def make_entry_point(pycketconfig=None):
             sys.setrecursionlimit(10000)
         try:
             new_pycket = False
-            if argv[1] == "--new":
+            if len(argv) > 1 and argv[1] == "--new":
                 new_pycket = True
                 del argv[1]
 

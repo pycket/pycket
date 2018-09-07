@@ -216,18 +216,18 @@ def _make_result_handling_func(func_arg_unwrap, simple):
     else:
         def func_error_handling(*args):
             from pycket.prims.control import convert_runtime_exception
-            from pycket.cont import Cont
+            from pycket.cont import BaseCont
             from pycket.env import Env
             # Fixme : It's difficult to figure out when there's
             # supposed to be an extra argument *after* the env, cont
             # pair.
             a = args[-1]
-            if isinstance(a, Cont):
+            if isinstance(a, BaseCont):
                 assert isinstance(args[-2], Env)
                 env = args[-2]
                 cont = args[-1]
             else:
-                assert isinstance(args[-2], Cont) and isinstance(args[-3], Env)
+                assert isinstance(args[-2], BaseCont) and isinstance(args[-3], Env)
                 env = args[-3]
                 cont = args[-2]
 
