@@ -641,7 +641,7 @@
 
   (define logging? #f)
 
-  (define srcloc? #t)
+  (define srcloc? #f)
   (define config? #t)
 
   ; expand and collect every dependent module in a single json
@@ -655,7 +655,8 @@
     (set! out (current-output-port))]
    #:once-each
    [("--complete-expansion") "expand and collect all dependent modules in a single json" (set! complete-expansion? #t)]
-   [("--omit-srcloc") "don't include src location info" (set! srcloc? #f)]
+   [("--omit-srcloc") "don't include src location info (default)" (set! srcloc? #f)]
+   [("--keep-srcloc") "don't include src location info" (set! srcloc? #t)]
    [("--omit-config") "don't include config info" (set! config? #f)]
    [("--stdin") "read input from standard in" (set! in (current-input-port))]
    [("--no-stdlib") "don't include stdlib.sch" (set! stdlib? #f)]
@@ -715,13 +716,13 @@
              ;(eprintf "starting read-syntax\n")
              (read-syntax (object-name input) input)]))
     (when (eof-object? mod) (exit 0))
-    (define-values  (expanded expanded-srcloc)
-      (begin
-        (when DEBUG
-          (printf "\nmain module before do-expand -mod- : ~a" mod))
-        (do-expand mod in-path)))
     (parameterize ([keep-srcloc srcloc?]
                    [complete-expansion-mode complete-expansion?])
+      (define-values  (expanded expanded-srcloc)
+        (begin
+          (when DEBUG
+            (printf "\nmain module before do-expand -mod- : ~a" mod))
+          (do-expand mod in-path)))
       (if (complete-expansion-mode)
           (let ([main-module (convert expanded expanded-srcloc)])
             (begin
