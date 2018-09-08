@@ -19,26 +19,25 @@ def replace(func):
     return replacement
 
 def pytest_addoption(parser):
-    parser.addoption('--use-expander', action='store_true', default=False, help='Run the tests using the reader and evaluator from expander linklet')
-
-    #parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
+    parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
+    parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
 
 def pytest_configure(config):
-    # if config.getvalue('random'):
-    #     from rpython.rlib import jit
-    #     jit.isconstant = replace(jit.isconstant)
-    #     jit.isvirtual = replace(jit.isvirtual)
-    #     # XXX: Being able to patch we_are_jitted would be nice as well,
-    #     # but too much code depends on it behaving deterministically
+    if config.getvalue('random'):
+        from rpython.rlib import jit
+        jit.isconstant = replace(jit.isconstant)
+        jit.isvirtual = replace(jit.isvirtual)
+        # XXX: Being able to patch we_are_jitted would be nice as well,
+        # but too much code depends on it behaving deterministically
 
-    if config.getvalue("--use-expander"):
-        print("\nRegular test : Using the expander linklet\n")
-        config.load_expander = True
-        config.use_expander = True
-    else:
-        print("\nFast test : NOT using the expander linklet\n")
-        config.load_expander = False
-        config.use_expander = False
+    byte_flag = config.getvalue('bytecode')
+
+    if byte_flag == "":
+        print "We have regular pycket expansion"
+        config.byte_option = False
+    elif byte_flag == "go":
+        print "We have bytecode expansion"
+        config.byte_option = True
 
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
@@ -48,11 +47,11 @@ def pytest_funcarg__racket_file(request):
     file_name.write(request.function.__doc__)
     return str(file_name)
 
-def pytest_funcarg__cool_mod(request):
+def pytest_funcarg__empty_json(request):
     def make_filename():
         import inspect, py
         module_file = inspect.getmodule(request.function).__file__
-        return str(py.path.local(module_file).dirpath("cool-mod.rkt"))
+        return str(py.path.local(module_file).dirpath("empty.json"))
     return request.cached_setup(setup=make_filename, scope="session")
 
 def pytest_funcarg__source(request):
@@ -100,5 +99,6 @@ def pytest_funcarg__doctest(request):
         pairs.extend(pair)
     check_equal(*pairs, extra="\n".join(setup))
     for error in errors:
-        execute(error, extra="\n".join(setup), error=True)
+        with pytest.raises(Exception):
+            execute(error, extra="\n".join(setup))
     return True

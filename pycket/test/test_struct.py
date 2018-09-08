@@ -464,6 +464,7 @@ def test_is_prefab_key(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+@pytest.mark.k
 def test_make_prefab_struct(doctest):
     """
     > (make-prefab-struct 'clown "Binky" "pie")

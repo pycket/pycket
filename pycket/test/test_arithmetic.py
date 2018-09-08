@@ -3,53 +3,52 @@ import pytest
 from pycket.interpreter import *
 from pycket.values import *
 from pycket.prims import *
-from pycket.test.testhelper import run_expr, run_expr_result, run
+from pycket.test.testhelper import run_fix, run, run_top, run_std, run_flo
 from pycket.error import SchemeException
 
-@pytest.mark.skip
 def test_flonum_tostring():
     from rpython.rtyper.test.test_llinterp import interpret
     import math
+    s = '3.141592653589793' # racket -e "pi"
     def float_tostring(x):
         print W_Flonum(x).tostring()
-        return W_Flonum(x).tostring() == s
-    s = str(math.pi)
+        return s in W_Flonum(x).tostring()
     res = interpret(float_tostring, [math.pi])
     assert res
 
 def test_mul_zero():
-    run_expr("(* 0 1.2)", 0)
-    run_expr("(* 1.2 0)", 0)
+    run_fix("(* 0 1.2)", 0)
+    run_fix("(* 1.2 0)", 0)
 
 def test_quotient():
-    run_expr("(quotient 0 1)", 0)
-    run_expr("(quotient 0 -1)", 0)
-    run_expr("(quotient 0 2)", 0)
-    run_expr("(quotient 0 -2)", 0)
-    run_expr("(quotient 0 3)", 0)
-    run_expr("(quotient 1 1)", 1)
-    run_expr("(quotient -1 1)", -1)
-    run_expr("(quotient 1 -1)", -1)
-    run_expr("(quotient -1 -1)", 1)
-    run_expr("(quotient 1 2)", 0)
-    run_expr("(quotient -1 2)", 0)
-    run_expr("(quotient 1 -2)", 0)
-    run_expr("(quotient -1 -2)", 0)
-    run_expr("(quotient -1234 -10)", 123)
-    run_expr("(quotient 1234 1234)", 1)
+    run_fix("(quotient 0 1)", 0)
+    run_fix("(quotient 0 -1)", 0)
+    run_fix("(quotient 0 2)", 0)
+    run_fix("(quotient 0 -2)", 0)
+    run_fix("(quotient 0 3)", 0)
+    run_fix("(quotient 1 1)", 1)
+    run_fix("(quotient -1 1)", -1)
+    run_fix("(quotient 1 -1)", -1)
+    run_fix("(quotient -1 -1)", 1)
+    run_fix("(quotient 1 2)", 0)
+    run_fix("(quotient -1 2)", 0)
+    run_fix("(quotient 1 -2)", 0)
+    run_fix("(quotient -1 -2)", 0)
+    run_fix("(quotient -1234 -10)", 123)
+    run_fix("(quotient 1234 1234)", 1)
     big = 2 ** 70
-    run_expr("(quotient %s %s)" % (big, big), 1)
-    run_expr("(quotient %s %s)" % (-big, big), -1)
-    run_expr("(quotient %s %s)" % (big, -big), -1)
-    run_expr("(quotient %s %s)" % (-big, -big), 1)
-    run_expr("(quotient %s %s)" % (big+1, big), 1)
-    run_expr("(quotient %s %s)" % (-(big+1), big), -1)
-    res = run_expr_result(str(big / 2))
-    run_expr("(quotient %s 2)" % (big, ), res, equal_huh=True)
+    run_fix("(quotient %s %s)" % (big, big), 1)
+    run_fix("(quotient %s %s)" % (-big, big), -1)
+    run_fix("(quotient %s %s)" % (big, -big), -1)
+    run_fix("(quotient %s %s)" % (-big, -big), 1)
+    run_fix("(quotient %s %s)" % (big+1, big), 1)
+    run_fix("(quotient %s %s)" % (-(big+1), big), -1)
+    res = run(str(big / 2))
+    run("(quotient %s 2)" % (big, ), res)
 
-    res = run_expr_result("(quotient 8.0 2.0)")
+    res = run("(quotient 8.0 2.0)")
     assert isinstance(res, W_Flonum) and res.value == 4.0
-    res = run_expr_result("(quotient 1.0 2.0)")
+    res = run("(quotient 1.0 2.0)")
     assert isinstance(res, W_Flonum) and res.value == 0.0
 
 def test_remainder(doctest):
@@ -115,8 +114,8 @@ def test_modulo(doctest):
     """
 
 def test_div_fix():
-    run_expr("(/ 6 3)", 2)
-    x = run_expr_result("(/ 1 2)")
+    run_fix("(/ 6 3)", 2)
+    x = run("(/ 1 2)")
     assert x.tostring() == "1/2"
 
 def test_div_complex(doctest):
@@ -125,15 +124,13 @@ def test_div_complex(doctest):
     1+3/2i
     > (/ 2+3i 3-4i)
     -6/25+17/25i
-    > (/ -2-3i -4+5i)
-    -7/41+22/41i
     """
 
 def test_lt():
-    run_expr("(< 0 1)", True)
-    run_expr("(< 0 1000000000000000000000000000)", True)
-    run_expr("(< 10000000000000000000000000001000000000000000000000000000 0 )", False)
-    run_expr("(> 35074662110434038747627587960280857993524015880330828824075798024790963850563322203657080886584969261653150406795437517399294548941469959754171038918004700847889956485329097264486802711583462946536682184340138629451355458264946342525383619389314960644665052551751442335509249173361130355796109709885580674313954210217657847432626760733004753275317192133674703563372783297041993227052663333668509952000175053355529058880434182538386715523683713208549376 0.0)", True)
+    run("(< 0 1)", w_true)
+    run("(< 0 1000000000000000000000000000)", w_true)
+    run("(< 10000000000000000000000000001000000000000000000000000000 0 )", w_false)
+    run("(> 35074662110434038747627587960280857993524015880330828824075798024790963850563322203657080886584969261653150406795437517399294548941469959754171038918004700847889956485329097264486802711583462946536682184340138629451355458264946342525383619389314960644665052551751442335509249173361130355796109709885580674313954210217657847432626760733004753275317192133674703563372783297041993227052663333668509952000175053355529058880434182538386715523683713208549376 0.0)", w_true)
 
 def test_lt_fixnum_flonum():
     run("(< 0 1.0)", w_true)
@@ -245,18 +242,11 @@ def test_zero(doctest):
     #f
     """
 
-# FIXME: printing (string->number "0.0f0") : 0.0f0
 def test_string_to_number(doctest):
     """
     ; not yet supported
     ;> (string->number "3.0+2.5i")
     ;3.0+2.5i
-    ;> (string->number "0.0f0")
-    ;0.0
-    > (string->number "2e3")
-    2000.0
-    > (string->number "-1.2e3")
-    -1200.0
     > (string->number "hello")
     #f
     ;> (string->number "111" 7)
@@ -278,7 +268,6 @@ def test_string_to_number(doctest):
     """
     assert doctest
 
-@pytest.mark.skip(reason="channel? is not yet implemented")
 def test_number_to_string(doctest):
     """
     > (number->string 1)
@@ -291,7 +280,23 @@ def test_number_to_string(doctest):
     "4172093847129036571265901283764790162495071902346790126349016234"
     """
 
-@pytest.mark.skip(reason="doesn't run yet and takes awefully long")
+@pytest.mark.xfail
+def test_atan(doctest):
+    """
+    > (atan 0.5)
+    0.4636476090008061
+    > (atan 2 1)
+    1.1071487177940904
+    > (atan -2 -1)
+    -2.0344439357957027
+    > (atan 1.0+5.0i)
+    1.530881333938778+0.19442614214700213i
+    > (atan +inf.0 -inf.0)
+    2.356194490192345
+    """
+
+# doesn't run yet and takes awefully long
+@pytest.mark.skipif("True")
 def test_trigonometry(doctest):
     """
     ! (require racket/math)
@@ -335,10 +340,9 @@ def test_trigonometry(doctest):
     1.3770031902399644-2.3309746530493123i
     """
 
-@pytest.mark.skipif(not pytest.config.load_expander, reason="need to handle require externally, expander is not loaded")
 def test_flonum_special(doctest):
     """
-    ! (#%require '#%flfxnum)
+    ! (require '#%flfxnum)
     > (fl+ 1.0 2.0)
     3.0
     > (fl- 2.0 1.0)
@@ -374,10 +378,9 @@ def test_flonum_special(doctest):
     E (fl= -10 -10.0)
     """
 
-@pytest.mark.skipif(not pytest.config.load_expander, reason="need to handle require externally, expander is not loaded")
 def test_fixnum_special(doctest):
     """
-    ! (#%require '#%flfxnum)
+    ! (require '#%flfxnum)
     > (fx+ 1 2)
     3
     E (fx+ 1 1.2)
@@ -540,17 +543,6 @@ def test_rational(doctest):
     1/2
     > (sub1 5/3)
     2/3
-    > (numerator 23/3)
-    23
-    > (denominator 3/17)
-    17
-    ; FIXME : Racket disaggrees with the following
-    ;(numerator 2.3)
-    ;2589569785738035.0 <-- this is racket
-    > (numerator 2.3)
-    23
-    > (denominator 2.3)
-    10
     ; bignum to rational
     > (/ 12323111111111111111111111111111111111111112222222222222 232321122)
     2053851851851851851851851851851851851851852037037037037/38720187
@@ -673,10 +665,9 @@ def test_round(doctest):
     55555555555555555555555555555555555556
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
 def test_flround(doctest):
     """
-    ! (#%require '#%flfxnum)
+    ! (require '#%flfxnum)
     > (flround 0.1)
     0.0
     > (flround 0.0)
@@ -691,10 +682,9 @@ def test_flround(doctest):
     -1.0
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
 def test_max(doctest):
     """
-    ! (#%require racket/math)
+    ! (require racket/math)
     > (max 1 1.1)
     1.1
     > (max 1 0.2)
@@ -778,8 +768,8 @@ def test_exact_to_inexact(doctest):
     0.5
     > (exact->inexact 1+2i)
     1.0+2.0i
-    ;> (exact->inexact 102222222222222222222222222222222222222222222222123123)
-    ;1.0222222222222222e+53
+    > (exact->inexact 102222222222222222222222222222222222222222222222123123)
+    1.0222222222222222e+53
     """
 
 def test_inexact_to_exact(doctest):
@@ -792,14 +782,13 @@ def test_inexact_to_exact(doctest):
     1/2
     > (inexact->exact 1.0+2.0i)
     1+2i
-    ;> (inexact->exact 1.0222222222222222e+53)
-    ;102222222222222223892324523663483522756187192341561344
+    > (inexact->exact 1.0222222222222222e+53)
+    102222222222222223892324523663483522756187192341561344
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
 def test_flonum_unsafe(doctest):
     """
-    ! (#%require '#%flfxnum '#%unsafe)
+    ! (require '#%flfxnum '#%unsafe)
     > (unsafe-fl+ 1.0 2.0)
     3.0
     > (unsafe-fl- 2.0 1.0)
@@ -813,10 +802,10 @@ def test_flonum_unsafe(doctest):
     > (unsafe-flmax 3.0 5.4)
     5.4
     """
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
+
 def test_fixnum_unsafe(doctest):
     """
-    ! (#%require '#%flfxnum '#%unsafe)
+    ! (require '#%flfxnum '#%unsafe)
     > (unsafe-fx+ 10 20)
     30
     > (unsafe-fx- 20 10)
@@ -955,7 +944,6 @@ def test_truncate(doctest):
     +inf.0
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
 def test_flceiling(doctest):
     """
     ! (require racket/flonum)
@@ -965,7 +953,6 @@ def test_flceiling(doctest):
     -2.0
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
 def test_flfloor(doctest):
     """
     ! (require racket/flonum)
@@ -975,7 +962,7 @@ def test_flfloor(doctest):
     -3.0
     """
 
-@pytest.mark.skip(reason="need to handle require externally, expander is not loaded -- takes too long right now with the expander")
+
 def test_fltruncate(doctest):
     """
     ! (require racket/flonum)
@@ -1158,3 +1145,5 @@ def test_integer_length(doctest):
     > (integer-length 3713820117856140828992454656)
     92
     """
+
+
