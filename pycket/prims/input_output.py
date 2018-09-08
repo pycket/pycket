@@ -15,12 +15,11 @@ from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
-from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable
+from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
 from pycket.hash.equal import W_EqualHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
-
 
 from sys import platform
 
@@ -73,6 +72,9 @@ class RParenToken(DelimToken):
     _attrs_ = []
 
 class DotToken(DelimToken):
+    _attrs_ = []
+
+class HashToken(DelimToken):
     _attrs_ = []
 
 # Some prebuilt tokens
@@ -154,6 +156,51 @@ def read_string(f):
             isascii &= ord(c) < 128
         buf.append(c)
 
+def is_hash_token(s):
+    # already read the #, so the cursor is at position 1 (s.seek(1))
+    if s.read(1) == "a" and s.read(1) == "s" and s.read(1) == "h":
+        # we're on to something
+        if s.peek() == "(":
+            return True
+        e = s.read(1)
+        q = s.read(1)
+        v = s.read(1)
+        if e == "e" and q == "q" and v == "(":
+            s.seek(7)
+            return True
+        elif e == "e" and q == "q" and v == "v" and s.peek() == "(":
+            return True
+        else:
+            s.seek(1)
+            return False
+    else:
+        s.seek(1)
+        return False
+
+def read_hash(stream, end):
+    # cursor is at the start (
+    where_we_are = stream.tell()
+    elements = read_stream(stream)
+
+    keys = []
+    vals = []
+
+    while elements is not values.w_null:
+        c = elements.car()
+        assert isinstance(c, values.W_WrappedCons)
+        keys.append(c.car())
+        vals.append(c.cdr())
+        elements = elements.cdr()
+
+    if where_we_are == 5:
+        return W_EqualHashTable(keys, vals, immutable=True)
+    elif where_we_are == 7:
+        return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+    elif where_we_are == 8:
+        return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
+    else:
+        raise SchemeException("read: cannot read hash in string : %s" % stream.tostring())
+
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
@@ -191,6 +238,8 @@ def read_token(f):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
+            if c2 == "h" and is_hash_token(f):
+                return HashToken("dummy")
             if c2 == "'":
                 return quote_syntax_token
             if c2 == "`":
@@ -216,7 +265,7 @@ def read_token(f):
             raise SchemeException("bad token in read: %s" % c2)
         raise SchemeException("bad token in read: %s" % c)
 
-#@expose("read", [default(values.W_Object, None)], simple=False)
+@expose("read", [default(values.W_Object, None)], simple=False)
 def read(port, env, cont):
     from pycket.interpreter import return_value
     cont = read_stream_cont(env, cont)
@@ -259,6 +308,9 @@ def read_stream(stream):
     if isinstance(next_token, SpecialToken):
         v = read_stream(stream)
         return next_token.finish(v)
+    if isinstance(next_token, HashToken):
+        v = read_hash(stream, next_token.str)
+        return v
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
             raise SchemeException("read: unexpected %s" % next_token.str)
