@@ -753,7 +753,7 @@ def _to_num(json):
     obj = json.value_object()
     if "real" in obj:
         r = obj["real"]
-        return values.W_Flonum.make(r.value_float())
+        return values.W_Flonum.make(r.value_float(), True)
     if "real-part" in obj:
         r = obj["real-part"]
         i = obj["imag-part"]

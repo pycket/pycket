@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import pytest
+
 def test_make_regexp(doctest):
     """
     > (regexp "ap*le")
@@ -165,6 +167,7 @@ def test_regexp_match_group_fail(doctest):
     '("(375) 729-6365" "(375)" "375" #f "729" "6365")
     """
 
+@pytest.mark.skip(reason="solved when tostring is not 'write'")
 def test_regexp_match_group_with_brackets(doctest):
     r"""
     ! (require racket/string)

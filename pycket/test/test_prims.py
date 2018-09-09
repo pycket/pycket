@@ -397,6 +397,7 @@ def test_system_path_convention_type(source):
     else:
         assert sym == "unix"
 
+@pytest.mark.skip(reason="will be solved when tostring is not 'write'")
 def test_number_to_string(doctest):
     """
     > (number->string 10)
@@ -931,6 +932,7 @@ def test_ormap(doctest):
     #f
     """
 
+@pytest.mark.skip(reason="we only do correlated")
 def test_syntax_to_datum(doctest):
     """
     > (syntax->datum #'a)
