@@ -793,12 +793,15 @@ def build_path(args):
     # Sorry again Windows
     if not args:
         raise SchemeException("build-path: expected at least 1 argument")
+    normalize_on = True
     result = [None] * len(args)
     for i, s in enumerate(args):
         if s is UP:
             part = ".."
+            normalize_on = False
         elif s is SAME:
             part = "."
+            normalize_on = False
         else:
             part = extract_path(s)
         if not part:
@@ -806,9 +809,14 @@ def build_path(args):
         if part == os.path.sep:
             part = ""
         result[i] = part
-    path = os.path.normpath(os.path.sep.join(result))
+
+    path = os.path.sep.join(result)
+
     if not path:
         return ROOT
+
+    if normalize_on:
+        path = os.path.normpath(os.path.sep.join(result))
     return values.W_Path(path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
