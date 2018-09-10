@@ -53,6 +53,7 @@ def test_hasheqv(doctest):
 
 def test_immutable_hasheqv(doctest):
     """
+    ! (require racket/private/for)
     ! (define h (for/fold ([acc (make-immutable-hasheqv)]) ([i (in-range 0 100)]) (hash-set acc i (+ i 1))))
     ! (define h^ (hash-set h 2.0 'a))
     > (hash-ref h 0)
@@ -178,6 +179,7 @@ def test_hash_for_each(doctest):
 
 def test_persistent_eqhash_for_each(doctest):
     """
+    ! (require racket/private/for)
     ! (define x 1)
     ! (define h (for/fold ([acc (make-immutable-hasheq)]) ([i (in-range 1 4)]) (hash-set acc i (+ i 1))))
     ! (define (fe c v) (set! x (+ x (* c v))))
