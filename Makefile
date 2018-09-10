@@ -91,28 +91,28 @@ expander:
 	$(MAKE) -C linklet-extractor
 
 test:
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/
+	$(RUNINTERP) $(PYTEST) pycket
 
-test-expander:
-	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
+# test-expander:
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
 
-test-one:
+# test-one:
 
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -k test_${what}.py
+# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -k test_${what}.py
 
-test-one-expander:
+# test-one-expander:
 
-	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -k test_${what}.py
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -k test_${what}.py
 
-test-mark:
-	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
+# test-mark:
+# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
 
-test-mark-expander:
-	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -m ${mark}
+# test-mark-expander:
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -m ${mark}
 
-test-random: #$(PYFILES)
-	@echo "Not yet implemented"
-	# RUNINTERP PYTEST --random pycket --ignore=pycket/test/
+# test-random: #$(PYFILES)
+# 	@echo "Not yet implemented"
+# 	# RUNINTERP PYTEST --random pycket --ignore=pycket/test/
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)
