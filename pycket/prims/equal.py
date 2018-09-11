@@ -9,6 +9,8 @@ from pycket.error        import SchemeException
 from pycket.prims.expose import expose, procedure
 from rpython.rlib        import jit, objectmodel
 
+from pycket.hash.base   import W_HashTable
+
 # All of my hate...
 # Configuration table for information about how to perform equality checks.
 # Based on the Racket internal implementation.
@@ -92,6 +94,37 @@ def equal_vec_done_cont(a, b, idx, info, env, cont, _vals):
     inc = idx + 1
     return equal_vec_func(a, b, inc, info, env, cont)
 
+@continuation
+def equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    eq = check_one_val(_vals)
+    if eq is values.w_false:
+        return return_value(values.w_false, env, cont)
+    inc = idx + 1
+    return equal_ht_func(hash_1_items, hash_2, inc, info, env, cont)
+
+@continuation
+def equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    hash_2_val = check_one_val(_vals)
+    if hash_2_val is values.w_false:
+        return return_value(values.w_false, env, cont)
+    else:
+        return equal_func(hash_1_items[idx][1], hash_2_val, info, env,
+                          equal_ht_done_cont(hash_1_items, hash_2, idx, info, env, cont))
+
+@loop_label
+def equal_ht_func(hash_1_items, hash_2, idx, info, env, cont):
+    from pycket.interpreter import return_value
+    from pycket.prims.hash import hash_ref
+
+    if idx >= len(hash_1_items):
+        return return_value(values.w_true, env, cont)
+    else:
+        return hash_ref([hash_2, hash_1_items[idx][0], values.w_false],
+                        env,
+                        equal_ht_cont(hash_1_items, hash_2, idx, info, env, cont))
+
 def equal_func(a, b, info, env, cont):
     return equal_func_loop(a, b, info, env, cont)
 
@@ -161,6 +194,11 @@ def equal_func_impl(a, b, info, env, cont, n):
         if a.length() != b.length():
             return return_value(values.w_false, env, cont)
         return equal_vec_func(a, b, 0, info, env, cont)
+
+    if isinstance(a, W_HashTable) and isinstance(b, W_HashTable):
+        if len(a.hash_items()) != len(b.hash_items()):
+            return return_value(values.w_false, env, cont)
+        return equal_ht_func(a.hash_items(), b, 0, info, env, cont)
 
     if isinstance(a, values_struct.W_RootStruct) and isinstance(b, values_struct.W_RootStruct):
         a_type = a.struct_type()

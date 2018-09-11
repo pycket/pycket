@@ -31,11 +31,17 @@ class AST(object):
 
     def interpret(self, env, cont):
         from pycket.interpreter import return_value_direct
+        from pycket.prims.control import convert_runtime_exception
+        from pycket.error import SchemeException
         # default implementation for simple AST forms
         assert self.simple
         # interpret should only be called from interpret_one, therefore it's
         # safe to not use the Label implementation of return_value here
-        return return_value_direct(self.interpret_simple(env), env, cont)
+        try:
+            val = self.interpret_simple(env)
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
+        return return_value_direct(val, env, cont)
 
     def interpret_simple(self, env):
         raise NotImplementedError("abstract base class")
@@ -122,6 +128,9 @@ class AST(object):
 
     def _tostring(self):
         return "UNKNOWN AST: "
+
+    def write(self, port, env):
+        port.write(self.tostring())
 
     def __str__(self):
         return self.tostring()

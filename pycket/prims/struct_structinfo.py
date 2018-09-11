@@ -9,6 +9,8 @@ from pycket.prims.expose import unsafe, default, expose, expose_val
 
 expose_val("current-inspector", values_struct.current_inspector_param)
 
+expose_val("current-code-inspector", values_struct.current_inspector_param)
+
 @expose("make-inspector", [default(values_struct.W_StructInspector, None)], simple=False)
 def do_make_instpector(inspector, env, cont):
     from pycket.interpreter import return_value
@@ -24,6 +26,19 @@ def do_make_sibling_instpector(inspector, env, cont):
         inspector = values_struct.current_inspector_param.get(cont)
     new_inspector = values_struct.W_StructInspector.make(inspector, issibling=True)
     return return_value(new_inspector, env, cont)
+
+@expose("inspector-superior?", [values_struct.W_StructInspector, values_struct.W_StructInspector])
+def inspector_superior_huh(inspector, maybe_subinspector):
+    if inspector is maybe_subinspector:
+        return values.w_false
+
+    s = maybe_subinspector.super
+    while(s is not None):
+        if inspector is s:
+            return values.w_true
+        s = s.super
+
+    return values.w_false
 
 @expose("struct?", [values.W_Object], simple=False)
 def do_is_struct(v, env, cont):
@@ -143,7 +158,6 @@ def do_prefab_struct_key(v):
 
 @expose("make-prefab-struct", arity=Arity.geq(1))
 def do_make_prefab_struct(args):
-    assert len(args) > 1
     key  = args[0]
     vals = args[1:]
     return values_struct.W_Struct.make_prefab(key, vals)

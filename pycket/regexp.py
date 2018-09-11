@@ -162,7 +162,7 @@ class Source(object):
             self.pos = len(s)
             return u""
 
-    def match(self, substr):
+    def match(self, substr, consume=True):
         s = self.s
         pos = self.pos
 
@@ -183,7 +183,8 @@ class Source(object):
                 if s[pos] != c:
                     return False
                 pos += 1
-            self.pos = pos
+            if consume:
+                self.pos = pos
             return True
         else:
             if pos + len(substr) <= len(s):
@@ -195,7 +196,8 @@ class Source(object):
                 matches = False
             if not matches:
                 return False
-            self.pos = pos + len(substr)
+            if consume:
+                self.pos = pos + len(substr)
             return True
 
     def expect(self, substr):
@@ -1147,7 +1149,7 @@ def _parse_set_member(source, info):
 
 
 def _parse_set_item(source, info):
-    if source.match(u"\\"):
+    if source.match(u"\\", consume=False):
         return _parse_escape(source, info, in_set=True)
 
     here = source.pos
@@ -1168,7 +1170,7 @@ def _parse_escape(source, info, in_set):
     ch = source.get()
     source.ignore_space = saved_ignore
     if not ch:
-        raise RegexpError("bad escape")
+        return Character(0)
     if ch == u"g" and not in_set:
         here = source.pos
         try:

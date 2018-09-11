@@ -75,6 +75,9 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
     def hash_items(self):
         return self.data.items()
 
+    def hash_empty(self):
+        self.data = r_dict(self.cmp_value, self.hash_value, force_non_null=True)
+
     def tostring(self):
         lst = [values.W_Cons.make(k, v).tostring() for k, v in self.data.iteritems()]
         return "#hash(%s)" % " ".join(lst)
@@ -86,7 +89,8 @@ class W_SimpleMutableHashTable(W_MutableHashTable):
 
     def hash_remove_inplace(self, k, env, cont):
         from pycket.interpreter import return_value
-        del self.data[k]
+        if k in self.data:
+            del self.data[k]
         return return_value(values.w_void, env, cont)
 
     def hash_ref(self, k, env, cont):

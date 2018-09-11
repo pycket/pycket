@@ -9,18 +9,43 @@ from rpython.rlib.rarithmetic import string_to_int, intmask
 from rpython.rlib import runicode
 from rpython.rlib.objectmodel import newlist_hint
 
+from pycket.arity        import Arity
 from pycket.cont         import continuation, loop_label, call_cont
 from pycket.base         import W_ProtoObject
 from pycket              import values
 from pycket              import values_parameter
 from pycket              import values_struct
+from pycket.hash.simple import W_SimpleMutableHashTable, W_EqvImmutableHashTable, W_EqImmutableHashTable, make_simple_immutable_table
+from pycket.hash.equal import W_EqualHashTable
 from pycket              import values_string
 from pycket.error        import SchemeException
-from pycket.prims.expose import default, expose, expose_val, procedure
+from pycket.prims.expose import default, expose, expose_val, procedure, make_procedure
 
 from sys import platform
 
 import os
+
+############################ Values and Parameters
+
+stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"), stdin=True)
+stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1), stdout=True)
+stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1), stdout=True)
+
+expose_val("eof", values.eof_object)
+
+current_out_param = values_parameter.W_Parameter(stdout_port)
+current_error_param = values_parameter.W_Parameter(stderr_port)
+current_in_param = values_parameter.W_Parameter(stdin_port)
+current_readtable_param = values_parameter.W_Parameter(values.w_false)
+
+# FIXME : get all these from the io linklet
+expose_val("current-readtable", current_readtable_param)
+expose_val("current-output-port", current_out_param)
+expose_val("current-error-port", current_error_param)
+expose_val("current-input-port", current_in_param)
+expose_val("current-get-interaction-input-port", values_parameter.W_Parameter(stdin_port))
+expose_val("current-read-interaction", values_parameter.W_Parameter(stdin_port))
+
 
 class Token(W_ProtoObject):
     _attrs_ = []
@@ -47,6 +72,9 @@ class RParenToken(DelimToken):
     _attrs_ = []
 
 class DotToken(DelimToken):
+    _attrs_ = []
+
+class HashToken(DelimToken):
     _attrs_ = []
 
 # Some prebuilt tokens
@@ -128,6 +156,51 @@ def read_string(f):
             isascii &= ord(c) < 128
         buf.append(c)
 
+def is_hash_token(s):
+    # already read the #, so the cursor is at position 1 (s.seek(1))
+    if s.read(1) == "a" and s.read(1) == "s" and s.read(1) == "h":
+        # we're on to something
+        if s.peek() == "(":
+            return True
+        e = s.read(1)
+        q = s.read(1)
+        v = s.read(1)
+        if e == "e" and q == "q" and v == "(":
+            s.seek(7)
+            return True
+        elif e == "e" and q == "q" and v == "v" and s.peek() == "(":
+            return True
+        else:
+            s.seek(1)
+            return False
+    else:
+        s.seek(1)
+        return False
+
+def read_hash(stream, end):
+    # cursor is at the start (
+    where_we_are = stream.tell()
+    elements = read_stream(stream)
+
+    keys = []
+    vals = []
+
+    while elements is not values.w_null:
+        c = elements.car()
+        assert isinstance(c, values.W_WrappedCons)
+        keys.append(c.car())
+        vals.append(c.cdr())
+        elements = elements.cdr()
+
+    if where_we_are == 5:
+        return W_EqualHashTable(keys, vals, immutable=True)
+    elif where_we_are == 7:
+        return make_simple_immutable_table(W_EqImmutableHashTable, keys, vals)
+    elif where_we_are == 8:
+        return make_simple_immutable_table(W_EqvImmutableHashTable, keys, vals)
+    else:
+        raise SchemeException("read: cannot read hash in string : %s" % stream.tostring())
+
 def read_token(f):
     while True:
         c = f.read(1) # FIXME: unicode
@@ -165,6 +238,8 @@ def read_token(f):
             return read_number_or_id(f, c)
         if c == "#":
             c2 = f.read(1)
+            if c2 == "h" and is_hash_token(f):
+                return HashToken("dummy")
             if c2 == "'":
                 return quote_syntax_token
             if c2 == "`":
@@ -233,6 +308,9 @@ def read_stream(stream):
     if isinstance(next_token, SpecialToken):
         v = read_stream(stream)
         return next_token.finish(v)
+    if isinstance(next_token, HashToken):
+        v = read_hash(stream, next_token.str)
+        return v
     if isinstance(next_token, DelimToken):
         if not isinstance(next_token, LParenToken):
             raise SchemeException("read: unexpected %s" % next_token.str)
@@ -342,6 +420,8 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
     i = ord(c[0])
     if as_bytes:
         return return_value(values.W_Fixnum(i), env, cont)
+    elif w_port.is_stdin():
+        return return_value(values.W_Character(c[0]), env, cont)
     else:
         # hmpf, poking around in internals
         needed = utf8_code_length(i)
@@ -354,6 +434,17 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         c = c.decode("utf-8")
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
+
+@expose("read-char-or-special", [values.W_InputPort, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
+def read_char_or_special(in_port, special_wrap, source_name, env, cont):
+    # FIXME: ignoring special values and custom ports for now
+
+    #return read_char(in_port, env, cont)
+    try:
+        cont = do_read_one_cont(False, False, env, cont)
+        return get_input_port(in_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("read-char: string is not a well-formed UTF-8 encoding")
 
 @expose("read-char", [default(values.W_Object, None)], simple=False)
 def read_char(w_port, env, cont):
@@ -388,7 +479,22 @@ def do_peek(w_port, as_bytes, skip, env, cont):
         w_port.seek(old)
         return ret
 
-@expose("peek-char", [default(values.W_Object, None),
+@expose("peek-char-or-special", [default(values.W_Object, None),
+                                 default(values.W_Fixnum, values.W_Fixnum.ZERO),
+                                 default(values.W_Object, values.w_false),
+                                 default(values.W_Object, values.w_false)],
+        simple=False)
+def peek_char_or_special(w_port, w_skip, special_wrap, source_name, env, cont):
+    # FIXME: exactly same with peek-char
+    try:
+        cont = do_peek_cont(False, w_skip.value, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-char: string is not a well-formed UTF-8 encoding")
+
+
+
+@expose("peek-char", [default(values.W_Object, stdin_port),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
@@ -408,6 +514,45 @@ def peek_byte(w_port, w_skip, env, cont):
     except UnicodeDecodeError:
         raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
 
+@continuation
+def do_peek_bytes_cont(amt, skip, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    w_port = check_one_val(_vals)
+    return do_peek_bytes(w_port, amt, skip, env, cont)
+
+def do_peek_bytes(w_port, amt, skip, env, cont):
+    from pycket.interpreter import return_value
+
+    if amt == 0:
+        return return_value(values.W_Bytes.from_string(""), env, cont)
+
+    old = w_port.tell()
+    w_port.seek(old + skip)
+
+    res = w_port.read(amt)
+
+    w_port.seek(old)
+
+    if len(res) == 0:
+        return return_value(values.eof_object, env, cont)
+
+    return return_value(values.W_Bytes.from_string(res), env, cont)
+
+@expose("peek-bytes", [values.W_Fixnum,
+                       values.W_Fixnum,
+                       default(values.W_InputPort, None)], simple=False)
+def peek_bytes(w_amt, w_skip, w_port, env, cont):
+    amt = w_amt.value
+    skip = w_skip.value
+    if amt < 0 or skip < 0:
+        raise SchemeException("peek-bytes : expected non-negative integer for arguments : amt : %s - skip-bytes-amt : %s" % (amt, skip))
+
+    try:
+        cont = do_peek_bytes_cont(amt, skip, env, cont)
+        return get_input_port(w_port, env, cont)
+    except UnicodeDecodeError:
+        raise SchemeException("peek-byte: string is not a well-formed UTF-8 encoding")
+
 w_text_sym   = values.W_Symbol.make("text")
 w_binary_sym = values.W_Symbol.make("binary")
 w_none_sym   = values.W_Symbol.make("none")
@@ -422,6 +567,13 @@ def open_input_file(path, mode, mod_mode):
     m = "r" if mode is w_text_sym else "rb"
     return open_infile(path, m)
 
+w_error_sym = values.W_Symbol.make("error")
+w_append_sym = values.W_Symbol.make("append")
+w_update_sym = values.W_Symbol.make("update")
+w_replace_sym = values.W_Symbol.make("replace")
+w_truncate_sym = values.W_Symbol.make("truncate")
+w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
+
 @expose("open-output-file", [values.W_Object,
                              default(values.W_Symbol, w_binary_sym),
                              default(values.W_Symbol, w_error_sym)])
@@ -429,7 +581,7 @@ def open_output_file(path, mode, exists):
     if not isinstance(path, values_string.W_String) and not isinstance(path, values.W_Path):
         raise SchemeException("open-input-file: expected path-string for argument 0")
     m = "w" if mode is w_text_sym else "wb"
-    return open_outfile(path, m)
+    return open_outfile(path, m, exists)
 
 @expose("close-input-port", [values.W_Object], simple=False)
 def close_input_port(port, env, cont):
@@ -457,8 +609,13 @@ def eofp(e):
     return values.W_Bool.make(e is values.eof_object)
 
 def extract_path(obj):
+
     if isinstance(obj, values_string.W_String):
-        result = obj.as_str_utf8()
+        try:
+            result = obj.as_str_utf8()
+        except UnicodeDecodeError as e:
+            msg = str(e)
+            raise SchemeException(msg)
     elif isinstance(obj, values.W_Path):
         result = obj.path
     elif isinstance(obj, values.W_Bytes):
@@ -472,10 +629,74 @@ def directory_exists(w_str):
     s = extract_path(w_str)
     return values.W_Bool.make(os.path.isdir(s))
 
+@expose("make-directory", [values.W_Object])
+def make_directory(p):
+    from pycket.prims.general import exn_fail_fs
+    s = extract_path(p)
+    if os.path.isdir(s):
+        raise SchemeException("make-directory: cannot make directory; path already exists : %s" % s, exn_fail_fs)
+
+    try:
+        os.mkdir(s)
+    except OSError:
+        raise SchemeException("make-directory: cannot make directory : %s" % s, exn_fail_fs)
+
+    return values.w_void
+
 @expose("file-exists?", [values.W_Object])
 def file_exists(w_str):
     s = extract_path(w_str)
     return values.W_Bool.make(os.path.isfile(s))
+
+@expose("file-or-directory-modify-seconds", [values.W_Object, default(values.W_Object, None), default(values.W_Object, None)], simple=False)
+def file_or_dir_mod_seconds(w_path, secs_n, fail, env, cont):
+    from pycket.prims.general import detect_platform, w_unix_sym
+    from pycket.interpreter import return_value
+
+    platform = detect_platform()
+    if platform is not w_unix_sym:
+        raise Exception("Not yet implemented")
+
+    path_str = extract_path(w_path)
+
+    if not os.path.isdir(path_str) and not os.path.isfile(path_str):
+        if fail is not None:
+            return fail.call([], env, cont)
+        else:
+            raise SchemeException("No such file or directory exists : %s" % path_str)
+
+    # secs_n can also be w_false
+    if secs_n is not None and isinstance(secs_n, values.W_Fixnum):
+        # Set the access and modify times of path to the given time
+        t = secs_n.toint() # seconds
+        os.utime(path_str, (t,t))
+        return return_void(env, cont)
+    else:
+        # Get the last modification date of path (in seconds)
+        m_time = int(os.path.getmtime(path_str))
+        return return_value(values.W_Fixnum(m_time), env, cont)
+
+@expose("sync", arity=Arity.geq(1))
+def sync(args):
+    # FIXME : actually check if any event is ready
+    return args[0]
+
+@expose("sync/timeout", simple=False)
+def sync_timeout(args, env, cont):
+    from pycket.interpreter import return_value
+    w_timeout = args[0]
+    w_events = args[1:]
+
+    # FIXME : actually check if any event is ready
+
+    if isinstance(w_timeout, values.W_Number):
+        # import time
+        # time.sleep(w_timeout.value)
+        return return_value(values.w_false, env, cont)
+    elif isinstance(w_timeout, values.W_Procedure) and w_timeout.iscallable():
+        return w_timeout.call([], env, cont)
+    else:
+        raise Exception("Unsupported timeout type : %s" % w_timeout.tostring())
 
 @expose("directory-list", [values.W_Object])
 def dir_list(w_str):
@@ -572,12 +793,15 @@ def build_path(args):
     # Sorry again Windows
     if not args:
         raise SchemeException("build-path: expected at least 1 argument")
+    normalize_on = True
     result = [None] * len(args)
     for i, s in enumerate(args):
         if s is UP:
             part = ".."
+            normalize_on = False
         elif s is SAME:
             part = "."
+            normalize_on = False
         else:
             part = extract_path(s)
         if not part:
@@ -585,9 +809,14 @@ def build_path(args):
         if part == os.path.sep:
             part = ""
         result[i] = part
+
     path = os.path.sep.join(result)
+
     if not path:
         return ROOT
+
+    if normalize_on:
+        path = os.path.normpath(os.path.sep.join(result))
     return values.W_Path(path)
 
 @expose("simplify-path", [values.W_Object, default(values.W_Bool, values.w_false)])
@@ -632,10 +861,11 @@ def _path_for_some_systemp(path):
 def path_for_some_systemp(path):
     return values.W_Bool.make(_path_for_some_systemp(path))
 
-@expose("relative-path?", [values.W_Object])
-def relative_path(obj):
+@expose("relative-path?", [values.W_Object], simple=False)
+def relative_path(obj, env, cont):
+    from pycket.interpreter import return_value
     string = extract_path(obj)
-    return values.W_Bool.make(not os.path.isabs(string))
+    return return_value(values.W_Bool.make(not os.path.isabs(string)), env, cont)
 
 @expose("absolute-path?", [values.W_Object])
 def absolute_path(obj):
@@ -658,8 +888,32 @@ def path_stringp(v):
 
 @expose("complete-path?", [values.W_Object])
 def complete_path(v):
-    # FIXME: stub
-    return values.w_true
+    if not isinstance(v, values_string.W_String) and not isinstance(v, values.W_Path):
+        raise SchemeException("complete-path?: expected a path? or path-string?")
+
+    path_str = extract_path(v)
+    if path_str[0] == os.path.sep:
+        return values.w_true
+    return values.w_false
+
+@expose("expand-user-path", [values.W_Object])
+def expand_user_path(p):
+    if isinstance(p, values.W_Path):
+        path_str = p.path
+    elif isinstance(p, values_string.W_String):
+        path_str = p.tostring()
+    else:
+        raise SchemeException("expand_user_path expects a string or a path")
+
+    if "~" in path_str:
+        if os.environ.get('HOME') is None:
+            raise Exception("HOME is not found among the os environment variables")
+
+        home_dir = os.environ.get('HOME')
+        # assumes a) there's exactly one ~ and b) nothing is there behind the ~
+        path_str = home_dir.join(path_str.split("~"))
+
+    return values.W_Path(path_str)
 
 @expose("path->string", [values.W_Path])
 def path2string(p):
@@ -715,11 +969,72 @@ def close_cont(port, env, cont, vals):
 
 def open_infile(w_str, mode):
     s = extract_path(w_str)
+    if not os.path.exists(s):
+        raise SchemeException("No such file or directory : %s" % s)
+
     return values.W_FileInputPort(sio.open_file_as_stream(s, mode=mode, buffering=2**21))
 
-def open_outfile(w_str, mode):
+def open_outfile(w_str, mode, exists):
+    from pycket.prims.general import exn_fail_fs
     s = extract_path(w_str)
+    if exists is w_error_sym and os.path.exists(s):
+        raise SchemeException("File exists : %s" % s, exn_fail_fs)
+    if not os.path.exists(s):
+        # then touch the file
+        # it's not clear to me at the moment how to create while
+        # opening the file through the rlib.streamio
+        try:
+            open(s, 'a').close()
+        except OSError:
+            raise SchemeException("open-output-file : cannot open file : %s" % s, exn_fail_fs)
+
+    # FIXME : handle different exists modes (e.g. replace)
     return values.W_FileOutputPort(sio.open_file_as_stream(s, mode=mode))
+
+@expose("rename-file-or-directory", [values.W_Object, values.W_Object, default(values.W_Object, values.w_false)])
+def rename_file_or_directory(o, n, exists_ok):
+    from pycket.prims.general import exn_fail_fs
+
+    old = extract_path(o)
+    new = extract_path(n)
+
+    # Unless exists-ok? is provided as a true value, new cannot refer
+    # to an existing file or directory, but the check is not atomic
+    # with the rename operation on Unix and Mac OS. Even if exists-ok?
+    # is true, new cannot refer to an existing file when old is a
+    # directory, and vice versa.
+
+    if exists_ok is values.w_false and os.path.exists(new):
+        raise SchemeException("%s already exists" % new, exn_fail_fs)
+
+    if exists_ok is not values.w_false:
+        if os.path.isdir(old) and os.path.isfile(new):
+            raise SchemeException("%s is an existing file while %s is a directory" % (new, old), exn_fail_fs)
+
+        if os.path.isdir(new) and os.path.isfile(old):
+            raise SchemeException("%s is an existing file while %s is a directory" % (old, new), exn_fail_fs)
+
+    try:
+        os.rename(old, new)
+    except OSError:
+        raise SchemeException("rename-file-or-directory : cannot move file : %s to %s" % (old, new), exn_fail_fs)
+
+    return values.w_void
+
+@expose("delete-file", [values.W_Object])
+def delete_file(p):
+    from pycket.prims.general import exn_fail_fs
+
+    path = extract_path(p)
+    if not os.path.exists(path):
+        raise SchemeException("No such file : %s" % (path), exn_fail_fs)
+
+    try:
+        os.remove(path)
+    except OSError:
+        raise SchemeException("cannot remove file : %s" % (path), exn_fail_fs)
+
+    return values.w_void
 
 @expose("call-with-input-file", [values.W_Object,
                                  values.W_Object,
@@ -729,13 +1044,6 @@ def call_with_input_file(s, proc, mode, env, cont):
     m = "r" if mode is w_text_sym else "rb"
     port = open_infile(s, m)
     return proc.call([port], env, close_cont(port, env, cont))
-
-w_error_sym = values.W_Symbol.make("error")
-w_append_sym = values.W_Symbol.make("append")
-w_update_sym = values.W_Symbol.make("update")
-w_replace_sym = values.W_Symbol.make("replace")
-w_truncate_sym = values.W_Symbol.make("truncate")
-w_truncate_replace_sym = values.W_Symbol.make("truncate/replace")
 
 @expose("call-with-output-file", [values.W_Object,
                                   values.W_Object,
@@ -752,10 +1060,10 @@ def call_with_output_file(s, proc, mode, exists, env, cont):
         raise SchemeException("mode not yet supported: %s" % exists.tostring())
     if mode is not w_text_sym:
         m += "b"
-    port = open_outfile(s, m)
+    port = open_outfile(s, m, exists)
     return proc.call([port], env, close_cont(port, env, cont))
 
-@expose("with-input-from-file", [values_string.W_String, values.W_Object,
+@expose("with-input-from-file", [values.W_Object, values.W_Object,
                                  default(values.W_Symbol, w_binary_sym)],
         simple=False)
 def with_input_from_file(s, proc, mode, env, cont):
@@ -773,7 +1081,7 @@ def with_output_to_file(s, proc, mode, exists, env, cont):
     # XXX mode and exists are currently ignored, they need to be translated into
     # the proper mode string.
     from pycket.prims.parameter import call_with_extended_paramz
-    port = open_outfile(s, "wb")
+    port = open_outfile(s, "wb", exists)
     return call_with_extended_paramz(proc, [], [current_out_param], [port],
                                      env, close_cont(port, env, cont))
 
@@ -824,7 +1132,218 @@ def newline(out, env, cont):
 
 @expose("write", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def write(o, p, env, cont):
-    return do_print(o.tostring(), p, env, cont)
+    from pycket.values_struct import w_prop_custom_write, W_Struct
+
+    if isinstance(o, W_Struct):
+        w_custom_writer = o.struct_type().read_prop(w_prop_custom_write)
+        if w_custom_writer is not None and w_custom_writer.iscallable():
+            if not p:
+                p = current_out_param.get(cont)
+            return w_custom_writer.call([o, p, values.w_true], env, cont)
+
+    cont = do_write_cont(o, env, cont)
+    return get_output_port(p, env, cont)
+
+@continuation
+def do_write_cont(o, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    port = check_one_val(_vals)
+    assert isinstance(port, values.W_OutputPort)
+    write_loop(o, port, env)
+    return return_void(env, cont)
+
+def write_linklet_bundle_directory(v, port, env):
+    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
+    if is_bundle(v):
+        port.write("(:B: . ")
+    else:
+        port.write("(:D: . ")
+    mapping = v.get_mapping()
+    assert isinstance(mapping, W_EqualHashTable) or \
+        isinstance(mapping, W_EqImmutableHashTable)
+    write_loop(mapping, port, env)
+    port.write(")")
+
+def write_linklet(v, port, env):
+    print(v.tostring())
+    port.write("(linklet")
+    port.write(" ")
+    write_loop(v.get_name(), port, env)
+    port.write(" ")
+    port.write("(")
+    importss = v.get_importss()
+    for imp_dict in importss:
+        port.write("(")
+        for ext_name, int_name in imp_dict.iteritems():
+            port.write("(")
+            write_loop(ext_name, port, env)
+            port.write(" ")
+            write_loop(int_name, port, env)
+            port.write(")")
+        port.write(")")
+    port.write(")")
+    port.write(" ")
+    port.write("(")
+    exports = v.get_exports()
+    for int_name, ext_name in exports.iteritems():
+        port.write("(")
+        write_loop(int_name, port, env)
+        port.write(" ")
+        write_loop(ext_name, port, env)
+        port.write(")")
+    port.write(")")
+
+    forms = v.get_forms()
+    for form in forms:
+        port.write(" ")
+        form.write(port, env)
+    port.write(")")
+
+def write_loop(v, port, env):
+    from pycket.prims.linklet import is_bundle, is_directory, W_Linklet
+    from pycket.vector import W_Vector
+    from pycket.values_struct import W_Struct
+
+    if isinstance(v, values.W_Cons):
+        cur = v
+        port.write("(")
+        while isinstance(cur, values.W_Cons):
+            write_loop(cur.car(), port, env)
+            cur = cur.cdr()
+            if isinstance(cur, values.W_Cons):
+                # there will be more elements
+                port.write(" ")
+
+        # Are we a dealing with a proper list?
+        if cur is values.w_null:
+            port.write(")")
+        else:
+            port.write(" . ")
+            write_loop(cur, port, env)
+            port.write(")")
+    elif isinstance(v, values.W_MBox):
+        port.write("#&")
+        write_loop(v.value, port, env)
+    elif isinstance(v, values.W_IBox):
+        port.write("#&")
+        write_loop(v.value, port, env)
+
+    elif isinstance(v, values.W_MCons):
+        port.write("{")
+        write_loop(v.car(), port, env)
+        port.write(" . ")
+        write_loop(v.cdr(), port, env)
+        port.write("}")
+
+    elif isinstance(v, W_Vector):
+        items = v.get_strategy().ref_all(v)
+        port.write("#(")
+        for obj in items:
+            port.write(" ")
+            write_loop(obj, port, env)
+        port.write(")")
+
+    elif isinstance(v, values.W_Character):
+        #from rpython.rlib import runicode
+
+        if v.value == u'\x00':
+            port.write("#\\nul")
+        elif v.value == u'\x08':
+            port.write("#\\backspace")
+        elif v.value == u'\t':
+            port.write("#\\tab")
+        elif v.value == u'\n':
+            port.write("#\\newline")
+        elif v.value == u'\x0b':
+            port.write("#\\vtab")
+        elif v.value == u'\x0c':
+            port.write("#\\page")
+        elif v.value == u'\r':
+            port.write("#\\return")
+        elif v.value == u' ':
+            port.write("#\\space")
+        elif v.value == u'\x7f':
+            port.write("#\\rubout")
+
+
+        else:
+            port.write(v.tostring())
+
+    elif isinstance(v, values_string.W_String):
+        from pypy.objspace.std.bytesobject import string_escape_encode
+        port.write(string_escape_encode(v.as_str_utf8(), '"'))
+
+    elif isinstance(v, values.W_Bytes):
+        port.write(v.tostring()) # FIXME: need to encode special chars
+    elif isinstance(v, values.W_Symbol):
+        s = v.tostring()
+        if v.is_bar_quoted():
+            s = "|%s|" % s
+        port.write(s) # FIXME: handle special chars
+    elif isinstance(v, W_SimpleMutableHashTable):
+        port.write("#hash(")
+        for k, v in v.data.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(v, W_EqvImmutableHashTable):
+        port.write("#hasheqv(")
+        for k, v in v.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(v, W_EqImmutableHashTable):
+        port.write("#hasheq(")
+        for k, v in v.iteritems():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+    elif isinstance(v, W_EqualHashTable):
+        port.write("#hash(")
+        for k, v in v.hash_items():
+            port.write("(")
+            write_loop(k, port, env)
+            port.write(" . ")
+            if is_bundle(v) or is_directory(v):
+                write_linklet_bundle_directory(v, port, env)
+            else:
+                write_loop(v, port, env)
+            port.write(")")
+        port.write(")")
+
+    elif isinstance(v, W_Linklet):
+        write_linklet(v, port, env)
+
+    elif is_bundle(v) or is_directory(v):
+        from pycket.env import w_version
+
+        port.write("#~")
+        version = w_version.get_version()
+        len_version = len(version)
+
+        port.write("((%s)" % version)
+        write_linklet_bundle_directory(v, port, env)
+        port.write(")\n")
+
+    elif isinstance(v, W_Struct):
+        v.write(port, env)
+
+    elif isinstance(v, values.W_Path):
+        v.write(port, env)
+    else:
+        port.write(v.tostring())
 
 @expose("print", [values.W_Object, default(values.W_OutputPort, None)], simple=False)
 def _print(o, p, env, cont):
@@ -865,7 +1384,21 @@ def format(form, vals, name):
         if i+1 == len_fmt:
             raise SchemeException(name + ": bad format string")
         s = fmt[i+1]
-        if (s == 'a' or # turns into switch
+        if (s == '.'):
+            i += 1
+            s = fmt[i+1]
+            if (s == 'a' or # turns into switch
+                s == 'A' or
+                s == 's' or
+                s == 'S' or
+                s == 'v' or
+                s == 'V'):
+                #FIXME: use error-print-width
+                if j >= len(vals):
+                    raise SchemeException(name + ": not enough arguments for format string")
+                result.append(vals[j].tostring())
+                j += 1
+        elif (s == 'a' or # turns into switch
             s == 'A' or
             s == 's' or
             s == 'S' or
@@ -942,24 +1475,26 @@ def flush_output(port, env, cont):
     port.flush()
     return return_void(env, cont)
 
-
 def cur_print_proc(args, env, cont, extra_call_info):
     from pycket.interpreter import return_value
     v = args[0]
     port = current_out_param.get(cont)
+    assert isinstance(port, values.W_OutputPort)
     if v is not values.w_void:
         port.write(v.tostring())
         port.write("\n")
     return return_void(env, cont)
 
 standard_printer = values.W_Prim("current-print", cur_print_proc)
-
-string_sym  = values.W_Symbol.make("string")
+current_print_param = values_parameter.W_Parameter(standard_printer)
+expose_val("current-print", current_print_param)
 
 @expose(["open-output-string", "open-output-bytes"], [])
 def open_output_string():
     # FIXME: actual implementation for bytes and string
     return values.W_StringOutputPort()
+
+string_sym  = values.W_Symbol.make("string")
 
 @expose("open-input-bytes", [values.W_Bytes, default(values.W_Symbol, string_sym)])
 def open_input_bytes(bstr, name):
@@ -1191,6 +1726,7 @@ def write_bytes_avail(w_bstr, w_port, start, stop):
         to_write = w_bstr[start:slice_stop]
 
     # FIXME: we fake here
+    assert isinstance(w_port, values.W_OutputPort)
     w_port.write("".join(to_write))
     return stop - start
 
@@ -1230,26 +1766,33 @@ def shutdown(env):
     # called before the interpreter exits
     stdout_port.flush()
 
-############################ Values and Parameters
+@make_procedure("mock-prompt-thunk", [], arity=Arity.ZERO, simple=False)
+def mock_prompt_thunk(env, cont):
+    return mock_prompt_thunk_worker(env, cont)
 
-expose_val("eof", values.eof_object)
+# to be able to call it internally
+def mock_prompt_thunk_worker(env, cont):
+    """
+    (lambda ()
+    (display "> ")
+    (let ([in ((current-get-interaction-input-port))])
+    ((current-read-interaction) (object-name in) in)))"""
 
-current_print_param = values_parameter.W_Parameter(standard_printer)
-expose_val("current-print", current_print_param)
+    pycketconfig = env.toplevel_env()._pycketconfig
+    from pycket.interpreter import return_value
 
-# line buffer stdout
-stdout_port = values.W_FileOutputPort(sio.fdopen_as_stream(1, "w", buffering=1))
-stderr_port = values.W_FileOutputPort(sio.fdopen_as_stream(2, "w", buffering=1))
-stdin_port = values.W_FileInputPort(sio.fdopen_as_stream(0, "r"))
-current_out_param = values_parameter.W_Parameter(stdout_port)
-current_error_param = values_parameter.W_Parameter(stderr_port)
-current_in_param = values_parameter.W_Parameter(stdin_port)
-current_readtable_param = values_parameter.W_Parameter(values.w_false)
-expose_val("current-readtable", current_readtable_param)
+    stdout_port.write("> ")
 
-expose_val("current-output-port", current_out_param)
-expose_val("current-error-port", current_error_param)
-expose_val("current-input-port", current_in_param)
+    from pycket.racket_entry import get_primitive
+    rs = get_primitive("read-syntax")
+    obj_name = values.W_Symbol.make("readline-input")
+
+    return rs.call([obj_name, stdin_port], env, cont)
+
+@expose("current-prompt-read", [], simple=True)
+def mock_current_prompt_read():
+    return mock_prompt_thunk
+
 
 print_graph_param = values_parameter.W_Parameter(values.w_false)
 print_struct_param = values_parameter.W_Parameter(values.w_false)
@@ -1269,4 +1812,3 @@ expose_val("print-as-expression", print_as_expression_param)
 
 w_read_case_sensitive = values_parameter.W_Parameter(values.w_true)
 expose_val("read-case-sensitive", w_read_case_sensitive)
-

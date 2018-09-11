@@ -22,6 +22,7 @@ import rpython.rlib.rweakref as weakref
 from rpython.rlib.rbigint import rbigint, NULLRBIGINT
 from rpython.rlib.debug import check_list_of_chars, make_sure_not_resized, check_regular_int
 
+
 UNROLLING_CUTOFF = 5
 
 @inline_small_list(immutable=True, attrname="vals", factoryname="_make")
@@ -72,7 +73,7 @@ class W_Cell(W_Object): # not the same as Racket's box
         if isinstance(v, W_Fixnum):
             v = W_CellIntegerStrategy(v.value)
         elif isinstance(v, W_Flonum):
-            v = W_CellFloatStrategy(v.value)
+            v = W_CellFloatStrategy(v.value, v.is_single_prec)
         self.w_value = v
 
     def get_val(self):
@@ -80,7 +81,7 @@ class W_Cell(W_Object): # not the same as Racket's box
         if isinstance(w_value, W_CellIntegerStrategy):
             return W_Fixnum(w_value.value)
         elif isinstance(w_value, W_CellFloatStrategy):
-            return W_Flonum(w_value.value)
+            return W_Flonum(w_value.value, w_value.is_single)
         return w_value
 
     def set_val(self, w_value):
@@ -110,10 +111,11 @@ class W_CellIntegerStrategy(W_Object):
         self.value = value
 
 class W_CellFloatStrategy(W_Object):
-    _attrs_ = ["value"]
+    _attrs_ = ["value", "is_single"]
     # can be stored in cells only, is mutated when a W_Flonum is stored
-    def __init__(self, value):
+    def __init__(self, value, is_single=False):
         self.value = value
+        self.is_single = is_single
 
 
 class W_Undefined(W_Object):
@@ -121,6 +123,8 @@ class W_Undefined(W_Object):
     _attrs_ = []
     def __init__(self):
         pass
+    def tostring(self):
+        return "#<unsafe-undefined>"
 
 w_unsafe_undefined = W_Undefined()
 
@@ -153,13 +157,66 @@ class W_Logger(W_Object):
     errorname = "logger"
 
     _immutable_fields_ = ['topic', 'parent', 'propagate_level', 'propagate_topic[*]']
-    _attrs_ = ['topic', 'parent', 'propagate_level', 'propagate_topic']
+    _attrs_ = ['topic', 'parent', 'propagate_level', 'propagate_topic', 'syslog_level', 'stderr_level', 'stdout_level']
 
-    def __init__(self, topic, parent, propagate_level, propagate_topic):
-        self.topic           = topic
-        self.parent          = parent
-        self.propagate_level = propagate_level
-        self.propagate_topic = propagate_topic
+    def __init__(self, topic, parent, propagate_level, propagate_topic, syslog_level, stderr_level, stdout_level):
+        self.topic           = topic # (or/c symbol? #f) = #f performance
+        self.parent          = parent # (or/c symbol? #f) = #f
+        self.propagate_level = propagate_level # log-level/c = 'debug
+        self.propagate_topic = propagate_topic # (or/c #f symbol?) = #f
+        self.syslog_level    = syslog_level
+        self.stderr_level    = stderr_level
+        self.stdout_level    = stdout_level
+
+    def get_name(self):
+        return self.topic # io/logger/logger.rkt
+
+    def get_syslog_level(self):
+        return self.syslog_level
+
+    def get_stderr_level(self):
+        return self.syslog_level
+
+    def get_stdout_level(self):
+        return self.syslog_level
+
+    def set_syslog_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.syslog_level = lvl
+
+    def set_stderr_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.stderr_level = lvl
+
+    def set_stdout_level(self, lvl_str):
+        from pycket.prims.logging import check_level
+        lvl = W_Symbol.make(lvl_str)
+        check_level(lvl)
+        self.stdout_level = lvl
+
+    def is_anyone_interested(self, level, topic):
+        from pycket.prims.logging import level_geq
+
+        if self.topic is w_false or self.topic is topic:
+            # self.topic #f : we're interested in events at level for any topic
+            if level_geq(self.syslog_level, level):
+                return True
+
+            # cheating : any of these three types are enough to trigger logging
+            if level_geq(self.stderr_level, level):
+                return True
+
+            if level_geq(self.stdout_level, level):
+                return True
+
+        if self.parent is w_false or level_geq(level, self.propagate_level):
+            return False
+
+        return self.parent.is_anyone_interested(level, topic)
 
     def tostring(self):
         return "#<logger>"
@@ -178,6 +235,7 @@ class W_ContinuationPromptTag(W_Object):
         return "#<continuation-prompt-tag:%s>" % name
 
 w_default_continuation_prompt_tag = W_ContinuationPromptTag(None)
+w_root_continuation_prompt_tag = W_ContinuationPromptTag(None)
 
 class W_ContinuationMarkSet(W_Object):
     errorname = "continuation-mark-set"
@@ -210,9 +268,14 @@ class W_ContinuationMarkKey(W_Object):
 
 class W_VariableReference(W_Object):
     errorname = "variable-reference"
-    _attrs_ = ['varref']
-    def __init__(self, varref):
+    _attrs_ = ['varref', 'linklet_instance']
+    def __init__(self, varref, l_instance=None):
         self.varref = varref
+        self.linklet_instance = l_instance
+
+    def get_instance(self):
+        return self.linklet_instance
+
     def tostring(self):
         return "#<#%variable-reference>"
 
@@ -281,8 +344,8 @@ class W_Cons(W_List):
             return W_UnwrappedFixnumCons(car.value, cdr)
         elif isinstance(car, W_Flonum):
             if force_proper or cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car.value, cdr)
-            return W_UnwrappedFlonumCons(car.value, cdr)
+                return W_UnwrappedFlonumConsProper(car.value, car.is_single_prec, cdr)
+            return W_UnwrappedFlonumCons(car.value, car.is_single_prec, cdr)
         else:
             if force_proper or cdr.is_proper_list():
                 return W_WrappedConsProper(car, cdr)
@@ -360,13 +423,14 @@ class W_UnwrappedFixnumConsProper(W_UnwrappedFixnumCons):
 
 @add_copy_method(copy_method="clone")
 class W_UnwrappedFlonumCons(W_Cons):
-    _immutable_fields_ = ["_car", "_cdr"]
-    def __init__(self, a, d):
+    _immutable_fields_ = ["_car", "_car_is_single", "_cdr"]
+    def __init__(self, a, is_single, d):
         self._car = a
+        self._car_is_single = is_single
         self._cdr = d
 
     def car(self):
-        return W_Flonum(self._car)
+        return W_Flonum(self._car, self._car_is_single)
 
     def cdr(self):
         return self._cdr
@@ -605,6 +669,12 @@ class W_Rational(W_Real):
         _gcd = gcd(n, d)
         return W_Rational.fromint(n/_gcd, d/_gcd)
 
+    def get_numerator(self):
+        return self._numerator
+
+    def get_denominator(self):
+        return self._denominator
+
     def tostring(self):
         return "%s/%s" % (self._numerator.str(), self._denominator.str())
 
@@ -692,19 +762,27 @@ W_Fixnum.cache = map(W_Fixnum.make, range(*W_Fixnum.INTERNED_RANGE))
 
 class W_Flonum(W_Real):
     _immutable_ = True
-    _attrs_ = _immutable_fields_ = ["value"]
+    _attrs_ = _immutable_fields_ = ["value", "is_single_prec"]
     errorname = "flonum"
 
-    def __init__(self, val):
+    def __init__(self, val, is_single_prec=False):
         self.value = val
+        self.is_single_prec = is_single_prec
 
     @staticmethod
-    def make(val):
-        return W_Flonum(val)
+    def make(val, is_single=False):
+        return W_Flonum(val, is_single)
 
     def tostring(self):
         from rpython.rlib.rfloat import formatd, DTSF_STR_PRECISION, DTSF_ADD_DOT_0
-        return formatd(self.value, 'g', DTSF_STR_PRECISION, DTSF_ADD_DOT_0)
+        RACKET_SINGLE_STR_PREC = 7
+        RACKET_DOUBLE_STR_PREC = 17
+
+        if self.is_single_prec:
+            rpython_str = formatd(self.value, 'g', RACKET_SINGLE_STR_PREC, DTSF_ADD_DOT_0)
+            return "%sf0" % rpython_str
+        else:
+            return formatd(self.value, 'g', RACKET_DOUBLE_STR_PREC, DTSF_ADD_DOT_0)
 
     def hash_equal(self, info=None):
         return compute_hash(self.value)
@@ -722,9 +800,21 @@ class W_Flonum(W_Real):
         return ll1 == ll2 or (math.isnan(v1) and math.isnan(v2))
 
 W_Flonum.ZERO   = W_Flonum(0.0)
+W_Flonum.ONE   = W_Flonum(1.0)
 W_Flonum.INF    = W_Flonum(float("inf"))
 W_Flonum.NEGINF = W_Flonum(-float("inf"))
 W_Flonum.NAN    = W_Flonum(float("nan"))
+
+class W_ExtFlonum(W_Object):
+    _immutable_ = True
+    _attrs_ = _immutable_fields_ = ["value_str"]
+    errorname = "extflonum"
+
+    def __init__(self, val_str):
+        self.value_str = val_str
+
+    def tostring(self):
+        return self.value_str
 
 class W_Bignum(W_Integer):
     _immutable_ = True
@@ -861,6 +951,9 @@ class W_Path(W_Object):
         if not isinstance(other, W_Path):
             return False
         return self.path == other.path
+    def write(self, port, env):
+        port.write("(p+ %s)" % self.path)
+
     def tostring(self):
         return "#<path:%s>" % self.path
 
@@ -952,7 +1045,7 @@ class BytesMixin(object):
 
     def tostring(self):
         # TODO: No printable byte values should be rendered as base 8
-        return "#\"%s\"" % "".join(["\\%d" % ord(i) for i in self.value])
+        return "#\"%s\"" % "".join(["\\%o" % ord(i) for i in self.value])
 
     def as_bytes_list(self):
         return self.value
@@ -1072,6 +1165,9 @@ class W_MutableBytes(W_Bytes):
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
 
+    def as_bytes_list(self):
+        return self.value
+
     def immutable(self):
         return False
 
@@ -1098,6 +1194,9 @@ class W_ImmutableBytes(W_Bytes):
         self.value = check_list_of_chars(bs)
         make_sure_not_resized(self.value)
 
+    def as_bytes_list(self):
+        return self.value
+
     def immutable(self):
         return True
 
@@ -1111,8 +1210,8 @@ DEFINITELY_NO, MAYBE, DEFINITELY_YES = (-1, 0, 1)
 
 class W_Symbol(W_Object):
     errorname = "symbol"
-    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value"]
-    _immutable_fields_ = ["unreadable", "utf8value"]
+    _attrs_ = ["unreadable", "_isascii", "_unicodevalue", "utf8value", "bar_quoted"]
+    _immutable_fields_ = ["unreadable", "utf8value", "bar_quoted"]
 
     def __init__(self, val, unreadable=False):
         assert isinstance(val, str)
@@ -1120,6 +1219,13 @@ class W_Symbol(W_Object):
         self.utf8value = val
         self.unreadable = unreadable
         self._isascii = MAYBE
+        if " " in val:
+            self.bar_quoted = True
+        else:
+            self.bar_quoted = False
+
+    def is_bar_quoted(self):
+        return self.bar_quoted
 
     @staticmethod
     def _cache_is_ascii(self):
@@ -1181,7 +1287,7 @@ class W_Symbol(W_Object):
         return False
 
     def tostring(self):
-        return "'%s" % self.utf8value
+        return "%s" % self.utf8value
 
     def variable_name(self):
         return self.utf8value
@@ -1213,7 +1319,7 @@ class W_Keyword(W_Object):
     def __init__(self, val):
         self.value = val
     def tostring(self):
-        return "'#:%s" % self.value
+        return "#:%s" % self.value
 
 class W_Procedure(W_Object):
     _attrs_ = []
@@ -1223,6 +1329,8 @@ class W_Procedure(W_Object):
         return True
     def immutable(self):
         return True
+    def set_arity(self, arity):
+        raise SchemeException("%s is not a procedure" % self.tostring())
     def call(self, args, env, cont):
         return self.call_with_extra_info(args, env, cont, None)
     def call_with_extra_info(self, args, env, cont, app):
@@ -1264,11 +1372,10 @@ class W_ThunkProcCMK(W_Procedure):
     def call(self, env, cont):
         return self.proc.call(self.args, env, cont)
 
-
 class W_Prim(W_Procedure):
-    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2"]
+    _attrs_ = _immutable_fields_ = ["name", "code", "arity", "result_arity", "simple1", "simple2", "is_nyi"]
 
-    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None):
+    def __init__ (self, name, code, arity=Arity.unknown, result_arity=None, simple1=None, simple2=None, is_nyi=False):
         self.name = W_Symbol.make(name)
         self.code = code
         assert isinstance(arity, Arity)
@@ -1276,11 +1383,18 @@ class W_Prim(W_Procedure):
         self.result_arity = result_arity
         self.simple1 = simple1
         self.simple2 = simple2
+        self.is_nyi = is_nyi
+
+    def is_implemented(self):
+        return not self.is_nyi
 
     def get_arity(self, promote=False):
         if promote:
             self = jit.promote(self)
         return self.arity
+
+    def set_arity(self, arity):
+        self.arity = arity
 
     def get_result_arity(self):
         return self.result_arity
@@ -1335,11 +1449,16 @@ def from_list_unroll_pred(lst, idx, unroll_to=0, force=False):
 
 @jit.elidable
 def from_list_elidable(w_curr):
+    is_improper = not w_curr.is_proper_list()
+
     result = []
     while isinstance(w_curr, W_Cons):
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
-    if w_curr is w_null:
+    if is_improper:
+        result.append(w_curr)
+
+    if is_improper or (w_curr is w_null):
         return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
@@ -1347,6 +1466,7 @@ def from_list_elidable(w_curr):
 @jit.unroll_safe
 @specialize.arg(2)
 def from_list(w_curr, unroll_to=0, force=False):
+    is_improper = not w_curr.is_proper_list()
     result = []
     n = 0
     while isinstance(w_curr, W_Cons):
@@ -1355,7 +1475,10 @@ def from_list(w_curr, unroll_to=0, force=False):
         result.append(w_curr.car())
         w_curr = w_curr.cdr()
         n += 1
-    if w_curr is w_null:
+    if is_improper:
+        result.append(w_curr)
+
+    if is_improper or (w_curr is w_null):
         return result[:] # copy to make result non-resizable
     else:
         raise SchemeException("Expected list, but got something else")
@@ -1418,7 +1541,8 @@ class W_ComposableContinuation(W_Procedure):
 @inline_small_list(immutable=True, attrname="envs", factoryname="_make")
 class W_Closure(W_Procedure):
     _immutable_ = True
-    _attrs_ = _immutable_fields_ = ["caselam"]
+    _immutable_fields_ = ["caselam"]
+    _attrs_ = ["caselam", "current_linklet_instance"]
 
     @jit.unroll_safe
     def __init__(self, caselam, env):
@@ -1426,6 +1550,7 @@ class W_Closure(W_Procedure):
         for (i,lam) in enumerate(caselam.lams):
             vals = lam.collect_frees(caselam.recursive_sym, env, self)
             self._set_list(i, ConsEnv.make(vals, env.toplevel_env()))
+        self.current_linklet_instance = env.get_current_linklet_instance()
 
     def enable_jitting(self):
         self.caselam.enable_jitting()
@@ -1479,8 +1604,9 @@ class W_Closure(W_Procedure):
         # same environment.
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 frees, env_structure, env)
+        curr_linkl_inst = self.current_linklet_instance
         return lam.make_begin_cont(
-            ConsEnv.make(actuals, prev),
+            ConsEnv.make(actuals, prev, curr_linkl_inst),
             cont)
 
     def call(self, args, env, cont):
@@ -1536,6 +1662,7 @@ class W_Closure1AsEnv(ConsEnv):
             lam.raise_nice_error(args)
         # specialize on the fact that often we end up executing in the
         # same environment.
+
         prev = lam.env_structure.prev.find_env_in_chain_speculate(
                 self, env_structure, env)
         return lam.make_begin_cont(
@@ -1645,6 +1772,9 @@ class W_Port(W_Object):
     def close(self):
         self.closed = True
 
+    def is_stdin(self):
+        return False
+
     def seek(self, offset, end=False):
         raise NotImplementedError("abstract base classe")
 
@@ -1699,6 +1829,10 @@ class W_InputPort(W_Port):
         raise NotImplementedError("abstract class")
     def readline(self):
         raise NotImplementedError("abstract class")
+    def get_read_handler(self):
+        raise NotImplementedError("abstract class")
+    def set_read_handler(self, handler):
+        raise NotImplementedError("abstract class")
     def tostring(self):
         return "#<input-port>"
     def _length_up_to_end(self):
@@ -1707,12 +1841,19 @@ class W_InputPort(W_Port):
 class W_StringInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["str"]
-    _attrs_ = ['closed', 'str', 'ptr']
+    _attrs_ = ['closed', 'str', 'ptr', 'read_handler']
 
     def __init__(self, str):
         self.closed = False
         self.str = str
         self.ptr = 0
+        self.read_handler = None
+
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
 
     def readline(self):
         from rpython.rlib.rstring import find
@@ -1767,11 +1908,16 @@ class W_StringInputPort(W_InputPort):
 class W_FileInputPort(W_InputPort):
     errorname = "input-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file']
+    _attrs_ = ['closed', 'file', 'read_handler', 'stdin']
 
-    def __init__(self, f):
+    def __init__(self, f, stdin=False):
         self.closed = False
         self.file = f
+        self.read_handler = None
+        self.stdin = stdin
+
+    def is_stdin(self):
+        return self.stdin
 
     def close(self):
         self.closed = True
@@ -1781,6 +1927,12 @@ class W_FileInputPort(W_InputPort):
     def read(self, n):
         return self.file.read(n)
 
+    def get_read_handler(self):
+        return self.read_handler
+
+    def set_read_handler(self, handler):
+        self.read_handler = handler
+
     def readline(self):
         return self.file.readline()
 
@@ -1789,9 +1941,13 @@ class W_FileInputPort(W_InputPort):
         if offset < len(string):
             # fast path:
             return string[offset]
-        pos = self.file.tell()
-        res = self.file.read(1)
-        self.file.seek(pos, 0)
+
+        if self.is_stdin():
+            res = self.file.read(1)
+        else:
+            pos = self.file.tell()
+            res = self.file.read(1)
+            self.file.seek(pos, 0)
         return res
 
     def seek(self, offset, end=False):
@@ -1814,11 +1970,15 @@ class W_FileInputPort(W_InputPort):
 class W_FileOutputPort(W_OutputPort):
     errorname = "output-port"
     _immutable_fields_ = ["file"]
-    _attrs_ = ['closed', 'file']
+    _attrs_ = ['closed', 'file', 'stdout']
 
-    def __init__(self, f):
+    def __init__(self, f, stdout=False):
         self.closed = False
         self.file = f
+        self.stdout = stdout
+
+    def is_stdout(self):
+        return self.stdout
 
     def write(self, str):
         self.file.write(str)
@@ -1875,9 +2035,8 @@ def wrap(*_pyval):
             return W_UnwrappedFixnumCons(car, cdr)
         if isinstance(car, float):
             if cdr.is_proper_list():
-                return W_UnwrappedFlonumConsProper(car, cdr)
-            return W_UnwrappedFlonumCons(car, cdr)
+                return W_UnwrappedFlonumConsProper(car, False, cdr)
+            return W_UnwrappedFlonumCons(car, False, cdr)
         if isinstance(car, W_Object):
             return W_Cons.make(car, cdr)
     assert False
-

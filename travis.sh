@@ -4,7 +4,7 @@
 # utah or northwestern for prerelease, racket for stable
 #DLHOST=utah
 DLHOST=northwestern
-RACKET_VERSION=current
+RACKET_VERSION=7.0.0.19
 
 COVERAGE_TESTSUITE='test'
 
@@ -71,14 +71,22 @@ else
   TIME_IT=_time_bsd
 fi
 
+GREEN=$(tput setaf 2)
+NO_ATTRIB=$(tput sgr0)
+RIGHT_SIDE=$(tput cols)
+
+print_console() {
+    printf '%s%*s%s\n' "$GREEN" $RIGHT_SIDE "[$1]" "$NO_ATTRIB"
+}
 
 ############### test targets ################################
 do_tests() {
-  py.test -n 3 --duration 20 pycket
+
+    ./pypy-c ../pypy/pytest.py pycket
 }
 
-do_test_bytecode() {
-  py.test -n 3 --duration 20 --bytecode go pycket
+do_test_expander() {
+    ./pypy-c ../pypy/pytest.py pycket --use-expander --ignore=pycket/old-test
 }
 
 do_coverage() {
@@ -95,80 +103,84 @@ do_coverage() {
 
 
 do_translate() {
-  ../pypy/rpython/bin/rpython -Ojit --batch targetpycket.py
-  do_performance_smoke
+    print_console do_translate
+    ./pypy-c ../pypy/rpython/bin/rpython --batch -Ojit --translation-jit_opencoder_model=big targetpycket.py
+   #do_performance_smoke
 }
 
-
-
-do_performance_smoke() {
-  _smoke() {
-    RATIO=$1
-    shift
-    echo "> $1"
-    raco make $1 >/dev/null
-    RACKET_TIME=$($TIME_IT racket "$@")
-    echo "    Racket took $RACKET_TIME"
-    TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
-    KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
-    racket -l pycket/expand $1 2>/dev/null >/dev/null
-    # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
-    PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
-    echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
-    [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
-  }
-  echo ; echo ">> Performance smoke test" ; echo
-  echo ">>> Preparing racket files to not skew test"
-  expand_rkt yes
-  echo ">>> Smoke"
-  _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
-  _smoke 0.7 pycket/test/triangle.rkt
-  _smoke 1.8 pycket/test/earley.rkt
-  _smoke 2.0 pycket/test/nucleic2.rkt
-  _smoke 2.5 pycket/test/nqueens.rkt
-  _smoke 2.5 pycket/test/treerec.rkt
-  _smoke 1.5 pycket/test/hashtable-benchmark.rkt
-  echo ; echo ">> Smoke cleared" ; echo
-}
+# do_performance_smoke() {
+#   _smoke() {
+#     RATIO=$1
+#     shift
+#     echo "> $1"
+#     raco make $1 >/dev/null
+#     RACKET_TIME=$($TIME_IT racket "$@")
+#     echo "    Racket took $RACKET_TIME"
+#     TARGET_TIME=$(awk "BEGIN { print ${RATIO} * ${RACKET_TIME}; }" )
+#     KILLME_TIME=$(awk "BEGIN { print ${TARGET_TIME} * 5; }")
+#     racket -l pycket/expand $1 2>/dev/null >/dev/null
+#     # $TIMEOUT -k$KILLME_TIME $KILLME_TIME ./pycket-c "$@"
+#     PYCKET_TIME=$($TIME_IT ./pycket-c "$@")
+#     echo "    Pycket took $PYCKET_TIME (should be < $TARGET_TIME)"
+#     [ "OK" = "$(awk "BEGIN { print ($PYCKET_TIME < $TARGET_TIME ? \"OK\" : \"NO\"); }")" ]
+#   }
+#   echo ; echo ">> Performance smoke test" ; echo
+#   echo ">>> Preparing racket files to not skew test"
+#   expand_rkt yes
+#   echo ">>> Smoke"
+#   _smoke 1.5 pycket/test/fannkuch-redux.rkt 10
+#   _smoke 0.7 pycket/test/triangle.rkt
+#   _smoke 1.8 pycket/test/earley.rkt
+#   _smoke 2.0 pycket/test/nucleic2.rkt
+#   _smoke 2.5 pycket/test/nqueens.rkt
+#   _smoke 2.5 pycket/test/treerec.rkt
+#   _smoke 1.5 pycket/test/hashtable-benchmark.rkt
+#   echo ; echo ">> Smoke cleared" ; echo
+# }
 
 do_translate_nojit_and_racket_tests() {
-  ../pypy/rpython/bin/rpython --batch targetpycket.py
-  ../pypy/pytest.py pycket/test/racket-tests.py
+  print_console do_translate_nojit_and_racket_tests
+  ./pypy-c ../pypy/rpython/bin/rpython --batch targetpycket.py
 }
 
 ############################################################
 
 install_deps() {
+  print_console install_deps
   pip install -I pytest-xdist || pip install -I --user pytest-xdist
-  if [ $TEST_TYPE = 'coverage' ]; then
+  if [ "$TEST_TYPE" = 'coverage' ]; then
     pip install -I codecov pytest-cov || pip install -I codecov pytest-cov
   fi
 }
 
 _activate_pypyenv() {
   if [ -f ~/virtualenv/pypy/bin/activate ]; then
-    deactivate 2>&1 >/dev/null || true
+    #deactivate 2>&1 >/dev/null || true
     source ~/virtualenv/pypy/bin/activate
   fi
 }
 
 install_pypy() {
-  # PYPY_PAK=pypy-c-jit-latest-linux64.tar.bz2
-  # PYPY_URL=http://buildbot.pypy.org/nightly/release-4.0.x/pypy-c-jit-latest-linux64.tar.bz2
-  #PYPY_PAK=pypy-4.0.1-linux64.tar.bz2
-  PYPY_PAK=pypy2-v5.6.0-linux64.tar.bz2
+  PYPY_V=pypy2-v6.0.0-linux64
+  PYPY_PAK=$PYPY_V.tar.bz2
   PYPY_URL=https://bitbucket.org/pypy/pypy/downloads/$PYPY_PAK
 
+  print_console "Acquiring pypy binary : "
   wget $PYPY_URL
   tar xjf $PYPY_PAK
-  # ln -s pypy-c-*-linux64 pypy-c
-  ln -s pypy2-v5.6.0-linux64 pypy-c
-  pip install -I --upgrade virtualenv
-  virtualenv --no-wheel --no-setuptools --no-pip -p pypy-c/bin/pypy ~/virtualenv/pypy
+  ln -s $PYPY_V/bin/pypy pypy-c
+
+  #pip install -I --upgrade virtualenv
+  #virtualenv --no-wheel --no-setuptools --no-pip -p pypy-c/bin/pypy ~/virtualenv/pypy
   # fix virtualenv...
-  rm ~/virtualenv/pypy/bin/libpypy-c.so
-  cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
-  _activate_pypyenv
+  # rm ~/virtualenv/pypy/bin/libpypy-c.so
+  # cp pypy-c/bin/libpypy-c.so ~/virtualenv/pypy/bin/libpypy-c.so
+  # _activate_pypyenv
+}
+
+fetch_racket() {
+  print_console "Fetching the latest Racket"
+  git clone https://github.com/racket/racket.git
 }
 
 install_racket() {
@@ -205,7 +217,9 @@ install_racket() {
   sh $INSTALLER --in-place --dest racket
 }
 
+
 fetch_pypy() {
+  print_console "fetch_pypy"
   ###
   #  Prepare pypy
   ###
@@ -216,6 +230,7 @@ fetch_pypy() {
 }
 
 prepare_racket() {
+  ## SET UP THE ENV VARS TO ACCESS RACKET LIBS
   raco pkg install -t dir pycket/pycket-lang/
 }
 
@@ -245,7 +260,7 @@ expand_rkt() {
 
 
 if [ $# -lt 1 ]; then
-    echo "Missing command"
+    print_console "Missing command"
     _help
     exit 1
 fi
@@ -257,28 +272,29 @@ _activate_pypyenv
 
 case "$COMMAND" in
   prepare)
-    echo "Preparing dependencies"
+    print_console "Preparing dependencies : "
     install_pypy
+    #fetch_racket ####### FIXME
     install_racket
     install_deps
     ;;
   install)
-    echo "Preparing pypy and racket"
+    print_console "Fetching pypy and racket : "
     fetch_pypy
-    prepare_racket
+    prepare_racket ###### FIXME
     ;;
   test)
     export PYTHONPATH=$PYTHONPATH:../pypy:pycket
     cp ../pypy/pytest.ini . 2>&1 >/dev/null || true
     if [ -z "$1" ]; then
-        echo "Please tell what to test, see .travis.yml"
+        print_console "Please tell what to test, see .travis.yml"
         _help
         exit 1
     else
       TEST_TYPE="$1"
       shift
     fi
-    echo "Running $TEST_TYPE"
+    print_console "Running $TEST_TYPE"
     do_$TEST_TYPE
     ;;
   *)

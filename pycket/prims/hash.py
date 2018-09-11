@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys
 from pycket              import impersonators as imp
-from pycket              import values
+from pycket              import values, values_string
 from pycket.hash.base    import W_HashTable, W_ImmutableHashTable, w_missing
 from pycket.hash.simple  import (
     W_EqvMutableHashTable, W_EqMutableHashTable,
@@ -9,6 +10,7 @@ from pycket.hash.simple  import (
     make_simple_mutable_table, make_simple_mutable_table_assocs,
     make_simple_immutable_table, make_simple_immutable_table_assocs)
 from pycket.hash.equal   import W_EqualHashTable
+from pycket.impersonators.baseline import W_ImpHashTable
 from pycket.cont         import continuation, loop_label
 from pycket.error        import SchemeException
 from pycket.prims.expose import default, expose, procedure, define_nyi
@@ -98,8 +100,12 @@ def hash_for_each_loop(ht, f, index, env, cont):
 def hash_for_each_cont(ht, f, index, env, cont, _vals):
     return hash_for_each_loop(ht, f, index + 1, env, cont)
 
-@expose("hash-map", [W_HashTable, procedure], simple=False)
-def hash_map(h, f, env, cont):
+@expose("hash-map", [W_HashTable, procedure, default(values.W_Object, values.w_false)], simple=False)
+def hash_map(h, f, try_order, env, cont):
+    # FIXME : If try-order? is true, then the order of keys and values
+    # passed to proc is normalized under certain circumstances, such
+    # as when the keys are all symbols and hash is not an
+    # impersonator.
     from pycket.interpreter import return_value
     acc = values.w_null
     return hash_map_loop(f, h, 0, acc, env, cont)
@@ -249,6 +255,8 @@ def hash_ref(ht, k, default, env, cont):
 
 @expose("hash-remove!", [W_HashTable, values.W_Object], simple=False)
 def hash_remove_bang(ht, k, env, cont):
+    if ht.immutable():
+        raise SchemeException("hash-remove!: expected mutable hash table")
     return ht.hash_remove_inplace(k, env, cont)
 
 @expose("hash-remove", [W_HashTable, values.W_Object], simple=False)
@@ -257,13 +265,57 @@ def hash_remove(ht, k, env, cont):
         raise SchemeException("hash-remove: expected immutable hash table")
     return ht.hash_remove(k, env, cont)
 
-define_nyi("hash-clear!", [W_HashTable])
+@continuation
+def hash_clear_cont(ht, env, cont, _vals):
+    return hash_clear_loop(ht, env, cont)
+
+def hash_clear_loop(ht, env, cont):
+    from pycket.interpreter import return_value
+    if ht.length() == 0:
+        return return_value(values.w_void, env, cont)
+
+    w_k, w_v = ht.get_item(0)
+    return ht.hash_remove_inplace(w_k, env, hash_clear_cont(ht, env, cont))
+
+@expose("hash-clear!", [W_HashTable], simple=False)
+def hash_clear_bang(ht, env, cont):
+    from pycket.interpreter import return_value
+
+    if ht.is_impersonator():
+        ht.hash_clear_proc(env, cont)
+
+        return hash_clear_loop(ht, env, cont)
+    else:
+        ht.hash_empty()
+        return return_value(values.w_void, env, cont)
 
 define_nyi("hash-clear", [W_HashTable])
 
 @expose("hash-count", [W_HashTable])
 def hash_count(hash):
     return values.W_Fixnum(hash.length())
+
+@continuation
+def hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont, _vals):
+    from pycket.interpreter import return_value, check_one_val
+    val = check_one_val(_vals)
+    if val is values.w_false:
+        return return_value(values.w_false, env, cont)
+    else:
+        return hash_keys_subset_huh_loop(keys_vals, hash_2, idx + 1, env, cont)
+
+@loop_label
+def hash_keys_subset_huh_loop(keys_vals, hash_2, idx, env, cont):
+    from pycket.interpreter import return_value
+    if idx >= len(keys_vals):
+        return return_value(values.w_true, env, cont)
+    else:
+        return hash_ref([hash_2, keys_vals[idx][0], values.w_false], env,
+                        hash_keys_subset_huh_cont(keys_vals, hash_2, idx, env, cont))
+
+@expose("hash-keys-subset?", [W_HashTable, W_HashTable], simple=False)
+def hash_keys_subset_huh(hash_1, hash_2, env, cont):
+    return hash_keys_subset_huh_loop(hash_1.hash_items(), hash_2, 0, env, cont)
 
 @continuation
 def hash_copy_ref_cont(keys, idx, src, new, env, cont, _vals):
@@ -286,9 +338,10 @@ def hash_copy_loop(keys, idx, src, new, env, cont):
 
 def hash_copy(src, env, cont):
     from pycket.interpreter import return_value
-    new = src.make_empty()
     if isinstance(src, W_ImmutableHashTable):
+        new = src.make_copy()
         return return_value(new, env, cont)
+    new = src.make_empty()
     if src.length() == 0:
         return return_value(new, env, cont)
     return hash_copy_loop(src.hash_items(), 0, src, new, env, cont)
@@ -298,6 +351,19 @@ expose("hash-copy", [W_HashTable], simple=False)(hash_copy)
 # FIXME: not implemented
 @expose("equal-hash-code", [values.W_Object])
 def equal_hash_code(v):
+
+    # only for improper path cache entries
+    if isinstance(v, values.W_Cons):
+        if v.is_proper_list():
+            return values.W_Fixnum.ZERO
+
+        nm = v.car()
+        p = v.cdr()
+        if isinstance(nm, values_string.W_String) and \
+           isinstance(p, values.W_Path) and \
+           isinstance(p.path, str):
+            return values.W_Fixnum(objectmodel.compute_hash((nm.tostring(), p.path)))
+
     return values.W_Fixnum.ZERO
 
 @expose("equal-secondary-hash-code", [values.W_Object])
@@ -322,5 +388,3 @@ def eq_hash_code(v):
 def eqv_hash_code(v):
     hash = v.hash_eqv()
     return values.W_Fixnum(hash)
-
-

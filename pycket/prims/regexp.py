@@ -72,6 +72,11 @@ def promote_to_regexp(w_re):
 
 def match(w_re, w_str, start=0, end=sys.maxint):
     w_re = promote_to_regexp(w_re)
+    if isinstance(w_str, values.W_Path):
+        from pycket.prims.input_output import extract_path
+        s = extract_path(w_str)
+        result = w_re.match_string(s, start, end)
+        return result
     if isinstance(w_str, values_string.W_String):
         s = w_str.as_str_utf8() # XXX for now
         result = w_re.match_string(s, start, end)
@@ -244,8 +249,11 @@ def regexp_replace(pattern, input, insert, prefix):
         [values.W_Object,
          values.W_Object,
          values.W_Object,
+         default(values.W_Fixnum, values.W_Fixnum.ZERO),
+         default(values.W_Object, values.w_false),
          default(values.W_Bytes, EMPTY_BYTES)])
-def regexp_replace_star(pattern, input, insert, prefix):
+def regexp_replace_star(pattern, input, insert, start, end, prefix):
+    # FIXME : start end
     matches = match_all_positions("regexp-replace*", pattern, input)
     if not matches:
         return input

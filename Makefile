@@ -16,7 +16,7 @@ TRANSLATE_TARGETS := translate-jit translate-no-callgraph translate-no-two-state
 PYFILES := $(shell find . -name '*.py' -type f)
 
 .PHONY: all translate-jit-all $(TRANSLATE_TARGETS) translate-no-jit
-.PHONY: setup test coverage
+.PHONY: setup test coverage expander test-expander test-one test-one-expander test-mark test-mark-expander test-random
 
 PYPY_EXECUTABLE := $(shell which pypy)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -72,20 +72,47 @@ debug: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) $(WITH_JIT) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug
 
+debug-no-jit: $(PYFILES)
+	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
+	cp pycket-c pycket-c-debug-no-jit
+
+compile-file:
+	# assumes pycket-c
+	./pycket-c compile-file-pycket.rkt -- $(FILE)
+
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
-		raco pkg update --link pycket/pycket-lang
+	raco pkg update --link pycket/pycket-lang
 	hg -R $(PYPYPATH) pull && \
 	hg -R $(PYPYPATH) update
 
-test: $(PYFILES)
+expander:
+	@echo "WARNING: make expander assumes an unmodified Racket install and PLTHOME environmnent variable"
+	$(MAKE) -C linklet-extractor
+
+test:
 	$(RUNINTERP) $(PYTEST) pycket
 
-test-random: $(PYFILES)
-	$(RUNINTERP) $(PYTEST) --random pycket
+# test-expander:
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
 
-test-bytecode: $(PYFILES)
-	$(RUNINTERP) $(PYTEST) --bytecode go pycket
+# test-one:
+
+# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -k test_${what}.py
+
+# test-one-expander:
+
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -k test_${what}.py
+
+# test-mark:
+# 	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/old-test/ -m ${mark}
+
+# test-mark-expander:
+# 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/ -m ${mark}
+
+# test-random: #$(PYFILES)
+# 	@echo "Not yet implemented"
+# 	# RUNINTERP PYTEST --random pycket --ignore=pycket/test/
 
 coverage: pycket/test/coverage_report .coverage
 pycket/test/coverage_report .coverage: $(PYFILES)

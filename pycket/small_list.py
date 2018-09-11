@@ -215,7 +215,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
         if isinstance(w_a, W_Fixnum):
             return Size1Fixed(w_a.value, *args)
         if isinstance(w_a, W_Flonum):
-            return Size1Flo(w_a.value, *args)
+            return Size1Flo(w_a.value, w_a.is_single_prec, *args)
         return orig_make1(w_a, *args)
     def make2(w_a, w_b, *args):
         from pycket.values import W_Fixnum
@@ -255,13 +255,14 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     add_clone_method(Size1Fixed)
 
     class Size1Flo(cls):
-        _immutable_fields_ = ['vals_flo_0']
+        _immutable_fields_ = ['vals_flo_0', 'vals_flo_0_single']
 
         if immut:
             _immutable_ = True
 
-        def __init__(self, vals_flo_0, *args):
+        def __init__(self, vals_flo_0, is_single, *args):
             self.vals_flo_0 = vals_flo_0
+            self.vals_flo_0_single = is_single
             cls.__init__(self, *args)
 
         def _get_size_list(self):
@@ -273,7 +274,7 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
         def _get_list(self, i):
             from pycket.values import W_Flonum
             assert i == 0
-            return W_Flonum(self.vals_flo_0)
+            return W_Flonum(self.vals_flo_0, self.vals_flo_0_single)
 
         def _set_list(self, i, val):
             raise NotImplementedError()
@@ -371,4 +372,3 @@ def _add_num_classes(cls, orig_make, orig_make0, orig_make1, orig_make2, immut=F
     add_clone_method(Size2Fixed11)
 
     return make, make1, make2
-

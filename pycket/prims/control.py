@@ -7,6 +7,7 @@ from pycket.cont               import continuation, loop_label, call_cont, Barri
 from pycket.error              import SchemeException
 from pycket.argument_parser    import ArgParser, EndOfInput
 from pycket.prims.expose       import default, expose, expose_val, procedure, make_procedure
+from pycket.prims.plumber      import current_plumber_param
 from pycket.util               import add_copy_method
 from rpython.rlib              import jit
 from rpython.rlib.objectmodel  import specialize
@@ -50,16 +51,13 @@ def post_build_exception(env, cont, _vals):
 
 def convert_runtime_exception(exn, env, cont):
     from pycket               import values_string
-    from pycket.prims.general import exn_fail, exn_fail_user
     from pycket.values        import W_ContinuationMarkSet
     from pycket.prims.control import raise_exception
     message = values_string.W_String.fromstr_utf8(exn.msg)
     marks   = W_ContinuationMarkSet(cont, values.w_default_continuation_prompt_tag)
     cont    = post_build_exception(env, cont)
-    if exn.is_user():
-        return exn_fail_user.constructor.call([message, marks], env, cont)
-    else:
-        return exn_fail.constructor.call([message, marks], env, cont)
+
+    return exn.get_exn_type().constructor.call([message, marks], env, cont)
 
 @jit.unroll_safe
 def scan_continuation(curr, prompt_tag, look_for=None, escape=False):
@@ -323,6 +321,10 @@ def make_continuation_prompt_tag(sym):
 def default_continuation_prompt_tag():
     return values.w_default_continuation_prompt_tag
 
+@expose("unsafe-root-continuation-prompt-tag", [])
+def unsafe_root_configuraion_prompt_tag():
+    return values.w_root_continuation_prompt_tag
+
 def abort_current_continuation(args, env, cont):
     from pycket.interpreter import return_multi_vals
     if not args:
@@ -349,17 +351,94 @@ def abort_current_continuation(args, env, cont):
 
 expose("abort-current-continuation", simple=False)(abort_current_continuation)
 
+@expose("force-exit", [values.W_Object])
+def force_exit(v):
+    return _force_exit(v)
+
+def _force_exit(v):
+    from pycket.error import ExitException
+
+    if isinstance(v, values.W_Fixnum) and (0 <= v.value <= 255):
+        raise ExitException(v)
+    else:
+        raise ExitException(values.W_Fixnum(0))
+
+@continuation
+def force_exit_cont(v, env, cont, _vals):
+    return _force_exit(v)
+
+@make_procedure("initial-exit-handler", [values.W_Object], arity=Arity.ZERO, simple=False)
+def initial_exit_handler(v, env, cont):
+    from pycket.prims.plumber import do_plumber_flush_all
+    root_plumber = current_plumber_param.get(cont) ## ??
+    return do_plumber_flush_all(root_plumber, env , force_exit_cont(v, env, cont))
+
+exit_handler_param = values_parameter.W_Parameter(initial_exit_handler)
+expose_val("exit-handler", exit_handler_param)
+
+@continuation
+def exit_cont(env, cont, _vals):
+    from pycket.interpreter import return_value
+    return return_value(values.w_void, env, cont)
+
+@expose("exit", [default(values.W_Object, values.w_true)], simple=False)
+def exit(v, env, cont):
+    exit_handler = exit_handler_param.get(cont)
+    return exit_handler.call([v], env, exit_cont(env, cont))
+
 @make_procedure("default-error-escape-handler", [], simple=False)
 def default_error_escape_handler(env, cont):
     from pycket.prims.general import do_void
     args = [values.w_default_continuation_prompt_tag, do_void.w_prim]
     return abort_current_continuation(args, env, cont)
 
-expose_val("error-escape-handler", values_parameter.W_Parameter(default_error_escape_handler))
+error_escape_handler_param = values_parameter.W_Parameter(default_error_escape_handler)
+
+expose_val("error-escape-handler", error_escape_handler_param)
+
+@make_procedure("default-error-display-handler", [values_string.W_String, values.W_Object], simple=False)
+def default_error_display_handler(msg, exn_object, env, cont):
+    from pycket.prims.input_output import current_error_param, return_void
+    port = current_error_param.get(cont)
+
+    assert isinstance(port, values.W_OutputPort)
+    port.write("%s : %s\n" % (exn_object.struct_type().name.tostring(), msg.tostring()))
+    # FIXME : FIX the continuation-mark-set->context and extract a stack trace using it
+    return return_void(env, cont)
+
+error_display_handler_param = values_parameter.W_Parameter(default_error_display_handler)
+
+expose_val("error-display-handler", error_display_handler_param)
+
+@continuation
+def display_escape_cont(exn, env, cont, _vals):
+    from pycket.interpreter import check_one_val
+    message = check_one_val(_vals)
+
+    display_handler = error_display_handler_param.get(cont) # parameterize this to default first
+    escape_handler = error_escape_handler_param.get(cont) # this one too
+
+    # display, then escape
+    return display_handler.call([message, exn], env, call_handler_cont(escape_handler, [], env, cont))
+
+@make_procedure("default-uncaught-exception-handler", [values.W_Object], simple=False)
+def default_uncaught_exception_handler(exn, env, cont):
+    # racket/src/cs/rumble/error.ss
+
+    #FIXME : handle Breaks
+    offset = exn.struct_type().get_offset(exn.struct_type())
+    original_field_num = 0 # this is for the message field in exceptions
+    message_field_index = values.W_Fixnum(original_field_num-offset)
+
+    return exn.struct_type().accessor.call([exn, message_field_index], env, display_escape_cont(exn, env, cont))
 
 @make_procedure("default-continuation-prompt-handler", [procedure], simple=False)
 def default_continuation_prompt_handler(proc, env, cont):
     return proc.call([], env, cont)
+
+# @expose("call-with-exception-handler", [procedure, procedure], simple=False)
+# def call_with_exception_handler(f, thunk, env, cont):
+#     #FIXME
 
 @expose("call-with-continuation-prompt", simple=False, arity=Arity.geq(1))
 def call_with_continuation_prompt(args, env, cont):
@@ -384,6 +463,8 @@ def call_with_continuation_prompt(args, env, cont):
     if handler is values.w_false:
         handler = None
     cont = Prompt(tag, handler, env, cont)
+    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+    cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
     return fun.call(args, env, cont)
 
 @expose("call-with-continuation-barrier", [procedure], simple=False, extra_info=True)
@@ -464,8 +545,31 @@ def raise_args_err(args):
         i += 2
     raise SchemeException(error_msg.build())
 
+@expose("raise-mismatch-error", arity=Arity.geq(3))
+def raise_mismatch_err(args):
+    name = args[0]
+    assert isinstance(name, values.W_Symbol)
+    message = args[1]
+    assert isinstance(message, values_string.W_String)
+    v = args[2]
+    assert isinstance(v, values.W_Object)
+    from rpython.rlib.rstring import StringBuilder
+    error_msg = StringBuilder()
+    error_msg.append(name.utf8value)
+    error_msg.append(": ")
+    error_msg.append(message.as_str_utf8())
+    error_msg.append(v.tostring())
+    i = 3
+    while i + 1 < len(args):
+        message = args[i]
+        assert isinstance(message, values_string.W_String)
+        error_msg.append(message.as_str_utf8())
+        v = args[i+1]
+        assert isinstance(v, values.W_Object)
+        error_msg.append(v.tostring())
+        i += 2
+    raise SchemeException(error_msg.build())
+
 @expose("raise-type-error", [values.W_Symbol, values_string.W_String, values.W_Object])
 def raise_type_error(name, expected, v):
     raise SchemeException("%s: expected %s in %s" % (name.tostring(), expected.tostring(), v.tostring()))
-
-

@@ -10,6 +10,7 @@ from pycket.cont              import Cont, NilCont, label
 from pycket.env               import SymList, ConsEnv, ToplevelEnv
 from pycket.error             import SchemeException
 from pycket.prims.expose      import prim_env, make_call_method
+from pycket.prims.control     import convert_runtime_exception
 
 from pycket.hash.persistent_hash_map import make_persistent_hash_type
 
@@ -428,6 +429,7 @@ class LetCont(Cont):
     def _construct_env(self, ast, len_self, vals, len_vals, new_length, prev):
         assert isinstance(ast, Let)
         # this is a complete mess. however, it really helps warmup a lot
+        l_inst = self.env.get_current_linklet_instance()
         if new_length == 0:
             return ConsEnv.make0(prev)
         if new_length == 1:
@@ -437,7 +439,7 @@ class LetCont(Cont):
                 assert len_self == 0 and len_vals == 1
                 elem = vals.get_value(0)
             elem = ast.wrap_value(elem, 0)
-            return ConsEnv.make1(elem, prev)
+            return ConsEnv.make1(elem, prev, l_inst)
         if new_length == 2:
             if len_self == 0:
                 assert len_vals == 2
@@ -453,8 +455,8 @@ class LetCont(Cont):
                 elem2 = self._get_list(1)
             elem1 = ast.wrap_value(elem1, 0)
             elem2 = ast.wrap_value(elem2, 1)
-            return ConsEnv.make2(elem1, elem2, prev)
-        env = ConsEnv.make_n(new_length, prev)
+            return ConsEnv.make2(elem1, elem2, prev, l_inst)
+        env = ConsEnv.make_n(new_length, prev, l_inst)
         i = 0
         for j in range(len_self):
             val = self._get_list(j)
@@ -861,6 +863,11 @@ class Cell(AST):
     def _tostring(self):
         return "Cell(%s)"%self.expr.tostring()
 
+    def write(self, port, env):
+        port.write("Cell(")
+        self.expr.write(port, env)
+        port.write(" . %s)" % self.need_cell_flags)
+
 class Quote(AST):
     _immutable_fields_ = ["w_val"]
 
@@ -880,10 +887,15 @@ class Quote(AST):
     def _tostring(self):
         if (isinstance(self.w_val, values.W_Bool) or
             isinstance(self.w_val, values.W_Number) or
-            isinstance(self.w_val, values_string.W_String) or
-            isinstance(self.w_val, values.W_Symbol)):
+            isinstance(self.w_val, values_string.W_String)):
             return "%s" % self.w_val.tostring()
         return "'%s" % self.w_val.tostring()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(quote ")
+        write_loop(self.w_val, port, env)
+        port.write(")")
 
 class QuoteSyntax(AST):
     _immutable_fields_ = ["w_val"]
@@ -902,6 +914,12 @@ class QuoteSyntax(AST):
 
     def _tostring(self):
         return "#'%s" % self.w_val.tostring()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(quote-syntax ")
+        write_loop(self.w_val, port, env)
+        port.write(")")
 
 class VariableReference(AST):
     _immutable_fields_ = ["var", "is_mut", "path"]
@@ -922,13 +940,23 @@ class VariableReference(AST):
             return False
 
     def interpret_simple(self, env):
-        return values.W_VariableReference(self)
+        current_inst = env.get_current_linklet_instance()
+        return values.W_VariableReference(self, current_inst)
 
     def direct_children(self):
         return []
 
     def _tostring(self):
         return "#<#%variable-reference>"
+
+    def write(self, port, env):
+        port.write("(#%variable-reference ")
+        if self.var:
+            self.var.write(port, env)
+        if self.path:
+            port.write("%s " % self.path)
+        port.write("%s" % self.is_mut)
+        port.write(")")
 
 class WithContinuationMark(AST):
     _immutable_fields_ = ["key", "value", "body"]
@@ -956,6 +984,19 @@ class WithContinuationMark(AST):
         body   = Context.normalize_term(self.body)
         result = WithContinuationMark(key, value, body)
         return context.plug(result)
+
+    def write(self, port, env):
+        port.write("(with-continuation-mark ")
+        if self.key:
+            self.key.write(port, env)
+            port.write(" ")
+        if self.value:
+            self.value.write(port, env)
+            port.write(" ")
+        if self.body:
+            self.body.write(port, env)
+            port.write(" ")
+        port.write(")")
 
 class App(AST):
     _immutable_fields_ = ["rator", "rands[*]", "env_structure"]
@@ -993,14 +1034,17 @@ class App(AST):
                 isinstance(rator, ModuleVar) and
                 rator.is_primitive()):
             self.set_should_enter() # to jit downrecursion
-        w_callable = rator.interpret_simple(env)
-        args_w = [None] * len(self.rands)
-        for i, rand in enumerate(self.rands):
-            args_w[i] = rand.interpret_simple(env)
-        if isinstance(w_callable, values.W_PromotableClosure):
-            # fast path
-            jit.promote(w_callable)
-            w_callable = w_callable.closure
+        try:
+            w_callable = rator.interpret_simple(env)
+            args_w = [None] * len(self.rands)
+            for i, rand in enumerate(self.rands):
+                args_w[i] = rand.interpret_simple(env)
+            if isinstance(w_callable, values.W_PromotableClosure):
+                # fast path
+                jit.promote(w_callable)
+                w_callable = w_callable.closure
+        except SchemeException, exn:
+            return convert_runtime_exception(exn, env, cont)
         return w_callable.call_with_extra_info(args_w, env, cont, self)
 
     def normalize(self, context):
@@ -1010,6 +1054,14 @@ class App(AST):
     def _tostring(self):
         elements = [self.rator] + self.rands
         return "(%s)" % " ".join([r.tostring() for r in elements])
+
+    def write(self, port, env):
+        port.write("(")
+        self.rator.write(port, env)
+        for r in self.rands:
+            port.write(" ")
+            r.write(port, env)
+        port.write(")")
 
 class SimplePrimApp1(App):
     _immutable_fields_ = ['w_prim', 'rand1']
@@ -1036,7 +1088,6 @@ class SimplePrimApp1(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
@@ -1061,7 +1112,6 @@ class SimplePrimApp2(App):
         return Context.normalize_names(self.rands, context)
 
     def run(self, env):
-        from pycket.prims.control import convert_runtime_exception
         arg1 = self.rand1.interpret_simple(env)
         arg2 = self.rand2.interpret_simple(env)
         result = self.w_prim.simple2(arg1, arg2)
@@ -1073,7 +1123,6 @@ class SimplePrimApp2(App):
         return check_one_val(self.run(env))
 
     def interpret(self, env, cont):
-        from pycket.prims.control import convert_runtime_exception
         if not env.pycketconfig().callgraph:
             self.set_should_enter() # to jit downrecursion
         try:
@@ -1183,6 +1232,14 @@ class Begin0(SequencedBodyAST):
     def interpret(self, env, cont):
         return self.first, env, Begin0Cont(self, env, cont)
 
+    def write(self, port, env):
+        port.write("(begin0 ")
+        self.first.write(port, env)
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
 @specialize.call_location()
 def remove_pure_ops(ops, always_last=True):
     """ The specialize annotation is to allow handling of resizable and non-resizable
@@ -1240,6 +1297,13 @@ class Begin(SequencedBodyAST):
     def _tostring(self):
         return "(begin %s)" % (" ".join([e.tostring() for e in self.body]))
 
+    def write(self, port, env):
+        port.write("(begin ")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
 class BeginForSyntax(AST):
     _immutable_fields_ = ["body[*]"]
     visitable = True
@@ -1257,6 +1321,13 @@ class BeginForSyntax(AST):
     def _tostring(self):
         return "(begin-for-syntax %s)" % " ".join([b.tostring() for b in self.body])
 
+    def write(self, port, env):
+        port.write("(begin-for-syntax ")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
 class Var(AST):
     _immutable_fields_ = ["sym", "env_structure"]
     simple = True
@@ -1270,7 +1341,7 @@ class Var(AST):
     def interpret_simple(self, env):
         val = self._lookup(env)
         if val is None:
-            raise SchemeException("%s: undefined" % self.sym.utf8value)
+            raise SchemeException("%s: undefined" % self.sym.tostring())
         return val
 
     def direct_children(self):
@@ -1281,6 +1352,10 @@ class Var(AST):
 
     def _tostring(self):
         return "%s" % self.sym.variable_name()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class CellRef(Var):
     simple = True
@@ -1298,6 +1373,10 @@ class CellRef(Var):
         v = env.lookup(self.sym, self.env_structure)
         assert isinstance(v, values.W_Cell)
         return v.get_val()
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class GensymCounter(object):
     _attrs_ = ['_val']
@@ -1329,15 +1408,105 @@ class Gensym(object):
         count = counter.next_value()
         return values.W_Symbol(hint + str(count))
 
+class LinkletVar(Var):
+    visitable = True
+    _immutable_fields_ = ["w_value?", "sym", "constance", "is_transparent"]
+
+    def __init__(self, sym, w_value=None, constance=values.w_false, is_transparent=False):
+        self.sym = sym
+        self.w_value = w_value
+        self.is_transparent = is_transparent
+        self.constance = constance #f (mutable), 'constant, or 'consistent (always the same shape)
+
+    def tostring(self):
+        val_str = self.get_value_direct().tostring() if self.w_value else "NO-VAL"
+        return "LinkletVar(%s:%s)" % (self.sym.tostring(), val_str)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
+    def _free_vars(self, cache):
+        return SymbolSet.EMPTY
+
+    def is_constant(self):
+        # FIXME : investigate 'consistent
+        if self.constance is values.w_false or self.constance is values.W_Symbol.make("consistent"):
+            return False
+        elif self.constance is values.W_Symbol.make("constant"):
+            return True
+        else:
+            raise SchemeException("Something's wrong with the constance : %s" % self.constance.tostring())
+
+    def set(self, w_val, env, mode=None):
+        const = values.W_Symbol.make("constant")
+        if self.constance is const:
+            raise SchemeException("Cannot mutate a constant : %s" % self.sym.tostring())
+        if mode is const:
+            self.constance = const
+
+        self._set(w_val, env)
+
+    def _set(self, w_val, env):
+        c = self.w_value
+        if not c:
+            c = self._get_cell(env)
+
+        assert isinstance(c, values.W_Cell)
+        c.set_val(w_val)
+
+    def set_bang(self, w_val):
+        assert isinstance(self.w_value, values.W_Cell)
+        self.w_value.set_val(w_val)
+
+    def get_value_direct(self):
+        w_res = self.get_value_unstripped()
+        if isinstance(w_res, values.W_Cell):
+            return w_res.get_val()
+        return w_res
+
+    # get the value possibly with the W_Cell
+    def get_value_unstripped(self):
+        w_res = self.w_value
+        if w_res is None:
+            raise SchemeException("Reference to an uninitialized variable : %s" % self.sym.tostring())
+        return w_res
+
+    def is_uninitialized(self):
+        return self.w_value is None
+
+    def _lookup(self, env):
+        w_res = self.w_value
+
+        if w_res is None:
+            w_res = self._get_cell(env)
+
+            if not self.is_transparent:
+                self.w_value = w_res
+
+        if type(w_res) is values.W_Cell:
+            return w_res.get_val()
+        else:
+            return w_res
+
+    def _get_cell(self, env):
+        try:
+            return env.toplevel_env().toplevel_lookup_unstripped(self.sym)
+        except SchemeException:
+            inst = env.toplevel_env().get_current_linklet_instance()
+            return inst.lookup_var_value(self.sym)
+
 class LexicalVar(Var):
     visitable = True
     def _lookup(self, env):
-        if not objectmodel.we_are_translated():
-            self.env_structure.check_plausibility(env)
         return env.lookup(self.sym, self.env_structure)
 
     def _set(self, w_val, env):
         assert 0
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
 
 class ModuleVar(Var):
     _immutable_fields_ = ["modenv?", "sym", "srcmod", "srcsym", "w_value?", "path[*]"]
@@ -1353,6 +1522,10 @@ class ModuleVar(Var):
 
     def _free_vars(self, cache):
         return SymbolSet.EMPTY
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.srcsym, port, env)
 
     def _lookup(self, env):
         w_res = self.w_value
@@ -1414,6 +1587,10 @@ class ToplevelVar(Var):
     def _set(self, w_val, env):
         env.toplevel_env().toplevel_set(self.sym, w_val)
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        write_loop(self.sym, port, env)
+
 class SetBang(AST):
     _immutable_fields_ = ["var", "rhs"]
     visitable = True
@@ -1448,7 +1625,14 @@ class SetBang(AST):
         return Context.normalize_name(self.rhs, context, hint="SetBang")
 
     def _tostring(self):
-        return "(set! %s %s)" % (self.var.sym.variable_name(), self.rhs.tostring())
+        return "(set! %s %s)" % (self.var.tostring(), self.rhs.tostring())
+
+    def write(self, port, env):
+        port.write("(set! ")
+        self.var.write(port, env)
+        port.write(" ")
+        self.rhs.write(port, env)
+        port.write(")")
 
 class If(AST):
     _immutable_fields_ = ["tst", "thn", "els"]
@@ -1485,6 +1669,15 @@ class If(AST):
 
     def _tostring(self):
         return "(if %s %s %s)" % (self.tst.tostring(), self.thn.tostring(), self.els.tostring())
+
+    def write(self, port, env):
+        port.write("(if ")
+        self.tst.write(port, env)
+        port.write(" ")
+        self.thn.write(port, env)
+        port.write(" ")
+        self.els.write(port, env)
+        port.write(")")
 
 def make_lambda(formals, rest, body, sourceinfo=None):
     """
@@ -1544,12 +1737,9 @@ class CaseLambda(AST):
             # cache closure if there are no free variables and the toplevel env
             # is the same as last time
             w_closure = self.w_closure_if_no_frees
-            if w_closure is None:
+            if w_closure is None or (len(self.lams) > 0 and w_closure.closure._get_list(0).toplevel_env() is not env.toplevel_env()):
                 w_closure = values.W_PromotableClosure(self, env.toplevel_env())
                 self.w_closure_if_no_frees = w_closure
-            else:
-                if not jit.we_are_jitted():
-                    assert w_closure.closure._get_list(0).toplevel_env() is env.toplevel_env()
             return w_closure
         return values.W_Closure.make(self, env)
 
@@ -1567,7 +1757,19 @@ class CaseLambda(AST):
     def _tostring(self):
         if len(self.lams) == 1:
             return self.lams[0].tostring()
-        return "(case-lambda %s)" % (" ".join([l.tostring() for l in self.lams]))
+        r_sym_str = self.recursive_sym.tostring() if self.recursive_sym else ""
+        return "(case-lambda (recursive-sym %s) %s)" % (r_sym_str, " ".join([l.tostring() for l in self.lams]))
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(case-lambda (recursive-sym ")
+        if self.recursive_sym:
+            write_loop(self.recursive_sym, port, env)
+        port.write(")")
+        for l in self.lams:
+            port.write(" ")
+            l.write(port, env)
+        port.write(")")
 
     @jit.elidable_promote('all')
     def tostring_as_closure(self):
@@ -1769,6 +1971,33 @@ class Lambda(SequencedBodyAST):
                 self.body[0].tostring() if len(self.body) == 1 else
                 " ".join([b.tostring() for b in self.body]))
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(lambda")
+        port.write(" ")
+        if self.rest and not self.formals:
+            write_loop(self.rest, port, env)
+            port.write(" ")
+        elif self.rest:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port, env)
+                port.write(" ")
+            port.write(".")
+            port.write(" ")
+            write_loop(self.rest, port, env)
+            port.write(")")
+        else:
+            port.write("(")
+            for f in self.formals:
+                write_loop(f, port, env)
+                port.write(" ")
+            port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
 class CombinedAstAndIndex(AST):
     _immutable_fields_ = ["ast", "index"]
 
@@ -1881,6 +2110,28 @@ class Letrec(SequencedBodyAST):
         bindings = " ".join(bindings)
         body = " ".join([b.tostring() for b in self.body])
         return "(letrec (%s) %s)" % (bindings, body)
+
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(letrec-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port, env)
+                j += 1
+            port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port, env)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
 
 def _make_symlist_counts(varss):
     counts = []
@@ -2062,6 +2313,29 @@ class Let(SequencedBodyAST):
         result.append(")")
         return "".join(result)
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(let-values (")
+        j = 0
+        for i, count in enumerate(self.counts):
+            port.write("(")
+            port.write("(")
+            for k in range(count):
+                if k > 0:
+                    port.write(" ")
+                write_loop(self.args.elems[j], port, env)
+                j += 1
+            port.write(")")
+            port.write(" ")
+            self.rhss[i].write(port, env)
+            port.write(")")
+        port.write(")")
+        for b in self.body:
+            port.write(" ")
+            b.write(port, env)
+        port.write(")")
+
+
 class DefineValues(AST):
     _immutable_fields_ = ["names", "rhs", "display_names"]
     visitable = True
@@ -2087,9 +2361,18 @@ class DefineValues(AST):
         return context.plug(result)
 
     def _tostring(self):
-        return "(define-values %s %s)" % (
-            self.display_names, self.rhs.tostring())
+        return "(define-values (%s) %s)" % (
+            ' '.join([n.tostring() for n in self.display_names]), self.rhs.tostring())
 
+    def write(self, port, env):
+        from pycket.prims.input_output import write_loop
+        port.write("(define-values (")
+        for n in self.names:
+            port.write(" ")
+            write_loop(n, port, env)
+        port.write(") ")
+        self.rhs.write(port, env)
+        port.write(")")
 
 def get_printable_location_two_state(green_ast, came_from):
     if green_ast is None:
@@ -2144,15 +2427,19 @@ def inner_interpret_one_state(ast, env, cont):
         if ast.should_enter:
             driver_one_state.can_enter_jit(ast=ast, env=env, cont=cont)
 
-def interpret_one(ast, env=None):
+def interpret_one(ast, env=None, cont=None):
     if env is None:
         env = ToplevelEnv()
     if env.pycketconfig().two_state:
         inner_interpret = inner_interpret_two_state
     else:
         inner_interpret = inner_interpret_one_state
-    cont = NilCont()
-    cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+
+    if cont is None:
+        cont = NilCont()
+
+    if cont.marks is None:
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
     try:
         inner_interpret(ast, env, cont)
     except Done, e:

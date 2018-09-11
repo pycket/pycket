@@ -1,3 +1,4 @@
+import sys
 from rpython.rlib             import jit, objectmodel
 from pycket.small_list        import inline_small_list
 from pycket.error             import SchemeException
@@ -5,6 +6,7 @@ from pycket.base              import W_Object
 from pycket.callgraph         import CallGraph
 from pycket.config            import get_testing_config
 
+MIN_INT = -sys.maxint-1
 
 class SymList(object):
     _immutable_fields_ = ["elems[*]", "prev"]
@@ -101,10 +103,25 @@ class ModuleEnv(object):
     def _find_module(self, name):
         return self.modules.get(name, None)
 
-
 class GlobalConfig(object):
     def __init__(self):
-        self.config = None
+        self.config = {'verbose':MIN_INT}
+        self.pycketconfig = None
+
+    def get_config(self):
+        return self.config
+
+    def get_config_val(self, name):
+        return self.config[name]
+
+    def set_config_val(self, name, val):
+        self.config[name] = val
+
+    def set_pycketconfig(self, c):
+        self.pycketconfig = c
+
+    def get_pycketconfig(self):
+        return self.pycketconfig
 
     def lookup(self, s):
         return self.config.get(s, None)
@@ -116,6 +133,7 @@ class GlobalConfig(object):
         assert isinstance(ast, Module)
         self.config = ast.config.copy()
 
+w_global_config = GlobalConfig()
 
 class Env(W_Object):
     _attrs_ = []
@@ -135,25 +153,44 @@ class Env(W_Object):
         return self.toplevel_env()._pycketconfig.pycket
 
 class Version(object):
-    pass
 
+    def __init__(self):
+        self.version = ""
+
+    def get_version(self):
+        return self.version
+
+    def set_version(self, new_version):
+        self.version = new_version
+
+w_version = Version()
 
 class ToplevelEnv(Env):
-    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig']
+    _attrs_ = ['bindings', 'version', 'module_env', 'commandline_arguments', 'callgraph', 'globalconfig', '_pycketconfig', 'current_linklet_instance']
     _immutable_fields_ = ["version?", "module_env"]
-    def __init__(self, pycketconfig=None):
+    def __init__(self, pycketconfig=None, current_linklet_instance=None):
         from rpython.config.config import Config
         self.bindings = {}
-        self.version = Version()
+        self.version = w_version
         self.module_env = ModuleEnv(self)
         self.commandline_arguments = []
         self.callgraph = CallGraph()
-        self.globalconfig = GlobalConfig()
+        self.globalconfig = w_global_config
         if pycketconfig is None:
             assert not objectmodel.we_are_translated()
             pycketconfig = get_testing_config()
         assert isinstance(pycketconfig, Config)
         self._pycketconfig = pycketconfig
+        self.current_linklet_instance = current_linklet_instance
+
+    def get_current_version(self):
+        return self.version
+
+    def get_current_linklet_instance(self):
+        return self.current_linklet_instance
+
+    def set_current_linklet_instance(self, inst):
+        self.current_linklet_instance = inst
 
     def lookup(self, sym, env_structure):
         raise SchemeException("variable %s is unbound" % sym.variable_name())
@@ -166,6 +203,12 @@ class ToplevelEnv(Env):
             w_res = w_res.get_val()
         return w_res
 
+    def toplevel_lookup_unstripped(self, sym):
+        from pycket.values import W_Cell
+        jit.promote(self)
+        w_res = self._lookup(sym, jit.promote(self.version))
+        return w_res
+
     @jit.elidable
     def _lookup(self, sym, version):
         try:
@@ -173,10 +216,14 @@ class ToplevelEnv(Env):
         except KeyError:
             raise SchemeException("toplevel variable %s not found" % sym.variable_name())
 
-    def toplevel_set(self, sym, w_val):
+    def toplevel_set(self, sym, w_val, already_celled=False):
         from pycket.values import W_Cell
         if sym in self.bindings:
             self.bindings[sym].set_val(w_val)
+        elif already_celled:
+            assert isinstance(w_val, W_Cell)
+            self.bindings[sym] = w_val
+            self.version = Version()
         else:
             self.bindings[sym] = W_Cell(w_val)
             self.version = Version()
@@ -186,18 +233,28 @@ class ToplevelEnv(Env):
 class ConsEnv(Env):
     _immutable_ = True
     _immutable_fields_ = ["_prev"]
-    _attrs_ = ["_prev"]
-    def __init__ (self, prev):
+    _attrs_ = ["_prev", "current_linklet_instance"]
+    def __init__ (self, prev, current_linklet_instance=None):
         assert isinstance(prev, Env)
         self._prev = prev
+        if not current_linklet_instance:
+            self.current_linklet_instance = prev.get_current_linklet_instance()
+        else:
+            self.current_linklet_instance = current_linklet_instance
+
+    def get_current_linklet_instance(self):
+        return self.current_linklet_instance
+
+    def set_current_linklet_instance(self, inst):
+        self.current_linklet_instance = inst
 
     def consenv_get_size(self):
         return self._get_size_list()
 
     @staticmethod
-    def make(vals, prev):
+    def make(vals, prev, curr_linkl_inst=None):
         if vals:
-            return ConsEnv._make(vals, prev)
+            return ConsEnv._make(vals, prev, curr_linkl_inst)
         return prev
 
     @staticmethod
@@ -205,17 +262,17 @@ class ConsEnv(Env):
         return prev
 
     @staticmethod
-    def make1(w_val, prev):
-        return ConsEnv._make1(w_val, prev)
+    def make1(w_val, prev, curr_linkl_inst=None):
+        return ConsEnv._make1(w_val, prev, curr_linkl_inst)
 
     @staticmethod
-    def make2(w_val1, w_val2, prev):
-        return ConsEnv._make2(w_val1, w_val2, prev)
+    def make2(w_val1, w_val2, prev, curr_linkl_inst=None):
+        return ConsEnv._make2(w_val1, w_val2, prev, curr_linkl_inst)
 
     @staticmethod
-    def make_n(n_vals, prev):
+    def make_n(n_vals, prev, curr_linkl_inst=None):
         if n_vals:
-            return ConsEnv._make_n(n_vals, prev)
+            return ConsEnv._make_n(n_vals, prev, curr_linkl_inst)
         return prev
 
     @jit.unroll_safe

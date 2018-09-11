@@ -51,6 +51,31 @@ class W_Object(W_ProtoObject):
     def call_with_extra_info(self, args, env, cont, calling_app):
         return self.call(args, env, cont)
 
+    def call_interpret(self, racket_vals, pycketconfig=None):
+        from pycket.interpreter import Done, interpret_one
+        from pycket.env import ToplevelEnv, w_global_config
+        from pycket.cont import NilCont, Prompt
+        from pycket import values, values_parameter
+        from pycket.prims.control import default_uncaught_exception_handler
+
+        __pycketconfig = w_global_config.get_pycketconfig()
+
+        t_env = ToplevelEnv(__pycketconfig)
+
+        cont = NilCont()
+        cont = Prompt(values.w_default_continuation_prompt_tag, None, t_env, cont)
+        cont.update_cm(values.parameterization_key, values_parameter.top_level_config)
+        cont.update_cm(values.exn_handler_key, default_uncaught_exception_handler)
+
+        try:
+            ast, env, cont = self.call_with_extra_info(racket_vals, t_env, cont, None)
+            return interpret_one(ast, env, cont)
+        except Done, e:
+            return e.values
+        except SchemeException, e:
+            raise e
+
+
     def enable_jitting(self):
         pass # need to override in callables that are based on an AST
 
@@ -116,7 +141,8 @@ class W_Object(W_ProtoObject):
         return objectmodel.compute_hash(self) # default implementation
 
     def hash_eqv(self):
-        return self.hash_equal()
+        # default to hash_eq
+        return objectmodel.compute_hash(self)
 
     def tostring(self):
         return str(self)

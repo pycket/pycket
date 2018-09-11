@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+#import struct
 from pycket import impersonators as imp
 from pycket import values, values_string
 from pycket.cont import continuation, loop_label, call_cont
@@ -16,8 +17,10 @@ from pycket.foreign import W_CPointer, W_CType
 from pycket.hash.base import W_HashTable
 from pycket.hash.simple import (W_EqImmutableHashTable, make_simple_immutable_table)
 from pycket.prims.expose import (unsafe, default, expose, expose_val, prim_env,
-                                 procedure, define_nyi, subclass_unsafe)
-
+                                 procedure, define_nyi, subclass_unsafe, make_procedure)
+from pycket.prims.primitive_tables import *
+from pycket.prims import string
+from pycket.racket_paths import racket_sys_paths
 
 from rpython.rlib         import jit, objectmodel, unroll
 from rpython.rlib.rsre    import rsre_re as re
@@ -76,12 +79,7 @@ for args in [
         ("struct-type-property-accessor-procedure?",
          values_struct.W_StructPropertyAccessor),
         ("box?", values.W_Box),
-        ("regexp?", values_regex.W_Regexp),
-        ("pregexp?", values_regex.W_PRegexp),
-        ("byte-regexp?", values_regex.W_ByteRegexp),
-        ("byte-pregexp?", values_regex.W_BytePRegexp),
         ("variable-reference?", values.W_VariableReference),
-        ("syntax?", values.W_Syntax),
         ("thread-cell?", values.W_ThreadCell),
         ("thread-cell-values?", values.W_ThreadCellValues),
         ("semaphore?", values.W_Semaphore),
@@ -128,10 +126,38 @@ for args in [
         ]:
     make_pred_eq(*args)
 
+@expose("datum-intern-literal", [values.W_Object])
+def datum_intern_literal(v):
+    return v
+
 @expose("byte?", [values.W_Object])
 def byte_huh(val):
     if isinstance(val, values.W_Fixnum):
         return values.W_Bool.make(0 <= val.value <= 255)
+    return values.w_false
+
+@expose("regexp?", [values.W_Object])
+def regexp_huh(r):
+    if isinstance(r, values_regex.W_Regexp) or isinstance(r, values_regex.W_PRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("pregexp?", [values.W_Object])
+def pregexp_huh(r):
+    if isinstance(r, values_regex.W_PRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("byte-regexp?", [values.W_Object])
+def byte_regexp_huh(r):
+    if isinstance(r, values_regex.W_ByteRegexp) or isinstance(r, values_regex.W_BytePRegexp):
+        return values.w_true
+    return values.w_false
+
+@expose("byte-pregexp?", [values.W_Object])
+def byte_pregexp_huh(r):
+    if isinstance(r, values_regex.W_BytePRegexp):
+        return values.w_true
     return values.w_false
 
 @expose("true-object?", [values.W_Object])
@@ -152,39 +178,10 @@ def syntax_original(v):
 def syntax_tainted(v):
     return values.w_false
 
-@expose("syntax->datum", [values.W_Syntax])
-def syntax_to_datum(stx):
-    return stx.val
-
-@expose("syntax-e", [values.W_Syntax])
-def syntax_e(stx):
-    # XXX Obviously not correct
-    print "NOT YET IMPLEMENTED: syntax-e"
-    return stx.val
-
-# FIXME: not implemented
-@expose("datum->syntax", [values.W_Object, values.W_Object,
-  default(values.W_Object, None), default(values.W_Object, None),
-  default(values.W_Object, None)])
-def datum_to_syntax(ctxt, v, srcloc, prop, ignored):
-    print "NOT YET IMPLEMENTED: datum->syntax"
-    assert isinstance(ctxt, values.W_Syntax) or ctxt is values.w_false
-    return values.W_Syntax(v)
-
-@expose("syntax-source", [values.W_Syntax])
-def syntax_source(stx):
-    # XXX Obviously not correct
-    return values.w_false
-
 @expose("syntax-source-module", [values.W_Syntax, default(values.W_Object, values.w_false)])
 def syntax_source_module(stx, src):
     # XXX Obviously not correct
     return values.W_ResolvedModulePath(values.W_Symbol.make("fake symbol"))
-
-@expose(["syntax-line", "syntax-column", "syntax-position", "syntax-span"], [values.W_Syntax])
-def syntax_numbers(stx):
-    # XXX Obviously not correct
-    return values.w_false
 
 @expose("srcloc->string", [values.W_Object])
 def srcloc_to_string(obj):
@@ -204,6 +201,9 @@ for name in ["prop:evt",
              "prop:custom-print-quotable"]:
     expose_val(name, values_struct.W_StructProperty(
         values.W_Symbol.make(name), values.w_false))
+
+expose_val("prop:authentic", values_struct.w_prop_authentic)
+expose_val("prop:object-name", values_struct.w_prop_object_name)
 
 expose_val("prop:procedure", values_struct.w_prop_procedure)
 expose_val("prop:checked-procedure", values_struct.w_prop_checked_procedure)
@@ -382,7 +382,6 @@ for args in [ ("subprocess?",),
               ("readtable?",),
               ("link-exists?",),
               ("rename-transformer?",),
-              ("identifier?",),
               ("port?",),
               ("sequence?",),
               ("namespace-anchor?",),
@@ -391,6 +390,17 @@ for args in [ ("subprocess?",),
               ]:
     define_nyi(*args)
 
+@expose("unsafe-make-place-local", [values.W_Object])
+def unsafe_make_place_local(v):
+    return values.W_MBox(v)
+
+@expose("unsafe-place-local-ref", [values.W_MBox], simple=False)
+def unsafe_make_place_local(p, env, cont):
+    return p.unbox(env, cont)
+
+@expose("unsafe-place-local-set!", [values.W_MBox, values.W_Object], simple=False)
+def unsafe_make_place_local(p, v, env, cont):
+    return p.set_box(v, env, cont)
 
 @expose("set!-transformer?", [values.W_Object])
 def set_bang_transformer(v):
@@ -409,24 +419,18 @@ def object_name(v):
         return v.name
     return values_string.W_String.fromstr_utf8(v.tostring()) # XXX really?
 
-@expose("namespace-variable-value", [values.W_Symbol,
-    default(values.W_Object, values.w_true),
-    default(values.W_Object, values.w_true),
-    default(values.W_Object, None)])
-def namespace_variable_value(sym, use_mapping, failure_thunk, namespace):
-    return values.w_void
-
 @expose("find-main-config", [])
 def find_main_config():
     return values.w_false
 
-@expose("version", [], simple=False)
-def version(env, cont):
-    from pycket.interpreter import return_value
-    toplevel = env.toplevel_env()
-    version = toplevel.globalconfig.lookup("version")
-    result = values_string.W_String.fromascii("unknown version" if version is None else version)
-    return return_value(result, env, cont)
+@expose("version", [])
+def version():
+    from pycket.env import w_version
+    version = w_version.get_version()
+    if version == '':
+        version = "old-pycket"
+    return values_string.W_String.fromascii("unknown version" if version is None else version)
+
 
 @continuation
 def sem_post_cont(sem, env, cont, vals):
@@ -454,9 +458,18 @@ def call_with_sem(args, env, cont):
     sem.wait()
     return f.call(new_args, env, sem_post_cont(sem, env, cont))
 
+c_thread = values.W_Thread()
+
 @expose("current-thread", [])
 def current_thread():
-    return values.W_Thread()
+    return c_thread
+
+# FIXME : implementation
+@expose("current-memory-use", [default(values.W_Object, values.w_false)])
+def current_memory_use(mode):
+    # mode is : (or/c #f 'cumulative custodian?)
+
+    return values.W_Fixnum(1)
 
 @expose("semaphore-post", [values.W_Semaphore])
 def sem_post(s):
@@ -513,6 +526,61 @@ def do_procedure_arity(proc, env, cont):
     arity = proc.get_arity()
     return arity_to_value(arity, env, cont)
 
+@continuation
+def mask_arity_cont(arity, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    from pycket.prims.numeric import arith_shift
+    import math
+
+    val = check_one_val(_vals)
+
+    if isinstance(val, values.W_Fixnum) or isinstance(val, values_struct.W_Struct):
+        if isinstance(val, values.W_Fixnum):
+            shifted_val = int(math.pow(2, val.value))
+        else:
+            shifted_val = int(math.pow(2, arity.at_least))
+
+        if arity.at_least != -1:
+            v = values.W_Fixnum(-shifted_val)
+        else:
+            v = values.W_Fixnum(shifted_val)
+
+        return return_value(v, env, cont)
+    else:
+        raise SchemeException("procedure-arity-mask : handling list arities is NYI")
+
+@expose("procedure-arity-mask", [procedure, default(values.W_Object, values.w_false)], simple=False)
+@jit.unroll_safe
+def do_procedure_arity_mask(proc, name, env, cont):
+    arity = proc.get_arity()
+    return arity_to_value(arity, env, mask_arity_cont(arity, env, cont))
+
+@make_procedure("default-read-handler",[values.W_InputPort, default(values.W_Object, None)], simple=False)
+def default_read_handler(ip, src, env, cont):
+    # default to the "read" and "read-syntax" defined in the expander linklet
+    if src is None:
+        return prim_env[values.W_Symbol.make("read")].call([ip], env, cont)
+    else:
+        return prim_env[values.W_Symbol.make("read-syntax")].call([ip, src], env, cont)
+
+@expose("port-read-handler", [values.W_InputPort, default(values.W_Procedure, None)])
+def do_port_read_handler(ip, proc):
+
+    if proc is None:
+        #get
+        if ip.get_read_handler():
+            return ip.get_read_handler()
+        else:
+            return default_read_handler
+    else:
+        #set
+        if proc is default_read_handler:
+            ip.set_read_handler(default_read_handler)
+        else:
+            ip.set_read_handler(proc)
+
+        return values.w_void
+
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe
 def do_is_procedure_arity(n):
@@ -557,6 +625,32 @@ def procedure_result_arity(proc, env, cont):
     if arity is None:
         return return_multi_vals(values.w_false, env, cont)
     return arity_to_value(arity, env, cont)
+
+@expose("procedure-reduce-arity", [procedure, values.W_Object])
+def procedure_reduce_arity(proc, arity):
+    # FIXME : checks (keyword args etc)
+    assert isinstance(arity, Arity)
+    proc.set_arity(arity)
+    return proc
+
+@expose("procedure-reduce-arity-mask", [procedure, values.W_Fixnum, default(values.W_Object, values.w_false)])
+def procedure_reduce_arity(proc, mask, name):
+    import math
+
+    v = mask.value
+    # turn the given mask into an arity
+    if v < 0:
+        # it's an at least value
+        ar_value = int(math.log(abs(v))/math.log(2))
+        # for some reason the 2 argument log doesn't exist
+        ar = Arity([], ar_value)
+    else:
+        ar_value = int(math.log(v)/math.log(2))
+        ar = Arity([ar_value], -1)
+
+    # FIXME: what if the mask represents a list? see math_arity_cont
+    proc.set_arity(ar)
+    return proc
 
 @expose("procedure-struct-type?", [values_struct.W_StructType])
 def do_is_procedure_struct_type(struct_type):
@@ -932,14 +1026,14 @@ def ormap(args, env, cont):
     for l in ls:
         if not isinstance(l, values.W_List):
             raise SchemeException("ormap: expected a list, but got %s"%l)
-    return return_value(values.w_void, env, ormap_cont(f, ls, env, cont))
+    return return_value(values.w_false, env, ormap_cont(f, ls, env, cont))
 
 @continuation
 def ormap_cont(f, ls, env, cont, vals):
     # XXX this is currently not properly jitted
     from pycket.interpreter import return_value, check_one_val
     val = check_one_val(vals)
-    if val is values.w_true:
+    if val is not values.w_false:
         return return_value(val, env, cont)
     for l in ls:
         if l is values.w_null:
@@ -1053,18 +1147,46 @@ def list_ref_impl(lst, pos):
 def list_ref(lst, pos):
     return list_ref_impl(lst, pos.value)
 
+@expose("unsafe-list-ref", [subclass_unsafe(values.W_Cons), values.W_Fixnum])
+def unsafe_list_ref(lst, pos):
+    return list_ref_impl(lst, pos.value)
+
+@expose("unsafe-list-tail", [subclass_unsafe(values.W_Object), values.W_Fixnum])
+def unsafe_list_tail(lst, pos):
+    return list_tail_impl(lst, pos)
+
 @expose("list-tail", [values.W_Object, values.W_Fixnum])
 def list_tail(lst, pos):
+    return list_tail_impl(lst, pos)
+
+def list_tail_impl(lst, pos):
     start_pos = pos.value
-    if start_pos == 0:
-        return lst
-    else:
-        if isinstance(lst, values.W_Cons):
-            assert start_pos > 0
-            # XXX inefficient
-            return values.to_list(values.from_list(lst)[start_pos:])
-        else:
-            return values.w_null
+
+    while start_pos > 0:
+        if not isinstance(lst, values.W_Cons):
+            msg = "index too large for list" if lst is values.w_null else "index reaches a non-pair"
+            raise SchemeException("list-tail : %s\n -- lst : %s\n -- index : %s\n" % (msg, lst.tostring(), start_pos))
+
+        lst = lst.cdr()
+        start_pos -= 1
+
+    return lst
+
+@expose("assoc", [values.W_Object, values.W_List, default(values.W_Object, values.w_false)])
+def assoc(v, lst, is_equal):
+    if is_equal is not values.w_false:
+        raise SchemeException("assoc: using a custom equal? is not yet implemented")
+
+    while isinstance(lst, values.W_Cons):
+        c = lst.car()
+        if not isinstance(lst, values.W_Cons):
+            raise SchemeException("assoc: non-pair found in list: %s in %s" % (c.tostring(), lst.tostring()))
+        cc = c.car()
+        if v.equal(cc):
+            return c
+        lst = lst.cdr()
+
+    return values.w_false
 
 @expose("current-seconds", [])
 def current_seconds():
@@ -1146,14 +1268,6 @@ def vector_to_list_read_cont(vector, idx, acc, env, cont, _vals):
     acc = values.W_Cons.make(val, acc)
     return vector_to_list_loop(vector, idx - 1, acc, env, cont)
 
-# FIXME: make that a parameter
-@expose("current-command-line-arguments", [], simple=False)
-def current_command_line_arguments(env, cont):
-    from pycket.interpreter import return_value
-    w_v = values_vector.W_Vector.fromelements(
-            env.toplevel_env().commandline_arguments)
-    return return_value(w_v, env, cont)
-
 # Unsafe pair ops
 @expose("unsafe-car", [subclass_unsafe(values.W_Cons)])
 def unsafe_car(p):
@@ -1204,14 +1318,29 @@ def sym_unreadable(v):
 def string_to_symbol(v):
     return values.W_Bool.make(v.is_interned())
 
+@expose("symbol<?", arity=Arity.geq(1))
+def symbol_lt(args):
+    name = "symbol<?"
+    if len(args) < 2:
+        raise SchemeException(name + ": requires at least 2 arguments")
+    head = args[0]
+    if not isinstance(head, values.W_Symbol):
+        raise SchemeException(name + ": not given a string")
+    for i in range(1, len(args)):
+        t = args[i]
+        if not isinstance(t, values.W_Symbol):
+            raise SchemeException(name + ": not given a string")
+        # FIXME: shouldn't need to convert to W_String
+        # but this is much easier than recreating the logic
+        if string.symbol_to_string_impl(head).cmp(string.symbol_to_string_impl(t)) < 0:
+            return values.w_false
+        head = t
+    return values.w_true
+
 
 @expose("immutable?", [values.W_Object])
 def immutable(v):
     return values.W_Bool.make(v.immutable())
-
-@expose("eval-jit-enabled", [])
-def jit_enabled():
-    return values.w_true
 
 @expose("make-thread-cell",
         [values.W_Object, default(values.W_Bool, values.w_false)])
@@ -1244,10 +1373,14 @@ def current_preserved_thread_cell_values(v):
 def do_is_place_enabled(args):
     return values.w_false
 
-@expose("gensym", [default(values.W_Symbol, values.W_Symbol.make("g"))])
+@expose("gensym", [default(values.W_Object, values.W_Symbol.make("g"))])
 def gensym(init):
     from pycket.interpreter import Gensym
-    return Gensym.gensym(init.utf8value)
+    if not isinstance(init, values.W_Symbol) and not isinstance(init, values_string.W_String):
+        raise SchemeException("gensym exptected a string or symbol but got : %s" % init.tostring())
+
+    gensym_key = init.tostring()
+    return Gensym.gensym(gensym_key)
 
 @expose("keyword<?", [values.W_Keyword, values.W_Keyword])
 def keyword_less_than(a_keyword, b_keyword):
@@ -1265,14 +1398,9 @@ def env_var_ref(set, name):
 def check_for_break():
     return values.w_false
 
-@expose("find-system-path", [values.W_Symbol], simple=False)
-def find_sys_path(sym, env, cont):
-    from pycket.interpreter import return_value
-    v = env.toplevel_env().globalconfig.lookup(sym.utf8value)
-    if v:
-        return return_value(values.W_Path(v), env, cont)
-    else:
-        raise SchemeException("unknown system path %s" % sym.utf8value)
+@expose("find-system-path", [values.W_Symbol], simple=True)
+def find_sys_path(kind):
+    return racket_sys_paths.get_path(kind)
 
 @expose("find-main-collects", [])
 def find_main_collects():
@@ -1304,13 +1432,39 @@ def load(lib, env, cont):
         "would crash anyway when trying to interpret the Module")
     #return ast, env, cont
 
-@expose("current-load-relative-directory", [])
-def cur_load_rel_dir():
-    return values.w_false
+expose_val("current-load-relative-directory", values_parameter.W_Parameter(values.w_false))
+expose_val("current-write-relative-directory", values_parameter.W_Parameter(values.w_false))
 
-@expose("current-directory", [])
-def cur_dir():
-    return values.W_Path(os.getcwd())
+@make_procedure("current-directory-guard", [values.W_Object], simple=False)
+def current_directory_guard(path, env, cont):
+    from pycket.interpreter import return_value
+    # "cd"s at the os level
+    if not (isinstance(path, values_string.W_String) or isinstance(path, values.W_Path)):
+        raise SchemeException("current-directory: exptected a path-string? as argument 0, but got : %s" % path.tostring())
+    path_str = input_output.extract_path(path)
+
+    # if path is a complete-path?, set it
+    if path_str[0] == os.path.sep:
+        new_current_dir = path_str
+    else: # relative to the current one
+        current_dir = current_directory_param.get(cont)
+        current_path_str = input_output.extract_path(current_dir)
+        # let's hope that there's no symbolic links etc.
+        new_current_dir = os.path.normpath(os.path.sep.join([current_path_str, path_str]))
+
+    try:
+        os.chdir(new_current_dir)
+    except OSError:
+        raise SchemeException("path doesn't exist : %s" % path_str)
+
+    out_port = input_output.current_out_param.get(cont)
+    assert isinstance(out_port, values.W_OutputPort)
+    out_port.write("; now in %s\n" % new_current_dir)
+
+    return return_value(values.W_Path(new_current_dir), env, cont)
+
+current_directory_param = values_parameter.W_Parameter(values.W_Path(os.getcwd()), current_directory_guard)
+expose_val("current-directory", current_directory_param)
 
 w_unix_sym = values.W_Symbol.make("unix")
 w_windows_sym = values.W_Symbol.make("windows")
@@ -1331,29 +1485,99 @@ w_system_sym = detect_platform()
 w_os_sym = values.W_Symbol.make("os")
 w_os_so_suffix = values.W_Symbol.make("so-suffix")
 w_os_so_mode_sym = values.W_Symbol.make("so-mode")
+w_fs_change_mode = values.W_Symbol.make("fs-change")
 w_local_mode = values.W_Symbol.make("local")
 w_unix_so_suffix = values.W_Bytes.from_string(".so")
 
-@expose("system-type", [default(values.W_Symbol, w_os_sym)])
+w_word_sym = values.W_Symbol.make("word")
+w_link_sym = values.W_Symbol.make("link")
+w_vm_sym = values.W_Symbol.make("vm")
+w_gc_sym = values.W_Symbol.make("gc")
+w_machine_sym = values.W_Symbol.make("machine")
+w_cross_sym = values.W_Symbol.make("cross")
+
+w_fs_supported = values.W_Symbol.make("supported")
+w_fs_scalable = values.W_Symbol.make("scalable")
+w_fs_low_latency = values.W_Symbol.make("low-latency")
+w_fs_file_level = values.W_Symbol.make("file-level")
+
 def system_type(w_what):
+    # os
     if w_what is w_os_sym:
         return w_system_sym
+
+    # word
+    if w_what is w_word_sym:
+        #return values.W_Fixnum(8*struct.calcsize("P"))
+        return values.W_Fixnum(64)
+
+    # vm
+    if w_what is w_vm_sym:
+        return values.W_Symbol.make("pycket")
+
+    # gc
+    if w_what is w_gc_sym:
+        return values.W_Symbol.make("3m") # ??
+
+    # link
+    #
+    # 'static (Unix)
+    # 'shared (Unix)
+    # 'dll (Windows)
+    # 'framework (Mac OS)
+    if w_what is w_link_sym:
+        return values.W_Symbol.make("static")
+
+    # machine
+    if w_what is w_machine_sym:
+        return values_string.W_String.make("further details about the current machine in a platform-specific format")
+
+    # so-suffix
     if w_what is w_os_so_suffix:
         return w_unix_so_suffix
+
+    # so-mode
     if w_what is w_os_so_mode_sym:
         return w_local_mode
+
+    # fs-change
+    if w_what is w_fs_change_mode:
+        from pycket.prims.vector import vector
+        w_f = values.w_false
+        # FIXME: Is there a way to get this info from sys or os?
+        if w_system_sym is w_unix_sym:
+            return vector([w_fs_supported, w_fs_scalable, w_f, w_fs_file_level])
+        else:
+            return vector([w_f, w_f, w_f, w_f])
+
+    # cross
+    if w_what is w_cross_sym:
+        return values.W_Symbol.make("infer")
+
     raise SchemeException("unexpected system-type symbol %s" % w_what.utf8value)
 
-@expose("system-path-convention-type", [])
-def system_path_convetion_type():
+expose("system-type", [default(values.W_Symbol, w_os_sym)])(system_type)
+
+def system_path_convention_type():
     if w_system_sym is w_windows_sym:
         return w_windows_sym
     else:
         return w_unix_sym
 
-@expose("collect-garbage", [])
+expose("system-path-convention-type", [])(system_path_convention_type)
+
+@expose("bytes->path", [values.W_Bytes, default(values.W_Symbol, system_path_convention_type())])
+def bytes_to_path(bstr, typ):
+    # FIXME : ignores the type, won't work for windows
+    return values.W_Path(bstr.as_str())
+
+major_gc_sym = values.W_Symbol.make("major")
+minor_gc_sym = values.W_Symbol.make("minor")
+incremental_gc_sym = values.W_Symbol.make("incremental")
+
+@expose("collect-garbage", [default(values.W_Symbol, major_gc_sym)])
 @jit.dont_look_inside
-def do_collect_garbage():
+def do_collect_garbage(request):
     from rpython.rlib import rgc
     rgc.collect()
     return values.w_void
@@ -1500,16 +1724,23 @@ def procedure_specialize(proc):
 def processor_count():
     return values.W_Fixnum.ONE
 
-@expose("cache-configuration", [values.W_Fixnum, values.W_Object])
-def cache_configuration(val, proc):
-    """
-    This function seems to be responsible for setting up callbacks in the
-    Racket runtime. We have no such callbacks as of yet. The corresponding Racket
-    implementation can be found at:
+cached_values = {}
 
-    https://github.com/racket/racket/blob/161a9edb57c38ab71686d9a6e3c7920c96713fed/racket/src/racket/src/thread.c#L744
-    """
-    return values.w_false
+@continuation
+def thunk_cont(index, env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    val = check_one_val(_vals)
+    cached_values[index] = val
+    return return_value(val, env, cont)
+
+@expose("cache-configuration", [values.W_Fixnum, values.W_Object], simple=False)
+def cache_configuration(index, proc, env, cont):
+    from pycket.interpreter import return_value
+
+    if index in cached_values:
+        return return_value(cached_values[index], env, cont)
+
+    return proc.call([], env, thunk_cont(index, env, cont))
 
 @expose("make-readtable", [values.W_Object, values.W_Character, values.W_Symbol, procedure])
 def make_readtable(parent, char, sym, proc):
@@ -1547,6 +1778,14 @@ make_stub_predicates(
     "compiled-module-expression?",
     "channel?")
 
+@expose("unsafe-start-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
+@expose("unsafe-end-atomic", [])
+def unsafe_start_atomic():
+    return values.w_void
+
 @expose("__dummy-function__", [])
 def __dummy__():
     from rpython.rlib.rbigint  import ONERBIGINT
@@ -1557,13 +1796,16 @@ def __dummy__():
 
 @expose("primitive-table", [values.W_Object])
 def primitive_table(v):
+    if v not in select_prim_table:
+        return values.w_false
+
+    id_table = select_prim_table[v]
+
+    expose_env = {}
+    for k,v in prim_env.iteritems():
+        if k in id_table:
+            expose_env[k] = v
+
     return make_simple_immutable_table(W_EqImmutableHashTable,
-                                       prim_env.keys(),
-                                       prim_env.values())
-
-@expose("syntax-property-symbol-keys", [values.W_Syntax])
-def syntax_property_symbol_keys(v):
-    return values.w_null
-
-define_nyi("syntax-property")
-
+                                       expose_env.keys(),
+                                       expose_env.values())

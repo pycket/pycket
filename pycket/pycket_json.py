@@ -1,5 +1,5 @@
 from rpython.rlib.runicode import unicode_encode_utf_8
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.tool.pairtype import extendabletype
 
 # Union-Object to represent a json structure in a static way
@@ -257,6 +257,10 @@ class OwnJSONDecoder(JSONDecoder):
 
 
 def loads(s):
+    if not we_are_translated():
+        import json
+        data = json.loads(s)
+        return _convert(data)
     decoder = OwnJSONDecoder(s)
     try:
         w_res = decoder.decode_any(0)
@@ -268,4 +272,23 @@ def loads(s):
         return w_res
     finally:
         decoder.close()
+
+def _convert(data):
+    if data is None:
+        return json_null
+    if data is False:
+        return json_false
+    if data is True:
+        return json_true
+    if isinstance(data, int):
+        return JsonInt(data)
+    if isinstance(data, float):
+        return JsonFloat(data)
+    if isinstance(data, unicode):
+        return JsonString(data.encode("utf-8"))
+    if isinstance(data, list):
+        return JsonArray([_convert(x) for x in data])
+    if isinstance(data, dict):
+        return JsonObject({key.encode("utf-8"): _convert(value)
+            for (key, value) in data.iteritems()})
 

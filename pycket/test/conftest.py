@@ -99,6 +99,6 @@ def pytest_funcarg__doctest(request):
         pairs.extend(pair)
     check_equal(*pairs, extra="\n".join(setup))
     for error in errors:
-        with pytest.raises(SchemeException):
+        with pytest.raises(Exception):
             execute(error, extra="\n".join(setup))
     return True

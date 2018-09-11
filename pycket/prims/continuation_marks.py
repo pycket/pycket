@@ -81,10 +81,15 @@ def cms_context(marks):
          default(values.W_Object, values.w_false),
          default(values.W_Object, values.w_default_continuation_prompt_tag)],
         simple=False)
-def cms_first(cms, mark, missing, prompt_tag, env, cont):
+def cms_first(cms, key, missing, prompt_tag, env, cont):
     from pycket.interpreter import return_value
-    is_cmk = isinstance(mark, values.W_ContinuationMarkKey)
-    m = imp.get_base_object(mark) if is_cmk else mark
+    is_cmk = isinstance(key, values.W_ContinuationMarkKey)
+    m = imp.get_base_object(key) if is_cmk else key
+
+    if prompt_tag is values.w_default_continuation_prompt_tag and \
+       (key is values.break_enabled_key or key is values.parameterization_key):
+        prompt_tag = values.w_root_continuation_prompt_tag
+
     if cms is values.w_false:
         the_cont = cont
         v = cont.get_mark_first(m, upto=[prompt_tag])
@@ -95,7 +100,7 @@ def cms_first(cms, mark, missing, prompt_tag, env, cont):
         raise SchemeException("Expected #f or a continuation-mark-set")
     val = v if v is not None else missing
     if is_cmk:
-        return mark.get_cmk(val, env, cont)
+        return key.get_cmk(val, env, cont)
     return return_value(val, env, cont)
 
 @expose("make-continuation-mark-key", [default(values.W_Symbol, None)])

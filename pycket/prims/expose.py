@@ -214,7 +214,29 @@ def _make_result_handling_func(func_arg_unwrap, simple):
                 return return_value_direct(result, env, cont)
         return func_result_handling
     else:
-        return func_arg_unwrap
+        def func_error_handling(*args):
+            from pycket.prims.control import convert_runtime_exception
+            from pycket.cont import BaseCont
+            from pycket.env import Env
+            # Fixme : It's difficult to figure out when there's
+            # supposed to be an extra argument *after* the env, cont
+            # pair.
+            a = args[-1]
+            if isinstance(a, BaseCont):
+                assert isinstance(args[-2], Env)
+                env = args[-2]
+                cont = args[-1]
+            else:
+                assert isinstance(args[-2], BaseCont) and isinstance(args[-3], Env)
+                env = args[-3]
+                cont = args[-2]
+
+            try:
+                return func_arg_unwrap(*args)
+            except SchemeException, exn:
+                return convert_runtime_exception(exn, env, cont)
+        return func_error_handling
+
 
 # FIXME: Abstract away the common operations between this and expose
 def make_procedure(n="<procedure>", argstypes=None, simple=True, arity=None):
@@ -284,10 +306,10 @@ def expose(n, argstypes=None, simple=True, arity=None, nyi=False, extra_info=Fal
         result_arity = Arity.ONE if simple else None
         p = values.W_Prim(name, func_result_handling,
                           arity=_arity, result_arity=result_arity,
-                          simple1=call1, simple2=call2)
+                          simple1=call1, simple2=call2, is_nyi=nyi)
         for nam in names:
             sym = values.W_Symbol.make(nam)
-            if sym in prim_env:
+            if sym in prim_env and prim_env[sym].is_implemented():
                 raise SchemeException("name %s already defined" % nam)
             prim_env[sym] = p
         func_arg_unwrap.w_prim = p
@@ -328,18 +350,20 @@ def make_callable_label(argstypes=None, arity=None, name="<label>"):
 def expose_val(name, w_v):
     from pycket import values
     sym = values.W_Symbol.make(name)
-    if sym in prim_env:
+    if sym in prim_env and prim_env[sym].is_implemented():
         raise Error("name %s already defined" % name)
     prim_env[sym] = w_v
 
 def define_nyi(name, bail=True, prim_args=None, *args, **kwargs):
-    if bail:
-        @expose(name, prim_args, nyi=True, *args, **kwargs)
-        def nyi(a):
-            pass
-    else:
-        @expose(name, prim_args, nyi=False, *args, **kwargs)
-        def nyi(a):
-            from pycket import values
-            print "NOT YET IMPLEMENTED: %s" % name
-            return values.w_false
+    from pycket import values
+    if values.W_Symbol.make(name) not in prim_env:
+        if bail:
+            @expose(name, prim_args, nyi=True, *args, **kwargs)
+            def nyi(a):
+                pass
+        else:
+            @expose(name, prim_args, nyi=False, *args, **kwargs)
+            def nyi(a):
+                from pycket import values
+                print "NOT YET IMPLEMENTED: %s" % name
+                return values.w_false

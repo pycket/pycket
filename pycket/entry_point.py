@@ -24,17 +24,27 @@ def save_callgraph(config, env):
 
 def make_entry_point(pycketconfig=None):
     from pycket.expand import JsonLoader, ModuleMap, PermException
-    from pycket.interpreter import interpret_one, ToplevelEnv, interpret_module
-    from pycket.error import SchemeException
-    from pycket.option_helper import parse_args, ensure_json_ast
+    from pycket.interpreter import ToplevelEnv, interpret_one, interpret_module
+    from pycket.error import SchemeException, ExitException
+    from pycket.option_helper import parse_args
+    from pycket.old_pycket_option_helper import parse_args as old_pycket_parse_args, ensure_json_ast
     from pycket.values_string import W_String
+    from pycket.racket_entry import load_inst_linklet_json, racket_entry
 
     def entry_point(argv):
         if not objectmodel.we_are_translated():
             import sys
             sys.setrecursionlimit(10000)
         try:
-            return actual_entry(argv)
+            new_pycket = False
+            if len(argv) > 1 and argv[1] == "--new":
+                new_pycket = True
+                del argv[1]
+
+            if new_pycket:
+                return actual_entry(argv)
+            else:
+                return old_pycket_actual_entry(argv)
         except SchemeException, e:
             print "ERROR:"
             print e.format_error()
@@ -46,7 +56,61 @@ def make_entry_point(pycketconfig=None):
         jit.set_param(None, "trace_eagerness", 50)
         jit.set_param(None, "max_unroll_loops", 15)
 
+        from pycket.env import w_global_config
+        w_global_config.set_pycketconfig(pycketconfig)
+
         config, names, args, retval = parse_args(argv)
+
+        if config['verbose']:
+            level = int(names['verbosity_level'][0])
+            w_global_config.set_config_val('verbose', level)
+
+            if 'not-implemented' in names:
+                print("These flags are not implemented yet : %s" % names['not-implemented'])
+
+        if 'stdout_level' in names: # -O
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_stdout_level(names['stdout_level'][0])
+
+        if 'stderr_level' in names: # -W
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_stderr_level(names['stderr_level'][0])
+
+        if 'syslog_level' in names: # -L
+            from pycket.prims.logging import w_main_logger
+            w_main_logger.set_syslog_level(names['syslog_level'][0])
+
+        if retval != 0 or config is None:
+            return retval
+
+        current_cmd_args = [W_String.fromstr_utf8(arg) for arg in args]
+
+        if 'json-linklets' in names:
+            for linkl_json in names['json-linklets']:
+                vvv = config['verbose']
+                load_inst_linklet_json(linkl_json, pycketconfig, vvv)
+
+        try:
+            if not config['stop']:
+                racket_entry(names, config, pycketconfig, current_cmd_args)
+        except ExitException, e:
+            pass
+        finally:
+            from pycket.prims.input_output import shutdown
+            env = ToplevelEnv(pycketconfig)
+            #env.commandline_arguments = current_cmd_args
+            for callback in POST_RUN_CALLBACKS:
+                callback(config, env)
+            shutdown(env)
+        return 0
+
+    def old_pycket_actual_entry(argv):
+        jit.set_param(None, "trace_limit", 1000000)
+        jit.set_param(None, "threshold", 131)
+        jit.set_param(None, "trace_eagerness", 50)
+        jit.set_param(None, "max_unroll_loops", 15)
+
+        config, names, args, retval = old_pycket_parse_args(argv)
         if retval != 0 or config is None:
             return retval
         args_w = [W_String.fromstr_utf8(arg) for arg in args]
@@ -60,7 +124,7 @@ def make_entry_point(pycketconfig=None):
         reader = JsonLoader(bytecode_expand=entry_flag,
                             multiple_modules=multi_mod_flag,
                             module_mapper=multi_mod_map)
-        
+
         if json_ast is None:
             ast = reader.expand_to_ast(module_name)
         else:
@@ -78,6 +142,7 @@ def make_entry_point(pycketconfig=None):
                 callback(config, env)
             shutdown(env)
         return 0
+
     return entry_point
 
 def target(driver, args): #pragma: no cover

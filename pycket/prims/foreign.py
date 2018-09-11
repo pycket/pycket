@@ -52,6 +52,7 @@ COMPILER_SIZEOF = unroll.unrolling_iterable([
     (sym("void"   ) , 0                        ),
     (sym("float"  ) , rffi.sizeof(rffi.FLOAT)  ),
     (sym("double" ) , rffi.sizeof(rffi.DOUBLE) ),
+    (sym("wchar"  ) , rffi.sizeof(rffi.WCHAR_T))
     ])
 
 del sym

@@ -5,8 +5,8 @@
 #
 import pytest
 from pycket.entry_point import make_entry_point
-from pycket.option_helper import parse_args
-from pycket import option_helper
+from pycket.old_pycket_option_helper import parse_args
+from pycket import old_pycket_option_helper as option_helper
 from rpython.rlib import jit
 
 entry_point = make_entry_point()

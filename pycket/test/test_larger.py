@@ -63,6 +63,7 @@ def test_impersonator_properties():
 def test_church():
     run_file("church-simple.rkt")
 
+@pytest.mark.skip(reason="needs the primitive namespace-variable-value")
 def test_control():
     run_file("control.rktl", inplace=True)
 

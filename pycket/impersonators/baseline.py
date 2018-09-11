@@ -733,6 +733,13 @@ class W_InterposeHashTable(W_HashTable):
     def hash_keys(self):
         return get_base_object(self.inner).hash_keys()
 
+    def hash_clear_proc(self, env, cont):
+        from pycket.interpreter import return_value
+        if self.clear_proc is values.w_false or not self.clear_proc.iscallable():
+            return return_value(values.w_void, env, cont)
+        else:
+            return self.clear_proc.call([self.inner], env, cont)
+
     @label
     def hash_set(self, key, val, env, cont):
         raise NotImplementedError("abstract method")

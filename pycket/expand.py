@@ -20,6 +20,8 @@ from pycket import vector
 from pycket import values_struct
 from pycket.hash.equal import W_EqualHashTable
 
+
+
 class ExpandException(SchemeException):
     pass
 
@@ -381,12 +383,12 @@ class SourceInfo(object):
 JSON_TYPES = unrolling_iterable(['string', 'int', 'float', 'object', 'array'])
 
 @specialize.arg(2)
-def getkey(obj, key, type, throws=False):
+def getkey(obj, key, type, throws=False, default=None):
     result = obj.get(key, None)
     if result is None:
         if throws:
             raise KeyError
-        return -1 if type == 'i' else None
+        return -1 if type == 'i' else default
     for t in JSON_TYPES:
         if type == t or type == t[0]:
             if not getattr(result, "is_" + t):
@@ -423,6 +425,8 @@ def parse_path(p):
     if not ModTable.builtin(srcmod):
         assert srcmod is not None
         srcmod = rpath.realpath(srcmod)
+    if srcmod == '#%read' or srcmod == '#%main':
+        srcmod = '#%kernel'
     return srcmod, path
 
 class ModuleMap(object):
@@ -440,7 +444,7 @@ class ModuleMap(object):
                              (mod_path, self.source_json))
 
         return pycket_json.JsonObject(getkey(self.mod_map.value_object(), mod_path, type='o'))
-
+    
 class JsonLoader(object):
 
     _immutable_fields_ = ["modtable", "bytecode_expand", "multiple_modules"]
@@ -615,12 +619,21 @@ class JsonLoader(object):
                             srcmod, path = parse_path(path_arr)
                         else:
                             srcmod = path = None
+
+                        modname = mksym(target["module"].value_string()) if "module" in target else srcname
+                        var = ModuleVar(modname, srcmod, srcname, path)
+
+                    elif "source-linklet" in target:
+                        source = target["source-linklet"].value_object()["quote"].value_object()
+                        var = LinkletVar(srcname)
                     else:
                         srcmod = "#%kernel"
                         path   = None
 
-                    modname = mksym(target["module"].value_string()) if "module" in target else srcname
-                    var = ModuleVar(modname, srcmod, srcname, path)
+                        modname = mksym(target["module"].value_string()) if "module" in target else srcname
+                        var = ModuleVar(modname, srcmod, srcname, path)
+
+
                 elif "lexical" in target:
                     var = CellRef(values.W_Symbol.make(target["lexical"].value_string()))
                 else:
@@ -711,7 +724,10 @@ class JsonLoader(object):
                 modname = obj["module"].value_string() if "module" in obj else None
                 srcsym = mksym(srcname)
                 modsym = mksym(modname) if modname else srcsym
-                if "source-module" in obj:
+                if "source-linklet" in obj:
+                    source = obj["source-linklet"].value_object()["quote"].value_object()
+                    return LinkletVar(srcsym)
+                elif "source-module" in obj:
                     if obj["source-module"].is_array:
                         path_arr = obj["source-module"].value_array()
                         srcmod, path = parse_path(path_arr)
@@ -736,7 +752,7 @@ def _to_num(json):
     obj = json.value_object()
     if "real" in obj:
         r = obj["real"]
-        return values.W_Flonum.make(r.value_float())
+        return values.W_Flonum.make(r.value_float(), True)
     if "real-part" in obj:
         r = obj["real-part"]
         i = obj["imag-part"]
