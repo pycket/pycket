@@ -11,7 +11,7 @@ it. It can also add a tracing JIT.
 There are currently two different modes of evaluation that we refer as
 `OLD` and `NEW`. The `NEW` Pycket uses `linklets` and bootstraps the
 Racket using the `expander` linklet exported by Racket (version
->7). The `OLD` Pycket, on the other hand, uses Racket's binary to
+7+). The `OLD` Pycket, on the other hand, uses Racket's binary to
 fully expand the program and generates `json` asts and evaluates them.
 
 Note that both versions require an unmodified Racket installation. The
@@ -57,8 +57,8 @@ You can also use `make` for any of the above,
 
 ## Using Compiled Files
 
-`NEW` Pycket is able to generate and use its own `.zo` files. For now
-both the generation and the use are manual.
+The `NEW` Pycket is able to generate and use its own `.zo` files. For
+now both the generation and the use are manual.
 
 To generate a `.zo` file for a `.rkt` source file, use `make
 compile-file`:
