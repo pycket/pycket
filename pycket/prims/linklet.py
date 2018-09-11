@@ -400,7 +400,6 @@ class W_Linklet(W_Object):
             form = loader.to_ast(body_form)
             form = Context.normalize_term(form)
             form = assign_convert(form)
-            form.clean_caches()
             all_forms.append(form)
 
         console_log("Finished converting linklet forms to AST ...", 2)
@@ -770,7 +769,6 @@ def do_compile_linklet(form, name, import_keys, get_import, options, env, cont):
             for i, bf in enumerate(_body_forms):
                 b_form = Context.normalize_term(bf)
                 b_form = assign_convert(b_form)
-                b_form.clean_caches()
                 body_forms[i] = b_form
 
             if name is w_false:
@@ -1076,7 +1074,6 @@ def read_loop(sexp):
             for i, bf in enumerate(_body_forms):
                 b_form = Context.normalize_term(bf)
                 b_form = assign_convert(b_form)
-                b_form.clean_caches()
                 body_forms[i] = b_form
 
             return W_Linklet(w_name, importss_list, exports, body_forms)
