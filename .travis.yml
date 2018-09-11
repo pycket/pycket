@@ -11,7 +11,6 @@ env:
   - PATH=./racket/bin:$PATH
   matrix:
   - TEST_TYPE=tests
-  - TEST_TYPE=test_expander
   - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
 matrix:

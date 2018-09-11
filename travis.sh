@@ -82,7 +82,7 @@ print_console() {
 ############### test targets ################################
 do_tests() {
 
-    ./pypy-c ../pypy/pytest.py pycket --ignore=pycket/old-test
+    ./pypy-c ../pypy/pytest.py pycket
 }
 
 do_test_expander() {
