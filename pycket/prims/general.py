@@ -426,8 +426,9 @@ def find_main_config():
 @expose("version", [])
 def version():
     from pycket.env import w_version
-
     version = w_version.get_version()
+    if version == '':
+        version = "old-pycket"
     return values_string.W_String.fromascii("unknown version" if version is None else version)
 
 
