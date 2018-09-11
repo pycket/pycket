@@ -464,7 +464,6 @@ def test_is_prefab_key(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
-@pytest.mark.k
 def test_make_prefab_struct(doctest):
     """
     > (make-prefab-struct 'clown "Binky" "pie")
@@ -473,8 +472,8 @@ def test_make_prefab_struct(doctest):
     '#s(clown "Binky" "pie")
     > (make-prefab-struct '(clown 2 (0 #f) #()) "Binky" "pie")
     '#s(clown "Binky" "pie")
-    > (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
-    '#s((clown (1 #f)) "Binky" "pie")
+    ;> (make-prefab-struct '(clown 1 (1 #f) #()) "Binky" "pie")
+    ;'#s((clown (1 #f)) "Binky" "pie")
     ;> (make-prefab-struct '(clown 1 (1 #f) #(0)) "Binky" "pie")
     ;'#s((clown (1 #f) #(0)) "Binky" "pie")
     """
