@@ -494,7 +494,7 @@ def peek_char_or_special(w_port, w_skip, special_wrap, source_name, env, cont):
 
 
 
-@expose("peek-char", [default(values.W_InputPort, stdin_port),
+@expose("peek-char", [default(values.W_Object, stdin_port),
                       default(values.W_Fixnum, values.W_Fixnum.ZERO)],
                     simple=False)
 def peek_char(w_port, w_skip, env, cont):
