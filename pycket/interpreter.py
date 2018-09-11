@@ -1426,7 +1426,7 @@ class LinkletVar(Var):
         from pycket.prims.input_output import write_loop
         write_loop(self.sym, port, env)
 
-    def _free_vars(self):
+    def _free_vars(self, cache):
         return SymbolSet.EMPTY
 
     def is_constant(self):
