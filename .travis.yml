@@ -9,6 +9,7 @@ notifications:
 env:
   global:
   - PATH=./racket/bin:$PATH
+  - PLTHOME=.
   matrix:
   - TEST_TYPE=tests
   - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate
