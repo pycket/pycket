@@ -1,6 +1,7 @@
 language: python
-cache: apt
-sudo: true
+cache: pip
+sudo: required
+distro: trusty
 notifications:
   irc:
     channels:
