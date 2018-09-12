@@ -76,8 +76,7 @@ debug-no-jit: $(PYFILES)
 	$(RUNINTERP) $(RPYTHON) --lldebug targetpycket.py
 	cp pycket-c pycket-c-debug-no-jit
 
-compile-file:
-	# assumes pycket-c
+compile-file: pycket-c
 	./pycket-c compile-file-pycket.rkt -- $(FILE)
 
 setup:
@@ -91,7 +90,13 @@ expander:
 	$(MAKE) -C linklet-extractor
 
 test:
-	$(RUNINTERP) $(PYTEST) pycket
+	$(RUNINTERP) $(PYTEST) pycket --ignore=pycket/test/test_entry_point.py
+
+test-new-no-expander:
+	$(RUNINTERP) $(PYTEST) pycket --new --ignore=pycket/test/test_old_entry_point.py
+
+test-new-with-expander:
+	$(RUNINTERP) $(PYTEST) pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py
 
 # test-expander:
 # 	$(RUNINTERP) $(PYTEST) pycket --durations=0 --use-expander --ignore=pycket/old-test/
