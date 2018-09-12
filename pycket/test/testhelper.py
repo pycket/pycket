@@ -3,6 +3,7 @@
 #
 # Assorted test helpers
 #
+import pytest
 import os
 from tempfile import NamedTemporaryFile, gettempdir
 from pycket.expand import expand, JsonLoader, expand_string, ModTable, parse_module
@@ -11,7 +12,11 @@ from pycket.interpreter import *
 from pycket.env import ToplevelEnv
 from pycket import values
 
-import pytest
+from pycket.racket_entry import initiate_boot_sequence, namespace_require_kernel, read_eval_print_string, get_primitive
+from pycket.prims.linklet import *
+from pycket.test.utils import *
+from pycket.config import get_testing_config
+
 
 #
 # basic runners
@@ -20,6 +25,138 @@ import pytest
 # This is where all the work happens
 
 delete_temp_files = True
+
+##############################
+## NEW Pycket test helpers
+##############################
+
+instantiate_linklet = get_primitive("instantiate-linklet")
+
+# This is where all the work happens
+
+if pytest.config.load_expander:
+    # get the expander
+    print("Loading and initializing the expander")
+    initiate_boot_sequence(None, [], False)
+    # load the '#%kernel
+    print("(namespace-require '#%%kernel)")
+    namespace_require_kernel(None)
+
+def run_sexp(body_sexp_str, v=None, just_return=False, extra="", equal_huh=False):
+    linkl_str = "(linklet () () %s %s)" % (extra, body_sexp_str)
+    l = make_linklet(linkl_str)
+    result, _ = eval(l, empty_target(), just_return=just_return)
+
+    if just_return:
+        return result
+
+    return check_result(result, v, equal_huh)
+
+def run_string(expr_str, v=None, just_return=False, equal_huh=False):
+    # FIXME : removing \n is not ideal, as the test itself may have one
+    expr_str = expr_str.replace('\n', '') # remove the newlines added by the multi line doctest
+    expr_str = "(begin %s)" % expr_str
+    result = read_eval_print_string(expr_str, None, return_val=True)
+
+    # FIXME: check for multiple results
+    assert isinstance(result, W_Object)
+    if just_return:
+        return result
+
+    return check_result(result, v, equal_huh)
+
+def run_expr_result(expr_str):
+    return run_expr(expr_str, just_return=True)
+
+def run_expr(expr_str, v=None, just_return=False, extra="", equal_huh=False):
+    expr_str = extra + expr_str
+    if pytest.config.load_expander:
+        return run_string(expr_str, v, just_return, equal_huh=equal_huh)
+    else:
+        return run_sexp(expr_str, v, just_return, equal_huh=equal_huh)
+
+def check_result(result, expected, equal_huh=False):
+    if equal_huh:
+        assert result.equal(expected)
+        return result
+
+    if isinstance(result, W_Fixnum) or isinstance(result, W_Flonum) or isinstance(result, W_Bignum):
+        check = result.value
+    elif isinstance(result, values_string.W_String):
+        check = result.as_str_utf8()
+    elif result is w_true:
+        check = True
+    elif result is w_false:
+        check = False
+    elif isinstance(result, W_HashTable):
+        check = result
+    else:
+        raise Exception("I don't know this type yet : %s -- actual value: %s" % (result, result.tostring()))
+
+    assert check == expected
+
+    return result
+
+### Linklet Utils ###
+
+def eval(linkl, target, imports=[], just_return=False):
+    result = instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+    return result, target
+
+def eval_fixnum(linkl, target, imports=[], just_return=False):
+    r, t = eval(linkl, target, imports=imports, just_return=just_return)
+    if isinstance(r, W_Fixnum):
+        r = r.value
+    # o/w don't care it's not used
+    return r, t
+
+def get_var_val(inst, id_str):
+    # for getting uninterned symbols
+    for k,v in inst.vars.iteritems():
+        if id_str == k.tostring():
+            return k, v.get_value_direct()
+    raise Exception("Can't find the variable : %s in instance : %s" % (id_str, inst.tostring()))
+
+def variables(inst):
+    return get_instance_variable_names(inst) # W_Cons
+
+def defines(inst, name_str):
+    return inst.has_var(W_Symbol.make(name_str))
+
+def get_val(inst, name_str):
+    return inst.lookup_var_value(values.W_Symbol.make(name_str)).get_val()
+
+def check_val(inst, var_str, val):
+    return get_val(inst, var_str).value == val
+
+def inst(linkl, imports=[], target=None):
+    if not target:
+        target = w_false
+
+    return instantiate_linklet.call_interpret([linkl, to_list(imports), target, w_false], get_testing_config())
+
+def empty_target(l_name="test_empty_instance"):
+    # creates an empty target
+    return make_instance("(linklet () ())", l_name=l_name)
+
+def make_instance(linkl_str, imports=[], l_name="test_linklet_sexp"):
+    instance = inst(make_linklet(linkl_str, l_name), imports)
+    return instance
+
+def make_linklet(linkl_str, l_name="test_linklet_sexp"):
+    #"(linklet () (x) (define-values (x) 4))"
+    linkl_sexp = string_to_sexp(linkl_str)
+    try:
+        do_compile_linklet(linkl_sexp, values.W_Symbol.make(l_name), w_false, w_false, w_false, ToplevelEnv(), NilCont())
+    except Done, e:
+        l = e.values # W_Linklet
+        return l
+    raise Exception("do_compile_linklet didn't raised a Done exception")
+
+
+##############################
+## OLD Pycket test helpers
+##############################
 
 def run_ast(ast):
     env = ToplevelEnv()
@@ -80,7 +217,10 @@ def run_mod_expr(e, v=None, stdlib=False, wrap=False, extra="", srcloc=False):
 def execute(p, stdlib=False, extra=""):
     return run_mod_expr(p, stdlib=stdlib, extra=extra)
 
-def run_fix(p, v=None, stdlib=False, extra=""):
+def run_fix(p, v=None, stdlib=False, extra="", equal_huh=False):
+    new = pytest.config.new_pycket
+    if new:
+        return run_expr(p, v, equal_huh=equal_huh)
     ov = run_mod_expr(p,stdlib=stdlib, extra=extra)
     assert isinstance(ov, values.W_Fixnum)
     if v is not None:
@@ -95,6 +235,8 @@ def run_flo(p, v=None, stdlib=False, extra=""):
     return ov.value
 
 def run(p, v=None, stdlib=False, extra=""):
+    if pytest.config.new_pycket:
+        return run_expr_result(p)
     return run_mod_expr(p,v=v,stdlib=stdlib, extra=extra)
 
 def run_top(p, v=None, stdlib=False, extra=""):

@@ -4,12 +4,13 @@
 # Testing entrypoint
 #
 import pytest
-from pycket.entry_point import make_entry_point
-from pycket.old_pycket_option_helper import parse_args
-from pycket import old_pycket_option_helper as option_helper
-from rpython.rlib import jit
+#from pycket.entry_point import make_entry_point
+from pycket.option_helper import parse_args, INIT, RETURN_OK, MISSING_ARG, JUST_EXIT, RET_JIT
+from pycket.option_helper import config as init_config
+#from pycket import option_helper
+#from rpython.rlib import jit
 
-entry_point = make_entry_point()
+#entry_point = make_entry_point()
 
 class TestOptions(object):
 
@@ -17,178 +18,182 @@ class TestOptions(object):
 
     def test_no_args(self):
         config, names, args, retval = parse_args(['arg0'])
-        assert retval == 3
+        assert retval == RETURN_OK
+        assert config == init_config
+        assert names == {}
 
-    def test_one_args(self, empty_json):
-        # Ok, this is grey-box-y
-        config, names, args, retval = parse_args(['arg0', empty_json])
-        assert retval == 0
-        assert names['file'] == empty_json
-        assert config['mode'] == option_helper._run
+    def test_verbose(self):
+        config, names, args, retval = parse_args(['arg0', '--verbose'])
+        assert config['verbose']
+        assert names['verbosity_level'] == ['0']
 
-    def test_jitarg_fail(self, empty_json):
+        config, names, args, retval = parse_args(['arg0', '--verbose', '2'])
+        assert config['verbose']
+        assert names['verbosity_level'] == ['2']
+        assert retval == RETURN_OK
+
+    def test_one_args(self, cool_mod):
+        config, names, args, retval = parse_args(['arg0', "cool-module.rkt"])
+        assert retval == RETURN_OK
+        assert 'loads' in names
+        assert "file" in names['loads']
+        assert "cool-module.rkt" in names['load_arguments']
+
+    def test_jitarg_fail(self, cool_mod):
         with pytest.raises(ValueError):
-            parse_args(['arg0', '--jit', empty_json])
-        argv = ['arg0', empty_json, '--jit']
+            parse_args(['arg0', '--jit', cool_mod])
+        argv = ['arg0', "cool-module.rkt", '--jit']
         config, names, args, retval = parse_args(argv)
-        assert retval == 2
+        assert retval == RET_JIT
 
-    def test_jitarg_works(self, empty_json):
+    def test_jitarg_works(self, cool_mod):
         # cannot actually check jit hint.
-        argv = ['arg0'] + self.ok_jit_args + [empty_json]
+        argv = ['arg0'] + self.ok_jit_args + [cool_mod]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
+        assert retval == RETURN_OK
 
-        argv = ['arg0', empty_json] + self.ok_jit_args
+        argv = ['arg0', cool_mod] + self.ok_jit_args
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
+        assert retval == RETURN_OK
 
     @pytest.mark.parametrize('arg',
                              ["-h", "--help", "/?", "-?", "/h", "/help"])
     def test_help(self, arg):
         argv = ["arg0", arg]
-        assert (None, None, None, 0 == parse_args(argv))
+        assert (None, None, None, RETURN_OK == parse_args(argv))
 
         argv = ["arg0", "foobar", arg]
-        assert (None, None, None, 0 == parse_args(argv))
+        assert (None, None, None, RETURN_OK == parse_args(argv))
 
-    def test_program_arguments_plain(self, empty_json):
+    def test_program_arguments_plain(self, cool_mod):
         program_args = ["foo", "bar", "baz"]
-        argv = ['arg0', empty_json] + program_args
+        argv = ['arg0', cool_mod] + program_args
+        config, names, args, retval = parse_args(argv)
+        # must use "--"
+        assert retval == MISSING_ARG
+        assert args == []
+
+    def test_program_arguments_after_jit(self, cool_mod):
+        program_args = ["foo", "bar", "baz"]
+        argv = ['arg0', cool_mod] + self.ok_jit_args + program_args
+        config, names, args, retval = parse_args(argv)
+        # again, must use "--"
+        assert retval == MISSING_ARG
+        assert args == []
+
+    def test_program_arguments_explicit(self, cool_mod):
+        program_args = ["foo", "bar", "baz"]
+        argv = ['arg0', cool_mod] + ["--"] + program_args
         config, names, args, retval = parse_args(argv)
 
-        assert retval == 0
+        assert retval == RETURN_OK
         assert args == program_args
 
-    def test_program_arguments_after_jit(self, empty_json):
-        program_args = ["foo", "bar", "baz"]
-        argv = ['arg0', empty_json] + self.ok_jit_args + program_args
-        config, names, args, retval = parse_args(argv)
-
-        assert retval == 0
-        assert args == program_args
-
-    def test_program_arguments_explicit(self, empty_json):
-        program_args = ["foo", "bar", "baz"]
-        argv = ['arg0', empty_json] + ["--"] + program_args
-        config, names, args, retval = parse_args(argv)
-
-        assert retval == 0
-        assert args == program_args
-
-    def test_program_arguments_explicit_with_switch(self, empty_json):
+    def test_program_arguments_explicit_with_switch(self, cool_mod):
         program_args = ["--jit", "foo", "bar", "baz"]
-        argv = ['arg0', empty_json] + ["--"] + program_args
+        argv = ['arg0', cool_mod] + ["--"] + program_args
         config, names, args, retval = parse_args(argv)
 
-        assert retval == 0
+        assert retval == RETURN_OK
         assert args == program_args
 
-    def test_eval(self):
+    def test_e(self):
         code = "(ratatta)"
         argv = ['arg0', "-e", code]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
-        assert 'file' not in names
-        assert config['mode'] == option_helper._eval
-        assert names['exprs'] == code
+        assert config == init_config
+        assert retval == RETURN_OK
+        assert 'loads' in names
+        assert 'eval' in names['loads'] and code in names['load_arguments']
 
-    def test_f(self, empty_json):
-        pytest.skip("re-enable when -f works again")
-        argv = ['arg0', "-f", empty_json]
+    def test_f(self, cool_mod):
+        argv = ['arg0', "-f", cool_mod]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
-        assert names['file'] == empty_json+".f"
-        assert config['mode'] == option_helper._eval
-        assert names['exprs'] == '(load "%s")' % empty_json
-        assert args == []
+        assert retval == RETURN_OK
+        assert config == init_config
+        assert 'loads' in names
+        assert 'load' in names['loads'] and cool_mod in names['load_arguments']
 
-    def test_r(self, empty_json):
-        pytest.skip("re-enable when -f works again")
-        argv1 = ['arg0', "-f", empty_json, "--", "foo", "bar", "baz"]
-        argv2 = ['arg0', "-r", empty_json, "foo", "bar", "baz"]
+    def test_r(self, cool_mod):
+        argv1 = ['arg0', "-f", cool_mod, "-N", cool_mod]
+        argv2 = ['arg0', "-r", cool_mod]
         assert parse_args(argv1) == parse_args(argv2)
 
-    def test_t(self, empty_json):
-        argv = ['arg0', "-t", empty_json]
+    def test_t(self, cool_mod):
+        argv = ['arg0', "-t", cool_mod]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
-        assert names['file'] == empty_json + ".t"
-        assert config['mode'] == option_helper._eval
-        assert names['exprs'] == '(require (file "%s"))' % empty_json
-        assert args == []
+        assert retval == RETURN_OK
+        assert config['no-lib']
+        assert 'loads' in names
+        assert 'file' in names['loads'] and cool_mod in names['load_arguments']
 
-    def test_u(self, empty_json):
-        argv1 = ['arg0', "-t", empty_json, "--", "foo", "bar", "baz"]
-        argv2 = ['arg0', "-u", empty_json, "foo", "bar", "baz"]
+    def test_u(self, cool_mod):
+        argv1 = ['arg0', "-t", cool_mod, "-N", cool_mod]
+        argv2 = ['arg0', "-u", cool_mod]
         assert parse_args(argv1) == parse_args(argv2)
 
-    def test_l(self, empty_json):
-        argv = ['arg0', "-l", empty_json]
+    def test_l(self, cool_mod):
+        argv = ['arg0', "-l", cool_mod]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
-        assert names['file'] == empty_json + ".l"
-        assert config['mode'] == option_helper._eval
-        assert names['exprs'] == '(require (lib "%s"))' % empty_json
-        assert args == []
+        assert retval == RETURN_OK
+        assert config['no-lib']
+        assert 'loads' in names
+        assert 'lib' in names['loads'] and cool_mod in names['load_arguments']
 
-    def test_p(self, empty_json):
-        argv = ['arg0', "-p", empty_json]
+    # The ones below are going to fail when they're implemented
+    def test_p(self, cool_mod):
+        argv = ['arg0', "-p", cool_mod]
         config, names, args, retval = parse_args(argv)
-        assert retval == 0
-        assert names['file'] == empty_json + ".p"
-        assert config['mode'] == option_helper._eval
-        assert names['exprs'] == '(require (planet "%s"))' % empty_json
-        assert args == []
+        assert retval == RETURN_OK
+        assert 'not-implemented' in names
+        assert '-p' in names['not-implemented']
 
-    def test_b(self):
-        f_name = 'dummy.rkt'
-        argv1 = ['arg0', "-b", f_name]
-        config1, names1, args1, retval1 = parse_args(argv1)
-        assert retval1 == 0
-        assert names1['byte-expand'] == f_name
-        assert args1 == []
+    def test_b(self, cool_mod):
+        argv1 = ['arg0', "-b", cool_mod]
+        config, names, args, retval = parse_args(argv1)
+        assert retval == RETURN_OK
+        assert 'not-implemented' in names
+        assert '-b' in names['not-implemented']
 
-    def test_m(self):
-        f_name = 'multiple-modules.json'
-        argv1 = ['arg0', "-c", f_name]
-        config1, names1, args1, retval1 = parse_args(argv1)
-        assert retval1 == 0
-        assert names1['multiple-modules'] == f_name
-        assert args1 == []
+    def test_m(self, cool_mod):
+        argv1 = ['arg0', "-m", cool_mod]
+        config, names, args, retval = parse_args(argv1)
+        assert retval == RETURN_OK
+        assert 'not-implemented' in names
+        assert '-m' in names['not-implemented']
 
-class TestCommandline(object):
-    """These are quire similar to TestOptions but targeted at the higher level
-    entry_point interface. At that point, we only have the program exit code.
-    """
+# class TestCommandline(object):
+#     """These are quire similar to TestOptions but targeted at the higher level
+#     entry_point interface. At that point, we only have the program exit code.
+#     """
 
-    def test_no_argv(self):
-        assert entry_point(['arg0']) == 3
+#     def test_no_argv(self):
+#         assert entry_point(['arg0']) == 3
 
-    def test_one_arg(self, empty_json):
-        assert entry_point(['arg0', empty_json]) == 0
+#     def test_one_arg(self, cool_mod):
+#         assert entry_point(['arg0', cool_mod]) == 0
 
-    def test_jitarg_fail(self, empty_json):
-        with pytest.raises(ValueError):
-            entry_point(['arg0', '--jit', empty_json])
-        assert entry_point(['arg0', empty_json, '--jit']) == 2
+#     def test_jitarg_fail(self, cool_mod):
+#         with pytest.raises(ValueError):
+#             entry_point(['arg0', '--jit', cool_mod])
+#         assert entry_point(['arg0', cool_mod, '--jit']) == 2
 
-    def test_jitarg_works(self, empty_json):
-        assert entry_point(
-            ['arg0', '--jit', 'trace_limit=13000',empty_json]) == 0
-        assert entry_point(
-            ['arg0', empty_json, '--jit', 'trace_limit=13000']) == 0
+#     def test_jitarg_works(self, cool_mod):
+#         assert entry_point(
+#             ['arg0', '--jit', 'trace_limit=13000',cool_mod]) == 0
+#         assert entry_point(
+#             ['arg0', cool_mod, '--jit', 'trace_limit=13000']) == 0
 
-    def test_eval(self, capfd):
-        printval = 42
-        assert entry_point(['arg0', '-e', '(display "%s")' % printval]) == 0
-        out, err = capfd.readouterr()
-        assert out == "%s" % printval
+#     def test_eval(self, capfd):
+#         printval = 42
+#         assert entry_point(['arg0', '-e', '(display "%s")' % printval]) == 0
+#         out, err = capfd.readouterr()
+#         assert out == "%s" % printval
 
-    def test_f(self, capfd, racket_file):
-        """(display "42")"""
-        pytest.skip("re-enable when -f works again")
+#     def test_f(self, capfd, racket_file):
+#         """(display "42")"""
+#         pytest.skip("re-enable when -f works again")
 
-        assert entry_point(['arg0', '-f', racket_file]) == 0
-        out, err = capfd.readouterr()
-        assert out == "42"
+#         assert entry_point(['arg0', '-f', racket_file]) == 0
+#         out, err = capfd.readouterr()
+#         assert out == "42"

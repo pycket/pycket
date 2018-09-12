@@ -21,6 +21,8 @@ def replace(func):
 def pytest_addoption(parser):
     parser.addoption('--bytecode', action='store', default='', help='Run pycket with bytecode expansion')
     parser.addoption('--random', action='store_true', help='Override functions in rpython.rlib.jit.py to test special cases for the JIT')
+    parser.addoption('--new', action='store_true', default=False, help='Use the entry point of the NEW Pycket')
+    parser.addoption('--use-expander', action='store_true', default=False, help='Run the tests using the reader and evaluator from expander linklet')
 
 def pytest_configure(config):
     if config.getvalue('random'):
@@ -30,14 +32,20 @@ def pytest_configure(config):
         # XXX: Being able to patch we_are_jitted would be nice as well,
         # but too much code depends on it behaving deterministically
 
-    byte_flag = config.getvalue('bytecode')
+    config.byte_option = False
+    config.new_pycket = False
+    config.load_expander = False
 
-    if byte_flag == "":
-        print "We have regular pycket expansion"
-        config.byte_option = False
-    elif byte_flag == "go":
-        print "We have bytecode expansion"
-        config.byte_option = True
+    if config.getvalue('--new'):
+        print("\nTesting with NEW Pycket... ")
+        config.new_pycket = True
+        if config.getvalue('--use-expander'):
+            print("using the expander linklet...\n")
+            config.load_expander = True
+        else:
+            print("WITHOUT using the expander linklet...\n")
+    else:
+        print("\nTesting with OLD Pycket... ")
 
 def pytest_funcarg__racket_file(request):
     tmpdir = request.getfuncargvalue('tmpdir')
