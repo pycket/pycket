@@ -162,6 +162,27 @@ available), like this:
 
     $ ./pycket-slow.sh program
 
+## REPL
+
+One of the beautiful perks of bootstrapping Racket is to be able to
+run on Pykcet some interesting programs implemented in Racket (as long
+as we have enough runtime support for it in Pycket -- i.e. having the
+runtime primitives implemented in RPython). 
+
+The `NEW` Pycket now features an original Racket REPL that's
+implemented in Racket. Try it out!
+
+    $ ./pycket-c --new
+
+You can make it more verbose with the `--verbose` flag if you're
+curious about what's going on in the background.
+
+    $ ./pycket-c --new --verbose
+
+Also increase the verbosity level (defaults to 0).
+
+    $ ./pycket-c --new --verbose 1
+
 ## Benchmarking
 
 Pycket's benchmarks are available at [this
