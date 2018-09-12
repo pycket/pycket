@@ -2,8 +2,8 @@
 #
 
 # utah or northwestern for prerelease, racket for stable
-#DLHOST=utah
-DLHOST=northwestern
+DLHOST=utah
+#DLHOST=northwestern
 RACKET_VERSION=7.0.0.19
 
 COVERAGE_TESTSUITE='test'

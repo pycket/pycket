@@ -20,13 +20,13 @@ env:
 matrix:
   fast_finish: true
   allow_failures:
-  - env: TEST_TYPE=coverage TEST_TYPE=translate_nojit_and_racket_tests
+  - env: TEST_TYPE=new_tests_without_expander_linklet TEST_TYPE=new_tests_using_expander_linklet
 before_install:
-  - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
   -  ./travis.sh prepare
 install:
-  - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
   - ./travis.sh install
 script:
-  - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
+  - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
   - ./travis.sh test $TEST_TYPE
