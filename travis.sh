@@ -80,13 +80,20 @@ print_console() {
 }
 
 ############### test targets ################################
-do_tests() {
+do_old_tests() {
 
-    ./pypy-c ../pypy/pytest.py pycket
+    ./pypy-c ../pypy/pytest.py pycket --ignore=pycket/test/test_entry_point.py
 }
 
-do_test_expander() {
-    ./pypy-c ../pypy/pytest.py pycket --use-expander --ignore=pycket/old-test
+do_new_tests_without_expander_linklet() {
+
+    ./pypy-c ../pypy/pytest.py pycket --new --ignore=pycket/test/test_old_entry_point.py
+}
+
+
+do_new_tests_using_expander_linklet() {
+
+    ./pypy-c ../pypy/pytest.py pycket --new --use-expander --ignore=pycket/test/test_old_entry_point.py
 }
 
 do_coverage() {

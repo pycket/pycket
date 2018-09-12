@@ -12,7 +12,9 @@ env:
   - PATH=./racket/bin:$PATH
   - PLTHOME=.
   matrix:
-  - TEST_TYPE=tests
+  - TEST_TYPE=old_tests
+  - TEST_TYPE=new_tests_without_expander_linklet
+  - TEST_TYPE=new_tests_using_expander_linklet
   - PYPY_DONT_RUN_SUBPROCESS=1 TEST_TYPE=translate
   - TEST_TYPE=translate_nojit_and_racket_tests
 matrix:
