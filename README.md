@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/pycket/pycket.png?branch=linklet)](https://travis-ci.org/pycket/pycket)
+[![Build Status](https://travis-ci.org/pycket/pycket.png?branch=master)](https://travis-ci.org/pycket/pycket)
 [![codecov.io](https://codecov.io/github/pycket/pycket/coverage.svg?branch=master)](https://codecov.io/github/pycket/pycket?branch=master)
 
 Pycket is a Racket/Scheme implementation that is automatically
