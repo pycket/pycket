@@ -85,7 +85,7 @@
         (collection-file-path "more-scheme.rkt" "racket" "private")
         (collection-file-path "path.rkt" "racket" "private")
         (collection-file-path "path-list.rkt" "racket" "private")
-        (collection-file-path "reading-params.rkt" "racket" "private")
+        (collection-file-path "reading-param.rkt" "racket" "private")
         (collection-file-path "repl.rkt" "racket")
         (collection-file-path "misc.rkt" "racket" "private")
         (collection-file-path "kw-prop-key.rkt" "racket" "private")
