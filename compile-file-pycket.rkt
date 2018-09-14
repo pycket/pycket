@@ -125,16 +125,16 @@
  #:once-each
  [("-b" "--batch") "compile the Racket modules statically listed here" (set! batch #t)]
  #:args paths
- (when batch
-   (for ([p (in-list racket-modules)])
-     (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
-     (compile-file p)))
- (when (not (null? paths))
-   (for ([p (in-list paths)])
-     (let* ([path-to-file.rkt (string->path p)]
-            [p (path-only path-to-file.rkt)])
-       (printf "PYCKET COMPILE FILE -- path-to-file : ~a -- p : ~a\n" path-to-file.rkt p)
-       (parameterize ([current-namespace (make-base-namespace)])
+ (parameterize ([current-namespace (make-base-namespace)])
+   (when batch
+     (for ([p (in-list racket-modules)])
+       (printf "PYCKET COMPILE FILE -- compiling : ~a\n" p)
+       (compile-file p)))
+   (when (not (null? paths))
+     (for ([p (in-list paths)])
+       (let* ([path-to-file.rkt (string->path p)]
+              [p (path-only path-to-file.rkt)])
+         (printf "PYCKET COMPILE FILE -- path-to-file : ~a -- p : ~a\n" path-to-file.rkt p)
          (if (not p)
              (compile-file (build-path (current-directory) path-to-file.rkt))
              (compile-file (build-path path-to-file.rkt))))))))
