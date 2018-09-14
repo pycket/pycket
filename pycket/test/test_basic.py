@@ -72,27 +72,27 @@ def test_arith_minus_one_arg_bug():
     run_fix("(- 1)", -1)
 
 def test_letrec():
-    run_fix("(letrec ([x 1]) x)", 1)
-    run_fix("(letrec ([x 1] [y 2]) y)", 2)
-    run_fix("(letrec ([x 1] [y 2]) (+ x y))", 3)
-    run_fix("(letrec ([x (lambda (z) x)]) 2)", 2)
+    run_fix("(letrec-values ([(x) 1]) x)", 1)
+    run_fix("(letrec-values ([(x) 1] [(y) 2]) y)", 2)
+    run_fix("(letrec-values ([(x) 1] [(y) 2]) (+ x y))", 3)
+    run_fix("(letrec-values ([(x) (lambda (z) x)]) 2)", 2)
 
 def test_reclambda():
-    run_fix("((letrec ([c (lambda (n) (if (< n 0) 1 (c (- n 1))))]) c) 10)", 1)
+    run_fix("((letrec-values ([(c) (lambda (n) (if (< n 0) 1 (c (- n 1))))]) c) 10)", 1)
     run_fix("""
-        ((letrec ([c (lambda (n) (let ([ind (lambda (n) (display n) (if (< n 0) 1 (c (- n 1))))]) (ind n)))]) c) 10)""", 1)
+        ((letrec-values ([(c) (lambda (n) (let-values ([(ind) (lambda (n) (begin (display n) (if (< n 0) 1 (c (- n 1)))))]) (ind n)))]) c) 10)""", 1)
     run_fix("""
-(let ()
-  (define (nested n)
-    (let countdown ([i n]) (if (< i 0) 1 (countdown (- i 1))))
-    (if (< n 0) 1 (nested (- n 1))))
-  (nested 10))""", 1)
+  (letrec-values ([(nested) (lambda (n)
+    (begin
+      (letrec-values ([(countdown) (lambda (i) (if (< i 0) 1 (countdown (- i 1))))]) (countdown n))
+      (if (< n 0) 1 (nested (- n 1)))))])
+    (nested 10))""", 1)
 
 def test_let():
-    run_fix("(let () 1)", 1)
-    run_fix("(let ([x 1]) x)", 1)
-    run_fix("(let ([x 1] [y 2]) y)", 2)
-    run_fix("(let ([x 1] [y 2]) (+ x y))", 3)
+    run_fix("(let-values () 1)", 1)
+    run_fix("(let-values ([(x) 1]) x)", 1)
+    run_fix("(let-values ([(x) 1] [(y) 2]) y)", 2)
+    run_fix("(let-values ([(x) 1] [(y) 2]) (+ x y))", 3)
 
 def test_run_pruning_let():
     run_fix("(let ([c 7]) (let ([b (+ c 1)]) (let ([a (+ b 1)] [d (- c 5)]) (+ a d))))", 11)
