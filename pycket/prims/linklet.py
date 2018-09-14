@@ -494,14 +494,23 @@ def is_imported(id_sym, linkl_importss):
                 return True
     return False
 
-def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, is_letrec, cell_ref):
+def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, is_letrec, cell_ref, not_core=False):
 
     let_ls = to_rpython_list(let_sexp)
 
     # just a sanity check
-    if not (let_ls[0] is W_Symbol.make("let-values") or (let_ls[0] is W_Symbol.make("letrec-values") and is_letrec)):
-        raise SchemeException("let_to_ast : unhandled let form : %s" % let_sexp.tostring())
 
+    lv_sym =  W_Symbol.make("let-values")
+    lrv_sym = W_Symbol.make("letrec-values")
+    l_sym = W_Symbol.make("let")
+    lr_sym = W_Symbol.make("letrec")
+    s = let_ls[0]
+
+    if not (s is lv_sym or (s is lrv_sym and is_letrec) or (not_core and ((s is l_sym) or ((s is lr_sym) and is_letrec)))):
+        raise SchemeException("let_like_to_ast : unhandled let form : %s" % let_sexp.tostring())
+
+    # (let-values (((x) 1) ((y z) (values 1 2))) body)
+    # not_core : (let ((x 1) (y 2)) body)
     varss_rhss = to_rpython_list(let_ls[1])
 
     varss_list = [None] * len(varss_rhss)
@@ -511,15 +520,36 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
 
     if is_letrec:
         # populate lex_env // cell_refs for rhss ahead of time
-        for rhs in varss_rhss: # rhs : ((id ...) rhs-expr)
-            ids = to_rpython_list(rhs.car()) # (id ...)
+        for rhs in varss_rhss:
+            if not_core:
+                # rhs : (id rhs-expr)
+                ids = [rhs.car()]
+            else:
+                # rhs : ((id ...) rhs-expr)
+                ids = to_rpython_list(rhs.car()) # (id ...)
             cells_for_the_rhss += ids
+            # sanity check for shadowing
+            for i in ids:
+                if i in lex_env:
+                    raise SchemeException("Something's shadowing : %s" % let_sexp.tostring())
             lex_env += [i.get_obj() if isinstance(i, W_Correlated) else i for i in ids]
 
     num_ids = 0
     i = 0
     for w_vars_rhss in varss_rhss:
-        varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
+        if not_core:
+            s = w_vars_rhss.car()
+            assert isinstance(s, W_Symbol)
+            varr = [s.get_obj() if isinstance(s, W_Correlated) else s]
+        else:
+            varr = [v.get_obj() if isinstance(v, W_Correlated) else v for v in to_rpython_list(w_vars_rhss.car())]
+
+        # sanity check for shadowing
+        if not is_letrec:
+            for s in varr:
+                if s in lex_env:
+                    raise SchemeException("Something's shadowing : %s" % let_sexp.tostring())
+
         varss_list[i] = varr
 
         rhsr = sexp_to_ast(w_vars_rhss.cdr().car(), lex_env, exports, linkl_toplevels, linkl_imports, disable_conversions, cell_ref=[])
@@ -645,6 +675,10 @@ def sexp_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, disable
             form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, False, cell_ref)
         elif form.car() is W_Symbol.make("letrec-values"):
             form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref)
+        elif form.car() is W_Symbol.make("let"):
+            form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, False, cell_ref, not_core=True)
+        elif form.car() is W_Symbol.make("letrec"):
+            form = let_like_to_ast(form, lex_env, exports, linkl_toplevels, linkl_importss, True, True, cell_ref, not_core=True)
         elif form.car() is W_Symbol.make("set!"):
             if is_imported(form.cdr().car(), linkl_importss):
                 raise SchemeException("cannot mutate imported variable : %s" % form.tostring())

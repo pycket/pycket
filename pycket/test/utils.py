@@ -35,7 +35,9 @@ dbg = False
 term_regex = r'''(?mx)
     \s*(?:
         (?P<l_paren>\()|
+        (?P<ll_paren>\[)|
         (?P<r_paren>\))|
+        (?P<rr_paren>\])|
         (?P<compnum>\-?(\d+[/.])?\d+[+-](\d+[/.])?\d+[ij])|
         (?P<rational>\-?\d+/\d+)|
         (?P<num>(\-?\d+\.\d+|\-?\d+)|\+inf.0|-inf.0|\+nan.0)|
@@ -93,10 +95,10 @@ def string_to_sexp(sexp):
     for termtypes in re.finditer(term_regex, sexp):
         term, value = [(t,v) for t,v in termtypes.groupdict().items() if v][0]
         if dbg: print("%-7s %-14s %-44r %-r" % (term, value, out, stack))
-        if   term == 'l_paren':
+        if   term == 'l_paren' or term == 'll_paren':
             stack.append(out)
             out = []
-        elif term == 'r_paren':
+        elif term == 'r_paren' or term == 'rr_paren':
             assert stack, "Trouble with nesting of brackets"
             tmpout, out = out, stack.pop(-1)
             out.append(tmpout)
