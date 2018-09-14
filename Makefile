@@ -77,8 +77,10 @@ debug-no-jit: $(PYFILES)
 	cp pycket-c pycket-c-debug-no-jit
 
 compile-file: pycket-c
-	./pycket-c compile-file-pycket.rkt -- $(FILE)
+	./pycket-c --new compile-file-pycket.rkt -- $(FILE)
 
+compile-racket:
+	./pycket-c --new compile-file-pycket.rkt -- -b
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
 	raco pkg update --link pycket/pycket-lang
