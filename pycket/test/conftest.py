@@ -67,6 +67,13 @@ def pytest_funcarg__source(request):
     code = request.function.__doc__
     return code
 
+def pytest_funcarg__cool_mod(request):
+    def make_filename():
+        import inspect, py
+        module_file = inspect.getmodule(request.function).__file__
+        return str(py.path.local(module_file).dirpath("cool-mod.rkt"))
+    return request.cached_setup(setup=make_filename, scope="session")
+
 def pytest_funcarg__doctest(request):
     from textwrap import dedent
     from pycket.test.testhelper import check_equal, execute
