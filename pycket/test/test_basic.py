@@ -71,16 +71,13 @@ def test_arith():
 def test_arith_minus_one_arg_bug():
     run_fix("(- 1)", -1)
 
-@pytest.mark.skipif(pytest.config.load_expander, reason="need to string replace let->let-values for expander to read")
-@pytest.mark.m
 def test_letrec():
     run_fix("(letrec ([x 1]) x)", 1)
     run_fix("(letrec ([x 1] [y 2]) y)", 2)
     run_fix("(letrec ([x 1] [y 2]) (+ x y))", 3)
+    run_fix("(let ([x 0]) (letrec ([x 1] [y x]) (+ x y)))", 2)
     run_fix("(letrec ([x (lambda (z) x)]) 2)", 2)
 
-@pytest.mark.m
-@pytest.mark.skipif(pytest.config.load_expander, reason="need to string replace let->let-values for expander to read")
 def test_reclambda():
     run_fix("((letrec ([c (lambda (n) (if (< n 0) 1 (c (- n 1))))]) c) 10)", 1)
     run_fix("""
@@ -92,8 +89,6 @@ def test_reclambda():
     (if (< n 0) 1 (nested (- n 1))))
   (nested 10))""", 1)
 
-@pytest.mark.m
-@pytest.mark.skipif(pytest.config.load_expander, reason="need to string replace let->let-values for expander to read")
 def test_let():
     run_fix("(let () 1)", 1)
     run_fix("(let ([x 1]) x)", 1)
