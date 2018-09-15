@@ -466,15 +466,24 @@ def lam_to_ast(lam_sexp, lex_env, exports, linkl_toplevels, linkl_imports, disab
     formals_ = lam_sexp.car()
     rest = None
     formals = w_null
-    # check for a "rest"
-    while (formals_ is not w_null):
-        if isinstance(formals_, W_Symbol):
-            rest = formals_
-            lex_env.append(rest)
-            break
-
-        formals = W_Cons.make(formals_.car(), formals)
-        formals_ = formals_.cdr()
+    if isinstance(formals_, W_Symbol):
+        # check for a "rest"
+        rest = formals_
+        lex_env.append(rest)
+    else:
+        while (formals_ is not w_null):
+            if isinstance(formals_, W_Symbol):
+                lex_env.append(formals_)
+                break
+            elif formals_.car() is W_Symbol.make("."):
+                # another check for a "rest"
+                if formals_.cdr() is w_null:
+                    raise SchemeException("lam_to_ast : invalid lambda form : %s" % lam_sexp.tostring())
+                rest = formals_.cdr().car()
+                lex_env.append(rest)
+                break
+            formals = W_Cons.make(formals_.car(), formals)
+            formals_ = formals_.cdr()
 
     formals_ls = to_rpython_list(formals)
     formals_ls.reverse() # FIXME : refactor the double reverse
