@@ -173,18 +173,19 @@ def test_shorthands(doctest):
     '()
     """
 
-###############################################################################
 def test_random():
     for i in range(100):
         x = run_flo("(random)")
         assert 0.0 <= x < 1.0
         x = run_fix("(random %s)" % (5 + i))
-        assert 0 <= x < i + 5
+        if pytest.config.new_pycket:
+            assert 0 <= x.value < i + 5
+        else:
+            assert 0 <= x < i + 5
 
 def test_random_seed():
     run("(begin (random-seed 142) (let ((x (random))) (random-seed 142) (= (random) x)))", w_true)
 
-#############################################################################
 def test_byte_huh(doctest):
     """
     > (byte? 65)

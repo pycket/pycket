@@ -100,6 +100,9 @@ def check_result(result, expected, equal_huh=False):
     else:
         raise Exception("I don't know this type yet : %s -- actual value: %s" % (result, result.tostring()))
 
+    if expected is None:
+        return result
+
     assert check == expected
 
     return result
