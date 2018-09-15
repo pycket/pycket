@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import re
-from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true, W_Bignum, W_Complex, W_Rational
+from pycket.values import w_false, W_Cons, W_Symbol, w_null, W_Flonum, W_Fixnum, w_true, W_Bignum, W_Complex, W_Rational, W_Character
 from pycket.values_string import W_String
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import string_to_int
@@ -38,6 +38,7 @@ term_regex = r'''(?mx)
         (?P<ll_paren>\[)|
         (?P<r_paren>\))|
         (?P<rr_paren>\])|
+        (?P<char>\#\\[a-zA-Z0-9])|
         (?P<compnum>\-?(\d+[/.])?\d+[+-](\d+[/.])?\d+[ij])|
         (?P<rational>\-?\d+/\d+)|
         (?P<num>(\-?\d+\.\d+|\-?\d+)|\+inf.0|-inf.0|\+nan.0)|
@@ -115,6 +116,9 @@ def string_to_sexp(sexp):
         elif term == 'string':
             s = W_String.make(value[1:-1])
             out.append(s)
+        elif term == 'char':
+            c = W_Character(value[2:])
+            out.append(c)
         elif term == 'bool':
             if value in ['#t', '#T', 'true']:
                 b = w_true

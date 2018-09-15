@@ -558,7 +558,7 @@ def let_like_to_ast(let_sexp, lex_env, exports, linkl_toplevels, linkl_imports, 
         return make_let(varss_list, rhss_list, body_ls)
 
 def is_val_type(form):
-    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes]
+    val_types = [W_Number, W_Bool, W_String, W_ImmutableBytes, W_Character]
     for t in val_types:
         if isinstance(form, t):
             return True
