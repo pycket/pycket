@@ -119,12 +119,15 @@ def test_void():
     run ("(void 1)", w_void)
     run ("(void 2 3 #true)", w_void)
 
-@pytest.mark.skipif(pytest.config.load_expander, reason="unsafe* not in kernel")
 def test_mcons():
     run_fix ("(mcar (mcons 1 2))", 1)
     run_fix ("(mcdr (mcons 1 2))", 2)
-    run_fix ("(unsafe-mcar (mcons 1 2))", 1)
-    run_fix ("(unsafe-mcdr (mcons 1 2))", 2)
+    if pytest.config.load_expander:
+        run_fix ("(begin (#%require (quote #%unsafe)) (unsafe-mcar (mcons 1 2)))", 1)
+        run_fix ("(begin (#%require (quote #%unsafe)) (unsafe-mcdr (mcons 1 2)))", 2)
+    else:
+        run_fix ("(unsafe-mcar (mcons 1 2))", 1)
+        run_fix ("(unsafe-mcdr (mcons 1 2))", 2)
     with pytest.raises(SchemeException):
         run("(mcar 1)", None, expect_to_fail=True)
     with pytest.raises(SchemeException):
