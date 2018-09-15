@@ -172,22 +172,23 @@ def test_struct_auto_values(source):
     result = run_mod_expr(source, wrap=True)
     assert result == w_true
 
+@pytest.mark.skipif(pytest.config.new_pycket, reason="normalizer issues")
 def test_struct_guard():
     run(
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard
+    ((lambda (name) (begin (struct thing (name) #:transparent #:guard
       (lambda (name type-name) (cond
-        [(string? name) name]
-        [else (error type-name \"bad name: ~e\" name)])))
-    (thing? (thing name))) \"apple\")
+        ((string? name) name)
+        (else (error type-name \"bad name: ~e\" name)))))
+    (thing? (thing name)))) \"apple\")
     """, w_true)
     e = pytest.raises(SchemeException, run,
     """
-    ((lambda (name) (struct thing (name) #:transparent #:guard
+    ((lambda (name) (begin (struct thing (name) #:transparent #:guard
       (lambda (name type-name) (cond
-        [(string? name) name]
-        [else (error type-name "bad name")])))
-    (thing? (thing name))) 1)
+        ((string? name) name)
+        (else (error type-name "bad name")))))
+    (thing? (thing name)))) 1)
     """)
     assert "bad name" in e.value.msg
 
