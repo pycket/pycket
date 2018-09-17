@@ -19,9 +19,6 @@ env:
   - TEST_TYPE=translate_nojit_and_racket_tests
 matrix:
   fast_finish: true
-  allow_failures:
-  - env: TEST_TYPE=new_tests_without_expander_linklet
-  - env: TEST_TYPE=new_tests_using_expander_linklet
 before_install:
   - while sleep 9m; do printf "\n=====[ $SECONDS seconds still running ]=====\n"; done &
   -  ./travis.sh prepare
