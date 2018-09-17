@@ -1006,7 +1006,7 @@ def read_compiled_linklet(in_port, env, cont):
     written_version = sexp.car().car() # W_Symbol
 
     if written_version.tostring() != current_version:
-        raise SchemeException("versions don't match: need %s but got %s" current_version written_version.tostring())
+        raise SchemeException("versions don't match: need %s but got %s" % (current_version, written_version.tostring()))
 
     data = sexp.cdr().car()
 
