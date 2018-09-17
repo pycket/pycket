@@ -81,6 +81,9 @@ compile-file: pycket-c
 
 compile-racket:
 	./pycket-c --new compile-file-pycket.rkt -- -b
+
+clean-compiled-files:
+	./pycket-c --new compile-file-pycket.rkt -- --clean
 setup:
 	raco pkg install -t dir pycket/pycket-lang/ || \
 	raco pkg update --link pycket/pycket-lang
