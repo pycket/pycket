@@ -60,7 +60,6 @@ def make_pred_eq(name, val):
 
 for args in [
         ("output-port?", values.W_OutputPort),
-        ("input-port?", values.W_Object),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -125,6 +124,11 @@ for args in [
         ("null?", values.w_null),
         ]:
     make_pred_eq(*args)
+
+@expose("input-port?", [values.W_Object], simple=True)
+def input_port_huh(a):
+    retval = isinstance(a, values.W_InputPort) or isinstance(a, values_struct.W_Struct)
+    return values.W_Bool.make(retval)
 
 @expose("datum-intern-literal", [values.W_Object])
 def datum_intern_literal(v):
