@@ -597,7 +597,7 @@ def test_read(doctest):
     > (read s2)
     34
     > (rs "#'()")
-    '(quote-syntax ())
+    '(syntax ())
     > (rs "#`()")
     '(quasisyntax ())
     > (rs "#`(#,x)")

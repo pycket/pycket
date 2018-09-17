@@ -91,7 +91,7 @@ make_special_tokens(
     "quasiquote",
     "unquote",
     "unquote-splicing",
-    "quote-syntax",
+    "syntax",
     "quasisyntax",
     "unsyntax",
     "unsyntax-splicing")
@@ -241,7 +241,7 @@ def read_token(f):
             if c2 == "h" and is_hash_token(f):
                 return HashToken("dummy")
             if c2 == "'":
-                return quote_syntax_token
+                return syntax_token
             if c2 == "`":
                 return quasisyntax_token
             if c2 == ",":
