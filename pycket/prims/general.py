@@ -60,7 +60,7 @@ def make_pred_eq(name, val):
 
 for args in [
         ("output-port?", values.W_OutputPort),
-        ("input-port?", values.W_InputPort),
+        ("input-port?", values.W_Object),
         ("pair?", values.W_Cons),
         ("mpair?", values.W_MCons),
         ("number?", values.W_Number),
@@ -563,15 +563,29 @@ def default_read_handler(ip, src, env, cont):
     else:
         return prim_env[values.W_Symbol.make("read-syntax")].call([ip, src], env, cont)
 
-@expose("port-read-handler", [values.W_InputPort, default(values.W_Procedure, None)])
-def do_port_read_handler(ip, proc):
+@continuation
+def get_read_handler_cont(env, cont, _vals):
+    from pycket.interpreter import check_one_val, return_value
+    ip = check_one_val(_vals)
+    assert isinstance(ip, values.W_InputPort)
+    if ip.get_read_handler():
+        return return_value(ip.get_read_handler(), env, cont)
+    else:
+        return return_value(default_read_handler, env, cont)
 
+@expose("port-read-handler", [values.W_Object, default(values.W_Procedure, None)], simple=False)
+def do_port_read_handler(ip, proc, env, cont):
+    from pycket.interpreter import return_value
+    if not isinstance(ip, values.W_InputPort):
+        assert isinstance(ip, values_struct.W_Struct)
+        st = ip.struct_type()
+        return st.accessor.call([ip, values.W_Fixnum(0)], env, get_read_handler_cont(env, cont))
     if proc is None:
         #get
         if ip.get_read_handler():
-            return ip.get_read_handler()
+            return return_value(ip.get_read_handler(), env, cont)
         else:
-            return default_read_handler
+            return return_value(default_read_handler, env, cont)
     else:
         #set
         if proc is default_read_handler:
@@ -579,7 +593,7 @@ def do_port_read_handler(ip, proc):
         else:
             ip.set_read_handler(proc)
 
-        return values.w_void
+        return return_value(values.w_void, env, cont)
 
 @expose("procedure-arity?", [values.W_Object])
 @jit.unroll_safe

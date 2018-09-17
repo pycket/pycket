@@ -435,7 +435,7 @@ def do_read_one(w_port, as_bytes, peek, env, cont):
         assert len(c) == 1
         return return_value(values.W_Character(c[0]), env, cont)
 
-@expose("read-char-or-special", [values.W_InputPort, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
+@expose("read-char-or-special", [values.W_Object, default(values.W_Object, values.w_false), default(values.W_Object, values.w_false)], simple=False)
 def read_char_or_special(in_port, special_wrap, source_name, env, cont):
     # FIXME: ignoring special values and custom ports for now
 
