@@ -136,10 +136,7 @@ def input_port_huh(a):
         for prop in st.props:
             p, v = prop
             if p is values_struct.w_prop_input_port:
-                in_port_prop = True
-            if p is values_struct.w_prop_output_port:
-                out_port_prop = True
-        return values.W_Bool.make(in_port_prop and out_port_prop)
+                return values.w_true
     return values.w_false
 
 @expose("datum-intern-literal", [values.W_Object])
