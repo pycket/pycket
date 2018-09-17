@@ -127,8 +127,20 @@ for args in [
 
 @expose("input-port?", [values.W_Object], simple=True)
 def input_port_huh(a):
-    retval = isinstance(a, values.W_InputPort) or isinstance(a, values_struct.W_Struct)
-    return values.W_Bool.make(retval)
+    if isinstance(a, values.W_InputPort):
+        return values.w_true
+    elif isinstance(a, values_struct.W_Struct):
+        st = a.struct_type()
+        in_port_prop = False
+        out_port_prop = False
+        for prop in st.props:
+            p, v = prop
+            if p is values_struct.w_prop_input_port:
+                in_port_prop = True
+            if p is values_struct.w_prop_output_port:
+                out_port_prop = True
+        return values.W_Bool.make(in_port_prop and out_port_prop)
+    return values.w_false
 
 @expose("datum-intern-literal", [values.W_Object])
 def datum_intern_literal(v):
